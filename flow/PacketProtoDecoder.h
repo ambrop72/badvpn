@@ -40,7 +40,6 @@
 #include <system/BPending.h>
 
 #define PACKETPROTODECODER_ERROR_TOOLONG 1
-#define PACKETPROTODECODER_ERROR_HEADERPADDING 2
 
 /**
  * Object which decodes a stream according to PacketProto.
@@ -53,8 +52,6 @@
  * Error code is an int which is one of the following:
  *     - PACKETPROTODECODER_ERROR_TOOLONG: the packet header contains
  *       a packet length value which is too big,
- *     - PACKETPROTODECODER_ERROR_HEADERPADDING: packet header padding
- *       is not zero,
  */
 typedef struct {
     DebugObject d_obj;
