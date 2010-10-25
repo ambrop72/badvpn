@@ -1,0 +1,73 @@
+1 Requirements
+
+1.1 Operating system
+
+Linux:
+- kernel version >=2.6.22 (for epoll and signalfd)
+- glibc >=2.8 (for epoll and signalfd)
+- tested on x86, x86_64 and ARM architectures. Not tested on any big-endian architecture.
+
+Windows:
+- Windows XP or newer; tested on Windows XP and Windows 7
+
+Other systems are not supported.
+
+1.2 Compilers
+
+Linux:
+  - gcc
+  - clang
+
+Windows:
+  - gcc from the mingw-w64 project for 32-bit targets
+  - clang, properly built with mingw-w64, using mingw headers/libs
+
+C language features used:
+  - Standard (all part of C99):
+    - designated initializers
+    - variable length arrays as automatic variables
+    - stdint.h, inttypes.h, stddef.h
+    - intermingled declarations and code
+    - for loop initial declaration
+    - one-line "//" comments
+  - Extensions:
+    - statements and declarations in expressions
+    - packed structure attribute (to pack a structure and allow unaligned access)
+    - __alignof__ for querying the required alignment of types
+
+1.3 CMake
+
+The build system uses CMake.
+
+1.4 OpenSSL
+
+Libcrypto (part of OpenSSL) is used for block ciphers, hash functions and random data generation.
+
+1.5 Network Security Services (NSS)
+
+The NSS library from Mozilla is used for TLS support. NSS command-line tools are also needed
+for setting up certificates.
+
+1.6 TAP-Win32 (Windows only) (runtime only)
+
+The TAP-Win32 driver, part of OpenVPN.
+
+2 Compilation
+
+2.1 Compiling on Linux
+
+$ tar xf badvpn-<version>.tar.bz2
+$ mkdir build
+$ cd build
+$ cmake ../badvpn-<version> -DCMAKE_INSTALL_PREFIX=/usr/local
+$ make
+If you want to install it, run as root:
+# make install
+
+2.2 Compiling for Windows
+
+See the file INSTALL-WINDOWS for detailed instructions.
+
+3 Usage
+
+See the documentation in the man pages (badvpn(7), badvpn-server(8), badvpn-client(8)).

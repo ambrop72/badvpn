@@ -1,0 +1,129 @@
+It is possible to compile BadVPN on Windows natively or to cross-compile from Linux
+(but you need Windows to compile NSS).
+
+Here are detailed instructions:
+
+- Get a gcc compiler for compiling 32-bit Windows programs from the mingw-w64 project:
+
+    - If you are compiling BadVPN from Linux:
+
+        Download (for Linux x86_64)
+            http://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win32/Personal%20Builds/sezero_20101003/mingw-w32-bin_x86_64-linux_20101003_sezero.tar.gz/download
+        or (for Linux x86)
+            http://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win32/Personal%20Builds/sezero_20101003/mingw-w32-bin_i686-linux_20101003_sezero.tar.gz/download .
+
+        Extract it to /home/<user>/mingw so that you have /home/<user>/mingw/cross_win32.
+
+    - If you are compiling BadVPN from Windows:
+
+        Download
+            http://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win32/Personal%20Builds/sezero_20101003/mingw-w32-bin_i686-mingw_20101003_sezero.zip/download .
+
+        Extract it to c:\ and rename it from "mingw32" to "mingw" so that you have C:\mingw\bin.
+        Be sure not to overwrite something. It really must be called "mingw" because cmake looks there.
+
+- Create a folder where build dependencies will be stored. Make sure it doesn't have spaces in its path.
+  Call it <root>.
+
+- Build required libraries:
+
+  - OpenSSL:
+    - If you are compiling BadVPN from Linux:
+      (This is for building OpenSSL with GCC. It is also possible to build it with MSVC from Windows; see below.)
+      (This should also work in Windows under Cygwin with the Cygwin build of mingw-w64.)
+
+      Download the OpenSSL source code. Extract it. Open a shell in the source dir. Run:
+
+      $ export PATH="${PATH}":/home/<user>/mingw/cross_win32/bin
+      $ perl Configure mingw --cross-compile-prefix=i686-w64-mingw32- --prefix=/ shared disable-capieng
+      $ make depend
+      $ make
+      $ make INSTALL_PREFIX=<root> install
+
+    - If you are compiling BadVPN from Windows:
+      (This is for building OpenSSL with MSVC. It is also possible to build it with GCC from Linux or Cygwin; see above.)
+
+      - Install "Windows SDK for Windows 7" (unless you have Visual Studio) and install at least the headers,
+        libraries and compilers.
+
+      - Install ActivePerl.
+
+      - Download the OpenSSL source code.
+        Extract is somewhere.
+
+      - Open the SDK terminal (Programs -> Microsoft Windows SDK v7.1 -> Windows SDK 7.1 Command Prompt).
+        Enter the OpenSSL source folder.
+        Run:
+
+        > perl Configure VC-WIN32 --prefix=<root> no-asm
+        > ms\do_ms
+        > nmake -f ms\ntdll.mak
+        > nmake -f ms\ntdll.mak install
+
+  - NSS:
+    - You need to build it from Windows.
+
+    - Install "Windows SDK for Windows 7" (unless you have Visual Studio) and install at least the headers,
+      libraries and compilers.
+
+    - Install MozillaBuild:
+        http://ftp.mozilla.org/pub/mozilla.org/mozilla/libraries/win32/MozillaBuildSetup-Latest.exe .
+
+    - Download the NSS source code that includes NSPR. As of the time of writing the latest version is 3.12.8:
+        https://ftp.mozilla.org/pub/mozilla.org/security/nss/releases/NSS_3_12_8_RTM/src/nss-3.12.8-with-nspr-4.8.6.tar.gz .
+
+      Extract it to c:\ so that you have C:\mozilla .
+
+    - Open the SDK terminal (Programs -> Microsoft Windows SDK v7.1 -> Windows SDK 7.1 Command Prompt) and run:
+
+        > c:\mozilla-build\start-l10n.bat
+
+      A new terminal opens. In that terminal, run:
+      (here paths are written as /driveletter/...)
+
+        $ export OS_TARGET=WINNT
+        $ export BUILD_OPT=1
+        $ cd <nss_source_dir>/mozilla/security/nss
+        $ make nss_build_all
+        $ <badvpn_source_dir>/scripts/copy_nss ../../dist <root>
+
+      If you will be compiling BadVPN from Linux, use an empty folder for <root> in the above command,
+      and copy its contents into <root> on the Linux system.
+
+- Compile it:
+  Choose a folder <dest> where the resulting binaries will be copied.
+
+  - If you are compiling BadVPN from Linux:
+
+    Copy <badvpn_source_dir>/scripts/toolchain.cmake to <root>/toolchain.cmake.
+
+    Copy <badvpn_source_dir>/scripts/cmake to <root>/ .
+    In that file, substitute <root> and <user>.
+
+    Create an empty folder, call it <build>, and open a shell in that folder.
+    Now run:
+
+      $ <root>/cmake <path_to_badvpn_source> -DCMAKE_INSTALL_PREFIX=<dest>
+      $ make
+      $ make install
+      $ cp <root>/bin/*.dll <dest>/bin/
+
+  - If you are compiling BadVPN from Windows:
+
+    Install CMake if you don't have it already. Select the option to include cmake in PATH
+    to avoid having to type a long command.
+
+    Create an empty folder, call it <build>, and open a command prompt in that folder.
+    Now run:
+
+      > cmake <badvpn_source_dir> -G "MinGW Makefiles" -DCMAKE_FIND_ROOT_PATH=<root> -DCMAKE_INSTALL_PREFIX=<dest>
+      > c:\mingw\bin\mingw32-make.exe
+      > c:\mingw\bin\mingw32-make.exe install
+      > copy <root>\bin\*.dll <dest>\bin\
+
+- Test it:
+
+  Execute <dest>\bin\badvpn-server.exe (on Windows or with Wine). It should print something like this and wait forever:
+
+    NOTICE(server): initializing BadVPN server <version>
+    NOTICE(server): entering event loop

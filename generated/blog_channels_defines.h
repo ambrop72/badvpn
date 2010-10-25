@@ -1,0 +1,13 @@
+#define BLOG_CHANNEL_server 0
+#define BLOG_CHANNEL_client 1
+#define BLOG_CHANNEL_StreamPeerIO 2
+#define BLOG_CHANNEL_DatagramPeerIO 3
+#define BLOG_CHANNEL_BReactor 4
+#define BLOG_CHANNEL_BSignal 5
+#define BLOG_CHANNEL_FragmentProtoAssembler 6
+#define BLOG_CHANNEL_BPredicate 7
+#define BLOG_CHANNEL_ServerConnection 8
+#define BLOG_CHANNEL_flooder 9
+#define BLOG_CHANNEL_Listener 10
+#define BLOG_CHANNEL_DataProto 11
+#define BLOG_NUM_CHANNELS 12

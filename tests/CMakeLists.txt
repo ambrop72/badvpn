@@ -1,0 +1,5 @@
+add_executable(chunkbuffer2_test chunkbuffer2_test.c)
+
+add_executable(bproto_test bproto_test.c)
+
+add_executable(bstruct_test bstruct_test.c)

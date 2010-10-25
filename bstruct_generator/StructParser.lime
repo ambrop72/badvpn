@@ -1,0 +1,93 @@
+%class StructParser
+%start file
+
+file =
+    directives structures {
+    $$ = array(
+        "directives" => $1,
+        "structures" => $2
+    );
+}.
+
+directives =
+    {
+        $$ = array();
+    } |
+    directive semicolon directives {
+        $$ = array_merge(array($1), $3);
+    }.
+
+directive =
+    include string {
+        $$ = array(
+            "type" => "include",
+            "file" => $2
+        );
+    }.
+
+structures =
+    structspec {
+        $$ = array($1);
+    } |
+    structspec structures {
+        $$ = array_merge(array($1), $2);
+    }.
+
+structspec =
+    structure name srpar string erpar spar entries epar semicolon {
+    $$ = array(
+        "name" => $2,
+        "parameters" => $4,
+        "entries" => $7
+    );
+}.
+
+entries =
+    entry {
+        $$ = array($1);
+    } |
+    entry entries {
+        $$ = array_merge(array($1), $2);
+    }.
+
+entry =
+    typespec name semicolon {
+        $$ = array(
+            "type" => $1,
+            "name" => $2,
+            "num" => "1"
+        );
+    } |
+    typespec name sbracket string ebracket semicolon {
+        $$ = array(
+            "type" => $1,
+            "name" => $2,
+            "num" => $4
+        );
+    }.
+
+typespec =
+    string {
+        $$ = array(
+            "type" => "sizealign",
+            "ctype" => $1,
+            "size" => "sizeof($1)",
+            "align" => "__alignof__($1)"
+        );
+    } |
+    size string align string {
+        $$ = array(
+            "type" => "sizealign",
+            "ctype" => "void",
+            "size" => $2,
+            "align" => $4
+        );
+    } |
+    structure name srpar string erpar {
+        $$ = array(
+            "type" => "structure",
+            "ctype" => $2,
+            "name" => $2,
+            "parameters" => $4
+        );
+    }.
