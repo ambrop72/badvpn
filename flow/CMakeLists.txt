@@ -26,5 +26,6 @@ add_library(flow
     FragmentProtoAssembler.c
     DataProtoKeepaliveSource.c
     PacketProtoFlow.c
+    SinglePacketSender.c
 )
 target_link_libraries(flow system)

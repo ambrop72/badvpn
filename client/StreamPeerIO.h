@@ -49,8 +49,8 @@
 #include <flow/StreamRecvConnector.h>
 #include <nspr_support/PRStreamSink.h>
 #include <nspr_support/PRStreamSource.h>
-
 #include <client/PasswordListener.h>
+#include <client/PasswordSender.h>
 
 /**
  * Callback function invoked when an error occurs with the peer connection.
@@ -116,8 +116,8 @@ typedef struct {
             CERTCertificate *ssl_cert;
             SECKEYPrivateKey *ssl_key;
             sslsocket sock;
-            uint64_t connecting_password;
-            int connecting_sending_sent;
+            uint64_t password;
+            PasswordSender pwsender;
         } connect;
     };
     

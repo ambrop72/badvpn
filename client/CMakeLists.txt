@@ -4,6 +4,7 @@ add_executable(badvpn-client
     DatagramPeerIO.c
     PasswordListener.c
     DataProto.c
+    PasswordSender.c
 )
 target_link_libraries(badvpn-client system flow tuntap server_conection listener ${LIBCRYPTO_LIBRARIES} ${NSPR_LIBRARIES} ${NSS_LIBRARIES})
 

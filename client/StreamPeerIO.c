@@ -50,7 +50,8 @@
 #define CONNECT_STATE_CONNECTING 0
 #define CONNECT_STATE_HANDSHAKE 1
 #define CONNECT_STATE_SENDING 2
-#define CONNECT_STATE_FINISHED 3
+#define CONNECT_STATE_SENT 3
+#define CONNECT_STATE_FINISHED 4
 
 #define LISTEN_STATE_LISTENER 0
 #define LISTEN_STATE_GOTCLIENT 1
@@ -63,10 +64,7 @@ static SECStatus client_auth_certificate_callback (StreamPeerIO *pio, PRFileDesc
 static SECStatus client_client_auth_data_callback (StreamPeerIO *pio, PRFileDesc *fd, CERTDistNames *caNames, CERTCertificate **pRetCert, SECKEYPrivateKey **pRetKey);
 static void connecting_try_handshake (StreamPeerIO *pio);
 static void connecting_handshake_read_handler (StreamPeerIO *pio, PRInt16 event);
-static void connecting_try_send_ssl (StreamPeerIO *pio);
-static void connecting_try_send_plain (StreamPeerIO *pio);
-static void connecting_socket_write_handler_ssl (StreamPeerIO *pio, PRInt16 event);
-static void connecting_socket_write_handler_plain (StreamPeerIO *pio, int event);
+static void connecting_pwsender_handler (StreamPeerIO *pio, int is_error);
 static void error_handler (StreamPeerIO *pio, int component, const void *data);
 static void listener_handler_client (StreamPeerIO *pio, sslsocket *sock);
 static int init_io (StreamPeerIO *pio, sslsocket *sock);
@@ -136,17 +134,12 @@ void connecting_connect_handler (StreamPeerIO *pio, int event)
         connecting_try_handshake(pio);
         return;
     } else {
-        // add write handler
-        BSocket_AddEventHandler(&pio->connect.sock.sock, BSOCKET_WRITE, (BSocket_handler)connecting_socket_write_handler_plain, pio);
-        
-        // haven't sent anything yet
-        pio->connect.connecting_sending_sent = 0;
+        // init password sender
+        PasswordSender_Init(&pio->connect.pwsender, pio->connect.password, 0, &pio->connect.sock.sock, NULL, (PasswordSender_handler)connecting_pwsender_handler, pio, pio->reactor);
         
         // change state
         pio->connect.state = CONNECT_STATE_SENDING;
         
-        // start sending password
-        connecting_try_send_plain(pio);
         return;
     }
     
@@ -243,17 +236,12 @@ void connecting_try_handshake (StreamPeerIO *pio)
     // remove read handler
     BPRFileDesc_RemoveEventHandler(&pio->connect.sock.ssl_bprfd, PR_POLL_READ);
     
-    // add write handler
-    BPRFileDesc_AddEventHandler(&pio->connect.sock.ssl_bprfd, PR_POLL_WRITE, (BPRFileDesc_handler)connecting_socket_write_handler_ssl, pio);
-    
-    // haven't send anything yet
-    pio->connect.connecting_sending_sent = 0;
+    // init password sender
+    PasswordSender_Init(&pio->connect.pwsender, pio->connect.password, 1, NULL, &pio->connect.sock.ssl_bprfd, (PasswordSender_handler)connecting_pwsender_handler, pio, pio->reactor);
     
     // change state
     pio->connect.state = CONNECT_STATE_SENDING;
     
-    // start sending password
-    connecting_try_send_ssl(pio);
     return;
     
     // cleanup
@@ -270,32 +258,26 @@ void connecting_handshake_read_handler (StreamPeerIO *pio, PRInt16 event)
     return;
 }
 
-void connecting_try_send_ssl (StreamPeerIO *pio)
+static void connecting_pwsender_handler (StreamPeerIO *pio, int is_error)
 {
-    ASSERT(pio->ssl)
     ASSERT(pio->mode == MODE_CONNECT)
     ASSERT(pio->connect.state == CONNECT_STATE_SENDING)
     
-    while (pio->connect.connecting_sending_sent < sizeof(pio->connect.connecting_password)) {
-        PRInt32 sent = PR_Write(
-            pio->connect.sock.ssl_prfd,
-            (uint8_t *)&pio->connect.connecting_password + pio->connect.connecting_sending_sent,
-            sizeof(pio->connect.connecting_password) - pio->connect.connecting_sending_sent
-        );
-        if (sent < 0) {
-            PRErrorCode error = PR_GetError();
-            if (error == PR_WOULD_BLOCK_ERROR) {
-                BPRFileDesc_EnableEvent(&pio->connect.sock.ssl_bprfd, PR_POLL_WRITE);
-                return;
-            }
-            BLog(BLOG_NOTICE, "PR_Write failed (%d)", (int)error);
-            goto fail0;
+    if (is_error) {
+        BLog(BLOG_NOTICE, "error sending password");
+        BLog(BLOG_NOTICE,"BSocket error %d", BSocket_GetError(&pio->connect.sock.sock));
+        if (pio->ssl) {
+            BLog(BLOG_NOTICE, "NSPR error %d", (int)PR_GetError());
         }
-        pio->connect.connecting_sending_sent += sent;
+        
+        goto fail0;
     }
     
-    // remove write handler
-    BPRFileDesc_RemoveEventHandler(&pio->connect.sock.ssl_bprfd, PR_POLL_WRITE);
+    // free password sender
+    PasswordSender_Free(&pio->connect.pwsender);
+    
+    // change state
+    pio->connect.state = CONNECT_STATE_SENT;
     
     // setup i/o
     if (!init_io(pio, &pio->connect.sock)) {
@@ -307,77 +289,10 @@ void connecting_try_send_ssl (StreamPeerIO *pio)
     
     return;
     
-    // cleanup
 fail0:
     reset_state(pio);
     // report error
     pio->handler_error(pio->user);
-    return;
-}
-
-void connecting_try_send_plain (StreamPeerIO *pio)
-{
-    ASSERT(!pio->ssl)
-    ASSERT(pio->mode == MODE_CONNECT)
-    ASSERT(pio->connect.state == CONNECT_STATE_SENDING)
-    
-    while (pio->connect.connecting_sending_sent < sizeof(pio->connect.connecting_password)) {
-        int sent = BSocket_Send(
-            &pio->connect.sock.sock,
-            (uint8_t *)&pio->connect.connecting_password + pio->connect.connecting_sending_sent,
-            sizeof(pio->connect.connecting_password) - pio->connect.connecting_sending_sent
-        );
-        if (sent < 0) {
-            int error = BSocket_GetError(&pio->connect.sock.sock);
-            if (error == BSOCKET_ERROR_LATER) {
-                BSocket_EnableEvent(&pio->connect.sock.sock, BSOCKET_WRITE);
-                return;
-            }
-            BLog(BLOG_NOTICE, "BSocket_Send failed (%d)", error);
-            goto fail0;
-        }
-        pio->connect.connecting_sending_sent += sent;
-    }
-    
-    // remove write event handler
-    BSocket_RemoveEventHandler(&pio->connect.sock.sock, BSOCKET_WRITE);
-    
-    // setup i/o
-    if (!init_io(pio, &pio->connect.sock)) {
-        goto fail0;
-    }
-    
-    // change state
-    pio->connect.state = CONNECT_STATE_FINISHED;
-    
-    return;
-    
-    // cleanup
-fail0:
-    reset_state(pio);
-    // report error
-    pio->handler_error(pio->user);
-    return;
-}
-
-void connecting_socket_write_handler_ssl (StreamPeerIO *pio, PRInt16 event)
-{
-    ASSERT(event == PR_POLL_WRITE)
-    
-    // try to send data
-    connecting_try_send_ssl(pio);
-    return;
-}
-
-void connecting_socket_write_handler_plain (StreamPeerIO *pio, int event)
-{
-    ASSERT(event == BSOCKET_WRITE)
-    
-    // disable write event
-    BSocket_DisableEvent(&pio->connect.sock.sock, BSOCKET_WRITE);
-    
-    // try to send data
-    connecting_try_send_plain(pio);
     return;
 }
 
@@ -639,7 +554,11 @@ void reset_state (StreamPeerIO *pio)
             switch (pio->connect.state) {
                 case CONNECT_STATE_FINISHED:
                     free_io(pio);
+                case CONNECT_STATE_SENT:
                 case CONNECT_STATE_SENDING:
+                    if (pio->connect.state == CONNECT_STATE_SENDING) {
+                        PasswordSender_Free(&pio->connect.pwsender);
+                    }
                 case CONNECT_STATE_HANDSHAKE:
                     if (pio->ssl) {
                         BPRFileDesc_Free(&pio->connect.sock.ssl_bprfd);
@@ -769,7 +688,7 @@ int StreamPeerIO_Connect (StreamPeerIO *pio, BAddr addr, uint64_t password, CERT
         pio->connect.ssl_cert = ssl_cert;
         pio->connect.ssl_key = ssl_key;
     }
-    pio->connect.connecting_password = htol64(password);
+    pio->connect.password = htol64(password);
     
     // set state
     pio->mode = MODE_CONNECT;
