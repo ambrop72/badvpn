@@ -23,3 +23,6 @@ target_link_libraries(bavl_test security)
 
 add_executable(hashtable_bench hashtable_bench.c)
 target_link_libraries(hashtable_bench system security)
+
+add_executable(bencryption_bench bencryption_bench.c)
+target_link_libraries(bencryption_bench system security)
