@@ -25,7 +25,7 @@
 #include <misc/debug.h>
 #include <misc/balign.h>
 #include <misc/byteorder.h>
-#include <security/bhash.h>
+#include <security/BHash.h>
 
 #include <flow/SPProtoDecoder.h>
 

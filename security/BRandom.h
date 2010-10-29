@@ -1,5 +1,5 @@
 /**
- * @file brandom.h
+ * @file BRandom.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -24,14 +24,10 @@
  * Random data generation function.
  */
 
-#ifndef BADVPN_MISC_BRANDOM_H
-#define BADVPN_MISC_BRANDOM_H
+#ifndef BADVPN_SECURITY_BRANDOM_H
+#define BADVPN_SECURITY_BRANDOM_H
 
 #include <stdint.h>
-
-#include <openssl/rand.h>
-
-#include <misc/debug.h>
 
 /**
  * Generates random data.
@@ -39,12 +35,6 @@
  * @param buf buffer to write data into
  * @param len number of bytes to generate. Must be >=0.
  */
-static void brandom_randomize (uint8_t *buf, int len)
-{
-    ASSERT(len >= 0)
-    
-    DEBUG_ZERO_MEMORY(buf, len)
-    ASSERT_FORCE(RAND_bytes(buf, len) == 1)
-}
+void BRandom_randomize (uint8_t *buf, int len);
 
 #endif

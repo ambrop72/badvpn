@@ -45,7 +45,6 @@
 #include <misc/nsskey.h>
 #include <misc/dead.h>
 #include <misc/byteorder.h>
-#include <misc/brandom.h>
 #include <misc/loglevel.h>
 #include <misc/loggers_string.h>
 #include <nspr_support/DummyPRFileDesc.h>
@@ -56,6 +55,7 @@
 #include <system/DebugObject.h>
 #include <system/BAddr.h>
 #include <listener/Listener.h>
+#include <security/BRandom.h>
 
 #ifndef BADVPN_USE_WINAPI
 #include <system/BLog_syslog.h>
@@ -479,7 +479,7 @@ int main (int argc, char *argv[])
     LinkedList2_Init(&clients);
     
     // initialize clients-by-id hash table
-    brandom_randomize((uint8_t *)&clients_by_id_initval, sizeof(clients_by_id_initval));
+    BRandom_randomize((uint8_t *)&clients_by_id_initval, sizeof(clients_by_id_initval));
     if (!HashTable_Init(
         &clients_by_id,
         OFFSET_DIFF(struct client_data, id, table_node_id),

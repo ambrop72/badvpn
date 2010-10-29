@@ -25,9 +25,9 @@
 
 #include <misc/debug.h>
 #include <misc/balign.h>
-#include <misc/brandom.h>
 #include <misc/offset.h>
-#include <security/bhash.h>
+#include <security/BRandom.h>
+#include <security/BHash.h>
 
 #include <flow/SPProtoEncoder.h>
 
@@ -88,7 +88,7 @@ static int encode_packet (SPProtoEncoder *o)
             plaintext[i] = 0;
         }
         // generate IV
-        brandom_randomize(o->out, o->group->enc_block_size);
+        BRandom_randomize(o->out, o->group->enc_block_size);
         // copy IV because BEncryption_Encrypt changes the IV
         uint8_t iv[o->group->enc_block_size];
         memcpy(iv, o->out, o->group->enc_block_size);

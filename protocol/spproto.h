@@ -54,7 +54,7 @@
 
 #include <misc/debug.h>
 #include <misc/balign.h>
-#include <security/bhash.h>
+#include <security/BHash.h>
 #include <security/BEncryption.h>
 #include <security/OTPCalculator.h>
 

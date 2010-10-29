@@ -23,10 +23,10 @@
 #include <stdlib.h>
 
 #include <misc/offset.h>
-#include <misc/brandom.h>
 #include <misc/debug.h>
 #include <misc/jenkins_hash.h>
 #include <structure/HashTable.h>
+#include <security/BRandom.h>
 
 struct mynode {
     int used;
@@ -86,7 +86,7 @@ int main (int argc, char **argv)
     }
     
     printf("Inserting random values...\n");
-    brandom_randomize((uint8_t *)values_ins, num_nodes * sizeof(int));
+    BRandom_randomize((uint8_t *)values_ins, num_nodes * sizeof(int));
     for (int i = 0; i < num_nodes; i++) {
         nodes[i].num = values_ins[i];
         if (HashTable_Insert(&ht, &nodes[i].hash_node)) {
@@ -99,7 +99,7 @@ int main (int argc, char **argv)
     
     printf("Removing random entries...\n");
     int removed = 0;
-    brandom_randomize((uint8_t *)values, num_random_delete * sizeof(int));
+    BRandom_randomize((uint8_t *)values, num_random_delete * sizeof(int));
     for (int i = 0; i < num_random_delete; i++) {
         int index = (((unsigned int *)values)[i] % num_nodes);
         struct mynode *node = nodes + index;

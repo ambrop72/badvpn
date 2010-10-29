@@ -28,4 +28,4 @@ add_library(flow
     PacketProtoFlow.c
     SinglePacketSender.c
 )
-target_link_libraries(flow system)
+target_link_libraries(flow system security)

@@ -21,8 +21,8 @@
  */
 
 #include <misc/offset.h>
-#include <misc/brandom.h>
 #include <structure/BHeap.h>
+#include <security/BRandom.h>
 
 struct mynode {
     int used;
@@ -99,7 +99,7 @@ int main (int argc, char **argv)
     //print_heap(&heap);
     
     printf("Removing random entries...\n");
-    brandom_randomize((uint8_t *)values, num_random_delete * sizeof(int));
+    BRandom_randomize((uint8_t *)values, num_random_delete * sizeof(int));
     for (int i = 0; i < num_random_delete; i++) {
         int index = (((unsigned int *)values)[i] % num_nodes);
         struct mynode *node = nodes + index;

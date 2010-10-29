@@ -25,7 +25,7 @@
 
 #include <stdio.h>
 
-#include <misc/brandom.h>
+#include <security/BRandom.h>
 #include <system/BReactor.h>
 #include <flow/PacketPassInterface.h>
 
@@ -41,7 +41,7 @@ static int _RandomPacketSink_input_handler_send (RandomPacketSink *s, uint8_t *d
     fwrite(data, data_len, 1, stdout);
     
     uint8_t r;
-    brandom_randomize(&r, sizeof(r));
+    BRandom_randomize(&r, sizeof(r));
     if (r&(uint8_t)1) {
         printf("' accepting\n");
         return 1;

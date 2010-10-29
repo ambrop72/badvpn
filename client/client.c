@@ -37,11 +37,11 @@
 #include <misc/ipv4_proto.h>
 #include <misc/igmp_proto.h>
 #include <misc/nsskey.h>
-#include <misc/brandom.h>
 #include <misc/loglevel.h>
 #include <misc/dead.h>
 #include <misc/loggers_string.h>
 #include <structure/LinkedList2.h>
+#include <security/BRandom.h>
 #include <nspr_support/DummyPRFileDesc.h>
 #include <nspr_support/BSocketPRFileDesc.h>
 #include <system/BLog.h>
@@ -574,7 +574,7 @@ int main (int argc, char *argv[])
     num_peers = 0;
     
     // init peers by ID hash table
-    brandom_randomize((uint8_t *)&peers_by_id_initval, sizeof(peers_by_id_initval));
+    BRandom_randomize((uint8_t *)&peers_by_id_initval, sizeof(peers_by_id_initval));
     if (!HashTable_Init(
         &peers_by_id,
         OFFSET_DIFF(struct peer_data, id, table_node),
@@ -587,7 +587,7 @@ int main (int argc, char *argv[])
     }
     
     // init MAC address table
-    brandom_randomize((uint8_t *)&mac_table_initval, sizeof(mac_table_initval));
+    BRandom_randomize((uint8_t *)&mac_table_initval, sizeof(mac_table_initval));
     if (!HashTable_Init(
         &mac_table,
         OFFSET_DIFF(struct mac_table_entry, mac, table_node),
@@ -600,7 +600,7 @@ int main (int argc, char *argv[])
     }
     
     // init multicast MAC address table
-    brandom_randomize((uint8_t *)&multicast_table_initval, sizeof(multicast_table_initval));
+    BRandom_randomize((uint8_t *)&multicast_table_initval, sizeof(multicast_table_initval));
     if (!HashTable_Init(
         &multicast_table,
         OFFSET_DIFF(struct multicast_table_entry, sig, table_node),
@@ -2712,7 +2712,7 @@ int peer_udp_bind (struct peer_data *peer, int addr_index)
     
     // generate and set encryption key
     if (SPPROTO_HAVE_ENCRYPTION(sp_params)) {
-        brandom_randomize(key, sizeof(key));
+        BRandom_randomize(key, sizeof(key));
         DatagramPeerIO_SetEncryptionKey(&peer->pio.udp.pio, key);
     }
     
@@ -2982,8 +2982,8 @@ int peer_udp_send_seed (struct peer_data *peer)
     
     // generate seed
     peer->pio.udp.sendseed_sent_id = peer->pio.udp.sendseed_nextid;
-    brandom_randomize(peer->pio.udp.sendseed_sent_key, key_len);
-    brandom_randomize(peer->pio.udp.sendseed_sent_iv, iv_len);
+    BRandom_randomize(peer->pio.udp.sendseed_sent_key, key_len);
+    BRandom_randomize(peer->pio.udp.sendseed_sent_iv, iv_len);
     
     // set as sent, increment next seed ID
     peer->pio.udp.sendseed_sent = 1;
