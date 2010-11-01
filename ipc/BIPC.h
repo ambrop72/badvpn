@@ -25,16 +25,16 @@
  * Uses unix sockets on *nix systems, and named pipes on Windows.
  */
 
-#ifndef BADVPN_SYSTEM_BIPC_H
-#define BADVPN_SYSTEM_BIPC_H
+#ifndef BADVPN_IPC_BIPC_H
+#define BADVPN_IPC_BIPC_H
 
 #include <misc/debug.h>
 #include <misc/dead.h>
 #include <system/BSocket.h>
 #include <system/DebugObject.h>
-#include <system/BIPCServer.h>
 #include <flow/SeqPacketSocketSink.h>
 #include <flow/SeqPacketSocketSource.h>
+#include <ipc/BIPCServer.h>
 
 /**
  * Handler function called when an error occurs.

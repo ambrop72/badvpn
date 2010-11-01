@@ -20,7 +20,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <system/BIPCServer.h>
+#include <ipc/BIPCServer.h>
 
 static void listener_handler (BIPCServer *o)
 {

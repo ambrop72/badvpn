@@ -25,8 +25,8 @@
  * message-oriented two-way IPC.
  */
 
-#ifndef BADVPN_SYSTEM_BIPCSERVER_H
-#define BADVPN_SYSTEM_BIPCSERVER_H
+#ifndef BADVPN_IPC_BIPCSERVER_H
+#define BADVPN_IPC_BIPCSERVER_H
 
 #include <misc/debug.h>
 #include <misc/dead.h>

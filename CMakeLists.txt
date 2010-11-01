@@ -82,6 +82,7 @@ add_subdirectory(predicate)
 add_subdirectory(nspr_support)
 add_subdirectory(server_connection)
 add_subdirectory(security)
+add_subdirectory(ipc)
 
 # example programs
 add_subdirectory(examples)

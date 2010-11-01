@@ -7,8 +7,6 @@ set(BSYSTEM_ADDITIONAL_SOURCES)
 if (NOT WIN32)
     list(APPEND BSYSTEM_ADDITIONAL_SOURCES
         BLog_syslog.c
-        BIPC.c
-        BIPCServer.c
     )
 endif ()
 

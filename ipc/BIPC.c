@@ -20,7 +20,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <system/BIPC.h>
+#include <ipc/BIPC.h>
 
 #define COMPONENT_SOURCE 1
 #define COMPONENT_SINK 2
