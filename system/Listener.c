@@ -45,8 +45,8 @@ static void socket_handler (Listener *o, int event)
     
     // if there was no attempt to accept, do it now, discarding the client
     if (!o->accepted) {
-        if (BSocket_Accept(&o->sock, NULL, NULL) < 0) {
-            BLog(BLOG_ERROR, "BSocket_Accept failed (%d)", BSocket_GetError(&o->sock));
+        if (BSocket_Accept(o->sock, NULL, NULL) < 0) {
+            BLog(BLOG_ERROR, "BSocket_Accept failed (%d)", BSocket_GetError(o->sock));
         }
     }
 }
@@ -63,27 +63,33 @@ int Listener_Init (Listener *o, BReactor *reactor, BAddr addr, Listener_handler 
     // init dead var
     DEAD_INIT(o->dead);
     
+    // set not existing
+    o->existing = 0;
+    
     // create socket
-    if (BSocket_Init(&o->sock, o->reactor, addr.type, BSOCKET_TYPE_STREAM) < 0) {
+    if (BSocket_Init(&o->our_sock, o->reactor, addr.type, BSOCKET_TYPE_STREAM) < 0) {
         BLog(BLOG_ERROR, "BSocket_Init failed");
         goto fail0;
     }
     
+    // set socket
+    o->sock = &o->our_sock;
+    
     // bind socket
-    if (BSocket_Bind(&o->sock, &addr) < 0) {
-        BLog(BLOG_ERROR, "BSocket_Bind failed (%d)", BSocket_GetError(&o->sock));
+    if (BSocket_Bind(o->sock, &addr) < 0) {
+        BLog(BLOG_ERROR, "BSocket_Bind failed (%d)", BSocket_GetError(o->sock));
         goto fail1;
     }
     
     // listen socket
-    if (BSocket_Listen(&o->sock, -1) < 0) {
-        BLog(BLOG_ERROR, "BSocket_Listen failed (%d)", BSocket_GetError(&o->sock));
+    if (BSocket_Listen(o->sock, -1) < 0) {
+        BLog(BLOG_ERROR, "BSocket_Listen failed (%d)", BSocket_GetError(o->sock));
         goto fail1;
     }
     
     // register socket event handler
-    BSocket_AddEventHandler(&o->sock, BSOCKET_ACCEPT, (BSocket_handler)socket_handler, o);
-    BSocket_EnableEvent(&o->sock, BSOCKET_ACCEPT);
+    BSocket_AddEventHandler(o->sock, BSOCKET_ACCEPT, (BSocket_handler)socket_handler, o);
+    BSocket_EnableEvent(o->sock, BSOCKET_ACCEPT);
     
     // init debug in handler
     DebugIn_Init(&o->d_in_handler);
@@ -94,9 +100,34 @@ int Listener_Init (Listener *o, BReactor *reactor, BAddr addr, Listener_handler 
     return 1;
     
 fail1:
-    BSocket_Free(&o->sock);
+    BSocket_Free(&o->our_sock);
 fail0:
     return 0;
+}
+
+void Listener_InitExisting (Listener *o, BReactor *reactor, BSocket *sock, Listener_handler handler, void *user)
+{
+    // init arguments
+    o->reactor = reactor;
+    o->handler = handler;
+    o->user = user;
+    o->sock = sock;
+    
+    // init dead var
+    DEAD_INIT(o->dead);
+    
+    // set existing
+    o->existing = 1;
+    
+    // register socket event handler
+    BSocket_AddEventHandler(o->sock, BSOCKET_ACCEPT, (BSocket_handler)socket_handler, o);
+    BSocket_EnableEvent(o->sock, BSOCKET_ACCEPT);
+    
+    // init debug in handler
+    DebugIn_Init(&o->d_in_handler);
+    
+    // init debug object
+    DebugObject_Init(&o->d_obj);
 }
 
 void Listener_Free (Listener *o)
@@ -104,8 +135,10 @@ void Listener_Free (Listener *o)
     // free debug object
     DebugObject_Free(&o->d_obj);
     
-    // free socket
-    BSocket_Free(&o->sock);
+    if (!o->existing) {
+        // free socket
+        BSocket_Free(&o->our_sock);
+    }
     
     // free dead var
     DEAD_KILL(o->dead);
@@ -118,8 +151,8 @@ int Listener_Accept (Listener *o, BSocket *sockout, BAddr *addrout)
     
     o->accepted = 1;
     
-    if (BSocket_Accept(&o->sock, sockout, addrout) < 0) {
-        BLog(BLOG_ERROR, "BSocket_Accept failed (%d)", BSocket_GetError(&o->sock));
+    if (BSocket_Accept(o->sock, sockout, addrout) < 0) {
+        BLog(BLOG_ERROR, "BSocket_Accept failed (%d)", BSocket_GetError(o->sock));
         return 0;
     }
     

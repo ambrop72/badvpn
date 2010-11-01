@@ -50,7 +50,9 @@ typedef void (*Listener_handler) (void *user);
 typedef struct {
     dead_t dead;
     BReactor *reactor;
-    BSocket sock;
+    int existing;
+    BSocket our_sock;
+    BSocket *sock;
     Listener_handler handler;
     void *user;
     int accepted;
@@ -69,6 +71,19 @@ typedef struct {
  * @return 1 on success, 0 on failure
  */
 int Listener_Init (Listener *o, BReactor *reactor, BAddr addr, Listener_handler handler, void *user) WARN_UNUSED;
+
+/**
+ * Initializes the object for listening on an existing socket.
+ * The socket should be already bound and listened.
+ * 
+ * @param o the object
+ * @param reactor reactor we live in
+ * @param sock socket to listen on
+ * @param handler handler function called when a connection should be accepted
+ * @param user value to pass to handler function
+ * @return 1 on success, 0 on failure
+ */
+void Listener_InitExisting (Listener *o, BReactor *reactor, BSocket *sock, Listener_handler handler, void *user);
 
 /**
  * Frees the object.
