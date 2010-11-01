@@ -55,7 +55,7 @@ int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, int recv_mtu, BIP
     DEAD_INIT(o->dead);
     
     // init socket
-    if (BSocket_Init(&o->sock, reactor, BADDR_TYPE_UNIX, BSOCKET_TYPE_SEQPACKET) < 0) {
+    if (BSocket_Init(&o->sock, reactor, BADDR_TYPE_UNIX, BSOCKET_TYPE_DGRAM) < 0) {
         DEBUG("BSocket_Init failed");
         goto fail0;
     }

@@ -28,6 +28,11 @@
 #ifndef BADVPN_SYSTEM_BSOCKET_H
 #define BADVPN_SYSTEM_BSOCKET_H
 
+#ifdef BADVPN_USE_WINAPI
+#include <winsock2.h>
+#include <misc/mswsock.h>
+#endif
+
 #include <misc/dead.h>
 #include <misc/debug.h>
 #include <system/BAddr.h>
@@ -51,7 +56,6 @@
 // socket types
 #define BSOCKET_TYPE_STREAM 1
 #define BSOCKET_TYPE_DGRAM 2
-#define BSOCKET_TYPE_SEQPACKET 3
 
 // socket events
 #define BSOCKET_READ 1
@@ -84,7 +88,6 @@ typedef struct BSocket_t {
     int type;
     int domain;
     int socket;
-    int have_pktinfo;
     int error;
     BSocket_handler global_handler;
     void *global_handler_user;
@@ -99,6 +102,8 @@ typedef struct BSocket_t {
     #ifdef BADVPN_USE_WINAPI
     WSAEVENT event;
     BHandle bhandle;
+    LPFN_WSASENDMSG WSASendMsg;
+    LPFN_WSARECVMSG WSARecvMsg;
     #else
     BFileDescriptor fd;
     #endif
@@ -119,8 +124,7 @@ int BSocket_GlobalInit (void) WARN_UNUSED;
  * @param bsys {@link BReactor} to operate in
  * @param domain domain (same as address type). Must be one of BADDR_TYPE_IPV4, BADDR_TYPE_IPV6
  *               and BADDR_TYPE_UNIX (non-Windows only).
- * @param type socket type. Must be one of BSOCKET_TYPE_STREAM, BSOCKET_TYPE_DGRAM and
- *             BSOCKET_TYPE_SEQPACKET.
+ * @param type socket type. Must be one of BSOCKET_TYPE_STREAM and BSOCKET_TYPE_DGRAM.
  * @return 0 for success,
  *         -1 for failure
  */
@@ -304,7 +308,7 @@ int BSocket_Listen (BSocket *bs, int backlog) WARN_UNUSED;
 int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr) WARN_UNUSED;
 
 /**
- * Sends data on a socket.
+ * Sends data on a stream socket.
  *
  * @param bs the object
  * @param data buffer to read data from
@@ -320,7 +324,7 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr) WARN_UNUSED;
 int BSocket_Send (BSocket *bs, uint8_t *data, int len) WARN_UNUSED;
 
 /**
- * Receives data on a socket.
+ * Receives data on a stream socket.
  *
  * @param bs the object
  * @param data buffer to write data to
@@ -335,42 +339,6 @@ int BSocket_Send (BSocket *bs, uint8_t *data, int len) WARN_UNUSED;
  *             - BSOCKET_ERROR_UNKNOWN unhandled error
  */
 int BSocket_Recv (BSocket *bs, uint8_t *data, int len) WARN_UNUSED;
-
-/**
- * Sends a datagram on a datagram socket to the specified address.
- *
- * @param bs the object
- * @param data buffer to read data from
- * @param len amount of data. Must be >=0.
- * @param addr remote address. Must be valid.
- * @return non-negative value for amount of data sent,
- *         -1 for failure, where the error code can be:
- *             - BSOCKET_ERROR_LATER no data can be sent at the moment
- *             - BSOCKET_ERROR_CONNECTION_REFUSED the remote host refused to allow the network connection.
- *                   For UDP sockets, this means the remote sent an ICMP Port Unreachable packet.
- *             - BSOCKET_ERROR_CONNECTION_RESET connection was reset by the remote peer
- *             - BSOCKET_ERROR_UNKNOWN unhandled error
- */
-int BSocket_SendTo (BSocket *bs, uint8_t *data, int len, BAddr *addr) WARN_UNUSED;
-
-/**
- * Receives a datagram on a datagram socket and returns the sender address.
- *
- * @param bs the object
- * @param data buffer to write data to
- * @param len maximum amount of data to read. Must be >=0.
- * @param addr the sender address will be stored here on success. Must not be NULL.
- *             The returned address may be an invalid address.
- * @return - non-negative value for amount of data read; on stream sockets the value 0
- *           means that the peer has shutdown the connection gracefully
- *         - -1 for failure, where the error code can be:
- *             - BSOCKET_ERROR_LATER no data can be read at the moment
- *             - BSOCKET_ERROR_CONNECTION_REFUSED a remote host refused to allow the network connection.
- *                   For UDP sockets, this means the remote sent an ICMP Port Unreachable packet.
- *             - BSOCKET_ERROR_CONNECTION_RESET connection was reset by the remote peer
- *             - BSOCKET_ERROR_UNKNOWN unhandled error
- */
-int BSocket_RecvFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr) WARN_UNUSED;
 
 /**
  * Sends a datagram on a datagram socket to the specified address

@@ -20,10 +20,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef BADVPN_USE_WINAPI
-#include <winsock2.h>
-#include <misc/mswsock.h>
-#else
+#ifndef BADVPN_USE_WINAPI
 #define _GNU_SOURCE
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -454,27 +451,47 @@ static int limit_recv (BSocket *bs)
     return 0;
 }
 
-static void setup_pktinfo (BSocket *bs)
+static int setup_pktinfo (int socket, int type, int domain)
 {
-    int have_pktinfo = 0;
-    if (bs->type == BSOCKET_TYPE_DGRAM) {
-        int need = 1;
-        switch (bs->domain) {
+    if (type == BSOCKET_TYPE_DGRAM) {
+        switch (domain) {
             case BADDR_TYPE_IPV4:
-                have_pktinfo = (set_pktinfo(bs->socket) == 0);
+                if (set_pktinfo(socket) == 0) {
+                    return 0;
+                }
                 break;
             case BADDR_TYPE_IPV6:
-                have_pktinfo = (set_pktinfo6(bs->socket) == 0);
+                if (set_pktinfo6(socket) == 0) {
+                    return 0;
+                }
                 break;
-            default:
-                need = 0;
-        }
-        if (need && !have_pktinfo) {
-            DEBUG("WARNING: no pktinfo");
         }
     }
     
-    bs->have_pktinfo = have_pktinfo;
+    return 1;
+}
+
+static int setup_winsock_exts (int socket, BSocket *bs)
+{
+    #ifdef BADVPN_USE_WINAPI
+    
+    DWORD out_bytes;
+    
+    // obtain WSASendMsg
+    GUID guid_send = WSAID_WSASENDMSG;
+    if (WSAIoctl(socket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid_send, sizeof(guid_send), &bs->WSASendMsg, sizeof(bs->WSASendMsg), &out_bytes, NULL, NULL) != 0) {
+        return 0;
+    }
+    
+    // obtain WSARecvMsg
+    GUID guid_recv = WSAID_WSARECVMSG;
+    if (WSAIoctl(socket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid_recv, sizeof(guid_recv), &bs->WSARecvMsg, sizeof(bs->WSARecvMsg), &out_bytes, NULL, NULL) != 0) {
+        return 0;
+    }
+    
+    #endif
+    
+    return 1;
 }
 
 int BSocket_GlobalInit (void)
@@ -534,9 +551,6 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
         case BSOCKET_TYPE_DGRAM:
             sys_type = SOCK_DGRAM;
             break;
-        case BSOCKET_TYPE_SEQPACKET:
-            sys_type = SOCK_SEQPACKET;
-            break;
         default:
             ASSERT(0)
             return -1;
@@ -555,13 +569,23 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
         goto fail1;
     }
     
-    // initialize variables
+    // set pktinfo if needed
+    if (!setup_pktinfo(fd, type, domain)) {
+        DEBUG("setup_pktinfo failed");
+        goto fail1;
+    }
+    
+    // setup winsock exts
+    if (!setup_winsock_exts(fd, bs)) {
+        DEBUG("setup_winsock_exts failed");
+        goto fail1;
+    }
+    
     DEAD_INIT(bs->dead);
     bs->bsys = bsys;
     bs->type = type;
     bs->domain = domain;
     bs->socket = fd;
-    setup_pktinfo(bs);
     bs->error = BSOCKET_ERROR_NONE;
     init_handlers(bs);
     bs->waitEvents = 0;
@@ -874,12 +898,23 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
             goto fail0;
         }
         
+        // set pktinfo if needed
+        if (!setup_pktinfo(fd, bs->type, bs->domain)) {
+            DEBUG("setup_pktinfo failed");
+            goto fail0;
+        }
+        
+        // setup winsock exts
+        if (!setup_winsock_exts(fd, newsock)) {
+            DEBUG("setup_winsock_exts failed");
+            goto fail0;
+        }
+        
         DEAD_INIT(newsock->dead);
         newsock->bsys = bs->bsys;
         newsock->type = bs->type;
         newsock->domain = bs->domain;
         newsock->socket = fd;
-        setup_pktinfo(newsock);
         newsock->error = BSOCKET_ERROR_NONE;
         init_handlers(newsock);
         newsock->waitEvents = 0;
@@ -985,114 +1020,12 @@ int BSocket_Recv (BSocket *bs, uint8_t *data, int len)
     return bytes;
 }
 
-int BSocket_SendTo (BSocket *bs, uint8_t *data, int len, BAddr *addr)
-{
-    ASSERT(len >= 0)
-    ASSERT(addr)
-    ASSERT(!BAddr_IsInvalid(addr))
-    
-    struct sys_addr remote_sysaddr;
-    addr_socket_to_sys(&remote_sysaddr, addr);
-    
-    #ifdef BADVPN_USE_WINAPI
-    int flags = 0;
-    #else
-    int flags = MSG_NOSIGNAL;
-    #endif
-    
-    int bytes = sendto(bs->socket, data, len, flags, &remote_sysaddr.addr.generic, remote_sysaddr.len);
-    if (bytes < 0) {
-        int error;
-        #ifdef BADVPN_USE_WINAPI
-        switch ((error = WSAGetLastError())) {
-            case WSAEWOULDBLOCK:
-                bs->error = BSOCKET_ERROR_LATER;
-                return -1;
-        }
-        #else
-        switch ((error = errno)) {
-            case EAGAIN:
-            #if EAGAIN != EWOULDBLOCK
-            case EWOULDBLOCK:
-            #endif
-                bs->error = BSOCKET_ERROR_LATER;
-                return -1;
-        }
-        #endif
-        
-        bs->error = translate_error(error);
-        return -1;
-    }
-
-    bs->error = BSOCKET_ERROR_NONE;
-    return bytes;
-}
-
-int BSocket_RecvFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr)
-{
-    ASSERT(len >= 0)
-    ASSERT(addr)
-    
-    if (limit_recv(bs)) {
-        bs->error = BSOCKET_ERROR_LATER;
-        return -1;
-    }
-    
-    struct sys_addr remote_sysaddr;
-    remote_sysaddr.len = sizeof(remote_sysaddr.addr);
-    
-    int bytes = recvfrom(bs->socket, data, len, 0, &remote_sysaddr.addr.generic, &remote_sysaddr.len);
-    if (bytes < 0) {
-        int error;
-        #ifdef BADVPN_USE_WINAPI
-        switch ((error = WSAGetLastError())) {
-            case WSAEWOULDBLOCK:
-                bs->error = BSOCKET_ERROR_LATER;
-                return -1;
-        }
-        #else
-        switch ((error = errno)) {
-            case EAGAIN:
-            #if EAGAIN != EWOULDBLOCK
-            case EWOULDBLOCK:
-            #endif
-                bs->error = BSOCKET_ERROR_LATER;
-                return -1;
-        }
-        #endif
-        
-        bs->error = translate_error(error);
-        return -1;
-    }
-    
-    addr_sys_to_socket(addr, &remote_sysaddr);
-    
-    bs->error = BSOCKET_ERROR_NONE;
-    return bytes;
-}
-
 int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAddr *local_addr)
 {
     ASSERT(len >= 0)
     ASSERT(addr)
     ASSERT(!BAddr_IsInvalid(addr))
     ASSERT(local_addr)
-    
-    if (!bs->have_pktinfo) {
-        return BSocket_SendTo(bs, data, len, addr);
-    }
-    
-    #ifdef BADVPN_USE_WINAPI
-    
-    // obtain WSASendMsg
-    GUID guid = WSAID_WSASENDMSG;
-    LPFN_WSASENDMSG WSASendMsg;
-    DWORD out_bytes;
-    if (WSAIoctl(bs->socket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &WSASendMsg, sizeof(WSASendMsg), &out_bytes, NULL, NULL) != 0) {
-        return BSocket_SendTo(bs, data, len, addr);
-    }
-    
-    #endif
     
     struct sys_addr remote_sysaddr;
     addr_socket_to_sys(&remote_sysaddr, addr);
@@ -1149,7 +1082,7 @@ int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
     msg.Control.len = sum;
     
     DWORD bytes;
-    if (WSASendMsg(bs->socket, &msg, 0, &bytes, NULL, NULL) != 0) {
+    if (bs->WSASendMsg(bs->socket, &msg, 0, &bytes, NULL, NULL) != 0) {
         int error;
         switch ((error = WSAGetLastError())) {
             case WSAEWOULDBLOCK:
@@ -1234,36 +1167,11 @@ int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
     return bytes;
 }
 
-static int recvfromto_fallback (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAddr *local_addr)
-{
-    int res = BSocket_RecvFrom(bs, data, len, addr);
-    if (res >= 0) {
-        BIPAddr_InitInvalid(local_addr);
-    }
-    return res;
-}
-
 int BSocket_RecvFromTo (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAddr *local_addr)
 {
     ASSERT(len >= 0)
     ASSERT(addr)
     ASSERT(local_addr)
-    
-    if (!bs->have_pktinfo) {
-        return recvfromto_fallback(bs, data, len, addr, local_addr);
-    }
-    
-    #ifdef BADVPN_USE_WINAPI
-    
-    // obtain WSARecvMsg
-    GUID guid = WSAID_WSARECVMSG;
-    LPFN_WSARECVMSG WSARecvMsg;
-    DWORD out_bytes;
-    if (WSAIoctl(bs->socket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &WSARecvMsg, sizeof(WSARecvMsg), &out_bytes, NULL, NULL) != 0) {
-        return recvfromto_fallback(bs, data, len, addr, local_addr);
-    }
-    
-    #endif
     
     if (limit_recv(bs)) {
         bs->error = BSOCKET_ERROR_LATER;
@@ -1294,7 +1202,7 @@ int BSocket_RecvFromTo (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
     msg.Control.len = sizeof(cdata);
     
     DWORD bytes;
-    if (WSARecvMsg(bs->socket, &msg, &bytes, NULL, NULL) != 0) {
+    if (bs->WSARecvMsg(bs->socket, &msg, &bytes, NULL, NULL) != 0) {
         int error;
         switch ((error = WSAGetLastError())) {
             case WSAEWOULDBLOCK:
