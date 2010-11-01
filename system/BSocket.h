@@ -45,10 +45,13 @@
 #define BSOCKET_ERROR_CONNECTION_REFUSED 7
 #define BSOCKET_ERROR_CONNECTION_TIMED_OUT 8
 #define BSOCKET_ERROR_CONNECTION_RESET 9
+#define BSOCKET_ERROR_NETWORK_UNREACHABLE 10
+#define BSOCKET_ERROR_NO_MEMORY 11
 
 // socket types
 #define BSOCKET_TYPE_STREAM 1
 #define BSOCKET_TYPE_DGRAM 2
+#define BSOCKET_TYPE_SEQPACKET 3
 
 // socket events
 #define BSOCKET_READ 1
@@ -79,6 +82,7 @@ typedef struct BSocket_t {
     dead_t dead;
     BReactor *bsys;
     int type;
+    int domain;
     int socket;
     int have_pktinfo;
     int error;
@@ -113,8 +117,10 @@ int BSocket_GlobalInit (void) WARN_UNUSED;
  *
  * @param bs the object
  * @param bsys {@link BReactor} to operate in
- * @param domain domain, same as address type, must be one of BADDR_TYPE_IPV4 and BADDR_TYPE_IPV6
- * @param type socket type, must be one of BSOCKET_TYPE_STREAM and BSOCKET_TYPE_DGRAM
+ * @param domain domain (same as address type). Must be one of BADDR_TYPE_IPV4, BADDR_TYPE_IPV6
+ *               and BADDR_TYPE_UNIX (non-Windows only).
+ * @param type socket type. Must be one of BSOCKET_TYPE_STREAM, BSOCKET_TYPE_DGRAM and
+ *             BSOCKET_TYPE_SEQPACKET.
  * @return 0 for success,
  *         -1 for failure
  */
@@ -232,7 +238,7 @@ void BSocket_DisableEvent (BSocket *bs, uint8_t event);
  * An associated address can be removed by specifying a BADDR_TYPE_NONE address.
  *
  * @param bs the object
- * @param addr remote address.
+ * @param addr remote address. Must not be an invalid address.
  * @return 0 for immediate success,
  *         -1 for failure, where the error code can be:
  *             - BSOCKET_ERROR_IN_PROGRESS the socket is a stream socket and the connection attempt has started.
@@ -259,7 +265,7 @@ int BSocket_GetConnectResult (BSocket *bs);
  * Binds the socket to the specified address.
  *
  * @param bs the object
- * @param addr local address. Must not be invalid.
+ * @param addr local address. Must not be an invalid address.
  * @return 0 for success,
  *         -1 for failure, where the error code can be:
  *             - BSOCKET_ERROR_ADDRESS_NOT_AVAILABLE the address is not a local address
@@ -288,7 +294,8 @@ int BSocket_Listen (BSocket *bs, int backlog) WARN_UNUSED;
  * @param bs the object
  * @param newsock on success, the new socket will be stored here. If it is NULL and a connection
  *                was accepted, it is closed immediately (but the function succeeds).
- * @param addr if not NULL, the client address will be stored here on success
+ * @param addr if not NULL, the client address will be stored here on success.
+ *             The returned address may be an invalid address.
  * @return 0 for success,
  *         -1 for failure, where the error code can be:
  *             - BSOCKET_ERROR_LATER a connection cannot be accepted at the moment
@@ -353,6 +360,7 @@ int BSocket_SendTo (BSocket *bs, uint8_t *data, int len, BAddr *addr) WARN_UNUSE
  * @param data buffer to write data to
  * @param len maximum amount of data to read. Must be >=0.
  * @param addr the sender address will be stored here on success. Must not be NULL.
+ *             The returned address may be an invalid address.
  * @return - non-negative value for amount of data read; on stream sockets the value 0
  *           means that the peer has shutdown the connection gracefully
  *         - -1 for failure, where the error code can be:
@@ -391,6 +399,7 @@ int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
  * @param data buffer to write data to
  * @param len maximum amount of data to read. Must be >=0.
  * @param addr the sender address will be stored here on success. Must not be NULL.
+ *             The returned address may be an invalid address.
  * @param local_addr the destination address will be stored here on success. Must not be NULL.
  *                   Returned address will be invalid if it could not be determined.
  * @return - non-negative value for amount of data read; on stream sockets the value 0
@@ -409,8 +418,31 @@ int BSocket_RecvFromTo (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
  *
  * @param bs the object
  * @param addr where to store address. Must not be NULL.
+ *             The returned address may be an invalid address.
  * @return 0 for success, -1 for failure
  */
 int BSocket_GetPeerName (BSocket *bs, BAddr *addr) WARN_UNUSED;
+
+#ifndef BADVPN_USE_WINAPI
+
+/**
+ * Binds the unix socket to the specified path.
+ *
+ * @param bs the object
+ * @param path path to bind to
+ * @return 0 for success, -1 for failure
+ */
+int BSocket_BindUnix (BSocket *bs, const char *path) WARN_UNUSED;
+
+/**
+ * Connects the unix socket to the specified path.
+ *
+ * @param bs the object
+ * @param path path to connect to
+ * @return 0 for success, -1 for failure
+ */
+int BSocket_ConnectUnix (BSocket *bs, const char *path) WARN_UNUSED;
+
+#endif
 
 #endif

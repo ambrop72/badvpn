@@ -27,6 +27,7 @@
 #define _GNU_SOURCE
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
@@ -37,6 +38,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
 
 #include <misc/debug.h>
 
@@ -102,6 +104,46 @@ static void close_socket (int fd)
     ASSERT_FORCE(res == 0)
 }
 
+static int translate_error (int error)
+{
+    #ifdef BADVPN_USE_WINAPI
+    
+    switch (error) {
+        case WSAEADDRNOTAVAIL:
+            return BSOCKET_ERROR_ADDRESS_NOT_AVAILABLE;
+        case WSAEADDRINUSE:
+            return BSOCKET_ERROR_ADDRESS_IN_USE;
+        case WSAECONNRESET:
+            return BSOCKET_ERROR_CONNECTION_RESET;
+    }
+    
+    #else
+    
+    switch (error) {
+        case EADDRNOTAVAIL:
+            return BSOCKET_ERROR_ADDRESS_NOT_AVAILABLE;
+        case EADDRINUSE:
+            return BSOCKET_ERROR_ADDRESS_IN_USE;
+        case EACCES:
+        case EPERM:
+            return BSOCKET_ERROR_ACCESS_DENIED;
+        case ECONNREFUSED:
+            return BSOCKET_ERROR_CONNECTION_REFUSED;
+        case ECONNRESET:
+            return BSOCKET_ERROR_CONNECTION_RESET;
+        case ENETUNREACH:
+            return BSOCKET_ERROR_NETWORK_UNREACHABLE;
+        case ETIMEDOUT:
+            return BSOCKET_ERROR_CONNECTION_TIMED_OUT;
+        case ENOMEM:
+            return BSOCKET_ERROR_NO_MEMORY;
+    }
+    
+    #endif
+    
+    return BSOCKET_ERROR_UNKNOWN;
+}
+
 struct sys_addr {
     #ifdef BADVPN_USE_WINAPI
     int len;
@@ -156,7 +198,7 @@ static void addr_sys_to_socket (BAddr *out, struct sys_addr *addr)
             out->ipv6.port = addr->addr.ipv6.sin6_port;
             break;
         default:
-            ASSERT(0)
+            BAddr_InitNone(out);
             break;
     }
 }
@@ -412,6 +454,29 @@ static int limit_recv (BSocket *bs)
     return 0;
 }
 
+static void setup_pktinfo (BSocket *bs)
+{
+    int have_pktinfo = 0;
+    if (bs->type == BSOCKET_TYPE_DGRAM) {
+        int need = 1;
+        switch (bs->domain) {
+            case BADDR_TYPE_IPV4:
+                have_pktinfo = (set_pktinfo(bs->socket) == 0);
+                break;
+            case BADDR_TYPE_IPV6:
+                have_pktinfo = (set_pktinfo6(bs->socket) == 0);
+                break;
+            default:
+                need = 0;
+        }
+        if (need && !have_pktinfo) {
+            DEBUG("WARNING: no pktinfo");
+        }
+    }
+    
+    bs->have_pktinfo = have_pktinfo;
+}
+
 int BSocket_GlobalInit (void)
 {
     #ifdef BADVPN_USE_WINAPI
@@ -450,6 +515,11 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
         case BADDR_TYPE_IPV6:
             sys_domain = AF_INET6;
             break;
+        #ifndef BADVPN_USE_WINAPI
+        case BADDR_TYPE_UNIX:
+            sys_domain = AF_UNIX;
+            break;
+        #endif
         default:
             ASSERT(0)
             return -1;
@@ -463,6 +533,9 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
             break;
         case BSOCKET_TYPE_DGRAM:
             sys_type = SOCK_DGRAM;
+            break;
+        case BSOCKET_TYPE_SEQPACKET:
+            sys_type = SOCK_SEQPACKET;
             break;
         default:
             ASSERT(0)
@@ -482,28 +555,13 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
         goto fail1;
     }
     
-    // set pktinfo option
-    int have_pktinfo = 0;
-    if (type == BSOCKET_TYPE_DGRAM) {
-        switch (domain) {
-            case BADDR_TYPE_IPV4:
-                have_pktinfo = (set_pktinfo(fd) == 0);
-                break;
-            case BADDR_TYPE_IPV6:
-                have_pktinfo = (set_pktinfo6(fd) == 0);
-                break;
-        }
-        if (!have_pktinfo) {
-            DEBUG("WARNING: no pktinfo");
-        }
-    }
-    
     // initialize variables
     DEAD_INIT(bs->dead);
     bs->bsys = bsys;
     bs->type = type;
+    bs->domain = domain;
     bs->socket = fd;
-    bs->have_pktinfo = have_pktinfo;
+    setup_pktinfo(bs);
     bs->error = BSOCKET_ERROR_NONE;
     init_handlers(bs);
     bs->waitEvents = 0;
@@ -681,21 +739,24 @@ void BSocket_DisableEvent (BSocket *bs, uint8_t event)
 
 int BSocket_Connect (BSocket *bs, BAddr *addr)
 {
+    ASSERT(addr)
+    ASSERT(!BAddr_IsInvalid(addr))
     ASSERT(bs->connecting_status == 0)
 
     struct sys_addr sysaddr;
     addr_socket_to_sys(&sysaddr, addr);
 
     if (connect(bs->socket, &sysaddr.addr.generic, sysaddr.len) < 0) {
+        int error;
         #ifdef BADVPN_USE_WINAPI
-        switch (WSAGetLastError()) {
+        switch ((error = WSAGetLastError())) {
             case WSAEWOULDBLOCK:
                 bs->connecting_status = 1;
                 bs->error = BSOCKET_ERROR_IN_PROGRESS;
                 return -1;
         }
         #else
-        switch (errno) {
+        switch ((error = errno)) {
             case EINPROGRESS:
                 bs->connecting_status = 1;
                 bs->error = BSOCKET_ERROR_IN_PROGRESS;
@@ -703,7 +764,7 @@ int BSocket_Connect (BSocket *bs, BAddr *addr)
         }
         #endif
         
-        bs->error = BSOCKET_ERROR_UNKNOWN;
+        bs->error = translate_error(error);
         return -1;
     }
 
@@ -722,6 +783,9 @@ int BSocket_GetConnectResult (BSocket *bs)
 
 int BSocket_Bind (BSocket *bs, BAddr *addr)
 {
+    ASSERT(addr)
+    ASSERT(!BAddr_IsInvalid(addr))
+    
     struct sys_addr sysaddr;
     addr_socket_to_sys(&sysaddr, addr);
     
@@ -738,29 +802,12 @@ int BSocket_Bind (BSocket *bs, BAddr *addr)
     
     if (bind(bs->socket, &sysaddr.addr.generic, sysaddr.len) < 0) {
         #ifdef BADVPN_USE_WINAPI
-        switch (WSAGetLastError()) {
-            case WSAEADDRNOTAVAIL:
-                bs->error = BSOCKET_ERROR_ADDRESS_NOT_AVAILABLE;
-                return -1;
-            case WSAEADDRINUSE:
-                bs->error = BSOCKET_ERROR_ADDRESS_IN_USE;
-                return -1;
-        }
+        int error = WSAGetLastError();
         #else
-        switch (errno) {
-            case EADDRNOTAVAIL:
-                bs->error = BSOCKET_ERROR_ADDRESS_NOT_AVAILABLE;
-                return -1;
-            case EADDRINUSE:
-                bs->error = BSOCKET_ERROR_ADDRESS_IN_USE;
-                return -1;
-            case EACCES:
-                bs->error = BSOCKET_ERROR_ACCESS_DENIED;
-                return -1;
-        }
+        int error = errno;
         #endif
         
-        bs->error = BSOCKET_ERROR_UNKNOWN;
+        bs->error = translate_error(error);
         return -1;
     }
     
@@ -776,20 +823,12 @@ int BSocket_Listen (BSocket *bs, int backlog)
     
     if (listen(bs->socket, backlog) < 0) {
         #ifdef BADVPN_USE_WINAPI
-        switch (WSAGetLastError()) {
-            case WSAEADDRINUSE:
-                bs->error = BSOCKET_ERROR_ADDRESS_IN_USE;
-                return -1;
-        }
+        int error = WSAGetLastError();
         #else
-        switch (errno) {
-            case EADDRINUSE:
-                bs->error = BSOCKET_ERROR_ADDRESS_IN_USE;
-                return -1;
-        }
+        int error = errno;
         #endif
         
-        bs->error = BSOCKET_ERROR_UNKNOWN;
+        bs->error = translate_error(error);
         return -1;
     }
 
@@ -804,14 +843,15 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
     
     int fd = accept(bs->socket, &sysaddr.addr.generic, &sysaddr.len);
     if (fd < 0) {
+        int error;
         #ifdef BADVPN_USE_WINAPI
-        switch (WSAGetLastError()) {
+        switch ((error = WSAGetLastError())) {
             case WSAEWOULDBLOCK:
                 bs->error = BSOCKET_ERROR_LATER;
                 return -1;
         }
         #else
-        switch (errno) {
+        switch ((error = errno)) {
             case EAGAIN:
             #if EAGAIN != EWOULDBLOCK
             case EWOULDBLOCK:
@@ -821,7 +861,7 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
         }
         #endif
         
-        bs->error = BSOCKET_ERROR_UNKNOWN;
+        bs->error = translate_error(error);
         return -1;
     }
     
@@ -837,8 +877,9 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
         DEAD_INIT(newsock->dead);
         newsock->bsys = bs->bsys;
         newsock->type = bs->type;
+        newsock->domain = bs->domain;
         newsock->socket = fd;
-        newsock->have_pktinfo = 0;
+        setup_pktinfo(newsock);
         newsock->error = BSOCKET_ERROR_NONE;
         init_handlers(newsock);
         newsock->waitEvents = 0;
@@ -855,7 +896,7 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
         DebugObject_Init(&newsock->d_obj);
     }
     
-    // return client addres
+    // return client address
     if (addr) {
         addr_sys_to_socket(addr, &sysaddr);
     }
@@ -881,37 +922,25 @@ int BSocket_Send (BSocket *bs, uint8_t *data, int len)
     
     int bytes = send(bs->socket, data, len, flags);
     if (bytes < 0) {
+        int error;
         #ifdef BADVPN_USE_WINAPI
-        switch (WSAGetLastError()) {
+        switch ((error = WSAGetLastError())) {
             case WSAEWOULDBLOCK:
                 bs->error = BSOCKET_ERROR_LATER;
                 return -1;
-            case WSAECONNRESET:
-                if (bs->type == BSOCKET_TYPE_DGRAM) {
-                    bs->error = BSOCKET_ERROR_CONNECTION_REFUSED;
-                } else {
-                    bs->error = BSOCKET_ERROR_CONNECTION_RESET;
-                }
-                return -1;
         }
         #else
-        switch (errno) {
+        switch ((error = errno)) {
             case EAGAIN:
             #if EAGAIN != EWOULDBLOCK
             case EWOULDBLOCK:
             #endif
                 bs->error = BSOCKET_ERROR_LATER;
                 return -1;
-            case ECONNREFUSED:
-                bs->error = BSOCKET_ERROR_CONNECTION_REFUSED;
-                return -1;
-            case ECONNRESET:
-                bs->error = BSOCKET_ERROR_CONNECTION_RESET;
-                return -1;
         }
         #endif
         
-        bs->error = BSOCKET_ERROR_UNKNOWN;
+        bs->error = translate_error(error);
         return -1;
     }
     
@@ -930,37 +959,25 @@ int BSocket_Recv (BSocket *bs, uint8_t *data, int len)
     
     int bytes = recv(bs->socket, data, len, 0);
     if (bytes < 0) {
+        int error;
         #ifdef BADVPN_USE_WINAPI
-        switch (WSAGetLastError()) {
+        switch ((error = WSAGetLastError())) {
             case WSAEWOULDBLOCK:
                 bs->error = BSOCKET_ERROR_LATER;
                 return -1;
-            case WSAECONNRESET:
-                if (bs->type == BSOCKET_TYPE_DGRAM) {
-                    bs->error = BSOCKET_ERROR_CONNECTION_REFUSED;
-                } else {
-                    bs->error = BSOCKET_ERROR_CONNECTION_RESET;
-                }
-                return -1;
         }
         #else
-        switch (errno) {
+        switch ((error = errno)) {
             case EAGAIN:
             #if EAGAIN != EWOULDBLOCK
             case EWOULDBLOCK:
             #endif
                 bs->error = BSOCKET_ERROR_LATER;
                 return -1;
-            case ECONNREFUSED:
-                bs->error = BSOCKET_ERROR_CONNECTION_REFUSED;
-                return -1;
-            case ECONNRESET:
-                bs->error = BSOCKET_ERROR_CONNECTION_RESET;
-                return -1;
         }
         #endif
         
-        bs->error = BSOCKET_ERROR_UNKNOWN;
+        bs->error = translate_error(error);
         return -1;
     }
     
@@ -972,6 +989,7 @@ int BSocket_SendTo (BSocket *bs, uint8_t *data, int len, BAddr *addr)
 {
     ASSERT(len >= 0)
     ASSERT(addr)
+    ASSERT(!BAddr_IsInvalid(addr))
     
     struct sys_addr remote_sysaddr;
     addr_socket_to_sys(&remote_sysaddr, addr);
@@ -984,37 +1002,25 @@ int BSocket_SendTo (BSocket *bs, uint8_t *data, int len, BAddr *addr)
     
     int bytes = sendto(bs->socket, data, len, flags, &remote_sysaddr.addr.generic, remote_sysaddr.len);
     if (bytes < 0) {
+        int error;
         #ifdef BADVPN_USE_WINAPI
-        switch (WSAGetLastError()) {
+        switch ((error = WSAGetLastError())) {
             case WSAEWOULDBLOCK:
                 bs->error = BSOCKET_ERROR_LATER;
                 return -1;
-            case WSAECONNRESET:
-                if (bs->type == BSOCKET_TYPE_DGRAM) {
-                    bs->error = BSOCKET_ERROR_CONNECTION_REFUSED;
-                } else {
-                    bs->error = BSOCKET_ERROR_CONNECTION_RESET;
-                }
-                return -1;
         }
         #else
-        switch (errno) {
+        switch ((error = errno)) {
             case EAGAIN:
             #if EAGAIN != EWOULDBLOCK
             case EWOULDBLOCK:
             #endif
                 bs->error = BSOCKET_ERROR_LATER;
                 return -1;
-            case ECONNREFUSED:
-                bs->error = BSOCKET_ERROR_CONNECTION_REFUSED;
-                return -1;
-            case ECONNRESET:
-                bs->error = BSOCKET_ERROR_CONNECTION_RESET;
-                return -1;
         }
         #endif
         
-        bs->error = BSOCKET_ERROR_UNKNOWN;
+        bs->error = translate_error(error);
         return -1;
     }
 
@@ -1037,37 +1043,25 @@ int BSocket_RecvFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr)
     
     int bytes = recvfrom(bs->socket, data, len, 0, &remote_sysaddr.addr.generic, &remote_sysaddr.len);
     if (bytes < 0) {
+        int error;
         #ifdef BADVPN_USE_WINAPI
-        switch (WSAGetLastError()) {
+        switch ((error = WSAGetLastError())) {
             case WSAEWOULDBLOCK:
                 bs->error = BSOCKET_ERROR_LATER;
                 return -1;
-            case WSAECONNRESET:
-                if (bs->type == BSOCKET_TYPE_DGRAM) {
-                    bs->error = BSOCKET_ERROR_CONNECTION_REFUSED;
-                } else {
-                    bs->error = BSOCKET_ERROR_CONNECTION_RESET;
-                }
-                return -1;
         }
         #else
-        switch (errno) {
+        switch ((error = errno)) {
             case EAGAIN:
             #if EAGAIN != EWOULDBLOCK
             case EWOULDBLOCK:
             #endif
                 bs->error = BSOCKET_ERROR_LATER;
                 return -1;
-            case ECONNREFUSED:
-                bs->error = BSOCKET_ERROR_CONNECTION_REFUSED;
-                return -1;
-            case ECONNRESET:
-                bs->error = BSOCKET_ERROR_CONNECTION_RESET;
-                return -1;
         }
         #endif
         
-        bs->error = BSOCKET_ERROR_UNKNOWN;
+        bs->error = translate_error(error);
         return -1;
     }
     
@@ -1081,6 +1075,7 @@ int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
 {
     ASSERT(len >= 0)
     ASSERT(addr)
+    ASSERT(!BAddr_IsInvalid(addr))
     ASSERT(local_addr)
     
     if (!bs->have_pktinfo) {
@@ -1155,21 +1150,15 @@ int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
     
     DWORD bytes;
     if (WSASendMsg(bs->socket, &msg, 0, &bytes, NULL, NULL) != 0) {
-        switch (WSAGetLastError()) {
+        int error;
+        switch ((error = WSAGetLastError())) {
             case WSAEWOULDBLOCK:
                 bs->error = BSOCKET_ERROR_LATER;
                 return -1;
-            case WSAECONNRESET:
-                if (bs->type == BSOCKET_TYPE_DGRAM) {
-                    bs->error = BSOCKET_ERROR_CONNECTION_REFUSED;
-                } else {
-                    bs->error = BSOCKET_ERROR_CONNECTION_RESET;
-                }
-                return -1;
-            default:
-                bs->error = BSOCKET_ERROR_UNKNOWN;
-                return -1;
         }
+        
+        bs->error = translate_error(error);
+        return -1;
     }
     
     #else
@@ -1225,23 +1214,18 @@ int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
     
     int bytes = sendmsg(bs->socket, &msg, MSG_NOSIGNAL);
     if (bytes < 0) {
-        switch (errno) {
+        int error;
+        switch ((error = errno)) {
             case EAGAIN:
             #if EAGAIN != EWOULDBLOCK
             case EWOULDBLOCK:
             #endif
                 bs->error = BSOCKET_ERROR_LATER;
                 return -1;
-            case ECONNREFUSED:
-                bs->error = BSOCKET_ERROR_CONNECTION_REFUSED;
-                return -1;
-            case ECONNRESET:
-                bs->error = BSOCKET_ERROR_CONNECTION_RESET;
-                return -1;
-            default:
-                bs->error = BSOCKET_ERROR_UNKNOWN;
-                return -1;
         }
+        
+        bs->error = translate_error(error);
+        return -1;
     }
     
     #endif
@@ -1311,21 +1295,15 @@ int BSocket_RecvFromTo (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
     
     DWORD bytes;
     if (WSARecvMsg(bs->socket, &msg, &bytes, NULL, NULL) != 0) {
-        switch (WSAGetLastError()) {
+        int error;
+        switch ((error = WSAGetLastError())) {
             case WSAEWOULDBLOCK:
                 bs->error = BSOCKET_ERROR_LATER;
                 return -1;
-            case WSAECONNRESET:
-                if (bs->type == BSOCKET_TYPE_DGRAM) {
-                    bs->error = BSOCKET_ERROR_CONNECTION_REFUSED;
-                } else {
-                    bs->error = BSOCKET_ERROR_CONNECTION_RESET;
-                }
-                return -1;
-            default:
-                bs->error = BSOCKET_ERROR_UNKNOWN;
-                return -1;
         }
+        
+        bs->error = translate_error(error);
+        return -1;
     }
     
     remote_sysaddr.len = msg.namelen;
@@ -1352,23 +1330,18 @@ int BSocket_RecvFromTo (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
     
     int bytes = recvmsg(bs->socket, &msg, 0);
     if (bytes < 0) {
-        switch (errno) {
+        int error;
+        switch ((error = errno)) {
             case EAGAIN:
             #if EAGAIN != EWOULDBLOCK
             case EWOULDBLOCK:
             #endif
                 bs->error = BSOCKET_ERROR_LATER;
                 return -1;
-            case ECONNREFUSED:
-                bs->error = BSOCKET_ERROR_CONNECTION_REFUSED;
-                return -1;
-            case ECONNRESET:
-                bs->error = BSOCKET_ERROR_CONNECTION_RESET;
-                return -1;
-            default:
-                bs->error = BSOCKET_ERROR_UNKNOWN;
-                return -1;
         }
+        
+        bs->error = translate_error(error);
+        return -1;
     }
     
     remote_sysaddr.len = msg.msg_namelen;
@@ -1429,3 +1402,68 @@ int BSocket_GetPeerName (BSocket *bs, BAddr *addr)
     bs->error = BSOCKET_ERROR_NONE;
     return 0;
 }
+
+#ifndef BADVPN_USE_WINAPI
+
+static int create_unix_sysaddr (struct sockaddr_un *addr, size_t *addr_len, const char *path)
+{
+    size_t path_len = strlen(path);
+    
+    if (path_len == 0) {
+        DEBUG("path empty");
+        return 0;
+    }
+    
+    addr->sun_family = AF_UNIX;
+    
+    if (path_len >= sizeof(addr->sun_path)) {
+        DEBUG("path too long");
+        return 0;
+    }
+    
+    strcpy(addr->sun_path, path);
+    
+    *addr_len = offsetof(struct sockaddr_un, sun_path) + path_len + 1;
+    
+    return 1;
+}
+
+int BSocket_BindUnix (BSocket *bs, const char *path)
+{
+    struct sockaddr_un sys_addr;
+    size_t addr_len;
+    
+    if (!create_unix_sysaddr(&sys_addr, &addr_len, path)) {
+        bs->error = BSOCKET_ERROR_UNKNOWN;
+        return -1;
+    }
+    
+    if (bind(bs->socket, (struct sockaddr *)&sys_addr, addr_len) < 0) {
+        bs->error = translate_error(errno);
+        return -1;
+    }
+    
+    bs->error = BSOCKET_ERROR_NONE;
+    return 0;
+}
+
+int BSocket_ConnectUnix (BSocket *bs, const char *path)
+{
+    struct sockaddr_un sys_addr;
+    size_t addr_len;
+    
+    if (!create_unix_sysaddr(&sys_addr, &addr_len, path)) {
+        bs->error = BSOCKET_ERROR_UNKNOWN;
+        return -1;
+    }
+    
+    if (connect(bs->socket, (struct sockaddr *)&sys_addr, addr_len) < 0) {
+        bs->error = translate_error(errno);
+        return -1;
+    }
+    
+    bs->error = BSOCKET_ERROR_NONE;
+    return 0;
+}
+
+#endif
