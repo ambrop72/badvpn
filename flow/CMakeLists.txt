@@ -27,5 +27,7 @@ add_library(flow
     DataProtoKeepaliveSource.c
     PacketProtoFlow.c
     SinglePacketSender.c
+    SeqPacketSocketSink.c
+    SeqPacketSocketSource.c
 )
 target_link_libraries(flow system security)
