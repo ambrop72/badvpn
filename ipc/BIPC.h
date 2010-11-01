@@ -70,7 +70,6 @@ typedef struct {
     // receiving
     StreamSocketSource recv_source;
     PacketProtoDecoder recv_decoder;
-    PacketCopier recv_copier;
     
     DebugObject d_obj;
 } BIPC;
@@ -88,7 +87,7 @@ typedef struct {
  * @param reactor reactor we live in
  * @return 1 on success, 0 on failure
  */
-int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, int recv_mtu, BIPC_handler handler, void *user, BReactor *reactor) WARN_UNUSED;
+int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, PacketPassInterface *recv_if, BIPC_handler handler, void *user, BReactor *reactor) WARN_UNUSED;
 
 /**
  * Initializes the object by acception a connection on an IPC server.
@@ -102,7 +101,7 @@ int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, int recv_mtu, BIP
  * @param reactor reactor we live in
  * @return 1 on success, 0 on failure
  */
-int BIPC_InitAccept (BIPC *o, BIPCServer *server, int send_mtu, int recv_mtu, BIPC_handler handler, void *user, BReactor *reactor) WARN_UNUSED;
+int BIPC_InitAccept (BIPC *o, BIPCServer *server, int send_mtu, PacketPassInterface *recv_if, BIPC_handler handler, void *user, BReactor *reactor) WARN_UNUSED;
 
 /**
  * Frees the object.
@@ -119,14 +118,5 @@ void BIPC_Free (BIPC *o);
  * @return interface for sending
  */
 PacketPassInterface * BIPC_GetSendInterface (BIPC *o);
-
-/**
- * Returns the interface for receiving.
- * The MTU of the interface will be as recv_mtu in {@link BIPC_InitConnect}.
- * 
- * @param o the object
- * @return interface for receiving
- */
-PacketRecvInterface * BIPC_GetRecvInterface (BIPC *o);
 
 #endif

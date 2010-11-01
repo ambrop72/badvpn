@@ -28,7 +28,6 @@
 
 static void error_handler (BIPC *o, int component, const void *data)
 {
-    ASSERT(component == COMPONENT_SOURCE || component == COMPONENT_SINK || component == COMPONENT_DECODER)
     DebugObject_Access(&o->d_obj);
     
     #ifndef NDEBUG
@@ -43,7 +42,7 @@ static void error_handler (BIPC *o, int component, const void *data)
     #endif
 }
 
-static int init_io (BIPC *o, int send_mtu, int recv_mtu, BReactor *reactor)
+static int init_io (BIPC *o, int send_mtu, PacketPassInterface *recv_if, BReactor *reactor)
 {
     // init error domain
     FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)error_handler, o);
@@ -51,7 +50,7 @@ static int init_io (BIPC *o, int send_mtu, int recv_mtu, BReactor *reactor)
     // init sending
     StreamSocketSink_Init(&o->send_sink, FlowErrorReporter_Create(&o->domain, COMPONENT_SINK), &o->sock);
     PacketStreamSender_Init(&o->send_pss, StreamSocketSink_GetInput(&o->send_sink), PACKETPROTO_ENCLEN(send_mtu));
-    PacketCopier_Init(&o->send_copier, send_mtu);
+    PacketCopier_Init(&o->send_copier, send_mtu, BReactor_PendingGroup(reactor));
     PacketProtoEncoder_Init(&o->send_encoder, PacketCopier_GetOutput(&o->send_copier));
     if (!SinglePacketBuffer_Init(&o->send_buf, PacketProtoEncoder_GetOutput(&o->send_encoder), PacketStreamSender_GetInput(&o->send_pss), BReactor_PendingGroup(reactor))) {
         goto fail1;
@@ -59,15 +58,13 @@ static int init_io (BIPC *o, int send_mtu, int recv_mtu, BReactor *reactor)
     
     // init receiving
     StreamSocketSource_Init(&o->recv_source, FlowErrorReporter_Create(&o->domain, COMPONENT_SOURCE), &o->sock);
-    PacketCopier_Init(&o->recv_copier, recv_mtu);
-    if (!PacketProtoDecoder_Init(&o->recv_decoder, FlowErrorReporter_Create(&o->domain, COMPONENT_DECODER), StreamSocketSource_GetOutput(&o->recv_source), PacketCopier_GetInput(&o->recv_copier), BReactor_PendingGroup(reactor))) {
+    if (!PacketProtoDecoder_Init(&o->recv_decoder, FlowErrorReporter_Create(&o->domain, COMPONENT_DECODER), StreamSocketSource_GetOutput(&o->recv_source), recv_if, BReactor_PendingGroup(reactor))) {
         goto fail2;
     }
     
     return 1;
     
 fail2:
-    PacketCopier_Free(&o->recv_copier);
     StreamSocketSource_Free(&o->recv_source);
     SinglePacketBuffer_Free(&o->send_buf);
 fail1:
@@ -82,7 +79,6 @@ static void free_io (BIPC *o)
 {
     // free receiving
     PacketProtoDecoder_Free(&o->recv_decoder);
-    PacketCopier_Free(&o->recv_copier);
     StreamSocketSource_Free(&o->recv_source);
     
     // free sending
@@ -93,12 +89,12 @@ static void free_io (BIPC *o)
     StreamSocketSink_Free(&o->send_sink);
 }
 
-int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, int recv_mtu, BIPC_handler handler, void *user, BReactor *reactor)
+int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, PacketPassInterface *recv_if, BIPC_handler handler, void *user, BReactor *reactor)
 {
     ASSERT(send_mtu >= 0)
     ASSERT(send_mtu <= PACKETPROTO_MAXPAYLOAD)
-    ASSERT(recv_mtu >= 0)
-    ASSERT(recv_mtu <= PACKETPROTO_MAXPAYLOAD)
+    ASSERT(PacketPassInterface_GetMTU(recv_if) >= 0)
+    ASSERT(PacketPassInterface_GetMTU(recv_if) <= PACKETPROTO_MAXPAYLOAD)
     
     // init arguments
     o->handler = handler;
@@ -120,7 +116,7 @@ int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, int recv_mtu, BIP
     }
     
     // init I/O
-    if (!init_io(o, send_mtu, recv_mtu, reactor)) {
+    if (!init_io(o, send_mtu, recv_if, reactor)) {
         goto fail1;
     }
     
@@ -134,10 +130,12 @@ fail0:
     return 0;
 }
 
-int BIPC_InitAccept (BIPC *o, BIPCServer *server, int send_mtu, int recv_mtu, BIPC_handler handler, void *user, BReactor *reactor)
+int BIPC_InitAccept (BIPC *o, BIPCServer *server, int send_mtu, PacketPassInterface *recv_if, BIPC_handler handler, void *user, BReactor *reactor)
 {
     ASSERT(send_mtu >= 0)
-    ASSERT(recv_mtu >= 0)
+    ASSERT(send_mtu <= PACKETPROTO_MAXPAYLOAD)
+    ASSERT(PacketPassInterface_GetMTU(recv_if) >= 0)
+    ASSERT(PacketPassInterface_GetMTU(recv_if) <= PACKETPROTO_MAXPAYLOAD)
     
     // init arguments
     o->handler = handler;
@@ -153,7 +151,7 @@ int BIPC_InitAccept (BIPC *o, BIPCServer *server, int send_mtu, int recv_mtu, BI
     }
     
     // init I/O
-    if (!init_io(o, send_mtu, recv_mtu, reactor)) {
+    if (!init_io(o, send_mtu, recv_if, reactor)) {
         goto fail1;
     }
     
@@ -186,11 +184,4 @@ PacketPassInterface * BIPC_GetSendInterface (BIPC *o)
     DebugObject_Access(&o->d_obj);
     
     return PacketCopier_GetInput(&o->send_copier);
-}
-
-PacketRecvInterface * BIPC_GetRecvInterface (BIPC *o)
-{
-    DebugObject_Access(&o->d_obj);
-    
-    return PacketCopier_GetOutput(&o->recv_copier);
 }
