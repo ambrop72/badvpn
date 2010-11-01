@@ -33,6 +33,7 @@
 #include <flow/error.h>
 #include <flow/PacketRecvInterface.h>
 
+#define SEQPACKETSOCKETSOURCE_ERROR_CLOSED 0
 #define SEQPACKETSOCKETSOURCE_ERROR_BSOCKET 1
 
 /**
@@ -57,6 +58,7 @@ typedef struct {
  *
  * @param s the object
  * @param rep error reporting data. Error code is an int. Possible error codes:
+ *              - SEQPACKETSOCKETSOURCE_ERROR_CLOSED: {@link BSocket_Recv} returned 0
  *              - SEQPACKETSOCKETSOURCE_ERROR_BSOCKET: {@link BSocket_Recv} failed
  *                with an unhandled error code
  *            The object must be freed from the error handler.

@@ -60,6 +60,11 @@ static int output_handler_recv (SeqPacketSocketSource *s, uint8_t *data, int *da
         return -1;
     }
     
+    if (res == 0) {
+        report_error(s, SEQPACKETSOCKETSOURCE_ERROR_CLOSED);
+        return -1;
+    }
+    
     *data_len = res;
     return 1;
 }
@@ -79,6 +84,11 @@ static void socket_handler (SeqPacketSocketSource *s, int event)
             return;
         }
         report_error(s, SEQPACKETSOCKETSOURCE_ERROR_BSOCKET);
+        return;
+    }
+    
+    if (res == 0) {
+        report_error(s, SEQPACKETSOCKETSOURCE_ERROR_CLOSED);
         return;
     }
     
