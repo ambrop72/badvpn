@@ -31,21 +31,18 @@ static int input_handler_send (PacketCopier *o, uint8_t *data, int data_len)
     ASSERT(o->in_len == -1)
     ASSERT(data_len >= 0)
     
-    if (!o->out_have) {
+    if (!o->out_have || o->out_got_len >= 0) {
         o->in_len = data_len;
         o->in = data;
+        o->in_got = 0;
         return 0;
     }
     
     memcpy(o->out, data, data_len);
     
-    o->out_have = 0;
+    o->out_got_len = data_len;
     
-    DEAD_ENTER(o->dead)
-    PacketRecvInterface_Done(&o->output, data_len);
-    if (DEAD_LEAVE(o->dead)) {
-        return -1;
-    }
+    BPending_Set(&o->continue_job_output);
     
     return 1;
 }
@@ -62,29 +59,46 @@ static int output_handler_recv (PacketCopier *o, uint8_t *data, int *data_len)
 {
     ASSERT(!o->out_have)
     
-    if (o->in_len < 0) {
+    if (o->in_len < 0 || o->in_got) {
         o->out_have = 1;
         o->out = data;
+        o->out_got_len = -1;
         return 0;
     }
     
-    int len = o->in_len;
+    memcpy(data, o->in, o->in_len);
     
-    memcpy(data, o->in, len);
+    o->in_got =  1;
     
-    o->in_len = -1;
+    BPending_Set(&o->continue_job_input);
     
-    DEAD_ENTER(o->dead)
-    PacketPassInterface_Done(&o->input);
-    if (DEAD_LEAVE(o->dead)) {
-        return -1;
-    }
-    
-    *data_len = len;
+    *data_len = o->in_len;
     return 1;
 }
 
-void PacketCopier_Init (PacketCopier *o, int mtu)
+static void input_job_handler (PacketCopier *o)
+{
+    ASSERT(o->in_len >= 0)
+    ASSERT(o->in_got)
+    
+    o->in_len = -1;
+    
+    PacketPassInterface_Done(&o->input);
+    return;
+}
+
+static void output_job_handler (PacketCopier *o)
+{
+    ASSERT(o->out_have)
+    ASSERT(o->out_got_len >= 0)
+    
+    o->out_have = 0;
+    
+    PacketRecvInterface_Done(&o->output, o->out_got_len);
+    return;
+}
+
+void PacketCopier_Init (PacketCopier *o, int mtu, BPendingGroup *pg)
 {
     ASSERT(mtu >= 0)
     
@@ -104,6 +118,10 @@ void PacketCopier_Init (PacketCopier *o, int mtu)
     // set no output packet
     o->out_have = 0;
     
+    // init continue jobs
+    BPending_Init(&o->continue_job_input, pg, (BPending_handler)input_job_handler, o);
+    BPending_Init(&o->continue_job_output, pg, (BPending_handler)output_job_handler, o);
+    
     // init debug object
     DebugObject_Init(&o->d_obj);
 }
@@ -112,7 +130,11 @@ void PacketCopier_Free (PacketCopier *o)
 {
     // free debug object
     DebugObject_Free(&o->d_obj);
-
+    
+    // free continue jobs
+    BPending_Free(&o->continue_job_output);
+    BPending_Free(&o->continue_job_input);
+    
     // free output
     PacketRecvInterface_Free(&o->output);
     
