@@ -89,6 +89,7 @@ int call_send (PacketProtoDecoder *enc, uint8_t *data, int len)
 void receive_data (PacketProtoDecoder *enc)
 {
     ASSERT(!enc->receiving)
+    ASSERT(!enc->sending)
     ASSERT(enc->buf_start + enc->buf_used < enc->buf_size)
     ASSERT(!StreamRecvInterface_InClient(enc->input))
     ASSERT(!PacketPassInterface_InClient(enc->output))
@@ -114,19 +115,16 @@ void receive_data (PacketProtoDecoder *enc)
         enc->buf_used += res;
         
         // parse and send data
-        if (!enc->sending) {
-            if (parse_and_send(enc) < 0) {
-                return;
-            }
+        if (parse_and_send(enc) < 0) {
+            return;
         }
-    } while (enc->buf_start + enc->buf_used < enc->buf_size);
-    
-    ASSERT(enc->receiving || enc->buf_start + enc->buf_used == enc->buf_size)
+    } while (!enc->sending && enc->buf_start + enc->buf_used < enc->buf_size);
 }
 
 static void input_handler_done (PacketProtoDecoder *enc, int data_len)
 {
     ASSERT(enc->receiving)
+    ASSERT(!enc->sending)
     ASSERT(enc->buf_start + enc->buf_used < enc->buf_size)
     ASSERT(data_len > 0)
     ASSERT(data_len <= enc->buf_size - (enc->buf_start + enc->buf_used))
@@ -140,14 +138,12 @@ static void input_handler_done (PacketProtoDecoder *enc, int data_len)
     enc->buf_used += data_len;
     
     // parse and send data
-    if (!enc->sending) {
-        if (parse_and_send(enc) < 0) {
-            return;
-        }
+    if (parse_and_send(enc) < 0) {
+        return;
     }
     
     // continue receiving
-    if (enc->buf_start + enc->buf_used < enc->buf_size) {
+    if (!enc->sending && enc->buf_start + enc->buf_used < enc->buf_size) {
         receive_data(enc);
         return;
     }
@@ -224,7 +220,7 @@ void output_handler_done (PacketProtoDecoder *enc)
     }
     
     // continue receiving
-    if (!enc->receiving && enc->buf_start + enc->buf_used < enc->buf_size) {
+    if (!enc->receiving && !enc->sending && enc->buf_start + enc->buf_used < enc->buf_size) {
         receive_data(enc);
         return;
     }
