@@ -1,11 +1,3 @@
-set(FLOW_ADDITIONAL_SOURCES)
-if (NOT WIN32)
-    list(APPEND FLOW_ADDITIONAL_SOURCES
-        SeqPacketSocketSink.c
-        SeqPacketSocketSource.c
-    )
-endif ()
-
 add_library(flow
     PacketPassFairQueue.c
     PacketPassPriorityQueue.c
@@ -35,6 +27,5 @@ add_library(flow
     DataProtoKeepaliveSource.c
     PacketProtoFlow.c
     SinglePacketSender.c
-    ${FLOW_ADDITIONAL_SOURCES}
 )
 target_link_libraries(flow system security)

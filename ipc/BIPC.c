@@ -24,10 +24,11 @@
 
 #define COMPONENT_SOURCE 1
 #define COMPONENT_SINK 2
+#define COMPONENT_DECODER 3
 
 static void error_handler (BIPC *o, int component, const void *data)
 {
-    ASSERT(component == COMPONENT_SOURCE || component == COMPONENT_SINK)
+    ASSERT(component == COMPONENT_SOURCE || component == COMPONENT_SINK || component == COMPONENT_DECODER)
     DebugObject_Access(&o->d_obj);
     
     #ifndef NDEBUG
@@ -42,10 +43,62 @@ static void error_handler (BIPC *o, int component, const void *data)
     #endif
 }
 
+static int init_io (BIPC *o, int send_mtu, int recv_mtu, BReactor *reactor)
+{
+    // init error domain
+    FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)error_handler, o);
+    
+    // init sending
+    StreamSocketSink_Init(&o->send_sink, FlowErrorReporter_Create(&o->domain, COMPONENT_SINK), &o->sock);
+    PacketStreamSender_Init(&o->send_pss, StreamSocketSink_GetInput(&o->send_sink), PACKETPROTO_ENCLEN(send_mtu));
+    PacketCopier_Init(&o->send_copier, send_mtu);
+    PacketProtoEncoder_Init(&o->send_encoder, PacketCopier_GetOutput(&o->send_copier));
+    if (!SinglePacketBuffer_Init(&o->send_buf, PacketProtoEncoder_GetOutput(&o->send_encoder), PacketStreamSender_GetInput(&o->send_pss), BReactor_PendingGroup(reactor))) {
+        goto fail1;
+    }
+    
+    // init receiving
+    StreamSocketSource_Init(&o->recv_source, FlowErrorReporter_Create(&o->domain, COMPONENT_SOURCE), &o->sock);
+    PacketCopier_Init(&o->recv_copier, recv_mtu);
+    if (!PacketProtoDecoder_Init(&o->recv_decoder, FlowErrorReporter_Create(&o->domain, COMPONENT_DECODER), StreamSocketSource_GetOutput(&o->recv_source), PacketCopier_GetInput(&o->recv_copier), BReactor_PendingGroup(reactor))) {
+        goto fail2;
+    }
+    
+    return 1;
+    
+fail2:
+    PacketCopier_Free(&o->recv_copier);
+    StreamSocketSource_Free(&o->recv_source);
+    SinglePacketBuffer_Free(&o->send_buf);
+fail1:
+    PacketProtoEncoder_Free(&o->send_encoder);
+    PacketCopier_Free(&o->send_copier);
+    PacketStreamSender_Free(&o->send_pss);
+    StreamSocketSink_Free(&o->send_sink);
+    return 0;
+}
+
+static void free_io (BIPC *o)
+{
+    // free receiving
+    PacketProtoDecoder_Free(&o->recv_decoder);
+    PacketCopier_Free(&o->recv_copier);
+    StreamSocketSource_Free(&o->recv_source);
+    
+    // free sending
+    SinglePacketBuffer_Free(&o->send_buf);
+    PacketProtoEncoder_Free(&o->send_encoder);
+    PacketCopier_Free(&o->send_copier);
+    PacketStreamSender_Free(&o->send_pss);
+    StreamSocketSink_Free(&o->send_sink);
+}
+
 int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, int recv_mtu, BIPC_handler handler, void *user, BReactor *reactor)
 {
     ASSERT(send_mtu >= 0)
+    ASSERT(send_mtu <= PACKETPROTO_MAXPAYLOAD)
     ASSERT(recv_mtu >= 0)
+    ASSERT(recv_mtu <= PACKETPROTO_MAXPAYLOAD)
     
     // init arguments
     o->handler = handler;
@@ -55,7 +108,7 @@ int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, int recv_mtu, BIP
     DEAD_INIT(o->dead);
     
     // init socket
-    if (BSocket_Init(&o->sock, reactor, BADDR_TYPE_UNIX, BSOCKET_TYPE_DGRAM) < 0) {
+    if (BSocket_Init(&o->sock, reactor, BADDR_TYPE_UNIX, BSOCKET_TYPE_STREAM) < 0) {
         DEBUG("BSocket_Init failed");
         goto fail0;
     }
@@ -66,14 +119,10 @@ int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, int recv_mtu, BIP
         goto fail1;
     }
     
-    // init error domain
-    FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)error_handler, o);
-    
-    // init sink
-    SeqPacketSocketSink_Init(&o->sink, FlowErrorReporter_Create(&o->domain, COMPONENT_SINK), &o->sock, send_mtu);
-    
-    // init source
-    SeqPacketSocketSource_Init(&o->source, FlowErrorReporter_Create(&o->domain, COMPONENT_SOURCE), &o->sock, recv_mtu);
+    // init I/O
+    if (!init_io(o, send_mtu, recv_mtu, reactor)) {
+        goto fail1;
+    }
     
     DebugObject_Init(&o->d_obj);
     
@@ -85,7 +134,7 @@ fail0:
     return 0;
 }
 
-int BIPC_InitAccept (BIPC *o, BIPCServer *server, int send_mtu, int recv_mtu, BIPC_handler handler, void *user)
+int BIPC_InitAccept (BIPC *o, BIPCServer *server, int send_mtu, int recv_mtu, BIPC_handler handler, void *user, BReactor *reactor)
 {
     ASSERT(send_mtu >= 0)
     ASSERT(recv_mtu >= 0)
@@ -98,24 +147,22 @@ int BIPC_InitAccept (BIPC *o, BIPCServer *server, int send_mtu, int recv_mtu, BI
     DEAD_INIT(o->dead);
     
     // accept socket
-    if (Listener_Accept(&server->listener, &o->sock, NULL) < 0) {
+    if (!Listener_Accept(&server->listener, &o->sock, NULL)) {
         DEBUG("Listener_Accept failed");
         goto fail0;
     }
     
-    // init error domain
-    FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)error_handler, o);
-    
-    // init sink
-    SeqPacketSocketSink_Init(&o->sink, FlowErrorReporter_Create(&o->domain, COMPONENT_SINK), &o->sock, send_mtu);
-    
-    // init source
-    SeqPacketSocketSource_Init(&o->source, FlowErrorReporter_Create(&o->domain, COMPONENT_SOURCE), &o->sock, recv_mtu);
+    // init I/O
+    if (!init_io(o, send_mtu, recv_mtu, reactor)) {
+        goto fail1;
+    }
     
     DebugObject_Init(&o->d_obj);
     
     return 1;
     
+fail1:
+    BSocket_Free(&o->sock);
 fail0:
     return 0;
 }
@@ -124,11 +171,8 @@ void BIPC_Free (BIPC *o)
 {
     DebugObject_Free(&o->d_obj);
     
-    // free source
-    SeqPacketSocketSource_Free(&o->source);
-    
-    // free sink
-    SeqPacketSocketSink_Free(&o->sink);
+    // free I/O
+    free_io(o);
     
     // free socket
     BSocket_Free(&o->sock);
@@ -141,12 +185,12 @@ PacketPassInterface * BIPC_GetSendInterface (BIPC *o)
 {
     DebugObject_Access(&o->d_obj);
     
-    return SeqPacketSocketSink_GetInput(&o->sink);
+    return PacketCopier_GetInput(&o->send_copier);
 }
 
 PacketRecvInterface * BIPC_GetRecvInterface (BIPC *o)
 {
     DebugObject_Access(&o->d_obj);
     
-    return SeqPacketSocketSource_GetOutput(&o->source);
+    return PacketCopier_GetOutput(&o->recv_copier);
 }

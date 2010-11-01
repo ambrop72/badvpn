@@ -28,12 +28,18 @@
 #ifndef BADVPN_IPC_BIPC_H
 #define BADVPN_IPC_BIPC_H
 
+#include <protocol/packetproto.h>
 #include <misc/debug.h>
 #include <misc/dead.h>
 #include <system/BSocket.h>
 #include <system/DebugObject.h>
-#include <flow/SeqPacketSocketSink.h>
-#include <flow/SeqPacketSocketSource.h>
+#include <flow/StreamSocketSink.h>
+#include <flow/StreamSocketSource.h>
+#include <flow/PacketProtoEncoder.h>
+#include <flow/PacketProtoDecoder.h>
+#include <flow/SinglePacketBuffer.h>
+#include <flow/PacketCopier.h>
+#include <flow/PacketStreamSender.h>
 #include <ipc/BIPCServer.h>
 
 /**
@@ -51,10 +57,21 @@ typedef struct {
     dead_t dead;
     BSocket sock;
     FlowErrorDomain domain;
-    SeqPacketSocketSink sink;
-    SeqPacketSocketSource source;
     BIPC_handler handler;
     void *user;
+    
+    // sending
+    PacketCopier send_copier;
+    PacketProtoEncoder send_encoder;
+    SinglePacketBuffer send_buf;
+    PacketStreamSender send_pss;
+    StreamSocketSink send_sink;
+    
+    // receiving
+    StreamSocketSource recv_source;
+    PacketProtoDecoder recv_decoder;
+    PacketCopier recv_copier;
+    
     DebugObject d_obj;
 } BIPC;
 
@@ -64,8 +81,8 @@ typedef struct {
  * @param o the object
  * @param path path of the IPC object. On *nix path of the unix socket, on Windows
  *             path of the named pipe.
- * @param send_mtu maximum packet size for sending. Must be >=0.
- * @param recv_mtu maximum packet size for receiving. Must be >=0.
+ * @param send_mtu maximum packet size for sending. Must be >=0 and <=PACKETPROTO_MAXPAYLOAD.
+ * @param recv_mtu maximum packet size for receiving. Must be >=0 and <=PACKETPROTO_MAXPAYLOAD.
  * @param handler handler function called when an error occurs
  * @param user value to pass to handler function
  * @param reactor reactor we live in
@@ -82,9 +99,10 @@ int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, int recv_mtu, BIP
  * @param recv_mtu maximum packet size for receiving. Must be >=0.
  * @param handler handler function called when an error occurs
  * @param user value to pass to handler function
+ * @param reactor reactor we live in
  * @return 1 on success, 0 on failure
  */
-int BIPC_InitAccept (BIPC *o, BIPCServer *server, int send_mtu, int recv_mtu, BIPC_handler handler, void *user) WARN_UNUSED;
+int BIPC_InitAccept (BIPC *o, BIPCServer *server, int send_mtu, int recv_mtu, BIPC_handler handler, void *user, BReactor *reactor) WARN_UNUSED;
 
 /**
  * Frees the object.
