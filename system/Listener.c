@@ -25,7 +25,7 @@
 #include <misc/debug.h>
 #include <system/BLog.h>
 
-#include <listener/Listener.h>
+#include <system/Listener.h>
 
 #include <generated/blog_channel_Listener.h>
 

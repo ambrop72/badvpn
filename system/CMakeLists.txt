@@ -5,7 +5,9 @@ endif ()
 
 set(BSYSTEM_ADDITIONAL_SOURCES)
 if (NOT WIN32)
-    list(APPEND BSYSTEM_ADDITIONAL_SOURCES BLog_syslog.c)
+    list(APPEND BSYSTEM_ADDITIONAL_SOURCES
+        BLog_syslog.c
+    )
 endif ()
 
 add_library(system
@@ -16,6 +18,7 @@ add_library(system
     BTime.c
     DebugObject.c
     BPending.c
+    Listener.c
     ${BSYSTEM_ADDITIONAL_SOURCES}
 )
 target_link_libraries(system ${BSYSTEM_ADDITIONAL_LIBS})

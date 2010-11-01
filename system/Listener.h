@@ -24,8 +24,8 @@
  * Object used to listen on a socket and accept clients.
  */
 
-#ifndef BADVPN_LISTENER_LISTENER_H
-#define BADVPN_LISTENER_LISTENER_H
+#ifndef BADVPN_SYSTEM_LISTENER_H
+#define BADVPN_SYSTEM_LISTENER_H
 
 #include <misc/dead.h>
 #include <misc/debugcounter.h>

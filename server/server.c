@@ -54,7 +54,7 @@
 #include <system/BTime.h>
 #include <system/DebugObject.h>
 #include <system/BAddr.h>
-#include <listener/Listener.h>
+#include <system/Listener.h>
 #include <security/BRandom.h>
 
 #ifndef BADVPN_USE_WINAPI

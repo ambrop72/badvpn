@@ -38,11 +38,11 @@
 #include <misc/dead.h>
 #include <misc/debug.h>
 #include <system/DebugObject.h>
+#include <system/Listener.h>
 #include <misc/sslsocket.h>
 #include <structure/LinkedList2.h>
 #include <structure/BAVL.h>
 #include <nspr_support/BPRFileDesc.h>
-#include <listener/Listener.h>
 
 /**
  * Handler function called when a client identifies itself with a password
