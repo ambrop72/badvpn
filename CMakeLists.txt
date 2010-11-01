@@ -82,7 +82,9 @@ add_subdirectory(predicate)
 add_subdirectory(nspr_support)
 add_subdirectory(server_connection)
 add_subdirectory(security)
-add_subdirectory(ipc)
+if (NOT WIN32)
+    add_subdirectory(ipc)
+endif ()
 
 # example programs
 add_subdirectory(examples)
