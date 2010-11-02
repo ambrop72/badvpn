@@ -30,7 +30,7 @@
 #include <ipc/BIPC.h>
 
 #define SEND_MTU 100
-#define MAX_PACKETS 32
+#define MAX_PACKETS 4096
 
 char *packets[MAX_PACKETS];
 int num_packets;
