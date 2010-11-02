@@ -50,7 +50,7 @@ static int init_io (BIPC *o, int send_mtu, PacketPassInterface *recv_if, BReacto
     // init sending
     StreamSocketSink_Init(&o->send_sink, FlowErrorReporter_Create(&o->domain, COMPONENT_SINK), &o->sock);
     PacketStreamSender_Init(&o->send_pss, StreamSocketSink_GetInput(&o->send_sink), PACKETPROTO_ENCLEN(send_mtu));
-    PacketCopier_Init(&o->send_copier, send_mtu, BReactor_PendingGroup(reactor));
+    PacketCopier_Init(&o->send_copier, send_mtu);
     PacketProtoEncoder_Init(&o->send_encoder, PacketCopier_GetOutput(&o->send_copier));
     if (!SinglePacketBuffer_Init(&o->send_buf, PacketProtoEncoder_GetOutput(&o->send_encoder), PacketStreamSender_GetInput(&o->send_pss), BReactor_PendingGroup(reactor))) {
         goto fail1;

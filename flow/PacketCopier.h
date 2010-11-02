@@ -30,7 +30,6 @@
 #include <stdint.h>
 
 #include <misc/dead.h>
-#include <system/BPending.h>
 #include <flow/PacketPassInterface.h>
 #include <flow/PacketRecvInterface.h>
 
@@ -46,12 +45,8 @@ typedef struct {
     PacketRecvInterface output;
     int in_len;
     uint8_t *in;
-    int in_got;
     int out_have;
     uint8_t *out;
-    int out_got_len;
-    BPending continue_job_input;
-    BPending continue_job_output;
 } PacketCopier;
 
 /**
@@ -59,9 +54,8 @@ typedef struct {
  * 
  * @param o the object
  * @param mtu maximum packet size. Must be >=0.
- * @param pg pending group
  */
-void PacketCopier_Init (PacketCopier *o, int mtu, BPendingGroup *pg);
+void PacketCopier_Init (PacketCopier *o, int mtu);
 
 /**
  * Frees the object.
