@@ -36,9 +36,6 @@ int BIPCServer_Init (BIPCServer *o, const char *path, BIPCServer_handler handler
     o->handler = handler;
     o->user = user;
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // init socket
     if (BSocket_Init(&o->sock, reactor, BADDR_TYPE_UNIX, BSOCKET_TYPE_STREAM) < 0) {
         DEBUG("BSocket_Init failed");
@@ -79,7 +76,4 @@ void BIPCServer_Free (BIPCServer *o)
     
     // free socket
     BSocket_Free(&o->sock);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }

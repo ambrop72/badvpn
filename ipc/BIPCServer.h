@@ -47,7 +47,6 @@ typedef void (*BIPCServer_handler) (void *user);
  * message-oriented two-way IPC.
  */
 typedef struct {
-    dead_t dead;
     BSocket sock;
     Listener listener;
     BIPCServer_handler handler;
