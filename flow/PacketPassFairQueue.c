@@ -82,6 +82,24 @@ static int call_done (PacketPassFairQueue *m, PacketPassFairQueueFlow *flow)
     return 0;
 }
 
+static uint64_t get_current_time (PacketPassFairQueue *m)
+{
+    if (m->sending_flow) {
+        return m->sending_flow->time;
+    }
+    
+    BHeapNode *heap_node = BHeap_GetFirst(&m->queued_heap);
+    if (!heap_node) {
+        return 0;
+    }
+    
+    PacketPassFairQueueFlow *first_flow = UPPER_OBJECT(heap_node, PacketPassFairQueueFlow, queued.heap_node);
+    ASSERT(first_flow->is_queued)
+    ASSERT(first_flow->have_time)
+    
+    return first_flow->time;
+}
+
 static void increment_sent_flow (PacketPassFairQueueFlow *flow, int iamount)
 {
     ASSERT(iamount >= 0)
@@ -189,7 +207,7 @@ static int input_handler_send (PacketPassFairQueueFlow *flow, uint8_t *data, int
     // assign time if needed
     int had_time = flow->have_time;
     if (!flow->have_time) {
-        flow->time = (m->sending_flow ? m->sending_flow->time : 0);
+        flow->time = get_current_time(m);
         flow->have_time = 1;
     }
     
