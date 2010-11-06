@@ -538,7 +538,7 @@ int main (int argc, char *argv[])
                 (options.peer_ssl ? client_key : NULL)
             )) {
                 BLog(BLOG_ERROR, "PasswordListener_Init failed");
-                goto fail4a;
+                goto fail5;
             }
             num_listeners++;
         }
