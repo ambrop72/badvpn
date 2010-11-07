@@ -43,8 +43,9 @@ typedef struct {
  * Initializes the object.
  *
  * @param o the object
+ * @param pg pending group
  */
-void DataProtoKeepaliveSource_Init (DataProtoKeepaliveSource *o);
+void DataProtoKeepaliveSource_Init (DataProtoKeepaliveSource *o, BPendingGroup *pg);
 
 /**
  * Frees the object.

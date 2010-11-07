@@ -29,7 +29,6 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
 #include <system/DebugObject.h>
 #include <flow/PacketRecvInterface.h>
 
@@ -40,11 +39,10 @@
  * Output is with {@link PacketRecvInterface}.
  */
 typedef struct {
-    DebugObject d_obj;
-    dead_t dead;
     PacketRecvInterface *input;
     PacketRecvInterface output;
     uint8_t *output_packet;
+    DebugObject d_obj;
 } PacketProtoEncoder;
 
 /**
@@ -52,8 +50,9 @@ typedef struct {
  *
  * @param enc the object
  * @param input input interface. Its MTU must be <=PACKETPROTO_MAXPAYLOAD.
+ * @param pg pending group
  */
-void PacketProtoEncoder_Init (PacketProtoEncoder *enc, PacketRecvInterface *input);
+void PacketProtoEncoder_Init (PacketProtoEncoder *enc, PacketRecvInterface *input, BPendingGroup *pg);
 
 /**
  * Frees the object.

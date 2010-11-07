@@ -27,7 +27,6 @@
 #ifndef BADVPN_FLOW_KEEPALIVEIO
 #define BADVPN_FLOW_KEEPALIVEIO
 
-#include <misc/dead.h>
 #include <misc/debug.h>
 #include <system/DebugObject.h>
 #include <system/BReactor.h>
@@ -42,8 +41,6 @@
  * A {@link PacketPassInterface} layer for sending keep-alive packets.
  */
 typedef struct {
-    DebugObject d_obj;
-    dead_t dead;
     BReactor *reactor;
     PacketPassInactivityMonitor kasender;
     PacketPassPriorityQueue queue;
@@ -51,6 +48,7 @@ typedef struct {
     PacketPassPriorityQueueFlow ka_qflow;
     SinglePacketBuffer ka_buffer;
     PacketRecvBlocker ka_blocker;
+    DebugObject d_obj;
 } KeepaliveIO;
 
 /**

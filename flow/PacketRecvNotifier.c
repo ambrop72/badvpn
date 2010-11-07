@@ -25,74 +25,43 @@
 #include <flow/PacketRecvNotifier.h>
 
 static int call_handler (PacketRecvNotifier *o, uint8_t *data, int data_len);
-static int output_handler_recv (PacketRecvNotifier *o, uint8_t *data, int *data_len);
+static void output_handler_recv (PacketRecvNotifier *o, uint8_t *data);
 static void input_handler_done (PacketRecvNotifier *o, int data_len);
 
 int call_handler (PacketRecvNotifier *o, uint8_t *data, int data_len)
 {
     ASSERT(o->handler)
-    ASSERT(!o->in_handler)
+    DebugIn_AmOut(&o->d_in_handler);
+    DebugObject_Access(&o->d_obj);
     
-    #ifndef NDEBUG
-    o->in_handler = 1;
-    #endif
-    
+    DebugIn_GoIn(&o->d_in_handler);
     DEAD_ENTER(o->dead)
     o->handler(o->handler_user, data, data_len);
     if (DEAD_LEAVE(o->dead)) {
         return -1;
     }
-    
-    #ifndef NDEBUG
-    o->in_handler = 0;
-    #endif
+    DebugIn_GoOut(&o->d_in_handler);
     
     return 0;
 }
 
-int output_handler_recv (PacketRecvNotifier *o, uint8_t *data, int *data_len)
+void output_handler_recv (PacketRecvNotifier *o, uint8_t *data)
 {
-    ASSERT(!o->out_have)
-    ASSERT(!o->in_handler)
+    DebugIn_AmOut(&o->d_in_handler);
+    DebugObject_Access(&o->d_obj);
     
-    DEAD_DECLARE
-    
-    // call recv on input
-    DEAD_ENTER2(o->dead)
-    int res = PacketRecvInterface_Receiver_Recv(o->input, data, data_len);
-    if (DEAD_LEAVE(o->dead)) {
-        return -1;
-    }
-    
-    ASSERT(res == 0 || res == 1)
-    
-    if (!res) {
-        // input blocking, continue in input_handler_done
-        #ifndef NDEBUG
-        o->out_have = 1;
-        #endif
-        o->out = data;
-        return 0;
-    }
-    
-    // if we have a handler, call it
-    if (o->handler) {
-        if (call_handler(o, data, *data_len) < 0) {
-            return -1;
-        }
-    }
-    
-    return 1;
+    // schedule receive
+    o->out = data;
+    PacketRecvInterface_Receiver_Recv(o->input, o->out);
 }
 
 void input_handler_done (PacketRecvNotifier *o, int data_len)
 {
-    ASSERT(o->out_have)
-    ASSERT(!o->in_handler)
+    DebugIn_AmOut(&o->d_in_handler);
+    DebugObject_Access(&o->d_obj);
     
-    #ifndef NDEBUG
-    o->out_have = 0;
-    #endif
+    // finish packet
+    PacketRecvInterface_Done(&o->output, data_len);
     
     // if we have a handler, call it
     if (o->handler) {
@@ -100,12 +69,9 @@ void input_handler_done (PacketRecvNotifier *o, int data_len)
             return;
         }
     }
-    
-    PacketRecvInterface_Done(&o->output, data_len);
-    return;
 }
 
-void PacketRecvNotifier_Init (PacketRecvNotifier *o, PacketRecvInterface *input)
+void PacketRecvNotifier_Init (PacketRecvNotifier *o, PacketRecvInterface *input, BPendingGroup *pg)
 {
     // set arguments
     o->input = input;
@@ -114,7 +80,7 @@ void PacketRecvNotifier_Init (PacketRecvNotifier *o, PacketRecvInterface *input)
     DEAD_INIT(o->dead);
     
     // init output
-    PacketRecvInterface_Init(&o->output, PacketRecvInterface_GetMTU(o->input), (PacketRecvInterface_handler_recv)output_handler_recv, o);
+    PacketRecvInterface_Init(&o->output, PacketRecvInterface_GetMTU(o->input), (PacketRecvInterface_handler_recv)output_handler_recv, o, pg);
     
     // init input
     PacketRecvInterface_Receiver_Init(o->input, (PacketRecvInterface_handler_done)input_handler_done, o);
@@ -122,21 +88,14 @@ void PacketRecvNotifier_Init (PacketRecvNotifier *o, PacketRecvInterface *input)
     // set no handler
     o->handler = NULL;
     
-    // init debugging
-    #ifndef NDEBUG
-    o->out_have = 0;
-    o->in_handler = 0;
-    #endif
-    
-    // init debug object
     DebugObject_Init(&o->d_obj);
+    DebugIn_Init(&o->d_in_handler);
 }
 
 void PacketRecvNotifier_Free (PacketRecvNotifier *o)
 {
-    // free debug object
     DebugObject_Free(&o->d_obj);
-
+    
     // free output
     PacketRecvInterface_Free(&o->output);
     
@@ -146,11 +105,15 @@ void PacketRecvNotifier_Free (PacketRecvNotifier *o)
 
 PacketRecvInterface * PacketRecvNotifier_GetOutput (PacketRecvNotifier *o)
 {
+    DebugObject_Access(&o->d_obj);
+    
     return &o->output;
 }
 
 void PacketRecvNotifier_SetHandler (PacketRecvNotifier *o, PacketRecvNotifier_handler_notify handler, void *user)
 {
+    DebugObject_Access(&o->d_obj);
+    
     o->handler = handler;
     o->handler_user = user;
 }

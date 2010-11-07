@@ -41,16 +41,13 @@
  * A {@link StreamPassInterface} sink which sends data to a stream socket.
  */
 typedef struct {
-    DebugObject d_obj;
     dead_t dead;
     FlowErrorReporter rep;
     BSocket *bsock;
     StreamPassInterface input;
     int in_len;
     uint8_t *in;
-    #ifndef NDEBUG
-    int in_error;
-    #endif
+    DebugObject d_obj;
 } StreamSocketSink;
 
 /**
@@ -63,8 +60,9 @@ typedef struct {
  *            The object must be freed from the error handler.
  * @param bsock stream socket to write data to. Registers a BSOCKET_WRITE handler which
  *              must not be registered.
+ * @param pg pending group
  */
-void StreamSocketSink_Init (StreamSocketSink *s, FlowErrorReporter rep, BSocket *bsock);
+void StreamSocketSink_Init (StreamSocketSink *s, FlowErrorReporter rep, BSocket *bsock, BPendingGroup *pg);
 
 /**
  * Frees the sink.

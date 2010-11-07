@@ -43,7 +43,7 @@
 typedef void (*BPending_handler) (void *user);
 
 /**
- * Object that contains a queue of jobs pending execution.
+ * Object that contains a list of jobs pending execution.
  */
 typedef struct {
     LinkedList2 jobs;
@@ -87,8 +87,10 @@ void BPendingGroup_Free (BPendingGroup *g);
 int BPendingGroup_HasJobs (BPendingGroup *g);
 
 /**
- * Executes a job.
- * There must be at least one job in the queue.
+ * Executes the top job on the job list.
+ * The job is removed from the list and enters
+ * not set state before being executed.
+ * There must be at least one job in job list.
  * 
  * @param g the object
  */
@@ -115,9 +117,9 @@ void BPending_Init (BPending *o, BPendingGroup *g, BPending_handler handler, voi
 void BPending_Free (BPending *o);
 
 /**
- * Enables the job, appending it to the end of the group's queue.
+ * Enables the job, pushing it to the top of the job list.
  * If the object was already in set state, the job is removed from its
- * current position in the queue before being appended.
+ * current position in the list before being pushed.
  * The object enters set state.
  * 
  * @param o the object
@@ -125,12 +127,20 @@ void BPending_Free (BPending *o);
 void BPending_Set (BPending *o);
 
 /**
- * Disables the job, removing it from the group's queue.
+ * Disables the job, removing it from the job list.
  * If the object was not in set state, nothing is done.
  * The object enters not set state.
  * 
  * @param o the object
  */
 void BPending_Unset (BPending *o);
+
+/**
+ * Checks if the job is in set state.
+ * 
+ * @param o the object
+ * @return 1 if in set state, 0 if not
+ */
+int BPending_IsSet (BPending *o);
 
 #endif

@@ -26,8 +26,8 @@
 #include <protocol/scproto.h>
 #include <structure/LinkedList2.h>
 #include <structure/HashTable.h>
-#include <structure/BAVL.h>
 #include <flow/SinglePacketBuffer.h>
+#include <flow/PacketPassFairQueue.h>
 #include <tuntap/BTap.h>
 #include <client/DatagramPeerIO.h>
 #include <client/StreamPeerIO.h>
@@ -85,11 +85,13 @@
 struct device_data {
     BTap btap;
     int mtu;
+    
+    // input
     SinglePacketBuffer input_buffer;
     PacketPassInterface input_interface;
-    PacketPassInterface *output_interface;
-    uint8_t *framebuf;
-    int framelen;
+    
+    // output
+    PacketPassFairQueue output_queue;
 };
 
 struct peer_data;
@@ -141,6 +143,10 @@ struct peer_data {
     
     // local flow
     DataProtoLocalSource local_dpflow;
+    
+    // local receive flow
+    PacketPassInterface *local_recv_if;
+    PacketPassFairQueueFlow local_recv_qflow;
     
     // relay source
     DataProtoRelaySource relay_source;
@@ -196,11 +202,6 @@ struct peer_data {
     LinkedList2 groups_free;
     HashTable groups_hashtable;
     
-    // peers linked list node
-    LinkedList2Node list_node;
-    // peers-by-ID hash table node
-    HashTableNode table_node;
-    
     // relay server specific
     int is_relay;
     LinkedList2Node relay_list_node;
@@ -209,4 +210,12 @@ struct peer_data {
     // binding state
     int binding;
     int binding_addrpos;
+    
+    // jobs
+    BPending job_send_seed_after_binding;
+    
+    // peers linked list node
+    LinkedList2Node list_node;
+    // peers-by-ID hash table node
+    HashTableNode table_node;
 };

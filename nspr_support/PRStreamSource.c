@@ -28,75 +28,66 @@
 
 static void report_error (PRStreamSource *s, int error)
 {
-    #ifndef NDEBUG
-    s->in_error = 1;
     DEAD_ENTER(s->dead)
-    #endif
-    
     FlowErrorReporter_ReportError(&s->rep, &error);
-    
-    #ifndef NDEBUG
     ASSERT(DEAD_KILLED)
     DEAD_LEAVE(s->dead);
-    #endif
 }
 
-static int output_handler_recv (PRStreamSource *s, uint8_t *data, int data_avail)
+static void try_recv (PRStreamSource *s)
 {
-    ASSERT(s->out_avail == -1)
-    ASSERT(data_avail > 0)
-    ASSERT(!s->in_error)
+    ASSERT(s->out_avail > 0)
     
-    PRInt32 res = PR_Read(s->bprfd->prfd, data, data_avail);
+    int res = PR_Read(s->bprfd->prfd, s->out, s->out_avail);
+    if (res < 0 && PR_GetError() == PR_WOULD_BLOCK_ERROR) {
+        // wait for socket in prfd_handler
+        BPRFileDesc_EnableEvent(s->bprfd, PR_POLL_READ);
+        return;
+    }
+    
     if (res < 0) {
-        PRErrorCode error = PR_GetError();
-        if (error == PR_WOULD_BLOCK_ERROR) {
-            s->out_avail = data_avail;
-            s->out = data;
-            BPRFileDesc_EnableEvent(s->bprfd, PR_POLL_READ);
-            return 0;
-        }
         report_error(s, PRSTREAMSOURCE_ERROR_NSPR);
-        return -1;
+        return;
     }
     
     if (res == 0) {
         report_error(s, PRSTREAMSOURCE_ERROR_CLOSED);
-        return -1;
+        return;
     }
     
-    return res;
+    ASSERT(res > 0)
+    ASSERT(res <= s->out_avail)
+    
+    // finish packet
+    s->out_avail = -1;
+    StreamRecvInterface_Done(&s->output, res);
+}
+
+static void output_handler_recv (PRStreamSource *s, uint8_t *data, int data_avail)
+{
+    ASSERT(data_avail > 0)
+    ASSERT(s->out_avail == -1)
+    DebugObject_Access(&s->d_obj);
+    
+    // set packet
+    s->out_avail = data_avail;
+    s->out = data;
+    
+    try_recv(s);
+    return;
 }
 
 static void prfd_handler (PRStreamSource *s, PRInt16 event)
 {
     ASSERT(s->out_avail > 0)
     ASSERT(event == PR_POLL_READ)
-    ASSERT(!s->in_error)
+    DebugObject_Access(&s->d_obj);
     
-    PRInt32 res = PR_Read(s->bprfd->prfd, s->out, s->out_avail);
-    if (res < 0) {
-        PRErrorCode error = PR_GetError();
-        if (error == PR_WOULD_BLOCK_ERROR) {
-            BPRFileDesc_EnableEvent(s->bprfd, PR_POLL_READ);
-            return;
-        }
-        report_error(s, PRSTREAMSOURCE_ERROR_NSPR);
-        return;
-    }
-    
-    if (res == 0) {
-        report_error(s, PRSTREAMSOURCE_ERROR_CLOSED);
-        return;
-    }
-    
-    s->out_avail = -1;
-    
-    StreamRecvInterface_Done(&s->output, res);
+    try_recv(s);
     return;
 }
 
-void PRStreamSource_Init (PRStreamSource *s, FlowErrorReporter rep, BPRFileDesc *bprfd)
+void PRStreamSource_Init (PRStreamSource *s, FlowErrorReporter rep, BPRFileDesc *bprfd, BPendingGroup *pg)
 {
     // init arguments
     s->rep = rep;
@@ -109,23 +100,16 @@ void PRStreamSource_Init (PRStreamSource *s, FlowErrorReporter rep, BPRFileDesc 
     BPRFileDesc_AddEventHandler(s->bprfd, PR_POLL_READ, (BPRFileDesc_handler)prfd_handler, s);
     
     // init output
-    StreamRecvInterface_Init(&s->output, (StreamRecvInterface_handler_recv)output_handler_recv, s);
+    StreamRecvInterface_Init(&s->output, (StreamRecvInterface_handler_recv)output_handler_recv, s, pg);
     
     // have no output packet
     s->out_avail = -1;
     
-    // init debugging
-    #ifndef NDEBUG
-    s->in_error = 0;
-    #endif
-    
-    // init debug object
     DebugObject_Init(&s->d_obj);
 }
 
 void PRStreamSource_Free (PRStreamSource *s)
 {
-    // free debug object
     DebugObject_Free(&s->d_obj);
     
     // free output
@@ -140,5 +124,7 @@ void PRStreamSource_Free (PRStreamSource *s)
 
 StreamRecvInterface * PRStreamSource_GetOutput (PRStreamSource *s)
 {
+    DebugObject_Access(&s->d_obj);
+    
     return &s->output;
 }

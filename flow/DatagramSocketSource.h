@@ -27,11 +27,15 @@
 #ifndef BADVPN_FLOW_DATAGRAMSOCKETSOURCE_H
 #define BADVPN_FLOW_DATAGRAMSOCKETSOURCE_H
 
+#include <stdint.h>
+
 #include <misc/dead.h>
+#include <misc/debugin.h>
 #include <system/DebugObject.h>
 #include <system/BSocket.h>
-#include <flow/error.h>
+#include <system/BPending.h>
 #include <flow/PacketRecvInterface.h>
+#include <flow/error.h>
 
 #define DATAGRAMSOCKETSOURCE_ERROR_BSOCKET 1
 
@@ -39,7 +43,6 @@
  * A {@link PacketRecvInterface} source which receives packets from a datagram socket.
  */
 typedef struct {
-    DebugObject d_obj;
     dead_t dead;
     FlowErrorReporter rep;
     BSocket *bsock;
@@ -49,9 +52,11 @@ typedef struct {
     uint8_t *out;
     BAddr last_addr;
     BIPAddr last_local_addr;
+    BPending retry_job;
+    DebugIn d_in_error;
+    DebugObject d_obj;
     #ifndef NDEBUG
     int have_last_addr;
-    int in_error;
     #endif
 } DatagramSocketSource;
 
@@ -67,8 +72,9 @@ typedef struct {
  * @param bsock datagram socket to read data from. The BSOCKET_READ event must be disabled.
  * *            Takes over reading on the socket.
  * @param mtu maximum packet size. Must be >=0.
+ * @param pg pending group
  */
-void DatagramSocketSource_Init (DatagramSocketSource *s, FlowErrorReporter rep, BSocket *bsock, int mtu);
+void DatagramSocketSource_Init (DatagramSocketSource *s, FlowErrorReporter rep, BSocket *bsock, int mtu, BPendingGroup *pg);
 
 /**
  * Frees the object.

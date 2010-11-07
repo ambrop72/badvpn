@@ -31,7 +31,6 @@
 #include <stdint.h>
 
 #include <protocol/fragmentproto.h>
-#include <misc/dead.h>
 #include <system/DebugObject.h>
 #include <system/BReactor.h>
 #include <system/BTime.h>
@@ -46,8 +45,6 @@
  * Output is with {@link PacketRecvInterface}.
  */
 typedef struct {
-    DebugObject d_obj;
-    dead_t dead;
     BReactor *reactor;
     int input_mtu;
     int output_mtu;
@@ -62,8 +59,7 @@ typedef struct {
     uint8_t *out;
     int out_used;
     fragmentproto_frameid frame_id;
-    int doing_send;
-    int doing_recv;
+    DebugObject d_obj;
 } FragmentProtoDisassembler;
 
 /**

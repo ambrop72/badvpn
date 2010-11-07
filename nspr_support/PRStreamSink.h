@@ -31,8 +31,8 @@
 
 #include <misc/dead.h>
 #include <system/DebugObject.h>
-#include <flow/error.h>
 #include <flow/StreamPassInterface.h>
+#include <flow/error.h>
 #include <nspr_support/BPRFileDesc.h>
 
 #define PRSTREAMSINK_ERROR_NSPR 1
@@ -41,16 +41,13 @@
  * A {@link StreamPassInterface} sink for a NSPR file descriptor (PRFileDesc) via {@link BPRFileDesc}.
  */
 typedef struct {
-    DebugObject d_obj;
     dead_t dead;
     FlowErrorReporter rep;
     BPRFileDesc *bprfd;
     StreamPassInterface input;
     int in_len;
     uint8_t *in;
-    #ifndef NDEBUG
-    int in_error;
-    #endif
+    DebugObject d_obj;
 } PRStreamSink;
 
 /**
@@ -63,8 +60,9 @@ typedef struct {
  *            The object must be freed from the error handler.
  * @param bprfd the {@link BPRFileDesc} object to write data to. Registers a
  *              PR_POLL_WRITE handler which must not be registered.
+ * @param pg pending group
  */
-void PRStreamSink_Init (PRStreamSink *s, FlowErrorReporter rep, BPRFileDesc *bprfd);
+void PRStreamSink_Init (PRStreamSink *s, FlowErrorReporter rep, BPRFileDesc *bprfd, BPendingGroup *pg);
 
 /**
  * Frees the object.

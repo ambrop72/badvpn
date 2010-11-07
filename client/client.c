@@ -20,6 +20,18 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+/*
+ NOTE:
+ This program works with I/O inside the BPending job environment.
+ A consequence of this is that in response to an input, we can't
+ directly do any output, but instead have to schedule outputs.
+ Because all the buffers used (e.g. server send buffer, data buffers in DataProto)
+ are based on flow components, it is impossible to directly write two or more
+ packets to a buffer.
+ To, for instance, send two packets to a buffer, we have to first schedule
+ writing the second packet (using BPending), then send the first one.
+*/
+
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,7 +50,6 @@
 #include <misc/igmp_proto.h>
 #include <misc/nsskey.h>
 #include <misc/loglevel.h>
-#include <misc/dead.h>
 #include <misc/loggers_string.h>
 #include <structure/LinkedList2.h>
 #include <security/BRandom.h>
@@ -66,9 +77,6 @@
 
 // declares and initializes a pointer x to y
 #define POINTER(x, y) typeof (y) *(x) = &(y);
-
-// program dead variable
-dead_t dead;
 
 // command-line options
 struct {
@@ -200,7 +208,7 @@ static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 
 // processes certain command line options
-static int resolve_arguments (void);
+static int process_arguments (void);
 
 // handler for program termination request
 static void signal_handler (void *unused);
@@ -209,13 +217,13 @@ static void signal_handler (void *unused);
 static int server_start_msg (void **data, peerid_t peer_id, int type, int len);
 
 // submits a written packet to the server
-static int server_end_msg (void);
+static void server_end_msg (void);
 
 // adds a new peer
 static int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len);
 
 // removes a peer
-static int peer_remove (struct peer_data *peer);
+static void peer_remove (struct peer_data *peer);
 
 // deallocates peer resources
 static void peer_dealloc (struct peer_data *peer);
@@ -236,27 +244,27 @@ static void peer_free_link (struct peer_data *peer);
 static int peer_new_link (struct peer_data *peer);
 
 // registers the peer as a relay provider
-static int peer_enable_relay_provider (struct peer_data *peer);
+static void peer_enable_relay_provider (struct peer_data *peer);
 
 // unregisters the peer as a relay provider
-static int peer_disable_relay_provider (struct peer_data *peer);
+static void peer_disable_relay_provider (struct peer_data *peer);
 
 // deallocates peer relay provider resources. Inserts relay users to the
 // need relay list. Used while freeing a peer.
 static void peer_dealloc_relay_provider (struct peer_data *peer);
 
 // install relaying for a peer
-static int peer_install_relay (struct peer_data *peer, struct peer_data *relay);
+static void peer_install_relay (struct peer_data *peer, struct peer_data *relay);
 
 // uninstall relaying for a peer
-static int peer_uninstall_relay (struct peer_data *peer);
+static void peer_uninstall_relay (struct peer_data *peer);
 
 // deallocates relaying for a peer. Used when the relay is beeing freed,
 // and when uninstalling relaying after having released the connection.
 static void peer_dealloc_relay (struct peer_data *peer);
 
 // handle a peer that needs a relay
-static int peer_need_relay (struct peer_data *peer);
+static void peer_need_relay (struct peer_data *peer);
 
 // inserts the peer into the need relay list
 static void peer_register_need_relay (struct peer_data *peer);
@@ -298,10 +306,9 @@ static void peer_tcp_pio_handler_error (struct peer_data *peer);
 static void peer_reset_timer_handler (struct peer_data *peer);
 
 // PacketPassInterface handler for receiving packets from the link 
-static int peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len);
+static void peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len);
 
-// processs a packet received on the link.
-static int peer_process_received_packet (struct peer_data *peer, uint8_t *data, int data_len);
+static void local_recv_qflow_output_handler_done (struct peer_data *peer);
 
 // start binding, according to the protocol
 static int peer_start_binding (struct peer_data *peer);
@@ -309,32 +316,24 @@ static int peer_start_binding (struct peer_data *peer);
 // tries binding on one address, according to the protocol
 static int peer_bind (struct peer_data *peer);
 
-static int peer_udp_bind (struct peer_data *peer, int addr_index);
+static int peer_bind_one_address (struct peer_data *peer, int addr_index, int *cont);
 
-static int peer_tcp_bind (struct peer_data *peer, int addr_index);
-
-static int peer_udp_connect (struct peer_data *peer, BAddr addr, uint8_t *encryption_key);
-
-static int peer_tcp_connect (struct peer_data *peer, BAddr addr, uint64_t password);
-
-static int peer_udp_send_connect_info (struct peer_data *peer, int addr_index, int port_adjust, uint8_t *enckey);
-
-static int peer_tcp_send_connect_info (struct peer_data *peer, int addr_index, uint64_t pass);
-
-// generates an OTP send seed and sends it to the peer
-static int peer_udp_send_seed (struct peer_data *peer);
+static int peer_connect (struct peer_data *peer, BAddr addr, uint8_t *encryption_key, uint64_t password);
 
 // sends a message with no payload to the peer
 static int peer_send_simple (struct peer_data *peer, int msgid);
 
+static int peer_send_conectinfo (struct peer_data *peer, int addr_index, int port_adjust, uint8_t *enckey, uint64_t pass);
+
+static int peer_udp_send_seed (struct peer_data *peer);
+
+static int peer_send_confirmseed (struct peer_data *peer, uint16_t seed_id);
+
 // submits a relayed frame for sending to the peer
-static int peer_submit_relayed_frame (struct peer_data *peer, struct peer_data *source_peer, uint8_t *frame, int frame_len);
+static void peer_submit_relayed_frame (struct peer_data *peer, struct peer_data *source_peer, uint8_t *frame, int frame_len);
 
 // handler for group timers
 static void peer_group_timer_handler (struct peer_group_entry *entry);
-
-// processes a frame received from a peer addressed to us (rather than to another peer for relaying)
-static int peer_process_received_frame (struct peer_data *peer, uint8_t *data, int data_len);
 
 // handler for peer DataProto up state changes
 static void peer_dataproto_handler (struct peer_data *peer, int up);
@@ -360,16 +359,13 @@ static int peers_by_id_hash_function (peerid_t *id, int modulo);
 static void device_error_handler (void *unused);
 
 // PacketPassInterfacre handler for packets from the device
-static int device_input_handler_send (void *unused, uint8_t *data, int data_len);
+static void device_input_handler_send (void *unused, uint8_t *data, int data_len);
 
 // submits a local frame for sending to the peer. The frame is taken from the device frame buffer.
-static int submit_frame_to_peer (struct peer_data *peer);
+static void submit_frame_to_peer (struct peer_data *peer, uint8_t *data, int data_len);
 
 // submits the current frame to all peers
-static int flood_frame (void);
-
-// processes the current frame, submitting it to peers
-static int device_process_frame (void);
+static void flood_frame (uint8_t *data, int data_len);
 
 // inspects a frame read from the device and determines how
 // it should be handled. Used for IGMP snooping.
@@ -388,7 +384,7 @@ static void lower_group_timers_to_lmqt (uint32_t group);
 static int check_ipv4_packet (uint8_t *data, int data_len, struct ipv4_header **out_header, uint8_t **out_payload, int *out_payload_len);
 
 // assign relays to clients waiting for them
-static int assign_relays (void);
+static void assign_relays (void);
 
 // checks if the given address scope is known (i.e. we can connect to an address in it)
 static char * address_scope_known (uint8_t *name, int name_len);
@@ -400,14 +396,14 @@ static void server_handler_newclient (void *user, peerid_t peer_id, int flags, c
 static void server_handler_endclient (void *user, peerid_t peer_id);
 static void server_handler_message (void *user, peerid_t peer_id, uint8_t *data, int data_len);
 
+// process job handlers
+static void peer_job_send_seed_after_binding (struct peer_data *peer);
+
 int main (int argc, char *argv[])
 {
     if (argc <= 0) {
         return 1;
     }
-    
-    // init dead variable
-    DEAD_INIT(dead);
     
     // parse command-line arguments
     if (!parse_arguments(argc, argv)) {
@@ -465,9 +461,9 @@ int main (int argc, char *argv[])
     // init time
     BTime_Init();
     
-    // resolve addresses
-    if (!resolve_arguments()) {
-        BLog(BLOG_ERROR, "Failed to resolve arguments");
+    // process arguments
+    if (!process_arguments()) {
+        BLog(BLOG_ERROR, "Failed to process arguments");
         goto fail1;
     }
     
@@ -556,15 +552,14 @@ int main (int argc, char *argv[])
     BLog(BLOG_INFO, "device MTU is %d", device.mtu);
     
     // init device input
-    PacketPassInterface_Init(&device.input_interface, device.mtu, device_input_handler_send, NULL);
+    PacketPassInterface_Init(&device.input_interface, device.mtu, device_input_handler_send, NULL, BReactor_PendingGroup(&ss));
     if (!SinglePacketBuffer_Init(&device.input_buffer, BTap_GetOutput(&device.btap), &device.input_interface, BReactor_PendingGroup(&ss))) {
         goto fail5a;
     }
-    device.framelen = -1;
     
     // init device output
-    device.output_interface = BTap_GetInput(&device.btap);
-    PacketPassInterface_Sender_Init(device.output_interface, NULL, NULL);
+    PacketPassFairQueue_Init(&device.output_queue, BTap_GetInput(&device.btap), BReactor_PendingGroup(&ss));
+    PacketPassFairQueue_EnableCancel(&device.output_queue);
     
     // calculate data MTU
     data_mtu = DATAPROTO_MAX_OVERHEAD + device.mtu;
@@ -615,7 +610,7 @@ int main (int argc, char *argv[])
     // init multicast entries
     LinkedList2_Init(&multicast_entries_free);
     int i;
-    for (i = 0; i < MAX_PEERS*PEER_MAX_GROUPS; i++) {
+    for (i = 0; i < MAX_PEERS * PEER_MAX_GROUPS; i++) {
         struct multicast_table_entry *multicast_entry = &multicast_entries_data[i];
         LinkedList2_Append(&multicast_entries_free, &multicast_entry->free_list_node);
     }
@@ -648,6 +643,7 @@ fail9:
 fail8:
     HashTable_Free(&peers_by_id);
 fail7:
+    PacketPassFairQueue_Free(&device.output_queue);
     SinglePacketBuffer_Free(&device.input_buffer);
 fail5a:
     PacketPassInterface_Free(&device.input_interface);
@@ -704,6 +700,9 @@ void terminate (void)
 {
     BLog(BLOG_NOTICE, "tearing down");
     
+    // allow freeing local receive flows
+    PacketPassFairQueue_PrepareFree(&device.output_queue);
+    
     // free peers
     LinkedList2Node *node;
     while (node = LinkedList2_GetFirst(&peers)) {
@@ -725,9 +724,7 @@ void terminate (void)
         }
         
         // free relay source
-        if (!DataProtoRelaySource_IsEmpty(&peer->relay_source)) {
-            DataProtoRelaySource_FreeRelease(&peer->relay_source);
-        }
+        DataProtoRelaySource_FreeRelease(&peer->relay_source);
         
         // deallocate peer
         peer_dealloc(peer);
@@ -740,6 +737,9 @@ void terminate (void)
     HashTable_Free(&multicast_table);
     HashTable_Free(&mac_table);
     HashTable_Free(&peers_by_id);
+    
+    // free device output
+    PacketPassFairQueue_Free(&device.output_queue);
     
     // free device input
     SinglePacketBuffer_Free(&device.input_buffer);
@@ -776,9 +776,6 @@ void terminate (void)
     
     // remove signal handler
     BSignal_RemoveHandler();
-    
-    // kill dead variable
-    DEAD_KILL(dead);
     
     // exit reactor
     BReactor_Quit(&ss, 1);
@@ -1233,7 +1230,7 @@ int parse_arguments (int argc, char *argv[])
     return 1;
 }
 
-int resolve_arguments (void)
+int process_arguments (void)
 {
     // resolve server address
     ASSERT(options.server_addr)
@@ -1342,12 +1339,7 @@ int server_start_msg (void **data, peerid_t peer_id, int type, int len)
     ASSERT(!(len > 0) || data)
     
     uint8_t *packet;
-    DEAD_ENTER(dead)
-    int res = ServerConnection_StartMessage(&server, (void **)&packet, peer_id, msg_SIZEtype + msg_SIZEpayload(len));
-    if (DEAD_LEAVE(dead)) {
-        return -1;
-    }
-    if (!res) {
+    if (!ServerConnection_StartMessage(&server, (void **)&packet, peer_id, msg_SIZEtype + msg_SIZEpayload(len))) {
         BLog(BLOG_ERROR, "out of server buffer, exiting");
         terminate();
         return -1;
@@ -1366,17 +1358,11 @@ int server_start_msg (void **data, peerid_t peer_id, int type, int len)
     return 0;
 }
 
-int server_end_msg (void)
+void server_end_msg (void)
 {
     ASSERT(server_ready)
     
-    DEAD_ENTER(dead)
     ServerConnection_EndMessage(&server);
-    if (DEAD_LEAVE(dead)) {
-        return -1;
-    }
-    
-    return 0;
 }
 
 int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
@@ -1409,9 +1395,14 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     
     // init local flow
     if (!DataProtoLocalSource_Init(&peer->local_dpflow, device.mtu, my_id, peer->id, options.send_buffer_size, &ss)) {
-        BLog(BLOG_ERROR, "peer %d: DataProtoLocalSource_Init failed", (int)id);
+        peer_log(peer, BLOG_ERROR, "DataProtoLocalSource_Init failed");
         goto fail1;
     }
+    
+    // init local receive flow
+    PacketPassFairQueueFlow_Init(&peer->local_recv_qflow, &device.output_queue);
+    peer->local_recv_if = PacketPassFairQueueFlow_GetInput(&peer->local_recv_qflow);
+    PacketPassInterface_Sender_Init(peer->local_recv_if, (PacketPassInterface_handler_done)local_recv_qflow_output_handler_done, peer);
     
     // init relay source
     DataProtoRelaySource_Init(&peer->relay_source, peer->id);
@@ -1442,8 +1433,7 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     LinkedList2_Init(&peer->macs_used);
     LinkedList2_Init(&peer->macs_free);
     // init MAC entries and add them to the free list
-    int i;
-    for (i = 0; i < PEER_MAX_MACS; i++) {
+    for (int i = 0; i < PEER_MAX_MACS; i++) {
         struct mac_table_entry *entry = &peer->macs_data[i];
         entry->peer = peer;
         LinkedList2_Append(&peer->macs_free, &entry->list_node);
@@ -1453,7 +1443,7 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     LinkedList2_Init(&peer->groups_used);
     LinkedList2_Init(&peer->groups_free);
     // init group entries and add to unused list
-    for (i = 0; i < PEER_MAX_GROUPS; i++) {
+    for (int i = 0; i < PEER_MAX_GROUPS; i++) {
         struct peer_group_entry *entry = &peer->groups_data[i];
         entry->peer = peer;
         LinkedList2_Append(&peer->groups_free, &entry->list_node);
@@ -1467,9 +1457,18 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
         (HashTable_hash_function)peer_groups_table_hash_function,
         PEER_MAX_GROUPS
     )) {
-        BLog(BLOG_ERROR, "peer %d: HashTable_Init failed", (int)id);
+        peer_log(peer, BLOG_ERROR, "HashTable_Init failed");
         goto fail5;
     }
+    
+    // is not relay server
+    peer->is_relay = 0;
+    
+    // init binding
+    peer->binding = 0;
+    
+    // init jobs
+    BPending_Init(&peer->job_send_seed_after_binding, BReactor_PendingGroup(&ss), (BPending_handler)peer_job_send_seed_after_binding, peer);
     
     // add to peers linked list
     LinkedList2_Append(&peers, &peer->list_node);
@@ -1479,12 +1478,6 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     
     // increment number of peers
     num_peers++;
-    
-    // is not relay server
-    peer->is_relay = 0;
-    
-    // init binding
-    peer->binding = 0;
     
     peer_log(peer, BLOG_INFO, "initialized");
     
@@ -1503,6 +1496,7 @@ fail4:
     }
 fail3:
     DataProtoRelaySource_Free(&peer->relay_source);
+    PacketPassFairQueueFlow_Free(&peer->local_recv_qflow);
     DataProtoLocalSource_Free(&peer->local_dpflow);
 fail1:
     free(peer);
@@ -1510,15 +1504,13 @@ fail0:
     return 0;
 }
 
-int peer_remove (struct peer_data *peer)
+void peer_remove (struct peer_data *peer)
 {
     peer_log(peer, BLOG_INFO, "removing");
     
     // uninstall relaying
     if (peer->have_relaying) {
-        if (peer_uninstall_relay(peer) < 0) {
-            return -1;
-        }
+        peer_uninstall_relay(peer);
     }
     
     // disable relay provider
@@ -1528,23 +1520,18 @@ int peer_remove (struct peer_data *peer)
     }
     
     // release relay flows
-    if (!DataProtoRelaySource_IsEmpty(&peer->relay_source)) {
-        DEAD_ENTER(dead)
-        DataProtoRelaySource_Release(&peer->relay_source);
-        if (DEAD_LEAVE(dead)) {
-            return -1;
-        }
+    DataProtoRelaySource_Release(&peer->relay_source);
+    
+    // release local receive flow
+    if (PacketPassFairQueueFlow_IsBusy(&peer->local_recv_qflow)) {
+        PacketPassFairQueueFlow_Release(&peer->local_recv_qflow);
     }
     
     // deallocate peer
     peer_dealloc(peer);
     
     // assign relays because former relay users are disconnected above
-    if (assign_relays() < 0) {
-        return -1;
-    }
-    
-    return 0;
+    assign_relays();
 }
 
 void peer_dealloc (struct peer_data *peer)
@@ -1552,6 +1539,7 @@ void peer_dealloc (struct peer_data *peer)
     ASSERT(!peer->have_relaying)
     ASSERT(!peer->is_relay)
     ASSERT(DataProtoRelaySource_IsEmpty(&peer->relay_source))
+    PacketPassFairQueueFlow_AssertFree(&peer->local_recv_qflow);
     
     LinkedList2Iterator it;
     LinkedList2Node *node;
@@ -1592,6 +1580,9 @@ void peer_dealloc (struct peer_data *peer)
     // remove from peers linked list
     LinkedList2_Remove(&peers, &peer->list_node);
     
+    // free jobs
+    BPending_Free(&peer->job_send_seed_after_binding);
+    
     // free groups table
     HashTable_Free(&peer->groups_hashtable);
     
@@ -1606,6 +1597,9 @@ void peer_dealloc (struct peer_data *peer)
     
     // free relay source
     DataProtoRelaySource_Free(&peer->relay_source);
+    
+    // free local receive flow
+    PacketPassFairQueueFlow_Free(&peer->local_recv_qflow);
     
     // free local flow
     DataProtoLocalSource_Free(&peer->local_dpflow);
@@ -1637,7 +1631,7 @@ int peer_init_link (struct peer_data *peer)
     ASSERT(!peer->is_relay)
     
     // init link receive interface
-    PacketPassInterface_Init(&peer->recv_ppi, data_mtu, (PacketPassInterface_handler_send)peer_recv_handler_send, peer);
+    PacketPassInterface_Init(&peer->recv_ppi, data_mtu, (PacketPassInterface_handler_send)peer_recv_handler_send, peer,  BReactor_PendingGroup(&ss));
     
     // init transport-specific link objects
     PacketPassInterface *link_if;
@@ -1676,6 +1670,7 @@ int peer_init_link (struct peer_data *peer)
             peer_log(peer, BLOG_ERROR, "StreamPeerIO_Init failed");
             goto fail1;
         }
+        
         link_if = StreamPeerIO_GetSendInput(&peer->pio.tcp.pio);
     }
     
@@ -1739,17 +1734,13 @@ int peer_new_link (struct peer_data *peer)
 {
     if (peer->have_link) {
         if (peer->is_relay) {
-            if (peer_disable_relay_provider(peer) < 0) {
-                return -1;
-            }
+            peer_disable_relay_provider(peer);
         }
         
         peer_free_link(peer);
     }
     else if (peer->have_relaying) {
-        if (peer_uninstall_relay(peer) < 0) {
-            return -1;
-        }
+        peer_uninstall_relay(peer);
     }
     else if (peer->waiting_relay) {
         peer_unregister_need_relay(peer);
@@ -1762,7 +1753,7 @@ int peer_new_link (struct peer_data *peer)
     return 1;
 }
 
-int peer_enable_relay_provider (struct peer_data *peer)
+void peer_enable_relay_provider (struct peer_data *peer)
 {
     ASSERT(peer->have_link)
     ASSERT(!peer->is_relay)
@@ -1779,14 +1770,10 @@ int peer_enable_relay_provider (struct peer_data *peer)
     peer->is_relay = 1;
     
     // assign relays
-    if (assign_relays() < 0) {
-        return -1;
-    }
-    
-    return 0;
+    assign_relays();
 }
 
-int peer_disable_relay_provider (struct peer_data *peer)
+void peer_disable_relay_provider (struct peer_data *peer)
 {
     ASSERT(peer->is_relay)
     
@@ -1802,9 +1789,7 @@ int peer_disable_relay_provider (struct peer_data *peer)
         ASSERT(relay_user->relaying_peer == peer)
         
         // disconnect relay user
-        if (peer_uninstall_relay(relay_user) < 0) {
-            return -1;
-        }
+        peer_uninstall_relay(relay_user);
         
         // add it to need relay list
         peer_register_need_relay(relay_user);
@@ -1816,11 +1801,7 @@ int peer_disable_relay_provider (struct peer_data *peer)
     peer->is_relay = 0;
     
     // assign relays
-    if (assign_relays() < 0) {
-        return -1;
-    }
-    
-    return 0;
+    assign_relays();
 }
 
 void peer_dealloc_relay_provider (struct peer_data *peer)
@@ -1854,7 +1835,7 @@ void peer_dealloc_relay_provider (struct peer_data *peer)
     peer->is_relay = 0;
 }
 
-int peer_install_relay (struct peer_data *peer, struct peer_data *relay)
+void peer_install_relay (struct peer_data *peer, struct peer_data *relay)
 {
     ASSERT(!peer->have_relaying)
     ASSERT(!peer->have_link)
@@ -1876,11 +1857,9 @@ int peer_install_relay (struct peer_data *peer, struct peer_data *relay)
     DataProtoLocalSource_Attach(&peer->local_dpflow, &relay->send_dp);
     
     peer->have_relaying = 1;
-    
-    return 0;
 }
 
-int peer_uninstall_relay (struct peer_data *peer)
+void peer_uninstall_relay (struct peer_data *peer)
 {
     ASSERT(peer->have_relaying)
     
@@ -1894,16 +1873,10 @@ int peer_uninstall_relay (struct peer_data *peer)
     peer_log(peer, BLOG_INFO, "uninstalling relaying through %d", (int)relay->id);
     
     // release local flow before detaching it
-    DEAD_ENTER(dead)
     DataProtoLocalSource_Release(&peer->local_dpflow);
-    if (DEAD_LEAVE(dead)) {
-        return -1;
-    }
     
     // link out relay
     peer_dealloc_relay(peer);
-    
-    return 0;
 }
 
 void peer_dealloc_relay (struct peer_data *peer)
@@ -1926,7 +1899,7 @@ void peer_dealloc_relay (struct peer_data *peer)
     peer->have_relaying = 0;
 }
 
-int peer_need_relay (struct peer_data *peer)
+void peer_need_relay (struct peer_data *peer)
 {
     ASSERT(!peer->is_relay)
     
@@ -1935,25 +1908,19 @@ int peer_need_relay (struct peer_data *peer)
     }
     
     if (peer->have_relaying) {
-        if (peer_uninstall_relay(peer) < 0) {
-            return -1;
-        }
+        peer_uninstall_relay(peer);
     }
     
     if (peer->waiting_relay) {
         // already waiting for relay, do nothing
-        return 0;
+        return;
     }
     
     // register the peer as needing a relay
     peer_register_need_relay(peer);
     
     // assign relays
-    if (assign_relays() < 0) {
-        return -1;
-    }
-    
-    return 0;
+    assign_relays();
 }
 
 void peer_register_need_relay (struct peer_data *peer)
@@ -2143,7 +2110,10 @@ void peer_leave_group (struct peer_data *peer, uint32_t group)
 void peer_msg (struct peer_data *peer, uint8_t *data, int data_len)
 {
     ASSERT(server_ready)
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= SC_MAX_MSGLEN)
     
+    // parse message
     msgParser parser;
     if (!msgParser_Init(&parser, data, data_len)) {
         peer_log(peer, BLOG_NOTICE, "msg: failed to parse");
@@ -2157,6 +2127,7 @@ void peer_msg (struct peer_data *peer, uint8_t *data, int data_len)
     int payload_len;
     ASSERT_EXECUTE(msgParser_Getpayload(&parser, &payload, &payload_len))
     
+    // dispatch according to message type
     switch (type) {
         case MSGID_YOUCONNECT:
             peer_msg_youconnect(peer, payload, payload_len);
@@ -2235,8 +2206,8 @@ void peer_msg_youconnect (struct peer_data *peer, uint8_t *data, int data_len)
     // discard further addresses
     msg_youconnectParser_Forwardaddr(&parser);
     
-    uint8_t *key;
-    uint64_t password;
+    uint8_t *key = NULL;
+    uint64_t password = 0;
     
     // read additonal parameters
     if (options.transport_mode == TRANSPORT_MODE_UDP) {
@@ -2263,28 +2234,10 @@ void peer_msg_youconnect (struct peer_data *peer, uint8_t *data, int data_len)
         return;
     }
     
-    // get a fresh link
-    int res;
-    if ((res = peer_new_link(peer)) < 0) {
-        return;
-    }
-    if (!res) {
-        peer_log(peer, BLOG_ERROR, "msg_youconnect: cannot get link");
-        
-        // retry negotiation
-        peer_reset(peer);
-        return;
-    }
-    
     peer_log(peer, BLOG_INFO, "connecting");
     
-    if (options.transport_mode == TRANSPORT_MODE_UDP) {
-        peer_udp_connect(peer, addr, key);
-        return;
-    } else {
-        peer_tcp_connect(peer, addr, password);
-        return;
-    }
+    peer_connect(peer, addr, key, password);
+    return;
 }
 
 void peer_msg_cannotconnect (struct peer_data *peer, uint8_t *data, int data_len)
@@ -2321,7 +2274,6 @@ void peer_msg_cannotbind (struct peer_data *peer, uint8_t *data, int data_len)
     } else {
         if (!peer->is_relay) {
             peer_need_relay(peer);
-            return;
         }
     }
 }
@@ -2375,18 +2327,8 @@ void peer_msg_seed (struct peer_data *peer, uint8_t *data, int data_len)
     DatagramPeerIO_AddOTPRecvSeed(&peer->pio.udp.pio, seed_id, key, iv);
     
     // send confirmation
-    int msg_len = msg_confirmseed_SIZEseed_id;
-    uint8_t *msg;
-    if (server_start_msg((void **)&msg, peer->id, MSGID_CONFIRMSEED, msg_len) < 0) {
-        return;
-    }
-    msg_confirmseedWriter writer;
-    msg_confirmseedWriter_Init(&writer, msg);
-    msg_confirmseedWriter_Addseed_id(&writer, seed_id);
-    msg_confirmseedWriter_Finish(&writer);
-    if (server_end_msg() < 0) {
-        return;
-    }
+    peer_send_confirmseed(peer, seed_id);
+    return;
 }
 
 void peer_msg_confirmseed (struct peer_data *peer, uint8_t *data, int data_len)
@@ -2459,9 +2401,7 @@ void peer_udp_pio_handler_seed_warning (struct peer_data *peer)
     ASSERT(SPPROTO_HAVE_OTP(sp_params))
     ASSERT(peer->have_link)
     
-    // this may come from inside the Send call to the link, so don't send it
-    // any data here (PacketPassFairQueue can't do that and so can't DataProto)
-    
+    // generate and send a new seed
     if (!peer->pio.udp.sendseed_sent) {
         peer_udp_send_seed(peer);
         return;
@@ -2490,20 +2430,7 @@ void peer_reset_timer_handler (struct peer_data *peer)
     return;
 }
 
-int peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len)
-{
-    ASSERT(peer->have_link)
-    ASSERT(data_len >= 0)
-    ASSERT(data_len <= data_mtu)
-    
-    if (peer_process_received_packet(peer, data, data_len) < 0) {
-        return -1;
-    }
-    
-    return 1;
-}
-
-int peer_process_received_packet (struct peer_data *peer, uint8_t *data, int data_len)
+void peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len)
 {
     ASSERT(peer->have_link)
     ASSERT(data_len >= 0)
@@ -2512,10 +2439,14 @@ int peer_process_received_packet (struct peer_data *peer, uint8_t *data, int dat
     uint8_t *orig_data = data;
     int orig_data_len = data_len;
     
+    int dp_good = 0;
+    struct peer_data *relay = NULL;
+    int local = 0;
+    
     // check dataproto header
     if (data_len < sizeof(struct dataproto_header)) {
         peer_log(peer, BLOG_NOTICE, "receive: no dataproto header");
-        return 0;
+        goto out;
     }
     struct dataproto_header *header = (struct dataproto_header *)data;
     data += sizeof(struct dataproto_header);
@@ -2525,13 +2456,13 @@ int peer_process_received_packet (struct peer_data *peer, uint8_t *data, int dat
     int num_ids = ltoh16(header->num_peer_ids);
     
     // check destination IDs
-    if (num_ids > DATAPROTO_MAX_PEER_IDS) {
+    if (num_ids > 1) {
         peer_log(peer, BLOG_NOTICE, "receive: too many destination IDs");
-        return 0;
+        goto out;
     }
     if (data_len < num_ids * sizeof(struct dataproto_peer_id)) {
         peer_log(peer, BLOG_NOTICE, "receive: invalid length for destination IDs");
-        return 0;
+        goto out;
     }
     struct dataproto_peer_id *ids = (struct dataproto_peer_id *)data;
     data += num_ids * sizeof(struct dataproto_peer_id);
@@ -2540,68 +2471,91 @@ int peer_process_received_packet (struct peer_data *peer, uint8_t *data, int dat
     // check remaining data
     if (data_len > device.mtu) {
         peer_log(peer, BLOG_NOTICE, "receive: frame too large");
-        return 0;
+        goto out;
+    }
+    
+    dp_good = 1;
+    
+    if (num_ids == 0) {
+        goto out;
+    }
+    
+    // find source peer
+    struct peer_data *src_peer = find_peer_by_id(from_id);
+    if (!src_peer) {
+        peer_log(peer, BLOG_NOTICE, "receive: source peer %d not known", (int)from_id);
+        goto out;
+    }
+    
+    // find destination
+    peerid_t id = ltoh16(ids[0].id);
+    if (id == my_id) {
+        // frame is for us
+        
+        // check ethernet header
+        if (data_len < sizeof(struct ethernet_header)) {
+            peer_log(peer, BLOG_INFO, "received frame without ethernet header");
+            goto out;
+        }
+        struct ethernet_header *header = (struct ethernet_header *)data;
+        
+        // associate source address with peer
+        peer_add_mac_address(peer, header->source);
+        
+        // invoke incoming hook
+        peer_hook_incoming(peer, data, data_len);
+        
+        local = 1;
+    } else {
+        // frame is for someone else
+        
+        // make sure the client is allowed to relay though us
+        if (!(peer->flags & SCID_NEWCLIENT_FLAG_RELAY_CLIENT)) {
+            peer_log(peer, BLOG_NOTICE, "relaying not allowed");
+            goto out;
+        }
+        
+        // lookup destination peer
+        struct peer_data *dest_peer = find_peer_by_id(id);
+        if (!dest_peer) {
+            peer_log(peer, BLOG_NOTICE, "relay destination peer not known");
+            goto out;
+        }
+        
+        // check if the destination peer has link
+        if (!dest_peer->have_link) {
+            peer_log(peer, BLOG_NOTICE, "relay destination peer has no link");
+            goto out;
+        }
+        
+        relay = dest_peer;
+    }
+    
+out:
+    // accept packet
+    if (!local) {
+        PacketPassInterface_Done(&peer->recv_ppi);
+    }
+    
+    // relay frame
+    if (relay) {
+        peer_submit_relayed_frame(relay, src_peer, data, data_len);
+    }
+    
+    // submit to device
+    if (local) {
+        PacketPassInterface_Sender_Send(peer->local_recv_if, data, data_len);
     }
     
     // inform DataProto of received packet
-    
-    DEAD_ENTER(dead)
-    DataProtoDest_Received(&peer->send_dp, !!(flags & DATAPROTO_FLAGS_RECEIVING_KEEPALIVES));
-    if (DEAD_LEAVE(dead)) {
-        return -1;
+    if (dp_good) {
+        DataProtoDest_Received(&peer->send_dp, !!(flags & DATAPROTO_FLAGS_RECEIVING_KEEPALIVES));
     }
-    
-    // the frame is still accessible because the link can only be freed from
-    // message handlers and the retry timer
-    
-    if (num_ids > 0) {
-        // find source peer
-        struct peer_data *src_peer = find_peer_by_id(from_id);
-        if (!src_peer) {
-            peer_log(peer, BLOG_NOTICE, "receive: source peer %d not known", (int)from_id);
-            return 0;
-        }
-        
-        // iterate over destination IDs
-        for (int i = 0; i < num_ids; i++) {
-            peerid_t id = ltoh16(ids[i].id);
-            if (id == my_id) {
-                // frame is for us
-                if (peer_process_received_frame(src_peer, data, data_len) < 0) {
-                    return -1;
-                }
-            } else {
-                // frame is for someone else
-                do {
-                    // make sure the client is allowed to relay though us
-                    if (!(peer->flags & SCID_NEWCLIENT_FLAG_RELAY_CLIENT)) {
-                        peer_log(peer, BLOG_NOTICE, "relaying not allowed");
-                        break;
-                    }
-                    
-                    // lookup destination peer
-                    struct peer_data *dest_peer = find_peer_by_id(id);
-                    if (!dest_peer) {
-                        peer_log(peer, BLOG_NOTICE, "relay destination peer not known");
-                        break;
-                    }
-                    
-                    // check if the destination peer has link
-                    if (!dest_peer->have_link) {
-                        peer_log(peer, BLOG_NOTICE, "relay destination peer has no link");
-                        break;
-                    }
-                    
-                    // submit the frame for relaying
-                    if (peer_submit_relayed_frame(dest_peer, src_peer, data, data_len) < 0) {
-                        return -1;
-                    }
-                } while (0);
-            }
-        }
-    }
-    
-    return 0;
+}
+
+void local_recv_qflow_output_handler_done (struct peer_data *peer)
+{
+    PacketPassInterface_Done(&peer->recv_ppi);
 }
 
 int peer_start_binding (struct peer_data *peer)
@@ -2627,36 +2581,16 @@ int peer_bind (struct peer_data *peer)
             continue;
         }
         
-        // get a fresh link
-        if ((res = peer_new_link(peer)) < 0) {
-            return -1;
-        }
-        if (!res) {
-            peer_log(peer, BLOG_ERROR, "cannot get link");
-            
-            // no longer binding
-            peer->binding = 0;
-            
-            // retry negotiation
-            return peer_reset(peer);
-        }
-        
         // try to bind
-        if (options.transport_mode == TRANSPORT_MODE_UDP) {
-            if ((res = peer_udp_bind(peer, peer->binding_addrpos)) < 0) {
-                return -1;
-            }
-        } else {
-            if ((res = peer_tcp_bind(peer, peer->binding_addrpos)) < 0) {
-                return -1;
-            }
+        int cont;
+        if (peer_bind_one_address(peer, peer->binding_addrpos, &cont) < 0) {
+            return -1;
         }
         
         // increment address counter
         peer->binding_addrpos++;
         
-        if (res) {
-            peer_log(peer, BLOG_NOTICE, "bound to address number %d", (peer->binding_addrpos - (int)1));
+        if (!cont) {
             return 0;
         }
     }
@@ -2674,159 +2608,166 @@ int peer_bind (struct peer_data *peer)
     // if we are the slave, setup relaying
     if (!peer_am_master(peer)) {
         if (!peer->is_relay) {
-            if (peer_need_relay(peer) < 0) {
+            peer_need_relay(peer);
+        }
+    }
+    
+    return 0;
+}
+
+int peer_bind_one_address (struct peer_data *peer, int addr_index, int *cont)
+{
+    ASSERT(addr_index >= 0)
+    ASSERT(addr_index < num_bind_addrs)
+    ASSERT(bind_addrs[addr_index].num_ext_addrs > 0)
+    
+    // get a fresh link
+    if (!peer_new_link(peer)) {
+        peer_log(peer, BLOG_ERROR, "cannot get link");
+        *cont = 0;
+        return peer_reset(peer);
+    }
+    
+    if (options.transport_mode == TRANSPORT_MODE_UDP) {
+        // get addr
+        POINTER(addr, bind_addrs[addr_index]);
+        
+        // try binding to all ports in the range
+        int port_add;
+        for (port_add = 0; port_add < addr->num_ports; port_add++) {
+            BAddr tryaddr = addr->addr;
+            BAddr_SetPort(&tryaddr, hton16(ntoh16(BAddr_GetPort(&tryaddr)) + port_add));
+            if (DatagramPeerIO_Bind(&peer->pio.udp.pio, tryaddr)) {
+                break;
+            }
+        }
+        if (port_add == addr->num_ports) {
+            BLog(BLOG_NOTICE, "failed to bind to any port");
+            *cont = 1;
+            return 0;
+        }
+        
+        uint8_t key[SPPROTO_HAVE_ENCRYPTION(sp_params) ? BEncryption_cipher_key_size(sp_params.encryption_mode) : 0];
+        
+        // generate and set encryption key
+        if (SPPROTO_HAVE_ENCRYPTION(sp_params)) {
+            BRandom_randomize(key, sizeof(key));
+            DatagramPeerIO_SetEncryptionKey(&peer->pio.udp.pio, key);
+        }
+        
+        // schedule sending OTP seed
+        if (SPPROTO_HAVE_OTP(sp_params)) {
+            BPending_Set(&peer->job_send_seed_after_binding);
+        }
+        
+        // send connectinfo
+        if (peer_send_conectinfo(peer, addr_index, port_add, key, 0) < 0) {
+            return -1;
+        }
+    } else {
+        // order StreamPeerIO to listen
+        uint64_t pass;
+        StreamPeerIO_Listen(&peer->pio.tcp.pio, &listeners[addr_index], &pass);
+        
+        // send connectinfo
+        if (peer_send_conectinfo(peer, addr_index, 0, NULL, pass) < 0) {
+            return -1;
+        }
+    }
+    
+    peer_log(peer, BLOG_NOTICE, "bound to address number %d", addr_index);
+    
+    *cont = 0;
+    return 0;
+}
+
+int peer_connect (struct peer_data *peer, BAddr addr, uint8_t *encryption_key, uint64_t password)
+{
+    ASSERT(!BAddr_IsInvalid(&addr))
+    
+    // get a fresh link
+    if (!peer_new_link(peer)) {
+        peer_log(peer, BLOG_ERROR, "cannot get link");
+        return peer_reset(peer);
+    }
+    
+    if (options.transport_mode == TRANSPORT_MODE_UDP) {
+        // order DatagramPeerIO to connect
+        if (!DatagramPeerIO_Connect(&peer->pio.udp.pio, addr)) {
+            peer_log(peer, BLOG_NOTICE, "DatagramPeerIO_Connect failed");
+            return peer_reset(peer);
+        }
+        
+        // set encryption key
+        if (SPPROTO_HAVE_ENCRYPTION(sp_params)) {
+            DatagramPeerIO_SetEncryptionKey(&peer->pio.udp.pio, encryption_key);
+        }
+        
+        // generate and send a send seed
+        if (SPPROTO_HAVE_OTP(sp_params)) {
+            if (peer_udp_send_seed(peer) < 0) {
                 return -1;
             }
         }
+    } else {
+        // order StreamPeerIO to connect
+        if (!StreamPeerIO_Connect(
+            &peer->pio.tcp.pio, addr, password,
+            (options.peer_ssl ? client_cert : NULL),
+            (options.peer_ssl ? client_key : NULL)
+        )) {
+            peer_log(peer, BLOG_NOTICE, "StreamPeerIO_Connect failed");
+            return peer_reset(peer);
+        }
     }
     
     return 0;
 }
 
-int peer_udp_bind (struct peer_data *peer, int addr_index)
+int peer_send_simple (struct peer_data *peer, int msgid)
 {
-    ASSERT(options.transport_mode == TRANSPORT_MODE_UDP)
-    ASSERT(addr_index >= 0)
-    ASSERT(addr_index < num_bind_addrs)
-    ASSERT(bind_addrs[addr_index].num_ext_addrs > 0)
-    ASSERT(peer->have_link)
-    
-    // get addr
-    POINTER(addr, bind_addrs[addr_index]);
-    
-    // try binding to all ports in the range
-    int port_add;
-    for (port_add = 0; port_add < addr->num_ports; port_add++) {
-        BAddr tryaddr = addr->addr;
-        BAddr_SetPort(&tryaddr, hton16(ntoh16(BAddr_GetPort(&tryaddr)) + port_add));
-        if (DatagramPeerIO_Bind(&peer->pio.udp.pio, tryaddr)) {
-            break;
-        }
-    }
-    if (port_add == addr->num_ports) {
-        BLog(BLOG_NOTICE, "failed to bind to any port");
-        return 0;
-    }
-    
-    uint8_t key[SPPROTO_HAVE_ENCRYPTION(sp_params) ? BEncryption_cipher_key_size(sp_params.encryption_mode) : 0];
-    
-    // generate and set encryption key
-    if (SPPROTO_HAVE_ENCRYPTION(sp_params)) {
-        BRandom_randomize(key, sizeof(key));
-        DatagramPeerIO_SetEncryptionKey(&peer->pio.udp.pio, key);
-    }
-    
-    // send information to the peer
-    if (peer_udp_send_connect_info(peer, addr_index, port_add, key) < 0) {
+    if (server_start_msg(NULL, peer->id, msgid, 0) < 0) {
         return -1;
     }
-    
-    // generate and send initial send seed
-    if (SPPROTO_HAVE_OTP(sp_params)) {
-        if (peer_udp_send_seed(peer) < 0) {
-            return -1;
-        }
-    }
-    
-    return 1;
-}
-
-int peer_tcp_bind (struct peer_data *peer, int addr_index)
-{
-    ASSERT(options.transport_mode == TRANSPORT_MODE_TCP)
-    ASSERT(peer->have_link)
-    ASSERT(addr_index >= 0)
-    ASSERT(addr_index < num_bind_addrs)
-    ASSERT(bind_addrs[addr_index].num_ext_addrs > 0)
-    
-    // order StreamPeerIO to listen
-    uint64_t pass;
-    StreamPeerIO_Listen(&peer->pio.tcp.pio, &listeners[addr_index], &pass);
-    
-    // send our address and password to the peer
-    if (peer_tcp_send_connect_info(peer, addr_index, pass) < 0) {
-        return -1;
-    }
-    
-    return 1;
-}
-
-int peer_udp_connect (struct peer_data *peer, BAddr addr, uint8_t *encryption_key)
-{
-    ASSERT(options.transport_mode == TRANSPORT_MODE_UDP)
-    ASSERT(!BAddr_IsInvalid(&addr))
-    ASSERT(peer->have_link)
-    
-    // order DatagramPeerIO to connect
-    if (!DatagramPeerIO_Connect(&peer->pio.udp.pio, addr)) {
-        peer_log(peer, BLOG_NOTICE, "DatagramPeerIO_Connect failed");
-        
-        // retry negotiation
-        return peer_reset(peer);
-    }
-    
-    // set encryption key
-    if (SPPROTO_HAVE_ENCRYPTION(sp_params)) {
-        DatagramPeerIO_SetEncryptionKey(&peer->pio.udp.pio, encryption_key);
-    }
-    
-    // generate and send initial send seed
-    if (SPPROTO_HAVE_OTP(sp_params)) {
-        if (peer_udp_send_seed(peer) < 0) {
-            return -1;
-        }
-    }
+    server_end_msg();
     
     return 0;
 }
 
-int peer_tcp_connect (struct peer_data *peer, BAddr addr, uint64_t password)
+int peer_send_conectinfo (struct peer_data *peer, int addr_index, int port_adjust, uint8_t *enckey, uint64_t pass)
 {
-    ASSERT(options.transport_mode == TRANSPORT_MODE_TCP)
-    ASSERT(!BAddr_IsInvalid(&addr))
-    ASSERT(peer->have_link)
-    
-    // order StreamPeerIO to connect
-    if (!StreamPeerIO_Connect(
-        &peer->pio.tcp.pio, addr, password,
-        (options.peer_ssl ? client_cert : NULL),
-        (options.peer_ssl ? client_key : NULL)
-    )) {
-        peer_log(peer, BLOG_NOTICE, "StreamPeerIO_Connect failed");
-        
-        // retry negotiation
-        return peer_reset(peer);
-    }
-    
-    return 0;
-}
-
-int peer_udp_send_connect_info (struct peer_data *peer, int addr_index, int port_adjust, uint8_t *enckey)
-{
-    ASSERT(options.transport_mode == TRANSPORT_MODE_UDP)
     ASSERT(addr_index >= 0)
     ASSERT(addr_index < num_bind_addrs)
     ASSERT(bind_addrs[addr_index].num_ext_addrs > 0)
-    
-    // remember encryption key size
-    int key_size;
-    if (SPPROTO_HAVE_ENCRYPTION(sp_params)) {
-        key_size = BEncryption_cipher_key_size(sp_params.encryption_mode);
-    }
     
     // get address
     POINTER(bind_addr, bind_addrs[addr_index]);
     
-    // calculate message length
+    // remember encryption key size
+    int key_size;
+    if (options.transport_mode == TRANSPORT_MODE_UDP && SPPROTO_HAVE_ENCRYPTION(sp_params)) {
+        key_size = BEncryption_cipher_key_size(sp_params.encryption_mode);
+    }
+    
+    // calculate message length ..
     int msg_len = 0;
+    
+    // addresses
     for (int i = 0; i < bind_addr->num_ext_addrs; i++) {
         int addrmsg_len =
             msg_youconnect_addr_SIZEname(strlen(bind_addr->ext_addrs[i].scope)) +
             msg_youconnect_addr_SIZEaddr(addr_size(bind_addr->ext_addrs[i].addr));
         msg_len += msg_youconnect_SIZEaddr(addrmsg_len);
     }
-    if (SPPROTO_HAVE_ENCRYPTION(sp_params)) {
+    
+    // encryption key
+    if (options.transport_mode == TRANSPORT_MODE_UDP && SPPROTO_HAVE_ENCRYPTION(sp_params)) {
         msg_len += msg_youconnect_SIZEkey(key_size);
+    }
+    
+    // password
+    if (options.transport_mode == TRANSPORT_MODE_TCP) {
+        msg_len += msg_youconnect_SIZEpassword;
     }
     
     // check if it's too big (because of the addresses)
@@ -2834,17 +2775,17 @@ int peer_udp_send_connect_info (struct peer_data *peer, int addr_index, int port
         BLog(BLOG_ERROR, "cannot send too big youconnect message");
         return 0;
     }
-    
+        
     // start message
     uint8_t *msg;
     if (server_start_msg((void **)&msg, peer->id, MSGID_YOUCONNECT, msg_len) < 0) {
         return -1;
     }
-    
+        
     // init writer
     msg_youconnectWriter writer;
     msg_youconnectWriter_Init(&writer, msg);
-    
+        
     // write addresses
     for (int i = 0; i < bind_addr->num_ext_addrs; i++) {
         int name_len = strlen(bind_addr->ext_addrs[i].scope);
@@ -2875,95 +2816,21 @@ int peer_udp_send_connect_info (struct peer_data *peer, int addr_index, int port
     }
     
     // write encryption key
-    if (SPPROTO_HAVE_ENCRYPTION(sp_params)) {
+    if (options.transport_mode == TRANSPORT_MODE_UDP && SPPROTO_HAVE_ENCRYPTION(sp_params)) {
         uint8_t *key_dst = msg_youconnectWriter_Addkey(&writer, key_size);
         memcpy(key_dst, enckey, key_size);
     }
     
-    // finish writer
-    msg_youconnectWriter_Finish(&writer);
-    
-    // end message
-    if (server_end_msg() < 0) {
-        return -1;
-    }
-    
-    return 0;
-}
-
-int peer_tcp_send_connect_info (struct peer_data *peer, int addr_index, uint64_t pass)
-{
-    ASSERT(options.transport_mode == TRANSPORT_MODE_TCP)
-    ASSERT(addr_index >= 0)
-    ASSERT(addr_index < num_bind_addrs)
-    ASSERT(bind_addrs[addr_index].num_ext_addrs > 0)
-    
-    // get address
-    POINTER(bind_addr, bind_addrs[addr_index]);
-    
-    // calculate message length
-    int msg_len = 0;
-    for (int i = 0; i < bind_addr->num_ext_addrs; i++) {
-        int addrmsg_len =
-            msg_youconnect_addr_SIZEname(strlen(bind_addr->ext_addrs[i].scope)) +
-            msg_youconnect_addr_SIZEaddr(addr_size(bind_addr->ext_addrs[i].addr));
-        msg_len += msg_youconnect_SIZEaddr(addrmsg_len);
-    }
-    msg_len += msg_youconnect_SIZEpassword;
-    
-    // check if it's too big (because of the addresses)
-    if (msg_len > MSG_MAX_PAYLOAD) {
-        BLog(BLOG_ERROR, "cannot send too big youconnect message");
-        return 0;
-    }
-    
-    // start message
-    uint8_t *msg;
-    if (server_start_msg((void **)&msg, peer->id, MSGID_YOUCONNECT, msg_len) < 0) {
-        return -1;
-    }
-    
-    // init writer
-    msg_youconnectWriter writer;
-    msg_youconnectWriter_Init(&writer, msg);
-    
-    // write addresses
-    for (int i = 0; i < bind_addr->num_ext_addrs; i++) {
-        int name_len = strlen(bind_addr->ext_addrs[i].scope);
-        int addr_len = addr_size(bind_addr->ext_addrs[i].addr);
-        
-        // get a pointer for writing the address
-        int addrmsg_len =
-            msg_youconnect_addr_SIZEname(name_len) +
-            msg_youconnect_addr_SIZEaddr(addr_len);
-        uint8_t *addrmsg_dst = msg_youconnectWriter_Addaddr(&writer, addrmsg_len);
-        
-        // init address writer
-        msg_youconnect_addrWriter awriter;
-        msg_youconnect_addrWriter_Init(&awriter, addrmsg_dst);
-        
-        // write scope
-        uint8_t *name_dst = msg_youconnect_addrWriter_Addname(&awriter, name_len);
-        memcpy(name_dst, bind_addr->ext_addrs[i].scope, name_len);
-        
-        // write address
-        uint8_t *addr_dst = msg_youconnect_addrWriter_Addaddr(&awriter, addr_len);
-        addr_write(addr_dst, bind_addr->ext_addrs[i].addr);
-        
-        // finish address writer
-        msg_youconnect_addrWriter_Finish(&awriter);
-    }
-    
     // write password
-    msg_youconnectWriter_Addpassword(&writer, pass);
+    if (options.transport_mode == TRANSPORT_MODE_TCP) {
+        msg_youconnectWriter_Addpassword(&writer, pass);
+    }
     
     // finish writer
     msg_youconnectWriter_Finish(&writer);
     
     // end message
-    if (server_end_msg() < 0) {
-        return -1;
-    }
+    server_end_msg();
     
     return 0;
 }
@@ -3003,38 +2870,38 @@ int peer_udp_send_seed (struct peer_data *peer)
     uint8_t *iv_dst = msg_seedWriter_Addiv(&writer, iv_len);
     memcpy(iv_dst, peer->pio.udp.sendseed_sent_iv, iv_len);
     msg_seedWriter_Finish(&writer);
-    if (server_end_msg() < 0) {
-        return -1;
-    }
+    server_end_msg();
     
     return 0;
 }
 
-int peer_send_simple (struct peer_data *peer, int msgid)
+int peer_send_confirmseed (struct peer_data *peer, uint16_t seed_id)
 {
-    if (server_start_msg(NULL, peer->id, msgid, 0) < 0) {
+    ASSERT(options.transport_mode == TRANSPORT_MODE_UDP)
+    ASSERT(SPPROTO_HAVE_OTP(sp_params))
+    
+    // send confirmation
+    int msg_len = msg_confirmseed_SIZEseed_id;
+    uint8_t *msg;
+    if (server_start_msg((void **)&msg, peer->id, MSGID_CONFIRMSEED, msg_len) < 0) {
         return -1;
     }
-    if (server_end_msg() < 0) {
-        return -1;
-    }
+    msg_confirmseedWriter writer;
+    msg_confirmseedWriter_Init(&writer, msg);
+    msg_confirmseedWriter_Addseed_id(&writer, seed_id);
+    msg_confirmseedWriter_Finish(&writer);
+    server_end_msg();
     
     return 0;
 }
 
-int peer_submit_relayed_frame (struct peer_data *peer, struct peer_data *source_peer, uint8_t *frame, int frame_len)
+void peer_submit_relayed_frame (struct peer_data *peer, struct peer_data *source_peer, uint8_t *frame, int frame_len)
 {
     ASSERT(peer->have_link)
     ASSERT(frame_len >= 0)
     ASSERT(frame_len <= device.mtu)
     
-    DEAD_ENTER(dead)
     DataProtoDest_SubmitRelayFrame(&peer->send_dp, &source_peer->relay_source, frame, frame_len, options.send_buffer_relay_size);
-    if (DEAD_LEAVE(dead)) {
-        return -1;
-    }
-    
-    return 0;
 }
 
 void peer_group_timer_handler (struct peer_group_entry *entry)
@@ -3044,59 +2911,25 @@ void peer_group_timer_handler (struct peer_group_entry *entry)
     peer_leave_group(peer, entry->group);
 }
 
-int peer_process_received_frame (struct peer_data *peer, uint8_t *data, int data_len)
-{
-    ASSERT(data_len >= 0)
-    ASSERT(data_len <= device.mtu)
-    
-    // check ethernet header
-    if (data_len < sizeof(struct ethernet_header)) {
-        peer_log(peer, BLOG_INFO, "received frame without ethernet header");
-        return 0;
-    }
-    struct ethernet_header *header = (struct ethernet_header *)data;
-    
-    // associate source address with peer
-    peer_add_mac_address(peer, header->source);
-    
-    // invoke incoming hook
-    peer_hook_incoming(peer, data, data_len);
-    
-    // write frame to the device
-    DEAD_ENTER(dead)
-    int res = PacketPassInterface_Sender_Send(device.output_interface, data, data_len);
-    if (DEAD_LEAVE(dead)) {
-        return -1;
-    }
-    
-    ASSERT(res == 0 || res == 1)
-    
-    ASSERT_FORCE(res == 1) // TODO?
-    
-    return 0;
-}
-
 void peer_dataproto_handler (struct peer_data *peer, int up)
 {
     ASSERT(peer->have_link)
+    
+    // peer_recv_handler_send relies on this not bringing everything down
     
     if (up) {
         peer_log(peer, BLOG_INFO, "up");
         
         // if it can be a relay provided, enable it
         if ((peer->flags&SCID_NEWCLIENT_FLAG_RELAY_SERVER) && !peer->is_relay) {
-            if (peer_enable_relay_provider(peer) < 0) {
-                return;
-            }
+            peer_enable_relay_provider(peer);
         }
     } else {
         peer_log(peer, BLOG_INFO, "down");
         
         // if it is a relay provider, disable it
         if (peer->is_relay) {
-            if (peer_disable_relay_provider(peer) < 0) {
-                return;
-            }
+            peer_disable_relay_provider(peer);
         }
     }
 }
@@ -3211,68 +3044,20 @@ void device_error_handler (void *unused)
     return;
 }
 
-int device_input_handler_send (void *unused, uint8_t *data, int data_len)
+void device_input_handler_send (void *unused, uint8_t *data, int data_len)
 {
-    ASSERT(device.framelen == -1)
     ASSERT(data_len >= 0)
     ASSERT(data_len <= device.mtu)
     
-    device.framebuf = data;
-    device.framelen = data_len;
-    
-    // process frame
-    if (device_process_frame() < 0) {
-        return -1;
-    }
-    
-    device.framelen = -1;
-    
-    return 1;
-}
-
-int submit_frame_to_peer (struct peer_data *peer)
-{
-    ASSERT(device.framelen >= 0)
-    
-    DEAD_ENTER(dead)
-    DataProtoLocalSource_SubmitFrame(&peer->local_dpflow, device.framebuf, device.framelen);
-    if (DEAD_LEAVE(dead)) {
-        return -1;
-    }
-    
-    return 0;
-}
-
-int flood_frame (void)
-{
-    ASSERT(device.framelen >= 0)
-    
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &peers);
-    LinkedList2Node *peer_list_node;
-    while (peer_list_node = LinkedList2Iterator_Next(&it)) {
-        struct peer_data *peer = UPPER_OBJECT(peer_list_node, struct peer_data, list_node);
-        if (submit_frame_to_peer(peer) < 0) {
-            return -1;
-        }
-    }
-    
-    return 0;
-}
-
-int device_process_frame (void)
-{
-    ASSERT(device.framelen >= 0)
-    
-    uint8_t *data = device.framebuf;
-    int data_len = device.framelen;
+    // accept packet
+    PacketPassInterface_Done(&device.input_interface);
     
     const uint8_t broadcast_mac[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
     const uint8_t multicast_header[] = {0x01, 0x00, 0x5e};
     
     if (data_len < sizeof(struct ethernet_header)) {
         BLog(BLOG_INFO, "device: frame too small (%d)", data_len);
-        return 0;
+        return;
     }
     
     struct ethernet_header *header = (struct ethernet_header *)data;
@@ -3298,38 +3083,50 @@ int device_process_frame (void)
                     LinkedList2Node *group_entries_list_node;
                     while (group_entries_list_node = LinkedList2Iterator_Next(&it)) {
                         struct peer_group_entry *group_entry = UPPER_OBJECT(group_entries_list_node, struct peer_group_entry, multicast_list_node);
-                        if (submit_frame_to_peer(group_entry->peer) < 0) {
-                            return -1;
-                        }
+                        submit_frame_to_peer(group_entry->peer, data, data_len);
                     }
                 }
             } else {
                 // should we flood it?
                 HashTableNode *mac_table_node;
                 if (!memcmp(header->dest, broadcast_mac, 6) || !HashTable_Lookup(&mac_table, header->dest, &mac_table_node)) {
-                    if (flood_frame() < 0) {
-                        return -1;
-                    }
+                    flood_frame(data, data_len);
                 }
                 // unicast it
                 else {
                     struct mac_table_entry *mac_entry = UPPER_OBJECT(mac_table_node, struct mac_table_entry, table_node);
-                    if (submit_frame_to_peer(mac_entry->peer) < 0) {
-                        return -1;
-                    }
+                    submit_frame_to_peer(mac_entry->peer, data, data_len);
                 }
             }
             break;
         case HOOK_OUT_FLOOD:
-            if (flood_frame() < 0) {
-                return -1;
-            }
+            flood_frame(data, data_len);
             break;
         default:
             ASSERT(0);
     }
+}
+
+void submit_frame_to_peer (struct peer_data *peer, uint8_t *data, int data_len)
+{
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= device.mtu)
     
-    return 0;
+    DataProtoLocalSource_SubmitFrame(&peer->local_dpflow, data, data_len);
+}
+
+void flood_frame (uint8_t *data, int data_len)
+{
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= device.mtu)
+    
+    LinkedList2Iterator it;
+    LinkedList2Iterator_InitForward(&it, &peers);
+    LinkedList2Node *peer_list_node;
+    while (peer_list_node = LinkedList2Iterator_Next(&it)) {
+        struct peer_data *peer = UPPER_OBJECT(peer_list_node, struct peer_data, list_node);
+        submit_frame_to_peer(peer, data, data_len);
+    }
 }
 
 int hook_outgoing (uint8_t *pos, int len)
@@ -3569,18 +3366,21 @@ int check_ipv4_packet (uint8_t *data, int data_len, struct ipv4_header **out_hea
     return 1;
 }
 
-int assign_relays (void)
+void assign_relays (void)
 {
     LinkedList2Node *list_node;
     while (list_node = LinkedList2_GetFirst(&waiting_relay_peers)) {
         struct peer_data *peer = UPPER_OBJECT(list_node, struct peer_data, waiting_relay_list_node);
         ASSERT(peer->waiting_relay)
         
+        ASSERT(!peer->have_relaying)
+        ASSERT(!peer->have_link)
+        
         // get a relay
         LinkedList2Node *list_node2 = LinkedList2_GetFirst(&relays);
         if (!list_node2) {
             BLog(BLOG_NOTICE, "no relays");
-            return 0;
+            return;
         }
         struct peer_data *relay = UPPER_OBJECT(list_node2, struct peer_data, relay_list_node);
         ASSERT(relay->is_relay)
@@ -3589,12 +3389,8 @@ int assign_relays (void)
         peer_unregister_need_relay(peer);
         
         // install the relay
-        if (peer_install_relay(peer, relay) < 0) {
-            return -1;
-        }
+        peer_install_relay(peer, relay);
     }
-    
-    return 0;
 }
 
 char * address_scope_known (uint8_t *name, int name_len)
@@ -3696,7 +3492,6 @@ void server_handler_endclient (void *user, peerid_t peer_id)
     
     // remove peer
     peer_remove(peer);
-    return;
 }
 
 void server_handler_message (void *user, peerid_t peer_id, uint8_t *data, int data_len)
@@ -3714,5 +3509,16 @@ void server_handler_message (void *user, peerid_t peer_id, uint8_t *data, int da
     
     // process peer message
     peer_msg(peer, data, data_len);
+    return;
+}
+
+void peer_job_send_seed_after_binding (struct peer_data *peer)
+{
+    ASSERT(options.transport_mode == TRANSPORT_MODE_UDP)
+    ASSERT(SPPROTO_HAVE_OTP(sp_params))
+    ASSERT(peer->have_link)
+    ASSERT(!peer->pio.udp.sendseed_sent)
+    
+    peer_udp_send_seed(peer);
     return;
 }

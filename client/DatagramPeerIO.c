@@ -52,24 +52,19 @@ int init_persistent_io (DatagramPeerIO *o, btime_t latency, PacketPassInterface 
     // init error domain
     FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)error_handler, o);
     
-    // init encoder group
-    if (!SPProtoEncoderGroup_Init(&o->encoder_group, o->sp_params)) {
-        goto fail0;
-    }
-    
     // init sending base
     
     // init disassembler
     FragmentProtoDisassembler_Init(&o->send_disassembler, o->reactor, o->payload_mtu, o->spproto_payload_mtu, -1, latency);
     
     // init encoder
-    if (!SPProtoEncoder_Init(&o->send_encoder, &o->encoder_group, FragmentProtoDisassembler_GetOutput(&o->send_disassembler), BReactor_PendingGroup(o->reactor))) {
+    if (!SPProtoEncoder_Init(&o->send_encoder, o->sp_params, FragmentProtoDisassembler_GetOutput(&o->send_disassembler), BReactor_PendingGroup(o->reactor))) {
         BLog(BLOG_ERROR, "SPProtoEncoder_Init failed");
         goto fail1;
     }
     
     // init notifier
-    PacketRecvNotifier_Init(&o->send_notifier, SPProtoEncoder_GetOutput(&o->send_encoder));
+    PacketRecvNotifier_Init(&o->send_notifier, SPProtoEncoder_GetOutput(&o->send_encoder), BReactor_PendingGroup(o->reactor));
     if (SPPROTO_HAVE_OTP(o->sp_params)) {
         PacketRecvNotifier_SetHandler(&o->send_notifier, (PacketRecvNotifier_handler_notify)send_encoder_notifier_handler, o);
     }
@@ -86,15 +81,15 @@ int init_persistent_io (DatagramPeerIO *o, btime_t latency, PacketPassInterface 
     // init receiving
     
     // init assembler
-    if (!FragmentProtoAssembler_Init(&o->recv_assembler, o->spproto_payload_mtu, recv_userif, 1, fragmentproto_max_chunks_for_frame(o->spproto_payload_mtu, o->payload_mtu))) {
+    if (!FragmentProtoAssembler_Init(&o->recv_assembler, o->spproto_payload_mtu, recv_userif, 1, fragmentproto_max_chunks_for_frame(o->spproto_payload_mtu, o->payload_mtu), BReactor_PendingGroup(o->reactor))) {
         goto fail3;
     }
     
     // init notifier
-    PacketPassNotifier_Init(&o->recv_notifier, FragmentProtoAssembler_GetInput(&o->recv_assembler));
+    PacketPassNotifier_Init(&o->recv_notifier, FragmentProtoAssembler_GetInput(&o->recv_assembler), BReactor_PendingGroup(o->reactor));
     
     // init decoder
-    if (!SPProtoDecoder_Init(&o->recv_decoder, PacketPassNotifier_GetInput(&o->recv_notifier), o->sp_params, 2)) {
+    if (!SPProtoDecoder_Init(&o->recv_decoder, PacketPassNotifier_GetInput(&o->recv_notifier), o->sp_params, 2, BReactor_PendingGroup(o->reactor))) {
         goto fail4;
     }
     
@@ -122,9 +117,6 @@ fail2:
     SPProtoEncoder_Free(&o->send_encoder);
 fail1:
     FragmentProtoDisassembler_Free(&o->send_disassembler);
-fail0a:
-    SPProtoEncoderGroup_Free(&o->encoder_group);
-fail0:
     return 0;
 }
 
@@ -143,15 +135,12 @@ void free_persistent_io (DatagramPeerIO *o)
     PacketRecvNotifier_Free(&o->send_notifier);
     SPProtoEncoder_Free(&o->send_encoder);
     FragmentProtoDisassembler_Free(&o->send_disassembler);
-    
-    // free encoder group
-    SPProtoEncoderGroup_Free(&o->encoder_group);
 }
 
 void init_sending (DatagramPeerIO *o, BAddr addr, BIPAddr local_addr)
 {
     // init sink
-    DatagramSocketSink_Init(&o->send_sink, FlowErrorReporter_Create(&o->domain, DATAGRAMPEERIO_COMPONENT_SINK), &o->sock, o->effective_socket_mtu, addr, local_addr);
+    DatagramSocketSink_Init(&o->send_sink, FlowErrorReporter_Create(&o->domain, DATAGRAMPEERIO_COMPONENT_SINK), &o->sock, o->effective_socket_mtu, addr, local_addr, BReactor_PendingGroup(o->reactor));
     
     // connect sink
     PacketPassConnector_ConnectOutput(&o->send_connector, DatagramSocketSink_GetInput(&o->send_sink));
@@ -169,7 +158,7 @@ void free_sending (DatagramPeerIO *o)
 void init_receiving (DatagramPeerIO *o)
 {
     // init source
-    DatagramSocketSource_Init(&o->recv_source, FlowErrorReporter_Create(&o->domain, DATAGRAMPEERIO_COMPONENT_SOURCE), &o->sock, o->effective_socket_mtu);
+    DatagramSocketSource_Init(&o->recv_source, FlowErrorReporter_Create(&o->domain, DATAGRAMPEERIO_COMPONENT_SOURCE), &o->sock, o->effective_socket_mtu, BReactor_PendingGroup(o->reactor));
     
     // connect source
     PacketRecvConnector_ConnectInput(&o->recv_connector, DatagramSocketSource_GetOutput(&o->recv_source));
@@ -280,7 +269,7 @@ void send_encoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_l
 {
     ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
     
-    if (o->handler_otp_warning && SPProtoEncoderGroup_GetOTPPosition(&o->encoder_group) == o->handler_otp_warning_num_used) { 
+    if (o->handler_otp_warning && SPProtoEncoder_GetOTPPosition(&o->send_encoder) == o->handler_otp_warning_num_used) { 
         o->handler_otp_warning(o->handler_otp_warning_user);
         return;
     }
@@ -451,7 +440,7 @@ void DatagramPeerIO_SetEncryptionKey (DatagramPeerIO *o, uint8_t *encryption_key
     ASSERT(o->sp_params.encryption_mode != SPPROTO_ENCRYPTION_MODE_NONE)
     
     // set sending key
-    SPProtoEncoderGroup_SetEncryptionKey(&o->encoder_group, encryption_key);
+    SPProtoEncoder_SetEncryptionKey(&o->send_encoder, encryption_key);
     
     // set receiving key
     SPProtoDecoder_SetEncryptionKey(&o->recv_decoder, encryption_key);
@@ -462,7 +451,7 @@ void DatagramPeerIO_RemoveEncryptionKey (DatagramPeerIO *o)
     ASSERT(o->sp_params.encryption_mode != SPPROTO_ENCRYPTION_MODE_NONE)
     
     // remove sending key
-    SPProtoEncoderGroup_RemoveEncryptionKey(&o->encoder_group);
+    SPProtoEncoder_RemoveEncryptionKey(&o->send_encoder);
     
     // remove receiving key
     SPProtoDecoder_RemoveEncryptionKey(&o->recv_decoder);
@@ -473,7 +462,7 @@ void DatagramPeerIO_SetOTPSendSeed (DatagramPeerIO *o, uint16_t seed_id, uint8_t
     ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
     
     // set sending seed
-    SPProtoEncoderGroup_SetOTPSeed(&o->encoder_group, seed_id, key, iv);
+    SPProtoEncoder_SetOTPSeed(&o->send_encoder, seed_id, key, iv);
 }
 
 void DatagramPeerIO_RemoveOTPSendSeed (DatagramPeerIO *o)
@@ -481,7 +470,7 @@ void DatagramPeerIO_RemoveOTPSendSeed (DatagramPeerIO *o)
     ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
     
     // remove sending seed
-    SPProtoEncoderGroup_RemoveOTPSeed(&o->encoder_group);
+    SPProtoEncoder_RemoveOTPSeed(&o->send_encoder);
 }
 
 void DatagramPeerIO_AddOTPRecvSeed (DatagramPeerIO *o, uint16_t seed_id, uint8_t *key, uint8_t *iv)

@@ -23,7 +23,6 @@
 #include <stdint.h>
 
 #include <protocol/scproto.h>
-#include <misc/dead.h>
 #include <structure/LinkedList2.h>
 #include <structure/HashTable.h>
 #include <structure/BAVL.h>
@@ -69,8 +68,6 @@
 struct client_data;
 
 struct peer_flow {
-    // dead variable
-    dead_t dead;
     // source client
     struct client_data *src_client;
     // destination client
@@ -85,15 +82,19 @@ struct peer_flow {
     // output chain
     PacketPassFairQueueFlow qflow;
     PacketProtoFlow oflow;
-    BestEffortPacketWriteInterface *bepwi;
+    BufferWriter *input;
     int packet_len;
     uint8_t *packet;
 };
 
+struct peer_know {
+    struct client_data *from;
+    struct client_data *to;
+    LinkedList2Node from_node;
+    LinkedList2Node to_node;
+};
+
 struct client_data {
-    // dead variable
-    dead_t dead;
-    
     // socket
     BSocket sock;
     BAddr addr;
@@ -122,12 +123,21 @@ struct client_data {
     // node in clients-by-id hash table
     HashTableNode table_node_id;
     
+    // knowledge lists
+    LinkedList2 know_out_list;
+    LinkedList2 know_in_list;
+    
     // flows from us
     LinkedList2 peer_out_flows_list;
     BAVL peer_out_flows_tree;
     
     // whether it's being removed
     int dying;
+    BPending dying_job;
+    
+    // publish job
+    BPending publish_job;
+    LinkedList2Iterator publish_it;
     
     // error domain
     FlowErrorDomain domain;
@@ -151,7 +161,7 @@ struct client_data {
     // output control flow
     PacketPassPriorityQueueFlow output_control_qflow;
     PacketProtoFlow output_control_oflow;
-    BestEffortPacketWriteInterface *output_control_input;
+    BufferWriter *output_control_input;
     int output_control_packet_len;
     uint8_t *output_control_packet;
     

@@ -30,7 +30,6 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
 #include <system/DebugObject.h>
 #include <flow/PacketRecvInterface.h>
 
@@ -39,13 +38,12 @@
  * passes a single blocked call on to input when the user wants so.
  */
 typedef struct {
-    DebugObject d_obj;
-    dead_t dead;
     PacketRecvInterface output;
     int out_have;
     uint8_t *out;
     int out_input_blocking;
     PacketRecvInterface *input;
+    DebugObject d_obj;
 } PacketRecvBlocker;
 
 /**
@@ -54,7 +52,7 @@ typedef struct {
  * @param o the object
  * @param input input interface
  */
-void PacketRecvBlocker_Init (PacketRecvBlocker *o, PacketRecvInterface *input);
+void PacketRecvBlocker_Init (PacketRecvBlocker *o, PacketRecvInterface *input, BPendingGroup *pg);
 
 /**
  * Frees the object.

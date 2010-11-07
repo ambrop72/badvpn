@@ -31,6 +31,7 @@
 #include <stdint.h>
 
 #include <misc/dead.h>
+#include <misc/debugin.h>
 #include <system/DebugObject.h>
 #include <flow/PacketRecvInterface.h>
 
@@ -49,17 +50,14 @@ typedef void (*PacketRecvNotifier_handler_notify) (void *user, uint8_t *data, in
  * providing a packet to output.
  */
 typedef struct {
-    DebugObject d_obj;
     dead_t dead;
     PacketRecvInterface output;
     PacketRecvInterface *input;
     PacketRecvNotifier_handler_notify handler;
     void *handler_user;
     uint8_t *out;
-    #ifndef NDEBUG
-    int out_have;
-    int in_handler;
-    #endif
+    DebugObject d_obj;
+    DebugIn d_in_handler;
 } PacketRecvNotifier;
 
 /**
@@ -67,8 +65,9 @@ typedef struct {
  *
  * @param o the object
  * @param input input interface
+ * @param pg pending group
  */
-void PacketRecvNotifier_Init (PacketRecvNotifier *o, PacketRecvInterface *input);
+void PacketRecvNotifier_Init (PacketRecvNotifier *o, PacketRecvInterface *input, BPendingGroup *pg);
 
 /**
  * Frees the object.

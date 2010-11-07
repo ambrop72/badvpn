@@ -30,9 +30,7 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
 #include <system/DebugObject.h>
-#include <system/BPending.h>
 #include <flow/PacketRecvInterface.h>
 
 /**
@@ -40,16 +38,13 @@
  * connected and disconnected on the fly.
  */
 typedef struct {
-    DebugObject d_obj;
-    dead_t dead;
     PacketRecvInterface output;
     int output_mtu;
     int out_have;
     uint8_t *out;
     PacketRecvInterface *input;
-    dead_t input_dead;
     int in_blocking;
-    BPending continue_job;
+    DebugObject d_obj;
 } PacketRecvConnector;
 
 /**

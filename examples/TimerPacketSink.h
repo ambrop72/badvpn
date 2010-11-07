@@ -34,14 +34,13 @@ typedef struct {
     BTimer timer;
 } TimerPacketSink;
 
-static int _TimerPacketSink_input_handler_send (TimerPacketSink *s, uint8_t *data, int data_len)
+static void _TimerPacketSink_input_handler_send (TimerPacketSink *s, uint8_t *data, int data_len)
 {
     printf("sink: send '");
     fwrite(data, data_len, 1, stdout);
     printf("'\n");
     
     BReactor_SetTimer(s->reactor, &s->timer);
-    return 0;
 }
 
 static void _TimerPacketSink_input_handler_cancel (TimerPacketSink *s)
@@ -56,7 +55,6 @@ static void _TimerPacketSink_timer_handler (TimerPacketSink *s)
     printf("sink: done\n");
     
     PacketPassInterface_Done(&s->input);
-    return;
 }
 
 static void TimerPacketSink_Init (TimerPacketSink *s, BReactor *reactor, int mtu, int ms)
@@ -65,7 +63,7 @@ static void TimerPacketSink_Init (TimerPacketSink *s, BReactor *reactor, int mtu
     s->reactor = reactor;
     
     // init input
-    PacketPassInterface_Init(&s->input, mtu, (PacketPassInterface_handler_send)_TimerPacketSink_input_handler_send, s);
+    PacketPassInterface_Init(&s->input, mtu, (PacketPassInterface_handler_send)_TimerPacketSink_input_handler_send, s, BReactor_PendingGroup(s->reactor));
     PacketPassInterface_EnableCancel(&s->input, (PacketPassInterface_handler_cancel)_TimerPacketSink_input_handler_cancel);
     
     // init timer

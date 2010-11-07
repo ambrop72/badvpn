@@ -31,8 +31,8 @@
 
 #include <misc/dead.h>
 #include <system/DebugObject.h>
-#include <flow/error.h>
 #include <flow/StreamRecvInterface.h>
+#include <flow/error.h>
 #include <nspr_support/BPRFileDesc.h>
 
 #define PRSTREAMSOURCE_ERROR_CLOSED 0
@@ -42,16 +42,13 @@
  * A {@link StreamRecvInterface} source for a NSPR file descriptor (PRFileDesc) via {@link BPRFileDesc}.
  */
 typedef struct {
-    DebugObject d_obj;
     dead_t dead;
     FlowErrorReporter rep;
     BPRFileDesc *bprfd;
     StreamRecvInterface output;
     int out_avail;
     uint8_t *out;
-    #ifndef NDEBUG
-    int in_error;
-    #endif
+    DebugObject d_obj;
 } PRStreamSource;
 
 /**
@@ -65,8 +62,9 @@ typedef struct {
  *            The object must be freed from the error handler.
  * @param bprfd the {@link BPRFileDesc} object to read data from. Registers a
  *              PR_POLL_READ handler which must not be registered.
+ * @param pg pending group
  */
-void PRStreamSource_Init (PRStreamSource *s, FlowErrorReporter rep, BPRFileDesc *bprfd);
+void PRStreamSource_Init (PRStreamSource *s, FlowErrorReporter rep, BPRFileDesc *bprfd, BPendingGroup *pg);
 
 /**
  * Frees the object.

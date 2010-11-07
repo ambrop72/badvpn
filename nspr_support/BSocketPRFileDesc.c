@@ -162,8 +162,6 @@ static PRStatus method_getpeername (PRFileDesc *fd, PRNetAddr *addr)
 
 static PRStatus method_getsocketoption (PRFileDesc *fd, PRSocketOptionData *data)
 {
-    BSocket *bsock = (BSocket *)fd->secret;
-    
     switch (data->option) {
         case PR_SockOpt_Nonblocking:
             data->value.non_blocking = PR_TRUE;

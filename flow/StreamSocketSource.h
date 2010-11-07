@@ -27,11 +27,13 @@
 #ifndef BADVPN_FLOW_STREAMSOCKETSOURCE_H
 #define BADVPN_FLOW_STREAMSOCKETSOURCE_H
 
+#include <stdint.h>
+
 #include <misc/dead.h>
 #include <system/DebugObject.h>
 #include <system/BSocket.h>
-#include <flow/error.h>
 #include <flow/StreamRecvInterface.h>
+#include <flow/error.h>
 
 #define STREAMSOCKETSOURCE_ERROR_CLOSED 0
 #define STREAMSOCKETSOURCE_ERROR_BSOCKET 1
@@ -40,16 +42,13 @@
  * A {@link StreamRecvInterface} source which receives data from a stream socket.
  */
 typedef struct {
-    DebugObject d_obj;
     dead_t dead;
     FlowErrorReporter rep;
     BSocket *bsock;
     StreamRecvInterface output;
     int out_avail;
     uint8_t *out;
-    #ifndef NDEBUG
-    int in_error;
-    #endif
+    DebugObject d_obj;
 } StreamSocketSource;
 
 /**
@@ -63,8 +62,9 @@ typedef struct {
  *            The object must be freed from the error handler.
  * @param bsock stream socket to read data from. Registers a BSOCKET_READ handler which
  *              must not be registered.
+ * @param pg pending group
  */
-void StreamSocketSource_Init (StreamSocketSource *s, FlowErrorReporter rep, BSocket *bsock);
+void StreamSocketSource_Init (StreamSocketSource *s, FlowErrorReporter rep, BSocket *bsock, BPendingGroup *pg);
 
 /**
  * Frees the source.

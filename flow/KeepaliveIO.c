@@ -26,8 +26,9 @@
 
 static void keepalive_handler (KeepaliveIO *o)
 {
+    DebugObject_Access(&o->d_obj);
+    
     PacketRecvBlocker_AllowBlockedPacket(&o->ka_blocker);
-    return;
 }
 
 int KeepaliveIO_Init (KeepaliveIO *o, BReactor *reactor, PacketPassInterface *output, PacketRecvInterface *keepalive_input, btime_t keepalive_interval_ms)
@@ -37,9 +38,6 @@ int KeepaliveIO_Init (KeepaliveIO *o, BReactor *reactor, PacketPassInterface *ou
     
     // set arguments
     o->reactor = reactor;
-    
-    // init dead var
-    DEAD_INIT(o->dead);
     
     // init keep-alive sender
     PacketPassInactivityMonitor_Init(&o->kasender, output, o->reactor, keepalive_interval_ms, (PacketPassInactivityMonitor_handler)keepalive_handler, o);
@@ -51,7 +49,7 @@ int KeepaliveIO_Init (KeepaliveIO *o, BReactor *reactor, PacketPassInterface *ou
     PacketPassPriorityQueueFlow_Init(&o->ka_qflow, &o->queue, -1);
     
     // init keepalive blocker
-    PacketRecvBlocker_Init(&o->ka_blocker, keepalive_input);
+    PacketRecvBlocker_Init(&o->ka_blocker, keepalive_input, BReactor_PendingGroup(reactor));
     
     // init keepalive buffer
     if (!SinglePacketBuffer_Init(&o->ka_buffer, PacketRecvBlocker_GetOutput(&o->ka_blocker), PacketPassPriorityQueueFlow_GetInput(&o->ka_qflow), BReactor_PendingGroup(o->reactor))) {
@@ -61,7 +59,6 @@ int KeepaliveIO_Init (KeepaliveIO *o, BReactor *reactor, PacketPassInterface *ou
     // init user flow
     PacketPassPriorityQueueFlow_Init(&o->user_qflow, &o->queue, 0);
     
-    // init debug object
     DebugObject_Init(&o->d_obj);
     
     return 1;
@@ -76,7 +73,6 @@ fail1:
 
 void KeepaliveIO_Free (KeepaliveIO *o)
 {
-    // free debug object
     DebugObject_Free(&o->d_obj);
 
     // allow freeing queue flows
@@ -99,12 +95,11 @@ void KeepaliveIO_Free (KeepaliveIO *o)
     
     // free keep-alive sender
     PacketPassInactivityMonitor_Free(&o->kasender);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
 
 PacketPassInterface * KeepaliveIO_GetInput (KeepaliveIO *o)
 {
+    DebugObject_Access(&o->d_obj);
+    
     return PacketPassPriorityQueueFlow_GetInput(&o->user_qflow);
 }

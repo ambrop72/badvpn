@@ -26,7 +26,6 @@
 #include <system/DebugObject.h>
 #include <system/BLog.h>
 #include <system/BSignal.h>
-#include <system/BPending.h>
 #include <ipc/BIPC.h>
 
 #define SEND_MTU 100
@@ -41,15 +40,13 @@ BReactor reactor;
 BIPC ipc;
 PacketPassInterface recv_if;
 PacketPassInterface *send_if;
-BPending start_job;
 
 static void terminate (int ret);
 static void signal_handler (void *user);
 static void ipc_handler (void *user);
-static void job_handler (void *user);
 static void send_packets (void);
 static void ipc_send_handler_done (void *user);
-static int ipc_recv_handler_send (void *user, uint8_t *data, int data_len);
+static void ipc_recv_handler_send (void *user, uint8_t *data, int data_len);
 
 int main (int argc, char **argv)
 {
@@ -99,7 +96,7 @@ int main (int argc, char **argv)
         goto fail2;
     }
     
-    PacketPassInterface_Init(&recv_if, 0, ipc_recv_handler_send, NULL);
+    PacketPassInterface_Init(&recv_if, 0, ipc_recv_handler_send, NULL, BReactor_PendingGroup(&reactor));
     
     if (!BIPC_InitConnect(&ipc, path, SEND_MTU, &recv_if, ipc_handler, NULL, &reactor)) {
         DEBUG("BIPC_InitConnect failed");
@@ -109,8 +106,7 @@ int main (int argc, char **argv)
     send_if = BIPC_GetSendInterface(&ipc);
     PacketPassInterface_Sender_Init(send_if, ipc_send_handler_done, NULL);
     
-    BPending_Init(&start_job, BReactor_PendingGroup(&reactor), job_handler, NULL);
-    BPending_Set(&start_job);
+    send_packets();
     
     int ret = BReactor_Exec(&reactor);
     
@@ -136,8 +132,6 @@ fail0:
 
 void terminate (int ret)
 {
-    BPending_Free(&start_job);
-    
     BIPC_Free(&ipc);
     
     PacketPassInterface_Free(&recv_if);
@@ -163,12 +157,6 @@ void ipc_handler (void *user)
     terminate(1);
 }
 
-void job_handler (void *user)
-{
-    send_packets();
-    return;
-}
-
 void send_packets (void)
 {
     ASSERT(current_packet >= 0)
@@ -176,25 +164,10 @@ void send_packets (void)
     ASSERT(!waiting)
     
     if (current_packet < num_packets) {
-        DEAD_ENTER(dead)
-        int res = PacketPassInterface_Sender_Send(send_if, packets[current_packet], strlen(packets[current_packet]));
-        if (DEAD_LEAVE(dead)) {
-            return;
-        }
-        
-        ASSERT(res == 0 || res == 1)
-        
-        if (!res) {
-            return;
-        }
-        
-        // wait for confirmation
-        waiting = 1;
-        
-        return;
+        PacketPassInterface_Sender_Send(send_if, (uint8_t *)packets[current_packet], strlen(packets[current_packet]));
+    } else {
+        terminate(0);
     }
-    
-    terminate(0);
 }
 
 void ipc_send_handler_done (void *user)
@@ -205,11 +178,9 @@ void ipc_send_handler_done (void *user)
     
     // wait for confirmation
     waiting = 1;
-    
-    return;
 }
 
-int ipc_recv_handler_send (void *user, uint8_t *data, int data_len)
+void ipc_recv_handler_send (void *user, uint8_t *data, int data_len)
 {
     ASSERT(current_packet >= 0)
     ASSERT(current_packet <= num_packets)
@@ -218,18 +189,21 @@ int ipc_recv_handler_send (void *user, uint8_t *data, int data_len)
     if (!waiting) {
         DEBUG("not waiting!");
         terminate(1);
-        return -1;
+        return;
     }
     
     if (data_len != 0) {
         DEBUG("reply not empty!");
         terminate(1);
-        return -1;
+        return;
     }
     
     current_packet++;
     waiting = 0;
     
+    // accept received packet
+    PacketPassInterface_Done(&recv_if);
+    
+    // send more packets
     send_packets();
-    return 1;
 }

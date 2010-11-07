@@ -24,85 +24,73 @@
 
 #include <flow/DatagramSocketSink.h>
 
-static int report_error (DatagramSocketSink *s, int error)
+static void report_error (DatagramSocketSink *s, int error)
 {
-    #ifndef NDEBUG
-    s->in_error = 1;
-    #endif
-    
+    DebugIn_GoIn(&s->d_in_error);
     DEAD_ENTER(s->dead)
     FlowErrorReporter_ReportError(&s->rep, &error);
     if (DEAD_LEAVE(s->dead)) {
-        return -1;
+        return;
     }
-    
-    #ifndef NDEBUG
-    s->in_error = 0;
-    #endif
-    
-    return 0;
+    DebugIn_GoOut(&s->d_in_error);
 }
 
-static int input_handler_send (DatagramSocketSink *s, uint8_t *data, int data_len)
+static void try_send (DatagramSocketSink *s)
+{
+    ASSERT(s->in_len >= 0)
+    
+    int res = BSocket_SendToFrom(s->bsock, s->in, s->in_len, &s->addr, &s->local_addr);
+    if (res < 0 && BSocket_GetError(s->bsock) == BSOCKET_ERROR_LATER) {
+        // wait for socket in socket_handler
+        BSocket_EnableEvent(s->bsock, BSOCKET_WRITE);
+        return;
+    }
+    
+    int old_len = s->in_len;
+    
+    // finish packet
+    s->in_len = -1;
+    PacketPassInterface_Done(&s->input);
+    
+    if (res < 0) {
+        report_error(s, DATAGRAMSOCKETSINK_ERROR_BSOCKET);
+        return;
+    }
+    else if (res != old_len) {
+        report_error(s, DATAGRAMSOCKETSINK_ERROR_WRONGSIZE);
+        return;
+    }
+}
+
+static void input_handler_send (DatagramSocketSink *s, uint8_t *data, int data_len)
 {
     ASSERT(s->in_len == -1)
     ASSERT(data_len >= 0)
-    ASSERT(!s->in_error)
+    DebugIn_AmOut(&s->d_in_error);
+    DebugObject_Access(&s->d_obj);
     
-    int res = BSocket_SendToFrom(s->bsock, data, data_len, &s->addr, &s->local_addr);
-    if (res < 0) {
-        int error = BSocket_GetError(s->bsock);
-        if (error == BSOCKET_ERROR_LATER) {
-            s->in_len = data_len;
-            s->in = data;
-            BSocket_EnableEvent(s->bsock, BSOCKET_WRITE);
-            return 0;
-        }
-        if (report_error(s, DATAGRAMSOCKETSINK_ERROR_BSOCKET) < 0) {
-            return -1;
-        }
-    } else {
-        if (res != data_len) {
-            if (report_error(s, DATAGRAMSOCKETSINK_ERROR_WRONGSIZE) < 0) {
-                return -1;
-            }
-        }
-    }
+    // set packet
+    s->in_len = data_len;
+    s->in = data;
     
-    return 1;
+    try_send(s);
+    return;
 }
 
 static void socket_handler (DatagramSocketSink *s, int event)
 {
     ASSERT(s->in_len >= 0)
     ASSERT(event == BSOCKET_WRITE)
-    ASSERT(!s->in_error)
-    
-    int res = BSocket_SendToFrom(s->bsock, s->in, s->in_len, &s->addr, &s->local_addr);
-    if (res < 0) {
-        int error = BSocket_GetError(s->bsock);
-        if (error == BSOCKET_ERROR_LATER) {
-            return;
-        }
-        if (report_error(s, DATAGRAMSOCKETSINK_ERROR_BSOCKET) < 0) {
-            return;
-        }
-    } else {
-        if (res != s->in_len) {
-            if (report_error(s, DATAGRAMSOCKETSINK_ERROR_WRONGSIZE) < 0) {
-                return;
-            }
-        }
-    }
+    DebugIn_AmOut(&s->d_in_error);
+    DebugObject_Access(&s->d_obj);
     
     BSocket_DisableEvent(s->bsock, BSOCKET_WRITE);
-    s->in_len = -1;
     
-    PacketPassInterface_Done(&s->input);
+    try_send(s);
     return;
 }
 
-void DatagramSocketSink_Init (DatagramSocketSink *s, FlowErrorReporter rep, BSocket *bsock, int mtu, BAddr addr, BIPAddr local_addr)
+void DatagramSocketSink_Init (DatagramSocketSink *s, FlowErrorReporter rep, BSocket *bsock, int mtu, BAddr addr, BIPAddr local_addr, BPendingGroup *pg)
 {
     ASSERT(mtu >= 0)
     ASSERT(BAddr_IsRecognized(&addr) && !BAddr_IsInvalid(&addr))
@@ -121,23 +109,17 @@ void DatagramSocketSink_Init (DatagramSocketSink *s, FlowErrorReporter rep, BSoc
     BSocket_AddEventHandler(s->bsock, BSOCKET_WRITE, (BSocket_handler)socket_handler, s);
     
     // init input
-    PacketPassInterface_Init(&s->input, mtu, (PacketPassInterface_handler_send)input_handler_send, s);
+    PacketPassInterface_Init(&s->input, mtu, (PacketPassInterface_handler_send)input_handler_send, s, pg);
     
     // have no input packet
     s->in_len = -1;
     
-    // init debugging
-    #ifndef NDEBUG
-    s->in_error = 0;
-    #endif
-    
-    // init debug object
+    DebugIn_Init(&s->d_in_error);
     DebugObject_Init(&s->d_obj);
 }
 
 void DatagramSocketSink_Free (DatagramSocketSink *s)
 {
-    // free debug object
     DebugObject_Free(&s->d_obj);
 
     // free input
@@ -152,6 +134,8 @@ void DatagramSocketSink_Free (DatagramSocketSink *s)
 
 PacketPassInterface * DatagramSocketSink_GetInput (DatagramSocketSink *s)
 {
+    DebugObject_Access(&s->d_obj);
+    
     return &s->input;
 }
 
@@ -159,6 +143,7 @@ void DatagramSocketSink_SetAddresses (DatagramSocketSink *s, BAddr addr, BIPAddr
 {
     ASSERT(BAddr_IsRecognized(&addr) && !BAddr_IsInvalid(&addr))
     ASSERT(BIPAddr_IsRecognized(&local_addr))
+    DebugObject_Access(&s->d_obj);
     
     s->addr = addr;
     s->local_addr = local_addr;

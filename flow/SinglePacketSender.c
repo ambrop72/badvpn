@@ -27,14 +27,14 @@
 static void call_handler (SinglePacketSender *o)
 {
     #ifndef NDEBUG
-    DEAD_ENTER(o->dead)
+    DEAD_ENTER(o->d_dead)
     #endif
     
     o->handler(o->user);
     
     #ifndef NDEBUG
     ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(o->dead);
+    DEAD_LEAVE(o->d_dead);
     #endif
 }
 
@@ -47,59 +47,32 @@ static void output_handler_done (SinglePacketSender *o)
     return;
 }
 
-static void job_handler (SinglePacketSender *o)
-{
-    DebugObject_Access(&o->d_obj);
-    
-    DEAD_ENTER(o->dead)
-    int res = PacketPassInterface_Sender_Send(o->output, o->packet, o->packet_len);
-    if (DEAD_LEAVE(o->dead)) {
-        return;
-    }
-    
-    ASSERT(res == 0 || res == 1)
-    
-    if (!res) {
-        return;
-    }
-    
-    // notify user
-    call_handler(o);
-    return;
-}
-
 void SinglePacketSender_Init (SinglePacketSender *o, uint8_t *packet, int packet_len, PacketPassInterface *output, SinglePacketSender_handler handler, void *user, BPendingGroup *pg)
 {
     ASSERT(packet_len >= 0)
     ASSERT(packet_len <= PacketPassInterface_GetMTU(output))
     
     // init arguments
-    o->packet = packet;
-    o->packet_len = packet_len;
     o->output = output;
     o->handler = handler;
     o->user = user;
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // init output
     PacketPassInterface_Sender_Init(o->output, (PacketPassInterface_handler_done)output_handler_done, o);
     
-    // init start job
-    BPending_Init(&o->start_job, pg, (BPending_handler)job_handler, o);
-    BPending_Set(&o->start_job);
+    // schedule send
+    PacketPassInterface_Sender_Send(o->output, packet, packet_len);
     
     DebugObject_Init(&o->d_obj);
+    #ifndef NDEBUG
+    DEAD_INIT(o->d_dead);
+    #endif
 }
 
 void SinglePacketSender_Free (SinglePacketSender *o)
 {
+    #ifndef NDEBUG
+    DEAD_KILL(o->d_dead);
+    #endif
     DebugObject_Free(&o->d_obj);
-    
-    // free start job
-    BPending_Free(&o->start_job);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }

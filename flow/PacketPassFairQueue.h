@@ -30,12 +30,11 @@
 #include <stdint.h>
 
 #include <misc/dead.h>
-#include <misc/debugin.h>
 #include <system/DebugObject.h>
+#include <system/BPending.h>
 #include <misc/debugcounter.h>
 #include <structure/BHeap.h>
 #include <structure/LinkedList2.h>
-#include <system/BPending.h>
 #include <flow/PacketPassInterface.h>
 
 typedef void (*PacketPassFairQueue_handler_busy) (void *user);
@@ -49,19 +48,19 @@ typedef struct {
     dead_t dead;
     PacketPassInterface *output;
     struct PacketPassFairQueueFlow_s *sending_flow;
+    struct PacketPassFairQueueFlow_s *previous_flow;
     int sending_len;
     BHeap queued_heap;
     LinkedList2 queued_list;
     int freeing;
     int use_cancel;
-    BPending continue_job;
+    BPending schedule_job;
+    BPendingGroup *pg;
     DebugCounter d_ctr;
-    DebugIn in_output;
     DebugObject d_obj;
 } PacketPassFairQueue;
 
 typedef struct PacketPassFairQueueFlow_s {
-    dead_t dead;
     PacketPassFairQueue *m;
     PacketPassFairQueue_handler_busy handler_busy;
     void *user;
@@ -134,6 +133,14 @@ void PacketPassFairQueueFlow_Init (PacketPassFairQueueFlow *flow, PacketPassFair
  * @param flow the object
  */
 void PacketPassFairQueueFlow_Free (PacketPassFairQueueFlow *flow);
+
+/**
+ * Does nothing.
+ * It must be possible to free the flow (see {@link PacketPassFairQueueFlow_Free}).
+ * 
+ * @param flow the object
+ */
+void PacketPassFairQueueFlow_AssertFree (PacketPassFairQueueFlow *flow);
 
 /**
  * Determines if the flow is busy. If the flow is considered busy, it must not

@@ -33,24 +33,23 @@ int PacketProtoFlow_Init (PacketProtoFlow *o, int input_mtu, int num_packets, Pa
     ASSERT(PacketPassInterface_GetMTU(output) >= PACKETPROTO_ENCLEN(input_mtu))
     
     // init async input
-    PacketBufferAsyncInput_Init(&o->ainput, input_mtu);
+    BufferWriter_Init(&o->ainput, input_mtu, pg);
     
     // init encoder
-    PacketProtoEncoder_Init(&o->encoder, PacketBufferAsyncInput_GetOutput(&o->ainput));
+    PacketProtoEncoder_Init(&o->encoder, BufferWriter_GetOutput(&o->ainput), pg);
     
     // init buffer
     if (!PacketBuffer_Init(&o->buffer, PacketProtoEncoder_GetOutput(&o->encoder), output, num_packets, pg)) {
         goto fail0;
     }
     
-    // init debug object
     DebugObject_Init(&o->d_obj);
     
     return 1;
     
 fail0:
     PacketProtoEncoder_Free(&o->encoder);
-    PacketBufferAsyncInput_Free(&o->ainput);
+    BufferWriter_Free(&o->ainput);
     return 0;
 }
 
@@ -65,12 +64,12 @@ void PacketProtoFlow_Free (PacketProtoFlow *o)
     PacketProtoEncoder_Free(&o->encoder);
     
     // free async input
-    PacketBufferAsyncInput_Free(&o->ainput);
+    BufferWriter_Free(&o->ainput);
 }
 
-BestEffortPacketWriteInterface * PacketProtoFlow_GetInput (PacketProtoFlow *o)
+BufferWriter * PacketProtoFlow_GetInput (PacketProtoFlow *o)
 {
     DebugObject_Access(&o->d_obj);
     
-    return PacketBufferAsyncInput_GetInput(&o->ainput);
+    return &o->ainput;
 }

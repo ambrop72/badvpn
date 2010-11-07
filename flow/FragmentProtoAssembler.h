@@ -30,7 +30,6 @@
 #include <stdint.h>
 
 #include <protocol/fragmentproto.h>
-#include <misc/dead.h>
 #include <misc/debug.h>
 #include <system/DebugObject.h>
 #include <structure/LinkedList2.h>
@@ -64,7 +63,6 @@ struct FragmentProtoAssembler_frame {
  */
 typedef struct {
     DebugObject d_obj;
-    dead_t dead;
     PacketPassInterface input;
     int input_mtu;
     PacketPassInterface *output;
@@ -82,7 +80,9 @@ typedef struct {
     int in_len;
     uint8_t *in;
     int in_pos;
-    int output_blocking;
+    int output_ready;
+    uint8_t *output_packet_data;
+    int output_packet_len;
 } FragmentProtoAssembler;
 
 /**
@@ -94,9 +94,10 @@ typedef struct {
  * @param output output interface
  * @param num_frames number of frames we can hold. Must be >0 and < UINT32_MAX.
  * @param num_chunks maximum number of chunks a frame can come in. Must be >0.
+ * @param pg pending group
  * @return 1 on success, 0 on failure
  */
-int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, PacketPassInterface *output, int num_frames, int num_chunks) WARN_UNUSED;
+int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, PacketPassInterface *output, int num_frames, int num_chunks, BPendingGroup *pg) WARN_UNUSED;
 
 /**
  * Frees the object.

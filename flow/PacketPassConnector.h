@@ -30,9 +30,7 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
 #include <system/DebugObject.h>
-#include <system/BPending.h>
 #include <flow/PacketPassInterface.h>
 
 /**
@@ -40,16 +38,13 @@
  * connected and disconnected on the fly.
  */
 typedef struct {
-    DebugObject d_obj;
-    dead_t dead;
     PacketPassInterface input;
     int input_mtu;
     int in_len;
     uint8_t *in;
     PacketPassInterface *output;
-    dead_t output_dead;
     int out_blocking;
-    BPending continue_job;
+    DebugObject d_obj;
 } PacketPassConnector;
 
 /**

@@ -21,7 +21,7 @@
  * 
  * @section DESCRIPTION
  * 
- * Buffer which encodes packets with PacketProto, with {@link BestEffortPacketWriteInterface}
+ * Buffer which encodes packets with PacketProto, with {@link BufferWriter}
  * input and {@link PacketPassInterface} output.
  */
 
@@ -29,17 +29,16 @@
 #define BADVPN_FLOW_PACKETPROTOFLOW_H
 
 #include <system/DebugObject.h>
-#include <system/BPending.h>
-#include <flow/PacketBufferAsyncInput.h>
+#include <flow/BufferWriter.h>
 #include <flow/PacketProtoEncoder.h>
 #include <flow/PacketBuffer.h>
 
 /**
- * Buffer which encodes packets with PacketProto, with {@link BestEffortPacketWriteInterface}
+ * Buffer which encodes packets with PacketProto, with {@link BufferWriter}
  * input and {@link PacketPassInterface} output.
  */
 typedef struct {
-    PacketBufferAsyncInput ainput;
+    BufferWriter ainput;
     PacketProtoEncoder encoder;
     PacketBuffer buffer;
     DebugObject d_obj;
@@ -66,13 +65,10 @@ void PacketProtoFlow_Free (PacketProtoFlow *o);
 
 /**
  * Returns the input interface.
- * Its MTU will be as in {@link PacketProtoFlow_Init}.
- * Be aware that it may not be possible to write packets immediately after initializing
- * the object; the object starts its internal I/O with a {@link BPending} job.
  * 
  * @param o the object
  * @return input interface
  */
-BestEffortPacketWriteInterface * PacketProtoFlow_GetInput (PacketProtoFlow *o);
+BufferWriter * PacketProtoFlow_GetInput (PacketProtoFlow *o);
 
 #endif

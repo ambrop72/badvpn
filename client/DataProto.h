@@ -37,13 +37,14 @@
 #include <structure/BAVL.h>
 #include <system/DebugObject.h>
 #include <system/BReactor.h>
+#include <system/BPending.h>
 #include <flow/PacketPassFairQueue.h>
 #include <flow/PacketPassInactivityMonitor.h>
 #include <flow/PacketPassNotifier.h>
 #include <flow/DataProtoKeepaliveSource.h>
 #include <flow/PacketRecvBlocker.h>
 #include <flow/SinglePacketBuffer.h>
-#include <flow/PacketBufferAsyncInput.h>
+#include <flow/BufferWriter.h>
 #include <flow/PacketBuffer.h>
 #include <flow/PacketPassConnector.h>
 
@@ -89,8 +90,7 @@ typedef struct {
     int frame_mtu;
     peerid_t source_id;
     peerid_t dest_id;
-    BestEffortPacketWriteInterface *ainput_if;
-    PacketBufferAsyncInput ainput;
+    BufferWriter ainput;
     PacketBuffer buffer;
     PacketPassConnector connector;
     DataProtoDest *dp;

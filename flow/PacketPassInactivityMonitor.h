@@ -27,7 +27,6 @@
 #ifndef BADVPN_FLOW_PACKETPASSINACTIVITYMONITOR_H
 #define BADVPN_FLOW_PACKETPASSINACTIVITYMONITOR_H
 
-#include <misc/dead.h>
 #include <system/DebugObject.h>
 #include <system/BReactor.h>
 #include <flow/PacketPassInterface.h>
@@ -61,14 +60,12 @@ typedef void (*PacketPassInactivityMonitor_handler) (void *user);
  */
 typedef struct {
     DebugObject d_obj;
-    dead_t dead;
     PacketPassInterface *output;
     BReactor *reactor;
     PacketPassInactivityMonitor_handler handler;
     void *user;
     PacketPassInterface input;
     BTimer timer;
-    int send_called;
 } PacketPassInactivityMonitor;
 
 /**
@@ -78,7 +75,7 @@ typedef struct {
  * @param o the object
  * @param output output interface
  * @param reactor reactor we live in
- * @param interval timer interval is milliseconds. Must be >0.
+ * @param interval timer value in milliseconds
  * @param handler handler function for reporting inactivity
  * @param user value passed to handler functions
  */

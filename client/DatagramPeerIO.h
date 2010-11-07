@@ -88,9 +88,6 @@ typedef struct {
     // flow error domain
     FlowErrorDomain domain;
     
-    // encoder group
-    SPProtoEncoderGroup encoder_group;
-    
     // persistent I/O objects
     
     // sending base

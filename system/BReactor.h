@@ -248,7 +248,7 @@ int BReactor_Exec (BReactor *bsys);
 /**
  * Causes the event loop ({@link BReactor_Exec}) to cease
  * dispatching events and return.
- * If the event loop is not running, this function does nothing.
+ * Any further calls of {@link BReactor_Exec} will return immediately.
  *
  * @param bsys the object
  * @param code value {@link BReactor_Exec} should return. If this is

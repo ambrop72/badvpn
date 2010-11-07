@@ -30,9 +30,7 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
 #include <system/DebugObject.h>
-#include <system/BPending.h>
 #include <flow/StreamRecvInterface.h>
 
 /**
@@ -40,15 +38,13 @@
  * connected and disconnected on the fly.
  */
 typedef struct {
-    DebugObject d_obj;
-    dead_t dead;
     StreamRecvInterface output;
     int out_avail;
     uint8_t *out;
     StreamRecvInterface *input;
     dead_t input_dead;
     int in_blocking;
-    BPending continue_job;
+    DebugObject d_obj;
 } StreamRecvConnector;
 
 /**

@@ -27,58 +27,14 @@
 
 #include <flow/PacketPassFairQueue.h>
 
-static int call_send (PacketPassFairQueue *m, uint8_t *data, int data_len)
+static int time_comparator (void *user, uint64_t *time1, uint64_t *time2)
 {
-    DebugIn_GoIn(&m->in_output);
-    DEAD_ENTER(m->dead)
-    int res = PacketPassInterface_Sender_Send(m->output, data, data_len);
-    if (DEAD_LEAVE(m->dead)) {
+    if (*time1 < *time2) {
         return -1;
     }
-    DebugIn_GoOut(&m->in_output);
-    
-    ASSERT(!m->freeing)
-    ASSERT(res == 0 || res == 1)
-    
-    return res;
-}
-
-static int call_cancel (PacketPassFairQueue *m)
-{
-    DebugIn_GoIn(&m->in_output);
-    DEAD_ENTER(m->dead)
-    PacketPassInterface_Sender_Cancel(m->output);
-    if (DEAD_LEAVE(m->dead)) {
-        return -1;
+    if (*time1 > *time2) {
+        return 1;
     }
-    DebugIn_GoOut(&m->in_output);
-    
-    ASSERT(!m->freeing)
-    
-    return 0;
-}
-
-static int call_done (PacketPassFairQueue *m, PacketPassFairQueueFlow *flow)
-{
-    DEAD_ENTER_N(m, m->dead)
-    DEAD_ENTER_N(flow, flow->dead)
-    PacketPassInterface_Done(&flow->input);
-    DEAD_LEAVE_N(m, m->dead);
-    DEAD_LEAVE_N(flow, flow->dead);
-    
-    if (DEAD_KILLED_N(m)) {
-        return -1;
-    }
-    
-    ASSERT(!m->freeing)
-    
-    if (!DEAD_KILLED_N(flow)) {
-        ASSERT(flow->have_time)
-        if (flow != m->sending_flow && !flow->is_queued) {
-            flow->have_time = 0;
-        }
-    }
-    
     return 0;
 }
 
@@ -141,123 +97,109 @@ static void increment_sent_flow (PacketPassFairQueueFlow *flow, int iamount)
     }
 }
 
-static void process_queue (PacketPassFairQueue *m)
+static void schedule (PacketPassFairQueue *m)
 {
     ASSERT(!m->freeing)
     ASSERT(!m->sending_flow)
+    ASSERT(BHeap_GetFirst(&m->queued_heap))
     
-    do {
-        // get first queued flow
-        BHeapNode *heap_node = BHeap_GetFirst(&m->queued_heap);
-        if (!heap_node) {
-            return;
-        }
-        PacketPassFairQueueFlow *qflow = UPPER_OBJECT(heap_node, PacketPassFairQueueFlow, queued.heap_node);
-        ASSERT(qflow->is_queued)
-        ASSERT(qflow->have_time)
-        
-        // remove flow from queue
-        BHeap_Remove(&m->queued_heap, &qflow->queued.heap_node);
-        LinkedList2_Remove(&m->queued_list, &qflow->queued.list_node);
-        qflow->is_queued = 0;
-        
-        // try to send the packet
-        int res = call_send(m, qflow->queued.data, qflow->queued.data_len);
-        if (res < 0) {
-            return;
-        }
-        
-        if (res == 0) {
-            // sending in progress
-            m->sending_flow = qflow;
-            m->sending_len = qflow->queued.data_len;
-            return;
-        }
-        
-        // increment flow time
-        increment_sent_flow(qflow, qflow->queued.data_len);
-        
-        // notify sender
-        if (call_done(m, qflow) < 0) {
-            return;
-        }
-    } while (!m->sending_flow);
+    // get first queued flow
+    BHeapNode *heap_node = BHeap_GetFirst(&m->queued_heap);
+    PacketPassFairQueueFlow *qflow = UPPER_OBJECT(heap_node, PacketPassFairQueueFlow, queued.heap_node);
+    ASSERT(qflow->is_queued)
+    ASSERT(qflow->have_time)
+    
+    // remove flow from queue
+    BHeap_Remove(&m->queued_heap, &qflow->queued.heap_node);
+    LinkedList2_Remove(&m->queued_list, &qflow->queued.list_node);
+    qflow->is_queued = 0;
+    
+    // schedule send
+    PacketPassInterface_Sender_Send(m->output, qflow->queued.data, qflow->queued.data_len);
+    m->sending_flow = qflow;
+    m->sending_len = qflow->queued.data_len;
 }
 
-static int time_comparator (void *user, uint64_t *time1, uint64_t *time2)
+static void schedule_job_handler (PacketPassFairQueue *m)
 {
-    if (*time1 < *time2) {
-        return -1;
+    ASSERT(!m->freeing)
+    ASSERT(!m->sending_flow)
+    DebugObject_Access(&m->d_obj);
+    
+    // if the previous flow didn't contend for sending, remove its time
+    if (m->previous_flow) {
+        ASSERT(!m->previous_flow->is_queued)
+        ASSERT(m->previous_flow->have_time)
+        
+        // remove time from flow
+        m->previous_flow->have_time = 0;
+        
+        // set no previous flow
+        m->previous_flow = NULL;
     }
-    if (*time1 > *time2) {
-        return 1;
+    
+    if (BHeap_GetFirst(&m->queued_heap)) {
+        schedule(m);
     }
-    return 0;
 }
 
-static int input_handler_send (PacketPassFairQueueFlow *flow, uint8_t *data, int data_len)
+static void input_handler_send (PacketPassFairQueueFlow *flow, uint8_t *data, int data_len)
 {
     ASSERT(!flow->m->freeing)
     ASSERT(flow != flow->m->sending_flow)
     ASSERT(!flow->is_queued)
-    DebugIn_AmOut(&flow->m->in_output);
+    DebugObject_Access(&flow->d_obj);
     
     PacketPassFairQueue *m = flow->m;
     
     // assign time if needed
-    int had_time = flow->have_time;
     if (!flow->have_time) {
         flow->time = get_current_time(m);
         flow->have_time = 1;
     }
     
-    // if nothing is being sent and queue is empty, send immediately without queueing
-    if (!m->sending_flow && !BHeap_GetFirst(&m->queued_heap)) {
-        int res = call_send(m, data, data_len);
-        if (res < 0) {
-            return -1;
-        }
-        
-        if (res == 0) {
-            // output busy, continue in output_handler_done
-            m->sending_flow = flow;
-            m->sending_len = data_len;
-            return 0;
-        }
-        
-        // if flow had no time before it shouldn't have after
-        if (!had_time) {
-            flow->have_time = 0;
-        }
-        
-        return 1;
+    // remove from previous flow
+    if (flow == m->previous_flow) {
+        m->previous_flow = NULL;
     }
     
-    // add flow to queue
+    // queue flow
     flow->queued.data = data;
     flow->queued.data_len = data_len;
     BHeap_Insert(&m->queued_heap, &flow->queued.heap_node);
     LinkedList2_Append(&m->queued_list, &flow->queued.list_node);
     flow->is_queued = 1;
     
-    return 0;
+    if (!m->sending_flow && !BPending_IsSet(&m->schedule_job)) {
+        schedule(m);
+    }
 }
 
 static void output_handler_done (PacketPassFairQueue *m)
 {
     ASSERT(!m->freeing)
     ASSERT(m->sending_flow)
+    ASSERT(!m->previous_flow)
     ASSERT(!m->sending_flow->is_queued)
     ASSERT(m->sending_flow->have_time)
-    DebugIn_AmOut(&m->in_output);
+    ASSERT(!BPending_IsSet(&m->schedule_job))
     
     PacketPassFairQueueFlow *flow = m->sending_flow;
     
     // sending finished
     m->sending_flow = NULL;
     
+    // remember this flow so the schedule job can remove its time if it didn's send
+    m->previous_flow = flow;
+    
     // update flow time by packet size
     increment_sent_flow(flow, m->sending_len);
+    
+    // schedule schedule
+    BPending_Set(&m->schedule_job);
+    
+    // finish flow packet
+    PacketPassInterface_Done(&flow->input);
     
     // call busy handler if set
     if (flow->handler_busy) {
@@ -266,42 +208,14 @@ static void output_handler_done (PacketPassFairQueue *m)
         flow->handler_busy = NULL;
         
         // call handler
-        DEAD_ENTER_N(m, m->dead)
-        DEAD_ENTER_N(flow, flow->dead)
+        DEAD_ENTER(m->dead)
         handler(flow->user);
-        DEAD_LEAVE_N(m, m->dead);
-        DEAD_LEAVE_N(flow, flow->dead);
-        if (DEAD_KILLED_N(m)) {
+        if (DEAD_LEAVE(m->dead)) {
             return;
-        }
-        if (DEAD_KILLED_N(flow)) {
-            flow = NULL;
         }
         
         ASSERT(!m->freeing)
-    }
-    
-    // report completion to sender
-    if (flow) {
-        if (call_done(m, flow) < 0) {
-            return;
-        }
-    }
-    
-    // process queued flows
-    if (!m->sending_flow) {
-        process_queue(m);
-        return;
-    }
-}
-
-static void job_handler (PacketPassFairQueue *m)
-{
-    ASSERT(!m->freeing)
-    
-    if (!m->sending_flow) {
-        process_queue(m);
-        return;
+        ASSERT(!m->sending_flow)
     }
 }
 
@@ -309,6 +223,7 @@ void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *outp
 {
     // init arguments
     m->output = output;
+    m->pg = pg;
     
     // init dead var
     DEAD_INIT(m->dead);
@@ -318,6 +233,9 @@ void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *outp
     
     // not sending
     m->sending_flow = NULL;
+    
+    // no previous flow
+    m->previous_flow = NULL;
     
     // init queued heap
     BHeap_Init(&m->queued_heap, OFFSET_DIFF(PacketPassFairQueueFlow, time, queued.heap_node), (BHeap_comparator)time_comparator, NULL);
@@ -331,16 +249,10 @@ void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *outp
     // not using cancel
     m->use_cancel = 0;
     
-    // init continue job
-    BPending_Init(&m->continue_job, pg, (BPending_handler)job_handler, m);
+    // init schedule job
+    BPending_Init(&m->schedule_job, m->pg, (BPending_handler)schedule_job_handler, m);
     
-    // init debug counter
     DebugCounter_Init(&m->d_ctr);
-    
-    // init debug in output
-    DebugIn_Init(&m->in_output);
-    
-    // init debug object
     DebugObject_Init(&m->d_obj);
 }
 
@@ -352,8 +264,8 @@ void PacketPassFairQueue_Free (PacketPassFairQueue *m)
     DebugCounter_Free(&m->d_ctr);
     DebugObject_Free(&m->d_obj);
     
-    // free continue job
-    BPending_Free(&m->continue_job);
+    // free schedule job
+    BPending_Free(&m->schedule_job);
     
     // free dead var
     DEAD_KILL(m->dead);
@@ -363,6 +275,7 @@ void PacketPassFairQueue_EnableCancel (PacketPassFairQueue *m)
 {
     ASSERT(!m->use_cancel)
     ASSERT(PacketPassInterface_HasCancel(m->output))
+    DebugObject_Access(&m->d_obj);
     
     // using cancel
     m->use_cancel = 1;
@@ -370,25 +283,24 @@ void PacketPassFairQueue_EnableCancel (PacketPassFairQueue *m)
 
 void PacketPassFairQueue_PrepareFree (PacketPassFairQueue *m)
 {
+    DebugObject_Access(&m->d_obj);
+    
     m->freeing = 1;
 }
 
 void PacketPassFairQueueFlow_Init (PacketPassFairQueueFlow *flow, PacketPassFairQueue *m)
 {
     ASSERT(!m->freeing)
-    DebugIn_AmOut(&m->in_output);
+    DebugObject_Access(&m->d_obj);
     
     // init arguments
     flow->m = m;
-    
-    // init dead var
-    DEAD_INIT(flow->dead);
     
     // have no canfree handler
     flow->handler_busy = NULL;
     
     // init input
-    PacketPassInterface_Init(&flow->input, PacketPassInterface_GetMTU(flow->m->output), (PacketPassInterface_handler_send)input_handler_send, flow);
+    PacketPassInterface_Init(&flow->input, PacketPassInterface_GetMTU(flow->m->output), (PacketPassInterface_handler_send)input_handler_send, flow, m->pg);
     
     // doesn't have time
     flow->have_time = 0;
@@ -396,10 +308,7 @@ void PacketPassFairQueueFlow_Init (PacketPassFairQueueFlow *flow, PacketPassFair
     // is not queued
     flow->is_queued = 0;
     
-    // increment debug counter
     DebugCounter_Increment(&m->d_ctr);
-    
-    // init debug object
     DebugObject_Init(&flow->d_obj);
 }
 
@@ -407,16 +316,20 @@ void PacketPassFairQueueFlow_Free (PacketPassFairQueueFlow *flow)
 {
     if (!flow->m->freeing) {
         ASSERT(flow != flow->m->sending_flow)
-        DebugIn_AmOut(&flow->m->in_output);
     }
     DebugCounter_Decrement(&flow->m->d_ctr);
     DebugObject_Free(&flow->d_obj);
     
     PacketPassFairQueue *m = flow->m;
     
-    // remove current flow
-    if (flow == flow->m->sending_flow) {
-        flow->m->sending_flow = NULL;
+    // remove from current flow
+    if (flow == m->sending_flow) {
+        m->sending_flow = NULL;
+    }
+    
+    // remove from previous flow
+    if (flow == m->previous_flow) {
+        m->previous_flow = NULL;
     }
     
     // remove from queue
@@ -427,15 +340,20 @@ void PacketPassFairQueueFlow_Free (PacketPassFairQueueFlow *flow)
     
     // free input
     PacketPassInterface_Free(&flow->input);
-    
-    // free dead var
-    DEAD_KILL(flow->dead);
+}
+
+void PacketPassFairQueueFlow_AssertFree (PacketPassFairQueueFlow *flow)
+{
+    if (!flow->m->freeing) {
+        ASSERT(flow != flow->m->sending_flow)
+    }
+    DebugObject_Access(&flow->d_obj);
 }
 
 int PacketPassFairQueueFlow_IsBusy (PacketPassFairQueueFlow *flow)
 {
     ASSERT(!flow->m->freeing)
-    DebugIn_AmOut(&flow->m->in_output);
+    DebugObject_Access(&flow->d_obj);
     
     return (flow == flow->m->sending_flow);
 }
@@ -445,27 +363,26 @@ void PacketPassFairQueueFlow_Release (PacketPassFairQueueFlow *flow)
     ASSERT(flow->m->use_cancel)
     ASSERT(flow == flow->m->sending_flow)
     ASSERT(!flow->m->freeing)
-    DebugIn_AmOut(&flow->m->in_output);
+    ASSERT(!BPending_IsSet(&flow->m->schedule_job))
+    DebugObject_Access(&flow->d_obj);
     
     PacketPassFairQueue *m = flow->m;
     
     // cancel current packet
-    if (call_cancel(m) < 0) {
-        return;
-    }
+    PacketPassInterface_Sender_Cancel(m->output);
     
     // set no sending flow
     m->sending_flow = NULL;
     
-    // set continue job
-    BPending_Set(&m->continue_job);
+    // schedule schedule
+    BPending_Set(&m->schedule_job);
 }
 
 void PacketPassFairQueueFlow_SetBusyHandler (PacketPassFairQueueFlow *flow, PacketPassFairQueue_handler_busy handler, void *user)
 {
     ASSERT(flow == flow->m->sending_flow)
     ASSERT(!flow->m->freeing)
-    DebugIn_AmOut(&flow->m->in_output);
+    DebugObject_Access(&flow->d_obj);
     
     flow->handler_busy = handler;
     flow->user = user;
@@ -473,5 +390,7 @@ void PacketPassFairQueueFlow_SetBusyHandler (PacketPassFairQueueFlow *flow, Pack
 
 PacketPassInterface * PacketPassFairQueueFlow_GetInput (PacketPassFairQueueFlow *flow)
 {
+    DebugObject_Access(&flow->d_obj);
+    
     return &flow->input;
 }

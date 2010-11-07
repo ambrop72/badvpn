@@ -42,8 +42,6 @@
  * Output is with {@link PacketPassInterface}.
  */
 typedef struct {
-    DebugObject d_obj;
-    dead_t dead;
     PacketPassInterface *output;
     int output_mtu;
     struct spproto_security_params sp_params;
@@ -56,6 +54,7 @@ typedef struct {
     OTPChecker otpchecker;
     int have_encryption_key;
     BEncryption encryptor;
+    DebugObject d_obj;
 } SPProtoDecoder;
 
 /**
@@ -67,9 +66,10 @@ typedef struct {
  * @param encryption_key if using encryption, the encryption key
  * @param num_otp_seeds if using OTPs, how many OTP seeds to keep for checking
  *                      receiving packets. Must be >=2 if using OTPs.
+ * @param pg pending group
  * @return 1 on success, 0 on failure
  */
-int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds) WARN_UNUSED;
+int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg) WARN_UNUSED;
 
 /**
  * Frees the object.

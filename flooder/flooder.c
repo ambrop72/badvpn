@@ -151,7 +151,7 @@ static void server_handler_newclient (void *user, peerid_t peer_id, int flags, c
 static void server_handler_endclient (void *user, peerid_t peer_id);
 static void server_handler_message (void *user, peerid_t peer_id, uint8_t *data, int data_len);
 
-static int flood_source_handler_recv (void *user, uint8_t *data, int *data_len);
+static void flood_source_handler_recv (void *user, uint8_t *data);
 
 int main (int argc, char *argv[])
 {
@@ -405,7 +405,7 @@ void print_help (const char *name)
         "        [--ssl --nssdb <string> --client-cert-name <string>]\n"
         "        [--server-name <string>]\n"
         "        --server-addr <addr>\n"
-        "        [--flood-id <id> ...]\n"
+        "        [--flood-id <id>] ...\n"
         "Address format is a.b.c.d:port (IPv4) or [addr]:port (IPv6).\n",
         name
     );
@@ -637,10 +637,10 @@ void server_handler_ready (void *user, peerid_t param_my_id, uint32_t ext_ip)
     // init flooding
     
     // init source
-    PacketRecvInterface_Init(&flood_source, SC_MAX_ENC, flood_source_handler_recv, NULL);
+    PacketRecvInterface_Init(&flood_source, SC_MAX_ENC, flood_source_handler_recv, NULL, BReactor_PendingGroup(&ss));
     
     // init encoder
-    PacketProtoEncoder_Init(&flood_encoder, &flood_source);
+    PacketProtoEncoder_Init(&flood_encoder, &flood_source, BReactor_PendingGroup(&ss));
     
     // init buffer
     if (!SinglePacketBuffer_Init(&flood_buffer, PacketProtoEncoder_GetOutput(&flood_encoder), ServerConnection_GetSendInterface(&server), BReactor_PendingGroup(&ss))) {
@@ -687,7 +687,7 @@ void server_handler_message (void *user, peerid_t peer_id, uint8_t *data, int da
     BLog(BLOG_INFO, "message from %d", (int)peer_id);
 }
 
-int flood_source_handler_recv (void *user, uint8_t *data, int *data_len)
+void flood_source_handler_recv (void *user, uint8_t *data)
 {
     ASSERT(server_ready)
     ASSERT(!flood_blocking)
@@ -698,7 +698,7 @@ int flood_source_handler_recv (void *user, uint8_t *data, int *data_len)
     
     if (options.num_floods == 0) {
         flood_blocking = 1;
-        return 0;
+        return;
     }
     
     peerid_t peer_id = options.floods[flood_next];
@@ -714,6 +714,5 @@ int flood_source_handler_recv (void *user, uint8_t *data, int *data_len)
     
     memset(data + sizeof(struct sc_header) + sizeof(struct sc_client_outmsg), 0, SC_MAX_MSGLEN);
     
-    *data_len = sizeof(struct sc_header) + sizeof(struct sc_client_outmsg) + SC_MAX_MSGLEN;
-    return 1;
+    PacketRecvInterface_Done(&flood_source, sizeof(struct sc_header) + sizeof(struct sc_client_outmsg) + SC_MAX_MSGLEN);
 }

@@ -107,10 +107,9 @@ static void write_chunks (FragmentProtoDisassembler *o)
     ASSERT(o->in_len < 0 || !o->out)
 }
 
-static int input_handler_send (FragmentProtoDisassembler *o, uint8_t *data, int data_len)
+static void input_handler_send (FragmentProtoDisassembler *o, uint8_t *data, int data_len)
 {
     ASSERT(o->in_len == -1)
-    ASSERT(!o->doing_send)
     ASSERT(data_len >= 0)
     ASSERT(data_len <= o->input_mtu)
     
@@ -119,80 +118,59 @@ static int input_handler_send (FragmentProtoDisassembler *o, uint8_t *data, int 
     o->in = data;
     o->in_used = 0;
     
-    // if there is no output, block input
+    // if there is no output, wait for it
     if (!o->out) {
-        return 0;
+        return;
     }
     
     // write input to output
     write_chunks(o);
     
-    // if we finished the output packet and are not in recv, notify output
-    if (!o->out && !o->doing_recv) {
-        o->doing_send = 1;
-        DEAD_ENTER(o->dead)
+    // finish input packet if needed
+    if (o->in_len == -1) {
+        PacketPassInterface_Done(&o->input);
+    }
+    
+    // finish output packet if needed
+    if (!o->out) {
         PacketRecvInterface_Done(&o->output, o->out_used);
-        if (DEAD_LEAVE(o->dead)) {
-            return -1;
-        }
-        o->doing_send = 0;
     }
-    
-    // if we still have some input, block input
-    if (o->in_len >= 0) {
-        return 0;
-    }
-    
-    // all input was processed, accept packet
-    return 1;
 }
 
 static void input_handler_cancel (FragmentProtoDisassembler *o)
 {
     ASSERT(o->in_len >= 0)
     ASSERT(!o->out)
-    ASSERT(!o->doing_send)
     
     o->in_len = -1;
 }
 
-static int output_handler_recv (FragmentProtoDisassembler *o, uint8_t *data, int *data_len)
+static void output_handler_recv (FragmentProtoDisassembler *o, uint8_t *data)
 {
     ASSERT(!o->out)
-    ASSERT(!o->doing_recv)
     ASSERT(data)
     
     // set output packet
     o->out = data;
     o->out_used = 0;
     
-    // if there is no input, block output
+    // if there is no input, wait for it
     if (o->in_len < 0) {
-        return 0;
+        return;
     }
     
     // write input to output
     write_chunks(o);
     
-    // if we finished the input packet and are not in send, notify input
-    if (o->in_len < 0 && !o->doing_send) {
-        o->doing_recv = 1;
-        DEAD_ENTER(o->dead)
+    // finish output packet if needed
+    if (!o->out) {
+        PacketRecvInterface_Done(&o->output, o->out_used);
+    }
+    
+    // finish input packet if needed
+    if (o->in_len == -1) {
         PacketPassInterface_Done(&o->input);
-        if (DEAD_LEAVE(o->dead)) {
-            return -1;
-        }
-        o->doing_recv = 0;
     }
-    
-    // if we are not going to finish the output packet now, block output
-    if (o->out) {
-        return 0;
-    }
-    
-    // return packet now
-    *data_len = o->out_used;
-    return 1;
 }
 
 static void timer_handler (FragmentProtoDisassembler *o)
@@ -200,15 +178,10 @@ static void timer_handler (FragmentProtoDisassembler *o)
     ASSERT(o->latency >= 0)
     ASSERT(o->out)
     ASSERT(o->in_len = -1)
-    ASSERT(!o->doing_send)
-    ASSERT(!o->doing_recv)
     
     // finish output packet
     o->out = NULL;
-    
-    // inform output
     PacketRecvInterface_Done(&o->output, o->out_used);
-    return;
 }
 
 void FragmentProtoDisassembler_Init (FragmentProtoDisassembler *o, BReactor *reactor, int input_mtu, int output_mtu, int chunk_mtu, btime_t latency)
@@ -225,15 +198,12 @@ void FragmentProtoDisassembler_Init (FragmentProtoDisassembler *o, BReactor *rea
     o->chunk_mtu = chunk_mtu;
     o->latency = latency;
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // init input
-    PacketPassInterface_Init(&o->input, o->input_mtu, (PacketPassInterface_handler_send)input_handler_send, o);
+    PacketPassInterface_Init(&o->input, o->input_mtu, (PacketPassInterface_handler_send)input_handler_send, o, BReactor_PendingGroup(reactor));
     PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_cancel)input_handler_cancel);
     
     // init output
-    PacketRecvInterface_Init(&o->output, o->output_mtu, (PacketRecvInterface_handler_recv)output_handler_recv, o);
+    PacketRecvInterface_Init(&o->output, o->output_mtu, (PacketRecvInterface_handler_recv)output_handler_recv, o, BReactor_PendingGroup(reactor));
     
     // init timer
     if (o->latency >= 0) {
@@ -249,19 +219,11 @@ void FragmentProtoDisassembler_Init (FragmentProtoDisassembler *o, BReactor *rea
     // start with zero frame ID
     o->frame_id = 0;
     
-    // not callback from send
-    o->doing_send = 0;
-    
-    // not callback from recv
-    o->doing_recv = 0;
-    
-    // init debug object
     DebugObject_Init(&o->d_obj);
 }
 
 void FragmentProtoDisassembler_Free (FragmentProtoDisassembler *o)
 {
-    // free debug object
     DebugObject_Free(&o->d_obj);
 
     // free timer
@@ -274,17 +236,18 @@ void FragmentProtoDisassembler_Free (FragmentProtoDisassembler *o)
     
     // free input
     PacketPassInterface_Free(&o->input);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
 
 PacketPassInterface * FragmentProtoDisassembler_GetInput (FragmentProtoDisassembler *o)
 {
+    DebugObject_Access(&o->d_obj);
+    
     return &o->input;
 }
 
 PacketRecvInterface * FragmentProtoDisassembler_GetOutput (FragmentProtoDisassembler *o)
 {
+    DebugObject_Access(&o->d_obj);
+    
     return &o->output;
 }

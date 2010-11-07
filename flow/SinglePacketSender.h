@@ -30,7 +30,6 @@
 #include <stdint.h>
 
 #include <misc/dead.h>
-#include <system/BPending.h>
 #include <system/DebugObject.h>
 #include <flow/PacketPassInterface.h>
 
@@ -46,14 +45,13 @@ typedef void (*SinglePacketSender_handler) (void *user);
  * A {@link PacketPassInterface} source which sends a single packet.
  */
 typedef struct {
-    dead_t dead;
-    uint8_t *packet;
-    int packet_len;
     PacketPassInterface *output;
     SinglePacketSender_handler handler;
     void *user;
-    BPending start_job;
     DebugObject d_obj;
+    #ifndef NDEBUG
+    dead_t d_dead;
+    #endif
 } SinglePacketSender;
 
 /**

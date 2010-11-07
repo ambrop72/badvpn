@@ -30,6 +30,7 @@
 #include <stdint.h>
 
 #include <misc/dead.h>
+#include <misc/debugin.h>
 #include <system/DebugObject.h>
 #include <system/BSocket.h>
 #include <flow/PacketPassInterface.h>
@@ -42,7 +43,6 @@
  * A {@link PacketPassInterface} sink which sends packets to a datagram socket.
  */
 typedef struct {
-    DebugObject d_obj;
     dead_t dead;
     FlowErrorReporter rep;
     BSocket *bsock;
@@ -51,9 +51,8 @@ typedef struct {
     PacketPassInterface input;
     int in_len;
     uint8_t *in;
-    #ifndef NDEBUG
-    int in_error;
-    #endif
+    DebugIn d_in_error;
+    DebugObject d_obj;
 } DatagramSocketSink;
 
 /**
@@ -73,8 +72,9 @@ typedef struct {
  * @param addr remote address. Must be recognized and valid. Passed to {@link BSocket_SendToFrom}.
  * @param local_addr source address. Must be recognized.
  *                   Passed to {@link BSocket_SendToFrom}.
+ * @param pg pending group
  */
-void DatagramSocketSink_Init (DatagramSocketSink *s, FlowErrorReporter rep, BSocket *bsock, int mtu, BAddr addr, BIPAddr local_addr);
+void DatagramSocketSink_Init (DatagramSocketSink *s, FlowErrorReporter rep, BSocket *bsock, int mtu, BAddr addr, BIPAddr local_addr, BPendingGroup *pg);
 
 /**
  * Frees the sink.

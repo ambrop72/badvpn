@@ -30,11 +30,10 @@
 #include <stdint.h>
 
 #include <misc/dead.h>
-#include <misc/debugin.h>
 #include <system/DebugObject.h>
+#include <system/BPending.h>
 #include <misc/debugcounter.h>
 #include <structure/BHeap.h>
-#include <system/BPending.h>
 #include <flow/PacketPassInterface.h>
 
 typedef void (*PacketPassPriorityQueue_handler_busy) (void *user);
@@ -52,14 +51,13 @@ typedef struct {
     BHeap queued_heap;
     int freeing;
     int use_cancel;
-    BPending continue_job;
+    BPending schedule_job;
+    BPendingGroup *pg;
     DebugCounter d_ctr;
-    DebugIn in_output;
     DebugObject d_obj;
 } PacketPassPriorityQueue;
 
 typedef struct PacketPassPriorityQueueFlow_s {
-    dead_t dead;
     PacketPassPriorityQueue *m;
     PacketPassPriorityQueue_handler_busy handler_busy;
     void *user;
@@ -131,6 +129,14 @@ void PacketPassPriorityQueueFlow_Init (PacketPassPriorityQueueFlow *flow, Packet
  * @param flow the object
  */
 void PacketPassPriorityQueueFlow_Free (PacketPassPriorityQueueFlow *flow);
+
+/**
+ * Does nothing.
+ * It must be possible to free the flow (see {@link PacketPassPriorityQueueFlow}).
+ * 
+ * @param flow the object
+ */
+void PacketPassPriorityQueueFlow_AssertFree (PacketPassPriorityQueueFlow *flow);
 
 /**
  * Determines if the flow is busy. If the flow is considered busy, it must not

@@ -20,6 +20,18 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+/*
+ NOTE:
+ This program works with I/O inside the BPending job environment.
+ A consequence of this is that in response to an input, we can't
+ directly do any output, but instead have to schedule outputs.
+ Because all the buffers used (e.g. client control buffers and peer flows)
+ are based on flow components, it is impossible to directly write two or more
+ packets to a buffer.
+ To, for instance, send two packets to a buffer, we have to first schedule
+ writing the second packet (using BPending), then send the first one.
+*/
+
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,11 +55,9 @@
 #include <misc/jenkins_hash.h>
 #include <misc/offset.h>
 #include <misc/nsskey.h>
-#include <misc/dead.h>
 #include <misc/byteorder.h>
 #include <misc/loglevel.h>
 #include <misc/loggers_string.h>
-#include <nspr_support/DummyPRFileDesc.h>
 #include <predicate/BPredicate.h>
 #include <system/BLog.h>
 #include <system/BSignal.h>
@@ -56,6 +66,7 @@
 #include <system/BAddr.h>
 #include <system/Listener.h>
 #include <security/BRandom.h>
+#include <nspr_support/DummyPRFileDesc.h>
 
 #ifndef BADVPN_USE_WINAPI
 #include <system/BLog_syslog.h>
@@ -71,9 +82,6 @@
 
 #define LOGGER_STDOUT 1
 #define LOGGER_SYSLOG 2
-
-// program dead variable
-dead_t dead;
 
 // parsed command-line options
 struct {
@@ -150,7 +158,7 @@ int num_listeners;
 int clients_num;
 
 // ID assigned to last connected client
-peerid_t clients_lastid;
+peerid_t clients_nextid;
 
 // clients list
 LinkedList2 clients;
@@ -173,7 +181,7 @@ static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 
 // processes certain command line options
-static int resolve_arguments (void);
+static int process_arguments (void);
 
 // handler for program termination request
 static void signal_handler (void *unused);
@@ -188,7 +196,10 @@ static void client_add (struct client_data *client);
 // removes a client
 static void client_remove (struct client_data *client);
 
-// frees resources used by a client. Must have no outgoing flows.
+// job for notifying clients when a client is removed
+static void client_dying_job (struct client_data *client);
+
+// frees resources used by a client
 static void client_dealloc (struct client_data *client);
 
 // passes a message to the logger, prepending about the client
@@ -216,10 +227,25 @@ static void client_error_handler (struct client_data *client, int component, con
 static int client_start_control_packet (struct client_data *client, void **data, int len);
 
 // submits a packet written after client_start_control_packet
-static int client_end_control_packet (struct client_data *client, uint8_t id);
+static void client_end_control_packet (struct client_data *client, uint8_t id);
+
+// sends a newclient message to a client
+static int client_send_newclient (struct client_data *client, struct client_data *nc, int relay_server, int relay_client);
+
+// sends an endclient message to a client
+static int client_send_endclient (struct client_data *client, peerid_t end_id);
 
 // handler for packets received from the client
-static int client_input_handler_send (struct client_data *client, uint8_t *data, int data_len);
+static void client_input_handler_send (struct client_data *client, uint8_t *data, int data_len);
+
+// processes hello packets from clients
+static void process_packet_hello (struct client_data *client, uint8_t *data, int data_len);
+
+// job for notifying clients when a client is initialized
+static void client_publish_job (struct client_data *client);
+
+// processes outmsg packets from clients
+static void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_len);
 
 // creates a peer flow
 static struct peer_flow * peer_flow_create (struct client_data *src_client, struct client_data *dest_client);
@@ -234,29 +260,10 @@ static void peer_flow_disconnect (struct peer_flow *flow);
 static int peer_flow_start_packet (struct peer_flow *flow, void **data, int len);
 
 // submits a peer-to-peer packet written after peer_flow_start_packet
-static int peer_flow_end_packet (struct peer_flow *flow, uint8_t type);
+static void peer_flow_end_packet (struct peer_flow *flow, uint8_t type);
 
 // handler called by the queue when a peer flow can be freed after its source has gone away
 static void peer_flow_handler_canremove (struct peer_flow *flow);
-
-// processes hello packets from clients
-static void process_packet_hello (struct client_data *client, uint8_t *data, int data_len);
-
-// processes outmsg packets from clients
-static void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_len);
-
-// sends a newclient message to a client
-static int client_send_newclient (struct client_data *client, struct client_data *nc, int relay_server, int relay_client);
-
-// sends an endclient message to a client
-static int client_send_endclient (struct client_data *client, peerid_t end_id);
-
-// informs two clients of each other after one of them has just come. Does nothing
-// if they are not permitted by the communication predicate.
-void connect_clients (struct client_data *clientA, struct client_data *clientB);
-
-// calls connect_clients for this client and all other finished peers
-static int publish_client (struct client_data *client);
 
 // generates a client ID to be used for a newly connected client
 static peerid_t new_client_id (void);
@@ -304,14 +311,15 @@ static int relay_predicate_func_raddr_cb (void *user, void **args);
 // comparator for peerid_t used in AVL tree
 static int peerid_comparator (void *unused, peerid_t *p1, peerid_t *p2);
 
+void create_know (struct peer_know *k, struct client_data *from, struct client_data *to);
+
+void remove_know (struct peer_know *k);
+
 int main (int argc, char *argv[])
 {
     if (argc <= 0) {
         return 1;
     }
-    
-    // init dead variable
-    DEAD_INIT(dead);
     
     // parse command-line arguments
     if (!parse_arguments(argc, argv)) {
@@ -347,6 +355,8 @@ int main (int argc, char *argv[])
         default:
             ASSERT(0);
     }
+    
+    // configure logger channels
     for (int i = 0; i < BLOG_NUM_CHANNELS; i++) {
         if (options.loglevels[i] >= 0) {
             BLog_SetChannelLoglevel(i, options.loglevels[i]);
@@ -364,9 +374,9 @@ int main (int argc, char *argv[])
         goto fail1;
     }
     
-    // resolve addresses
-    if (!resolve_arguments()) {
-        BLog(BLOG_ERROR, "Failed to resolve arguments");
+    // process arguments
+    if (!process_arguments()) {
+        BLog(BLOG_ERROR, "Failed to process arguments");
         goto fail1;
     }
     
@@ -473,7 +483,7 @@ int main (int argc, char *argv[])
     clients_num = 0;
     
     // first client ID will be zero
-    clients_lastid = 65535;
+    clients_nextid = 0;
     
     // initialize clients linked list
     LinkedList2_Init(&clients);
@@ -493,21 +503,21 @@ int main (int argc, char *argv[])
     
     // initialize listeners
     num_listeners = 0;
-    for (int i = 0; i < num_listen_addrs; i++) {
-        if (!Listener_Init(&listeners[num_listeners], &ss, listen_addrs[i], (Listener_handler)listener_handler, &listeners[num_listeners])) {
+    while (num_listeners < num_listen_addrs) {
+        if (!Listener_Init(&listeners[num_listeners], &ss, listen_addrs[num_listeners], (Listener_handler)listener_handler, &listeners[num_listeners])) {
             BLog(BLOG_ERROR, "Listener_Init failed");
             goto fail7;
         }
         num_listeners++;
     }
     
-    goto run_reactor;
+    goto event_loop;
     
     // cleanup on error
 fail7:
     while (num_listeners > 0) {
-        Listener_Free(&listeners[num_listeners - 1]);
         num_listeners--;
+        Listener_Free(&listeners[num_listeners]);
     }
     HashTable_Free(&clients_by_id);
 fail6:
@@ -548,7 +558,7 @@ fail0:
     DebugObjectGlobal_Finish();
     return 1;
     
-run_reactor:
+event_loop:
     // enter event loop
     BLog(BLOG_NOTICE, "entering event loop");
     int ret = BReactor_Exec(&ss);
@@ -575,6 +585,20 @@ void terminate (void)
     while (node = LinkedList2_GetFirst(&clients)) {
         struct client_data *client = UPPER_OBJECT(node, struct client_data, list_node);
         
+        // remove outgoing knows
+        LinkedList2Node *node2;
+        while (node2 = LinkedList2_GetFirst(&client->know_out_list)) {
+            struct peer_know *k = UPPER_OBJECT(node2, struct peer_know, from_node);
+            remove_know(k);
+        }
+        
+        // remove incoming knows
+        LinkedList2Node *node3;
+        while (node3 = LinkedList2_GetFirst(&client->know_in_list)) {
+            struct peer_know *k = UPPER_OBJECT(node3, struct peer_know, to_node);
+            remove_know(k);
+        }
+        
         // remove outgoing flows
         LinkedList2Node *flow_node;
         while (flow_node = LinkedList2_GetFirst(&client->peer_out_flows_list)) {
@@ -594,8 +618,8 @@ void terminate (void)
     
     // free listeners
     while (num_listeners > 0) {
-        Listener_Free(&listeners[num_listeners - 1]);
         num_listeners--;
+        Listener_Free(&listeners[num_listeners]);
     }
     
     // free clients hash table
@@ -640,9 +664,6 @@ void terminate (void)
         BPredicateFunction_Free(&comm_predicate_func_p1name);
         BPredicate_Free(&comm_predicate);
     }
-    
-    // kill program dead variable
-    DEAD_KILL(dead);
     
     // exit event loop
     BReactor_Quit(&ss, 1);
@@ -844,12 +865,12 @@ int parse_arguments (int argc, char *argv[])
     return 1;
 }
 
-int resolve_arguments (void)
+int process_arguments (void)
 {
     // resolve listen addresses
     num_listen_addrs = 0;
-    for (int i = 0; i < options.num_listen_addrs; i++) {
-        if (!BAddr_Parse(&listen_addrs[num_listen_addrs], options.listen_addrs[i], NULL, 0)) {
+    while (num_listen_addrs < options.num_listen_addrs) {
+        if (!BAddr_Parse(&listen_addrs[num_listen_addrs], options.listen_addrs[num_listen_addrs], NULL, 0)) {
             BLog(BLOG_ERROR, "listen addr: BAddr_Parse failed");
             return 0;
         }
@@ -864,39 +885,41 @@ void signal_handler (void *unused)
     BLog(BLOG_NOTICE, "termination requested");
     
     terminate();
+    return;
 }
 
 void listener_handler (Listener *listener)
 {
-    if (clients_num >= MAX_CLIENTS) {
+    if (clients_num == MAX_CLIENTS) {
         BLog(BLOG_WARNING, "too many clients for new client");
-        return;
+        goto fail0;
     }
     
     // allocate the client structure
     struct client_data *client = malloc(sizeof(struct client_data));
     if (!client) {
         BLog(BLOG_ERROR, "failed to allocate client");
-        return;
+        goto fail0;
     }
     
     // accept it
     if (!Listener_Accept(listener, &client->sock, &client->addr)) {
         BLog(BLOG_NOTICE, "Listener_Accept failed");
-        free(client);
-        return;
+        goto fail1;
     }
     
     client_add(client);
     return;
+    
+fail1:
+    free(client);
+fail0:
+    ;
 }
 
 void client_add (struct client_data *client)
 {
     ASSERT(clients_num < MAX_CLIENTS)
-    
-    // initialize dead variable
-    DEAD_INIT(client->dead);
     
     if (options.ssl) {
         // create BSocket NSPR file descriptor
@@ -952,12 +975,21 @@ void client_add (struct client_data *client)
     LinkedList2_Append(&clients, &client->list_node);
     ASSERT_EXECUTE(HashTable_Insert(&clients_by_id, &client->table_node_id))
     
+    // init knowledge lists
+    LinkedList2_Init(&client->know_out_list);
+    LinkedList2_Init(&client->know_in_list);
+    
     // initialize peer flows from us list and tree (flows for sending messages to other clients)
     LinkedList2_Init(&client->peer_out_flows_list);
     BAVL_Init(&client->peer_out_flows_tree, OFFSET_DIFF(struct peer_flow, dest_client_id, src_tree_node), (BAVL_comparator)peerid_comparator, NULL);
     
-    // set not dying
+    // init dying
     client->dying = 0;
+    BPending_Init(&client->dying_job, BReactor_PendingGroup(&ss), (BPending_handler)client_dying_job, client);
+    
+    // init publishing
+    BPending_Init(&client->publish_job, BReactor_PendingGroup(&ss), (BPending_handler)client_publish_job, client);
+    LinkedList2Iterator_Init(&client->publish_it, &clients, 1, NULL);
     
     client_log(client, BLOG_INFO, "initialized");
     
@@ -992,16 +1024,24 @@ void client_remove (struct client_data *client)
     // set dying to prevent sending this client anything
     client->dying = 1;
     
-    // remove outgoing flows and tell those who know about it that it's gone
-    // (outgoing flow also means that the target knows the source)
+    // free I/O (including incoming flows)
+    if (client->initstatus >= INITSTATUS_WAITHELLO) {
+        client_dealloc_io(client);
+    }
+    
+    // remove outgoing knows
     LinkedList2Node *node;
+    while (node = LinkedList2_GetFirst(&client->know_out_list)) {
+        struct peer_know *k = UPPER_OBJECT(node, struct peer_know, from_node);
+        remove_know(k);
+    }
+    
+    // remove outgoing flows
     while (node = LinkedList2_GetFirst(&client->peer_out_flows_list)) {
         struct peer_flow *flow = UPPER_OBJECT(node, struct peer_flow, src_list_node);
         ASSERT(flow->src_client == client)
-        struct client_data *clientB = flow->dest_client;
-        ASSERT(clientB->initstatus == INITSTATUS_COMPLETE)
+        ASSERT(flow->dest_client->initstatus == INITSTATUS_COMPLETE && !flow->dest_client->dying)
         
-        // remove the flow
         if (PacketPassFairQueueFlow_IsBusy(&flow->qflow)) {
             client_log(client, BLOG_DEBUG, "removing flow later");
             peer_flow_disconnect(flow);
@@ -1010,24 +1050,49 @@ void client_remove (struct client_data *client)
             client_log(client, BLOG_DEBUG, "removing flow now");
             peer_flow_dealloc(flow);
         }
-        
-        // inform the other peer this client is gone
-        if (!clientB->dying) {
-            DEAD_ENTER(dead)
-            client_send_endclient(clientB, client->id);
-            if (DEAD_LEAVE(dead)) {
-                return;
-            }
-        }
     }
     
-    // deallocate client
-    client_dealloc(client);
+    // schedule job for notifying other clients
+    BPending_Set(&client->dying_job);
+}
+
+static void client_dying_job (struct client_data *client)
+{
+    ASSERT(client->dying)
+    
+    LinkedList2Node *node = LinkedList2_GetFirst(&client->know_in_list);
+    if (!node) {
+        // deallocate client
+        client_dealloc(client);
+        return;
+    }
+    
+    // schedule next
+    BPending_Set(&client->dying_job);
+    
+    struct peer_know *k = UPPER_OBJECT(node, struct peer_know, to_node);
+    struct client_data *client2 = k->from;
+    
+    ASSERT(client2->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!client2->dying)
+    
+    remove_know(k);
+    
+    client_send_endclient(client2, client->id);
 }
 
 void client_dealloc (struct client_data *client)
 {
+    ASSERT(LinkedList2_IsEmpty(&client->know_out_list))
+    ASSERT(LinkedList2_IsEmpty(&client->know_in_list))
     ASSERT(LinkedList2_IsEmpty(&client->peer_out_flows_list))
+    
+    // free publishing
+    LinkedList2Iterator_Free(&client->publish_it);
+    BPending_Free(&client->publish_job);
+    
+    // free dying
+    BPending_Free(&client->dying_job);
     
     // link out
     ASSERT_EXECUTE(HashTable_Remove(&clients_by_id, &client->id))
@@ -1039,7 +1104,9 @@ void client_dealloc (struct client_data *client)
     
     if (client->initstatus >= INITSTATUS_WAITHELLO) {
         // free I/O
-        client_dealloc_io(client);
+        if (!client->dying) {
+            client_dealloc_io(client);
+        }
         
         // free common name
         if (options.ssl) {
@@ -1058,9 +1125,6 @@ void client_dealloc (struct client_data *client)
     
     // free socket
     BSocket_Free(&client->sock);
-    
-    // free dead variable
-    DEAD_KILL(client->dead);
     
     // free memory
     free(client);
@@ -1082,7 +1146,6 @@ void client_disconnect_timer_handler (struct client_data *client)
     client_log(client, BLOG_NOTICE, "timed out");
     
     client_remove(client);
-    return;
 }
 
 void client_try_handshake (struct client_data *client)
@@ -1183,20 +1246,47 @@ int client_init_io (struct client_data *client)
     // initialize error domain
     FlowErrorDomain_Init(&client->domain, (FlowErrorDomain_handler)client_error_handler, client);
     
+    // init input
+    
+    // init source
+    StreamRecvInterface *source_interface;
+    if (options.ssl) {
+        PRStreamSource_Init(&client->input_source.ssl, FlowErrorReporter_Create(&client->domain, COMPONENT_SOURCE), &client->ssl_bprfd, BReactor_PendingGroup(&ss));
+        source_interface = PRStreamSource_GetOutput(&client->input_source.ssl);
+    } else {
+        StreamSocketSource_Init(&client->input_source.plain, FlowErrorReporter_Create(&client->domain, COMPONENT_SOURCE), &client->sock, BReactor_PendingGroup(&ss));
+        source_interface = StreamSocketSource_GetOutput(&client->input_source.plain);
+    }
+    
+    // init interface
+    PacketPassInterface_Init(&client->input_interface, SC_MAX_ENC, (PacketPassInterface_handler_send)client_input_handler_send, client, BReactor_PendingGroup(&ss));
+    
+    // init decoder
+    if (!PacketProtoDecoder_Init(
+        &client->input_decoder,
+        FlowErrorReporter_Create(&client->domain, COMPONENT_DECODER),
+        source_interface,
+        &client->input_interface,
+        BReactor_PendingGroup(&ss)
+    )) {
+        client_log(client, BLOG_ERROR, "PacketProtoDecoder_Init failed");
+        goto fail1;
+    }
+    
     // init output common
     
     // init sink
     StreamPassInterface *sink_input;
     if (options.ssl) {
-        PRStreamSink_Init(&client->output_sink.ssl, FlowErrorReporter_Create(&client->domain, COMPONENT_SINK), &client->ssl_bprfd);
+        PRStreamSink_Init(&client->output_sink.ssl, FlowErrorReporter_Create(&client->domain, COMPONENT_SINK), &client->ssl_bprfd, BReactor_PendingGroup(&ss));
         sink_input = PRStreamSink_GetInput(&client->output_sink.ssl);
     } else {
-        StreamSocketSink_Init(&client->output_sink.plain, FlowErrorReporter_Create(&client->domain, COMPONENT_SINK), &client->sock);
+        StreamSocketSink_Init(&client->output_sink.plain, FlowErrorReporter_Create(&client->domain, COMPONENT_SINK), &client->sock, BReactor_PendingGroup(&ss));
         sink_input = StreamSocketSink_GetInput(&client->output_sink.plain);
     }
     
     // init sender
-    PacketStreamSender_Init(&client->output_sender, sink_input, PACKETPROTO_ENCLEN(SC_MAX_ENC));
+    PacketStreamSender_Init(&client->output_sender, sink_input, PACKETPROTO_ENCLEN(SC_MAX_ENC), BReactor_PendingGroup(&ss));
     
     // init queue
     PacketPassPriorityQueue_Init(&client->output_priorityqueue, PacketStreamSender_GetInput(&client->output_sender), BReactor_PendingGroup(&ss));
@@ -1215,9 +1305,9 @@ int client_init_io (struct client_data *client)
         BReactor_PendingGroup(&ss)
     )) {
         client_log(client, BLOG_ERROR, "PacketProtoFlow_Init failed");
-        goto fail0;
+        goto fail2;
     }
-    client->output_control_input = PacketBufferAsyncInput_GetInput(&client->output_control_oflow.ainput);
+    client->output_control_input = PacketProtoFlow_GetInput(&client->output_control_oflow);
     client->output_control_packet_len = -1;
     
     // init output peers flow
@@ -1232,52 +1322,9 @@ int client_init_io (struct client_data *client)
     // init list of flows
     LinkedList2_Init(&client->output_peers_flows);
     
-    // init input
-    // NOTE: input must be initialized after output is, otherwise we might receive a packet from the client
-    // before output was started via the jobs system, and fail to send a response (because pending jobs are executed in
-    // the order they are registered).
-    
-    // init source
-    StreamRecvInterface *source_interface;
-    if (options.ssl) {
-        PRStreamSource_Init(&client->input_source.ssl, FlowErrorReporter_Create(&client->domain, COMPONENT_SOURCE), &client->ssl_bprfd);
-        source_interface = PRStreamSource_GetOutput(&client->input_source.ssl);
-    } else {
-        StreamSocketSource_Init(&client->input_source.plain, FlowErrorReporter_Create(&client->domain, COMPONENT_SOURCE), &client->sock);
-        source_interface = StreamSocketSource_GetOutput(&client->input_source.plain);
-    }
-    
-    // init interface
-    PacketPassInterface_Init(&client->input_interface, SC_MAX_ENC, (PacketPassInterface_handler_send)client_input_handler_send, client);
-    
-    // init decoder
-    if (!PacketProtoDecoder_Init(
-        &client->input_decoder,
-        FlowErrorReporter_Create(&client->domain, COMPONENT_DECODER),
-        source_interface,
-        &client->input_interface,
-        BReactor_PendingGroup(&ss)
-    )) {
-        client_log(client, BLOG_ERROR, "PacketProtoDecoder_Init failed");
-        goto fail1;
-    }
-    
     return 1;
     
-    // free input
-fail1:
-    PacketPassInterface_Free(&client->input_interface);
-    if (options.ssl) {
-        PRStreamSource_Free(&client->input_source.ssl);
-    } else {
-        StreamSocketSource_Free(&client->input_source.plain);
-    }
-    // free output peers flow
-    PacketPassFairQueue_Free(&client->output_peers_fairqueue);
-    PacketPassPriorityQueueFlow_Free(&client->output_peers_qflow);
-    // free output control flow
-    PacketProtoFlow_Free(&client->output_control_oflow);
-fail0:
+fail2:
     PacketPassPriorityQueueFlow_Free(&client->output_control_qflow);
     // free output common
     PacketPassPriorityQueue_Free(&client->output_priorityqueue);
@@ -1287,20 +1334,20 @@ fail0:
     } else {
         StreamSocketSink_Free(&client->output_sink.plain);
     }
-    return 0;
-}
-
-void client_dealloc_io (struct client_data *client)
-{
     // free input
     PacketProtoDecoder_Free(&client->input_decoder);
+fail1:
     PacketPassInterface_Free(&client->input_interface);
     if (options.ssl) {
         PRStreamSource_Free(&client->input_source.ssl);
     } else {
         StreamSocketSource_Free(&client->input_source.plain);
     }
-    
+    return 0;
+}
+
+void client_dealloc_io (struct client_data *client)
+{
     // allow freeing fair queue flows
     PacketPassFairQueue_PrepareFree(&client->output_peers_fairqueue);
     
@@ -1331,11 +1378,21 @@ void client_dealloc_io (struct client_data *client)
     } else {
         StreamSocketSink_Free(&client->output_sink.plain);
     }
+    
+    // free input
+    PacketProtoDecoder_Free(&client->input_decoder);
+    PacketPassInterface_Free(&client->input_interface);
+    if (options.ssl) {
+        PRStreamSource_Free(&client->input_source.ssl);
+    } else {
+        StreamSocketSource_Free(&client->input_source.plain);
+    }
 }
 
 void client_error_handler (struct client_data *client, int component, const void *data)
 {
     ASSERT(INITSTATUS_HASLINK(client->initstatus))
+    ASSERT(!client->dying)
     
     switch (component) {
         case COMPONENT_SOURCE:
@@ -1358,23 +1415,15 @@ void client_error_handler (struct client_data *client, int component, const void
 
 int client_start_control_packet (struct client_data *client, void **data, int len)
 {
+    ASSERT(len >= 0)
+    ASSERT(len <= SC_MAX_PAYLOAD)
+    ASSERT(!(len > 0) || data)
     ASSERT(INITSTATUS_HASLINK(client->initstatus))
     ASSERT(!client->dying)
     ASSERT(client->output_control_packet_len == -1)
-    ASSERT(len >= 0)
-    ASSERT(len <= SC_MAX_PAYLOAD);
-    ASSERT(data || len == 0)
     
     // obtain location for writing the packet
-    DEAD_ENTER(client->dead)
-    int res = BestEffortPacketWriteInterface_Sender_StartPacket(client->output_control_input, &client->output_control_packet);
-    if (DEAD_LEAVE(client->dead)) {
-        return -1;
-    }
-    
-    ASSERT(res == 0 || res == 1)
-    
-    if (!res) {
+    if (!BufferWriter_StartPacket(client->output_control_input, &client->output_control_packet)) {
         // out of buffer, kill client
         client_log(client, BLOG_NOTICE, "out of control buffer, removing");
         client_remove(client);
@@ -1390,40 +1439,67 @@ int client_start_control_packet (struct client_data *client, void **data, int le
     return 0;
 }
 
-int client_end_control_packet (struct client_data *client, uint8_t type)
+void client_end_control_packet (struct client_data *client, uint8_t type)
 {
     ASSERT(INITSTATUS_HASLINK(client->initstatus))
     ASSERT(!client->dying)
     ASSERT(client->output_control_packet_len >= 0)
-    ASSERT(client->output_control_packet_len <= SC_MAX_PAYLOAD)
     
     // write header
     struct sc_header *header = (struct sc_header *)client->output_control_packet;
     header->type = type;
     
     // finish writing packet
-    DEAD_ENTER(client->dead)
-    BestEffortPacketWriteInterface_Sender_EndPacket(client->output_control_input, sizeof(struct sc_header) + client->output_control_packet_len);
-    if (DEAD_LEAVE(client->dead)) {
-        return -1;
-    }
+    BufferWriter_EndPacket(client->output_control_input, sizeof(struct sc_header) + client->output_control_packet_len);
     
     client->output_control_packet_len = -1;
+}
+
+int client_send_newclient (struct client_data *client, struct client_data *nc, int relay_server, int relay_client)
+{
+    int flags = 0;
+    if (relay_server) {
+        flags |= SCID_NEWCLIENT_FLAG_RELAY_SERVER;
+    }
+    if (relay_client) {
+        flags |= SCID_NEWCLIENT_FLAG_RELAY_CLIENT;
+    }
+    
+    struct sc_server_newclient *pack;
+    if (client_start_control_packet(client, (void **)&pack, sizeof(struct sc_server_newclient) + (options.ssl ? nc->cert_len : 0)) < 0) {
+        return -1;
+    }
+    pack->id = htol16(nc->id);
+    pack->flags = htol16(flags);
+    if (options.ssl) {
+        memcpy(pack + 1, nc->cert, nc->cert_len);
+    }
+    client_end_control_packet(client, SCID_NEWCLIENT);
     
     return 0;
 }
 
-int client_input_handler_send (struct client_data *client, uint8_t *data, int data_len)
+int client_send_endclient (struct client_data *client, peerid_t end_id)
+{
+    struct sc_server_endclient *pack;
+    if (client_start_control_packet(client, (void **)&pack, sizeof(struct sc_server_endclient)) < 0) {
+        return -1;
+    }
+    pack->id = htol16(end_id);
+    client_end_control_packet(client, SCID_ENDCLIENT);
+    
+    return 0;
+}
+
+void client_input_handler_send (struct client_data *client, uint8_t *data, int data_len)
 {
     ASSERT(INITSTATUS_HASLINK(client->initstatus))
-    
-    // restart no data timer
-    BReactor_SetTimer(&ss, &client->disconnect_timer);
+    ASSERT(!client->dying)
     
     if (data_len < sizeof(struct sc_header)) {
         client_log(client, BLOG_NOTICE, "packet too short");
         client_remove(client);
-        return -1;
+        return;
     }
     
     struct sc_header *header = (struct sc_header *)data;
@@ -1431,186 +1507,28 @@ int client_input_handler_send (struct client_data *client, uint8_t *data, int da
     uint8_t *sc_data = data + sizeof(struct sc_header);
     int sc_data_len = data_len - sizeof(struct sc_header);
     
-    #ifndef NDEBUG
-    DEAD_ENTER(client->dead)
-    #endif
+    // restart no data timer
+    BReactor_SetTimer(&ss, &client->disconnect_timer);
+    
+    // accept packet
+    PacketPassInterface_Done(&client->input_interface);
     
     // perform action based on packet type
     switch (header->type) {
         case SCID_KEEPALIVE:
             client_log(client, BLOG_DEBUG, "received keep-alive");
-            break;
+            return;
         case SCID_CLIENTHELLO:
             process_packet_hello(client, sc_data, sc_data_len);
-            break;
+            return;
         case SCID_OUTMSG:
             process_packet_outmsg(client, sc_data, sc_data_len);
-            break;
+            return;
         default:
             client_log(client, BLOG_NOTICE, "unknown packet type %d, removing", (int)header->type);
             client_remove(client);
+            return;
     }
-    
-    #ifndef NDEBUG
-    if (DEAD_LEAVE(client->dead)) {
-        return -1;
-    }
-    #endif
-    
-    return 1;
-}
-
-struct peer_flow * peer_flow_create (struct client_data *src_client, struct client_data *dest_client)
-{
-    ASSERT(dest_client->initstatus == INITSTATUS_COMPLETE)
-    ASSERT(!dest_client->dying)
-    ASSERT(!BAVL_LookupExact(&src_client->peer_out_flows_tree, &dest_client->id))
-    
-    // allocate flow structure
-    struct peer_flow *flow = malloc(sizeof(*flow));
-    if (!flow) {
-        goto fail0;
-    }
-    
-    // set source and destination
-    flow->src_client = src_client;
-    flow->dest_client = dest_client;
-    flow->dest_client_id = dest_client->id;
-    
-    // init dead variable
-    DEAD_INIT(flow->dead);
-    
-    // add to source list and hash table
-    LinkedList2_Append(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
-    ASSERT_EXECUTE(BAVL_Insert(&flow->src_client->peer_out_flows_tree, &flow->src_tree_node, NULL))
-    
-    // add to destination client list
-    LinkedList2_Append(&flow->dest_client->output_peers_flows, &flow->dest_list_node);
-    
-    // initialize I/O
-    PacketPassFairQueueFlow_Init(&flow->qflow, &flow->dest_client->output_peers_fairqueue);
-    if (!PacketProtoFlow_Init(
-        &flow->oflow,
-        SC_MAX_ENC,
-        CLIENT_PEER_FLOW_BUFFER_MIN_PACKETS,
-        PacketPassFairQueueFlow_GetInput(&flow->qflow),
-        BReactor_PendingGroup(&ss)
-    )) {
-        BLog(BLOG_ERROR, "PacketProtoFlow_Init failed");
-        goto fail1;
-    }
-    flow->bepwi = PacketBufferAsyncInput_GetInput(&flow->oflow.ainput);
-    flow->packet_len = -1;
-    
-    return flow;
-    
-fail1:
-    PacketPassFairQueueFlow_Free(&flow->qflow);
-    LinkedList2_Remove(&flow->dest_client->output_peers_flows, &flow->dest_list_node);
-    BAVL_Remove(&flow->src_client->peer_out_flows_tree, &flow->src_tree_node);
-    LinkedList2_Remove(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
-    free(flow);
-fail0:
-    return NULL;
-}
-
-void peer_flow_dealloc (struct peer_flow *flow)
-{
-    // free I/O
-    PacketProtoFlow_Free(&flow->oflow);
-    PacketPassFairQueueFlow_Free(&flow->qflow);
-    
-    // remove from destination client list
-    LinkedList2_Remove(&flow->dest_client->output_peers_flows, &flow->dest_list_node);
-    
-    // remove from source list and hash table
-    if (flow->src_client) {
-        BAVL_Remove(&flow->src_client->peer_out_flows_tree, &flow->src_tree_node);
-        LinkedList2_Remove(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
-    }
-    
-    // free dead variable
-    DEAD_KILL(flow->dead);
-    
-    // free memory
-    free(flow);
-}
-
-void peer_flow_disconnect (struct peer_flow *flow)
-{
-    ASSERT(flow->src_client)
-    
-    // remove from source list and hash table
-    BAVL_Remove(&flow->src_client->peer_out_flows_tree, &flow->src_tree_node);
-    LinkedList2_Remove(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
-    
-    // set no source
-    flow->src_client = NULL;
-}
-
-int peer_flow_start_packet (struct peer_flow *flow, void **data, int len)
-{
-    ASSERT(flow->dest_client->initstatus == INITSTATUS_COMPLETE)
-    ASSERT(!flow->dest_client->dying)
-    ASSERT(flow->packet_len == -1)
-    ASSERT(len >= 0)
-    ASSERT(len <= SC_MAX_PAYLOAD)
-    ASSERT(data || len == 0)
-    
-    // obtain location for writing the packet
-    DEAD_ENTER(flow->dead)
-    int res = BestEffortPacketWriteInterface_Sender_StartPacket(flow->bepwi, &flow->packet);
-    if (DEAD_LEAVE(flow->dead)) {
-        return -1;
-    }
-    
-    ASSERT(res == 0 || res == 1)
-    
-    if (!res) {
-        BLog(BLOG_INFO, "out of flow buffer");
-        return 0;
-    }
-    
-    flow->packet_len = len;
-    
-    if (data) {
-        *data = flow->packet + sizeof(struct sc_header);
-    }
-    
-    return 1;
-}
-
-int peer_flow_end_packet (struct peer_flow *flow, uint8_t type)
-{
-    ASSERT(flow->dest_client->initstatus == INITSTATUS_COMPLETE)
-    ASSERT(!flow->dest_client->dying)
-    ASSERT(flow->packet_len >= 0)
-    ASSERT(flow->packet_len <= SC_MAX_PAYLOAD)
-    
-    // write header
-    struct sc_header *header = (struct sc_header *)flow->packet;
-    header->type = type;
-    
-    // finish writing packet
-    DEAD_ENTER(flow->dead)
-    BestEffortPacketWriteInterface_Sender_EndPacket(flow->bepwi, sizeof(struct sc_header) + flow->packet_len);
-    if (DEAD_LEAVE(flow->dead)) {
-        return -1;
-    }
-    
-    flow->packet_len = -1;
-    
-    return 0;
-}
-
-void peer_flow_handler_canremove (struct peer_flow *flow)
-{
-    ASSERT(!flow->src_client)
-    
-    client_log(flow->dest_client, BLOG_DEBUG, "removing old flow");
-    
-    peer_flow_dealloc(flow);
-    return;
 }
 
 void process_packet_hello (struct client_data *client, uint8_t *data, int data_len)
@@ -1641,6 +1559,11 @@ void process_packet_hello (struct client_data *client, uint8_t *data, int data_l
     // set client state to complete
     client->initstatus = INITSTATUS_COMPLETE;
     
+    // schedule publishing the client
+    LinkedList2Iterator_Free(&client->publish_it);
+    LinkedList2Iterator_InitForward(&client->publish_it, &clients);
+    BPending_Set(&client->publish_job);
+    
     // send hello
     struct sc_server_hello *pack;
     if (client_start_control_packet(client, (void **)&pack, sizeof(struct sc_server_hello)) < 0) {
@@ -1649,13 +1572,85 @@ void process_packet_hello (struct client_data *client, uint8_t *data, int data_l
     pack->flags = htol16(0);
     pack->id = htol16(client->id);
     pack->clientAddr = (client->addr.type == BADDR_TYPE_IPV4 ? client->addr.ipv4.ip : 0);
-    if (client_end_control_packet(client, SCID_SERVERHELLO) < 0) {
+    client_end_control_packet(client, SCID_SERVERHELLO);
+}
+
+void client_publish_job (struct client_data *client)
+{
+    ASSERT(client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!client->dying)
+    
+    // get a client
+    struct client_data *client2;
+    while (1) {
+        LinkedList2Node *node = LinkedList2Iterator_Next(&client->publish_it);
+        if (!node) {
+            return;
+        }
+        client2 = UPPER_OBJECT(node, struct client_data, list_node);
+        
+        if (
+            client2 != client && client2->initstatus == INITSTATUS_COMPLETE && !client2->dying &&
+            clients_allowed(client, client2)
+        ) {
+            break;
+        }
+    }
+    
+    // schedule next
+    BPending_Set(&client->publish_job);
+    
+    // determine relay relations
+    int relay_to = relay_allowed(client, client2);
+    int relay_from = relay_allowed(client2, client);
+    
+    // tell client about client2
+    
+    struct peer_know *k_to = malloc(sizeof(*k_to));
+    if (!k_to) {
+        client_log(client, BLOG_ERROR, "failed to allocate know to %d", (int)client2->id);
+        goto fail;
+    }
+    
+    if (client_send_newclient(client, client2, relay_to, relay_from) < 0) {
+        free(k_to);
         return;
     }
     
-    // send it the peer list and inform others
-    publish_client(client);
+    create_know(k_to, client, client2);
+    
+    // tell client2 about client
+    
+    struct peer_know *k_from = malloc(sizeof(*k_from));
+    if (!k_from) {
+        client_log(client, BLOG_ERROR, "failed to allocate know from %d", (int)client2->id);
+        goto fail;
+    }
+    
+    if (client_send_newclient(client2, client, relay_from, relay_to) < 0) {
+        free(k_from);
+        return;
+    }
+    
+    create_know(k_from, client2, client);
+    
+    // create flow from client to client2
+    if (!peer_flow_create(client, client2)) {
+        client_log(client, BLOG_ERROR, "failed to allocate flow to %d", (int)client2->id);
+        goto fail;
+    }
+    
+    // create flow from client2 to client
+    if (!peer_flow_create(client2, client)) {
+        client_log(client, BLOG_ERROR, "failed to allocate flow from %d", (int)client2->id);
+        goto fail;
+    }
+    
     return;
+    
+fail:
+    // on out of memory, stop publishing client
+    BPending_Unset(&client->publish_job);
 }
 
 void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_len)
@@ -1694,130 +1689,149 @@ void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_
     
     // send packet
     struct sc_server_inmsg *pack;
-    if (peer_flow_start_packet(flow, (void **)&pack, sizeof(struct sc_server_inmsg) + payload_size) <= 0) {
+    if (!peer_flow_start_packet(flow, (void **)&pack, sizeof(struct sc_server_inmsg) + payload_size)) {
         return;
     }
     pack->clientid = htol16(client->id);
     memcpy((uint8_t *)pack + sizeof(struct sc_server_inmsg), payload, payload_size);
-    if (peer_flow_end_packet(flow, SCID_INMSG) < 0) {
-        return;
+    peer_flow_end_packet(flow, SCID_INMSG);
+}
+
+struct peer_flow * peer_flow_create (struct client_data *src_client, struct client_data *dest_client)
+{
+    ASSERT(src_client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!src_client->dying)
+    ASSERT(dest_client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!dest_client->dying)
+    ASSERT(!BAVL_LookupExact(&src_client->peer_out_flows_tree, &dest_client->id))
+    
+    // allocate flow structure
+    struct peer_flow *flow = malloc(sizeof(*flow));
+    if (!flow) {
+        goto fail0;
     }
+    
+    // set source and destination
+    flow->src_client = src_client;
+    flow->dest_client = dest_client;
+    flow->dest_client_id = dest_client->id;
+    
+    // add to source list and hash table
+    LinkedList2_Append(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
+    ASSERT_EXECUTE(BAVL_Insert(&flow->src_client->peer_out_flows_tree, &flow->src_tree_node, NULL))
+    
+    // add to destination client list
+    LinkedList2_Append(&flow->dest_client->output_peers_flows, &flow->dest_list_node);
+    
+    // initialize I/O
+    PacketPassFairQueueFlow_Init(&flow->qflow, &flow->dest_client->output_peers_fairqueue);
+    if (!PacketProtoFlow_Init(
+        &flow->oflow, SC_MAX_ENC, CLIENT_PEER_FLOW_BUFFER_MIN_PACKETS,
+        PacketPassFairQueueFlow_GetInput(&flow->qflow), BReactor_PendingGroup(&ss)
+    )) {
+        BLog(BLOG_ERROR, "PacketProtoFlow_Init failed");
+        goto fail1;
+    }
+    flow->input = PacketProtoFlow_GetInput(&flow->oflow);
+    flow->packet_len = -1;
+    
+    return flow;
+    
+fail1:
+    PacketPassFairQueueFlow_Free(&flow->qflow);
+    LinkedList2_Remove(&flow->dest_client->output_peers_flows, &flow->dest_list_node);
+    BAVL_Remove(&flow->src_client->peer_out_flows_tree, &flow->src_tree_node);
+    LinkedList2_Remove(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
+    free(flow);
+fail0:
+    return NULL;
+}
+
+void peer_flow_dealloc (struct peer_flow *flow)
+{
+    PacketPassFairQueueFlow_AssertFree(&flow->qflow);
+    
+    // free I/O
+    PacketProtoFlow_Free(&flow->oflow);
+    PacketPassFairQueueFlow_Free(&flow->qflow);
+    
+    // remove from destination client list
+    LinkedList2_Remove(&flow->dest_client->output_peers_flows, &flow->dest_list_node);
+    
+    // remove from source list and hash table
+    if (flow->src_client) {
+        BAVL_Remove(&flow->src_client->peer_out_flows_tree, &flow->src_tree_node);
+        LinkedList2_Remove(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
+    }
+    
+    // free memory
+    free(flow);
+}
+
+void peer_flow_disconnect (struct peer_flow *flow)
+{
+    ASSERT(flow->src_client)
+    
+    // remove from source list and hash table
+    BAVL_Remove(&flow->src_client->peer_out_flows_tree, &flow->src_tree_node);
+    LinkedList2_Remove(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
+    
+    // set no source
+    flow->src_client = NULL;
+}
+
+int peer_flow_start_packet (struct peer_flow *flow, void **data, int len)
+{
+    ASSERT(len >= 0)
+    ASSERT(len <= SC_MAX_PAYLOAD)
+    ASSERT(!(len > 0) || data)
+    ASSERT(flow->dest_client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!flow->dest_client->dying)
+    ASSERT(flow->src_client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!flow->src_client->dying)
+    ASSERT(flow->packet_len == -1)
+    
+    // obtain location for writing the packet
+    if (!BufferWriter_StartPacket(flow->input, &flow->packet)) {
+        client_log(flow->src_client, BLOG_INFO, "out of flow buffer for message to %d", (int)flow->dest_client->id);
+        return 0;
+    }
+    
+    flow->packet_len = len;
+    
+    if (data) {
+        *data = flow->packet + sizeof(struct sc_header);
+    }
+    
+    return 1;
+}
+
+void peer_flow_end_packet (struct peer_flow *flow, uint8_t type)
+{
+    ASSERT(flow->dest_client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!flow->dest_client->dying)
+    ASSERT(flow->packet_len >= 0)
+    
+    // write header
+    struct sc_header *header = (struct sc_header *)flow->packet;
+    header->type = type;
+    
+    // finish writing packet
+    BufferWriter_EndPacket(flow->input, sizeof(struct sc_header) + flow->packet_len);
+    
+    flow->packet_len = -1;
+}
+
+void peer_flow_handler_canremove (struct peer_flow *flow)
+{
+    ASSERT(!flow->src_client)
+    ASSERT(flow->dest_client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!flow->dest_client->dying)
+    
+    client_log(flow->dest_client, BLOG_DEBUG, "removing old flow");
+    
+    peer_flow_dealloc(flow);
     return;
-}
-
-int client_send_newclient (struct client_data *client, struct client_data *nc, int relay_server, int relay_client)
-{
-    int flags = 0;
-    if (relay_server) {
-        flags |= SCID_NEWCLIENT_FLAG_RELAY_SERVER;
-    }
-    if (relay_client) {
-        flags |= SCID_NEWCLIENT_FLAG_RELAY_CLIENT;
-    }
-    
-    struct sc_server_newclient *pack;
-    if (client_start_control_packet(client, (void **)&pack, sizeof(struct sc_server_newclient) + (options.ssl ? nc->cert_len : 0)) < 0) {
-        return -1;
-    }
-    pack->id = htol16(nc->id);
-    pack->flags = htol16(flags);
-    if (options.ssl) {
-        memcpy(pack + 1, nc->cert, nc->cert_len);
-    }
-    if (client_end_control_packet(client, SCID_NEWCLIENT) < 0) {
-        return -1;
-    }
-    
-    return 0;
-}
-
-int client_send_endclient (struct client_data *client, peerid_t end_id)
-{
-    struct sc_server_endclient *pack;
-    if (client_start_control_packet(client, (void **)&pack, sizeof(struct sc_server_endclient)) < 0) {
-        return -1;
-    }
-    pack->id = htol16(end_id);
-    if (client_end_control_packet(client, SCID_ENDCLIENT) < 0) {
-        return -1;
-    }
-    
-    return 0;
-}
-
-void connect_clients (struct client_data *clientA, struct client_data *clientB)
-{
-    ASSERT(clientA->initstatus == INITSTATUS_COMPLETE)
-    ASSERT(clientB->initstatus == INITSTATUS_COMPLETE)
-    ASSERT(clientA != clientB)
-    
-    if (!clients_allowed(clientA, clientB)) {
-        return;
-    }
-    
-    client_log(clientA, BLOG_DEBUG, "connecting %d", (int)clientB->id);
-    
-    // determine relay relations
-    int relayAB = relay_allowed(clientA, clientB);
-    int relayBA = relay_allowed(clientB, clientA);
-    
-    // tell clientB about clientA
-    if (client_send_newclient(clientB, clientA, relayBA, relayAB) < 0) {
-        return;
-    }
-    
-    // create flow clientA -> clientB
-    struct peer_flow *flowAB = peer_flow_create(clientA, clientB);
-    if (!flowAB) {
-        client_send_endclient(clientB, clientA->id);
-        return;
-    }
-    
-    // tell clientA about clientB
-    if (client_send_newclient(clientA, clientB, relayAB, relayBA) < 0) {
-        return;
-    }
-    
-    // create flow clientB -> clientA
-    struct peer_flow *flowBA = peer_flow_create(clientB, clientA);
-    if (!flowBA) {
-        if (client_send_endclient(clientA, clientB->id) < 0) {
-            return;
-        }
-        peer_flow_dealloc(flowAB);
-        client_send_endclient(clientB, clientA->id);
-        return;
-    }
-}
-
-int publish_client (struct client_data *client)
-{
-    ASSERT(client->initstatus == INITSTATUS_COMPLETE)
-    
-    // connect clients allowed to communicate
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &clients);
-    LinkedList2Node *node;
-    while (node = LinkedList2Iterator_Next(&it)) {
-        struct client_data *client2 = UPPER_OBJECT(node, struct client_data, list_node);
-        if (client2->initstatus != INITSTATUS_COMPLETE || client2 == client) {
-            continue;
-        }
-        
-        DEAD_ENTER_N(server, dead)
-        DEAD_ENTER_N(client, client->dead)
-        connect_clients(client, client2);
-        if (DEAD_LEAVE_N(server, dead)) {
-            DEAD_LEAVE_N(client, client->dead);
-            return -1;
-        }
-        if (DEAD_LEAVE_N(client, client->dead)) {
-            LinkedList2Iterator_Free(&it);
-            return -1;
-        }
-    }
-    
-    return 0;
 }
 
 peerid_t new_client_id (void)
@@ -1825,9 +1839,9 @@ peerid_t new_client_id (void)
     ASSERT(clients_num < MAX_CLIENTS)
     
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        clients_lastid++;
-        if (!find_client_by_id(clients_lastid)) {
-            return clients_lastid;
+        peerid_t id = clients_nextid++;
+        if (!find_client_by_id(id)) {
+            return id;
         }
     }
     
@@ -1986,4 +2000,19 @@ int peerid_comparator (void *unused, peerid_t *p1, peerid_t *p2)
         return 1;
     }
     return 0;
+}
+
+void create_know (struct peer_know *k, struct client_data *from, struct client_data *to)
+{
+    k->from = from;
+    k->to = to;
+    LinkedList2_Append(&from->know_out_list, &k->from_node);
+    LinkedList2_Append(&to->know_in_list, &k->to_node);
+}
+
+void remove_know (struct peer_know *k)
+{
+    LinkedList2_Remove(&k->to->know_in_list, &k->to_node);
+    LinkedList2_Remove(&k->from->know_out_list, &k->from_node);
+    free(k);
 }

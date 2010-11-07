@@ -25,27 +25,26 @@
 
 #include <flow/SCKeepaliveSource.h>
 
-static int output_handler_recv (SCKeepaliveSource *o, uint8_t *data, int *data_len)
+static void output_handler_recv (SCKeepaliveSource *o, uint8_t *data)
 {
-    struct sc_header *header = (struct sc_header *)data;
-    header->type = SCID_KEEPALIVE;
+    DebugObject_Access(&o->d_obj);
     
-    *data_len = sizeof(struct sc_header);
-    return 1;
+    struct sc_header *header = (struct sc_header *)data;
+    header->type = htol8(SCID_KEEPALIVE);
+    
+    PacketRecvInterface_Done(&o->output, sizeof(struct sc_header));
 }
 
-void SCKeepaliveSource_Init (SCKeepaliveSource *o)
+void SCKeepaliveSource_Init (SCKeepaliveSource *o, BPendingGroup *pg)
 {
     // init output
-    PacketRecvInterface_Init(&o->output, sizeof(struct sc_header), (PacketRecvInterface_handler_recv)output_handler_recv, o);
+    PacketRecvInterface_Init(&o->output, sizeof(struct sc_header), (PacketRecvInterface_handler_recv)output_handler_recv, o, pg);
     
-    // init debug object
     DebugObject_Init(&o->d_obj);
 }
 
 void SCKeepaliveSource_Free (SCKeepaliveSource *o)
 {
-    // free debug object
     DebugObject_Free(&o->d_obj);
 
     // free output
@@ -54,5 +53,7 @@ void SCKeepaliveSource_Free (SCKeepaliveSource *o)
 
 PacketRecvInterface * SCKeepaliveSource_GetOutput (SCKeepaliveSource *o)
 {
+    DebugObject_Access(&o->d_obj);
+    
     return &o->output;
 }

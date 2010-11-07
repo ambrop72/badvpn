@@ -498,8 +498,6 @@ int BReactor_Exec (BReactor *bsys)
 {
     BLog(BLOG_DEBUG, "Entering event loop");
 
-    bsys->exiting = 0;
-
     while (1) {
         dispatch_jobs(bsys);
         dispatch_timers(bsys);

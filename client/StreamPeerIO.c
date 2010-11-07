@@ -374,8 +374,8 @@ int init_persistent_io (StreamPeerIO *pio, PacketPassInterface *user_recv_if)
     FlowErrorDomain_Init(&pio->ioerrdomain, (FlowErrorDomain_handler)error_handler, pio);
     
     // init sending objects
-    PacketCopier_Init(&pio->output_user_copier, pio->payload_mtu);
-    PacketProtoEncoder_Init(&pio->output_user_ppe, PacketCopier_GetOutput(&pio->output_user_copier));
+    PacketCopier_Init(&pio->output_user_copier, pio->payload_mtu, BReactor_PendingGroup(pio->reactor));
+    PacketProtoEncoder_Init(&pio->output_user_ppe, PacketCopier_GetOutput(&pio->output_user_copier), BReactor_PendingGroup(pio->reactor));
     PacketPassConnector_Init(&pio->output_connector, PACKETPROTO_ENCLEN(pio->payload_mtu), BReactor_PendingGroup(pio->reactor));
     if (!SinglePacketBuffer_Init(&pio->output_user_spb, PacketProtoEncoder_GetOutput(&pio->output_user_ppe), PacketPassConnector_GetInput(&pio->output_connector), BReactor_PendingGroup(pio->reactor))) {
         goto fail1;
@@ -429,36 +429,32 @@ int init_io (StreamPeerIO *pio, sslsocket *sock)
     StreamPassInterface *sink_interface;
     if (pio->ssl) {
         PRStreamSink_Init(
-            &pio->output_sink.ssl,
-            FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_SINK),
-            &sock->ssl_bprfd
+            &pio->output_sink.ssl, FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_SINK),
+            &sock->ssl_bprfd, BReactor_PendingGroup(pio->reactor)
         );
         sink_interface = PRStreamSink_GetInput(&pio->output_sink.ssl);
     } else {
         StreamSocketSink_Init(
-            &pio->output_sink.plain,
-            FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_SINK),
-            &sock->sock
+            &pio->output_sink.plain, FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_SINK),
+            &sock->sock, BReactor_PendingGroup(pio->reactor)
         );
         sink_interface = StreamSocketSink_GetInput(&pio->output_sink.plain);
     }
-    PacketStreamSender_Init(&pio->output_pss, sink_interface, PACKETPROTO_ENCLEN(pio->payload_mtu));
+    PacketStreamSender_Init(&pio->output_pss, sink_interface, PACKETPROTO_ENCLEN(pio->payload_mtu), BReactor_PendingGroup(pio->reactor));
     PacketPassConnector_ConnectOutput(&pio->output_connector, PacketStreamSender_GetInput(&pio->output_pss));
     
     // init receiving
     StreamRecvInterface *source_interface;
     if (pio->ssl) {
         PRStreamSource_Init(
-            &pio->input_source.ssl,
-            FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_SOURCE),
-            &sock->ssl_bprfd
+            &pio->input_source.ssl, FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_SOURCE),
+            &sock->ssl_bprfd, BReactor_PendingGroup(pio->reactor)
         );
         source_interface = PRStreamSource_GetOutput(&pio->input_source.ssl);
     } else {
         StreamSocketSource_Init(
-            &pio->input_source.plain,
-            FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_SOURCE),
-            &sock->sock
+            &pio->input_source.plain, FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_SOURCE),
+            &sock->sock, BReactor_PendingGroup(pio->reactor)
         );
         source_interface = StreamSocketSource_GetOutput(&pio->input_source.plain);
     }

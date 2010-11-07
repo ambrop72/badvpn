@@ -54,7 +54,7 @@ static void signal_handler (void *user);
 static void server_handler (void *user);
 static void remove_client (struct client *client);
 static void client_ipc_handler (struct client *client);
-static int client_recv_handler_send (struct client *client, uint8_t *data, int data_len);
+static void client_recv_handler_send (struct client *client, uint8_t *data, int data_len);
 static void client_send_handler_done (struct client *client);
 
 int main (int argc, char **argv)
@@ -143,7 +143,7 @@ void server_handler (void *user)
     
     DEAD_INIT(client->dead);
     
-    PacketPassInterface_Init(&client->recv_if, RECV_MTU, (PacketPassInterface_handler_send)client_recv_handler_send, client);
+    PacketPassInterface_Init(&client->recv_if, RECV_MTU, (PacketPassInterface_handler_send)client_recv_handler_send, client, BReactor_PendingGroup(&reactor));
     
     if (!BIPC_InitAccept(&client->ipc, &server, 0, &client->recv_if, (BIPC_handler)client_ipc_handler, client, &reactor)) {
         DEBUG("BIPC_InitAccept failed");
@@ -186,7 +186,7 @@ void client_ipc_handler (struct client *client)
     remove_client(client);
 }
 
-int client_recv_handler_send (struct client *client, uint8_t *data, int data_len)
+void client_recv_handler_send (struct client *client, uint8_t *data, int data_len)
 {
     // print message
     uint8_t buf[data_len + 1];
@@ -195,23 +195,11 @@ int client_recv_handler_send (struct client *client, uint8_t *data, int data_len
     printf("received: '%s'\n", buf);
     
     // send reply
-    DEAD_ENTER(client->dead)
-    int res = PacketPassInterface_Sender_Send(client->send_if, NULL, 0);
-    if (DEAD_LEAVE(client->dead)) {
-        return -1;
-    }
-    
-    if (!res) {
-        // wait for reply to be sent, then allow next message
-        return 0;
-    }
-    
-    return 1;
+    PacketPassInterface_Sender_Send(client->send_if, NULL, 0);
 }
 
 void client_send_handler_done (struct client *client)
 {
     // allow next message
     PacketPassInterface_Done(&client->recv_if);
-    return;
 }

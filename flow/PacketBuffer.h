@@ -29,10 +29,8 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
 #include <misc/debug.h>
 #include <system/DebugObject.h>
-#include <system/BPending.h>
 #include <structure/ChunkBuffer2.h>
 #include <flow/PacketRecvInterface.h>
 #include <flow/PacketPassInterface.h>
@@ -42,13 +40,11 @@
  */
 typedef struct {
     DebugObject d_obj;
-    dead_t dead;
     PacketRecvInterface *input;
     int input_mtu;
     PacketPassInterface *output;
     struct ChunkBuffer2_block *buf_data;
     ChunkBuffer2 buf;
-    BPending start_job;
 } PacketBuffer;
 
 /**

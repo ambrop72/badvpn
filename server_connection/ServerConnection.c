@@ -42,13 +42,13 @@ static void connect_handler (ServerConnection *o, int event);
 static void pending_handler (ServerConnection *o);
 static SECStatus client_auth_data_callback (ServerConnection *o, PRFileDesc *fd, CERTDistNames *caNames, CERTCertificate **pRetCert, SECKEYPrivateKey **pRetKey);
 static void error_handler (ServerConnection *o, int component, const void *data);
-static int input_handler_send (ServerConnection *o, uint8_t *data, int data_len);
+static void input_handler_send (ServerConnection *o, uint8_t *data, int data_len);
 static void packet_hello (ServerConnection *o, uint8_t *data, int data_len);
 static void packet_newclient (ServerConnection *o, uint8_t *data, int data_len);
 static void packet_endclient (ServerConnection *o, uint8_t *data, int data_len);
 static void packet_inmsg (ServerConnection *o, uint8_t *data, int data_len);
 static int start_packet (ServerConnection *o, void **data, int len);
-static int end_packet (ServerConnection *o, uint8_t type);
+static void end_packet (ServerConnection *o, uint8_t type);
 
 void report_error (ServerConnection *o)
 {
@@ -72,6 +72,7 @@ void connect_handler (ServerConnection *o, int event)
 {
     ASSERT(o->state == STATE_CONNECTING)
     ASSERT(event == BSOCKET_CONNECT)
+    DebugObject_Access(&o->d_obj);
     
     // remove connect event handler
     BSocket_RemoveEventHandler(&o->sock, BSOCKET_CONNECT);
@@ -121,29 +122,56 @@ void connect_handler (ServerConnection *o, int event)
     // init error domain
     FlowErrorDomain_Init(&o->ioerrdomain, (FlowErrorDomain_handler)error_handler, o);
     
+    // init input chain
+    StreamRecvInterface *source_interface;
+    if (o->have_ssl) {
+        PRStreamSource_Init(&o->input_source.ssl, FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_SOURCE), &o->ssl_bprfd, BReactor_PendingGroup(o->reactor));
+        source_interface = PRStreamSource_GetOutput(&o->input_source.ssl);
+    } else {
+        StreamSocketSource_Init(&o->input_source.plain, FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_SOURCE), &o->sock, BReactor_PendingGroup(o->reactor));
+        source_interface = StreamSocketSource_GetOutput(&o->input_source.plain);
+    }
+    PacketPassInterface_Init(&o->input_interface, SC_MAX_ENC, (PacketPassInterface_handler_send)input_handler_send, o, BReactor_PendingGroup(o->reactor));
+    if (!PacketProtoDecoder_Init(
+        &o->input_decoder,
+        FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_DECODER),
+        source_interface,
+        &o->input_interface,
+        BReactor_PendingGroup(o->reactor)
+    )) {
+        BLog(BLOG_ERROR, "PacketProtoDecoder_Init failed");
+        goto fail2;
+    }
+    
+    // set job to send hello
+    // this needs to be in here because hello sending must be done after sending started (so we can write into the send buffer),
+    // but before receiving started (so we don't get into conflict with the user sending packets)
+    BPending_Init(&o->start_job, BReactor_PendingGroup(o->reactor), (BPending_handler)pending_handler, o);
+    BPending_Set(&o->start_job);
+    
     // init keepalive output branch
-    SCKeepaliveSource_Init(&o->output_ka_zero);
-    PacketProtoEncoder_Init(&o->output_ka_encoder, SCKeepaliveSource_GetOutput(&o->output_ka_zero));
+    SCKeepaliveSource_Init(&o->output_ka_zero, BReactor_PendingGroup(o->reactor));
+    PacketProtoEncoder_Init(&o->output_ka_encoder, SCKeepaliveSource_GetOutput(&o->output_ka_zero), BReactor_PendingGroup(o->reactor));
     
     // init output common
     
     // init sink
     StreamPassInterface *sink_interface;
     if (o->have_ssl) {
-        PRStreamSink_Init(&o->output_sink.ssl, FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_SINK), &o->ssl_bprfd);
+        PRStreamSink_Init(&o->output_sink.ssl, FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_SINK), &o->ssl_bprfd, BReactor_PendingGroup(o->reactor));
         sink_interface = PRStreamSink_GetInput(&o->output_sink.ssl);
     } else {
-        StreamSocketSink_Init(&o->output_sink.plain, FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_SINK), &o->sock);
+        StreamSocketSink_Init(&o->output_sink.plain, FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_SINK), &o->sock, BReactor_PendingGroup(o->reactor));
         sink_interface = StreamSocketSink_GetInput(&o->output_sink.plain);
     }
     
     // init sender
-    PacketStreamSender_Init(&o->output_sender, sink_interface, PACKETPROTO_ENCLEN(SC_MAX_ENC));
+    PacketStreamSender_Init(&o->output_sender, sink_interface, PACKETPROTO_ENCLEN(SC_MAX_ENC), BReactor_PendingGroup(o->reactor));
     
     // init keepalives
     if (!KeepaliveIO_Init(&o->output_keepaliveio, o->reactor, PacketStreamSender_GetInput(&o->output_sender), PacketProtoEncoder_GetOutput(&o->output_ka_encoder), o->keepalive_interval)) {
         BLog(BLOG_ERROR, "KeepaliveIO_Init failed");
-        goto fail1a;
+        goto fail3;
     }
     
     // init queue
@@ -157,7 +185,7 @@ void connect_handler (ServerConnection *o, int event)
     // init PacketProtoFlow
     if (!PacketProtoFlow_Init(&o->output_local_oflow, SC_MAX_ENC, o->buffer_size, PacketPassPriorityQueueFlow_GetInput(&o->output_local_qflow), BReactor_PendingGroup(o->reactor))) {
         BLog(BLOG_ERROR, "PacketProtoFlow_Init failed");
-        goto fail2;
+        goto fail4;
     }
     o->output_local_if = PacketProtoFlow_GetInput(&o->output_local_oflow);
     
@@ -167,54 +195,17 @@ void connect_handler (ServerConnection *o, int event)
     // init output user flow
     PacketPassPriorityQueueFlow_Init(&o->output_user_qflow, &o->output_queue, 1);
     
-    // init input chain
-    StreamRecvInterface *source_interface;
-    if (o->have_ssl) {
-        PRStreamSource_Init(&o->input_source.ssl, FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_SOURCE), &o->ssl_bprfd);
-        source_interface = PRStreamSource_GetOutput(&o->input_source.ssl);
-    } else {
-        StreamSocketSource_Init(&o->input_source.plain, FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_SOURCE), &o->sock);
-        source_interface = StreamSocketSource_GetOutput(&o->input_source.plain);
-    }
-    PacketPassInterface_Init(&o->input_interface, SC_MAX_ENC, (PacketPassInterface_handler_send)input_handler_send, o);
-    if (!PacketProtoDecoder_Init(
-        &o->input_decoder,
-        FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_DECODER),
-        source_interface,
-        &o->input_interface,
-        BReactor_PendingGroup(o->reactor)
-    )) {
-        BLog(BLOG_ERROR, "PacketProtoDecoder_Init failed");
-        goto fail3;
-    }
-    
-    // set job to start I/O
-    BPending_Init(&o->start_job, BReactor_PendingGroup(o->reactor), (BPending_handler)pending_handler, o);
-    BPending_Set(&o->start_job);
-    
     // update state
     o->state = STATE_WAITINIT;
     
     return;
     
-    // free input
-fail3:
-    PacketPassInterface_Free(&o->input_interface);
-    if (o->have_ssl) {
-        PRStreamSource_Free(&o->input_source.ssl);
-    } else {
-        StreamSocketSource_Free(&o->input_source.plain);
-    }
-    // free output user flow
-    PacketPassPriorityQueueFlow_Free(&o->output_user_qflow);
-    // free output local flow
-    PacketProtoFlow_Free(&o->output_local_oflow);
-fail2:
+fail4:
     PacketPassPriorityQueueFlow_Free(&o->output_local_qflow);
     // free output common
     PacketPassPriorityQueue_Free(&o->output_queue);
     KeepaliveIO_Free(&o->output_keepaliveio);
-fail1a:
+fail3:
     PacketStreamSender_Free(&o->output_sender);
     if (o->have_ssl) {
         PRStreamSink_Free(&o->output_sink.ssl);
@@ -224,6 +215,17 @@ fail1a:
     // free output keep-alive branch
     PacketProtoEncoder_Free(&o->output_ka_encoder);
     SCKeepaliveSource_Free(&o->output_ka_zero);
+    // free job
+    BPending_Free(&o->start_job);
+    // free input
+    PacketProtoDecoder_Free(&o->input_decoder);
+fail2:
+    PacketPassInterface_Free(&o->input_interface);
+    if (o->have_ssl) {
+        PRStreamSource_Free(&o->input_source.ssl);
+    } else {
+        StreamSocketSource_Free(&o->input_source.plain);
+    }
     // free SSL
     if (o->have_ssl) {
         BPRFileDesc_Free(&o->ssl_bprfd);
@@ -238,27 +240,23 @@ fail0:
 void pending_handler (ServerConnection *o)
 {
     ASSERT(o->state == STATE_WAITINIT)
+    DebugObject_Access(&o->d_obj);
     
     // send hello
-    int res;
     struct sc_client_hello *packet;
-    if ((res = start_packet(o, (void **)&packet, sizeof(struct sc_client_hello))) < 0) {
-        return;
-    }
-    if (!res) {
+    if (!start_packet(o, (void **)&packet, sizeof(struct sc_client_hello))) {
         BLog(BLOG_ERROR, "no buffer for hello");
         report_error(o);
         return;
     }
     packet->version = htol16(SC_VERSION);
-    if (end_packet(o, SCID_CLIENTHELLO) < 0) {
-        return;
-    }
+    end_packet(o, SCID_CLIENTHELLO);
 }
 
 SECStatus client_auth_data_callback (ServerConnection *o, PRFileDesc *fd, CERTDistNames *caNames, CERTCertificate **pRetCert, SECKEYPrivateKey **pRetKey)
 {
     ASSERT(o->have_ssl)
+    DebugObject_Access(&o->d_obj);
     
     CERTCertificate *newcert;
     if (!(newcert = CERT_DupCertificate(o->client_cert))) {
@@ -279,6 +277,7 @@ SECStatus client_auth_data_callback (ServerConnection *o, PRFileDesc *fd, CERTDi
 void error_handler (ServerConnection *o, int component, const void *data)
 {
     ASSERT(o->state >= STATE_WAITINIT)
+    DebugObject_Access(&o->d_obj);
     
     switch (component) {
         case COMPONENT_SOURCE:
@@ -301,16 +300,17 @@ void error_handler (ServerConnection *o, int component, const void *data)
     return;
 }
 
-int input_handler_send (ServerConnection *o, uint8_t *data, int data_len)
+void input_handler_send (ServerConnection *o, uint8_t *data, int data_len)
 {
     ASSERT(o->state >= STATE_WAITINIT)
     ASSERT(data_len >= 0)
     ASSERT(data_len <= SC_MAX_ENC)
+    DebugObject_Access(&o->d_obj);
     
     if (data_len < sizeof(struct sc_header)) {
         BLog(BLOG_ERROR, "packet too short (no sc header)");
         report_error(o);
-        return -1;
+        return;
     }
     
     struct sc_header *header = (struct sc_header *)data;
@@ -318,36 +318,28 @@ int input_handler_send (ServerConnection *o, uint8_t *data, int data_len)
     uint8_t *sc_data = data + sizeof(struct sc_header);
     int sc_data_len = data_len - sizeof(struct sc_header);
     
-    #ifndef NDEBUG
-    DEAD_ENTER(o->dead)
-    #endif
+    // finish packet
+    PacketPassInterface_Done(&o->input_interface);
     
     // call appropriate handler based on packet type
     switch (header->type) {
         case SCID_SERVERHELLO:
             packet_hello(o, sc_data, sc_data_len);
-            break;
+            return;
         case SCID_NEWCLIENT:
             packet_newclient(o, sc_data, sc_data_len);
-            break;
+            return;
         case SCID_ENDCLIENT:
             packet_endclient(o, sc_data, sc_data_len);
-            break;
+            return;
         case SCID_INMSG:
             packet_inmsg(o, sc_data, sc_data_len);
-            break;
+            return;
         default:
             BLog(BLOG_ERROR, "unknown packet type %d", (int)header->type);
             report_error(o);
+            return;
     }
-    
-    #ifndef NDEBUG
-    if (DEAD_LEAVE(o->dead)) {
-        return -1;
-    }
-    #endif
-    
-    return 1;
 }
 
 void packet_hello (ServerConnection *o, uint8_t *data, int data_len)
@@ -460,16 +452,8 @@ int start_packet (ServerConnection *o, void **data, int len)
     ASSERT(len <= SC_MAX_PAYLOAD)
     ASSERT(data || len == 0)
     
-    // obtain location for writing the packet
-    DEAD_ENTER(o->dead)
-    int res = BestEffortPacketWriteInterface_Sender_StartPacket(o->output_local_if, &o->output_local_packet);
-    if (DEAD_LEAVE(o->dead)) {
-        return -1;
-    }
-    
-    ASSERT(res == 0 || res == 1)
-    
-    if (!res) {
+    // obtain memory location
+    if (!BufferWriter_StartPacket(o->output_local_if, &o->output_local_packet)) {
         BLog(BLOG_ERROR, "out of buffer");
         return 0;
     }
@@ -483,7 +467,7 @@ int start_packet (ServerConnection *o, void **data, int len)
     return 1;
 }
 
-int end_packet (ServerConnection *o, uint8_t type)
+void end_packet (ServerConnection *o, uint8_t type)
 {
     ASSERT(o->state >= STATE_WAITINIT)
     ASSERT(o->output_local_packet_len >= 0)
@@ -494,15 +478,9 @@ int end_packet (ServerConnection *o, uint8_t type)
     header->type = type;
     
     // finish writing packet
-    DEAD_ENTER(o->dead)
-    BestEffortPacketWriteInterface_Sender_EndPacket(o->output_local_if, sizeof(struct sc_header) + o->output_local_packet_len);
-    if (DEAD_LEAVE(o->dead)) {
-        return -1;
-    }
+    BufferWriter_EndPacket(o->output_local_if, sizeof(struct sc_header) + o->output_local_packet_len);
     
     o->output_local_packet_len = -1;
-    
-    return 0;
 }
 
 int ServerConnection_Init (
@@ -570,7 +548,6 @@ int ServerConnection_Init (
     // set no error
     o->error = 0;
     
-    // init debug object
     DebugObject_Init(&o->d_obj);
     
     return 1;
@@ -583,22 +560,9 @@ fail0:
 
 void ServerConnection_Free (ServerConnection *o)
 {
-    // free debug object
     DebugObject_Free(&o->d_obj);
     
     if (o->state > STATE_CONNECTING) {
-        // free job
-        BPending_Free(&o->start_job);
-        
-        // free input chain
-        PacketProtoDecoder_Free(&o->input_decoder);
-        PacketPassInterface_Free(&o->input_interface);
-        if (o->have_ssl) {
-            PRStreamSource_Free(&o->input_source.ssl);
-        } else {
-            StreamSocketSource_Free(&o->input_source.plain);
-        }
-        
         // allow freeing queue flows
         PacketPassPriorityQueue_PrepareFree(&o->output_queue);
         
@@ -623,6 +587,18 @@ void ServerConnection_Free (ServerConnection *o)
         PacketProtoEncoder_Free(&o->output_ka_encoder);
         SCKeepaliveSource_Free(&o->output_ka_zero);
         
+        // free job
+        BPending_Free(&o->start_job);
+        
+        // free input chain
+        PacketProtoDecoder_Free(&o->input_decoder);
+        PacketPassInterface_Free(&o->input_interface);
+        if (o->have_ssl) {
+            PRStreamSource_Free(&o->input_source.ssl);
+        } else {
+            StreamSocketSource_Free(&o->input_source.plain);
+        }
+        
         // free SSL
         if (o->have_ssl) {
             BPRFileDesc_Free(&o->ssl_bprfd);
@@ -645,13 +621,10 @@ int ServerConnection_StartMessage (ServerConnection *o, void **data, peerid_t pe
     ASSERT(len >= 0)
     ASSERT(len <= SC_MAX_MSGLEN)
     ASSERT(data || len == 0)
+    DebugObject_Access(&o->d_obj);
     
     uint8_t *packet;
-    int res;
-    if ((res = start_packet(o, (void **)&packet, sizeof(struct sc_client_outmsg) + len)) < 0) {
-        return -1;
-    }
-    if (!res) {
+    if (!start_packet(o, (void **)&packet, sizeof(struct sc_client_outmsg) + len)) {
         return 0;
     }
     
@@ -670,15 +643,16 @@ void ServerConnection_EndMessage (ServerConnection *o)
     ASSERT(!o->error)
     ASSERT(o->state == STATE_COMPLETE)
     ASSERT(o->output_local_packet_len >= 0)
+    DebugObject_Access(&o->d_obj);
     
     end_packet(o, SCID_OUTMSG);
-    return;
 }
 
 PacketPassInterface * ServerConnection_GetSendInterface (ServerConnection *o)
 {
     ASSERT(!o->error)
     ASSERT(o->state == STATE_COMPLETE)
+    DebugObject_Access(&o->d_obj);
     
     return PacketPassPriorityQueueFlow_GetInput(&o->output_user_qflow);
 }

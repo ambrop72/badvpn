@@ -152,9 +152,9 @@ static void reduce_times (FragmentProtoAssembler *o)
     o->time -= min_time;
 }
 
-static int process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid frame_id, int chunk_start, int chunk_len, int is_last, uint8_t *payload)
+static void process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid frame_id, int chunk_start, int chunk_len, int is_last, uint8_t *payload)
 {
-    ASSERT(!o->output_blocking)
+    ASSERT(!o->output_ready)
     ASSERT(chunk_start >= 0)
     ASSERT(chunk_len >= 0)
     ASSERT(is_last == 0 || is_last == 1)
@@ -164,13 +164,13 @@ static int process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid frame
     // check start
     if (chunk_start > o->output_mtu) {
         BLog(BLOG_INFO, "chunk starts outside");
-        return 0;
+        return;
     }
     
     // check frame size bound
     if (chunk_len > o->output_mtu - chunk_start) {
         BLog(BLOG_INFO, "chunk ends outside");
-        return 0;
+        return;
     }
     
     // calculate end
@@ -262,7 +262,7 @@ static int process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid frame
             BLog(BLOG_INFO, "all chunks used, but frame not complete");
             goto fail_frame;
         }
-        return 0;
+        return;
     }
     
     ASSERT(frame->sum == frame->length)
@@ -272,33 +272,20 @@ static int process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid frame
     // free frame entry
     free_frame(o, frame);
     
-    // submit frame to output
-    // this is fine even though the frame entry was freed
-    DEAD_ENTER(o->dead)
-    int res = PacketPassInterface_Sender_Send(o->output, frame->buffer, frame->length);
-    if (DEAD_LEAVE(o->dead)) {
-        return -1;
-    }
-    
-    ASSERT(res == 0 || res == 1)
-    
-    // if output blocked, don't accept any new input until it's done
-    if (!res) {
-        o->output_blocking = 1;
-        return 0;
-    }
-    
-    return 0;
+    // remember frame
+    o->output_ready = 1;
+    o->output_packet_data = frame->buffer;
+    o->output_packet_len = frame->length;
+    return;
     
 fail_frame:
     free_frame(o, frame);
-    return 0;
 }
 
-static int process_input (FragmentProtoAssembler *o)
+static void process_input (FragmentProtoAssembler *o)
 {
     ASSERT(o->in_len >= 0)
-    ASSERT(!o->output_blocking)
+    ASSERT(!o->output_ready)
     
     // read chunks
     while (o->in_pos < o->in_len) {
@@ -326,14 +313,12 @@ static int process_input (FragmentProtoAssembler *o)
         }
         
         // process chunk
-        if (process_chunk(o, frame_id, chunk_start, chunk_len, header->is_last, o->in + o->in_pos) < 0) {
-            return -1;
-        }
+        process_chunk(o, frame_id, chunk_start, chunk_len, header->is_last, o->in + o->in_pos);
         o->in_pos += chunk_len;
         
         // if output is blocking, stop processing input
-        if (o->output_blocking) {
-            return 0;
+        if (o->output_ready) {
+            return;
         }
     }
     
@@ -354,64 +339,54 @@ static int process_input (FragmentProtoAssembler *o)
     } else {
         o->time++;
     }
-    
-    return 0;
 }
 
-static int input_handler_send (FragmentProtoAssembler *o, uint8_t *data, int data_len)
+static void do_io (FragmentProtoAssembler *o)
+{
+    ASSERT(o->in_len >= 0)
+    ASSERT(!o->output_ready)
+    
+    // process input
+    process_input(o);
+    
+    ASSERT((o->in_len >= 0) == o->output_ready)
+    
+    if (o->output_ready) {
+        PacketPassInterface_Sender_Send(o->output, o->output_packet_data, o->output_packet_len);
+    } else {
+        PacketPassInterface_Done(&o->input);
+    }
+}
+
+static void input_handler_send (FragmentProtoAssembler *o, uint8_t *data, int data_len)
 {
     ASSERT(o->in_len == -1)
-    ASSERT(!o->output_blocking)
+    ASSERT(!o->output_ready)
     ASSERT(data_len >= 0)
     ASSERT(data_len <= o->input_mtu)
+    DebugObject_Access(&o->d_obj);
     
     // save input packet
     o->in_len = data_len;
     o->in = data;
     o->in_pos = 0;
     
-    // process input
-    if (process_input(o) < 0) {
-        return -1;
-    }
-    
-    ASSERT((o->in_len >= 0) == o->output_blocking)
-    
-    // if not all input was processed (output is blocking), block input
-    if (o->in_len >= 0) {
-        return 0;
-    }
-    
-    // all input was processed
-    return 1;
+    do_io(o);
 }
 
 static void output_handler_done (FragmentProtoAssembler *o)
 {
     ASSERT(o->in_len >= 0)
-    ASSERT(o->output_blocking)
+    ASSERT(o->output_ready)
+    DebugObject_Access(&o->d_obj);
     
     // output no longer blocking
-    o->output_blocking = 0;
+    o->output_ready = 0;
     
-    // process any further input
-    if (process_input(o) < 0) {
-        return;
-    }
-    
-    ASSERT((o->in_len >= 0) == o->output_blocking)
-    
-    // if output is again blocking, keep input blocked
-    if (o->in_len >= 0) {
-        return;
-    }
-    
-    // tell input we're done
-    PacketPassInterface_Done(&o->input);
-    return;
+    do_io(o);
 }
 
-int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, PacketPassInterface *output, int num_frames, int num_chunks)
+int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, PacketPassInterface *output, int num_frames, int num_chunks, BPendingGroup *pg)
 {
     ASSERT(input_mtu >= 0)
     ASSERT(num_frames > 0)
@@ -424,11 +399,8 @@ int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, Packe
     o->num_frames = num_frames;
     o->num_chunks = num_chunks;
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // init input
-    PacketPassInterface_Init(&o->input, o->input_mtu, (PacketPassInterface_handler_send)input_handler_send, o);
+    PacketPassInterface_Init(&o->input, o->input_mtu, (PacketPassInterface_handler_send)input_handler_send, o, pg);
     
     // init output
     PacketPassInterface_Sender_Init(o->output, (PacketPassInterface_handler_done)output_handler_done, o);
@@ -479,9 +451,8 @@ int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, Packe
     o->in_len = -1;
     
     // output not blocking
-    o->output_blocking = 0;
+    o->output_ready = 0;
     
-    // init debug object
     DebugObject_Init(&o->d_obj);
     
     return 1;
@@ -497,7 +468,6 @@ fail1:
 
 void FragmentProtoAssembler_Free (FragmentProtoAssembler *o)
 {
-    // free debug object
     DebugObject_Free(&o->d_obj);
 
     // free buffers
@@ -511,12 +481,11 @@ void FragmentProtoAssembler_Free (FragmentProtoAssembler *o)
     
     // free input
     PacketPassInterface_Free(&o->input);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
 
 PacketPassInterface * FragmentProtoAssembler_GetInput (FragmentProtoAssembler *o)
 {
+    DebugObject_Access(&o->d_obj);
+    
     return &o->input;
 }

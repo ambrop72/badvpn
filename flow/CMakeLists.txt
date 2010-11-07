@@ -27,5 +27,10 @@ add_library(flow
     DataProtoKeepaliveSource.c
     PacketProtoFlow.c
     SinglePacketSender.c
+    BufferWriter.c
+    PacketPassInterface.c
+    PacketRecvInterface.c
+    StreamPassInterface.c
+    StreamRecvInterface.c
 )
 target_link_libraries(flow system security)

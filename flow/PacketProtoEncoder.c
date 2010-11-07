@@ -30,7 +30,7 @@
 #include <flow/PacketProtoEncoder.h>
 
 static int encode_packet (PacketProtoEncoder *enc, uint8_t *data, int in_len);
-static int output_handler_recv (PacketProtoEncoder *enc, uint8_t *data, int *out_len);
+static void output_handler_recv (PacketProtoEncoder *enc, uint8_t *data);
 static void input_handler_done (PacketProtoEncoder *enc, int in_len);
 
 int encode_packet (PacketProtoEncoder *enc, uint8_t *data, int in_len)
@@ -42,57 +42,36 @@ int encode_packet (PacketProtoEncoder *enc, uint8_t *data, int in_len)
     return PACKETPROTO_ENCLEN(in_len);
 }
 
-int output_handler_recv (PacketProtoEncoder *enc, uint8_t *data, int *out_len)
+void output_handler_recv (PacketProtoEncoder *enc, uint8_t *data)
 {
     ASSERT(!enc->output_packet)
     ASSERT(data)
+    DebugObject_Access(&enc->d_obj);
     
-    // call recv on input
-    int in_len;
-    DEAD_ENTER(enc->dead)
-    int res = PacketRecvInterface_Receiver_Recv(enc->input, data + sizeof(struct packetproto_header), &in_len);
-    if (DEAD_LEAVE(enc->dead)) {
-        return -1;
-    }
-    
-    ASSERT(res == 0 || res == 1)
-    
-    if (!res) {
-        // input busy, continue in input_handler_done
-        enc->output_packet = data;
-        return 0;
-    }
-    
-    // encode
-    *out_len = encode_packet(enc, data, in_len);
-    
-    return 1;
+    // schedule receive
+    PacketRecvInterface_Receiver_Recv(enc->input, data + sizeof(struct packetproto_header));
+    enc->output_packet = data;
 }
 
 void input_handler_done (PacketProtoEncoder *enc, int in_len)
 {
     ASSERT(enc->output_packet)
+    DebugObject_Access(&enc->d_obj);
     
     // encode
     int out_len = encode_packet(enc, enc->output_packet, in_len);
     
-    // set no output packet
+    // finish output packet
     enc->output_packet = NULL;
-    
-    // notify output
     PacketRecvInterface_Done(&enc->output, out_len);
-    return;
 }
 
-void PacketProtoEncoder_Init (PacketProtoEncoder *enc, PacketRecvInterface *input)
+void PacketProtoEncoder_Init (PacketProtoEncoder *enc, PacketRecvInterface *input, BPendingGroup *pg)
 {
     ASSERT(PacketRecvInterface_GetMTU(input) <= PACKETPROTO_MAXPAYLOAD)
     
     // init arguments
     enc->input = input;
-    
-    // init dead var
-    DEAD_INIT(enc->dead);
     
     // init input
     PacketRecvInterface_Receiver_Init(enc->input, (PacketRecvInterface_handler_done)input_handler_done, enc);
@@ -102,29 +81,27 @@ void PacketProtoEncoder_Init (PacketProtoEncoder *enc, PacketRecvInterface *inpu
         &enc->output,
         PACKETPROTO_ENCLEN(PacketRecvInterface_GetMTU(enc->input)),
         (PacketRecvInterface_handler_recv)output_handler_recv,
-        enc
+        enc,
+        pg
     );
     
     // set no output packet
     enc->output_packet = NULL;
     
-    // init debug object
     DebugObject_Init(&enc->d_obj);
 }
 
 void PacketProtoEncoder_Free (PacketProtoEncoder *enc)
 {
-    // free debug object
     DebugObject_Free(&enc->d_obj);
 
     // free input
     PacketRecvInterface_Free(&enc->output);
-    
-    // free dead var
-    DEAD_KILL(enc->dead);
 }
 
 PacketRecvInterface * PacketProtoEncoder_GetOutput (PacketProtoEncoder *enc)
 {
+    DebugObject_Access(&enc->d_obj);
+    
     return &enc->output;
 }

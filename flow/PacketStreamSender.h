@@ -30,7 +30,6 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
 #include <system/DebugObject.h>
 #include <flow/PacketPassInterface.h>
 #include <flow/StreamPassInterface.h>
@@ -41,7 +40,6 @@
  */
 typedef struct {
     DebugObject d_obj;
-    dead_t dead;
     PacketPassInterface input;
     StreamPassInterface *output;
     int in_len;
@@ -55,8 +53,9 @@ typedef struct {
  * @param s the object
  * @param output output interface
  * @param mtu input MTU. Must be >=0.
+ * @param pg pending group
  */
-void PacketStreamSender_Init (PacketStreamSender *s, StreamPassInterface *output, int mtu);
+void PacketStreamSender_Init (PacketStreamSender *s, StreamPassInterface *output, int mtu, BPendingGroup *pg);
 
 /**
  * Frees the object.

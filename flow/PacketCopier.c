@@ -26,77 +26,70 @@
 
 #include <flow/PacketCopier.h>
 
-static int input_handler_send (PacketCopier *o, uint8_t *data, int data_len)
+static void input_handler_send (PacketCopier *o, uint8_t *data, int data_len)
 {
     ASSERT(o->in_len == -1)
     ASSERT(data_len >= 0)
+    DebugObject_Access(&o->d_obj);
     
     if (!o->out_have) {
         o->in_len = data_len;
         o->in = data;
-        return 0;
+        return;
     }
     
     memcpy(o->out, data, data_len);
     
-    o->out_have = 0;
-    
-    DEAD_ENTER(o->dead)
+    // finish output packet
     PacketRecvInterface_Done(&o->output, data_len);
-    if (DEAD_LEAVE(o->dead)) {
-        return -1;
-    }
     
-    return 1;
+    // finish input packet
+    PacketPassInterface_Done(&o->input);
+    
+    o->out_have = 0;
 }
 
 static void input_handler_cancel (PacketCopier *o)
 {
     ASSERT(o->in_len >= 0)
     ASSERT(!o->out_have)
+    DebugObject_Access(&o->d_obj);
     
     o->in_len = -1;
 }
 
-static int output_handler_recv (PacketCopier *o, uint8_t *data, int *data_len)
+static void output_handler_recv (PacketCopier *o, uint8_t *data)
 {
     ASSERT(!o->out_have)
+    DebugObject_Access(&o->d_obj);
     
     if (o->in_len < 0) {
         o->out_have = 1;
         o->out = data;
-        return 0;
+        return;
     }
     
-    int len = o->in_len;
+    memcpy(data, o->in, o->in_len);
     
-    memcpy(data, o->in, len);
+    // finish input packet
+    PacketPassInterface_Done(&o->input);
+    
+    // finish output packet
+    PacketRecvInterface_Done(&o->output, o->in_len);
     
     o->in_len = -1;
-    
-    DEAD_ENTER(o->dead)
-    PacketPassInterface_Done(&o->input);
-    if (DEAD_LEAVE(o->dead)) {
-        return -1;
-    }
-    
-    *data_len = len;
-    return 1;
 }
 
-void PacketCopier_Init (PacketCopier *o, int mtu)
+void PacketCopier_Init (PacketCopier *o, int mtu, BPendingGroup *pg)
 {
     ASSERT(mtu >= 0)
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // init input
-    PacketPassInterface_Init(&o->input, mtu, (PacketPassInterface_handler_send)input_handler_send, o);
+    PacketPassInterface_Init(&o->input, mtu, (PacketPassInterface_handler_send)input_handler_send, o, pg);
     PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_cancel)input_handler_cancel);
     
     // init output
-    PacketRecvInterface_Init(&o->output, mtu, (PacketRecvInterface_handler_recv)output_handler_recv, o);
+    PacketRecvInterface_Init(&o->output, mtu, (PacketRecvInterface_handler_recv)output_handler_recv, o, pg);
     
     // set no input packet
     o->in_len = -1;
@@ -104,13 +97,11 @@ void PacketCopier_Init (PacketCopier *o, int mtu)
     // set no output packet
     o->out_have = 0;
     
-    // init debug object
     DebugObject_Init(&o->d_obj);
 }
 
 void PacketCopier_Free (PacketCopier *o)
 {
-    // free debug object
     DebugObject_Free(&o->d_obj);
 
     // free output
@@ -118,17 +109,18 @@ void PacketCopier_Free (PacketCopier *o)
     
     // free input
     PacketPassInterface_Free(&o->input);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
 
 PacketPassInterface * PacketCopier_GetInput (PacketCopier *o)
 {
+    DebugObject_Access(&o->d_obj);
+    
     return &o->input;
 }
 
 PacketRecvInterface * PacketCopier_GetOutput (PacketCopier *o)
 {
+    DebugObject_Access(&o->d_obj);
+    
     return &o->output;
 }

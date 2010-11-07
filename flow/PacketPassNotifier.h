@@ -31,6 +31,7 @@
 #include <stdint.h>
 
 #include <misc/dead.h>
+#include <misc/debugin.h>
 #include <system/DebugObject.h>
 #include <flow/PacketPassInterface.h>
 
@@ -48,15 +49,15 @@ typedef void (*PacketPassNotifier_handler_notify) (void *user, uint8_t *data, in
  * passing a packet from input to output.
  */
 typedef struct {
-    DebugObject d_obj;
     dead_t dead;
     PacketPassInterface input;
     PacketPassInterface *output;
     PacketPassNotifier_handler_notify handler;
     void *handler_user;
+    DebugObject d_obj;
+    DebugIn d_in_handler;
     #ifndef NDEBUG
-    int in_have;
-    int in_handler;
+    int d_in_have;
     #endif
 } PacketPassNotifier;
 
@@ -65,8 +66,9 @@ typedef struct {
  *
  * @param o the object
  * @param output output interface
+ * @param pg pending group
  */
-void PacketPassNotifier_Init (PacketPassNotifier *o, PacketPassInterface *output);
+void PacketPassNotifier_Init (PacketPassNotifier *o, PacketPassInterface *output, BPendingGroup *pg);
 
 /**
  * Frees the object.

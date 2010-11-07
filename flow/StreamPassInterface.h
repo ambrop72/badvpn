@@ -37,249 +37,161 @@
 
 #include <misc/dead.h>
 #include <misc/debug.h>
+#include <misc/debugin.h>
 #include <system/DebugObject.h>
+#include <system/BPending.h>
 
-/**
- * Handler called at the receiver when {@link StreamPassInterface_Sender_Send} is called
- * from the sender.
- * It is guaranteed that the interface is in not sending state.
- * It is guaranteed that the handler is not being called from within the Send handler.
- *
- * @param user value supplied to {@link StreamPassInterface_Init}
- * @param data pointer to data being sent
- * @param data_len amount of data being sent. Will be >0.
- * @return - >0 if the receiver accepts some data immediately, indicating how much of the
- *           data was accepted. The interface remains in not sending state. The receiver
- *           may not use the provided data after the handler returns.
- *         - 0 if the receiver cannot accept any data immediately. The interface enters
- *           sending state as the handler returns. The receiver may use the provided data
- *           as long as it needs to. When it's done processing some data and doesn't need
- *           the data any more, it must call {@link StreamPassInterface_Done}.
- */
-typedef int (*StreamPassInterface_handler_send) (void *user, uint8_t *data, int data_len);
+typedef void (*StreamPassInterface_handler_send) (void *user, uint8_t *data, int data_len);
 
-/**
- * Handler called at the sender when {@link StreamPassInterface_Done} is called from the receiver.
- * The receiver will no longer use the data it was provided with.
- * It is guaranteed that the interface was in sending state.
- * The interface enters not sending state before the handler is called.
- * It is guaranteed that the handler is not being called from within Send or Done handlers.
- *
- * @param user value supplied to {@link StreamPassInterface_Sender_Init}
- * @param data_len amount of data the receiver processed. Will be >0 and not exceed the amount
- *                 of data submitted in {@link StreamPassInterface_Sender_Send}.
- */
 typedef void (*StreamPassInterface_handler_done) (void *user, int data_len);
 
-/**
- * Interface allowing a stream sender to pass stream data to a stream receiver.
- * The sender passes some data by providing the receiver with a pointer
- * to the data. The receiver may then either accept some of the data immediately,
- * or tell the sender to wait for some data to be processed and inform it
- * when it's done.
- */
-typedef struct
-{
-    DebugObject d_obj;
+typedef struct {
+    // provider data
+    StreamPassInterface_handler_send handler_operation;
+    void *user_provider;
     
-    // receiver data
-    StreamPassInterface_handler_send handler_send;
-    void *user_receiver;
-    
-    // sender data
+    // user data
     StreamPassInterface_handler_done handler_done;
-    void *user_sender;
+    void *user_user;
     
-    // debug vars
+    // jobs
+    BPending job_operation;
+    BPending job_done;
+    
+    // packet supplied by user
+    uint8_t *buf;
+    int buf_len;
+    
+    // length supplied by done
+    int done_len;
+    
+    DebugObject d_obj;
     #ifndef NDEBUG
-    dead_t debug_dead;
-    int debug_busy_len;
-    int debug_in_send;
-    int debug_in_done;
+    DebugIn d_in_operation;
+    DebugIn d_in_done;
+    dead_t d_dead;
+    int d_user_busy;
     #endif
 } StreamPassInterface;
 
-/**
- * Initializes the interface. The sender portion must also be initialized
- * with {@link StreamPassInterface_Sender_Init} before I/O can start.
- * The interface is initialized in not sending state.
- *
- * @param i the object
- * @param handler_send handler called when the sender wants to send some data
- * @param user arbitrary value that will be passed to receiver callback functions
- */
-static void StreamPassInterface_Init (StreamPassInterface *i, StreamPassInterface_handler_send handler_send, void *user);
+static void StreamPassInterface_Init (StreamPassInterface *i, StreamPassInterface_handler_send handler_operation, void *user, BPendingGroup *pg);
 
-/**
- * Frees the interface.
- *
- * @param i the object
- */
 static void StreamPassInterface_Free (StreamPassInterface *i);
 
-/**
- * Notifies the sender that the receiver has finished processing some of the data being sent.
- * The receiver must not use the data it was provided any more.
- * The interface must be in sending state.
- * The interface enters not sending state before notifying the sender.
- * Must not be called from within Send or Done handlers.
- *
- * Be aware that the sender may attempt to send data from within this function.
- *
- * @param i the object
- * @param data_len amount of data processed. Must be >0 and not exceed the amount of data
- *                 the receiver was provided with in {@link StreamPassInterface_handler_send}.
- */
 static void StreamPassInterface_Done (StreamPassInterface *i, int data_len);
 
-/**
- * Initializes the sender portion of the interface.
- *
- * @param i the object
- * @param handler_done handler called when the receiver has finished processing some data
- * @param user arbitrary value that will be passed to sender callback functions
- */
 static void StreamPassInterface_Sender_Init (StreamPassInterface *i, StreamPassInterface_handler_done handler_done, void *user);
 
-/**
- * Attempts to send some data.
- * The interface must be in not sending state.
- * Must not be called from within the Send handler.
- *
- * @param i the object
- * @param data pointer to data to send
- * @param data_len amount of data to send. Must be >0.
- * @return - >0 if some data was accepted by the receiver immediately, indicating how much of
- *           the data was accepted. The data is no longer needed.
- *           The interface remains in not sending state.
- *         - 0 if no data could not be accepted immediately and is being processed.
- *           The interface enters sending state, and the data must stay accessible while the
- *           receiver is processing it. When the receiver is done processing it, the
- *           {@link StreamPassInterface_handler_done} handler will be called.
- */
-static int StreamPassInterface_Sender_Send (StreamPassInterface *i, uint8_t *data, int data_len);
+static void StreamPassInterface_Sender_Send (StreamPassInterface *i, uint8_t *data, int data_len);
 
 #ifndef NDEBUG
 
-/**
- * Determines if we are in a Send call.
- * Only available if NDEBUG is not defined.
- * 
- * @param i the object
- * @return 1 if in a Send call, 0 if not
- */
 static int StreamPassInterface_InClient (StreamPassInterface *i);
 
-/**
- * Determines if we are in a Done call.
- * Only available if NDEBUG is not defined.
- * 
- * @param i the object
- * @return 1 if in a Done call, 0 if not
- */
 static int StreamPassInterface_InDone (StreamPassInterface *i);
 
 #endif
 
-void StreamPassInterface_Init (StreamPassInterface *i, StreamPassInterface_handler_send handler_send, void *user)
+void _StreamPassInterface_job_operation (StreamPassInterface *i);
+void _StreamPassInterface_job_done (StreamPassInterface *i);
+
+void StreamPassInterface_Init (StreamPassInterface *i, StreamPassInterface_handler_send handler_operation, void *user, BPendingGroup *pg)
 {
-    i->handler_send = handler_send;
-    i->user_receiver = user;
+    // init arguments
+    i->handler_operation = handler_operation;
+    i->user_provider = user;
+    
+    // set no user
     i->handler_done = NULL;
-    i->user_sender = NULL;
     
-    // init debugging
-    #ifndef NDEBUG
-    DEAD_INIT(i->debug_dead);
-    i->debug_busy_len = -1;
-    i->debug_in_send = 0;
-    i->debug_in_done = 0;
-    #endif
+    // init jobs
+    BPending_Init(&i->job_operation, pg, (BPending_handler)_StreamPassInterface_job_operation, i);
+    BPending_Init(&i->job_done, pg, (BPending_handler)_StreamPassInterface_job_done, i);
     
-    // init debug object
     DebugObject_Init(&i->d_obj);
+    #ifndef NDEBUG
+    DebugIn_Init(&i->d_in_operation);
+    DebugIn_Init(&i->d_in_done);
+    DEAD_INIT(i->d_dead);
+    i->d_user_busy = 0;
+    #endif
 }
 
 void StreamPassInterface_Free (StreamPassInterface *i)
 {
-    // free debug object
+    #ifndef NDEBUG
+    DEAD_KILL(i->d_dead);
+    #endif
     DebugObject_Free(&i->d_obj);
     
-    // free debugging
-    #ifndef NDEBUG
-    DEAD_KILL(i->debug_dead);
-    #endif
+    // free jobs
+    BPending_Free(&i->job_done);
+    BPending_Free(&i->job_operation);
 }
 
 void StreamPassInterface_Done (StreamPassInterface *i, int data_len)
 {
-    ASSERT(i->debug_busy_len > 0)
-    ASSERT(!i->debug_in_send)
-    ASSERT(!i->debug_in_done)
     ASSERT(data_len > 0)
-    ASSERT(data_len <= i->debug_busy_len)
-    
+    ASSERT(data_len <= i->buf_len)
+    ASSERT(i->d_user_busy)
+    ASSERT(i->buf_len > 0)
+    ASSERT(i->handler_done)
+    ASSERT(!BPending_IsSet(&i->job_operation))
+    DebugObject_Access(&i->d_obj);
     #ifndef NDEBUG
-    i->debug_busy_len = -1;
-    i->debug_in_done = 1;
-    DEAD_ENTER(i->debug_dead)
+    DebugIn_AmOut(&i->d_in_done);
     #endif
     
-    i->handler_done(i->user_sender, data_len);
+    i->done_len = data_len;
     
-    #ifndef NDEBUG
-    if (DEAD_LEAVE(i->debug_dead)) {
-        return;
-    }
-    i->debug_in_done = 0;
-    #endif
+    BPending_Set(&i->job_done);
 }
 
 void StreamPassInterface_Sender_Init (StreamPassInterface *i, StreamPassInterface_handler_done handler_done, void *user)
 {
+    ASSERT(handler_done)
+    ASSERT(!i->handler_done)
+    DebugObject_Access(&i->d_obj);
+    
     i->handler_done = handler_done;
-    i->user_sender = user;
+    i->user_user = user;
 }
 
-int StreamPassInterface_Sender_Send (StreamPassInterface *i, uint8_t *data, int data_len)
+void StreamPassInterface_Sender_Send (StreamPassInterface *i, uint8_t *data, int data_len)
 {
-    ASSERT(i->debug_busy_len == -1)
-    ASSERT(!i->debug_in_send)
     ASSERT(data_len > 0)
     ASSERT(data)
-    
+    ASSERT(!i->d_user_busy)
+    ASSERT(i->handler_done)
+    DebugObject_Access(&i->d_obj);
     #ifndef NDEBUG
-    i->debug_in_send = 1;
-    DEAD_ENTER(i->debug_dead)
+    DebugIn_AmOut(&i->d_in_operation);
     #endif
     
-    int res = i->handler_send(i->user_receiver, data, data_len);
+    i->buf = data;
+    i->buf_len = data_len;
     
     #ifndef NDEBUG
-    if (DEAD_LEAVE(i->debug_dead)) {
-        return -1;
-    }
-    i->debug_in_send = 0;
-    ASSERT(res >= 0)
-    ASSERT(res <= data_len)
-    if (res == 0) {
-        i->debug_busy_len = data_len;
-    }
+    i->d_user_busy = 1;
     #endif
-
-    return res;
+    
+    BPending_Set(&i->job_operation);
 }
 
 #ifndef NDEBUG
 
 int StreamPassInterface_InClient (StreamPassInterface *i)
 {
-    return i->debug_in_send;
+    DebugObject_Access(&i->d_obj);
+    
+    return DebugIn_In(&i->d_in_operation);
 }
 
 int StreamPassInterface_InDone (StreamPassInterface *i)
 {
-    return i->debug_in_done;
+    DebugObject_Access(&i->d_obj);
+    
+    return DebugIn_In(&i->d_in_done);
 }
 
 #endif

@@ -42,8 +42,9 @@ typedef struct {
  * Initializes the object.
  *
  * @param o the object
+ * @param pg pending group
  */
-void SCKeepaliveSource_Init (SCKeepaliveSource *o);
+void SCKeepaliveSource_Init (SCKeepaliveSource *o, BPendingGroup *pg);
 
 /**
  * Frees the object.

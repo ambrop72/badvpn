@@ -48,16 +48,16 @@ static int init_io (BIPC *o, int send_mtu, PacketPassInterface *recv_if, BReacto
     FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)error_handler, o);
     
     // init sending
-    StreamSocketSink_Init(&o->send_sink, FlowErrorReporter_Create(&o->domain, COMPONENT_SINK), &o->sock);
-    PacketStreamSender_Init(&o->send_pss, StreamSocketSink_GetInput(&o->send_sink), PACKETPROTO_ENCLEN(send_mtu));
-    PacketCopier_Init(&o->send_copier, send_mtu);
-    PacketProtoEncoder_Init(&o->send_encoder, PacketCopier_GetOutput(&o->send_copier));
+    StreamSocketSink_Init(&o->send_sink, FlowErrorReporter_Create(&o->domain, COMPONENT_SINK), &o->sock, BReactor_PendingGroup(reactor));
+    PacketStreamSender_Init(&o->send_pss, StreamSocketSink_GetInput(&o->send_sink), PACKETPROTO_ENCLEN(send_mtu), BReactor_PendingGroup(reactor));
+    PacketCopier_Init(&o->send_copier, send_mtu,  BReactor_PendingGroup(reactor));
+    PacketProtoEncoder_Init(&o->send_encoder, PacketCopier_GetOutput(&o->send_copier), BReactor_PendingGroup(reactor));
     if (!SinglePacketBuffer_Init(&o->send_buf, PacketProtoEncoder_GetOutput(&o->send_encoder), PacketStreamSender_GetInput(&o->send_pss), BReactor_PendingGroup(reactor))) {
         goto fail1;
     }
     
     // init receiving
-    StreamSocketSource_Init(&o->recv_source, FlowErrorReporter_Create(&o->domain, COMPONENT_SOURCE), &o->sock);
+    StreamSocketSource_Init(&o->recv_source, FlowErrorReporter_Create(&o->domain, COMPONENT_SOURCE), &o->sock, BReactor_PendingGroup(reactor));
     if (!PacketProtoDecoder_Init(&o->recv_decoder, FlowErrorReporter_Create(&o->domain, COMPONENT_DECODER), StreamSocketSource_GetOutput(&o->recv_source), recv_if, BReactor_PendingGroup(reactor))) {
         goto fail2;
     }

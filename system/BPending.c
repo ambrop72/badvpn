@@ -58,7 +58,7 @@ void BPendingGroup_ExecuteJob (BPendingGroup *g)
     DebugObject_Access(&g->d_obj);
     
     // get a job
-    LinkedList2Node *node = LinkedList2_GetFirst(&g->jobs);
+    LinkedList2Node *node = LinkedList2_GetLast(&g->jobs);
     BPending *p = UPPER_OBJECT(node, BPending, pending_node);
     ASSERT(p->pending)
     
@@ -128,4 +128,11 @@ void BPending_Unset (BPending *o)
         // set not pending
         o->pending = 0;
     }
+}
+
+int BPending_IsSet (BPending *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    return o->pending;
 }

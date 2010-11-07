@@ -52,7 +52,6 @@ typedef void (*BTap_handler_error) (void *used);
  * and read from the device using {@link PacketRecvInterface}.
  */
 typedef struct {
-    DebugObject d_obj;
     dead_t dead;
     BReactor *reactor;
     BTap_handler_error handler_error;
@@ -79,6 +78,8 @@ typedef struct {
     char devname[IFNAMSIZ];
     int poll_events;
     #endif
+    
+    DebugObject d_obj;
 } BTap;
 
 /**
@@ -130,7 +131,8 @@ PacketPassInterface * BTap_GetInput (BTap *o);
 /**
  * Returns a {@link PacketRecvInterface} for reading packets from the device.
  * The MTU of the interface will be {@link BTap_GetDeviceMTU} + BTAP_ETHERNET_HEADER_LENGTH.
- *
+ * The interface will support cancel functionality.
+ * 
  * @param o the object
  * @return output interface
  */

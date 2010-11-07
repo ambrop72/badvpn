@@ -26,73 +26,18 @@
 
 #include <flow/SinglePacketBuffer.h>
 
-static int io_loop (SinglePacketBuffer *o)
-{
-    DEAD_DECLARE
-    int res;
-    
-    while (1) {
-        // receive packet
-        int in_len;
-        DEAD_ENTER2(o->dead)
-        res = PacketRecvInterface_Receiver_Recv(o->input, o->buf, &in_len);
-        if (DEAD_LEAVE(o->dead)) {
-            return -1;
-        }
-        
-        ASSERT(res == 0 || res == 1)
-        
-        if (!res) {
-            // input blocking, continue in input_handler_done
-            return 0;
-        }
-        
-        // send packet
-        DEAD_ENTER2(o->dead)
-        res = PacketPassInterface_Sender_Send(o->output, o->buf, in_len);
-        if (DEAD_LEAVE(o->dead)) {
-            return -1;
-        }
-        
-        ASSERT(res == 0 || res == 1)
-        
-        if (!res) {
-            // output blocking, continue in output_handler_done
-            return 0;
-        }
-    }
-}
-
 static void input_handler_done (SinglePacketBuffer *o, int in_len)
 {
-    // send packet
-    DEAD_ENTER(o->dead)
-    int res = PacketPassInterface_Sender_Send(o->output, o->buf, in_len);
-    if (DEAD_LEAVE(o->dead)) {
-        return;
-    }
+    DebugObject_Access(&o->d_obj);
     
-    ASSERT(res == 0 || res == 1)
-    
-    if (!res) {
-        // output blocking, continue in output_handler_done
-        return;
-    }
-    
-    io_loop(o);
-    return;
+    PacketPassInterface_Sender_Send(o->output, o->buf, in_len);
 }
 
 static void output_handler_done (SinglePacketBuffer *o)
 {
-    io_loop(o);
-    return;
-}
-
-static void job_handler (SinglePacketBuffer *o)
-{
-    io_loop(o);
-    return;
+    DebugObject_Access(&o->d_obj);
+    
+    PacketRecvInterface_Receiver_Recv(o->input, o->buf);
 }
 
 int SinglePacketBuffer_Init (SinglePacketBuffer *o, PacketRecvInterface *input, PacketPassInterface *output, BPendingGroup *pg) 
@@ -102,9 +47,6 @@ int SinglePacketBuffer_Init (SinglePacketBuffer *o, PacketRecvInterface *input, 
     // init arguments
     o->input = input;
     o->output = output;
-    
-    // init dead var
-    DEAD_INIT(o->dead);
     
     // init input
     PacketRecvInterface_Receiver_Init(o->input, (PacketRecvInterface_handler_done)input_handler_done, o);
@@ -117,11 +59,9 @@ int SinglePacketBuffer_Init (SinglePacketBuffer *o, PacketRecvInterface *input, 
         goto fail1;
     }
     
-    // init start job
-    BPending_Init(&o->start_job, pg, (BPending_handler)job_handler, o);
-    BPending_Set(&o->start_job);
+    // schedule receive
+    PacketRecvInterface_Receiver_Recv(o->input, o->buf);
     
-    // init debug object
     DebugObject_Init(&o->d_obj);
     
     return 1;
@@ -132,15 +72,8 @@ fail1:
 
 void SinglePacketBuffer_Free (SinglePacketBuffer *o)
 {
-    // free debug object
     DebugObject_Free(&o->d_obj);
-    
-    // free start job
-    BPending_Free(&o->start_job);
     
     // free buffer
     free(o->buf);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }

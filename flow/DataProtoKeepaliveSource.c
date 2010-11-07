@@ -25,29 +25,29 @@
 
 #include <flow/DataProtoKeepaliveSource.h>
 
-static int output_handler_recv (DataProtoKeepaliveSource *o, uint8_t *data, int *data_len)
+static void output_handler_recv (DataProtoKeepaliveSource *o, uint8_t *data)
 {
+    DebugObject_Access(&o->d_obj);
+    
     struct dataproto_header *header = (struct dataproto_header *)data;
     header->flags = 0;
     header->from_id = htol16(0);
     header->num_peer_ids = htol16(0);
     
-    *data_len = sizeof(struct dataproto_header);
-    return 1;
+    // finish packet
+    PacketRecvInterface_Done(&o->output, sizeof(struct dataproto_header));
 }
 
-void DataProtoKeepaliveSource_Init (DataProtoKeepaliveSource *o)
+void DataProtoKeepaliveSource_Init (DataProtoKeepaliveSource *o, BPendingGroup *pg)
 {
     // init output
-    PacketRecvInterface_Init(&o->output, sizeof(struct dataproto_header), (PacketRecvInterface_handler_recv)output_handler_recv, o);
+    PacketRecvInterface_Init(&o->output, sizeof(struct dataproto_header), (PacketRecvInterface_handler_recv)output_handler_recv, o, pg);
     
-    // init debug object
     DebugObject_Init(&o->d_obj);
 }
 
 void DataProtoKeepaliveSource_Free (DataProtoKeepaliveSource *o)
 {
-    // free debug object
     DebugObject_Free(&o->d_obj);
 
     // free output
@@ -56,5 +56,7 @@ void DataProtoKeepaliveSource_Free (DataProtoKeepaliveSource *o)
 
 PacketRecvInterface * DataProtoKeepaliveSource_GetOutput (DataProtoKeepaliveSource *o)
 {
+    DebugObject_Access(&o->d_obj);
+    
     return &o->output;
 }

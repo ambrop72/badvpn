@@ -134,37 +134,33 @@ static int decode_packet (SPProtoDecoder *o, uint8_t *in, int in_len, uint8_t **
     return 1;
 }
 
-static int input_handler_send (SPProtoDecoder *o, uint8_t *data, int data_len)
+static void input_handler_send (SPProtoDecoder *o, uint8_t *data, int data_len)
 {
     ASSERT(data_len >= 0)
     ASSERT(data_len <= o->input_mtu)
+    DebugObject_Access(&o->d_obj);
     
     // attempt to decode packet
     uint8_t *out;
     int out_len;
     if (!decode_packet(o, data, data_len, &out, &out_len)) {
-        return 1;
+        // cannot decode, finish input packet
+        PacketPassInterface_Done(&o->input);
+    } else {
+        // submit decoded packet to output
+        PacketPassInterface_Sender_Send(o->output, out, out_len);
     }
-    
-    // submit decoded packet to output
-    DEAD_ENTER(o->dead)
-    int res = PacketPassInterface_Sender_Send(o->output, out, out_len);
-    if (DEAD_LEAVE(o->dead)) {
-        return -1;
-    }
-    
-    ASSERT(res == 0 || res == 1)
-    
-    return res;
 }
 
 static void output_handler_done (SPProtoDecoder *o)
 {
+    DebugObject_Access(&o->d_obj);
+    
+    // finish input packet
     PacketPassInterface_Done(&o->input);
-    return;
 }
 
-int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds)
+int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg)
 {
     ASSERT(spproto_validate_security_params(sp_params))
     ASSERT(!SPPROTO_HAVE_OTP(sp_params) || num_otp_seeds >= 2)
@@ -172,9 +168,6 @@ int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct 
     // init arguments
     o->output = output;
     o->sp_params = sp_params;
-    
-    // init dead var
-    DEAD_INIT(o->dead);
     
     // init output
     PacketPassInterface_Sender_Init(o->output, (PacketPassInterface_handler_done)output_handler_done, o);
@@ -205,7 +198,7 @@ int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct 
     }
     
     // init input
-    PacketPassInterface_Init(&o->input, o->input_mtu, (PacketPassInterface_handler_send)input_handler_send, o);
+    PacketPassInterface_Init(&o->input, o->input_mtu, (PacketPassInterface_handler_send)input_handler_send, o, pg);
     
     // init OTP checker
     if (SPPROTO_HAVE_OTP(o->sp_params)) {
@@ -219,7 +212,6 @@ int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct 
         o->have_encryption_key = 0;
     }
     
-    // init debug object
     DebugObject_Init(&o->d_obj);
     
     return 1;
@@ -235,7 +227,6 @@ fail0:
 
 void SPProtoDecoder_Free (SPProtoDecoder *o)
 {
-    // free debug object
     DebugObject_Free(&o->d_obj);
 
     // free encryptor
@@ -255,19 +246,19 @@ void SPProtoDecoder_Free (SPProtoDecoder *o)
     if (SPPROTO_HAVE_ENCRYPTION(o->sp_params)) {
         free(o->buf);
     }
-    
-    // kill dead var
-    DEAD_KILL(o->dead);
 }
 
 PacketPassInterface * SPProtoDecoder_GetInput (SPProtoDecoder *o)
 {
+    DebugObject_Access(&o->d_obj);
+    
     return &o->input;
 }
 
 void SPProtoDecoder_SetEncryptionKey (SPProtoDecoder *o, uint8_t *encryption_key)
 {
     ASSERT(SPPROTO_HAVE_ENCRYPTION(o->sp_params))
+    DebugObject_Access(&o->d_obj);
     
     // free encryptor
     if (o->have_encryption_key) {
@@ -284,6 +275,7 @@ void SPProtoDecoder_SetEncryptionKey (SPProtoDecoder *o, uint8_t *encryption_key
 void SPProtoDecoder_RemoveEncryptionKey (SPProtoDecoder *o)
 {
     ASSERT(SPPROTO_HAVE_ENCRYPTION(o->sp_params))
+    DebugObject_Access(&o->d_obj);
     
     if (o->have_encryption_key) {
         // free encryptor
@@ -297,6 +289,7 @@ void SPProtoDecoder_RemoveEncryptionKey (SPProtoDecoder *o)
 void SPProtoDecoder_AddOTPSeed (SPProtoDecoder *o, uint16_t seed_id, uint8_t *key, uint8_t *iv)
 {
     ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
+    DebugObject_Access(&o->d_obj);
     
     OTPChecker_AddSeed(&o->otpchecker, seed_id, key, iv);
 }
@@ -304,6 +297,7 @@ void SPProtoDecoder_AddOTPSeed (SPProtoDecoder *o, uint16_t seed_id, uint8_t *ke
 void SPProtoDecoder_RemoveOTPSeeds (SPProtoDecoder *o)
 {
     ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
+    DebugObject_Access(&o->d_obj);
     
     OTPChecker_RemoveSeeds(&o->otpchecker);
 }

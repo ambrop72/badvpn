@@ -26,121 +26,45 @@
 
 #include <flow/StreamRecvConnector.h>
 
-static int output_handler_recv (StreamRecvConnector *o, uint8_t *data, int data_avail)
+static void output_handler_recv (StreamRecvConnector *o, uint8_t *data, int data_avail)
 {
+    ASSERT(data_avail > 0)
     ASSERT(o->out_avail == -1)
     ASSERT(!o->input || !o->in_blocking)
-    ASSERT(data_avail > 0)
     
-    // if we have no input, remember output data
-    if (!o->input) {
-        o->out_avail = data_avail;
-        o->out = data;
-        return 0;
-    }
+    // remember output packet
+    o->out_avail = data_avail;
+    o->out = data;
     
-    // try to receive data
-    int res;
-    while (1) {
-        DEAD_ENTER_N(obj, o->dead)
-        DEAD_ENTER_N(inp, o->input_dead)
-        res = StreamRecvInterface_Receiver_Recv(o->input, data, data_avail);
-        DEAD_LEAVE_N(obj, o->dead);
-        DEAD_LEAVE_N(inp, o->input_dead);
-        if (DEAD_KILLED_N(obj)) {
-            return -1;
-        }
-        if (DEAD_KILLED_N(inp)) {
-            if (!o->input) {
-                // lost input
-                o->out_avail = data_avail;
-                o->out = data;
-                return 0;
-            }
-            // got a new input, retry
-            continue;
-        }
-        break;
-    };
-    
-    ASSERT(res >= 0)
-    ASSERT(res <= data_avail)
-    
-    if (res == 0) {
-        // input blocking
-        o->out_avail = data_avail;
-        o->out = data;
+    if (o->input) {
+        // schedule receive
+        StreamRecvInterface_Receiver_Recv(o->input, o->out, o->out_avail);
         o->in_blocking = 1;
-        return 0;
     }
-    
-    return res;
 }
 
 static void input_handler_done (StreamRecvConnector *o, int data_len)
 {
+    ASSERT(data_len > 0)
+    ASSERT(data_len <= o->out_avail)
     ASSERT(o->out_avail > 0)
     ASSERT(o->input)
     ASSERT(o->in_blocking)
-    ASSERT(data_len > 0)
-    ASSERT(data_len <= o->out_avail)
-    
-    // have no output packet
-    o->out_avail = -1;
     
     // input not blocking any more
     o->in_blocking = 0;
     
-    // allow output to receive more packets
-    StreamRecvInterface_Done(&o->output, data_len);
-    return;
-}
-
-static void job_handler (StreamRecvConnector *o)
-{
-    ASSERT(o->input)
-    ASSERT(!o->in_blocking)
-    ASSERT(o->out_avail > 0)
-    
-    // try to receive data
-    DEAD_ENTER_N(obj, o->dead)
-    DEAD_ENTER_N(inp, o->input_dead)
-    int res = StreamRecvInterface_Receiver_Recv(o->input, o->out, o->out_avail);
-    DEAD_LEAVE_N(obj, o->dead);
-    DEAD_LEAVE_N(inp, o->input_dead);
-    if (DEAD_KILLED_N(obj)) {
-        return;
-    }
-    if (DEAD_KILLED_N(inp)) {
-        // lost current input. Do nothing here.
-        // If we gained a new one, its own job is responsible for it.
-        return;
-    }
-    
-    ASSERT(res >= 0)
-    ASSERT(res <= o->out_avail)
-    
-    if (res == 0) {
-        // input blocking
-        o->in_blocking = 1;
-        return;
-    }
-    
     // have no output packet
     o->out_avail = -1;
     
-    // allow output to receive more data
-    StreamRecvInterface_Done(&o->output, res);
-    return;
+    // allow output to receive more packets
+    StreamRecvInterface_Done(&o->output, data_len);
 }
 
 void StreamRecvConnector_Init (StreamRecvConnector *o, BPendingGroup *pg)
 {
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // init output
-    StreamRecvInterface_Init(&o->output, (StreamRecvInterface_handler_recv)output_handler_recv, o);
+    StreamRecvInterface_Init(&o->output, (StreamRecvInterface_handler_recv)output_handler_recv, o, pg);
     
     // have no output packet
     o->out_avail = -1;
@@ -148,41 +72,28 @@ void StreamRecvConnector_Init (StreamRecvConnector *o, BPendingGroup *pg)
     // have no input
     o->input = NULL;
     
-    // init continue job
-    BPending_Init(&o->continue_job, pg, (BPending_handler)job_handler, o);
-    
-    // init debug object
     DebugObject_Init(&o->d_obj);
 }
 
 void StreamRecvConnector_Free (StreamRecvConnector *o)
 {
-    // free debug object
     DebugObject_Free(&o->d_obj);
-    
-    // free continue job
-    BPending_Free(&o->continue_job);
-    
-    // free input dead var
-    if (o->input) {
-        DEAD_KILL(o->input_dead);
-    }
     
     // free output
     StreamRecvInterface_Free(&o->output);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
 
 StreamRecvInterface * StreamRecvConnector_GetOutput (StreamRecvConnector *o)
 {
+    DebugObject_Access(&o->d_obj);
+    
     return &o->output;
 }
 
 void StreamRecvConnector_ConnectInput (StreamRecvConnector *o, StreamRecvInterface *input)
 {
     ASSERT(!o->input)
+    DebugObject_Access(&o->d_obj);
     
     // set input
     o->input = input;
@@ -190,27 +101,20 @@ void StreamRecvConnector_ConnectInput (StreamRecvConnector *o, StreamRecvInterfa
     // init input
     StreamRecvInterface_Receiver_Init(o->input, (StreamRecvInterface_handler_done)input_handler_done, o);
     
-    // init input dead var
-    DEAD_INIT(o->input_dead);
-    
     // set input not blocking
     o->in_blocking = 0;
     
-    // if we have an input packet, set continue job
+    // if we have an output packet, schedule receive
     if (o->out_avail > 0) {
-        BPending_Set(&o->continue_job);
+        StreamRecvInterface_Receiver_Recv(o->input, o->out, o->out_avail);
+        o->in_blocking = 1;
     }
 }
 
 void StreamRecvConnector_DisconnectInput (StreamRecvConnector *o)
 {
     ASSERT(o->input)
-    
-    // unset continue job (in case it wasn't called yet)
-    BPending_Unset(&o->continue_job);
-    
-    // free dead var
-    DEAD_KILL(o->input_dead);
+    DebugObject_Access(&o->d_obj);
     
     // set no input
     o->input = NULL;

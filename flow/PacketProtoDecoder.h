@@ -29,15 +29,14 @@
 
 #include <stdint.h>
 
+#include <protocol/packetproto.h>
 #include <misc/debug.h>
 #include <misc/dead.h>
 #include <misc/balign.h>
+#include <system/DebugObject.h>
 #include <flow/StreamRecvInterface.h>
 #include <flow/PacketPassInterface.h>
 #include <flow/error.h>
-#include <protocol/packetproto.h>
-#include <system/DebugObject.h>
-#include <system/BPending.h>
 
 #define PACKETPROTODECODER_ERROR_TOOLONG 1
 
@@ -54,7 +53,6 @@
  *       a packet length value which is too big,
  */
 typedef struct {
-    DebugObject d_obj;
     dead_t dead;
     FlowErrorReporter rep;
     StreamRecvInterface *input;
@@ -64,9 +62,7 @@ typedef struct {
     int buf_start;
     int buf_used;
     uint8_t *buf;
-    int receiving;
-    int sending;
-    BPending start_job;
+    DebugObject d_obj;
 } PacketProtoDecoder;
 
 /**

@@ -27,16 +27,20 @@
 
 #include <security/BRandom.h>
 #include <system/BReactor.h>
+#include <system/DebugObject.h>
 #include <flow/PacketPassInterface.h>
 
 typedef struct {
     BReactor *reactor;
     PacketPassInterface input;
     BTimer timer;
+    DebugObject d_obj;
 } RandomPacketSink;
 
-static int _RandomPacketSink_input_handler_send (RandomPacketSink *s, uint8_t *data, int data_len)
+static void _RandomPacketSink_input_handler_send (RandomPacketSink *s, uint8_t *data, int data_len)
 {
+    DebugObject_Access(&s->d_obj);
+    
     printf("sink: send '");
     fwrite(data, data_len, 1, stdout);
     
@@ -44,41 +48,58 @@ static int _RandomPacketSink_input_handler_send (RandomPacketSink *s, uint8_t *d
     BRandom_randomize(&r, sizeof(r));
     if (r&(uint8_t)1) {
         printf("' accepting\n");
-        return 1;
+        PacketPassInterface_Done(&s->input);
+    } else {
+        printf("' delaying\n");
+        BReactor_SetTimer(s->reactor, &s->timer);
     }
-    
-    printf("' delaying\n");
-    BReactor_SetTimer(s->reactor, &s->timer);
-    return 0;
 }
 
 static void _RandomPacketSink_input_handler_cancel (RandomPacketSink *s)
 {
+    DebugObject_Access(&s->d_obj);
+    
     printf("sink: cancelled\n");
     BReactor_RemoveTimer(s->reactor, &s->timer);
 }
 
 static void _RandomPacketSink_timer_handler (RandomPacketSink *s)
 {
+    DebugObject_Access(&s->d_obj);
+    
     PacketPassInterface_Done(&s->input);
 }
 
 static void RandomPacketSink_Init (RandomPacketSink *s, BReactor *reactor, int mtu, int ms)
 {
+    // init arguments
     s->reactor = reactor;
-    PacketPassInterface_Init(&s->input, mtu, (PacketPassInterface_handler_send)_RandomPacketSink_input_handler_send, s);
+    
+    // init input
+    PacketPassInterface_Init(&s->input, mtu, (PacketPassInterface_handler_send)_RandomPacketSink_input_handler_send, s, BReactor_PendingGroup(reactor));
     PacketPassInterface_EnableCancel(&s->input, (PacketPassInterface_handler_cancel)_RandomPacketSink_input_handler_cancel);
+    
+    // init timer
     BTimer_Init(&s->timer, ms, (BTimer_handler)_RandomPacketSink_timer_handler, s);
+    
+    DebugObject_Init(&s->d_obj);
 }
 
 static void RandomPacketSink_Free (RandomPacketSink *s)
 {
+    DebugObject_Free(&s->d_obj);
+    
+    // free timer
     BReactor_RemoveTimer(s->reactor, &s->timer);
+    
+    // free input
     PacketPassInterface_Free(&s->input);
 }
 
 static PacketPassInterface * RandomPacketSink_GetInput (RandomPacketSink *s)
 {
+    DebugObject_Access(&s->d_obj);
+    
     return &s->input;
 }
 

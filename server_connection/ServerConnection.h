@@ -115,9 +115,6 @@ typedef void (*ServerConnection_handler_message) (void *user, peerid_t peer_id, 
  * Object used to communicate with a VPN chat server.
  */
 typedef struct {
-    // debug object
-    DebugObject d_obj;
-    
     // dead var
     dead_t dead;
     
@@ -169,6 +166,14 @@ typedef struct {
     // I/O error domain
     FlowErrorDomain ioerrdomain;
     
+    // input
+    union {
+        StreamSocketSource plain;
+        PRStreamSource ssl;
+    } input_source;
+    PacketProtoDecoder input_decoder;
+    PacketPassInterface input_interface;
+    
     // keepalive output branch
     SCKeepaliveSource output_ka_zero;
     PacketProtoEncoder output_ka_encoder;
@@ -185,23 +190,17 @@ typedef struct {
     // output local flow
     int output_local_packet_len;
     uint8_t *output_local_packet;
-    BestEffortPacketWriteInterface *output_local_if;
+    BufferWriter *output_local_if;
     PacketProtoFlow output_local_oflow;
     PacketPassPriorityQueueFlow output_local_qflow;
     
     // output user flow
     PacketPassPriorityQueueFlow output_user_qflow;
     
-    // input
-    union {
-        StreamSocketSource plain;
-        PRStreamSource ssl;
-    } input_source;
-    PacketProtoDecoder input_decoder;
-    PacketPassInterface input_interface;
-    
     // job to start client I/O
     BPending start_job;
+    
+    DebugObject d_obj;
 } ServerConnection;
 
 /**

@@ -30,6 +30,8 @@
 #include <examples/FastPacketSource.h>
 #include <examples/RandomPacketSink.h>
 
+#define SINK_TIMER 0
+
 int main ()
 {
     // initialize logging
@@ -47,7 +49,7 @@ int main ()
     
     // initialize sink
     RandomPacketSink sink;
-    RandomPacketSink_Init(&sink, &reactor, 500, 0);
+    RandomPacketSink_Init(&sink, &reactor, 500, SINK_TIMER);
     
     // initialize queue
     PacketPassFairQueue fq;

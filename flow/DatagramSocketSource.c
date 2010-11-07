@@ -20,100 +20,88 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <stdlib.h>
-
 #include <misc/debug.h>
 
 #include <flow/DatagramSocketSource.h>
 
-static int report_error (DatagramSocketSource *s, int error)
+static void report_error (DatagramSocketSource *s, int error)
 {
-    #ifndef NDEBUG
-    s->in_error = 1;
-    #endif
-    
+    DebugIn_GoIn(&s->d_in_error);
     DEAD_ENTER(s->dead)
     FlowErrorReporter_ReportError(&s->rep, &error);
     if (DEAD_LEAVE(s->dead)) {
-        return -1;
+        return;
     }
-    
-    #ifndef NDEBUG
-    s->in_error = 0;
-    #endif
-    
-    return 0;
+    DebugIn_GoOut(&s->d_in_error);
 }
 
-static int output_handler_recv (DatagramSocketSource *s, uint8_t *data, int *data_len)
+static void try_recv (DatagramSocketSource *s)
 {
-    ASSERT(!s->out_have)
-    ASSERT(!s->in_error)
+    ASSERT(s->out_have)
     
-    int res;
+    int res = BSocket_RecvFromTo(s->bsock, s->out, s->mtu, &s->last_addr, &s->last_local_addr);
+    if (res < 0 && BSocket_GetError(s->bsock) == BSOCKET_ERROR_LATER) {
+        // wait for socket in socket_handler
+        BSocket_EnableEvent(s->bsock, BSOCKET_READ);
+        return;
+    }
     
-    while (1) {
-        res = BSocket_RecvFromTo(s->bsock, data, s->mtu, &s->last_addr, &s->last_local_addr);
-        if (res < 0) {
-            int error = BSocket_GetError(s->bsock);
-            if (error == BSOCKET_ERROR_LATER) {
-                s->out_have = 1;
-                s->out = data;
-                BSocket_EnableEvent(s->bsock, BSOCKET_READ);
-                return 0;
-            }
-            if (report_error(s, DATAGRAMSOCKETSOURCE_ERROR_BSOCKET) < 0) {
-                return -1;
-            }
-            continue;
-        }
-        break;
+    if (res < 0) {
+        // schedule retry
+        BPending_Set(&s->retry_job);
+        
+        // report error
+        report_error(s, DATAGRAMSOCKETSOURCE_ERROR_BSOCKET);
+        return;
     }
     
     #ifndef NDEBUG
     s->have_last_addr = 1;
     #endif
     
-    *data_len = res;
-    return 1;
+    // finish packet
+    s->out_have = 0;
+    PacketRecvInterface_Done(&s->output, res);
+}
+
+static void output_handler_recv (DatagramSocketSource *s, uint8_t *data)
+{
+    ASSERT(!s->out_have)
+    DebugIn_AmOut(&s->d_in_error);
+    DebugObject_Access(&s->d_obj);
+    
+    // set packet
+    s->out_have = 1;
+    s->out = data;
+    
+    try_recv(s);
+    return;
 }
 
 static void socket_handler (DatagramSocketSource *s, int event)
 {
     ASSERT(s->out_have)
     ASSERT(event == BSOCKET_READ)
-    ASSERT(!s->in_error)
-    
-    int res;
-    
-    while (1) {
-        res = BSocket_RecvFromTo(s->bsock, s->out, s->mtu, &s->last_addr, &s->last_local_addr);
-        if (res < 0) {
-            int error = BSocket_GetError(s->bsock);
-            if (error == BSOCKET_ERROR_LATER) {
-                // nothing to receive, continue in socket_handler
-                return;
-            }
-            if (report_error(s, DATAGRAMSOCKETSOURCE_ERROR_BSOCKET) < 0) {
-                return;
-            }
-            continue;
-        }
-        break;
-    }
+    DebugIn_AmOut(&s->d_in_error);
+    DebugObject_Access(&s->d_obj);
     
     BSocket_DisableEvent(s->bsock, BSOCKET_READ);
-    s->out_have = 0;
     
-    #ifndef NDEBUG
-    s->have_last_addr = 1;
-    #endif
-    
-    PacketRecvInterface_Done(&s->output, res);
+    try_recv(s);
     return;
 }
 
-void DatagramSocketSource_Init (DatagramSocketSource *s, FlowErrorReporter rep, BSocket *bsock, int mtu)
+static void retry_job_handler (DatagramSocketSource *s)
+{
+    ASSERT(s->out_have)
+    DebugIn_AmOut(&s->d_in_error);
+    DebugObject_Access(&s->d_obj);
+    
+    try_recv(s);
+    return;
+}
+
+void DatagramSocketSource_Init (DatagramSocketSource *s, FlowErrorReporter rep, BSocket *bsock, int mtu, BPendingGroup *pg)
 {
     ASSERT(mtu >= 0)
     
@@ -129,26 +117,28 @@ void DatagramSocketSource_Init (DatagramSocketSource *s, FlowErrorReporter rep, 
     BSocket_AddEventHandler(s->bsock, BSOCKET_READ, (BSocket_handler)socket_handler, s);
     
     // init output
-    PacketRecvInterface_Init(&s->output, mtu, (PacketRecvInterface_handler_recv)output_handler_recv, s);
+    PacketRecvInterface_Init(&s->output, mtu, (PacketRecvInterface_handler_recv)output_handler_recv, s, pg);
     
     // have no output packet
     s->out_have = 0;
     
-    // init debugging
+    // init retry job
+    BPending_Init(&s->retry_job, pg, (BPending_handler)retry_job_handler, s);
+    
+    DebugIn_Init(&s->d_in_error);
+    DebugObject_Init(&s->d_obj);
     #ifndef NDEBUG
     s->have_last_addr = 0;
-    s->in_error = 0;
     #endif
-    
-    // init debug object
-    DebugObject_Init(&s->d_obj);
 }
 
 void DatagramSocketSource_Free (DatagramSocketSource *s)
 {
-    // free debug object
     DebugObject_Free(&s->d_obj);
-
+    
+    // free retry job
+    BPending_Free(&s->retry_job);
+    
     // free output
     PacketRecvInterface_Free(&s->output);
     
@@ -161,12 +151,15 @@ void DatagramSocketSource_Free (DatagramSocketSource *s)
 
 PacketRecvInterface * DatagramSocketSource_GetOutput (DatagramSocketSource *s)
 {
+    DebugObject_Access(&s->d_obj);
+    
     return &s->output;
 }
 
 void DatagramSocketSource_GetLastAddresses (DatagramSocketSource *s, BAddr *addr, BIPAddr *local_addr)
 {
     ASSERT(s->have_last_addr)
+    DebugObject_Access(&s->d_obj);
     
     if (addr) {
         *addr = s->last_addr;

@@ -30,10 +30,8 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
 #include <misc/debug.h>
 #include <system/DebugObject.h>
-#include <system/BPending.h>
 #include <flow/PacketRecvInterface.h>
 #include <flow/PacketPassInterface.h>
 
@@ -43,11 +41,9 @@
  */
 typedef struct {
     DebugObject d_obj;
-    dead_t dead;
     PacketRecvInterface *input;
     PacketPassInterface *output;
     uint8_t *buf;
-    BPending start_job;
 } SinglePacketBuffer;
 
 /**

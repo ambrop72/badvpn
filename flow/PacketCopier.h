@@ -29,7 +29,6 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
 #include <flow/PacketPassInterface.h>
 #include <flow/PacketRecvInterface.h>
 
@@ -40,7 +39,6 @@
  */
 typedef struct {
     DebugObject d_obj;
-    dead_t dead;
     PacketPassInterface input;
     PacketRecvInterface output;
     int in_len;
@@ -54,8 +52,9 @@ typedef struct {
  * 
  * @param o the object
  * @param mtu maximum packet size. Must be >=0.
+ * @param pg pending group
  */
-void PacketCopier_Init (PacketCopier *o, int mtu);
+void PacketCopier_Init (PacketCopier *o, int mtu, BPendingGroup *pg);
 
 /**
  * Frees the object.
