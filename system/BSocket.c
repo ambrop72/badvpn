@@ -481,14 +481,12 @@ static void setup_winsock_exts (int socket, int type, BSocket *bs)
         // obtain WSARecvMsg
         GUID guid_recv = WSAID_WSARECVMSG;
         if (WSAIoctl(socket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid_recv, sizeof(guid_recv), &bs->WSARecvMsg, sizeof(bs->WSARecvMsg), &out_bytes, NULL, NULL) != 0) {
-            DEBUG("WSAIoctl(SIO_GET_EXTENSION_FUNCTION_POINTER WSAID_WSARECVMSG) failed (%u)", WSAGetLastError());
             bs->WSARecvMsg = NULL;
         }
         
         // obtain WSASendMsg
         GUID guid_send = WSAID_WSASENDMSG;
         if (WSAIoctl(socket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid_send, sizeof(guid_send), &bs->WSASendMsg, sizeof(bs->WSASendMsg), &out_bytes, NULL, NULL) != 0) {
-            DEBUG("WSAIoctl(SIO_GET_EXTENSION_FUNCTION_POINTER WSAID_WSASENDMSG) failed (%u)", WSAGetLastError());
             bs->WSASendMsg = NULL;
         }
     }
