@@ -66,17 +66,14 @@ void init_handlers (BPRFileDesc *obj)
     }
 }
 
-void dispatch_event (BPRFileDesc *o)
+void work_events (BPRFileDesc *o)
 {
     ASSERT(o->dispatching)
     ASSERT(o->current_event_index >= 0)
-    ASSERT(o->current_event_index < NUM_EVENTS)
+    ASSERT(o->current_event_index <= NUM_EVENTS)
     ASSERT(((o->ready_events)&~(o->waitEvents)) == 0)
     
-    // schedule job that will call further handlers, or update bottom events at the end
-    BPending_Set(&o->job);
-    
-    do {
+    while (o->current_event_index < NUM_EVENTS) {
         // get event
         int ev_index = o->current_event_index;
         PRInt16 ev_mask = handler_events[ev_index];
@@ -87,6 +84,9 @@ void dispatch_event (BPRFileDesc *o)
         o->ready_events &= ~ev_mask;
         
         if (ev_dispatch) {
+            // schedule job that will call further handlers, or update bottom events at the end
+            BPending_Set(&o->job);
+            
             // disable event before dispatching it
             BPRFileDesc_DisableEvent(o, ev_mask);
             
@@ -94,9 +94,14 @@ void dispatch_event (BPRFileDesc *o)
             o->handlers[ev_index](o->handlers_user[ev_index], ev_mask);
             return;
         }
-    } while (o->current_event_index < NUM_EVENTS);
+    }
     
     ASSERT(!o->ready_events)
+    
+    o->dispatching = 0;
+    
+    // recalculate bottom events
+    update_bottom(o);
 }
 
 void job_handler (BPRFileDesc *o)
@@ -107,15 +112,8 @@ void job_handler (BPRFileDesc *o)
     ASSERT(((o->ready_events)&~(o->waitEvents)) == 0) // BPRFileDesc_DisableEvent clears events from ready_events
     DebugObject_Access(&o->d_obj);
     
-    if (o->ready_events) {
-        dispatch_event(o);
-        return;
-    }
-    
-    o->dispatching = 0;
-    
-    // recalculate bottom events
-    update_bottom(o);
+    work_events(o);
+    return;
 }
 
 void dispatch_events (BPRFileDesc *o, PRInt16 events)
@@ -127,7 +125,7 @@ void dispatch_events (BPRFileDesc *o, PRInt16 events)
     o->ready_events = events;
     o->current_event_index = 0;
     
-    dispatch_event(o);
+    work_events(o);
     return;
 }
 
