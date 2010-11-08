@@ -60,14 +60,15 @@ typedef struct {
     void *handlers_user[2];
     PRInt16 waitEvents;
     
+    // bottom
+    int bottom_type;
+    PRFileDesc *bottom;
+    
     // event dispatching
     int dispatching;
     PRInt16 ready_events;
     int current_event_index;
     BPending job;
-    
-    int bottom_type;
-    PRFileDesc *bottom;
 } BPRFileDesc;
 
 /**

@@ -205,6 +205,7 @@ void update_bottom (BPRFileDesc *obj)
 void socket_handler (BPRFileDesc *obj, int events)
 {
     ASSERT(!obj->dispatching)
+    DebugObject_Access(&obj->d_obj);
     
     // dispatch all events the user is waiting for, as there is
     // no way to know which of those are ready
@@ -219,29 +220,31 @@ void BPRFileDesc_Init (BPRFileDesc *obj, PRFileDesc *prfd)
     obj->waitEvents = 0;
     obj->dispatching = 0;
     obj->ready_events = 0; // just initialize it so we can clear them safely from BPRFileDesc_DisableEvent
+    
+    // init bottom
     init_bottom(obj);
     
     // init job
     BPending_Init(&obj->job, BReactor_PendingGroup(((BSocket *)obj->bottom->secret)->bsys), (BPending_handler)job_handler, obj);
     
-    // init debug object
     DebugObject_Init(&obj->d_obj);
 }
 
 void BPRFileDesc_Free (BPRFileDesc *obj)
 {
-    // free debug object
     DebugObject_Free(&obj->d_obj);
     
     // free job
     BPending_Free(&obj->job);
     
+    // free bottom
     free_bottom(obj);
 }
 
 void BPRFileDesc_AddEventHandler (BPRFileDesc *obj, PRInt16 event, BPRFileDesc_handler handler, void *user)
 {
     ASSERT(handler)
+    DebugObject_Access(&obj->d_obj);
     
     // get index
     int index = get_event_index(event);
@@ -256,6 +259,8 @@ void BPRFileDesc_AddEventHandler (BPRFileDesc *obj, PRInt16 event, BPRFileDesc_h
 
 void BPRFileDesc_RemoveEventHandler (BPRFileDesc *obj, PRInt16 event)
 {
+    DebugObject_Access(&obj->d_obj);
+    
     // get index
     int index = get_event_index(event);
     
@@ -273,6 +278,8 @@ void BPRFileDesc_RemoveEventHandler (BPRFileDesc *obj, PRInt16 event)
 
 void BPRFileDesc_EnableEvent (BPRFileDesc *obj, PRInt16 event)
 {
+    DebugObject_Access(&obj->d_obj);
+    
     // get index
     int index = get_event_index(event);
     
@@ -293,6 +300,8 @@ void BPRFileDesc_EnableEvent (BPRFileDesc *obj, PRInt16 event)
 
 void BPRFileDesc_DisableEvent (BPRFileDesc *obj, PRInt16 event)
 {
+    DebugObject_Access(&obj->d_obj);
+    
     // get index
     int index = get_event_index(event);
     
