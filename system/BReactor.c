@@ -238,6 +238,13 @@ static void dispatch_io (BReactor *bsys)
             }
         }
         
+        // BUG: if an error occurs on the socket and neither BREACTOR_READ nor BREACTOR_WRITE were requested,
+        // we get the event from epoll as ready, but don't have anybody to tell about it, resulting in an
+        // infinite loop
+        if (!events) {
+            continue;
+        }
+        
         // call handler
         BLog(BLOG_DEBUG, "Dispatching file descriptor");
         bfd->handler(bfd->user, events);
