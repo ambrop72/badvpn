@@ -27,8 +27,12 @@
 
 #include <nspr_support/BPRFileDesc.h>
 
+#define HANDLER_READ 0
+#define HANDLER_WRITE 1
+#define NUM_EVENTS 2
+
+static int get_event_index (PRInt16 event);
 static void init_handlers (BPRFileDesc *obj);
-static int get_event_index (int event);
 static int get_bsocket_events (PRUint16 pr_events);
 static void init_bottom (BPRFileDesc *obj);
 static void free_bottom (BPRFileDesc *obj);
@@ -36,25 +40,95 @@ static void update_bottom (BPRFileDesc *obj);
 static void set_bottom_events (BPRFileDesc *obj, PRInt16 new_events);
 static void socket_handler (BPRFileDesc *obj, int event);
 
-void init_handlers (BPRFileDesc *obj)
-{
-    int i;
-    for (i = 0; i < 2; i++) {
-        obj->handlers[i] = NULL;
-    }
-}
-
-int get_event_index (int event)
+int get_event_index (PRInt16 event)
 {
     switch (event) {
         case PR_POLL_READ:
-            return 0;
+            return HANDLER_READ;
         case PR_POLL_WRITE:
-            return 1;
+            return HANDLER_WRITE;
         default:
             ASSERT(0)
             return 0;
     }
+}
+
+static PRInt16 handler_events[] = {
+    [HANDLER_READ] = PR_POLL_READ,
+    [HANDLER_WRITE] = PR_POLL_WRITE
+};
+
+void init_handlers (BPRFileDesc *obj)
+{
+    int i;
+    for (i = 0; i < NUM_EVENTS; i++) {
+        obj->handlers[i] = NULL;
+    }
+}
+
+void dispatch_event (BPRFileDesc *o)
+{
+    ASSERT(o->dispatching)
+    ASSERT(o->current_event_index >= 0)
+    ASSERT(o->current_event_index < NUM_EVENTS)
+    ASSERT(((o->ready_events)&~(o->waitEvents)) == 0)
+    
+    // schedule job that will call further handlers, or update bottom events at the end
+    BPending_Set(&o->job);
+    
+    do {
+        // get event
+        int ev_index = o->current_event_index;
+        PRInt16 ev_mask = handler_events[ev_index];
+        int ev_dispatch = (o->ready_events&ev_mask);
+        
+        // jump to next event, clear this event
+        o->current_event_index++;
+        o->ready_events &= ~ev_mask;
+        
+        if (ev_dispatch) {
+            // disable event before dispatching it
+            BPRFileDesc_DisableEvent(o, ev_mask);
+            
+            // dispatch this event
+            o->handlers[ev_index](o->handlers_user[ev_index], ev_mask);
+            return;
+        }
+    } while (o->current_event_index < NUM_EVENTS);
+    
+    ASSERT(!o->ready_events)
+}
+
+void job_handler (BPRFileDesc *o)
+{
+    ASSERT(o->dispatching)
+    ASSERT(o->current_event_index >= 0)
+    ASSERT(o->current_event_index <= NUM_EVENTS)
+    ASSERT(((o->ready_events)&~(o->waitEvents)) == 0) // BPRFileDesc_DisableEvent clears events from ready_events
+    DebugObject_Access(&o->d_obj);
+    
+    if (o->ready_events) {
+        dispatch_event(o);
+        return;
+    }
+    
+    o->dispatching = 0;
+    
+    // recalculate bottom events
+    update_bottom(o);
+}
+
+void dispatch_events (BPRFileDesc *o, PRInt16 events)
+{
+    ASSERT(!o->dispatching)
+    ASSERT((events&~(o->waitEvents)) == 0)
+    
+    o->dispatching = 1;
+    o->ready_events = events;
+    o->current_event_index = 0;
+    
+    dispatch_event(o);
+    return;
 }
 
 int get_bsocket_events (PRUint16 pr_events)
@@ -130,43 +204,25 @@ void update_bottom (BPRFileDesc *obj)
 
 void socket_handler (BPRFileDesc *obj, int events)
 {
-    // make sure bottom events are not recalculated whenever an event
-    // is disabled or enabled, it's faster to do it only once
-    obj->in_handler = 1;
+    ASSERT(!obj->dispatching)
     
-    // call handlers for all enabled events
-    
-    if (obj->waitEvents&PR_POLL_READ) {
-        BPRFileDesc_DisableEvent(obj, PR_POLL_READ);
-        DEAD_ENTER(obj->dead)
-        obj->handlers[0](obj->handlers_user[0], PR_POLL_READ);
-        if (DEAD_LEAVE(obj->dead)) {
-            return;
-        }
-    }
-    
-    if (obj->waitEvents&PR_POLL_WRITE) {
-        BPRFileDesc_DisableEvent(obj, PR_POLL_WRITE);
-        DEAD_ENTER(obj->dead)
-        obj->handlers[1](obj->handlers_user[1], PR_POLL_WRITE);
-        if (DEAD_LEAVE(obj->dead)) {
-            return;
-        }
-    }
-    
-    // recalculate bottom events
-    obj->in_handler = 0;
-    update_bottom(obj);
+    // dispatch all events the user is waiting for, as there is
+    // no way to know which of those are ready
+    dispatch_events(obj, obj->waitEvents);
+    return;
 }
 
 void BPRFileDesc_Init (BPRFileDesc *obj, PRFileDesc *prfd)
 {
-    DEAD_INIT(obj->dead);
     obj->prfd = prfd;
     init_handlers(obj);
     obj->waitEvents = 0;
+    obj->dispatching = 0;
+    obj->ready_events = 0; // just initialize it so we can clear them safely from BPRFileDesc_DisableEvent
     init_bottom(obj);
-    obj->in_handler = 0;
+    
+    // init job
+    BPending_Init(&obj->job, BReactor_PendingGroup(((BSocket *)obj->bottom->secret)->bsys), (BPending_handler)job_handler, obj);
     
     // init debug object
     DebugObject_Init(&obj->d_obj);
@@ -176,9 +232,11 @@ void BPRFileDesc_Free (BPRFileDesc *obj)
 {
     // free debug object
     DebugObject_Free(&obj->d_obj);
-
+    
+    // free job
+    BPending_Free(&obj->job);
+    
     free_bottom(obj);
-    DEAD_KILL(obj->dead);
 }
 
 void BPRFileDesc_AddEventHandler (BPRFileDesc *obj, PRInt16 event, BPRFileDesc_handler handler, void *user)
@@ -228,7 +286,7 @@ void BPRFileDesc_EnableEvent (BPRFileDesc *obj, PRInt16 event)
     obj->waitEvents |= event;
     
     // update bottom
-    if (!obj->in_handler) {
+    if (!obj->dispatching) {
         update_bottom(obj);
     }
 }
@@ -246,9 +304,10 @@ void BPRFileDesc_DisableEvent (BPRFileDesc *obj, PRInt16 event)
     
     // update events
     obj->waitEvents &= ~event;
+    obj->ready_events &= ~event;
     
     // update bottom
-    if (!obj->in_handler) {
+    if (!obj->dispatching) {
         update_bottom(obj);
     }
 }

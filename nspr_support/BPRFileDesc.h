@@ -29,7 +29,7 @@
 #ifndef BADVPN_NSPRSUPPORT_BPRFILEDESC_H
 #define BADVPN_NSPRSUPPORT_BPRFILEDESC_H
 
-#include <misc/dead.h>
+#include <system/BPending.h>
 #include <system/DebugObject.h>
 #include <nspr_support/BSocketPRFileDesc.h>
 
@@ -39,6 +39,8 @@
  * Handler function called when an event occurs on the NSPR file descriptor.
  * It is guaranteed that the event had a handler and was enabled.
  * The event is disabled before the handler is called.
+ * 
+ * It is guaranteed that the handler returns control to the reactor immediately.
  * 
  * @param user as in {@link BPRFileDesc_AddEventHandler}
  * @param event event being reported
@@ -52,15 +54,20 @@ typedef void (*BPRFileDesc_handler) (void *user, PRInt16 event);
  */
 typedef struct {
     DebugObject d_obj;
-    dead_t dead;
     BReactor *reactor;
     PRFileDesc *prfd;
     BPRFileDesc_handler handlers[2];
     void *handlers_user[2];
     PRInt16 waitEvents;
+    
+    // event dispatching
+    int dispatching;
+    PRInt16 ready_events;
+    int current_event_index;
+    BPending job;
+    
     int bottom_type;
     PRFileDesc *bottom;
-    int in_handler;
 } BPRFileDesc;
 
 /**
