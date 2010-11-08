@@ -453,6 +453,8 @@ int main (int argc, char *argv[])
             BLog(BLOG_ERROR, "NSS_SetDomesticPolicy failed (%d)", (int)PR_GetError());
             goto fail4;
         }
+        
+        // initialize server cache
         if (SSL_ConfigServerSessionIDCache(0, 0, 0, NULL) != SECSuccess) {
             BLog(BLOG_ERROR, "SSL_ConfigServerSessionIDCache failed (%d)", (int)PR_GetError());
             goto fail4;
@@ -461,7 +463,7 @@ int main (int argc, char *argv[])
         // open server certificate and private key
         if (!open_nss_cert_and_key(options.server_cert_name, &server_cert, &server_key)) {
             BLog(BLOG_ERROR, "Cannot open certificate and key");
-            goto fail4;
+            goto fail4a;
         }
         
         // initialize model SSL fd
@@ -526,6 +528,8 @@ fail6:
 fail5:
         CERT_DestroyCertificate(server_cert);
         SECKEY_DestroyPrivateKey(server_key);
+fail4a:
+        SSL_ShutdownServerSessionIDCache();
 fail4:
         ASSERT_FORCE(NSS_Shutdown() == SECSuccess)
 fail3:
@@ -896,7 +900,7 @@ void listener_handler (Listener *listener)
     }
     
     // allocate the client structure
-    struct client_data *client = malloc(sizeof(struct client_data));
+    struct client_data *client = malloc(sizeof(*client));
     if (!client) {
         BLog(BLOG_ERROR, "failed to allocate client");
         goto fail0;
@@ -922,6 +926,8 @@ void client_add (struct client_data *client)
     ASSERT(clients_num < MAX_CLIENTS)
     
     if (options.ssl) {
+        // initialize SSL
+        
         // create BSocket NSPR file descriptor
         BSocketPRFileDesc_Create(&client->bottom_prfd, &client->sock);
         
@@ -949,17 +955,11 @@ void client_add (struct client_data *client)
         
         // initialize BPRFileDesc on SSL file descriptor
         BPRFileDesc_Init(&client->ssl_bprfd, client->ssl_prfd);
-        
-        // set client state
-        client->initstatus = INITSTATUS_HANDSHAKE;
     } else {
-        // initialize i/o chains
+        // initialize I/O
         if (!client_init_io(client)) {
             goto fail0;
         }
-        
-        // set client state
-        client->initstatus = INITSTATUS_WAITHELLO;
     }
     
     // start disconnect timer
@@ -995,6 +995,9 @@ void client_add (struct client_data *client)
     
     // start I/O
     if (options.ssl) {
+        // set client state
+        client->initstatus = INITSTATUS_HANDSHAKE;
+        
         // set read handler for driving handshake
         BPRFileDesc_AddEventHandler(&client->ssl_bprfd, PR_POLL_READ, (BPRFileDesc_handler)client_handshake_read_handler, client);
         
@@ -1002,6 +1005,9 @@ void client_add (struct client_data *client)
         client_try_handshake(client);
         return;
     } else {
+        // set client state
+        client->initstatus = INITSTATUS_WAITHELLO;
+        
         return;
     }
     
@@ -1062,7 +1068,7 @@ static void client_dying_job (struct client_data *client)
     
     LinkedList2Node *node = LinkedList2_GetFirst(&client->know_in_list);
     if (!node) {
-        // deallocate client
+        // notified all clients, deallocate client
         client_dealloc(client);
         return;
     }
@@ -1087,6 +1093,16 @@ void client_dealloc (struct client_data *client)
     ASSERT(LinkedList2_IsEmpty(&client->know_in_list))
     ASSERT(LinkedList2_IsEmpty(&client->peer_out_flows_list))
     
+    // free I/O
+    if (client->initstatus >= INITSTATUS_WAITHELLO && !client->dying) {
+        client_dealloc_io(client);
+    }
+    
+    // free common name
+    if (client->initstatus >= INITSTATUS_WAITHELLO && options.ssl) {
+        PORT_Free(client->common_name);
+    }
+    
     // free publishing
     LinkedList2Iterator_Free(&client->publish_it);
     BPending_Free(&client->publish_job);
@@ -1101,18 +1117,6 @@ void client_dealloc (struct client_data *client)
     
     // stop disconnect timer
     BReactor_RemoveTimer(&ss, &client->disconnect_timer);
-    
-    if (client->initstatus >= INITSTATUS_WAITHELLO) {
-        // free I/O
-        if (!client->dying) {
-            client_dealloc_io(client);
-        }
-        
-        // free common name
-        if (options.ssl) {
-            PORT_Free(client->common_name);
-        }
-    }
     
     // free SSL
     if (options.ssl) {
@@ -1143,14 +1147,18 @@ void client_log (struct client_data *client, int level, const char *fmt, ...)
 
 void client_disconnect_timer_handler (struct client_data *client)
 {
+    ASSERT(!client->dying)
+    
     client_log(client, BLOG_NOTICE, "timed out");
     
     client_remove(client);
+    return;
 }
 
 void client_try_handshake (struct client_data *client)
 {
     ASSERT(client->initstatus == INITSTATUS_HANDSHAKE)
+    ASSERT(!client->dying)
     
     // attempt handshake
     if (SSL_ForceHandshake(client->ssl_prfd) != SECSuccess) {
@@ -1192,7 +1200,7 @@ void client_try_handshake (struct client_data *client)
     }
     
     // store certificate
-    if (der.len > (unsigned int)sizeof(client->cert)) {
+    if (der.len > sizeof(client->cert)) {
         client_log(client, BLOG_NOTICE, "client certificate too big");
         goto fail2;
     }
@@ -1231,6 +1239,8 @@ fail0:
 
 void client_handshake_read_handler (struct client_data *client, PRInt16 event)
 {
+    ASSERT(client->initstatus == INITSTATUS_HANDSHAKE)
+    ASSERT(!client->dying)
     ASSERT(event == PR_POLL_READ)
     
     // restart no data timer
@@ -1263,11 +1273,8 @@ int client_init_io (struct client_data *client)
     
     // init decoder
     if (!PacketProtoDecoder_Init(
-        &client->input_decoder,
-        FlowErrorReporter_Create(&client->domain, COMPONENT_DECODER),
-        source_interface,
-        &client->input_interface,
-        BReactor_PendingGroup(&ss)
+        &client->input_decoder, FlowErrorReporter_Create(&client->domain, COMPONENT_DECODER),
+        source_interface, &client->input_interface, BReactor_PendingGroup(&ss)
     )) {
         client_log(client, BLOG_ERROR, "PacketProtoDecoder_Init failed");
         goto fail1;
@@ -1276,17 +1283,17 @@ int client_init_io (struct client_data *client)
     // init output common
     
     // init sink
-    StreamPassInterface *sink_input;
+    StreamPassInterface *sink_interface;
     if (options.ssl) {
         PRStreamSink_Init(&client->output_sink.ssl, FlowErrorReporter_Create(&client->domain, COMPONENT_SINK), &client->ssl_bprfd, BReactor_PendingGroup(&ss));
-        sink_input = PRStreamSink_GetInput(&client->output_sink.ssl);
+        sink_interface = PRStreamSink_GetInput(&client->output_sink.ssl);
     } else {
         StreamSocketSink_Init(&client->output_sink.plain, FlowErrorReporter_Create(&client->domain, COMPONENT_SINK), &client->sock, BReactor_PendingGroup(&ss));
-        sink_input = StreamSocketSink_GetInput(&client->output_sink.plain);
+        sink_interface = StreamSocketSink_GetInput(&client->output_sink.plain);
     }
     
     // init sender
-    PacketStreamSender_Init(&client->output_sender, sink_input, PACKETPROTO_ENCLEN(SC_MAX_ENC), BReactor_PendingGroup(&ss));
+    PacketStreamSender_Init(&client->output_sender, sink_interface, PACKETPROTO_ENCLEN(SC_MAX_ENC), BReactor_PendingGroup(&ss));
     
     // init queue
     PacketPassPriorityQueue_Init(&client->output_priorityqueue, PacketStreamSender_GetInput(&client->output_sender), BReactor_PendingGroup(&ss));
@@ -1298,11 +1305,8 @@ int client_init_io (struct client_data *client)
     
     // init PacketProtoFlow
     if (!PacketProtoFlow_Init(
-        &client->output_control_oflow,
-        SC_MAX_ENC,
-        CLIENT_CONTROL_BUFFER_MIN_PACKETS,
-        PacketPassPriorityQueueFlow_GetInput(&client->output_control_qflow),
-        BReactor_PendingGroup(&ss)
+        &client->output_control_oflow, SC_MAX_ENC, CLIENT_CONTROL_BUFFER_MIN_PACKETS,
+        PacketPassPriorityQueueFlow_GetInput(&client->output_control_qflow), BReactor_PendingGroup(&ss)
     )) {
         client_log(client, BLOG_ERROR, "PacketProtoFlow_Init failed");
         goto fail2;
@@ -1444,10 +1448,11 @@ void client_end_control_packet (struct client_data *client, uint8_t type)
     ASSERT(INITSTATUS_HASLINK(client->initstatus))
     ASSERT(!client->dying)
     ASSERT(client->output_control_packet_len >= 0)
+    ASSERT(client->output_control_packet_len <= SC_MAX_PAYLOAD)
     
     // write header
     struct sc_header *header = (struct sc_header *)client->output_control_packet;
-    header->type = type;
+    header->type = htol8(type);
     
     // finish writing packet
     BufferWriter_EndPacket(client->output_control_input, sizeof(struct sc_header) + client->output_control_packet_len);
@@ -1457,6 +1462,11 @@ void client_end_control_packet (struct client_data *client, uint8_t type)
 
 int client_send_newclient (struct client_data *client, struct client_data *nc, int relay_server, int relay_client)
 {
+    ASSERT(client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!client->dying)
+    ASSERT(nc->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!nc->dying)
+    
     int flags = 0;
     if (relay_server) {
         flags |= SCID_NEWCLIENT_FLAG_RELAY_SERVER;
@@ -1481,6 +1491,9 @@ int client_send_newclient (struct client_data *client, struct client_data *nc, i
 
 int client_send_endclient (struct client_data *client, peerid_t end_id)
 {
+    ASSERT(client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!client->dying)
+    
     struct sc_server_endclient *pack;
     if (client_start_control_packet(client, (void **)&pack, sizeof(struct sc_server_endclient)) < 0) {
         return -1;
@@ -1493,6 +1506,8 @@ int client_send_endclient (struct client_data *client, peerid_t end_id)
 
 void client_input_handler_send (struct client_data *client, uint8_t *data, int data_len)
 {
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= SC_MAX_ENC)
     ASSERT(INITSTATUS_HASLINK(client->initstatus))
     ASSERT(!client->dying)
     
@@ -1503,9 +1518,13 @@ void client_input_handler_send (struct client_data *client, uint8_t *data, int d
     }
     
     struct sc_header *header = (struct sc_header *)data;
+    uint8_t type = ltoh8(header->type);
     
     uint8_t *sc_data = data + sizeof(struct sc_header);
     int sc_data_len = data_len - sizeof(struct sc_header);
+    
+    ASSERT(sc_data_len >= 0)
+    ASSERT(sc_data_len <= SC_MAX_PAYLOAD)
     
     // restart no data timer
     BReactor_SetTimer(&ss, &client->disconnect_timer);
@@ -1514,7 +1533,7 @@ void client_input_handler_send (struct client_data *client, uint8_t *data, int d
     PacketPassInterface_Done(&client->input_interface);
     
     // perform action based on packet type
-    switch (header->type) {
+    switch (type) {
         case SCID_KEEPALIVE:
             client_log(client, BLOG_DEBUG, "received keep-alive");
             return;
@@ -1571,7 +1590,7 @@ void process_packet_hello (struct client_data *client, uint8_t *data, int data_l
     }
     pack->flags = htol16(0);
     pack->id = htol16(client->id);
-    pack->clientAddr = (client->addr.type == BADDR_TYPE_IPV4 ? client->addr.ipv4.ip : 0);
+    pack->clientAddr = (client->addr.type == BADDR_TYPE_IPV4 ? client->addr.ipv4.ip : htol32(0));
     client_end_control_packet(client, SCID_SERVERHELLO);
 }
 
@@ -1609,7 +1628,7 @@ void client_publish_job (struct client_data *client)
     struct peer_know *k_to = malloc(sizeof(*k_to));
     if (!k_to) {
         client_log(client, BLOG_ERROR, "failed to allocate know to %d", (int)client2->id);
-        goto fail;
+        goto stop_publishing;
     }
     
     if (client_send_newclient(client, client2, relay_to, relay_from) < 0) {
@@ -1624,7 +1643,7 @@ void client_publish_job (struct client_data *client)
     struct peer_know *k_from = malloc(sizeof(*k_from));
     if (!k_from) {
         client_log(client, BLOG_ERROR, "failed to allocate know from %d", (int)client2->id);
-        goto fail;
+        goto stop_publishing;
     }
     
     if (client_send_newclient(client2, client, relay_from, relay_to) < 0) {
@@ -1637,18 +1656,18 @@ void client_publish_job (struct client_data *client)
     // create flow from client to client2
     if (!peer_flow_create(client, client2)) {
         client_log(client, BLOG_ERROR, "failed to allocate flow to %d", (int)client2->id);
-        goto fail;
+        goto stop_publishing;
     }
     
     // create flow from client2 to client
     if (!peer_flow_create(client2, client)) {
         client_log(client, BLOG_ERROR, "failed to allocate flow from %d", (int)client2->id);
-        goto fail;
+        goto stop_publishing;
     }
     
     return;
     
-fail:
+stop_publishing:
     // on out of memory, stop publishing client
     BPending_Unset(&client->publish_job);
 }
@@ -1682,7 +1701,7 @@ void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_
     // lookup flow to destination client
     BAVLNode *node = BAVL_LookupExact(&client->peer_out_flows_tree, &id);
     if (!node) {
-        client_log(client, BLOG_NOTICE, "no flow for message to %d", (int)id);
+        client_log(client, BLOG_INFO, "no flow for message to %d", (int)id);
         return;
     }
     struct peer_flow *flow = UPPER_OBJECT(node, struct peer_flow, src_tree_node);
@@ -1693,7 +1712,7 @@ void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_
         return;
     }
     pack->clientid = htol16(client->id);
-    memcpy((uint8_t *)pack + sizeof(struct sc_server_inmsg), payload, payload_size);
+    memcpy((uint8_t *)(pack + 1), payload, payload_size);
     peer_flow_end_packet(flow, SCID_INMSG);
 }
 
@@ -1716,7 +1735,7 @@ struct peer_flow * peer_flow_create (struct client_data *src_client, struct clie
     flow->dest_client = dest_client;
     flow->dest_client_id = dest_client->id;
     
-    // add to source list and hash table
+    // add to source list and tree
     LinkedList2_Append(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
     ASSERT_EXECUTE(BAVL_Insert(&flow->src_client->peer_out_flows_tree, &flow->src_tree_node, NULL))
     
@@ -1808,9 +1827,8 @@ int peer_flow_start_packet (struct peer_flow *flow, void **data, int len)
 
 void peer_flow_end_packet (struct peer_flow *flow, uint8_t type)
 {
-    ASSERT(flow->dest_client->initstatus == INITSTATUS_COMPLETE)
-    ASSERT(!flow->dest_client->dying)
     ASSERT(flow->packet_len >= 0)
+    ASSERT(flow->packet_len <= SC_MAX_PAYLOAD)
     
     // write header
     struct sc_header *header = (struct sc_header *)flow->packet;
@@ -1868,11 +1886,16 @@ int clients_by_id_key_comparator (peerid_t *id1, peerid_t *id2)
 
 int clients_by_id_hash_function (peerid_t *id, int modulo)
 {
-    return (jenkins_lookup2_hash((uint8_t *)id, sizeof(peerid_t), clients_by_id_initval) % modulo);
+    return (jenkins_lookup2_hash((uint8_t *)id, sizeof(*id), clients_by_id_initval) % modulo);
 }
 
 int clients_allowed (struct client_data *client1, struct client_data *client2)
 {
+    ASSERT(client1->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!client1->dying)
+    ASSERT(client2->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!client2->dying)
+    
     if (!options.comm_predicate) {
         return 1;
     }
@@ -1888,7 +1911,13 @@ int clients_allowed (struct client_data *client1, struct client_data *client2)
     BAddr_GetIPAddr(&client1->addr, &comm_predicate_p1addr);
     BAddr_GetIPAddr(&client2->addr, &comm_predicate_p2addr);
     
-    return BPredicate_Eval(&comm_predicate);
+    // evaluate predicate
+    int res = BPredicate_Eval(&comm_predicate);
+    if (res < 0) {
+        return 0;
+    }
+    
+    return res;
 }
 
 int comm_predicate_func_p1name_cb (void *user, void **args)
@@ -1912,7 +1941,7 @@ int comm_predicate_func_p1addr_cb (void *user, void **args)
     BIPAddr addr;
     if (!BIPAddr_Resolve(&addr, arg, 1)) {
         BLog(BLOG_WARNING, "failed to parse address");
-        return 0;
+        return -1;
     }
     
     return BIPAddr_Compare(&addr, &comm_predicate_p1addr);
@@ -1925,7 +1954,7 @@ int comm_predicate_func_p2addr_cb (void *user, void **args)
     BIPAddr addr;
     if (!BIPAddr_Resolve(&addr, arg, 1)) {
         BLog(BLOG_WARNING, "failed to parse address");
-        return 0;
+        return -1;
     }
     
     return BIPAddr_Compare(&addr, &comm_predicate_p2addr);
@@ -1948,7 +1977,13 @@ int relay_allowed (struct client_data *client, struct client_data *relay)
     BAddr_GetIPAddr(&client->addr, &relay_predicate_paddr);
     BAddr_GetIPAddr(&relay->addr, &relay_predicate_raddr);
     
-    return BPredicate_Eval(&relay_predicate);
+    // evaluate predicate
+    int res = BPredicate_Eval(&relay_predicate);
+    if (res < 0) {
+        return 0;
+    }
+    
+    return res;
 }
 
 int relay_predicate_func_pname_cb (void *user, void **args)
@@ -1972,7 +2007,7 @@ int relay_predicate_func_paddr_cb (void *user, void **args)
     BIPAddr addr;
     if (!BIPAddr_Resolve(&addr, arg, 1)) {
         BLog(BLOG_ERROR, "paddr: failed to parse address");
-        return 0;
+        return -1;
     }
     
     return BIPAddr_Compare(&addr, &relay_predicate_paddr);
@@ -1985,7 +2020,7 @@ int relay_predicate_func_raddr_cb (void *user, void **args)
     BIPAddr addr;
     if (!BIPAddr_Resolve(&addr, arg, 1)) {
         BLog(BLOG_ERROR, "raddr: failed to parse address");
-        return 0;
+        return -1;
     }
     
     return BIPAddr_Compare(&addr, &relay_predicate_raddr);
