@@ -41,14 +41,14 @@ void input_handler_done (PacketBuffer *buf, int in_len)
     // submit packet to buffer
     ChunkBuffer2_SubmitPacket(&buf->buf, in_len);
     
-    // if buffer was empty, schedule send
-    if (was_empty) {
-        PacketPassInterface_Sender_Send(buf->output, buf->buf.output_dest, buf->buf.output_avail);
-    }
-    
     // if there is space, schedule receive
     if (buf->buf.input_avail >= buf->input_mtu) {
         PacketRecvInterface_Receiver_Recv(buf->input, buf->buf.input_dest);
+    }
+    
+    // if buffer was empty, schedule send
+    if (was_empty) {
+        PacketPassInterface_Sender_Send(buf->output, buf->buf.output_dest, buf->buf.output_avail);
     }
 }
 
@@ -62,14 +62,14 @@ void output_handler_done (PacketBuffer *buf)
     // remove packet from buffer
     ChunkBuffer2_ConsumePacket(&buf->buf);
     
-    // if there is more data, schedule send
-    if (buf->buf.output_avail >= 0) {
-        PacketPassInterface_Sender_Send(buf->output, buf->buf.output_dest, buf->buf.output_avail);
-    }
-    
     // if buffer was full and there is space, schedule receive
     if (was_full && buf->buf.input_avail >= buf->input_mtu) {
         PacketRecvInterface_Receiver_Recv(buf->input, buf->buf.input_dest);
+    }
+    
+    // if there is more data, schedule send
+    if (buf->buf.output_avail >= 0) {
+        PacketPassInterface_Sender_Send(buf->output, buf->buf.output_dest, buf->buf.output_avail);
     }
 }
 
