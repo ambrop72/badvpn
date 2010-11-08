@@ -47,7 +47,24 @@
 #define HANDLER_CONNECT 3
 #define NUM_EVENTS 4
 
-int handler_events[] = {
+static int get_event_index (int event)
+{
+    switch (event) {
+        case BSOCKET_READ:
+            return HANDLER_READ;
+        case BSOCKET_WRITE:
+            return HANDLER_WRITE;
+        case BSOCKET_ACCEPT:
+            return HANDLER_ACCEPT;
+        case BSOCKET_CONNECT:
+            return HANDLER_CONNECT;
+        default:
+            ASSERT(0)
+            return 42;
+    }
+}
+
+static int handler_events[] = {
     [HANDLER_READ] = BSOCKET_READ,
     [HANDLER_WRITE] = BSOCKET_WRITE,
     [HANDLER_ACCEPT] = BSOCKET_ACCEPT,
@@ -120,6 +137,10 @@ static int translate_error (int error)
             return BSOCKET_ERROR_ADDRESS_IN_USE;
         case WSAECONNRESET:
             return BSOCKET_ERROR_CONNECTION_RESET;
+        case WSAETIMEDOUT:
+            return BSOCKET_ERROR_CONNECTION_TIMED_OUT;
+        case WSAECONNREFUSED:
+            return BSOCKET_ERROR_CONNECTION_REFUSED;
     }
     
     #else
@@ -192,36 +213,15 @@ static void addr_sys_to_socket (BAddr *out, struct sys_addr *addr)
     switch (addr->addr.generic.sa_family) {
         case AF_INET:
             ASSERT(addr->len == sizeof(struct sockaddr_in))
-            out->type = BADDR_TYPE_IPV4;
-            out->ipv4.ip = addr->addr.ipv4.sin_addr.s_addr;
-            out->ipv4.port = addr->addr.ipv4.sin_port;
+            BAddr_InitIPv4(out, addr->addr.ipv4.sin_addr.s_addr, addr->addr.ipv4.sin_port);
             break;
         case AF_INET6:
             ASSERT(addr->len == sizeof(struct sockaddr_in6))
-            out->type = BADDR_TYPE_IPV6;
-            memcpy(out->ipv6.ip, addr->addr.ipv6.sin6_addr.s6_addr, 16);
-            out->ipv6.port = addr->addr.ipv6.sin6_port;
+            BAddr_InitIPv6(out, addr->addr.ipv6.sin6_addr.s6_addr, addr->addr.ipv6.sin6_port);
             break;
         default:
             BAddr_InitNone(out);
             break;
-    }
-}
-
-static int get_event_index (int event)
-{
-    switch (event) {
-        case BSOCKET_READ:
-            return HANDLER_READ;
-        case BSOCKET_WRITE:
-            return HANDLER_WRITE;
-        case BSOCKET_ACCEPT:
-            return HANDLER_ACCEPT;
-        case BSOCKET_CONNECT:
-            return HANDLER_CONNECT;
-        default:
-            ASSERT(0)
-            return 42;
     }
 }
 
@@ -265,6 +265,7 @@ static void job_handler (BSocket *bs)
     ASSERT(bs->current_event_index >= 0)
     ASSERT(bs->current_event_index < NUM_EVENTS)
     ASSERT(((bs->ready_events)&~(bs->waitEvents)) == 0) // BSocket_DisableEvent clears events from ready_events
+    DebugObject_Access(&bs->d_obj);
     
     dispatch_event(bs);
     return;
@@ -315,6 +316,8 @@ static long get_wsa_events (int sock_events)
 
 static void handle_handler (BSocket *bs)
 {
+    DebugObject_Access(&bs->d_obj);
+    
     // enumerate network events and reset event
     WSANETWORKEVENTS events;
     int res = WSAEnumNetworkEvents(bs->socket, bs->event, &events);
@@ -342,24 +345,16 @@ static void handle_handler (BSocket *bs)
     
     if (bs->waitEvents&BSOCKET_CONNECT) {
         if (events.lNetworkEvents&FD_CONNECT) {
+            returned_events |= BSOCKET_CONNECT;
+            
             // read connection attempt result
             ASSERT(bs->connecting_status == 1)
             bs->connecting_status = 2;
-            switch (events.iErrorCode[FD_CONNECT_BIT]) {
-                case 0:
-                    bs->connecting_result = BSOCKET_ERROR_NONE;
-                    break;
-                case WSAETIMEDOUT:
-                    bs->connecting_result = BSOCKET_ERROR_CONNECTION_TIMED_OUT;
-                    break;
-                case WSAECONNREFUSED:
-                    bs->connecting_result = BSOCKET_ERROR_CONNECTION_REFUSED;
-                    break;
-                default:
-                    bs->connecting_result = BSOCKET_ERROR_UNKNOWN;
+            if (events.iErrorCode[FD_CONNECT_BIT] == 0) {
+                bs->connecting_result = BSOCKET_ERROR_NONE;
+            } else {
+                bs->connecting_result = translate_error(events.iErrorCode[FD_CONNECT_BIT]);
             }
-            
-            returned_events |= BSOCKET_CONNECT;
         }
     }
     
@@ -385,6 +380,8 @@ static int get_reactor_fd_events (int sock_events)
 
 static void file_descriptor_handler (BSocket *bs, int events)
 {
+    DebugObject_Access(&bs->d_obj);
+    
     int returned_events = 0;
     
     if ((bs->waitEvents&BSOCKET_READ) && (events&BREACTOR_READ)) {
@@ -409,18 +406,10 @@ static void file_descriptor_handler (BSocket *bs, int events)
         socklen_t result_len = sizeof(result);
         int res = getsockopt(bs->socket, SOL_SOCKET, SO_ERROR, &result, &result_len);
         ASSERT_FORCE(res == 0)
-        switch (result) {
-            case 0:
-                bs->connecting_result = BSOCKET_ERROR_NONE;
-                break;
-            case ETIMEDOUT:
-                bs->connecting_result = BSOCKET_ERROR_CONNECTION_TIMED_OUT;
-                break;
-            case ECONNREFUSED:
-                bs->connecting_result = BSOCKET_ERROR_CONNECTION_REFUSED;
-                break;
-            default:
-                bs->connecting_result = BSOCKET_ERROR_UNKNOWN;
+        if (result == 0) {
+            bs->connecting_result = BSOCKET_ERROR_NONE;
+        } else {
+            bs->connecting_result = translate_error(result);
         }
     }
     
@@ -633,7 +622,6 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
         goto fail1;
     }
     
-    // init debug object
     DebugObject_Init(&bs->d_obj);
     
     return 0;
@@ -647,7 +635,6 @@ fail0:
 
 void BSocket_Free (BSocket *bs)
 {
-    // free debug object
     DebugObject_Free(&bs->d_obj);
     
     // free event backend
@@ -662,6 +649,8 @@ void BSocket_Free (BSocket *bs)
 
 void BSocket_SetRecvMax (BSocket *bs, int max)
 {
+    DebugObject_Access(&bs->d_obj);
+    
     ASSERT(max > 0 || max == -1)
     
     bs->recv_max = max;
@@ -670,11 +659,15 @@ void BSocket_SetRecvMax (BSocket *bs, int max)
 
 int BSocket_GetError (BSocket *bs)
 {
+    DebugObject_Access(&bs->d_obj);
+    
     return bs->error;
 }
 
 void BSocket_AddGlobalEventHandler (BSocket *bs, BSocket_handler handler, void *user)
 {
+    DebugObject_Access(&bs->d_obj);
+    
     ASSERT(handler)
     ASSERT(!bs->global_handler)
     ASSERT(!bs->handlers[0])
@@ -692,6 +685,7 @@ void BSocket_AddGlobalEventHandler (BSocket *bs, BSocket_handler handler, void *
 void BSocket_RemoveGlobalEventHandler (BSocket *bs)
 {
     ASSERT(bs->global_handler)
+    DebugObject_Access(&bs->d_obj);
     
     bs->global_handler = NULL;
     bs->waitEvents = 0;
@@ -700,6 +694,7 @@ void BSocket_RemoveGlobalEventHandler (BSocket *bs)
 void BSocket_SetGlobalEvents (BSocket *bs, int events)
 {
     ASSERT(bs->global_handler)
+    DebugObject_Access(&bs->d_obj);
     
     // update events
     bs->waitEvents = events;
@@ -712,6 +707,7 @@ void BSocket_AddEventHandler (BSocket *bs, uint8_t event, BSocket_handler handle
 {
     ASSERT(handler)
     ASSERT(!bs->global_handler)
+    DebugObject_Access(&bs->d_obj);
     
     // get index
     int i = get_event_index(event);
@@ -726,6 +722,8 @@ void BSocket_AddEventHandler (BSocket *bs, uint8_t event, BSocket_handler handle
 
 void BSocket_RemoveEventHandler (BSocket *bs, uint8_t event)
 {
+    DebugObject_Access(&bs->d_obj);
+    
     // get table index
     int i = get_event_index(event);
     
@@ -743,6 +741,8 @@ void BSocket_RemoveEventHandler (BSocket *bs, uint8_t event)
 
 void BSocket_EnableEvent (BSocket *bs, uint8_t event)
 {
+    DebugObject_Access(&bs->d_obj);
+    
     #ifndef NDEBUG
     // check event and incompatible events
     switch (event) {
@@ -782,6 +782,8 @@ void BSocket_EnableEvent (BSocket *bs, uint8_t event)
 
 void BSocket_DisableEvent (BSocket *bs, uint8_t event)
 {
+    DebugObject_Access(&bs->d_obj);
+    
     // check event and get index
     int index = get_event_index(event);
     
@@ -804,7 +806,8 @@ int BSocket_Connect (BSocket *bs, BAddr *addr)
     ASSERT(addr)
     ASSERT(!BAddr_IsInvalid(addr))
     ASSERT(bs->connecting_status == 0)
-
+    DebugObject_Access(&bs->d_obj);
+    
     struct sys_addr sysaddr;
     addr_socket_to_sys(&sysaddr, addr);
 
@@ -837,6 +840,7 @@ int BSocket_Connect (BSocket *bs, BAddr *addr)
 int BSocket_GetConnectResult (BSocket *bs)
 {
     ASSERT(bs->connecting_status == 2)
+    DebugObject_Access(&bs->d_obj);
 
     bs->connecting_status = 0;
     
@@ -847,6 +851,7 @@ int BSocket_Bind (BSocket *bs, BAddr *addr)
 {
     ASSERT(addr)
     ASSERT(!BAddr_IsInvalid(addr))
+    DebugObject_Access(&bs->d_obj);
     
     struct sys_addr sysaddr;
     addr_socket_to_sys(&sysaddr, addr);
@@ -879,6 +884,9 @@ int BSocket_Bind (BSocket *bs, BAddr *addr)
 
 int BSocket_Listen (BSocket *bs, int backlog)
 {
+    ASSERT(bs->type == BSOCKET_TYPE_STREAM)
+    DebugObject_Access(&bs->d_obj);
+    
     if (backlog < 0) {
         backlog = BSOCKET_DEFAULT_BACKLOG;
     }
@@ -900,6 +908,9 @@ int BSocket_Listen (BSocket *bs, int backlog)
 
 int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
 {
+    ASSERT(bs->type == BSOCKET_TYPE_STREAM)
+    DebugObject_Access(&bs->d_obj);
+    
     struct sys_addr sysaddr;
     sysaddr.len = sizeof(sysaddr.addr);
     
@@ -988,6 +999,7 @@ int BSocket_Send (BSocket *bs, uint8_t *data, int len)
 {
     ASSERT(len >= 0)
     ASSERT(bs->type == BSOCKET_TYPE_STREAM)
+    DebugObject_Access(&bs->d_obj);
     
     #ifdef BADVPN_USE_WINAPI
     int flags = 0;
@@ -1027,6 +1039,7 @@ int BSocket_Recv (BSocket *bs, uint8_t *data, int len)
 {
     ASSERT(len >= 0)
     ASSERT(bs->type == BSOCKET_TYPE_STREAM)
+    DebugObject_Access(&bs->d_obj);
     
     if (limit_recv(bs)) {
         bs->error = BSOCKET_ERROR_LATER;
@@ -1068,6 +1081,7 @@ int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
     ASSERT(!BAddr_IsInvalid(addr))
     ASSERT(local_addr)
     ASSERT(bs->type == BSOCKET_TYPE_DGRAM)
+    DebugObject_Access(&bs->d_obj);
     
     struct sys_addr remote_sysaddr;
     addr_socket_to_sys(&remote_sysaddr, addr);
@@ -1230,6 +1244,7 @@ int BSocket_RecvFromTo (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
     ASSERT(addr)
     ASSERT(local_addr)
     ASSERT(bs->type == BSOCKET_TYPE_DGRAM)
+    DebugObject_Access(&bs->d_obj);
     
     if (limit_recv(bs)) {
         bs->error = BSOCKET_ERROR_LATER;
@@ -1376,6 +1391,7 @@ int BSocket_RecvFromTo (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
 int BSocket_GetPeerName (BSocket *bs, BAddr *addr)
 {
     ASSERT(addr)
+    DebugObject_Access(&bs->d_obj);
     
     struct sys_addr sysaddr;
     sysaddr.len = sizeof(sysaddr.addr);
@@ -1418,6 +1434,8 @@ static int create_unix_sysaddr (struct sockaddr_un *addr, size_t *addr_len, cons
 
 int BSocket_BindUnix (BSocket *bs, const char *path)
 {
+    DebugObject_Access(&bs->d_obj);
+    
     struct sockaddr_un sys_addr;
     size_t addr_len;
     
@@ -1437,6 +1455,8 @@ int BSocket_BindUnix (BSocket *bs, const char *path)
 
 int BSocket_ConnectUnix (BSocket *bs, const char *path)
 {
+    DebugObject_Access(&bs->d_obj);
+    
     struct sockaddr_un sys_addr;
     size_t addr_len;
     

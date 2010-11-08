@@ -303,7 +303,7 @@ int BSocket_Bind (BSocket *bs, BAddr *addr) WARN_UNUSED;
 /**
  * Marks the socket as a listening socket.
  *
- * @param bs the object
+ * @param bs the object. Must be a BSOCKET_TYPE_STREAM socket.
  * @param backlog whatever this means in the system's listen() function. If it's
  *                negative, BSOCKET_DEFAULT_BACKLOG will be used.
  * @return 0 for success,
@@ -316,9 +316,10 @@ int BSocket_Listen (BSocket *bs, int backlog) WARN_UNUSED;
 /**
  * Accepts a connection on a listening socket.
  *
- * @param bs the object
+ * @param bs the object. Must be a BSOCKET_TYPE_STREAM socket.
  * @param newsock on success, the new socket will be stored here. If it is NULL and a connection
- *                was accepted, it is closed immediately (but the function succeeds).
+ *                was accepted, it is closed immediately (but the function succeeds). The resulting
+ *                socket will have the same domain and type as the listening socket.
  * @param addr if not NULL, the client address will be stored here on success.
  *             The returned address may be an invalid address.
  * @return 0 for success,
@@ -331,7 +332,7 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr) WARN_UNUSED;
 /**
  * Sends data on a stream socket.
  *
- * @param bs the object
+ * @param bs the object. Must be a BSOCKET_TYPE_STREAM socket.
  * @param data buffer to read data from
  * @param len amount of data. Must be >=0.
  * @return non-negative value for amount of data sent,
@@ -347,7 +348,7 @@ int BSocket_Send (BSocket *bs, uint8_t *data, int len) WARN_UNUSED;
 /**
  * Receives data on a stream socket.
  *
- * @param bs the object
+ * @param bs the object. Must be a BSOCKET_TYPE_STREAM socket.
  * @param data buffer to write data to
  * @param len maximum amount of data to read. Must be >=0.
  * @return - non-negative value for amount of data read; on stream sockets the value 0
@@ -365,7 +366,7 @@ int BSocket_Recv (BSocket *bs, uint8_t *data, int len) WARN_UNUSED;
  * Sends a datagram on a datagram socket to the specified address
  * from the specified local source address.
  *
- * @param bs the object
+ * @param bs the object. Must be a BSOCKET_TYPE_DGRAM socket.
  * @param data buffer to read data from
  * @param len amount of data. Must be >=0.
  * @param addr remote address. Must be valid.
@@ -384,7 +385,7 @@ int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
  * Receives a datagram on a datagram socket and returns the sender address
  * and the local destination address.
  *
- * @param bs the object
+ * @param bs the object. Must be a BSOCKET_TYPE_DGRAM socket.
  * @param data buffer to write data to
  * @param len maximum amount of data to read. Must be >=0.
  * @param addr the sender address will be stored here on success. Must not be NULL.
