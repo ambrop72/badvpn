@@ -45,6 +45,14 @@
 #define HANDLER_WRITE 1
 #define HANDLER_ACCEPT 2
 #define HANDLER_CONNECT 3
+#define NUM_EVENTS 4
+
+int handler_events[] = {
+    [HANDLER_READ] = BSOCKET_READ,
+    [HANDLER_WRITE] = BSOCKET_WRITE,
+    [HANDLER_ACCEPT] = BSOCKET_ACCEPT,
+    [HANDLER_CONNECT] = BSOCKET_CONNECT
+};
 
 static void init_handlers (BSocket *bs)
 {
@@ -217,48 +225,70 @@ static int get_event_index (int event)
     }
 }
 
-static void call_handlers (BSocket *bs, int returned_events)
+static void dispatch_event (BSocket *bs)
 {
+    ASSERT(!bs->global_handler)
+    ASSERT(bs->current_event_index >= 0)
+    ASSERT(bs->current_event_index < NUM_EVENTS)
+    ASSERT(((bs->ready_events)&~(bs->waitEvents)) == 0)
+    
+    do {
+        // get event
+        int ev_index = bs->current_event_index;
+        int ev_mask = handler_events[ev_index];
+        int ev_dispatch = (bs->ready_events&ev_mask);
+        
+        // jump to next event, clear this event
+        bs->current_event_index++;
+        bs->ready_events &= ~ev_mask;
+        
+        ASSERT(!(bs->ready_events) || bs->current_event_index < NUM_EVENTS)
+        
+        if (ev_dispatch) {
+            // if there are more events to dispatch, schedule job
+            if (bs->ready_events) {
+                BPending_Set(&bs->job);
+            }
+            
+            // dispatch this event
+            bs->handlers[ev_index](bs->handlers_user[ev_index], ev_mask);
+            return;
+        }
+    } while (bs->current_event_index < NUM_EVENTS);
+    
+    ASSERT(!bs->ready_events)
+}
+
+static void job_handler (BSocket *bs)
+{
+    ASSERT(!bs->global_handler) // BSocket_RemoveGlobalEventHandler unsets the job
+    ASSERT(bs->current_event_index >= 0)
+    ASSERT(bs->current_event_index < NUM_EVENTS)
+    ASSERT(((bs->ready_events)&~(bs->waitEvents)) == 0) // BSocket_DisableEvent clears events from ready_events
+    
+    dispatch_event(bs);
+    return;
+}
+
+static void dispatch_events (BSocket *bs, int events)
+{
+    ASSERT((events&~(bs->waitEvents)) == 0)
+    
     // reset recv number
     bs->recv_num = 0;
     
     if (bs->global_handler) {
-        bs->global_handler(bs->global_handler_user, returned_events);
+        if (events) {
+            bs->global_handler(bs->global_handler_user, events);
+        }
         return;
     }
     
-    if (returned_events&BSOCKET_READ) {
-        ASSERT(bs->handlers[HANDLER_READ])
-        DEAD_ENTER(bs->dead)
-        bs->handlers[HANDLER_READ](bs->handlers_user[HANDLER_READ], BSOCKET_READ);
-        if (DEAD_LEAVE(bs->dead)) {
-            return;
-        }
-    }
-    if (returned_events&BSOCKET_WRITE) {
-        ASSERT(bs->handlers[HANDLER_WRITE])
-        DEAD_ENTER(bs->dead)
-        bs->handlers[HANDLER_WRITE](bs->handlers_user[HANDLER_WRITE], BSOCKET_WRITE);
-        if (DEAD_LEAVE(bs->dead)) {
-            return;
-        }
-    }
-    if (returned_events&BSOCKET_ACCEPT) {
-        ASSERT(bs->handlers[HANDLER_ACCEPT])
-        DEAD_ENTER(bs->dead)
-        bs->handlers[HANDLER_ACCEPT](bs->handlers_user[HANDLER_ACCEPT], BSOCKET_ACCEPT);
-        if (DEAD_LEAVE(bs->dead)) {
-            return;
-        }
-    }
-    if (returned_events&BSOCKET_CONNECT) {
-        ASSERT(bs->handlers[HANDLER_CONNECT])
-        DEAD_ENTER(bs->dead)
-        bs->handlers[HANDLER_CONNECT](bs->handlers_user[HANDLER_CONNECT], BSOCKET_CONNECT);
-        if (DEAD_LEAVE(bs->dead)) {
-            return;
-        }
-    }
+    bs->ready_events = events;
+    bs->current_event_index = 0;
+    
+    dispatch_event(bs);
+    return;
 }
 
 #ifdef BADVPN_USE_WINAPI
@@ -333,7 +363,8 @@ static void handle_handler (BSocket *bs)
         }
     }
     
-    call_handlers(bs, returned_events);
+    dispatch_events(bs, returned_events);
+    return;
 }
 
 #else
@@ -393,7 +424,8 @@ static void file_descriptor_handler (BSocket *bs, int events)
         }
     }
     
-    call_handlers(bs, returned_events);
+    dispatch_events(bs, returned_events);
+    return;
 }
 
 #endif
@@ -523,6 +555,8 @@ fail0:
 
 int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
 {
+    // NOTE: if you change something here, you might also have to change BSocket_Accept
+    
     // translate domain
     int sys_domain;
     switch (domain) {
@@ -578,7 +612,6 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
     // setup winsock exts
     setup_winsock_exts(fd, type, bs);
     
-    DEAD_INIT(bs->dead);
     bs->bsys = bsys;
     bs->type = type;
     bs->domain = domain;
@@ -589,6 +622,10 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
     bs->connecting_status = 0;
     bs->recv_max = BSOCKET_DEFAULT_RECV_MAX;
     bs->recv_num = 0;
+    bs->ready_events = 0; // just initialize it so we can clear them safely from BSocket_DisableEvent
+    
+    // init job
+    BPending_Init(&bs->job, BReactor_PendingGroup(bsys), (BPending_handler)job_handler, bs);
     
     // initialize event backend
     if (!init_event_backend(bs)) {
@@ -602,6 +639,7 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
     return 0;
     
 fail1:
+    BPending_Free(&bs->job);
     close_socket(fd);
 fail0:
     return -1;
@@ -615,12 +653,11 @@ void BSocket_Free (BSocket *bs)
     // free event backend
     free_event_backend(bs);
     
+    // free job
+    BPending_Free(&bs->job);
+    
     // close socket
     close_socket(bs->socket);
-    
-    // if we're being called indirectly from a socket event handler,
-    // allow the function invoking the handler to know that the socket was freed
-    DEAD_KILL(bs->dead);
 }
 
 void BSocket_SetRecvMax (BSocket *bs, int max)
@@ -647,6 +684,9 @@ void BSocket_AddGlobalEventHandler (BSocket *bs, BSocket_handler handler, void *
     
     bs->global_handler = handler;
     bs->global_handler_user = user;
+    
+    // stop event dispatching job
+    BPending_Unset(&bs->job);
 }
 
 void BSocket_RemoveGlobalEventHandler (BSocket *bs)
@@ -753,6 +793,7 @@ void BSocket_DisableEvent (BSocket *bs, uint8_t event)
     
     // update events
     bs->waitEvents &= ~event;
+    bs->ready_events &= ~event;
     
     // give new events to event backend
     update_event_backend(bs);
@@ -904,7 +945,6 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
         // setup winsock exts
         setup_winsock_exts(fd, bs->type, newsock);
         
-        DEAD_INIT(newsock->dead);
         newsock->bsys = bs->bsys;
         newsock->type = bs->type;
         newsock->domain = bs->domain;
@@ -915,6 +955,10 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
         newsock->connecting_status = 0;
         newsock->recv_max = BSOCKET_DEFAULT_RECV_MAX;
         newsock->recv_num = 0;
+        newsock->ready_events = 0; // just initialize it so we can clear them safely from BSocket_DisableEvent
+        
+        // init job
+        BPending_Init(&newsock->job, BReactor_PendingGroup(bs->bsys), (BPending_handler)job_handler, newsock);
     
         if (!init_event_backend(newsock)) {
             DEBUG("WARNING: init_event_backend failed");
@@ -934,6 +978,7 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
     return 0;
     
 fail0:
+    BPending_Free(&newsock->job);
     close_socket(fd);
     bs->error = BSOCKET_ERROR_UNKNOWN;
     return -1;

@@ -33,11 +33,11 @@
 #include <misc/mswsock.h>
 #endif
 
-#include <misc/dead.h>
 #include <misc/debug.h>
 #include <system/BAddr.h>
 #include <system/BReactor.h>
 #include <system/DebugObject.h>
+#include <system/BPending.h>
 
 // errors
 #define BSOCKET_ERROR_NONE 0
@@ -72,6 +72,23 @@
 
 struct BSocket_t;
 
+/**
+ * Handler function called when an event is detected on the socket.
+ * 
+ * If the socket does not have a global event handler registered:
+ * The event parameter is the event that was detected.
+ * It is guaranteed that that the corresponding event handler is registered
+ * and the event is enabled.
+ * 
+ * If the socket has a global event handler registered:
+ * The event parameter is a bitmask of detected events. It is guaranteed
+ * that it is a subset of enabled events, and contains at least one event.
+ * 
+ * It is guaranteed that the handler returns control to the reactor immediately.
+ * 
+ * @param user as in {@link BSocket_AddEventHandler} or {@link BSocket_AddGlobalEventHandler}
+ * @param event events that were detected, see above
+ */
 typedef void (*BSocket_handler) (void *user, int event);
 
 /**
@@ -83,7 +100,6 @@ typedef void (*BSocket_handler) (void *user, int event);
  */
 typedef struct BSocket_t {
     DebugObject d_obj;
-    dead_t dead;
     BReactor *bsys;
     int type;
     int domain;
@@ -98,6 +114,11 @@ typedef struct BSocket_t {
     int connecting_result;
     int recv_max;
     int recv_num;
+    
+    // event dispatching
+    int ready_events;
+    int current_event_index;
+    BPending job;
     
     #ifdef BADVPN_USE_WINAPI
     WSAEVENT event;
