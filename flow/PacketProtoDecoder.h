@@ -53,7 +53,6 @@
  *       a packet length value which is too big,
  */
 typedef struct {
-    dead_t dead;
     FlowErrorReporter rep;
     StreamRecvInterface *input;
     PacketPassInterface *output;
@@ -63,6 +62,9 @@ typedef struct {
     int buf_used;
     uint8_t *buf;
     DebugObject d_obj;
+    #ifndef NDEBUG
+    dead_t d_dead;
+    #endif
 } PacketProtoDecoder;
 
 /**

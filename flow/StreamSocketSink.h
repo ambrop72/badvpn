@@ -41,13 +41,15 @@
  * A {@link StreamPassInterface} sink which sends data to a stream socket.
  */
 typedef struct {
-    dead_t dead;
     FlowErrorReporter rep;
     BSocket *bsock;
     StreamPassInterface input;
     int in_len;
     uint8_t *in;
     DebugObject d_obj;
+    #ifndef NDEBUG
+    dead_t d_dead;
+    #endif
 } StreamSocketSink;
 
 /**

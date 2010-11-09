@@ -26,10 +26,16 @@
 
 static void report_error (StreamSocketSink *s, int error)
 {
-    DEAD_ENTER(s->dead)
+    #ifndef NDEBUG
+    DEAD_ENTER(s->d_dead)
+    #endif
+    
     FlowErrorReporter_ReportError(&s->rep, &error);
+    
+    #ifndef NDEBUG
     ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(s->dead);
+    DEAD_LEAVE(s->d_dead);
+    #endif
 }
 
 static void try_send (StreamSocketSink *s)
@@ -88,9 +94,6 @@ void StreamSocketSink_Init (StreamSocketSink *s, FlowErrorReporter rep, BSocket 
     s->rep = rep;
     s->bsock = bsock;
     
-    // init dead var
-    DEAD_INIT(s->dead);
-    
     // add socket event handler
     BSocket_AddEventHandler(s->bsock, BSOCKET_WRITE, (BSocket_handler)socket_handler, s);
     
@@ -101,10 +104,16 @@ void StreamSocketSink_Init (StreamSocketSink *s, FlowErrorReporter rep, BSocket 
     s->in_len = -1;
     
     DebugObject_Init(&s->d_obj);
+    #ifndef NDEBUG
+    DEAD_INIT(s->d_dead);
+    #endif
 }
 
 void StreamSocketSink_Free (StreamSocketSink *s)
 {
+    #ifndef NDEBUG
+    DEAD_KILL(s->d_dead);
+    #endif
     DebugObject_Free(&s->d_obj);
     
     // free input
@@ -112,9 +121,6 @@ void StreamSocketSink_Free (StreamSocketSink *s)
     
     // remove socket event handler
     BSocket_RemoveEventHandler(s->bsock, BSOCKET_WRITE);
-    
-    // free dead var
-    DEAD_KILL(s->dead);
 }
 
 StreamPassInterface * StreamSocketSink_GetInput (StreamSocketSink *s)

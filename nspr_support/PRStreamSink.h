@@ -41,13 +41,15 @@
  * A {@link StreamPassInterface} sink for a NSPR file descriptor (PRFileDesc) via {@link BPRFileDesc}.
  */
 typedef struct {
-    dead_t dead;
     FlowErrorReporter rep;
     BPRFileDesc *bprfd;
     StreamPassInterface input;
     int in_len;
     uint8_t *in;
     DebugObject d_obj;
+    #ifndef NDEBUG
+    dead_t d_dead;
+    #endif
 } PRStreamSink;
 
 /**

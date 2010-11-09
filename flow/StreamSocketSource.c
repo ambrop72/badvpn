@@ -26,10 +26,16 @@
 
 static void report_error (StreamSocketSource *s, int error)
 {
-    DEAD_ENTER(s->dead)
+    #ifndef NDEBUG
+    DEAD_ENTER(s->d_dead)
+    #endif
+    
     FlowErrorReporter_ReportError(&s->rep, &error);
+    
+    #ifndef NDEBUG
     ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(s->dead);
+    DEAD_LEAVE(s->d_dead);
+    #endif
 }
 
 static void try_recv (StreamSocketSource *s)
@@ -93,9 +99,6 @@ void StreamSocketSource_Init (StreamSocketSource *s, FlowErrorReporter rep, BSoc
     s->rep = rep;
     s->bsock = bsock;
     
-    // init dead var
-    DEAD_INIT(s->dead);
-    
     // add socket event handler
     BSocket_AddEventHandler(s->bsock, BSOCKET_READ, (BSocket_handler)socket_handler, s);
     
@@ -106,10 +109,16 @@ void StreamSocketSource_Init (StreamSocketSource *s, FlowErrorReporter rep, BSoc
     s->out_avail = -1;
     
     DebugObject_Init(&s->d_obj);
+    #ifndef NDEBUG
+    DEAD_INIT(s->d_dead);
+    #endif
 }
 
 void StreamSocketSource_Free (StreamSocketSource *s)
 {
+    #ifndef NDEBUG
+    DEAD_KILL(s->d_dead);
+    #endif
     DebugObject_Free(&s->d_obj);
     
     // free output
@@ -117,9 +126,6 @@ void StreamSocketSource_Free (StreamSocketSource *s)
     
     // remove socket event handler
     BSocket_RemoveEventHandler(s->bsock, BSOCKET_READ);
-    
-    // free dead var
-    DEAD_KILL(s->dead);
 }
 
 StreamRecvInterface * StreamSocketSource_GetOutput (StreamSocketSource *s)

@@ -24,30 +24,11 @@
 
 #include <flow/PacketRecvNotifier.h>
 
-static int call_handler (PacketRecvNotifier *o, uint8_t *data, int data_len);
 static void output_handler_recv (PacketRecvNotifier *o, uint8_t *data);
 static void input_handler_done (PacketRecvNotifier *o, int data_len);
 
-int call_handler (PacketRecvNotifier *o, uint8_t *data, int data_len)
-{
-    ASSERT(o->handler)
-    DebugIn_AmOut(&o->d_in_handler);
-    DebugObject_Access(&o->d_obj);
-    
-    DebugIn_GoIn(&o->d_in_handler);
-    DEAD_ENTER(o->dead)
-    o->handler(o->handler_user, data, data_len);
-    if (DEAD_LEAVE(o->dead)) {
-        return -1;
-    }
-    DebugIn_GoOut(&o->d_in_handler);
-    
-    return 0;
-}
-
 void output_handler_recv (PacketRecvNotifier *o, uint8_t *data)
 {
-    DebugIn_AmOut(&o->d_in_handler);
     DebugObject_Access(&o->d_obj);
     
     // schedule receive
@@ -57,7 +38,6 @@ void output_handler_recv (PacketRecvNotifier *o, uint8_t *data)
 
 void input_handler_done (PacketRecvNotifier *o, int data_len)
 {
-    DebugIn_AmOut(&o->d_in_handler);
     DebugObject_Access(&o->d_obj);
     
     // finish packet
@@ -65,9 +45,8 @@ void input_handler_done (PacketRecvNotifier *o, int data_len)
     
     // if we have a handler, call it
     if (o->handler) {
-        if (call_handler(o, o->out, data_len) < 0) {
-            return;
-        }
+        o->handler(o->handler_user, o->out, data_len);
+        return;
     }
 }
 
@@ -75,9 +54,6 @@ void PacketRecvNotifier_Init (PacketRecvNotifier *o, PacketRecvInterface *input,
 {
     // set arguments
     o->input = input;
-    
-    // init dead var
-    DEAD_INIT(o->dead);
     
     // init output
     PacketRecvInterface_Init(&o->output, PacketRecvInterface_GetMTU(o->input), (PacketRecvInterface_handler_recv)output_handler_recv, o, pg);
@@ -89,7 +65,6 @@ void PacketRecvNotifier_Init (PacketRecvNotifier *o, PacketRecvInterface *input,
     o->handler = NULL;
     
     DebugObject_Init(&o->d_obj);
-    DebugIn_Init(&o->d_in_handler);
 }
 
 void PacketRecvNotifier_Free (PacketRecvNotifier *o)
@@ -98,9 +73,6 @@ void PacketRecvNotifier_Free (PacketRecvNotifier *o)
     
     // free output
     PacketRecvInterface_Free(&o->output);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
 
 PacketRecvInterface * PacketRecvNotifier_GetOutput (PacketRecvNotifier *o)

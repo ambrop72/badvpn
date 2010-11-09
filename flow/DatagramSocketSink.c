@@ -26,13 +26,8 @@
 
 static void report_error (DatagramSocketSink *s, int error)
 {
-    DebugIn_GoIn(&s->d_in_error);
-    DEAD_ENTER(s->dead)
     FlowErrorReporter_ReportError(&s->rep, &error);
-    if (DEAD_LEAVE(s->dead)) {
-        return;
-    }
-    DebugIn_GoOut(&s->d_in_error);
+    return;
 }
 
 static void try_send (DatagramSocketSink *s)
@@ -66,7 +61,6 @@ static void input_handler_send (DatagramSocketSink *s, uint8_t *data, int data_l
 {
     ASSERT(s->in_len == -1)
     ASSERT(data_len >= 0)
-    DebugIn_AmOut(&s->d_in_error);
     DebugObject_Access(&s->d_obj);
     
     // set packet
@@ -81,7 +75,6 @@ static void socket_handler (DatagramSocketSink *s, int event)
 {
     ASSERT(s->in_len >= 0)
     ASSERT(event == BSOCKET_WRITE)
-    DebugIn_AmOut(&s->d_in_error);
     DebugObject_Access(&s->d_obj);
     
     BSocket_DisableEvent(s->bsock, BSOCKET_WRITE);
@@ -102,9 +95,6 @@ void DatagramSocketSink_Init (DatagramSocketSink *s, FlowErrorReporter rep, BSoc
     s->addr = addr;
     s->local_addr = local_addr;
     
-    // init dead var
-    DEAD_INIT(s->dead);
-    
     // add socket event handler
     BSocket_AddEventHandler(s->bsock, BSOCKET_WRITE, (BSocket_handler)socket_handler, s);
     
@@ -114,7 +104,6 @@ void DatagramSocketSink_Init (DatagramSocketSink *s, FlowErrorReporter rep, BSoc
     // have no input packet
     s->in_len = -1;
     
-    DebugIn_Init(&s->d_in_error);
     DebugObject_Init(&s->d_obj);
 }
 
@@ -127,9 +116,6 @@ void DatagramSocketSink_Free (DatagramSocketSink *s)
     
     // remove socket event handler
     BSocket_RemoveEventHandler(s->bsock, BSOCKET_WRITE);
-    
-    // free dead var
-    DEAD_KILL(s->dead);
 }
 
 PacketPassInterface * DatagramSocketSink_GetInput (DatagramSocketSink *s)

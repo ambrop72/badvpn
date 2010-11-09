@@ -26,13 +26,8 @@
 
 static void report_error (DatagramSocketSource *s, int error)
 {
-    DebugIn_GoIn(&s->d_in_error);
-    DEAD_ENTER(s->dead)
     FlowErrorReporter_ReportError(&s->rep, &error);
-    if (DEAD_LEAVE(s->dead)) {
-        return;
-    }
-    DebugIn_GoOut(&s->d_in_error);
+    return;
 }
 
 static void try_recv (DatagramSocketSource *s)
@@ -67,7 +62,6 @@ static void try_recv (DatagramSocketSource *s)
 static void output_handler_recv (DatagramSocketSource *s, uint8_t *data)
 {
     ASSERT(!s->out_have)
-    DebugIn_AmOut(&s->d_in_error);
     DebugObject_Access(&s->d_obj);
     
     // set packet
@@ -82,7 +76,6 @@ static void socket_handler (DatagramSocketSource *s, int event)
 {
     ASSERT(s->out_have)
     ASSERT(event == BSOCKET_READ)
-    DebugIn_AmOut(&s->d_in_error);
     DebugObject_Access(&s->d_obj);
     
     BSocket_DisableEvent(s->bsock, BSOCKET_READ);
@@ -94,7 +87,6 @@ static void socket_handler (DatagramSocketSource *s, int event)
 static void retry_job_handler (DatagramSocketSource *s)
 {
     ASSERT(s->out_have)
-    DebugIn_AmOut(&s->d_in_error);
     DebugObject_Access(&s->d_obj);
     
     try_recv(s);
@@ -110,9 +102,6 @@ void DatagramSocketSource_Init (DatagramSocketSource *s, FlowErrorReporter rep, 
     s->bsock = bsock;
     s->mtu = mtu;
     
-    // init dead var
-    DEAD_INIT(s->dead);
-    
     // add socket event handler
     BSocket_AddEventHandler(s->bsock, BSOCKET_READ, (BSocket_handler)socket_handler, s);
     
@@ -125,7 +114,6 @@ void DatagramSocketSource_Init (DatagramSocketSource *s, FlowErrorReporter rep, 
     // init retry job
     BPending_Init(&s->retry_job, pg, (BPending_handler)retry_job_handler, s);
     
-    DebugIn_Init(&s->d_in_error);
     DebugObject_Init(&s->d_obj);
     #ifndef NDEBUG
     s->have_last_addr = 0;
@@ -144,9 +132,6 @@ void DatagramSocketSource_Free (DatagramSocketSource *s)
     
     // remove socket event handler
     BSocket_RemoveEventHandler(s->bsock, BSOCKET_READ);
-    
-    // free dead var
-    DEAD_KILL(s->dead);
 }
 
 PacketRecvInterface * DatagramSocketSource_GetOutput (DatagramSocketSource *s)

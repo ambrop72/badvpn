@@ -42,13 +42,15 @@
  * A {@link StreamRecvInterface} source for a NSPR file descriptor (PRFileDesc) via {@link BPRFileDesc}.
  */
 typedef struct {
-    dead_t dead;
     FlowErrorReporter rep;
     BPRFileDesc *bprfd;
     StreamRecvInterface output;
     int out_avail;
     uint8_t *out;
     DebugObject d_obj;
+    #ifndef NDEBUG
+    dead_t d_dead;
+    #endif
 } PRStreamSource;
 
 /**

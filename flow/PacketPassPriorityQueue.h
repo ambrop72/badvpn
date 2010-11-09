@@ -29,7 +29,6 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
 #include <system/DebugObject.h>
 #include <system/BPending.h>
 #include <misc/debugcounter.h>
@@ -44,7 +43,6 @@ struct PacketPassPriorityQueueFlow_s;
  * Priority queue using {@link PacketPassInterface}.
  */
 typedef struct {
-    dead_t dead;
     PacketPassInterface *output;
     struct PacketPassPriorityQueueFlow_s *sending_flow;
     int sending_len;

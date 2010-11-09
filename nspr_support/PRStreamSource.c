@@ -28,10 +28,16 @@
 
 static void report_error (PRStreamSource *s, int error)
 {
-    DEAD_ENTER(s->dead)
+    #ifndef NDEBUG
+    DEAD_ENTER(s->d_dead)
+    #endif
+    
     FlowErrorReporter_ReportError(&s->rep, &error);
+    
+    #ifndef NDEBUG
     ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(s->dead);
+    DEAD_LEAVE(s->d_dead);
+    #endif
 }
 
 static void try_recv (PRStreamSource *s)
@@ -93,9 +99,6 @@ void PRStreamSource_Init (PRStreamSource *s, FlowErrorReporter rep, BPRFileDesc 
     s->rep = rep;
     s->bprfd = bprfd;
     
-    // init dead var
-    DEAD_INIT(s->dead);
-    
     // add socket event handler
     BPRFileDesc_AddEventHandler(s->bprfd, PR_POLL_READ, (BPRFileDesc_handler)prfd_handler, s);
     
@@ -106,10 +109,16 @@ void PRStreamSource_Init (PRStreamSource *s, FlowErrorReporter rep, BPRFileDesc 
     s->out_avail = -1;
     
     DebugObject_Init(&s->d_obj);
+    #ifndef NDEBUG
+    DEAD_INIT(s->d_dead);
+    #endif
 }
 
 void PRStreamSource_Free (PRStreamSource *s)
 {
+    #ifndef NDEBUG
+    DEAD_KILL(s->d_dead);
+    #endif
     DebugObject_Free(&s->d_obj);
     
     // free output
@@ -117,9 +126,6 @@ void PRStreamSource_Free (PRStreamSource *s)
     
     // remove socket event handler
     BPRFileDesc_RemoveEventHandler(s->bprfd, PR_POLL_READ);
-    
-    // free dead var
-    DEAD_KILL(s->dead);
 }
 
 StreamRecvInterface * PRStreamSource_GetOutput (PRStreamSource *s)

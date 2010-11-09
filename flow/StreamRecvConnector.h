@@ -42,7 +42,6 @@ typedef struct {
     int out_avail;
     uint8_t *out;
     StreamRecvInterface *input;
-    dead_t input_dead;
     int in_blocking;
     DebugObject d_obj;
 } StreamRecvConnector;

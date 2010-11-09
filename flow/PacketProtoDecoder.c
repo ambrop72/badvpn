@@ -36,10 +36,16 @@ static void output_handler_done (PacketProtoDecoder *enc);
 
 void report_error (PacketProtoDecoder *enc, int error)
 {
-    DEAD_ENTER(enc->dead)
+    #ifndef NDEBUG
+    DEAD_ENTER(enc->d_dead)
+    #endif
+    
     FlowErrorReporter_ReportError(&enc->rep, &error);
+    
+    #ifndef NDEBUG
     ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(enc->dead);
+    DEAD_LEAVE(enc->d_dead);
+    #endif
 }
 
 void process_data (PacketProtoDecoder *enc)
@@ -117,9 +123,6 @@ int PacketProtoDecoder_Init (PacketProtoDecoder *enc, FlowErrorReporter rep, Str
     enc->input = input;
     enc->output = output;
     
-    // init dead var
-    DEAD_INIT(enc->dead);
-    
     // init input
     StreamRecvInterface_Receiver_Init(enc->input, (StreamRecvInterface_handler_done)input_handler_done, enc);
     
@@ -143,6 +146,9 @@ int PacketProtoDecoder_Init (PacketProtoDecoder *enc, FlowErrorReporter rep, Str
     StreamRecvInterface_Receiver_Recv(enc->input, enc->buf, enc->buf_size);
     
     DebugObject_Init(&enc->d_obj);
+    #ifndef NDEBUG
+    DEAD_INIT(enc->d_dead);
+    #endif
     
     return 1;
     
@@ -153,12 +159,12 @@ fail0:
 void PacketProtoDecoder_Free (PacketProtoDecoder *enc)
 {
     DebugObject_Free(&enc->d_obj);
+    #ifndef NDEBUG
+    DEAD_KILL(enc->d_dead);
+    #endif
     
     // free buffer
     free(enc->buf);
-    
-    // free dead var
-    DEAD_KILL(enc->dead);
 }
 
 void PacketProtoDecoder_Reset (PacketProtoDecoder *enc)

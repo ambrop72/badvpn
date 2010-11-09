@@ -30,7 +30,9 @@ static void output_handler_recv (StreamRecvConnector *o, uint8_t *data, int data
 {
     ASSERT(data_avail > 0)
     ASSERT(o->out_avail == -1)
-    ASSERT(!o->input || !o->in_blocking)
+    if (o->input) {
+        ASSERT(!o->in_blocking)
+    }
     
     // remember output packet
     o->out_avail = data_avail;

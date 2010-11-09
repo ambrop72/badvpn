@@ -42,13 +42,15 @@
  * A {@link StreamRecvInterface} source which receives data from a stream socket.
  */
 typedef struct {
-    dead_t dead;
     FlowErrorReporter rep;
     BSocket *bsock;
     StreamRecvInterface output;
     int out_avail;
     uint8_t *out;
     DebugObject d_obj;
+    #ifndef NDEBUG
+    dead_t d_dead;
+    #endif
 } StreamSocketSource;
 
 /**

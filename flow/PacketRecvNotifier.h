@@ -30,8 +30,6 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
-#include <misc/debugin.h>
 #include <system/DebugObject.h>
 #include <flow/PacketRecvInterface.h>
 
@@ -50,14 +48,12 @@ typedef void (*PacketRecvNotifier_handler_notify) (void *user, uint8_t *data, in
  * providing a packet to output.
  */
 typedef struct {
-    dead_t dead;
     PacketRecvInterface output;
     PacketRecvInterface *input;
     PacketRecvNotifier_handler_notify handler;
     void *handler_user;
     uint8_t *out;
     DebugObject d_obj;
-    DebugIn d_in_handler;
 } PacketRecvNotifier;
 
 /**

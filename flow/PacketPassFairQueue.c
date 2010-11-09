@@ -208,14 +208,8 @@ static void output_handler_done (PacketPassFairQueue *m)
         flow->handler_busy = NULL;
         
         // call handler
-        DEAD_ENTER(m->dead)
         handler(flow->user);
-        if (DEAD_LEAVE(m->dead)) {
-            return;
-        }
-        
-        ASSERT(!m->freeing)
-        ASSERT(!m->sending_flow)
+        return;
     }
 }
 
@@ -224,9 +218,6 @@ void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *outp
     // init arguments
     m->output = output;
     m->pg = pg;
-    
-    // init dead var
-    DEAD_INIT(m->dead);
     
     // init output
     PacketPassInterface_Sender_Init(m->output, (PacketPassInterface_handler_done)output_handler_done, m);
@@ -266,9 +257,6 @@ void PacketPassFairQueue_Free (PacketPassFairQueue *m)
     
     // free schedule job
     BPending_Free(&m->schedule_job);
-    
-    // free dead var
-    DEAD_KILL(m->dead);
 }
 
 void PacketPassFairQueue_EnableCancel (PacketPassFairQueue *m)

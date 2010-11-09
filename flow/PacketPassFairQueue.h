@@ -29,7 +29,6 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
 #include <system/DebugObject.h>
 #include <system/BPending.h>
 #include <misc/debugcounter.h>
@@ -45,7 +44,6 @@ struct PacketPassFairQueueFlow_s;
  * Fair queue using {@link PacketPassInterface}.
  */
 typedef struct {
-    dead_t dead;
     PacketPassInterface *output;
     struct PacketPassFairQueueFlow_s *sending_flow;
     struct PacketPassFairQueueFlow_s *previous_flow;

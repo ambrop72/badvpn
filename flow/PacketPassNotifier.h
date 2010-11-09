@@ -30,8 +30,6 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
-#include <misc/debugin.h>
 #include <system/DebugObject.h>
 #include <flow/PacketPassInterface.h>
 
@@ -49,13 +47,11 @@ typedef void (*PacketPassNotifier_handler_notify) (void *user, uint8_t *data, in
  * passing a packet from input to output.
  */
 typedef struct {
-    dead_t dead;
     PacketPassInterface input;
     PacketPassInterface *output;
     PacketPassNotifier_handler_notify handler;
     void *handler_user;
     DebugObject d_obj;
-    DebugIn d_in_handler;
     #ifndef NDEBUG
     int d_in_have;
     #endif

@@ -24,53 +24,32 @@
 
 #include <flow/PacketPassNotifier.h>
 
-static int call_handler (PacketPassNotifier *o, uint8_t *data, int data_len);
 static void input_handler_send (PacketPassNotifier *o, uint8_t *data, int data_len);
 static void input_handler_cancel (PacketPassNotifier *o);
 static void output_handler_done (PacketPassNotifier *o);
 
-int call_handler (PacketPassNotifier *o, uint8_t *data, int data_len)
-{
-    ASSERT(o->handler)
-    DebugIn_AmOut(&o->d_in_handler);
-    DebugObject_Access(&o->d_obj);
-    
-    DebugIn_GoIn(&o->d_in_handler);
-    DEAD_ENTER(o->dead)
-    o->handler(o->handler_user, data, data_len);
-    if (DEAD_LEAVE(o->dead)) {
-        return -1;
-    }
-    DebugIn_GoOut(&o->d_in_handler);
-    
-    return 0;
-}
-
 void input_handler_send (PacketPassNotifier *o, uint8_t *data, int data_len)
 {
     ASSERT(!o->d_in_have)
-    DebugIn_AmOut(&o->d_in_handler);
     DebugObject_Access(&o->d_obj);
+    
+    #ifndef NDEBUG
+    o->d_in_have = 1;
+    #endif
     
     // schedule send
     PacketPassInterface_Sender_Send(o->output, data, data_len);
     
     // if we have a handler, call it
     if (o->handler) {
-        if (call_handler(o, data, data_len) < 0) {
-            return;
-        }
+        o->handler(o->handler_user, data, data_len);
+        return;
     }
-    
-    #ifndef NDEBUG
-    o->d_in_have = 1;
-    #endif
 }
 
 void input_handler_cancel (PacketPassNotifier *o)
 {
     ASSERT(o->d_in_have)
-    DebugIn_AmOut(&o->d_in_handler);
     DebugObject_Access(&o->d_obj);
     
     PacketPassInterface_Sender_Cancel(o->output);
@@ -83,7 +62,6 @@ void input_handler_cancel (PacketPassNotifier *o)
 void output_handler_done (PacketPassNotifier *o)
 {
     ASSERT(o->d_in_have)
-    DebugIn_AmOut(&o->d_in_handler);
     DebugObject_Access(&o->d_obj);
     
     PacketPassInterface_Done(&o->input);
@@ -98,9 +76,6 @@ void PacketPassNotifier_Init (PacketPassNotifier *o, PacketPassInterface *output
     // init arguments
     o->output = output;
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // init input
     PacketPassInterface_Init(&o->input, PacketPassInterface_GetMTU(o->output), (PacketPassInterface_handler_send)input_handler_send, o, pg);
     if (PacketPassInterface_HasCancel(o->output)) {
@@ -114,7 +89,6 @@ void PacketPassNotifier_Init (PacketPassNotifier *o, PacketPassInterface *output
     o->handler = NULL;
     
     DebugObject_Init(&o->d_obj);
-    DebugIn_Init(&o->d_in_handler);
     #ifndef NDEBUG
     o->d_in_have = 0;
     #endif
@@ -126,9 +100,6 @@ void PacketPassNotifier_Free (PacketPassNotifier *o)
 
     // free input
     PacketPassInterface_Free(&o->input);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
 
 PacketPassInterface * PacketPassNotifier_GetInput (PacketPassNotifier *o)

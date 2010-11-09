@@ -28,10 +28,16 @@
 
 static void report_error (PRStreamSink *s, int error)
 {
-    DEAD_ENTER(s->dead)
+    #ifndef NDEBUG
+    DEAD_ENTER(s->d_dead)
+    #endif
+    
     FlowErrorReporter_ReportError(&s->rep, &error);
+    
+    #ifndef NDEBUG
     ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(s->dead);
+    DEAD_LEAVE(s->d_dead);
+    #endif
 }
 
 static void try_send (PRStreamSink *s)
@@ -88,9 +94,6 @@ void PRStreamSink_Init (PRStreamSink *s, FlowErrorReporter rep, BPRFileDesc *bpr
     s->rep = rep;
     s->bprfd = bprfd;
     
-    // init dead var
-    DEAD_INIT(s->dead);
-    
     // add socket event handler
     BPRFileDesc_AddEventHandler(s->bprfd, PR_POLL_WRITE, (BPRFileDesc_handler)prfd_handler, s);
     
@@ -101,10 +104,16 @@ void PRStreamSink_Init (PRStreamSink *s, FlowErrorReporter rep, BPRFileDesc *bpr
     s->in_len = -1;
     
     DebugObject_Init(&s->d_obj);
+    #ifndef NDEBUG
+    DEAD_INIT(s->d_dead);
+    #endif
 }
 
 void PRStreamSink_Free (PRStreamSink *s)
 {
+    #ifndef NDEBUG
+    DEAD_KILL(s->d_dead);
+    #endif
     DebugObject_Free(&s->d_obj);
     
     // free input
@@ -112,9 +121,6 @@ void PRStreamSink_Free (PRStreamSink *s)
     
     // remove socket event handler
     BPRFileDesc_RemoveEventHandler(s->bprfd, PR_POLL_WRITE);
-    
-    // free dead var
-    DEAD_KILL(s->dead);
 }
 
 StreamPassInterface * PRStreamSink_GetInput (PRStreamSink *s)

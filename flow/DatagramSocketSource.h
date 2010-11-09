@@ -29,8 +29,6 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
-#include <misc/debugin.h>
 #include <system/DebugObject.h>
 #include <system/BSocket.h>
 #include <system/BPending.h>
@@ -43,7 +41,6 @@
  * A {@link PacketRecvInterface} source which receives packets from a datagram socket.
  */
 typedef struct {
-    dead_t dead;
     FlowErrorReporter rep;
     BSocket *bsock;
     int mtu;
@@ -53,7 +50,6 @@ typedef struct {
     BAddr last_addr;
     BIPAddr last_local_addr;
     BPending retry_job;
-    DebugIn d_in_error;
     DebugObject d_obj;
     #ifndef NDEBUG
     int have_last_addr;

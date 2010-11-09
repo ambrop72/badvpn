@@ -29,8 +29,6 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
-#include <misc/debugin.h>
 #include <system/DebugObject.h>
 #include <system/BSocket.h>
 #include <flow/PacketPassInterface.h>
@@ -43,7 +41,6 @@
  * A {@link PacketPassInterface} sink which sends packets to a datagram socket.
  */
 typedef struct {
-    dead_t dead;
     FlowErrorReporter rep;
     BSocket *bsock;
     BAddr addr;
@@ -51,7 +48,6 @@ typedef struct {
     PacketPassInterface input;
     int in_len;
     uint8_t *in;
-    DebugIn d_in_error;
     DebugObject d_obj;
 } DatagramSocketSink;
 
