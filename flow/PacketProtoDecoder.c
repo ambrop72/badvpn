@@ -36,20 +36,14 @@ static void output_handler_done (PacketProtoDecoder *enc);
 
 void report_error (PacketProtoDecoder *enc, int error)
 {
-    #ifndef NDEBUG
-    DEAD_ENTER(enc->d_dead)
-    #endif
-    
     FlowErrorReporter_ReportError(&enc->rep, &error);
-    
-    #ifndef NDEBUG
-    ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(enc->d_dead);
-    #endif
+    return;
 }
 
 void process_data (PacketProtoDecoder *enc)
 {
+    int was_error = 0;
+    
     do {
         uint8_t *data = enc->buf + enc->buf_start;
         int left = enc->buf_used;
@@ -65,8 +59,8 @@ void process_data (PacketProtoDecoder *enc)
         
         // check data length
         if (data_len > enc->output_mtu) {
-            report_error(enc, PACKETPROTODECODER_ERROR_TOOLONG);
-            return;
+            was_error = 1;
+            break;
         }
         
         // check if whole packet was received
@@ -83,14 +77,26 @@ void process_data (PacketProtoDecoder *enc)
         return;
     } while (0);
     
-    // if we reached the end of the buffer, wrap around to allow more data to be received
-    if (enc->buf_start + enc->buf_used == enc->buf_size) {
-        memmove(enc->buf, enc->buf + enc->buf_start, enc->buf_used);
+    if (was_error) {
+        // reset buffer
         enc->buf_start = 0;
+        enc->buf_used = 0;
+    } else {
+        // if we reached the end of the buffer, wrap around to allow more data to be received
+        if (enc->buf_start + enc->buf_used == enc->buf_size) {
+            memmove(enc->buf, enc->buf + enc->buf_start, enc->buf_used);
+            enc->buf_start = 0;
+        }
     }
     
     // receive data
     StreamRecvInterface_Receiver_Recv(enc->input, enc->buf + (enc->buf_start + enc->buf_used), enc->buf_size - ((enc->buf_start + enc->buf_used)));
+    
+    // if we had error, report it
+    if (was_error) {
+        report_error(enc, PACKETPROTODECODER_ERROR_TOOLONG);
+        return;
+    }
 }
 
 static void input_handler_done (PacketProtoDecoder *enc, int data_len)
@@ -146,9 +152,6 @@ int PacketProtoDecoder_Init (PacketProtoDecoder *enc, FlowErrorReporter rep, Str
     StreamRecvInterface_Receiver_Recv(enc->input, enc->buf, enc->buf_size);
     
     DebugObject_Init(&enc->d_obj);
-    #ifndef NDEBUG
-    DEAD_INIT(enc->d_dead);
-    #endif
     
     return 1;
     
@@ -159,9 +162,6 @@ fail0:
 void PacketProtoDecoder_Free (PacketProtoDecoder *enc)
 {
     DebugObject_Free(&enc->d_obj);
-    #ifndef NDEBUG
-    DEAD_KILL(enc->d_dead);
-    #endif
     
     // free buffer
     free(enc->buf);

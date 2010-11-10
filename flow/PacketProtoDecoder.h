@@ -31,7 +31,6 @@
 
 #include <protocol/packetproto.h>
 #include <misc/debug.h>
-#include <misc/dead.h>
 #include <misc/balign.h>
 #include <system/DebugObject.h>
 #include <flow/StreamRecvInterface.h>
@@ -46,11 +45,11 @@
  * Input is with {@link StreamRecvInterface}.
  * Output is with {@link PacketPassInterface}.
  *
- * Errors are reported through {@link FlowErrorDomain}. All errors
- * are fatal and the object must be freed from the error handler.
+ * Errors are reported through {@link FlowErrorDomain}.
+ * On error, the decoder is reset to the initial state.
  * Error code is an int which is one of the following:
  *     - PACKETPROTODECODER_ERROR_TOOLONG: the packet header contains
- *       a packet length value which is too big,
+ *       a packet length value which is too big.
  */
 typedef struct {
     FlowErrorReporter rep;
@@ -62,9 +61,6 @@ typedef struct {
     int buf_used;
     uint8_t *buf;
     DebugObject d_obj;
-    #ifndef NDEBUG
-    dead_t d_dead;
-    #endif
 } PacketProtoDecoder;
 
 /**
