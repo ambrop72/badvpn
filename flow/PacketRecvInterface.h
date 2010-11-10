@@ -81,14 +81,6 @@ static void PacketRecvInterface_Receiver_Init (PacketRecvInterface *i, PacketRec
 
 static void PacketRecvInterface_Receiver_Recv (PacketRecvInterface *i, uint8_t *data);
 
-#ifndef NDEBUG
-
-static int PacketRecvInterface_InClient (PacketRecvInterface *i);
-
-static int PacketRecvInterface_InDone (PacketRecvInterface *i);
-
-#endif
-
 void _PacketRecvInterface_job_operation (PacketRecvInterface *i);
 void _PacketRecvInterface_job_done (PacketRecvInterface *i);
 
@@ -181,23 +173,5 @@ void PacketRecvInterface_Receiver_Recv (PacketRecvInterface *i, uint8_t *data)
     i->d_user_busy = 1;
     #endif
 }
-
-#ifndef NDEBUG
-
-int PacketRecvInterface_InClient (PacketRecvInterface *i)
-{
-    DebugObject_Access(&i->d_obj);
-    
-    return DebugIn_In(&i->d_in_operation);
-}
-
-int PacketRecvInterface_InDone (PacketRecvInterface *i)
-{
-    DebugObject_Access(&i->d_obj);
-    
-    return DebugIn_In(&i->d_in_done);
-}
-
-#endif
 
 #endif

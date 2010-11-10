@@ -89,14 +89,6 @@ static void PacketPassInterface_Sender_Cancel (PacketPassInterface *i);
 
 static int PacketPassInterface_HasCancel (PacketPassInterface *i);
 
-#ifndef NDEBUG
-
-static int PacketPassInterface_InClient (PacketPassInterface *i);
-
-static int PacketPassInterface_InDone (PacketPassInterface *i);
-
-#endif
-
 void _PacketPassInterface_job_operation (PacketPassInterface *i);
 void _PacketPassInterface_job_done (PacketPassInterface *i);
 
@@ -244,23 +236,5 @@ int PacketPassInterface_HasCancel (PacketPassInterface *i)
     
     return !!i->handler_cancel;
 }
-
-#ifndef NDEBUG
-
-int PacketPassInterface_InClient (PacketPassInterface *i)
-{
-    DebugObject_Access(&i->d_obj);
-    
-    return DebugIn_In(&i->d_in_operation);
-}
-
-int PacketPassInterface_InDone (PacketPassInterface *i)
-{
-    DebugObject_Access(&i->d_obj);
-    
-    return DebugIn_In(&i->d_in_done);
-}
-
-#endif
 
 #endif

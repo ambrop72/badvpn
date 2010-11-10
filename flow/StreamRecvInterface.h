@@ -84,14 +84,6 @@ static void StreamRecvInterface_Receiver_Init (StreamRecvInterface *i, StreamRec
 
 static void StreamRecvInterface_Receiver_Recv (StreamRecvInterface *i, uint8_t *data, int data_len);
 
-#ifndef NDEBUG
-
-static int StreamRecvInterface_InClient (StreamRecvInterface *i);
-
-static int StreamRecvInterface_InDone (StreamRecvInterface *i);
-
-#endif
-
 void _StreamRecvInterface_job_operation (StreamRecvInterface *i);
 void _StreamRecvInterface_job_done (StreamRecvInterface *i);
 
@@ -177,23 +169,5 @@ void StreamRecvInterface_Receiver_Recv (StreamRecvInterface *i, uint8_t *data, i
     
     BPending_Set(&i->job_operation);
 }
-
-#ifndef NDEBUG
-
-int StreamRecvInterface_InClient (StreamRecvInterface *i)
-{
-    DebugObject_Access(&i->d_obj);
-    
-    return DebugIn_In(&i->d_in_operation);
-}
-
-int StreamRecvInterface_InDone (StreamRecvInterface *i)
-{
-    DebugObject_Access(&i->d_obj);
-    
-    return DebugIn_In(&i->d_in_done);
-}
-
-#endif
 
 #endif

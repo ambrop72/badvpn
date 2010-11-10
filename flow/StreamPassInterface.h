@@ -84,14 +84,6 @@ static void StreamPassInterface_Sender_Init (StreamPassInterface *i, StreamPassI
 
 static void StreamPassInterface_Sender_Send (StreamPassInterface *i, uint8_t *data, int data_len);
 
-#ifndef NDEBUG
-
-static int StreamPassInterface_InClient (StreamPassInterface *i);
-
-static int StreamPassInterface_InDone (StreamPassInterface *i);
-
-#endif
-
 void _StreamPassInterface_job_operation (StreamPassInterface *i);
 void _StreamPassInterface_job_done (StreamPassInterface *i);
 
@@ -177,23 +169,5 @@ void StreamPassInterface_Sender_Send (StreamPassInterface *i, uint8_t *data, int
     
     BPending_Set(&i->job_operation);
 }
-
-#ifndef NDEBUG
-
-int StreamPassInterface_InClient (StreamPassInterface *i)
-{
-    DebugObject_Access(&i->d_obj);
-    
-    return DebugIn_In(&i->d_in_operation);
-}
-
-int StreamPassInterface_InDone (StreamPassInterface *i)
-{
-    DebugObject_Access(&i->d_obj);
-    
-    return DebugIn_In(&i->d_in_done);
-}
-
-#endif
 
 #endif
