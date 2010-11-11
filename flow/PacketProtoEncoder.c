@@ -29,41 +29,28 @@
 
 #include <flow/PacketProtoEncoder.h>
 
-static int encode_packet (PacketProtoEncoder *enc, uint8_t *data, int in_len);
-static void output_handler_recv (PacketProtoEncoder *enc, uint8_t *data);
-static void input_handler_done (PacketProtoEncoder *enc, int in_len);
-
-int encode_packet (PacketProtoEncoder *enc, uint8_t *data, int in_len)
-{
-    // write header
-    struct packetproto_header *header = (struct packetproto_header *)data;
-    header->len = htol16(in_len);
-    
-    return PACKETPROTO_ENCLEN(in_len);
-}
-
-void output_handler_recv (PacketProtoEncoder *enc, uint8_t *data)
+static void output_handler_recv (PacketProtoEncoder *enc, uint8_t *data)
 {
     ASSERT(!enc->output_packet)
     ASSERT(data)
     DebugObject_Access(&enc->d_obj);
     
     // schedule receive
-    PacketRecvInterface_Receiver_Recv(enc->input, data + sizeof(struct packetproto_header));
     enc->output_packet = data;
+    PacketRecvInterface_Receiver_Recv(enc->input, enc->output_packet + sizeof(struct packetproto_header));
 }
 
-void input_handler_done (PacketProtoEncoder *enc, int in_len)
+static void input_handler_done (PacketProtoEncoder *enc, int in_len)
 {
     ASSERT(enc->output_packet)
     DebugObject_Access(&enc->d_obj);
     
-    // encode
-    int out_len = encode_packet(enc, enc->output_packet, in_len);
+    // write length
+    ((struct packetproto_header *)enc->output_packet)->len = htol16(in_len);
     
     // finish output packet
     enc->output_packet = NULL;
-    PacketRecvInterface_Done(&enc->output, out_len);
+    PacketRecvInterface_Done(&enc->output, PACKETPROTO_ENCLEN(in_len));
 }
 
 void PacketProtoEncoder_Init (PacketProtoEncoder *enc, PacketRecvInterface *input, BPendingGroup *pg)
@@ -78,11 +65,8 @@ void PacketProtoEncoder_Init (PacketProtoEncoder *enc, PacketRecvInterface *inpu
     
     // init output
     PacketRecvInterface_Init(
-        &enc->output,
-        PACKETPROTO_ENCLEN(PacketRecvInterface_GetMTU(enc->input)),
-        (PacketRecvInterface_handler_recv)output_handler_recv,
-        enc,
-        pg
+        &enc->output, PACKETPROTO_ENCLEN(PacketRecvInterface_GetMTU(enc->input)),
+        (PacketRecvInterface_handler_recv)output_handler_recv, enc, pg
     );
     
     // set no output packet
