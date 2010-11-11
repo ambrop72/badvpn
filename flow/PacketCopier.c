@@ -40,11 +40,11 @@ static void input_handler_send (PacketCopier *o, uint8_t *data, int data_len)
     
     memcpy(o->out, data, data_len);
     
-    // finish output packet
-    PacketRecvInterface_Done(&o->output, data_len);
-    
     // finish input packet
     PacketPassInterface_Done(&o->input);
+    
+    // finish output packet
+    PacketRecvInterface_Done(&o->output, data_len);
     
     o->out_have = 0;
 }
@@ -71,11 +71,11 @@ static void output_handler_recv (PacketCopier *o, uint8_t *data)
     
     memcpy(data, o->in, o->in_len);
     
-    // finish input packet
-    PacketPassInterface_Done(&o->input);
-    
     // finish output packet
     PacketRecvInterface_Done(&o->output, o->in_len);
+    
+    // finish input packet
+    PacketPassInterface_Done(&o->input);
     
     o->in_len = -1;
 }
