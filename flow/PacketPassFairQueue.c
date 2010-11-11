@@ -44,23 +44,32 @@ static uint64_t get_current_time (PacketPassFairQueue *m)
         return m->sending_flow->time;
     }
     
+    uint64_t time;
+    int have = 0;
+    
     BHeapNode *heap_node = BHeap_GetFirst(&m->queued_heap);
-    if (!heap_node) {
-        return 0;
+    if (heap_node) {
+        PacketPassFairQueueFlow *first_flow = UPPER_OBJECT(heap_node, PacketPassFairQueueFlow, queued.heap_node);
+        ASSERT(first_flow->is_queued)
+        
+        time = first_flow->time;
+        have = 1;
     }
     
-    PacketPassFairQueueFlow *first_flow = UPPER_OBJECT(heap_node, PacketPassFairQueueFlow, queued.heap_node);
-    ASSERT(first_flow->is_queued)
-    ASSERT(first_flow->have_time)
+    if (m->previous_flow) {
+        if (!have || m->previous_flow->time < time) {
+            time = m->previous_flow->time;
+            have = 1;
+        }
+    }
     
-    return first_flow->time;
+    return (have ? time : 0);
 }
 
 static void increment_sent_flow (PacketPassFairQueueFlow *flow, int iamount)
 {
     ASSERT(iamount >= 0)
     ASSERT(iamount <= UINT64_MAX)
-    ASSERT(flow->have_time)
     ASSERT(!flow->is_queued)
     ASSERT(!flow->m->sending_flow)
     
@@ -78,7 +87,6 @@ static void increment_sent_flow (PacketPassFairQueueFlow *flow, int iamount)
         } else {
             PacketPassFairQueueFlow *first_flow = UPPER_OBJECT(heap_node, PacketPassFairQueueFlow, queued.heap_node);
             ASSERT(first_flow->is_queued)
-            ASSERT(first_flow->have_time)
             // subtract lowest time from all queued flows
             uint64_t subtract = first_flow->time;
             LinkedList2Iterator it;
@@ -87,7 +95,6 @@ static void increment_sent_flow (PacketPassFairQueueFlow *flow, int iamount)
             while (list_node = LinkedList2Iterator_Next(&it)) {
                 PacketPassFairQueueFlow *queue_flow = UPPER_OBJECT(list_node, PacketPassFairQueueFlow, queued.list_node);
                 ASSERT(queue_flow->is_queued)
-                ASSERT(queue_flow->have_time)
                 queue_flow->time -= subtract;
             }
             // update the given flow's time; note we subtract because it isn't in the queue
@@ -101,13 +108,13 @@ static void schedule (PacketPassFairQueue *m)
 {
     ASSERT(!m->freeing)
     ASSERT(!m->sending_flow)
+    ASSERT(!m->previous_flow)
     ASSERT(BHeap_GetFirst(&m->queued_heap))
     
     // get first queued flow
     BHeapNode *heap_node = BHeap_GetFirst(&m->queued_heap);
     PacketPassFairQueueFlow *qflow = UPPER_OBJECT(heap_node, PacketPassFairQueueFlow, queued.heap_node);
     ASSERT(qflow->is_queued)
-    ASSERT(qflow->have_time)
     
     // remove flow from queue
     BHeap_Remove(&m->queued_heap, &qflow->queued.heap_node);
@@ -126,18 +133,10 @@ static void schedule_job_handler (PacketPassFairQueue *m)
     ASSERT(!m->sending_flow)
     DebugObject_Access(&m->d_obj);
     
-    // if the previous flow didn't contend for sending, remove its time
-    if (m->previous_flow) {
-        ASSERT(!m->previous_flow->is_queued)
-        ASSERT(m->previous_flow->have_time)
-        
-        // remove time from flow
-        m->previous_flow->have_time = 0;
-        
-        // set no previous flow
-        m->previous_flow = NULL;
-    }
+    // remove previous flow
+    m->previous_flow = NULL;
     
+    // schedule next
     if (BHeap_GetFirst(&m->queued_heap)) {
         schedule(m);
     }
@@ -152,15 +151,12 @@ static void input_handler_send (PacketPassFairQueueFlow *flow, uint8_t *data, in
     
     PacketPassFairQueue *m = flow->m;
     
-    // assign time if needed
-    if (!flow->have_time) {
-        flow->time = get_current_time(m);
-        flow->have_time = 1;
-    }
-    
-    // remove from previous flow
     if (flow == m->previous_flow) {
+        // remove from previous flow, its time persists as was updated by output_handler_done
         m->previous_flow = NULL;
+    } else {
+        // assign time
+        flow->time = get_current_time(m);
     }
     
     // queue flow
@@ -181,7 +177,6 @@ static void output_handler_done (PacketPassFairQueue *m)
     ASSERT(m->sending_flow)
     ASSERT(!m->previous_flow)
     ASSERT(!m->sending_flow->is_queued)
-    ASSERT(m->sending_flow->have_time)
     ASSERT(!BPending_IsSet(&m->schedule_job))
     
     PacketPassFairQueueFlow *flow = m->sending_flow;
@@ -285,9 +280,6 @@ void PacketPassFairQueueFlow_Init (PacketPassFairQueueFlow *flow, PacketPassFair
     
     // init input
     PacketPassInterface_Init(&flow->input, PacketPassInterface_GetMTU(flow->m->output), (PacketPassInterface_handler_send)input_handler_send, flow, m->pg);
-    
-    // doesn't have time
-    flow->have_time = 0;
     
     // is not queued
     flow->is_queued = 0;

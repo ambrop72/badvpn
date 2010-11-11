@@ -63,7 +63,6 @@ typedef struct PacketPassFairQueueFlow_s {
     PacketPassFairQueue_handler_busy handler_busy;
     void *user;
     PacketPassInterface input;
-    int have_time;
     uint64_t time;
     int is_queued;
     struct {
