@@ -87,6 +87,8 @@ int BufferWriter_StartPacket (BufferWriter *o, uint8_t **buf)
 
 void BufferWriter_EndPacket (BufferWriter *o, int len)
 {
+    ASSERT(len >= 0)
+    ASSERT(len <= o->d_mtu)
     ASSERT(o->out_have)
     ASSERT(o->d_writing)
     DebugObject_Access(&o->d_obj);

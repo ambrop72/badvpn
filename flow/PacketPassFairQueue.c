@@ -213,8 +213,13 @@ static void output_handler_done (PacketPassFairQueue *m)
     }
 }
 
-void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *output, BPendingGroup *pg)
+void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *output, BPendingGroup *pg, int use_cancel)
 {
+    ASSERT(use_cancel == 0 || use_cancel == 1)
+    if (use_cancel) {
+        ASSERT(PacketPassInterface_HasCancel(output))
+    }
+    
     // init arguments
     m->output = output;
     m->pg = pg;
@@ -237,8 +242,8 @@ void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *outp
     // not freeing
     m->freeing = 0;
     
-    // not using cancel
-    m->use_cancel = 0;
+    // set if using cancel
+    m->use_cancel = use_cancel;
     
     // init schedule job
     BPending_Init(&m->schedule_job, m->pg, (BPending_handler)schedule_job_handler, m);
@@ -249,24 +254,15 @@ void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *outp
 
 void PacketPassFairQueue_Free (PacketPassFairQueue *m)
 {
-    ASSERT(!BHeap_GetFirst(&m->queued_heap))
     ASSERT(LinkedList2_IsEmpty(&m->queued_list))
+    ASSERT(!BHeap_GetFirst(&m->queued_heap))
+    ASSERT(!m->previous_flow)
     ASSERT(!m->sending_flow)
     DebugCounter_Free(&m->d_ctr);
     DebugObject_Free(&m->d_obj);
     
     // free schedule job
     BPending_Free(&m->schedule_job);
-}
-
-void PacketPassFairQueue_EnableCancel (PacketPassFairQueue *m)
-{
-    ASSERT(!m->use_cancel)
-    ASSERT(PacketPassInterface_HasCancel(m->output))
-    DebugObject_Access(&m->d_obj);
-    
-    // using cancel
-    m->use_cancel = 1;
 }
 
 void PacketPassFairQueue_PrepareFree (PacketPassFairQueue *m)

@@ -76,8 +76,10 @@ typedef struct PacketPassPriorityQueueFlow_s {
  * @param m the object
  * @param output output interface
  * @param pg pending group
+ * @param use_cancel whether cancel functionality is required. Must be 0 or 1.
+ *                   If 1, output must support cancel functionality.
  */
-void PacketPassPriorityQueue_Init (PacketPassPriorityQueue *m, PacketPassInterface *output, BPendingGroup *pg);
+void PacketPassPriorityQueue_Init (PacketPassPriorityQueue *m, PacketPassInterface *output, BPendingGroup *pg, int use_cancel);
 
 /**
  * Frees the queue.
@@ -86,14 +88,6 @@ void PacketPassPriorityQueue_Init (PacketPassPriorityQueue *m, PacketPassInterfa
  * @param m the object
  */
 void PacketPassPriorityQueue_Free (PacketPassPriorityQueue *m);
-
-/**
- * Enables cancel functionality.
- * This allows freeing flows even if they're busy by releasing them.
- * Output must support {@link PacketPassInterface} cancel functionality.
- * May only be called once.
- */
-void PacketPassPriorityQueue_EnableCancel (PacketPassPriorityQueue *m);
 
 /**
  * Prepares for freeing the entire queue. Must be called to allow freeing

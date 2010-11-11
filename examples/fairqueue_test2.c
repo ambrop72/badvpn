@@ -53,7 +53,7 @@ int main ()
     
     // initialize queue
     PacketPassFairQueue fq;
-    PacketPassFairQueue_Init(&fq, RandomPacketSink_GetInput(&sink), BReactor_PendingGroup(&reactor));
+    PacketPassFairQueue_Init(&fq, RandomPacketSink_GetInput(&sink), BReactor_PendingGroup(&reactor), 0);
     
     // initialize source 1
     PacketPassFairQueueFlow flow1;

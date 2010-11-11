@@ -175,7 +175,7 @@ void connect_handler (ServerConnection *o, int event)
     }
     
     // init queue
-    PacketPassPriorityQueue_Init(&o->output_queue, KeepaliveIO_GetInput(&o->output_keepaliveio), BReactor_PendingGroup(o->reactor));
+    PacketPassPriorityQueue_Init(&o->output_queue, KeepaliveIO_GetInput(&o->output_keepaliveio), BReactor_PendingGroup(o->reactor), 0);
     
     // init output local flow
     

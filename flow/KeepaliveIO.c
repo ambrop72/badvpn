@@ -43,7 +43,7 @@ int KeepaliveIO_Init (KeepaliveIO *o, BReactor *reactor, PacketPassInterface *ou
     PacketPassInactivityMonitor_Init(&o->kasender, output, o->reactor, keepalive_interval_ms, (PacketPassInactivityMonitor_handler)keepalive_handler, o);
     
     // init queue
-    PacketPassPriorityQueue_Init(&o->queue, PacketPassInactivityMonitor_GetInput(&o->kasender), BReactor_PendingGroup(o->reactor));
+    PacketPassPriorityQueue_Init(&o->queue, PacketPassInactivityMonitor_GetInput(&o->kasender), BReactor_PendingGroup(o->reactor), 0);
     
     // init keepalive flow
     PacketPassPriorityQueueFlow_Init(&o->ka_qflow, &o->queue, -1);

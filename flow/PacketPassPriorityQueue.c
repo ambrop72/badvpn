@@ -120,8 +120,13 @@ static void output_handler_done (PacketPassPriorityQueue *m)
     }
 }
 
-void PacketPassPriorityQueue_Init (PacketPassPriorityQueue *m, PacketPassInterface *output, BPendingGroup *pg)
+void PacketPassPriorityQueue_Init (PacketPassPriorityQueue *m, PacketPassInterface *output, BPendingGroup *pg, int use_cancel)
 {
+    ASSERT(use_cancel == 0 || use_cancel == 1)
+    if (use_cancel) {
+        ASSERT(PacketPassInterface_HasCancel(output))
+    }
+    
     // init arguments
     m->output = output;
     m->pg = pg;
@@ -138,8 +143,8 @@ void PacketPassPriorityQueue_Init (PacketPassPriorityQueue *m, PacketPassInterfa
     // not freeing
     m->freeing = 0;
     
-    // not using cancel
-    m->use_cancel = 0;
+    // set if using cancel
+    m->use_cancel = use_cancel;
     
     // init schedule job
     BPending_Init(&m->schedule_job, m->pg, (BPending_handler)schedule_job_handler, m);
@@ -157,16 +162,6 @@ void PacketPassPriorityQueue_Free (PacketPassPriorityQueue *m)
     
     // free schedule job
     BPending_Free(&m->schedule_job);
-}
-
-void PacketPassPriorityQueue_EnableCancel (PacketPassPriorityQueue *m)
-{
-    ASSERT(!m->use_cancel)
-    ASSERT(PacketPassInterface_HasCancel(m->output))
-    DebugObject_Access(&m->d_obj);
-    
-    // using cancel
-    m->use_cancel = 1;
 }
 
 void PacketPassPriorityQueue_PrepareFree (PacketPassPriorityQueue *m)
