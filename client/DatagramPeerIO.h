@@ -29,7 +29,6 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
 #include <misc/debug.h>
 #include <protocol/spproto.h>
 #include <protocol/fragmentproto.h>
@@ -78,7 +77,6 @@ typedef void (*DatagramPeerIO_handler_otp_warning) (void *user);
  */
 typedef struct {
     DebugObject d_obj;
-    dead_t dead;
     BReactor *reactor;
     int payload_mtu;
     struct spproto_security_params sp_params;
@@ -111,7 +109,6 @@ typedef struct {
     
     // mode
     int mode;
-    dead_t mode_dead;
     
     // in binded mode, whether sending is up
     int bind_sending_up;
@@ -162,14 +159,6 @@ void DatagramPeerIO_Free (DatagramPeerIO *o);
 PacketPassInterface * DatagramPeerIO_GetSendInput (DatagramPeerIO *o);
 
 /**
- * Breaks down the connection if one is configured.
- * The interface enters default mode.
- *
- * @param o the object
- */
-void DatagramPeerIO_Disconnect (DatagramPeerIO *o);
-
-/**
  * Attempts to establish connection to the peer which has bound to an address.
  * On success, the interface enters connecting mode.
  * On failure, the interface enters default mode.
@@ -190,15 +179,6 @@ int DatagramPeerIO_Connect (DatagramPeerIO *o, BAddr addr) WARN_UNUSED;
  * @return 1 on success, 0 on failure
  */
 int DatagramPeerIO_Bind (DatagramPeerIO *o, BAddr addr) WARN_UNUSED;
-
-/**
- * Removes any internally buffered packets for sending.
- * This can be used when configuring a new connecion to prevent packets encoded with
- * previous parameters from being sent over the new connection.
- *
- * @param o the object
- */
-void DatagramPeerIO_Flush (DatagramPeerIO *o);
 
 /**
  * Sets the encryption key to use for sending and receiving.

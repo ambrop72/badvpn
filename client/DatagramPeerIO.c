@@ -176,6 +176,7 @@ void free_receiving (DatagramPeerIO *o)
 void error_handler (DatagramPeerIO *o, int component, const void *data)
 {
     ASSERT(o->mode == DATAGRAMPEERIO_MODE_CONNECT || o->mode == DATAGRAMPEERIO_MODE_BIND)
+    DebugObject_Access(&o->d_obj);
     
     int error = *((int *)data);
     
@@ -212,8 +213,6 @@ void reset_mode (DatagramPeerIO *o)
         case DATAGRAMPEERIO_MODE_NONE:
             break;
         case DATAGRAMPEERIO_MODE_CONNECT:
-            // kill mode dead var
-            DEAD_KILL(o->mode_dead);
             // set default mode
             o->mode = DATAGRAMPEERIO_MODE_NONE;
             // free receiving
@@ -224,8 +223,6 @@ void reset_mode (DatagramPeerIO *o)
             BSocket_Free(&o->sock);
             break;
         case DATAGRAMPEERIO_MODE_BIND:
-            // kill mode dead var
-            DEAD_KILL(o->mode_dead);
             // set default mode
             o->mode = DATAGRAMPEERIO_MODE_NONE;
             // remove recv notifier handler
@@ -247,6 +244,7 @@ void reset_mode (DatagramPeerIO *o)
 void recv_decoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_len)
 {
     ASSERT(o->mode == DATAGRAMPEERIO_MODE_BIND)
+    DebugObject_Access(&o->d_obj);
     
     // obtain addresses from last received packet
     BAddr addr;
@@ -268,6 +266,7 @@ void recv_decoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_l
 void send_encoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_len)
 {
     ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
+    DebugObject_Access(&o->d_obj);
     
     if (o->handler_otp_warning && SPProtoEncoder_GetOTPPosition(&o->send_encoder) == o->handler_otp_warning_num_used) { 
         o->handler_otp_warning(o->handler_otp_warning_user);
@@ -289,9 +288,6 @@ int DatagramPeerIO_Init (DatagramPeerIO *o, BReactor *reactor, int payload_mtu, 
     o->payload_mtu = payload_mtu;
     o->sp_params = sp_params;
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // calculate SPProto payload MTU
     o->spproto_payload_mtu = spproto_payload_mtu_for_carrier_mtu(o->sp_params, socket_mtu);
     
@@ -311,7 +307,6 @@ int DatagramPeerIO_Init (DatagramPeerIO *o, BReactor *reactor, int payload_mtu, 
         goto fail1;
     }
     
-    // init debug object
     DebugObject_Init(&o->d_obj);
     
     return 1;
@@ -322,7 +317,6 @@ fail1:
 
 void DatagramPeerIO_Free (DatagramPeerIO *o)
 {
-    // free debug object
     DebugObject_Free(&o->d_obj);
 
     // reset mode
@@ -330,25 +324,19 @@ void DatagramPeerIO_Free (DatagramPeerIO *o)
     
     // free persistent I/O objects
     free_persistent_io(o);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
 
 PacketPassInterface * DatagramPeerIO_GetSendInput (DatagramPeerIO *o)
 {
+    DebugObject_Access(&o->d_obj);
+    
     return FragmentProtoDisassembler_GetInput(&o->send_disassembler);
-}
-
-void DatagramPeerIO_Disconnect (DatagramPeerIO *o)
-{
-    // reset mode
-    reset_mode(o);
 }
 
 int DatagramPeerIO_Connect (DatagramPeerIO *o, BAddr addr)
 {
     ASSERT(BAddr_IsRecognized(&addr) && !BAddr_IsInvalid(&addr))
+    DebugObject_Access(&o->d_obj);
     
     // reset mode
     reset_mode(o);
@@ -377,9 +365,6 @@ int DatagramPeerIO_Connect (DatagramPeerIO *o, BAddr addr)
     // set mode
     o->mode = DATAGRAMPEERIO_MODE_CONNECT;
     
-    // init mode dead var
-    DEAD_INIT(o->mode_dead);
-    
     return 1;
     
 fail2:
@@ -391,6 +376,7 @@ fail1:
 int DatagramPeerIO_Bind (DatagramPeerIO *o, BAddr addr)
 {
     ASSERT(BAddr_IsRecognized(&addr) && !BAddr_IsInvalid(&addr))
+    DebugObject_Access(&o->d_obj);
     
     // reset mode
     reset_mode(o);
@@ -416,9 +402,6 @@ int DatagramPeerIO_Bind (DatagramPeerIO *o, BAddr addr)
     // set mode
     o->mode = DATAGRAMPEERIO_MODE_BIND;
     
-    // init mode dead var
-    DEAD_INIT(o->mode_dead);
-    
     // set sending not up
     o->bind_sending_up = 0;
     
@@ -430,14 +413,10 @@ fail1:
     return 0;
 }
 
-void DatagramPeerIO_Flush (DatagramPeerIO *o)
-{
-    BLog(BLOG_ERROR, "Flushing not implemented");
-}
-
 void DatagramPeerIO_SetEncryptionKey (DatagramPeerIO *o, uint8_t *encryption_key)
 {
     ASSERT(o->sp_params.encryption_mode != SPPROTO_ENCRYPTION_MODE_NONE)
+    DebugObject_Access(&o->d_obj);
     
     // set sending key
     SPProtoEncoder_SetEncryptionKey(&o->send_encoder, encryption_key);
@@ -449,6 +428,7 @@ void DatagramPeerIO_SetEncryptionKey (DatagramPeerIO *o, uint8_t *encryption_key
 void DatagramPeerIO_RemoveEncryptionKey (DatagramPeerIO *o)
 {
     ASSERT(o->sp_params.encryption_mode != SPPROTO_ENCRYPTION_MODE_NONE)
+    DebugObject_Access(&o->d_obj);
     
     // remove sending key
     SPProtoEncoder_RemoveEncryptionKey(&o->send_encoder);
@@ -460,6 +440,7 @@ void DatagramPeerIO_RemoveEncryptionKey (DatagramPeerIO *o)
 void DatagramPeerIO_SetOTPSendSeed (DatagramPeerIO *o, uint16_t seed_id, uint8_t *key, uint8_t *iv)
 {
     ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
+    DebugObject_Access(&o->d_obj);
     
     // set sending seed
     SPProtoEncoder_SetOTPSeed(&o->send_encoder, seed_id, key, iv);
@@ -468,6 +449,7 @@ void DatagramPeerIO_SetOTPSendSeed (DatagramPeerIO *o, uint16_t seed_id, uint8_t
 void DatagramPeerIO_RemoveOTPSendSeed (DatagramPeerIO *o)
 {
     ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
+    DebugObject_Access(&o->d_obj);
     
     // remove sending seed
     SPProtoEncoder_RemoveOTPSeed(&o->send_encoder);
@@ -476,6 +458,7 @@ void DatagramPeerIO_RemoveOTPSendSeed (DatagramPeerIO *o)
 void DatagramPeerIO_AddOTPRecvSeed (DatagramPeerIO *o, uint16_t seed_id, uint8_t *key, uint8_t *iv)
 {
     ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
+    DebugObject_Access(&o->d_obj);
     
     // add receiving seed
     SPProtoDecoder_AddOTPSeed(&o->recv_decoder, seed_id, key, iv);
@@ -484,6 +467,7 @@ void DatagramPeerIO_AddOTPRecvSeed (DatagramPeerIO *o, uint16_t seed_id, uint8_t
 void DatagramPeerIO_RemoveOTPRecvSeeds (DatagramPeerIO *o)
 {
     ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
+    DebugObject_Access(&o->d_obj);
     
     // remove receiving seeds
     SPProtoDecoder_RemoveOTPSeeds(&o->recv_decoder);
@@ -493,6 +477,7 @@ void DatagramPeerIO_SetOTPWarningHandler (DatagramPeerIO *o, DatagramPeerIO_hand
 {
     ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
     ASSERT(!handler || num_used > 0)
+    DebugObject_Access(&o->d_obj);
     
     o->handler_otp_warning = handler;
     o->handler_otp_warning_user = user;
