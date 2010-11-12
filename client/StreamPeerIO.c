@@ -372,54 +372,68 @@ int init_persistent_io (StreamPeerIO *pio, PacketPassInterface *user_recv_if)
     // init error domain
     FlowErrorDomain_Init(&pio->ioerrdomain, (FlowErrorDomain_handler)error_handler, pio);
     
-    // init sending objects
-    PacketCopier_Init(&pio->output_user_copier, pio->payload_mtu, BReactor_PendingGroup(pio->reactor));
-    PacketProtoEncoder_Init(&pio->output_user_ppe, PacketCopier_GetOutput(&pio->output_user_copier), BReactor_PendingGroup(pio->reactor));
-    PacketPassConnector_Init(&pio->output_connector, PACKETPROTO_ENCLEN(pio->payload_mtu), BReactor_PendingGroup(pio->reactor));
-    if (!SinglePacketBuffer_Init(&pio->output_user_spb, PacketProtoEncoder_GetOutput(&pio->output_user_ppe), PacketPassConnector_GetInput(&pio->output_connector), BReactor_PendingGroup(pio->reactor))) {
-        goto fail1;
-    }
-    
     // init receiveing objects
     StreamRecvConnector_Init(&pio->input_connector, BReactor_PendingGroup(pio->reactor));
     if (!PacketProtoDecoder_Init(
         &pio->input_decoder, FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_DECODER),
         StreamRecvConnector_GetOutput(&pio->input_connector), user_recv_if, BReactor_PendingGroup(pio->reactor)
     )) {
+        goto fail1;
+    }
+    
+    // init sending objects
+    PacketCopier_Init(&pio->output_user_copier, pio->payload_mtu, BReactor_PendingGroup(pio->reactor));
+    PacketProtoEncoder_Init(&pio->output_user_ppe, PacketCopier_GetOutput(&pio->output_user_copier), BReactor_PendingGroup(pio->reactor));
+    PacketPassConnector_Init(&pio->output_connector, PACKETPROTO_ENCLEN(pio->payload_mtu), BReactor_PendingGroup(pio->reactor));
+    if (!SinglePacketBuffer_Init(&pio->output_user_spb, PacketProtoEncoder_GetOutput(&pio->output_user_ppe), PacketPassConnector_GetInput(&pio->output_connector), BReactor_PendingGroup(pio->reactor))) {
         goto fail2;
     }
     
     return 1;
     
-    // free receiveing objects
 fail2:
-    StreamRecvConnector_Free(&pio->input_connector);
-    // free sending objects
-    SinglePacketBuffer_Free(&pio->output_user_spb);
-fail1:
     PacketPassConnector_Free(&pio->output_connector);
     PacketProtoEncoder_Free(&pio->output_user_ppe);
     PacketCopier_Free(&pio->output_user_copier);
-    
+    PacketProtoDecoder_Free(&pio->input_decoder);
+fail1:
+    StreamRecvConnector_Free(&pio->input_connector);
     return 0;
 }
 
 void free_persistent_io (StreamPeerIO *pio)
 {
-    // free receiveing objects
-    PacketProtoDecoder_Free(&pio->input_decoder);
-    StreamRecvConnector_Free(&pio->input_connector);
-    
     // free sending objects
     SinglePacketBuffer_Free(&pio->output_user_spb);
     PacketPassConnector_Free(&pio->output_connector);
     PacketProtoEncoder_Free(&pio->output_user_ppe);
     PacketCopier_Free(&pio->output_user_copier);
+    
+    // free receiveing objects
+    PacketProtoDecoder_Free(&pio->input_decoder);
+    StreamRecvConnector_Free(&pio->input_connector);
 }
 
 int init_io (StreamPeerIO *pio, sslsocket *sock)
 {
     ASSERT(!pio->sock)
+    
+    // init receiving
+    StreamRecvInterface *source_interface;
+    if (pio->ssl) {
+        PRStreamSource_Init(
+            &pio->input_source.ssl, FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_SOURCE),
+            &sock->ssl_bprfd, BReactor_PendingGroup(pio->reactor)
+        );
+        source_interface = PRStreamSource_GetOutput(&pio->input_source.ssl);
+    } else {
+        StreamSocketSource_Init(
+            &pio->input_source.plain, FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_SOURCE),
+            &sock->sock, BReactor_PendingGroup(pio->reactor)
+        );
+        source_interface = StreamSocketSource_GetOutput(&pio->input_source.plain);
+    }
+    StreamRecvConnector_ConnectInput(&pio->input_connector, source_interface);
     
     // init sending
     StreamPassInterface *sink_interface;
@@ -439,23 +453,6 @@ int init_io (StreamPeerIO *pio, sslsocket *sock)
     PacketStreamSender_Init(&pio->output_pss, sink_interface, PACKETPROTO_ENCLEN(pio->payload_mtu), BReactor_PendingGroup(pio->reactor));
     PacketPassConnector_ConnectOutput(&pio->output_connector, PacketStreamSender_GetInput(&pio->output_pss));
     
-    // init receiving
-    StreamRecvInterface *source_interface;
-    if (pio->ssl) {
-        PRStreamSource_Init(
-            &pio->input_source.ssl, FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_SOURCE),
-            &sock->ssl_bprfd, BReactor_PendingGroup(pio->reactor)
-        );
-        source_interface = PRStreamSource_GetOutput(&pio->input_source.ssl);
-    } else {
-        StreamSocketSource_Init(
-            &pio->input_source.plain, FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_SOURCE),
-            &sock->sock, BReactor_PendingGroup(pio->reactor)
-        );
-        source_interface = StreamSocketSource_GetOutput(&pio->input_source.plain);
-    }
-    StreamRecvConnector_ConnectInput(&pio->input_connector, source_interface);
-    
     pio->sock = sock;
     
     return 1;
@@ -468,14 +465,6 @@ void free_io (StreamPeerIO *pio)
     // reset decoder
     PacketProtoDecoder_Reset(&pio->input_decoder);
     
-    // free receiving
-    StreamRecvConnector_DisconnectInput(&pio->input_connector);
-    if (pio->ssl) {
-        PRStreamSource_Free(&pio->input_source.ssl);
-    } else {
-        StreamSocketSource_Free(&pio->input_source.plain);
-    }
-    
     // free sending
     PacketPassConnector_DisconnectOutput(&pio->output_connector);
     PacketStreamSender_Free(&pio->output_pss);
@@ -483,6 +472,14 @@ void free_io (StreamPeerIO *pio)
         PRStreamSink_Free(&pio->output_sink.ssl);
     } else {
         StreamSocketSink_Free(&pio->output_sink.plain);
+    }
+    
+    // free receiving
+    StreamRecvConnector_DisconnectInput(&pio->input_connector);
+    if (pio->ssl) {
+        PRStreamSource_Free(&pio->input_source.ssl);
+    } else {
+        StreamSocketSource_Free(&pio->input_source.plain);
     }
     
     pio->sock = NULL;
