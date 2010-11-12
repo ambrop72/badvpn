@@ -26,6 +26,7 @@
 #include <misc/debug.h>
 #include <misc/balign.h>
 #include <misc/offset.h>
+#include <misc/byteorder.h>
 #include <security/BRandom.h>
 #include <security/BHash.h>
 
@@ -45,9 +46,10 @@ static int can_encode (SPProtoEncoder *o)
 static int encode_packet (SPProtoEncoder *o)
 {
     ASSERT(o->in_len >= 0)
-    ASSERT(o->in_len <= o->input_mtu)
     ASSERT(o->out_have)
     ASSERT(can_encode(o))
+    
+    ASSERT(o->in_len <= o->input_mtu)
     
     // plaintext is either output packet or our buffer
     uint8_t *plaintext = (!SPPROTO_HAVE_ENCRYPTION(o->sp_params) ? o->out : o->buf);
@@ -61,7 +63,7 @@ static int encode_packet (SPProtoEncoder *o)
     // write OTP
     if (SPPROTO_HAVE_OTP(o->sp_params)) {
         struct spproto_otpdata *header_otpd = (struct spproto_otpdata *)(header + SPPROTO_HEADER_OTPDATA_OFF(o->group->sp_params));
-        header_otpd->seed_id = o->otpgen_seed_id;
+        header_otpd->seed_id = htol16(o->otpgen_seed_id);
         header_otpd->otp = OTPGenerator_GetOTP(&o->otpgen);
     }
     
@@ -105,7 +107,6 @@ static int encode_packet (SPProtoEncoder *o)
 static void do_encode (SPProtoEncoder *o)
 {
     ASSERT(o->in_len >= 0)
-    ASSERT(o->in_len <= o->input_mtu)
     ASSERT(o->out_have)
     ASSERT(can_encode(o))
     
@@ -113,9 +114,9 @@ static void do_encode (SPProtoEncoder *o)
     int out_len = encode_packet(o);
     
     // finish packet
-    PacketRecvInterface_Done(&o->output, out_len);
     o->in_len = -1;
     o->out_have = 0;
+    PacketRecvInterface_Done(&o->output, out_len);
 }
 
 static void maybe_encode (SPProtoEncoder *o)

@@ -102,7 +102,8 @@ static int decode_packet (SPProtoDecoder *o, uint8_t *in, int in_len, uint8_t **
     // check OTP
     if (SPPROTO_HAVE_OTP(o->sp_params)) {
         struct spproto_otpdata *header_otpd = (struct spproto_otpdata *)(header + SPPROTO_HEADER_OTPDATA_OFF(o->sp_params));
-        if (!OTPChecker_CheckOTP(&o->otpchecker, ltoh16(header_otpd->seed_id), header_otpd->otp)) {
+        uint16_t seed_id = ltoh16(header_otpd->seed_id);
+        if (!OTPChecker_CheckOTP(&o->otpchecker, seed_id, header_otpd->otp)) {
             DEBUG("packet has wrong OTP");
             return 0;
         }

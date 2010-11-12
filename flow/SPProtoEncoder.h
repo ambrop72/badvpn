@@ -60,8 +60,6 @@ typedef struct {
     int out_have;
     uint8_t *out;
     uint8_t *buf;
-    LinkedList2Node group_list_node;
-    BPending continue_job;
     DebugObject d_obj;
 } SPProtoEncoder;
 

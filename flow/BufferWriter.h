@@ -30,6 +30,7 @@
 
 #include <stdint.h>
 
+#include <misc/debug.h>
 #include <system/DebugObject.h>
 #include <flow/PacketRecvInterface.h>
 
@@ -83,7 +84,7 @@ PacketRecvInterface * BufferWriter_GetOutput (BufferWriter *o);
  *            It will have space for MTU bytes.
  * @return 1 on success, 0 on failure
  */
-int BufferWriter_StartPacket (BufferWriter *o, uint8_t **buf);
+int BufferWriter_StartPacket (BufferWriter *o, uint8_t **buf) WARN_UNUSED;
 
 /**
  * Submits a packet written to the buffer.
