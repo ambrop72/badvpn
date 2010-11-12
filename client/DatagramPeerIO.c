@@ -52,6 +52,29 @@ int init_persistent_io (DatagramPeerIO *o, btime_t latency, PacketPassInterface 
     // init error domain
     FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)error_handler, o);
     
+    // init receiving
+    
+    // init assembler
+    if (!FragmentProtoAssembler_Init(&o->recv_assembler, o->spproto_payload_mtu, recv_userif, 1, fragmentproto_max_chunks_for_frame(o->spproto_payload_mtu, o->payload_mtu), BReactor_PendingGroup(o->reactor))) {
+        goto fail0;
+    }
+    
+    // init notifier
+    PacketPassNotifier_Init(&o->recv_notifier, FragmentProtoAssembler_GetInput(&o->recv_assembler), BReactor_PendingGroup(o->reactor));
+    
+    // init decoder
+    if (!SPProtoDecoder_Init(&o->recv_decoder, PacketPassNotifier_GetInput(&o->recv_notifier), o->sp_params, 2, BReactor_PendingGroup(o->reactor))) {
+        goto fail1;
+    }
+    
+    // init connector
+    PacketRecvConnector_Init(&o->recv_connector, o->effective_socket_mtu, BReactor_PendingGroup(o->reactor));
+    
+    // init buffer
+    if (!SinglePacketBuffer_Init(&o->recv_buffer, PacketRecvConnector_GetOutput(&o->recv_connector), SPProtoDecoder_GetInput(&o->recv_decoder), BReactor_PendingGroup(o->reactor))) {
+        goto fail2;
+    }
+    
     // init sending base
     
     // init disassembler
@@ -60,7 +83,7 @@ int init_persistent_io (DatagramPeerIO *o, btime_t latency, PacketPassInterface 
     // init encoder
     if (!SPProtoEncoder_Init(&o->send_encoder, o->sp_params, FragmentProtoDisassembler_GetOutput(&o->send_disassembler), BReactor_PendingGroup(o->reactor))) {
         BLog(BLOG_ERROR, "SPProtoEncoder_Init failed");
-        goto fail1;
+        goto fail3;
     }
     
     // init notifier
@@ -75,66 +98,43 @@ int init_persistent_io (DatagramPeerIO *o, btime_t latency, PacketPassInterface 
     // init buffer
     if (!SinglePacketBuffer_Init(&o->send_buffer, PacketRecvNotifier_GetOutput(&o->send_notifier), PacketPassConnector_GetInput(&o->send_connector), BReactor_PendingGroup(o->reactor))) {
         BLog(BLOG_ERROR, "SinglePacketBuffer_Init failed");
-        goto fail2;
-    }
-    
-    // init receiving
-    
-    // init assembler
-    if (!FragmentProtoAssembler_Init(&o->recv_assembler, o->spproto_payload_mtu, recv_userif, 1, fragmentproto_max_chunks_for_frame(o->spproto_payload_mtu, o->payload_mtu), BReactor_PendingGroup(o->reactor))) {
-        goto fail3;
-    }
-    
-    // init notifier
-    PacketPassNotifier_Init(&o->recv_notifier, FragmentProtoAssembler_GetInput(&o->recv_assembler), BReactor_PendingGroup(o->reactor));
-    
-    // init decoder
-    if (!SPProtoDecoder_Init(&o->recv_decoder, PacketPassNotifier_GetInput(&o->recv_notifier), o->sp_params, 2, BReactor_PendingGroup(o->reactor))) {
         goto fail4;
     }
     
-    // init connector
-    PacketRecvConnector_Init(&o->recv_connector, o->effective_socket_mtu, BReactor_PendingGroup(o->reactor));
-    
-    // init buffer
-    if (!SinglePacketBuffer_Init(&o->recv_buffer, PacketRecvConnector_GetOutput(&o->recv_connector), SPProtoDecoder_GetInput(&o->recv_decoder), BReactor_PendingGroup(o->reactor))) {
-        goto fail5;
-    }
-    
     return 1;
-    
-fail5:
-    PacketRecvConnector_Free(&o->recv_connector);
-    SPProtoDecoder_Free(&o->recv_decoder);
+
 fail4:
-    PacketPassNotifier_Free(&o->recv_notifier);
-    FragmentProtoAssembler_Free(&o->recv_assembler);
-fail3:
-    SinglePacketBuffer_Free(&o->send_buffer);
-fail2:
     PacketPassConnector_Free(&o->send_connector);
     PacketRecvNotifier_Free(&o->send_notifier);
     SPProtoEncoder_Free(&o->send_encoder);
-fail1:
+fail3:
     FragmentProtoDisassembler_Free(&o->send_disassembler);
+    SinglePacketBuffer_Free(&o->recv_buffer);
+fail2:
+    PacketRecvConnector_Free(&o->recv_connector);
+    SPProtoDecoder_Free(&o->recv_decoder);
+fail1:
+    PacketPassNotifier_Free(&o->recv_notifier);
+    FragmentProtoAssembler_Free(&o->recv_assembler);
+fail0:
     return 0;
 }
 
 void free_persistent_io (DatagramPeerIO *o)
 {
-    // free receiving
-    SinglePacketBuffer_Free(&o->recv_buffer);
-    PacketRecvConnector_Free(&o->recv_connector);
-    SPProtoDecoder_Free(&o->recv_decoder);
-    PacketPassNotifier_Free(&o->recv_notifier);
-    FragmentProtoAssembler_Free(&o->recv_assembler);
-    
     // free sending base
     SinglePacketBuffer_Free(&o->send_buffer);
     PacketPassConnector_Free(&o->send_connector);
     PacketRecvNotifier_Free(&o->send_notifier);
     SPProtoEncoder_Free(&o->send_encoder);
     FragmentProtoDisassembler_Free(&o->send_disassembler);
+    
+    // free receiving
+    SinglePacketBuffer_Free(&o->recv_buffer);
+    PacketRecvConnector_Free(&o->recv_connector);
+    SPProtoDecoder_Free(&o->recv_decoder);
+    PacketPassNotifier_Free(&o->recv_notifier);
+    FragmentProtoAssembler_Free(&o->recv_assembler);
 }
 
 void init_sending (DatagramPeerIO *o, BAddr addr, BIPAddr local_addr)
@@ -366,13 +366,13 @@ int DatagramPeerIO_Connect (DatagramPeerIO *o, BAddr addr)
         goto fail2;
     }
     
+    // init receiving
+    init_receiving(o);
+    
     // init sending
     BIPAddr local_addr;
     BIPAddr_InitInvalid(&local_addr);
     init_sending(o, addr, local_addr);
-    
-    // init receiving
-    init_receiving(o);
     
     // set mode
     o->mode = DATAGRAMPEERIO_MODE_CONNECT;
