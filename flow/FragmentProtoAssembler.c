@@ -176,6 +176,8 @@ static void process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid fram
     
     // calculate end
     int chunk_end = chunk_start + chunk_len;
+    ASSERT(chunk_end >= 0)
+    ASSERT(chunk_end <= o->output_mtu)
     
     // lookup frame
     struct FragmentProtoAssembler_frame *frame;
@@ -263,6 +265,8 @@ static void process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid fram
             BLog(BLOG_INFO, "all chunks used, but frame not complete");
             goto fail_frame;
         }
+        
+        // wait for more chunks
         return;
     }
     
@@ -300,9 +304,10 @@ static void process_input (FragmentProtoAssembler *o)
         fragmentproto_frameid frame_id = ltoh16(header->frame_id);
         int chunk_start = ltoh16(header->chunk_start);
         int chunk_len = ltoh16(header->chunk_len);
+        int is_last = ltoh8(header->is_last);
         
         // check is_last field
-        if (!(header->is_last == 0 || header->is_last == 1)) {
+        if (!(is_last == 0 || is_last == 1)) {
             BLog(BLOG_INFO, "chunk is_last wrong");
             break;
         }
@@ -314,7 +319,7 @@ static void process_input (FragmentProtoAssembler *o)
         }
         
         // process chunk
-        process_chunk(o, frame_id, chunk_start, chunk_len, header->is_last, o->in + o->in_pos);
+        process_chunk(o, frame_id, chunk_start, chunk_len, is_last, o->in + o->in_pos);
         o->in_pos += chunk_len;
         
         // if output is blocking, stop processing input
