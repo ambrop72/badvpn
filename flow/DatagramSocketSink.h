@@ -32,7 +32,7 @@
 #include <system/DebugObject.h>
 #include <system/BSocket.h>
 #include <flow/PacketPassInterface.h>
-#include <flow/error.h>
+#include <flow/FlowError.h>
 
 #define DATAGRAMSOCKETSINK_ERROR_BSOCKET 1
 #define DATAGRAMSOCKETSINK_ERROR_WRONGSIZE 2

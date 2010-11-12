@@ -33,7 +33,7 @@
 #include <system/DebugObject.h>
 #include <system/BSocket.h>
 #include <flow/StreamRecvInterface.h>
-#include <flow/error.h>
+#include <flow/FlowError.h>
 
 #define STREAMSOCKETSOURCE_ERROR_CLOSED 0
 #define STREAMSOCKETSOURCE_ERROR_BSOCKET 1

@@ -32,5 +32,6 @@ add_library(flow
     PacketRecvInterface.c
     StreamPassInterface.c
     StreamRecvInterface.c
+    FlowError.c
 )
 target_link_libraries(flow system security)

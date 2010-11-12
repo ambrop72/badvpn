@@ -32,7 +32,7 @@
 #include <misc/dead.h>
 #include <system/DebugObject.h>
 #include <flow/StreamPassInterface.h>
-#include <flow/error.h>
+#include <flow/FlowError.h>
 #include <nspr_support/BPRFileDesc.h>
 
 #define PRSTREAMSINK_ERROR_NSPR 1

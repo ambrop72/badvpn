@@ -35,7 +35,7 @@
 #include <system/DebugObject.h>
 #include <flow/StreamRecvInterface.h>
 #include <flow/PacketPassInterface.h>
-#include <flow/error.h>
+#include <flow/FlowError.h>
 
 #define PACKETPROTODECODER_ERROR_TOOLONG 1
 

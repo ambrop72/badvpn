@@ -33,7 +33,7 @@
 #include <system/BSocket.h>
 #include <system/BPending.h>
 #include <flow/PacketRecvInterface.h>
-#include <flow/error.h>
+#include <flow/FlowError.h>
 
 #define DATAGRAMSOCKETSOURCE_ERROR_BSOCKET 1
 

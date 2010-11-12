@@ -45,7 +45,7 @@
 #include <protocol/msgproto.h>
 #include <system/DebugObject.h>
 #include <system/BSocket.h>
-#include <flow/error.h>
+#include <flow/FlowError.h>
 #include <flow/SCKeepaliveSource.h>
 #include <flow/PacketProtoEncoder.h>
 #include <flow/KeepaliveIO.h>

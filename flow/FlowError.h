@@ -1,5 +1,5 @@
 /**
- * @file error.h
+ * @file FlowError.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -24,8 +24,8 @@
  * Flow error handling.
  */
 
-#ifndef BADVPN_FLOW_ERROR_H
-#define BADVPN_FLOW_ERROR_H
+#ifndef BADVPN_FLOW_FLOWERROR_H
+#define BADVPN_FLOW_FLOWERROR_H
 
 #include <stdint.h>
 
@@ -54,7 +54,7 @@ typedef struct {
  * @param handler callback function invoked when {@link FlowErrorReporter_ReportError} is called
  * @param user value passed to callback functions
  */
-static void FlowErrorDomain_Init (FlowErrorDomain *d, FlowErrorDomain_handler handler, void *user);
+void FlowErrorDomain_Init (FlowErrorDomain *d, FlowErrorDomain_handler handler, void *user);
 
 /**
  * Structure that can be passed to flow components to ease error reporting.
@@ -71,7 +71,7 @@ typedef struct {
  * @param component component identifier
  * @return a {@link FlowErrorReporter} structure with the specifed error domain and component.
  */
-static FlowErrorReporter FlowErrorReporter_Create (FlowErrorDomain *domain, int component);
+FlowErrorReporter FlowErrorReporter_Create (FlowErrorDomain *domain, int component);
 
 /**
  * Reports an error.
@@ -80,25 +80,6 @@ static FlowErrorReporter FlowErrorReporter_Create (FlowErrorDomain *domain, int 
  *                 component identifier user to report the error
  * @param data component-specific error data
  */
-static void FlowErrorReporter_ReportError (FlowErrorReporter *reporter, const void *data);
-
-void FlowErrorDomain_Init (FlowErrorDomain *d, FlowErrorDomain_handler handler, void *user)
-{
-    d->handler = handler;
-    d->user = user;
-}
-
-FlowErrorReporter FlowErrorReporter_Create (FlowErrorDomain *domain, int component)
-{
-    FlowErrorReporter r;
-    r.domain = domain;
-    r.component = component;
-    return r;
-}
-
-void FlowErrorReporter_ReportError (FlowErrorReporter *reporter, const void *data)
-{
-    reporter->domain->handler(reporter->domain->user, reporter->component, data);
-}
+void FlowErrorReporter_ReportError (FlowErrorReporter *reporter, const void *data);
 
 #endif

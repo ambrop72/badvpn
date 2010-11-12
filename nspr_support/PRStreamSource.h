@@ -32,7 +32,7 @@
 #include <misc/dead.h>
 #include <system/DebugObject.h>
 #include <flow/StreamRecvInterface.h>
-#include <flow/error.h>
+#include <flow/FlowError.h>
 #include <nspr_support/BPRFileDesc.h>
 
 #define PRSTREAMSOURCE_ERROR_CLOSED 0
