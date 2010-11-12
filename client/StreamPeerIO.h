@@ -32,7 +32,6 @@
 #include <cert.h>
 #include <keyhi.h>
 
-#include <misc/dead.h>
 #include <misc/debug.h>
 #include <system/DebugObject.h>
 #include <system/BReactor.h>
@@ -69,11 +68,6 @@ typedef void (*StreamPeerIO_handler_error) (void *user);
  *     - connecting state
  */
 typedef struct {
-    // debug object
-    DebugObject d_obj;
-    // dead variable
-    dead_t dead;
-    
     // common arguments
     BReactor *reactor;
     int ssl;
@@ -100,7 +94,6 @@ typedef struct {
     
     // connection side
     int mode;
-    dead_t mode_dead;
     
     union {
         // listening data
@@ -136,6 +129,8 @@ typedef struct {
         StreamSocketSource plain;
         PRStreamSource ssl;
     } input_source;
+    
+    DebugObject d_obj;
 } StreamPeerIO;
 
 /**

@@ -82,6 +82,7 @@ void connecting_connect_handler (StreamPeerIO *pio, int event)
     ASSERT(event == BSOCKET_CONNECT)
     ASSERT(pio->mode == MODE_CONNECT)
     ASSERT(pio->connect.state == CONNECT_STATE_CONNECTING)
+    DebugObject_Access(&pio->d_obj);
     
     // remove connect event handler
     BSocket_RemoveEventHandler(&pio->connect.sock.sock, BSOCKET_CONNECT);
@@ -158,6 +159,7 @@ SECStatus client_auth_certificate_callback (StreamPeerIO *pio, PRFileDesc *fd, P
     ASSERT(pio->ssl)
     ASSERT(pio->mode == MODE_CONNECT)
     ASSERT(pio->connect.state == CONNECT_STATE_HANDSHAKE)
+    DebugObject_Access(&pio->d_obj);
     
     // This callback is used to bypass checking the server's domain name, as peers
     // don't have domain names. We byte-compare the certificate to the one reported
@@ -192,6 +194,7 @@ SECStatus client_client_auth_data_callback (StreamPeerIO *pio, PRFileDesc *fd, C
     ASSERT(pio->ssl)
     ASSERT(pio->mode == MODE_CONNECT)
     ASSERT(pio->connect.state == CONNECT_STATE_HANDSHAKE)
+    DebugObject_Access(&pio->d_obj);
     
     if (!(*pRetCert = CERT_DupCertificate(pio->connect.ssl_cert))) {
         return SECFailure;
@@ -254,6 +257,8 @@ fail0:
 
 void connecting_handshake_read_handler (StreamPeerIO *pio, PRInt16 event)
 {
+    DebugObject_Access(&pio->d_obj);
+    
     connecting_try_handshake(pio);
     return;
 }
@@ -262,6 +267,7 @@ static void connecting_pwsender_handler (StreamPeerIO *pio, int is_error)
 {
     ASSERT(pio->mode == MODE_CONNECT)
     ASSERT(pio->connect.state == CONNECT_STATE_SENDING)
+    DebugObject_Access(&pio->d_obj);
     
     if (is_error) {
         BLog(BLOG_NOTICE, "error sending password");
@@ -299,6 +305,7 @@ fail0:
 void error_handler (StreamPeerIO *pio, int component, const void *data)
 {
     ASSERT(pio->sock)
+    DebugObject_Access(&pio->d_obj);
     
     switch (component) {
         case COMPONENT_SOURCE:
@@ -326,6 +333,7 @@ void listener_handler_client (StreamPeerIO *pio, sslsocket *sock)
 {
     ASSERT(pio->mode == MODE_LISTEN)
     ASSERT(pio->listen.state == LISTEN_STATE_LISTENER)
+    DebugObject_Access(&pio->d_obj);
     
     // remember socket
     pio->listen.sock = sock;
@@ -384,11 +392,8 @@ int init_persistent_io (StreamPeerIO *pio, PacketPassInterface *user_recv_if)
     // init receiveing objects
     StreamRecvConnector_Init(&pio->input_connector, BReactor_PendingGroup(pio->reactor));
     if (!PacketProtoDecoder_Init(
-        &pio->input_decoder,
-        FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_DECODER),
-        StreamRecvConnector_GetOutput(&pio->input_connector),
-        user_recv_if,
-        BReactor_PendingGroup(pio->reactor)
+        &pio->input_decoder, FlowErrorReporter_Create(&pio->ioerrdomain, COMPONENT_DECODER),
+        StreamRecvConnector_GetOutput(&pio->input_connector), user_recv_if, BReactor_PendingGroup(pio->reactor)
     )) {
         goto fail2;
     }
@@ -404,7 +409,7 @@ fail1:
     PacketPassConnector_Free(&pio->output_connector);
     PacketProtoEncoder_Free(&pio->output_user_ppe);
     PacketCopier_Free(&pio->output_user_copier);
-
+    
     return 0;
 }
 
@@ -543,7 +548,6 @@ void reset_state (StreamPeerIO *pio)
                 default:
                     ASSERT(0);
             }
-            DEAD_KILL(pio->mode_dead);
             pio->mode = MODE_NONE;
             break;
         case MODE_CONNECT:
@@ -566,7 +570,6 @@ void reset_state (StreamPeerIO *pio)
                 default:
                     ASSERT(0);
             }
-            DEAD_KILL(pio->mode_dead);
             pio->mode = MODE_NONE;
             break;
         default:
@@ -616,9 +619,6 @@ int StreamPeerIO_Init (
     pio->handler_error = handler_error;
     pio->user = user;
     
-    // init dead variable
-    DEAD_INIT(pio->dead);
-    
     // init persistent I/O modules
     if (!init_persistent_io(pio, user_recv_if)) {
         return 0;
@@ -630,7 +630,6 @@ int StreamPeerIO_Init (
     // set no socket
     pio->sock = NULL;
     
-    // init debug object
     DebugObject_Init(&pio->d_obj);
     
     return 1;
@@ -638,7 +637,6 @@ int StreamPeerIO_Init (
 
 void StreamPeerIO_Free (StreamPeerIO *pio)
 {
-    // free debug object
     DebugObject_Free(&pio->d_obj);
 
     // reset state
@@ -646,19 +644,19 @@ void StreamPeerIO_Free (StreamPeerIO *pio)
     
     // free persistent I/O modules
     free_persistent_io(pio);
-    
-    // kill dead variable
-    DEAD_KILL(pio->dead);
 }
 
 PacketPassInterface * StreamPeerIO_GetSendInput (StreamPeerIO *pio)
 {
+    DebugObject_Access(&pio->d_obj);
+    
     return PacketCopier_GetInput(&pio->output_user_copier);
 }
 
 int StreamPeerIO_Connect (StreamPeerIO *pio, BAddr addr, uint64_t password, CERTCertificate *ssl_cert, SECKEYPrivateKey *ssl_key)
 {
     ASSERT(BAddr_IsRecognized(&addr) && !BAddr_IsInvalid(&addr))
+    DebugObject_Access(&pio->d_obj);
     
     // reset state
     reset_state(pio);
@@ -688,7 +686,6 @@ int StreamPeerIO_Connect (StreamPeerIO *pio, BAddr addr, uint64_t password, CERT
     
     // set state
     pio->mode = MODE_CONNECT;
-    DEAD_INIT(pio->mode_dead);
     pio->connect.state = CONNECT_STATE_CONNECTING;
     
     return 1;
@@ -702,6 +699,7 @@ fail0:
 void StreamPeerIO_Listen (StreamPeerIO *pio, PasswordListener *listener, uint64_t *password)
 {
     ASSERT(listener->ssl == pio->ssl)
+    DebugObject_Access(&pio->d_obj);
     
     // reset state
     reset_state(pio);
@@ -714,7 +712,6 @@ void StreamPeerIO_Listen (StreamPeerIO *pio, PasswordListener *listener, uint64_
     
     // set state
     pio->mode = MODE_LISTEN;
-    DEAD_INIT(pio->mode_dead);
     pio->listen.state = LISTEN_STATE_LISTENER;
     
     *password = newpass;
