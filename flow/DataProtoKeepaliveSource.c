@@ -30,7 +30,7 @@ static void output_handler_recv (DataProtoKeepaliveSource *o, uint8_t *data)
     DebugObject_Access(&o->d_obj);
     
     struct dataproto_header *header = (struct dataproto_header *)data;
-    header->flags = 0;
+    header->flags = htol8(0);
     header->from_id = htol16(0);
     header->num_peer_ids = htol16(0);
     

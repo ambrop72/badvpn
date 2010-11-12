@@ -41,7 +41,7 @@ static void input_handler_done (PacketRecvBlocker *o, int data_len)
     ASSERT(o->out_input_blocking)
     DebugObject_Access(&o->d_obj);
     
-    // have no output packet
+    // schedule done
     o->out_have = 0;
     PacketRecvInterface_Done(&o->output, data_len);
 }
@@ -87,6 +87,6 @@ void PacketRecvBlocker_AllowBlockedPacket (PacketRecvBlocker *o)
     }
     
     // schedule receive
-    PacketRecvInterface_Receiver_Recv(o->input, o->out);
     o->out_input_blocking = 1;
+    PacketRecvInterface_Receiver_Recv(o->input, o->out);
 }

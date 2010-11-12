@@ -107,21 +107,10 @@ static void write_chunks (FragmentProtoDisassembler *o)
     ASSERT(o->in_len < 0 || !o->out)
 }
 
-static void input_handler_send (FragmentProtoDisassembler *o, uint8_t *data, int data_len)
+static void work_chunks (FragmentProtoDisassembler *o)
 {
-    ASSERT(o->in_len == -1)
-    ASSERT(data_len >= 0)
-    ASSERT(data_len <= o->input_mtu)
-    
-    // set input packet
-    o->in_len = data_len;
-    o->in = data;
-    o->in_used = 0;
-    
-    // if there is no output, wait for it
-    if (!o->out) {
-        return;
-    }
+    ASSERT(o->in_len >= 0)
+    ASSERT(o->out)
     
     // write input to output
     write_chunks(o);
@@ -135,6 +124,25 @@ static void input_handler_send (FragmentProtoDisassembler *o, uint8_t *data, int
     if (!o->out) {
         PacketRecvInterface_Done(&o->output, o->out_used);
     }
+}
+
+static void input_handler_send (FragmentProtoDisassembler *o, uint8_t *data, int data_len)
+{
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= o->input_mtu)
+    ASSERT(o->in_len == -1)
+    
+    // set input packet
+    o->in_len = data_len;
+    o->in = data;
+    o->in_used = 0;
+    
+    // if there is no output, wait for it
+    if (!o->out) {
+        return;
+    }
+    
+    work_chunks(o);
 }
 
 static void input_handler_cancel (FragmentProtoDisassembler *o)
@@ -147,8 +155,8 @@ static void input_handler_cancel (FragmentProtoDisassembler *o)
 
 static void output_handler_recv (FragmentProtoDisassembler *o, uint8_t *data)
 {
-    ASSERT(!o->out)
     ASSERT(data)
+    ASSERT(!o->out)
     
     // set output packet
     o->out = data;
@@ -159,18 +167,7 @@ static void output_handler_recv (FragmentProtoDisassembler *o, uint8_t *data)
         return;
     }
     
-    // write input to output
-    write_chunks(o);
-    
-    // finish input packet if needed
-    if (o->in_len == -1) {
-        PacketPassInterface_Done(&o->input);
-    }
-    
-    // finish output packet if needed
-    if (!o->out) {
-        PacketRecvInterface_Done(&o->output, o->out_used);
-    }
+    work_chunks(o);
 }
 
 static void timer_handler (FragmentProtoDisassembler *o)

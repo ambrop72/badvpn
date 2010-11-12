@@ -28,6 +28,8 @@
 #ifndef BADVPN_FLOW_PACKETPROTOFLOW_H
 #define BADVPN_FLOW_PACKETPROTOFLOW_H
 
+#include <misc/debug.h>
+
 #include <system/DebugObject.h>
 #include <flow/BufferWriter.h>
 #include <flow/PacketProtoEncoder.h>

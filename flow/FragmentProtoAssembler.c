@@ -111,7 +111,7 @@ static int frame_is_timed_out (FragmentProtoAssembler *o, struct FragmentProtoAs
 {
     ASSERT(frame->time <= o->time)
     
-    return (o->time - frame->time > (uint32_t)o->time_tolerance);
+    return (o->time - frame->time > o->time_tolerance);
 }
 
 static void reduce_times (FragmentProtoAssembler *o)
@@ -360,10 +360,10 @@ static void do_io (FragmentProtoAssembler *o)
 
 static void input_handler_send (FragmentProtoAssembler *o, uint8_t *data, int data_len)
 {
-    ASSERT(o->in_len == -1)
-    ASSERT(!o->output_ready)
     ASSERT(data_len >= 0)
     ASSERT(data_len <= o->input_mtu)
+    ASSERT(o->in_len == -1)
+    ASSERT(!o->output_ready)
     DebugObject_Access(&o->d_obj);
     
     // save input packet

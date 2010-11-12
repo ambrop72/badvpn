@@ -90,7 +90,7 @@ void process_data (PacketProtoDecoder *enc)
     }
     
     // receive data
-    StreamRecvInterface_Receiver_Recv(enc->input, enc->buf + (enc->buf_start + enc->buf_used), enc->buf_size - ((enc->buf_start + enc->buf_used)));
+    StreamRecvInterface_Receiver_Recv(enc->input, enc->buf + (enc->buf_start + enc->buf_used), enc->buf_size - (enc->buf_start + enc->buf_used));
     
     // if we had error, report it
     if (was_error) {
