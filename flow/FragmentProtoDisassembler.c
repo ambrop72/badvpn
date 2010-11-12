@@ -162,14 +162,14 @@ static void output_handler_recv (FragmentProtoDisassembler *o, uint8_t *data)
     // write input to output
     write_chunks(o);
     
-    // finish output packet if needed
-    if (!o->out) {
-        PacketRecvInterface_Done(&o->output, o->out_used);
-    }
-    
     // finish input packet if needed
     if (o->in_len == -1) {
         PacketPassInterface_Done(&o->input);
+    }
+    
+    // finish output packet if needed
+    if (!o->out) {
+        PacketRecvInterface_Done(&o->output, o->out_used);
     }
 }
 
