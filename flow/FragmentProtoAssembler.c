@@ -26,6 +26,7 @@
 #include <misc/offset.h>
 #include <misc/debug.h>
 #include <misc/byteorder.h>
+#include <misc/balloc.h>
 #include <system/BLog.h>
 #include <flow/FragmentProtoAssembler.h>
 
@@ -415,17 +416,17 @@ int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, Packe
     o->time_tolerance = o->num_frames;
     
     // allocate frames
-    if (!(o->frames_entries = malloc(o->num_frames * sizeof(struct FragmentProtoAssembler_frame)))) {
+    if (!(o->frames_entries = BAllocArray(o->num_frames, sizeof(struct FragmentProtoAssembler_frame)))) {
         goto fail1;
     }
     
     // allocate chunks
-    if (!(o->frames_chunks = malloc(o->num_frames * o->num_chunks * sizeof(struct FragmentProtoAssembler_chunk)))) {
+    if (!(o->frames_chunks = BAllocArray2(o->num_frames, o->num_chunks, sizeof(struct FragmentProtoAssembler_chunk)))) {
         goto fail2;
     }
     
     // allocate buffers
-    if (!(o->frames_buffer = malloc(o->num_frames * o->output_mtu))) {
+    if (!(o->frames_buffer = BAllocArray(o->num_frames, o->output_mtu))) {
         goto fail3;
     }
     
@@ -458,9 +459,9 @@ int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, Packe
     return 1;
     
 fail3:
-    free(o->frames_chunks);
+    BFree(o->frames_chunks);
 fail2:
-    free(o->frames_entries);
+    BFree(o->frames_entries);
 fail1:
     PacketPassInterface_Free(&o->input);
     return 0;
@@ -471,13 +472,13 @@ void FragmentProtoAssembler_Free (FragmentProtoAssembler *o)
     DebugObject_Free(&o->d_obj);
 
     // free buffers
-    free(o->frames_buffer);
+    BFree(o->frames_buffer);
     
     // free chunks
-    free(o->frames_chunks);
+    BFree(o->frames_chunks);
     
     // free frames
-    free(o->frames_entries);
+    BFree(o->frames_entries);
     
     // free input
     PacketPassInterface_Free(&o->input);
