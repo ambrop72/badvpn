@@ -72,6 +72,7 @@ static void free_io (StreamPeerIO *pio);
 static int compare_certificate (StreamPeerIO *pio, CERTCertificate *cert);
 static void reset_state (StreamPeerIO *pio);
 static void cleanup_socket (sslsocket *sock, int ssl);
+static void reset_and_report_error (StreamPeerIO *pio);
 
 #define COMPONENT_SOURCE 1
 #define COMPONENT_SINK 2
@@ -148,9 +149,7 @@ void connecting_connect_handler (StreamPeerIO *pio, int event)
 fail_ssl1:
     ASSERT_FORCE(PR_Close(pio->connect.sock.ssl_prfd) == PR_SUCCESS)
 fail0:
-    reset_state(pio);
-    // report error
-    pio->handler_error(pio->user);
+    reset_and_report_error(pio);
     return;
 }
 
@@ -249,9 +248,7 @@ void connecting_try_handshake (StreamPeerIO *pio)
     
     // cleanup
 fail0:
-    reset_state(pio);
-    // report error
-    pio->handler_error(pio->user);
+    reset_and_report_error(pio);
     return;
 }
 
@@ -296,9 +293,7 @@ static void connecting_pwsender_handler (StreamPeerIO *pio, int is_error)
     return;
     
 fail0:
-    reset_state(pio);
-    // report error
-    pio->handler_error(pio->user);
+    reset_and_report_error(pio);
     return;
 }
 
@@ -323,9 +318,7 @@ void error_handler (StreamPeerIO *pio, int component, const void *data)
     }
     
     // cleanup
-    reset_state(pio);
-    // report error
-    pio->handler_error(pio->user);
+    reset_and_report_error(pio);
     return;
 }
 
@@ -370,9 +363,7 @@ void listener_handler_client (StreamPeerIO *pio, sslsocket *sock)
     
     // cleanup
 fail0:
-    reset_state(pio);
-    // report error
-    pio->handler_error(pio->user);
+    reset_and_report_error(pio);
     return;
 }
 
@@ -590,6 +581,14 @@ void cleanup_socket (sslsocket *sock, int ssl)
     
     // free socket
     BSocket_Free(&sock->sock);
+}
+
+void reset_and_report_error (StreamPeerIO *pio)
+{
+    reset_state(pio);
+    
+    pio->handler_error(pio->user);
+    return;
 }
 
 int StreamPeerIO_Init (
