@@ -42,28 +42,34 @@ static int decode_packet (SPProtoDecoder *o, uint8_t *in, int in_len, uint8_t **
         plaintext = in;
         plaintext_len = in_len;
     } else {
-        // check length
+        // input must be a multiple of blocks size
         if (in_len % o->enc_block_size != 0) {
             DEBUG("packet size not a multiple of block size");
             return 0;
         }
+        
+        // input must have an IV block
         if (in_len < o->enc_block_size) {
             DEBUG("packet does not have an IV");
             return 0;
         }
+        
         // check if we have encryption key
         if (!o->have_encryption_key) {
             DEBUG("have no encryption key");
             return 0;
         }
+        
         // copy IV as BEncryption_Decrypt changes the IV
         uint8_t iv[o->enc_block_size];
         memcpy(iv, in, o->enc_block_size);
+        
         // decrypt
         uint8_t *ciphertext = in + o->enc_block_size;
         int ciphertext_len = in_len - o->enc_block_size;
         plaintext = o->buf;
         BEncryption_Decrypt(&o->encryptor, ciphertext, plaintext, ciphertext_len, iv);
+        
         // read padding
         if (ciphertext_len < o->enc_block_size) {
             DEBUG("packet does not have a padding block");

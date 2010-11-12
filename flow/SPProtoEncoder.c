@@ -84,16 +84,20 @@ static int encode_packet (SPProtoEncoder *o)
     if (SPPROTO_HAVE_ENCRYPTION(o->sp_params)) {
         // encrypting pad(header + payload)
         int cyphertext_len = BALIGN_UP_N((plaintext_len + 1), o->enc_block_size);
+        
         // write padding
         plaintext[plaintext_len] = 1;
         for (int i = plaintext_len + 1; i < cyphertext_len; i++) {
             plaintext[i] = 0;
         }
+        
         // generate IV
         BRandom_randomize(o->out, o->enc_block_size);
+        
         // copy IV because BEncryption_Encrypt changes the IV
         uint8_t iv[o->enc_block_size];
         memcpy(iv, o->out, o->enc_block_size);
+        
         // encrypt
         BEncryption_Encrypt(&o->encryptor, plaintext, o->out + o->enc_block_size, cyphertext_len, iv);
         out_len = o->enc_block_size + cyphertext_len;
