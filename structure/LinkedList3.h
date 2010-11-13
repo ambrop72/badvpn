@@ -35,12 +35,18 @@
 
 struct _LinkedList3Iterator;
 
+/**
+ * Linked list node.
+ */
 typedef struct _LinkedList3Node {
     struct _LinkedList3Node *p;
     struct _LinkedList3Node *n;
     struct _LinkedList3Iterator *it;
 } LinkedList3Node;
 
+/**
+ * Linked list iterator.
+ */
 typedef struct _LinkedList3Iterator {
     int dir;
     struct _LinkedList3Node *e;
@@ -48,20 +54,136 @@ typedef struct _LinkedList3Iterator {
     struct _LinkedList3Iterator *ni;
 } LinkedList3Iterator;
 
+/**
+ * Initializes a list node to form a new list consisting of a
+ * single node.
+ * 
+ * @param node list node structure to initialize. The node must remain
+ *        available until it is freed with {@link LinkedList3Node_Free},
+ *        or the list is no longer required.
+ */
 static void LinkedList3Node_InitLonely (LinkedList3Node *node);
+
+/**
+ * Initializes a list node to go after an existing node.
+ * 
+ * @param node list node structure to initialize. The node must remain
+ *        available until it is freed with {@link LinkedList3Node_Free},
+ *        or the list is no longer required.
+ * @param ref existing list node
+ */
 static void LinkedList3Node_InitAfter (LinkedList3Node *node, LinkedList3Node *ref);
+
+/**
+ * Initializes a list node to go before an existing node.
+ * 
+ * @param node list node structure to initialize. The node must remain
+ *        available until it is freed with {@link LinkedList3Node_Free},
+ *        or the list is no longer required.
+ * @param ref existing list node
+ */
 static void LinkedList3Node_InitBefore (LinkedList3Node *node, LinkedList3Node *ref);
+
+/**
+ * Frees a list node, removing it a list (if there were other nodes
+ * in the list).
+ * 
+ * @param node list node to free
+ */
 static void LinkedList3Node_Free (LinkedList3Node *node);
+
+/**
+ * Determines if a list node is a single node in a list.
+ * 
+ * @param node list node
+ * @return 1 if the node ia a single node, 0 if not
+ */
 static int LinkedList3Node_IsLonely (LinkedList3Node *node);
+
+/**
+ * Returnes the node preceding this node (if there is one),
+ * the node following this node (if there is one), or NULL,
+ * respectively.
+ * 
+ * @param node list node
+ * @return neighbour node or NULL if none
+ */
 static LinkedList3Node * LinkedList3Node_PrevOrNext (LinkedList3Node *node);
+
+/**
+ * Returnes the node following this node (if there is one),
+ * the node preceding this node (if there is one), or NULL,
+ * respectively.
+ * 
+ * @param node list node
+ * @return neighbour node or NULL if none
+ */
 static LinkedList3Node * LinkedList3Node_NextOrPrev (LinkedList3Node *node);
+
+/**
+ * Returns the node preceding this node, or NULL if there is none.
+ * 
+ * @param node list node
+ * @return left neighbour, or NULL if none
+ */
 static LinkedList3Node * LinkedList3Node_Prev (LinkedList3Node *node);
+
+/**
+ * Returns the node following this node, or NULL if there is none.
+ * 
+ * @param node list node
+ * @return right neighbour, or NULL if none
+ */
 static LinkedList3Node * LinkedList3Node_Next (LinkedList3Node *node);
+
+/**
+ * Returns the first node in the list which this node is part of.
+ * It is found by iterating the list from this node to the beginning.
+ * 
+ * @param node list node
+ * @return first node in the list
+ */
 static LinkedList3Node * LinkedList3Node_First (LinkedList3Node *node);
+
+/**
+ * Returns the last node in the list which this node is part of.
+ * It is found by iterating the list from this node to the end.
+ * 
+ * @param node list node
+ * @return last node in the list
+ */
 static LinkedList3Node * LinkedList3Node_Last (LinkedList3Node *node);
 
+/**
+ * Initializes a linked list iterator.
+ * The iterator structure must remain available until either of these occurs:
+ *   - the list is no longer needed, or
+ *   - the iterator is freed with {@link LinkedList3Iterator_Free}, or
+ *   - the iterator reaches the end of iteration.
+ * 
+ * @param it uninitialized iterator to initialize
+ * @param e initial position of the iterator. NULL for end of iteration.
+ * @param dir direction of iteration. Must be 1 (forward) or -1 (backward).
+ */
 static void LinkedList3Iterator_Init (LinkedList3Iterator *it, LinkedList3Node *e, int dir);
+
+/**
+ * Frees a linked list iterator.
+ * 
+ * @param it iterator to free
+ */
 static void LinkedList3Iterator_Free (LinkedList3Iterator *it);
+
+/**
+ * Moves the iterator one node forward or backward (depending on its direction), or,
+ * if it's at the last or first node (depending on the direction), it reaches
+ * the end of iteration, or, if it's at the end of iteration, it remains there.
+ * Returns the the previous position.
+ * 
+ * @param it the iterator
+ * @return node on the position of iterator before it was (possibly) moved, or NULL
+ *         if it was at the end of iteration
+ */
 static LinkedList3Node * LinkedList3Iterator_Next (LinkedList3Iterator *it);
 
 void LinkedList3Node_InitLonely (LinkedList3Node *node)
