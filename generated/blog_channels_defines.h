@@ -10,4 +10,5 @@
 #define BLOG_CHANNEL_flooder 9
 #define BLOG_CHANNEL_Listener 10
 #define BLOG_CHANNEL_DataProto 11
-#define BLOG_NUM_CHANNELS 12
+#define BLOG_CHANNEL_FrameDecider 12
+#define BLOG_NUM_CHANNELS 13

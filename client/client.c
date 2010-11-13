@@ -46,8 +46,6 @@
 #include <misc/jenkins_hash.h>
 #include <misc/byteorder.h>
 #include <misc/ethernet_proto.h>
-#include <misc/ipv4_proto.h>
-#include <misc/igmp_proto.h>
 #include <misc/nsskey.h>
 #include <misc/loglevel.h>
 #include <misc/loggers_string.h>
@@ -167,17 +165,8 @@ int num_peers;
 HashTable peers_by_id;
 uint32_t peers_by_id_initval;
 
-// MAC addresses hash table
-HashTable mac_table;
-uint32_t mac_table_initval;
-
-// multicast MAC address hash table
-HashTable multicast_table;
-uint32_t multicast_table_initval;
-
-// multicast entries
-LinkedList2 multicast_entries_free;
-struct multicast_table_entry multicast_entries_data[MAX_PEERS*PEER_MAX_GROUPS];
+// frame decider
+FrameDecider frame_decider;
 
 // peers that can be user as relays
 LinkedList2 relays;
@@ -275,15 +264,6 @@ static void peer_unregister_need_relay (struct peer_data *peer);
 // handle a link setup failure
 static int peer_reset (struct peer_data *peer);
 
-// associates a MAC address with a peer
-static void peer_add_mac_address (struct peer_data *peer, uint8_t *mac);
-
-// associate an IPv4 multicast address with a peer
-static void peer_join_group (struct peer_data *peer, uint32_t group);
-
-// disassociate an IPv4 multicast address from a peer
-static void peer_leave_group (struct peer_data *peer, uint32_t group);
-
 // handle incoming peer messages
 static void peer_msg (struct peer_data *peer, uint8_t *data, int data_len);
 
@@ -332,26 +312,13 @@ static int peer_send_confirmseed (struct peer_data *peer, uint16_t seed_id);
 // submits a relayed frame for sending to the peer
 static void peer_submit_relayed_frame (struct peer_data *peer, struct peer_data *source_peer, uint8_t *frame, int frame_len);
 
-// handler for group timers
-static void peer_group_timer_handler (struct peer_group_entry *entry);
-
 // handler for peer DataProto up state changes
 static void peer_dataproto_handler (struct peer_data *peer, int up);
 
 // looks for a peer with the given ID
 static struct peer_data * find_peer_by_id (peerid_t id);
 
-// multicast table operations
-static void multicast_table_add_entry (struct peer_group_entry *entry);
-static void multicast_table_remove_entry (struct peer_group_entry *entry);
-
 // hash table callback functions
-static int peer_groups_table_key_comparator (uint32_t *group1, uint32_t *group2);
-static int peer_groups_table_hash_function (uint32_t *group, int modulo);
-static int mac_table_key_comparator (uint8_t *mac1, uint8_t *mac2);
-static int mac_table_hash_function (uint8_t *mac, int modulo);
-static int multicast_table_key_comparator (uint32_t *sig1, uint32_t *sig2);
-static int multicast_table_hash_function (uint32_t *sig, int modulo);
 static int peers_by_id_key_comparator (peerid_t *id1, peerid_t *id2);
 static int peers_by_id_hash_function (peerid_t *id, int modulo);
 
@@ -363,25 +330,6 @@ static void device_input_handler_send (void *unused, uint8_t *data, int data_len
 
 // submits a local frame for sending to the peer. The frame is taken from the device frame buffer.
 static void submit_frame_to_peer (struct peer_data *peer, uint8_t *data, int data_len);
-
-// submits the current frame to all peers
-static void flood_frame (uint8_t *data, int data_len);
-
-// inspects a frame read from the device and determines how
-// it should be handled. Used for IGMP snooping.
-static int hook_outgoing (uint8_t *pos, int len);
-
-#define HOOK_OUT_DEFAULT 0
-#define HOOK_OUT_FLOOD 1
-
-// inpects an incoming frame. Used for IGMP snooping.
-static void peer_hook_incoming (struct peer_data *peer, uint8_t *pos, int len);
-
-// lowers every group entry timer to IGMP_LAST_MEMBER_QUERY_TIME if it's larger
-static void lower_group_timers_to_lmqt (uint32_t group);
-
-// check an IPv4 packet
-static int check_ipv4_packet (uint8_t *data, int data_len, struct ipv4_header **out_header, uint8_t **out_payload, int *out_payload_len);
 
 // assign relays to clients waiting for them
 static void assign_relays (void);
@@ -580,39 +528,8 @@ int main (int argc, char *argv[])
         goto fail7;
     }
     
-    // init MAC address table
-    BRandom_randomize((uint8_t *)&mac_table_initval, sizeof(mac_table_initval));
-    if (!HashTable_Init(
-        &mac_table,
-        OFFSET_DIFF(struct mac_table_entry, mac, table_node),
-        (HashTable_comparator)mac_table_key_comparator,
-        (HashTable_hash_function)mac_table_hash_function,
-        MAX_PEERS * PEER_MAX_MACS
-    )) {
-        BLog(BLOG_ERROR, "HashTable_Init failed");
-        goto fail8;
-    }
-    
-    // init multicast MAC address table
-    BRandom_randomize((uint8_t *)&multicast_table_initval, sizeof(multicast_table_initval));
-    if (!HashTable_Init(
-        &multicast_table,
-        OFFSET_DIFF(struct multicast_table_entry, sig, table_node),
-        (HashTable_comparator)multicast_table_key_comparator,
-        (HashTable_hash_function)multicast_table_hash_function,
-        MAX_PEERS * PEER_MAX_GROUPS
-    )) {
-        BLog(BLOG_ERROR, "HashTable_Init failed");
-        goto fail9;
-    }
-    
-    // init multicast entries
-    LinkedList2_Init(&multicast_entries_free);
-    int i;
-    for (i = 0; i < MAX_PEERS * PEER_MAX_GROUPS; i++) {
-        struct multicast_table_entry *multicast_entry = &multicast_entries_data[i];
-        LinkedList2_Append(&multicast_entries_free, &multicast_entry->free_list_node);
-    }
+    // init frame decider
+    FrameDecider_Init(&frame_decider, PEER_MAX_MACS, PEER_MAX_GROUPS, IGMP_GROUP_MEMBERSHIP_INTERVAL, IGMP_LAST_MEMBER_QUERY_TIME, &ss);
     
     // init relays list
     LinkedList2_Init(&relays);
@@ -636,10 +553,7 @@ int main (int argc, char *argv[])
     
     // cleanup on error
 fail10:
-    HashTable_Free(&multicast_table);
-fail9:
-    HashTable_Free(&mac_table);
-fail8:
+    FrameDecider_Free(&frame_decider);
     HashTable_Free(&peers_by_id);
 fail7:
     PacketPassFairQueue_Free(&device.output_queue);
@@ -732,9 +646,10 @@ void terminate (void)
     // free server
     ServerConnection_Free(&server);
     
+    // free frame decider
+    FrameDecider_Free(&frame_decider);
+    
     // free hash tables
-    HashTable_Free(&multicast_table);
-    HashTable_Free(&mac_table);
     HashTable_Free(&peers_by_id);
     
     // free device output
@@ -1428,35 +1343,8 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     // init retry timer
     BTimer_Init(&peer->reset_timer, PEER_RETRY_TIME, (BTimer_handler)peer_reset_timer_handler, peer);
     
-    // init MAC lists
-    LinkedList2_Init(&peer->macs_used);
-    LinkedList2_Init(&peer->macs_free);
-    // init MAC entries and add them to the free list
-    for (int i = 0; i < PEER_MAX_MACS; i++) {
-        struct mac_table_entry *entry = &peer->macs_data[i];
-        entry->peer = peer;
-        LinkedList2_Append(&peer->macs_free, &entry->list_node);
-    }
-    
-    // init groups lists
-    LinkedList2_Init(&peer->groups_used);
-    LinkedList2_Init(&peer->groups_free);
-    // init group entries and add to unused list
-    for (int i = 0; i < PEER_MAX_GROUPS; i++) {
-        struct peer_group_entry *entry = &peer->groups_data[i];
-        entry->peer = peer;
-        LinkedList2_Append(&peer->groups_free, &entry->list_node);
-        BTimer_Init(&entry->timer, 0, (BTimer_handler)peer_group_timer_handler, entry);
-    }
-    // init groups hash table
-    if (!HashTable_Init(
-        &peer->groups_hashtable,
-        OFFSET_DIFF(struct peer_group_entry, group, table_node),
-        (HashTable_comparator)peer_groups_table_key_comparator,
-        (HashTable_hash_function)peer_groups_table_hash_function,
-        PEER_MAX_GROUPS
-    )) {
-        peer_log(peer, BLOG_ERROR, "HashTable_Init failed");
+    // init frame decider peer
+    if (!FrameDeciderPeer_Init(&peer->decider_peer, &frame_decider)) {
         goto fail5;
     }
     
@@ -1553,23 +1441,6 @@ void peer_dealloc (struct peer_data *peer)
         peer_free_link(peer);
     }
     
-    // free group entries
-    LinkedList2Iterator_InitForward(&it, &peer->groups_used);
-    while (node = LinkedList2Iterator_Next(&it)) {
-        struct peer_group_entry *group_entry = UPPER_OBJECT(node, struct peer_group_entry, list_node);
-        ASSERT(group_entry->peer == peer)
-        multicast_table_remove_entry(group_entry);
-        BReactor_RemoveTimer(&ss, &group_entry->timer);
-    }
-    
-    // free MAC addresses
-    LinkedList2Iterator_InitForward(&it, &peer->macs_used);
-    while (node = LinkedList2Iterator_Next(&it)) {
-        struct mac_table_entry *mac_entry = UPPER_OBJECT(node, struct mac_table_entry, list_node);
-        ASSERT(mac_entry->peer == peer)
-        ASSERT_EXECUTE(HashTable_Remove(&mac_table, mac_entry->mac))
-    }
-    
     // decrement number of peers
     num_peers--;
     
@@ -1582,8 +1453,8 @@ void peer_dealloc (struct peer_data *peer)
     // free jobs
     BPending_Free(&peer->job_send_seed_after_binding);
     
-    // free groups table
-    HashTable_Free(&peer->groups_hashtable);
+    // free frame decider
+    FrameDeciderPeer_Free(&peer->decider_peer);
     
     // free retry timer
     BReactor_RemoveTimer(&ss, &peer->reset_timer);
@@ -1965,145 +1836,6 @@ int peer_reset (struct peer_data *peer)
     }
     
     return 0;
-}
-
-void peer_add_mac_address (struct peer_data *peer, uint8_t *mac)
-{
-    // check if the MAC address is already present in the global table
-    HashTableNode *old_table_node;
-    if (HashTable_Lookup(&mac_table, mac, &old_table_node)) {
-        struct mac_table_entry *old_entry = UPPER_OBJECT(old_table_node, struct mac_table_entry, table_node);
-        ASSERT(!memcmp(old_entry->mac, mac, 6))
-        
-        // if the MAC is already associated with this peer, only move it to the end of the list
-        if (old_entry->peer == peer) {
-            LinkedList2_Remove(&peer->macs_used, &old_entry->list_node);
-            LinkedList2_Append(&peer->macs_used, &old_entry->list_node);
-            return;
-        }
-        
-        // remove entry from global hash table
-        ASSERT_EXECUTE(HashTable_Remove(&mac_table, old_entry->mac))
-        
-        // move entry to peer's unused list
-        LinkedList2_Remove(&old_entry->peer->macs_used, &old_entry->list_node);
-        LinkedList2_Append(&old_entry->peer->macs_free, &old_entry->list_node);
-    }
-    
-    peer_log(peer, BLOG_INFO, "adding MAC %02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8"", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    
-    // aquire MAC address entry, if there are no free ones reuse the oldest used one
-    LinkedList2Node *node;
-    struct mac_table_entry *entry;
-    if (node = LinkedList2_GetFirst(&peer->macs_free)) {
-        entry = UPPER_OBJECT(node, struct mac_table_entry, list_node);
-        ASSERT(entry->peer == peer)
-        
-        // remove from unused list
-        LinkedList2_Remove(&peer->macs_free, &entry->list_node);
-    } else {
-        node = LinkedList2_GetFirst(&peer->macs_used);
-        ASSERT(node)
-        entry = UPPER_OBJECT(node, struct mac_table_entry, list_node);
-        ASSERT(entry->peer == peer)
-        
-        // remove from used list
-        LinkedList2_Remove(&peer->macs_used, &entry->list_node);
-        
-        // remove from global hash table
-        ASSERT_EXECUTE(HashTable_Remove(&mac_table, entry->mac))
-    }
-    
-    // copy MAC to entry
-    memcpy(entry->mac, mac, 6);
-    
-    // add entry to used list
-    LinkedList2_Append(&peer->macs_used, &entry->list_node);
-    
-    // add entry to global hash table
-    ASSERT_EXECUTE(HashTable_Insert(&mac_table, &entry->table_node))
-}
-
-void peer_join_group (struct peer_data *peer, uint32_t group)
-{
-    struct peer_group_entry *group_entry;
-    
-    HashTableNode *old_table_node;
-    if (HashTable_Lookup(&peer->groups_hashtable, &group, &old_table_node)) {
-        group_entry = UPPER_OBJECT(old_table_node, struct peer_group_entry, table_node);
-        
-        // move to end of used list
-        LinkedList2_Remove(&peer->groups_used, &group_entry->list_node);
-        LinkedList2_Append(&peer->groups_used, &group_entry->list_node);
-    } else {
-        peer_log(peer, BLOG_INFO, "joined group %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"",
-            ((uint8_t *)&group)[0], ((uint8_t *)&group)[1], ((uint8_t *)&group)[2], ((uint8_t *)&group)[3]
-        );
-        
-        // aquire group entry, if there are no free ones reuse the earliest used one
-        LinkedList2Node *node;
-        if (node = LinkedList2_GetFirst(&peer->groups_free)) {
-            group_entry = UPPER_OBJECT(node, struct peer_group_entry, list_node);
-            
-            // remove from free list
-            LinkedList2_Remove(&peer->groups_free, &group_entry->list_node);
-        } else {
-            node = LinkedList2_GetFirst(&peer->groups_used);
-            ASSERT(node)
-            group_entry = UPPER_OBJECT(node, struct peer_group_entry, list_node);
-            
-            // remove from used list
-            LinkedList2_Remove(&peer->groups_used, &group_entry->list_node);
-            
-            // remove from groups hash table
-            ASSERT_EXECUTE(HashTable_Remove(&peer->groups_hashtable, &group_entry->group))
-            
-            // remove from global multicast table
-            multicast_table_remove_entry(group_entry);
-        }
-        
-        // add entry to used list
-        LinkedList2_Append(&peer->groups_used, &group_entry->list_node);
-        
-        // set group address in entry
-        group_entry->group = group;
-        
-        // add entry to groups hash table
-        ASSERT_EXECUTE(HashTable_Insert(&peer->groups_hashtable, &group_entry->table_node))
-        
-        // add entry to global multicast table
-        multicast_table_add_entry(group_entry);
-    }
-    
-    // start timer
-    group_entry->timer_endtime = btime_gettime() + IGMP_DEFAULT_GROUP_MEMBERSHIP_INTERVAL;
-    BReactor_SetTimerAbsolute(&ss, &group_entry->timer, group_entry->timer_endtime);
-}
-
-void peer_leave_group (struct peer_data *peer, uint32_t group)
-{
-    HashTableNode *table_node;
-    if (!HashTable_Lookup(&peer->groups_hashtable, &group, &table_node)) {
-        return;
-    }
-    struct peer_group_entry *group_entry = UPPER_OBJECT(table_node, struct peer_group_entry, table_node);
-    
-    peer_log(peer, BLOG_INFO, "left group %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"",
-        ((uint8_t *)&group)[0], ((uint8_t *)&group)[1], ((uint8_t *)&group)[2], ((uint8_t *)&group)[3]
-    );
-    
-    // move to free list
-    LinkedList2_Remove(&peer->groups_used, &group_entry->list_node);
-    LinkedList2_Append(&peer->groups_free, &group_entry->list_node);
-    
-    // stop timer
-    BReactor_RemoveTimer(&ss, &group_entry->timer);
-    
-    // remove from groups hash table
-    ASSERT_EXECUTE(HashTable_Remove(&peer->groups_hashtable, &group_entry->group))
-    
-    // remove from global multicast table
-    multicast_table_remove_entry(group_entry);
 }
 
 void peer_msg (struct peer_data *peer, uint8_t *data, int data_len)
@@ -2491,18 +2223,8 @@ void peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len
     if (id == my_id) {
         // frame is for us
         
-        // check ethernet header
-        if (data_len < sizeof(struct ethernet_header)) {
-            peer_log(peer, BLOG_INFO, "received frame without ethernet header");
-            goto out;
-        }
-        struct ethernet_header *header = (struct ethernet_header *)data;
-        
-        // associate source address with peer
-        peer_add_mac_address(peer, header->source);
-        
-        // invoke incoming hook
-        peer_hook_incoming(peer, data, data_len);
+        // let the frame decider analyze the frame
+        FrameDeciderPeer_Analyze(&peer->decider_peer, data, data_len);
         
         local = 1;
     } else {
@@ -2903,13 +2625,6 @@ void peer_submit_relayed_frame (struct peer_data *peer, struct peer_data *source
     DataProtoDest_SubmitRelayFrame(&peer->send_dp, &source_peer->relay_source, frame, frame_len, options.send_buffer_relay_size);
 }
 
-void peer_group_timer_handler (struct peer_group_entry *entry)
-{
-    struct peer_data *peer = entry->peer;
-    
-    peer_leave_group(peer, entry->group);
-}
-
 void peer_dataproto_handler (struct peer_data *peer, int up)
 {
     ASSERT(peer->have_link)
@@ -2944,87 +2659,6 @@ struct peer_data * find_peer_by_id (peerid_t id)
     return peer;
 }
 
-void multicast_table_add_entry (struct peer_group_entry *group_entry)
-{
-    // key is 23 network byte order least-significant bits of group address
-    uint32_t sig = hton32(ntoh32(group_entry->group)&0x7FFFFF);
-    
-    // lookup entry in multicast table
-    struct multicast_table_entry *multicast_entry;
-    HashTableNode *table_node;
-    if (HashTable_Lookup(&multicast_table, &sig, &table_node)) {
-        multicast_entry = UPPER_OBJECT(table_node, struct multicast_table_entry, table_node);
-    } else {
-        // grab entry from free multicast entries list
-        LinkedList2Node *free_list_node = LinkedList2_GetFirst(&multicast_entries_free);
-        ASSERT(free_list_node) // there are as many multicast entries as maximum number of groups
-        multicast_entry = UPPER_OBJECT(free_list_node, struct multicast_table_entry, free_list_node);
-        LinkedList2_Remove(&multicast_entries_free, &multicast_entry->free_list_node);
-        
-        // set key
-        multicast_entry->sig = sig;
-        
-        // insert into hash table
-        ASSERT_EXECUTE(HashTable_Insert(&multicast_table, &multicast_entry->table_node))
-        
-        // init list of group entries
-        LinkedList2_Init(&multicast_entry->group_entries);
-    }
-    
-    // add to list of group entries
-    LinkedList2_Append(&multicast_entry->group_entries, &group_entry->multicast_list_node);
-    
-    // write multicast entry pointer to group entry for fast removal of groups
-    group_entry->multicast_entry = multicast_entry;
-}
-
-void multicast_table_remove_entry (struct peer_group_entry *group_entry)
-{
-    struct multicast_table_entry *multicast_entry = group_entry->multicast_entry;
-    
-    // remove group entry from linked list in multicast entry
-    LinkedList2_Remove(&multicast_entry->group_entries, &group_entry->multicast_list_node);
-    
-    // if the multicast entry has no more group entries, remove it from the hash table
-    if (LinkedList2_IsEmpty(&multicast_entry->group_entries)) {
-        // remove from multicast table
-        ASSERT_EXECUTE(HashTable_Remove(&multicast_table, &multicast_entry->sig))
-        
-        // add to free list
-        LinkedList2_Append(&multicast_entries_free, &multicast_entry->free_list_node);
-    }
-}
-
-int peer_groups_table_key_comparator (uint32_t *group1, uint32_t *group2)
-{
-    return (*group1 == *group2);
-}
-
-int peer_groups_table_hash_function (uint32_t *group, int modulo)
-{
-    return (jenkins_lookup2_hash((uint8_t *)group, sizeof(*group), 0) % modulo);
-}
-
-int mac_table_key_comparator (uint8_t *mac1, uint8_t *mac2)
-{
-    return (memcmp(mac1, mac2, 6) == 0);
-}
-
-int mac_table_hash_function (uint8_t *mac, int modulo)
-{
-    return (jenkins_lookup2_hash(mac, 6, mac_table_initval) % modulo);
-}
-
-int multicast_table_key_comparator (uint32_t *sig1, uint32_t *sig2)
-{
-    return (*sig1 == *sig2);
-}
-
-int multicast_table_hash_function (uint32_t *sig, int modulo)
-{
-    return (jenkins_lookup2_hash((uint8_t *)sig, sizeof(*sig), multicast_table_initval) % modulo);
-}
-
 int peers_by_id_key_comparator (peerid_t *id1, peerid_t *id2)
 {
     return (*id1 == *id2);
@@ -3051,58 +2685,14 @@ void device_input_handler_send (void *unused, uint8_t *data, int data_len)
     // accept packet
     PacketPassInterface_Done(&device.input_interface);
     
-    const uint8_t broadcast_mac[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-    const uint8_t multicast_header[] = {0x01, 0x00, 0x5e};
+    // give frame to decider
+    FrameDecider_AnalyzeAndDecide(&frame_decider, data, data_len);
     
-    if (data_len < sizeof(struct ethernet_header)) {
-        BLog(BLOG_INFO, "device: frame too small (%d)", data_len);
-        return;
-    }
-    
-    struct ethernet_header *header = (struct ethernet_header *)data;
-    
-    // invoke outgoing hook
-    int hook_result = hook_outgoing(data, data_len);
-    
-    switch (hook_result) {
-        case HOOK_OUT_DEFAULT:
-            // is it multicast?
-            if (!memcmp(header->dest, multicast_header, 3)) {
-                // obtain multicast group bits from MAC address
-                uint32_t sig;
-                memcpy(&sig, &header->dest[2], 4);
-                sig = hton32(ntoh32(sig)&0x7FFFFF);
-                // lookup multicast entry
-                HashTableNode *multicast_table_node;
-                if (HashTable_Lookup(&multicast_table, &sig, &multicast_table_node)) {
-                    struct multicast_table_entry *multicast_entry = UPPER_OBJECT(multicast_table_node, struct multicast_table_entry, table_node);
-                    // send to all peers with groups matching the known bits of the group address
-                    LinkedList2Iterator it;
-                    LinkedList2Iterator_InitForward(&it, &multicast_entry->group_entries);
-                    LinkedList2Node *group_entries_list_node;
-                    while (group_entries_list_node = LinkedList2Iterator_Next(&it)) {
-                        struct peer_group_entry *group_entry = UPPER_OBJECT(group_entries_list_node, struct peer_group_entry, multicast_list_node);
-                        submit_frame_to_peer(group_entry->peer, data, data_len);
-                    }
-                }
-            } else {
-                // should we flood it?
-                HashTableNode *mac_table_node;
-                if (!memcmp(header->dest, broadcast_mac, 6) || !HashTable_Lookup(&mac_table, header->dest, &mac_table_node)) {
-                    flood_frame(data, data_len);
-                }
-                // unicast it
-                else {
-                    struct mac_table_entry *mac_entry = UPPER_OBJECT(mac_table_node, struct mac_table_entry, table_node);
-                    submit_frame_to_peer(mac_entry->peer, data, data_len);
-                }
-            }
-            break;
-        case HOOK_OUT_FLOOD:
-            flood_frame(data, data_len);
-            break;
-        default:
-            ASSERT(0);
+    // forward frame to peers
+    FrameDeciderPeer *decider_peer;
+    while (decider_peer = FrameDecider_NextDestination(&frame_decider)) {
+        struct peer_data *peer = UPPER_OBJECT(decider_peer, struct peer_data, decider_peer);
+        submit_frame_to_peer(peer, data, data_len);
     }
 }
 
@@ -3112,257 +2702,6 @@ void submit_frame_to_peer (struct peer_data *peer, uint8_t *data, int data_len)
     ASSERT(data_len <= device.mtu)
     
     DataProtoLocalSource_SubmitFrame(&peer->local_dpflow, data, data_len);
-}
-
-void flood_frame (uint8_t *data, int data_len)
-{
-    ASSERT(data_len >= 0)
-    ASSERT(data_len <= device.mtu)
-    
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &peers);
-    LinkedList2Node *peer_list_node;
-    while (peer_list_node = LinkedList2Iterator_Next(&it)) {
-        struct peer_data *peer = UPPER_OBJECT(peer_list_node, struct peer_data, list_node);
-        submit_frame_to_peer(peer, data, data_len);
-    }
-}
-
-int hook_outgoing (uint8_t *pos, int len)
-{
-    ASSERT(len >= sizeof(struct ethernet_header))
-    
-    struct ethernet_header *eth_header = (struct ethernet_header *)pos;
-    pos += sizeof(struct ethernet_header);
-    len -= sizeof(struct ethernet_header);
-    
-    switch (ntoh16(eth_header->type)) {
-        case ETHERTYPE_IPV4: {
-            struct ipv4_header *ipv4_header;
-            if (!check_ipv4_packet(pos, len, &ipv4_header, &pos, &len)) {
-                BLog(BLOG_INFO, "hook outgoing: wrong IP packet");
-                goto out;
-            }
-            if (ipv4_header->protocol != IPV4_PROTOCOL_IGMP) {
-                goto out;
-            }
-            if (len < sizeof(struct igmp_base)) {
-                BLog(BLOG_INFO, "hook outgoing: IGMP: short packet");
-                goto out;
-            }
-            struct igmp_base *igmp_base = (struct igmp_base *)pos;
-            pos += sizeof(struct igmp_base);
-            len -= sizeof(struct igmp_base);
-            switch (igmp_base->type) {
-                case IGMP_TYPE_MEMBERSHIP_QUERY: {
-                    if (len == sizeof(struct igmp_v2_extra) && igmp_base->max_resp_code != 0) {
-                        // V2 query
-                        struct igmp_v2_extra *query = (struct igmp_v2_extra *)pos;
-                        pos += sizeof(struct igmp_v2_extra);
-                        len -= sizeof(struct igmp_v2_extra);
-                        if (ntoh32(query->group) != 0) {
-                            // got a Group Specific Query, lower group timers to LMQT
-                            lower_group_timers_to_lmqt(query->group);
-                        }
-                    }
-                    else if (len >= sizeof(struct igmp_v3_query_extra)) {
-                        // V3 query
-                        struct igmp_v3_query_extra *query = (struct igmp_v3_query_extra *)pos;
-                        pos += sizeof(struct igmp_v3_query_extra);
-                        len -= sizeof(struct igmp_v3_query_extra);
-                        uint16_t num_sources = ntoh16(query->number_of_sources);
-                        int i;
-                        for (i = 0; i < num_sources; i++) {
-                            if (len < sizeof(struct igmp_source)) {
-                                BLog(BLOG_NOTICE, "hook outgoing: IGMP: short source");
-                                goto out_igmp;
-                            }
-                            pos += sizeof(struct igmp_source);
-                            len -= sizeof(struct igmp_source);
-                        }
-                        if (i < num_sources) {
-                            BLog(BLOG_NOTICE, "hook outgoing: IGMP: not all sources present");
-                            goto out_igmp;
-                        }
-                        if (ntoh32(query->group) != 0 && num_sources == 0) {
-                            // got a Group Specific Query, lower group timers to LMQT
-                            lower_group_timers_to_lmqt(query->group);
-                        }
-                    }
-                } break;
-            }
-        out_igmp:
-            // flood IGMP frames to allow all peers to learn group membership
-            return HOOK_OUT_FLOOD;
-        } break;
-    }
-    
-out:
-    return HOOK_OUT_DEFAULT;
-}
-
-void peer_hook_incoming (struct peer_data *peer, uint8_t *pos, int len)
-{
-    ASSERT(len >= sizeof(struct ethernet_header))
-    
-    struct ethernet_header *eth_header = (struct ethernet_header *)pos;
-    pos += sizeof(struct ethernet_header);
-    len -= sizeof(struct ethernet_header);
-    
-    switch (ntoh16(eth_header->type)) {
-        case ETHERTYPE_IPV4: {
-            struct ipv4_header *ipv4_header;
-            if (!check_ipv4_packet(pos, len, &ipv4_header, &pos, &len)) {
-                BLog(BLOG_INFO, "hook incoming: wrong IP packet");
-                goto out;
-            }
-            if (ipv4_header->protocol != IPV4_PROTOCOL_IGMP) {
-                goto out;
-            }
-            if (len < sizeof(struct igmp_base)) {
-                BLog(BLOG_INFO, "hook incoming: IGMP: short");
-                goto out;
-            }
-            struct igmp_base *igmp_base = (struct igmp_base *)pos;
-            pos += sizeof(struct igmp_base);
-            len -= sizeof(struct igmp_base);
-            switch (igmp_base->type) {
-                case IGMP_TYPE_V2_MEMBERSHIP_REPORT: {
-                    if (len < sizeof(struct igmp_v2_extra)) {
-                        BLog(BLOG_INFO, "hook incoming: IGMP: short v2 report");
-                        goto out;
-                    }
-                    struct igmp_v2_extra *report = (struct igmp_v2_extra *)pos;
-                    pos += sizeof(struct igmp_v2_extra);
-                    len -= sizeof(struct igmp_v2_extra);
-                    peer_join_group(peer, report->group);
-                } break;
-                case IGMP_TYPE_V3_MEMBERSHIP_REPORT: {
-                    if (len < sizeof(struct igmp_v3_report_extra)) {
-                        BLog(BLOG_INFO, "hook incoming: IGMP: short v3 report");
-                        goto out;
-                    }
-                    struct igmp_v3_report_extra *report = (struct igmp_v3_report_extra *)pos;
-                    pos += sizeof(struct igmp_v3_report_extra);
-                    len -= sizeof(struct igmp_v3_report_extra);
-                    uint16_t num_records = ntoh16(report->number_of_group_records);
-                    int i;
-                    for (i = 0; i < num_records; i++) {
-                        if (len < sizeof(struct igmp_v3_report_record)) {
-                            BLog(BLOG_INFO, "hook incoming: IGMP: short record header");
-                            goto out;
-                        }
-                        struct igmp_v3_report_record *record = (struct igmp_v3_report_record *)pos;
-                        pos += sizeof(struct igmp_v3_report_record);
-                        len -= sizeof(struct igmp_v3_report_record);
-                        uint16_t num_sources = ntoh16(record->number_of_sources);
-                        int j;
-                        for (j = 0; j < num_sources; j++) {
-                            if (len < sizeof(struct igmp_source)) {
-                                BLog(BLOG_INFO, "hook incoming: IGMP: short source");
-                                goto out;
-                            }
-                            struct igmp_source *source = (struct igmp_source *)pos;
-                            pos += sizeof(struct igmp_source);
-                            len -= sizeof(struct igmp_source);
-                        }
-                        if (j < num_sources) {
-                            goto out;
-                        }
-                        uint16_t aux_len = ntoh16(record->aux_data_len);
-                        if (len < aux_len) {
-                            BLog(BLOG_INFO, "hook incoming: IGMP: short record aux data");
-                            goto out;
-                        }
-                        pos += aux_len;
-                        len -= aux_len;
-                        switch (record->type) {
-                            case IGMP_RECORD_TYPE_MODE_IS_INCLUDE:
-                            case IGMP_RECORD_TYPE_CHANGE_TO_INCLUDE_MODE:
-                                if (num_sources != 0) {
-                                    peer_join_group(peer, record->group);
-                                }
-                                break;
-                            case IGMP_RECORD_TYPE_MODE_IS_EXCLUDE:
-                            case IGMP_RECORD_TYPE_CHANGE_TO_EXCLUDE_MODE:
-                                peer_join_group(peer, record->group);
-                                break;
-                        }
-                    }
-                    if (i < num_records) {
-                        BLog(BLOG_INFO, "hook incoming: IGMP: not all records present");
-                    }
-                } break;
-            }
-        } break;
-    }
-    
-out:;
-}
-
-void lower_group_timers_to_lmqt (uint32_t group)
-{
-    // lookup the group in every peer's group entries hash table
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &peers);
-    LinkedList2Node *peer_list_node;
-    while (peer_list_node = LinkedList2Iterator_Next(&it)) {
-        struct peer_data *peer = UPPER_OBJECT(peer_list_node, struct peer_data, list_node);
-        HashTableNode *groups_table_node;
-        if (HashTable_Lookup(&peer->groups_hashtable, &group, &groups_table_node)) {
-            struct peer_group_entry *group_entry = UPPER_OBJECT(groups_table_node, struct peer_group_entry, table_node);
-            ASSERT(group_entry->peer == peer)
-            btime_t now = btime_gettime();
-            if (group_entry->timer_endtime > now + IGMP_LAST_MEMBER_QUERY_TIME) {
-                group_entry->timer_endtime = now + IGMP_LAST_MEMBER_QUERY_TIME;
-                BReactor_SetTimerAbsolute(&ss, &group_entry->timer, group_entry->timer_endtime);
-            }
-        }
-    }
-}
-
-int check_ipv4_packet (uint8_t *data, int data_len, struct ipv4_header **out_header, uint8_t **out_payload, int *out_payload_len)
-{
-    // check base header
-    if (data_len < sizeof(struct ipv4_header)) {
-        BLog(BLOG_DEBUG, "check ipv4: packet too short (base header)");
-        return 0;
-    }
-    struct ipv4_header *header = (struct ipv4_header *)data;
-    
-    // check version
-    if (IPV4_GET_VERSION(*header) != 4) {
-        BLog(BLOG_DEBUG, "check ipv4: version not 4");
-        return 0;
-    }
-    
-    // check options
-    int header_len = IPV4_GET_IHL(*header) * 4;
-    if (header_len < sizeof(struct ipv4_header)) {
-        BLog(BLOG_DEBUG, "check ipv4: ihl too small");
-        return 0;
-    }
-    if (header_len > data_len) {
-        BLog(BLOG_DEBUG, "check ipv4: packet too short for ihl");
-        return 0;
-    }
-    
-    // check total length
-    uint16_t total_length = ntoh16(header->total_length);
-    if (total_length < header_len) {
-        BLog(BLOG_DEBUG, "check ipv4: total length too small");
-        return 0;
-    }
-    if (total_length > data_len) {
-        BLog(BLOG_DEBUG, "check ipv4: total length too large");
-        return 0;
-    }
-    
-    *out_header = header;
-    *out_payload = data + header_len;
-    *out_payload_len = total_length - header_len;
-    
-    return 1;
 }
 
 void assign_relays (void)

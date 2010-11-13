@@ -10,3 +10,4 @@
 {.name = "flooder", .loglevel = 4},
 {.name = "Listener", .loglevel = 4},
 {.name = "DataProto", .loglevel = 4},
+{.name = "FrameDecider", .loglevel = 4},

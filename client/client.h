@@ -32,6 +32,7 @@
 #include <client/DatagramPeerIO.h>
 #include <client/StreamPeerIO.h>
 #include <client/DataProto.h>
+#include <client/FrameDecider.h>
 
 // NOTE: all time values are in milliseconds
 
@@ -68,7 +69,7 @@
 
 // for how long a peer can send no Membership Reports for a group
 // before the peer and group are disassociated
-#define IGMP_DEFAULT_GROUP_MEMBERSHIP_INTERVAL 260000
+#define IGMP_GROUP_MEMBERSHIP_INTERVAL 260000
 // how long to wait for joins after a Group Specific query has been
 // forwarded to a peer before assuming there are no listeners at the peer
 #define IGMP_LAST_MEMBER_QUERY_TIME 2000
@@ -95,40 +96,6 @@ struct device_data {
 };
 
 struct peer_data;
-
-// entry in global MAC hash table
-struct mac_table_entry {
-    struct peer_data *peer;
-    LinkedList2Node list_node; // node in macs_used or macs_free
-    // defined when used:
-    uint8_t mac[6]; // MAC address
-    HashTableNode table_node; // node in global MAC address table
-};
-
-// entry in global multicast hash table
-struct multicast_table_entry {
-    // defined when free:
-    LinkedList2Node free_list_node; // node in free entries list
-    // defined when used:
-    uint32_t sig; // last 23 bits of group address
-    HashTableNode table_node; // node in global multicast hash table
-    LinkedList2 group_entries; // list of peers' group entries that match this multicast entry
-};
-
-// multicast group entry in peers
-struct peer_group_entry {
-    struct peer_data *peer;
-    LinkedList2Node list_node; // node in peer's free or used groups list
-    BTimer timer; // timer for removing the group, running when group entry is used
-    // defined when used:
-    // basic group data
-    uint32_t group; // group address
-    HashTableNode table_node; // node in peer's groups hash table
-    btime_t timer_endtime;
-    // multicast table entry data
-    LinkedList2Node multicast_list_node; // node in list of multicast MACs that may mean this group
-    struct multicast_table_entry *multicast_entry; // pointer to entry in multicast hash table
-};
 
 struct peer_data {
     // peer identifier
@@ -189,18 +156,8 @@ struct peer_data {
     // retry timer
     BTimer reset_timer;
     
-    // MAC address entries
-    struct mac_table_entry macs_data[PEER_MAX_MACS];
-    // used entries, in global mac table
-    LinkedList2 macs_used;
-    // free entries
-    LinkedList2 macs_free;
-    
-    // IPv4 multicast groups the peer is a destination for
-    struct peer_group_entry groups_data[PEER_MAX_GROUPS];
-    LinkedList2 groups_used;
-    LinkedList2 groups_free;
-    HashTable groups_hashtable;
+    // frame decider peer
+    FrameDeciderPeer decider_peer;
     
     // relay server specific
     int is_relay;
