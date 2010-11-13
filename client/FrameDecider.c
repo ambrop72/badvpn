@@ -317,6 +317,13 @@ static void lower_group_timers_to_lmqt (FrameDecider *d, uint32_t group)
     }
 }
 
+static void group_entry_timer_handler (struct _FrameDecider_group_entry *group_entry)
+{
+    DebugObject_Access(&group_entry->peer->d_obj);
+    
+    remove_group_entry(group_entry);
+}
+
 static int check_ipv4_packet (uint8_t *data, int data_len, struct ipv4_header **out_header, uint8_t **out_payload, int *out_payload_len)
 {
     // check base header
@@ -585,11 +592,6 @@ FrameDeciderPeer * FrameDecider_NextDestination (FrameDecider *o)
         default:
             ASSERT(0);
     }
-}
-
-static void group_entry_timer_handler (struct _FrameDecider_group_entry *group_entry)
-{
-    remove_group_entry(group_entry);
 }
 
 int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d)

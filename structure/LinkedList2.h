@@ -278,9 +278,6 @@ void LinkedList2_InsertAfter (LinkedList2 *list, LinkedList2Node *node, LinkedLi
 
 void LinkedList2_Remove (LinkedList2 *list, LinkedList2Node *node)
 {
-    LinkedList2Iterator *it;
-    LinkedList2Iterator *next;
-    
     // jump iterators
     while (node->it) {
         LinkedList2Iterator_Next(node->it);
@@ -307,10 +304,7 @@ void LinkedList2Iterator_Init (LinkedList2Iterator *it, LinkedList2 *list, int d
     it->dir = dir;
     it->e = node;
     
-    if (!it->e) {
-        it->pi = NULL;
-        it->ni = NULL;
-    } else {
+    if (it->e) {
         // link into node's iterator list
         it->pi = NULL;
         it->ni = it->e->it;
