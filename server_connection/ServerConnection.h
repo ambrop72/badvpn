@@ -257,6 +257,14 @@ int ServerConnection_Init (
 void ServerConnection_Free (ServerConnection *o);
 
 /**
+ * Determines if the object is in ready state.
+ *
+ * @param o the object
+ * @return 1 if ready, 0 of not
+ */
+int ServerConnection_IsReady (ServerConnection *o);
+
+/**
  * Provides a buffer for writing a message to be sent to a peer.
  * The object must be in ready and not writing state.
  * On success, the object enters writing state.

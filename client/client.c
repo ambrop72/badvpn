@@ -177,9 +177,6 @@ LinkedList2 waiting_relay_peers;
 // server connection
 ServerConnection server;
 
-// whether server is ready
-int server_ready;
-
 // my ID, defined only after server_ready
 peerid_t my_id;
 
@@ -243,14 +240,14 @@ static void peer_disable_relay_provider (struct peer_data *peer);
 static void peer_dealloc_relay_provider (struct peer_data *peer);
 
 // install relaying for a peer
-static void peer_install_relay (struct peer_data *peer, struct peer_data *relay);
+static void peer_install_relaying (struct peer_data *peer, struct peer_data *relay);
 
 // uninstall relaying for a peer
-static void peer_uninstall_relay (struct peer_data *peer);
+static void peer_uninstall_relaying (struct peer_data *peer);
 
 // deallocates relaying for a peer. Used when the relay is beeing freed,
 // and when uninstalling relaying after having released the connection.
-static void peer_dealloc_relay (struct peer_data *peer);
+static void peer_dealloc_relaying (struct peer_data *peer);
 
 // handle a peer that needs a relay
 static void peer_need_relay (struct peer_data *peer);
@@ -305,7 +302,7 @@ static int peer_send_simple (struct peer_data *peer, int msgid);
 
 static int peer_send_conectinfo (struct peer_data *peer, int addr_index, int port_adjust, uint8_t *enckey, uint64_t pass);
 
-static int peer_udp_send_seed (struct peer_data *peer);
+static int peer_generate_and_send_seed (struct peer_data *peer);
 
 static int peer_send_confirmseed (struct peer_data *peer, uint16_t seed_id);
 
@@ -327,9 +324,6 @@ static void device_error_handler (void *unused);
 
 // PacketPassInterfacre handler for packets from the device
 static void device_input_handler_send (void *unused, uint8_t *data, int data_len);
-
-// submits a local frame for sending to the peer. The frame is taken from the device frame buffer.
-static void submit_frame_to_peer (struct peer_data *peer, uint8_t *data, int data_len);
 
 // assign relays to clients waiting for them
 static void assign_relays (void);
@@ -545,9 +539,6 @@ int main (int argc, char *argv[])
         BLog(BLOG_ERROR, "ServerConnection_Init failed");
         goto fail10;
     }
-    
-    // set server not ready
-    server_ready = 0;
     
     goto event_loop;
     
@@ -1247,7 +1238,7 @@ void signal_handler (void *unused)
 
 int server_start_msg (void **data, peerid_t peer_id, int type, int len)
 {
-    ASSERT(server_ready)
+    ASSERT(ServerConnection_IsReady(&server))
     ASSERT(len >= 0)
     ASSERT(len <= MSG_MAX_PAYLOAD)
     ASSERT(!(len > 0) || data)
@@ -1274,14 +1265,14 @@ int server_start_msg (void **data, peerid_t peer_id, int type, int len)
 
 void server_end_msg (void)
 {
-    ASSERT(server_ready)
+    ASSERT(ServerConnection_IsReady(&server))
     
     ServerConnection_EndMessage(&server);
 }
 
 int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
 {
-    ASSERT(server_ready)
+    ASSERT(ServerConnection_IsReady(&server))
     ASSERT(num_peers < MAX_PEERS)
     ASSERT(!find_peer_by_id(id))
     ASSERT(id != my_id)
@@ -1397,7 +1388,7 @@ void peer_remove (struct peer_data *peer)
     
     // uninstall relaying
     if (peer->have_relaying) {
-        peer_uninstall_relay(peer);
+        peer_uninstall_relaying(peer);
     }
     
     // disable relay provider
@@ -1610,7 +1601,7 @@ int peer_new_link (struct peer_data *peer)
         peer_free_link(peer);
     }
     else if (peer->have_relaying) {
-        peer_uninstall_relay(peer);
+        peer_uninstall_relaying(peer);
     }
     else if (peer->waiting_relay) {
         peer_unregister_need_relay(peer);
@@ -1659,7 +1650,7 @@ void peer_disable_relay_provider (struct peer_data *peer)
         ASSERT(relay_user->relaying_peer == peer)
         
         // disconnect relay user
-        peer_uninstall_relay(relay_user);
+        peer_uninstall_relaying(relay_user);
         
         // add it to need relay list
         peer_register_need_relay(relay_user);
@@ -1693,7 +1684,7 @@ void peer_dealloc_relay_provider (struct peer_data *peer)
         ASSERT(relay_user->relaying_peer == peer)
         
         // disconnect relay user
-        peer_dealloc_relay(relay_user);
+        peer_dealloc_relaying(relay_user);
         
         // add it to need relay list
         peer_register_need_relay(relay_user);
@@ -1705,7 +1696,7 @@ void peer_dealloc_relay_provider (struct peer_data *peer)
     peer->is_relay = 0;
 }
 
-void peer_install_relay (struct peer_data *peer, struct peer_data *relay)
+void peer_install_relaying (struct peer_data *peer, struct peer_data *relay)
 {
     ASSERT(!peer->have_relaying)
     ASSERT(!peer->have_link)
@@ -1729,7 +1720,7 @@ void peer_install_relay (struct peer_data *peer, struct peer_data *relay)
     peer->have_relaying = 1;
 }
 
-void peer_uninstall_relay (struct peer_data *peer)
+void peer_uninstall_relaying (struct peer_data *peer)
 {
     ASSERT(peer->have_relaying)
     
@@ -1746,10 +1737,10 @@ void peer_uninstall_relay (struct peer_data *peer)
     DataProtoLocalSource_Release(&peer->local_dpflow);
     
     // link out relay
-    peer_dealloc_relay(peer);
+    peer_dealloc_relaying(peer);
 }
 
-void peer_dealloc_relay (struct peer_data *peer)
+void peer_dealloc_relaying (struct peer_data *peer)
 {
     ASSERT(peer->have_relaying)
     
@@ -1778,7 +1769,7 @@ void peer_need_relay (struct peer_data *peer)
     }
     
     if (peer->have_relaying) {
-        peer_uninstall_relay(peer);
+        peer_uninstall_relaying(peer);
     }
     
     if (peer->waiting_relay) {
@@ -1840,7 +1831,6 @@ int peer_reset (struct peer_data *peer)
 
 void peer_msg (struct peer_data *peer, uint8_t *data, int data_len)
 {
-    ASSERT(server_ready)
     ASSERT(data_len >= 0)
     ASSERT(data_len <= SC_MAX_MSGLEN)
     
@@ -2134,7 +2124,7 @@ void peer_udp_pio_handler_seed_warning (struct peer_data *peer)
     
     // generate and send a new seed
     if (!peer->pio.udp.sendseed_sent) {
-        peer_udp_send_seed(peer);
+        peer_generate_and_send_seed(peer);
         return;
     }
 }
@@ -2426,7 +2416,7 @@ int peer_connect (struct peer_data *peer, BAddr addr, uint8_t *encryption_key, u
         
         // generate and send a send seed
         if (SPPROTO_HAVE_OTP(sp_params)) {
-            if (peer_udp_send_seed(peer) < 0) {
+            if (peer_generate_and_send_seed(peer) < 0) {
                 return -1;
             }
         }
@@ -2556,7 +2546,7 @@ int peer_send_conectinfo (struct peer_data *peer, int addr_index, int port_adjus
     return 0;
 }
 
-int peer_udp_send_seed (struct peer_data *peer)
+int peer_generate_and_send_seed (struct peer_data *peer)
 {
     ASSERT(options.transport_mode == TRANSPORT_MODE_UDP)
     ASSERT(SPPROTO_HAVE_OTP(sp_params))
@@ -2692,16 +2682,8 @@ void device_input_handler_send (void *unused, uint8_t *data, int data_len)
     FrameDeciderPeer *decider_peer;
     while (decider_peer = FrameDecider_NextDestination(&frame_decider)) {
         struct peer_data *peer = UPPER_OBJECT(decider_peer, struct peer_data, decider_peer);
-        submit_frame_to_peer(peer, data, data_len);
+        DataProtoLocalSource_SubmitFrame(&peer->local_dpflow, data, data_len);
     }
-}
-
-void submit_frame_to_peer (struct peer_data *peer, uint8_t *data, int data_len)
-{
-    ASSERT(data_len >= 0)
-    ASSERT(data_len <= device.mtu)
-    
-    DataProtoLocalSource_SubmitFrame(&peer->local_dpflow, data, data_len);
 }
 
 void assign_relays (void)
@@ -2727,7 +2709,7 @@ void assign_relays (void)
         peer_unregister_need_relay(peer);
         
         // install the relay
-        peer_install_relay(peer, relay);
+        peer_install_relaying(peer, relay);
     }
 }
 
@@ -2754,8 +2736,6 @@ void server_handler_error (void *user)
 
 void server_handler_ready (void *user, peerid_t param_my_id, uint32_t ext_ip)
 {
-    ASSERT(!server_ready)
-    
     // remember our ID
     my_id = param_my_id;
     
@@ -2778,15 +2758,12 @@ void server_handler_ready (void *user, peerid_t param_my_id, uint32_t ext_ip)
         }
     }
     
-    // set server ready
-    server_ready = 1;
-    
     BLog(BLOG_INFO, "server: ready, my ID is %d", (int)my_id);
 }
 
 void server_handler_newclient (void *user, peerid_t peer_id, int flags, const uint8_t *cert, int cert_len)
 {
-    ASSERT(server_ready)
+    ASSERT(ServerConnection_IsReady(&server))
     ASSERT(cert_len >= 0)
     ASSERT(cert_len <= SCID_NEWCLIENT_MAX_CERT_LEN)
     
@@ -2819,7 +2796,7 @@ void server_handler_newclient (void *user, peerid_t peer_id, int flags, const ui
 
 void server_handler_endclient (void *user, peerid_t peer_id)
 {
-    ASSERT(server_ready)
+    ASSERT(ServerConnection_IsReady(&server))
     
     // find peer
     struct peer_data *peer = find_peer_by_id(peer_id);
@@ -2834,7 +2811,7 @@ void server_handler_endclient (void *user, peerid_t peer_id)
 
 void server_handler_message (void *user, peerid_t peer_id, uint8_t *data, int data_len)
 {
-    ASSERT(server_ready)
+    ASSERT(ServerConnection_IsReady(&server))
     ASSERT(data_len >= 0)
     ASSERT(data_len <= SC_MAX_MSGLEN)
     
@@ -2857,6 +2834,6 @@ void peer_job_send_seed_after_binding (struct peer_data *peer)
     ASSERT(peer->have_link)
     ASSERT(!peer->pio.udp.sendseed_sent)
     
-    peer_udp_send_seed(peer);
+    peer_generate_and_send_seed(peer);
     return;
 }

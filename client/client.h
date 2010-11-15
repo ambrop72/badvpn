@@ -64,9 +64,6 @@
 // retry time
 #define PEER_RETRY_TIME 5000
 
-// number of MAC seeds to keep for checking received packets
-#define MACPOOL_NUM_RECV_SEEDS 2
-
 // for how long a peer can send no Membership Reports for a group
 // before the peer and group are disassociated
 #define IGMP_GROUP_MEMBERSHIP_INTERVAL 260000
@@ -94,8 +91,6 @@ struct device_data {
     // output
     PacketPassFairQueue output_queue;
 };
-
-struct peer_data;
 
 struct peer_data {
     // peer identifier

@@ -122,7 +122,7 @@ static uint32_t compute_sig_for_group (uint32_t group)
     return hton32(ntoh32(group)&0x7FFFFF);
 }
 
-static uint32_t compute_sig_for_mac (uint8_t *mac)
+static uint32_t compute_sig_for_mac (uint8_t mac[6])
 {
     uint32_t sig;
     memcpy(&sig, mac + 2, 4);
@@ -326,6 +326,8 @@ static void group_entry_timer_handler (struct _FrameDecider_group_entry *group_e
 
 static int check_ipv4_packet (uint8_t *data, int data_len, struct ipv4_header **out_header, uint8_t **out_payload, int *out_payload_len)
 {
+    ASSERT(data_len >= 0)
+    
     // check base header
     if (data_len < sizeof(struct ipv4_header)) {
         BLog(BLOG_DEBUG, "check ipv4: packet too short (base header)");
@@ -591,6 +593,7 @@ FrameDeciderPeer * FrameDecider_NextDestination (FrameDecider *o)
         
         default:
             ASSERT(0);
+            return NULL;
     }
 }
 

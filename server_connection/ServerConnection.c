@@ -613,6 +613,13 @@ void ServerConnection_Free (ServerConnection *o)
     DEAD_KILL(o->dead);
 }
 
+int ServerConnection_IsReady (ServerConnection *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    return (o->state == STATE_COMPLETE);
+}
+
 int ServerConnection_StartMessage (ServerConnection *o, void **data, peerid_t peer_id, int len)
 {
     ASSERT(!o->error)
