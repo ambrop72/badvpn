@@ -1306,16 +1306,6 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     // have no link
     peer->have_link = 0;
     
-    // allocate OTP seed buffers
-    if (options.transport_mode == TRANSPORT_MODE_UDP && SPPROTO_HAVE_OTP(sp_params)) {
-        if (!(peer->pio.udp.sendseed_sent_key = malloc(BEncryption_cipher_key_size(sp_params.otp_mode)))) {
-            goto fail3;
-        }
-        if (!(peer->pio.udp.sendseed_sent_iv = malloc(BEncryption_cipher_block_size(sp_params.otp_mode)))) {
-            goto fail4;
-        }
-    }
-    
     // have no relaying
     peer->have_relaying = 0;
     
@@ -1358,12 +1348,6 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     }
     
 fail5:
-    if (options.transport_mode == TRANSPORT_MODE_UDP && SPPROTO_HAVE_OTP(sp_params)) {
-        free(peer->pio.udp.sendseed_sent_iv);
-fail4:
-        free(peer->pio.udp.sendseed_sent_key);
-    }
-fail3:
     DataProtoRelaySource_Free(&peer->relay_source);
     PacketPassFairQueueFlow_Free(&peer->local_recv_qflow);
     DataProtoLocalSource_Free(&peer->local_dpflow);
@@ -1440,12 +1424,6 @@ void peer_dealloc (struct peer_data *peer)
     
     // free retry timer
     BReactor_RemoveTimer(&ss, &peer->reset_timer);
-    
-    // free OTP seed buffers
-    if (options.transport_mode == TRANSPORT_MODE_UDP && SPPROTO_HAVE_OTP(sp_params)) {
-        free(peer->pio.udp.sendseed_sent_iv);
-        free(peer->pio.udp.sendseed_sent_key);
-    }
     
     // free relay source
     DataProtoRelaySource_Free(&peer->relay_source);

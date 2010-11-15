@@ -129,8 +129,8 @@ struct peer_data {
             uint16_t sendseed_nextid;
             int sendseed_sent;
             uint16_t sendseed_sent_id;
-            uint8_t *sendseed_sent_key;
-            uint8_t *sendseed_sent_iv;
+            uint8_t sendseed_sent_key[BENCRYPTION_MAX_KEY_SIZE];
+            uint8_t sendseed_sent_iv[BENCRYPTION_MAX_BLOCK_SIZE];
         } udp;
         struct {
             StreamPeerIO pio;
