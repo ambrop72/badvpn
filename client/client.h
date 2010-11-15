@@ -46,7 +46,7 @@
 #define CLIENT_UDP_MTU 1472
 
 // maximum number of peers
-#define MAX_PEERS 29
+#define MAX_PEERS 256
 // maximum number of peer's MAC addresses to remember
 #define PEER_MAX_MACS 16
 // maximum number of multicast addresses per peer
