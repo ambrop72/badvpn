@@ -25,7 +25,7 @@
 
 #include <protocol/scproto.h>
 #include <structure/LinkedList2.h>
-#include <structure/HashTable.h>
+#include <structure/BAVL.h>
 #include <flow/SinglePacketBuffer.h>
 #include <flow/PacketPassFairQueue.h>
 #include <tuntap/BTap.h>
@@ -169,5 +169,5 @@ struct peer_data {
     // peers linked list node
     LinkedList2Node list_node;
     // peers-by-ID hash table node
-    HashTableNode table_node;
+    BAVLNode tree_node;
 };

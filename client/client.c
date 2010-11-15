@@ -43,7 +43,6 @@
 #include <misc/version.h>
 #include <misc/debug.h>
 #include <misc/offset.h>
-#include <misc/jenkins_hash.h>
 #include <misc/byteorder.h>
 #include <misc/ethernet_proto.h>
 #include <misc/nsskey.h>
@@ -161,9 +160,8 @@ int data_mtu;
 LinkedList2 peers;
 int num_peers;
 
-// peers by ID hash table
-HashTable peers_by_id;
-uint32_t peers_by_id_initval;
+// peers by ID tree
+BAVL peers_tree;
 
 // frame decider
 FrameDecider frame_decider;
@@ -315,10 +313,6 @@ static void peer_dataproto_handler (struct peer_data *peer, int up);
 // looks for a peer with the given ID
 static struct peer_data * find_peer_by_id (peerid_t id);
 
-// hash table callback functions
-static int peers_by_id_key_comparator (peerid_t *id1, peerid_t *id2);
-static int peers_by_id_hash_function (peerid_t *id, int modulo);
-
 // device error handler
 static void device_error_handler (void *unused);
 
@@ -340,6 +334,17 @@ static void server_handler_message (void *user, peerid_t peer_id, uint8_t *data,
 
 // process job handlers
 static void peer_job_send_seed_after_binding (struct peer_data *peer);
+
+static int peerid_comparator (void *unused, peerid_t *v1, peerid_t *v2)
+{
+    if (*v1 < *v2) {
+        return -1;
+    }
+    if (*v1 > *v2) {
+        return 1;
+    }
+    return 0;
+}
 
 int main (int argc, char *argv[])
 {
@@ -509,18 +514,8 @@ int main (int argc, char *argv[])
     LinkedList2_Init(&peers);
     num_peers = 0;
     
-    // init peers by ID hash table
-    BRandom_randomize((uint8_t *)&peers_by_id_initval, sizeof(peers_by_id_initval));
-    if (!HashTable_Init(
-        &peers_by_id,
-        OFFSET_DIFF(struct peer_data, id, table_node),
-        (HashTable_comparator)peers_by_id_key_comparator,
-        (HashTable_hash_function)peers_by_id_hash_function,
-        MAX_PEERS
-    )) {
-        BLog(BLOG_ERROR, "HashTable_Init failed");
-        goto fail7;
-    }
+    // init peers tree
+    BAVL_Init(&peers_tree, OFFSET_DIFF(struct peer_data, id, tree_node), (BAVL_comparator)peerid_comparator, NULL);
     
     // init frame decider
     FrameDecider_Init(&frame_decider, PEER_MAX_MACS, PEER_MAX_GROUPS, IGMP_GROUP_MEMBERSHIP_INTERVAL, IGMP_LAST_MEMBER_QUERY_TIME, &ss);
@@ -545,7 +540,6 @@ int main (int argc, char *argv[])
     // cleanup on error
 fail10:
     FrameDecider_Free(&frame_decider);
-    HashTable_Free(&peers_by_id);
 fail7:
     PacketPassFairQueue_Free(&device.output_queue);
     SinglePacketBuffer_Free(&device.input_buffer);
@@ -639,9 +633,6 @@ void terminate (void)
     
     // free frame decider
     FrameDecider_Free(&frame_decider);
-    
-    // free hash tables
-    HashTable_Free(&peers_by_id);
     
     // free device output
     PacketPassFairQueue_Free(&device.output_queue);
@@ -1351,8 +1342,8 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     // add to peers linked list
     LinkedList2_Append(&peers, &peer->list_node);
     
-    // add to peers-by-ID hash table
-    ASSERT_EXECUTE(HashTable_Insert(&peers_by_id, &peer->table_node))
+    // add to peers tree
+    ASSERT_EXECUTE(BAVL_Insert(&peers_tree, &peer->tree_node, NULL))
     
     // increment number of peers
     num_peers++;
@@ -1435,8 +1426,8 @@ void peer_dealloc (struct peer_data *peer)
     // decrement number of peers
     num_peers--;
     
-    // remove from peers-by-ID hash table
-    ASSERT_EXECUTE(HashTable_Remove(&peers_by_id, &peer->id))
+    // remove from peers tree
+    BAVL_Remove(&peers_tree, &peer->tree_node);
     
     // remove from peers linked list
     LinkedList2_Remove(&peers, &peer->list_node);
@@ -2640,23 +2631,12 @@ void peer_dataproto_handler (struct peer_data *peer, int up)
 
 struct peer_data * find_peer_by_id (peerid_t id)
 {
-    HashTableNode *node;
-    if (!HashTable_Lookup(&peers_by_id, &id, &node)) {
+    BAVLNode *node;
+    if (!(node = BAVL_LookupExact(&peers_tree, &id))) {
         return NULL;
     }
-    struct peer_data *peer = UPPER_OBJECT(node, struct peer_data, table_node);
     
-    return peer;
-}
-
-int peers_by_id_key_comparator (peerid_t *id1, peerid_t *id2)
-{
-    return (*id1 == *id2);
-}
-
-int peers_by_id_hash_function (peerid_t *id, int modulo)
-{
-    return (jenkins_lookup2_hash((uint8_t *)id, sizeof(*id), peers_by_id_initval) % modulo);
+    return UPPER_OBJECT(node, struct peer_data, tree_node);
 }
 
 void device_error_handler (void *unused)
