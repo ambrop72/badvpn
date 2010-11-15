@@ -24,7 +24,6 @@
 
 #include <protocol/scproto.h>
 #include <structure/LinkedList2.h>
-#include <structure/HashTable.h>
 #include <structure/BAVL.h>
 #include <system/BSocket.h>
 #include <flow/StreamSocketSource.h>
@@ -120,8 +119,8 @@ struct client_data {
     
     // node in clients linked list
     LinkedList2Node list_node;
-    // node in clients-by-id hash table
-    HashTableNode table_node_id;
+    // node in clients tree (by ID)
+    BAVLNode tree_node;
     
     // knowledge lists
     LinkedList2 know_out_list;

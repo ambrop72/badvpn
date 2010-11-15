@@ -52,7 +52,6 @@
 // BadVPN
 #include <misc/version.h>
 #include <misc/debug.h>
-#include <misc/jenkins_hash.h>
 #include <misc/offset.h>
 #include <misc/nsskey.h>
 #include <misc/byteorder.h>
@@ -163,9 +162,8 @@ peerid_t clients_nextid;
 // clients list
 LinkedList2 clients;
 
-// clients hash table by client ID
-HashTable clients_by_id;
-uint32_t clients_by_id_initval;
+// clients tree (by ID)
+BAVL clients_tree;
 
 // cleans everything up that can be cleaned in order to return
 // from the event loop and exit
@@ -270,12 +268,6 @@ static peerid_t new_client_id (void);
 
 // finds a client by its ID
 static struct client_data * find_client_by_id (peerid_t id);
-
-// clients by ID hash table key comparator
-static int clients_by_id_key_comparator (peerid_t *id1, peerid_t *id2);
-
-// clients by ID hash table hash function
-static int clients_by_id_hash_function (peerid_t *id, int modulo);
 
 // checks if two clients are allowed to communicate. May depend on the order
 // of the clients.
@@ -490,18 +482,8 @@ int main (int argc, char *argv[])
     // initialize clients linked list
     LinkedList2_Init(&clients);
     
-    // initialize clients-by-id hash table
-    BRandom_randomize((uint8_t *)&clients_by_id_initval, sizeof(clients_by_id_initval));
-    if (!HashTable_Init(
-        &clients_by_id,
-        OFFSET_DIFF(struct client_data, id, table_node_id),
-        (HashTable_comparator)clients_by_id_key_comparator,
-        (HashTable_hash_function)clients_by_id_hash_function,
-        MAX_CLIENTS
-    )) {
-        BLog(BLOG_ERROR, "HashTable_Init failed");
-        goto fail6;
-    }
+    // initialize clients tree
+    BAVL_Init(&clients_tree, OFFSET_DIFF(struct client_data, id, tree_node), (BAVL_comparator)peerid_comparator, NULL);
     
     // initialize listeners
     num_listeners = 0;
@@ -521,7 +503,6 @@ fail7:
         num_listeners--;
         Listener_Free(&listeners[num_listeners]);
     }
-    HashTable_Free(&clients_by_id);
 fail6:
     if (options.ssl) {
         ASSERT_FORCE(PR_Close(model_prfd) == PR_SUCCESS)
@@ -625,9 +606,6 @@ void terminate (void)
         num_listeners--;
         Listener_Free(&listeners[num_listeners]);
     }
-    
-    // free clients hash table
-    HashTable_Free(&clients_by_id);
     
     if (options.ssl) {
         // free model
@@ -973,7 +951,7 @@ void client_add (struct client_data *client)
     // link in
     clients_num++;
     LinkedList2_Append(&clients, &client->list_node);
-    ASSERT_EXECUTE(HashTable_Insert(&clients_by_id, &client->table_node_id))
+    ASSERT_EXECUTE(BAVL_Insert(&clients_tree, &client->tree_node, NULL))
     
     // init knowledge lists
     LinkedList2_Init(&client->know_out_list);
@@ -1111,7 +1089,7 @@ void client_dealloc (struct client_data *client)
     BPending_Free(&client->dying_job);
     
     // link out
-    ASSERT_EXECUTE(HashTable_Remove(&clients_by_id, &client->id))
+    BAVL_Remove(&clients_tree, &client->tree_node);
     LinkedList2_Remove(&clients, &client->list_node);
     clients_num--;
     
@@ -1869,24 +1847,12 @@ peerid_t new_client_id (void)
 
 struct client_data * find_client_by_id (peerid_t id)
 {
-    HashTableNode *node;
-    if (!HashTable_Lookup(&clients_by_id, &id, &node)) {
+    BAVLNode *node;
+    if (!(node = BAVL_LookupExact(&clients_tree, &id))) {
         return NULL;
     }
-    struct client_data *client = UPPER_OBJECT(node, struct client_data, table_node_id);
-    ASSERT(client->id == id)
     
-    return client;
-}
-
-int clients_by_id_key_comparator (peerid_t *id1, peerid_t *id2)
-{
-    return (*id1 == *id2);
-}
-
-int clients_by_id_hash_function (peerid_t *id, int modulo)
-{
-    return (jenkins_lookup2_hash((uint8_t *)id, sizeof(*id), clients_by_id_initval) % modulo);
+    return UPPER_OBJECT(node, struct client_data, tree_node);
 }
 
 int clients_allowed (struct client_data *client1, struct client_data *client2)
