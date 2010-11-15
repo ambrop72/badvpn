@@ -1,8 +1,5 @@
 add_executable(linkedlist2_example linkedlist2_example.c)
 
-add_executable(hashtable_example hashtable_example.c)
-target_link_libraries(hashtable_example system)
-
 add_executable(btimer_example btimer_example.c)
 target_link_libraries(btimer_example system)
 
@@ -20,9 +17,6 @@ target_link_libraries(bheap_test security)
 
 add_executable(bavl_test bavl_test.c)
 target_link_libraries(bavl_test security)
-
-add_executable(hashtable_bench hashtable_bench.c)
-target_link_libraries(hashtable_bench system security)
 
 add_executable(bencryption_bench bencryption_bench.c)
 target_link_libraries(bencryption_bench system security)
