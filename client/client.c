@@ -2152,7 +2152,8 @@ void peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len
     int orig_data_len = data_len;
     
     int dp_good = 0;
-    struct peer_data *relay = NULL;
+    struct peer_data *relay_src;
+    struct peer_data *relay_dest = NULL;
     int local = 0;
     
     // check dataproto header
@@ -2192,13 +2193,6 @@ void peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len
         goto out;
     }
     
-    // find source peer
-    struct peer_data *src_peer = find_peer_by_id(from_id);
-    if (!src_peer) {
-        peer_log(peer, BLOG_NOTICE, "receive: source peer %d not known", (int)from_id);
-        goto out;
-    }
-    
     // find destination
     peerid_t id = ltoh16(ids[0].id);
     if (id == my_id) {
@@ -2210,6 +2204,12 @@ void peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len
         local = 1;
     } else {
         // frame is for someone else
+        
+        // find source peer
+        if (!(relay_src = find_peer_by_id(from_id))) {
+            peer_log(peer, BLOG_NOTICE, "receive: source peer %d not known", (int)from_id);
+            goto out;
+        }
         
         // make sure the client is allowed to relay though us
         if (!(peer->flags & SCID_NEWCLIENT_FLAG_RELAY_CLIENT)) {
@@ -2230,7 +2230,7 @@ void peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len
             goto out;
         }
         
-        relay = dest_peer;
+        relay_dest = dest_peer;
     }
     
 out:
@@ -2240,8 +2240,8 @@ out:
     }
     
     // relay frame
-    if (relay) {
-        peer_submit_relayed_frame(relay, src_peer, data, data_len);
+    if (relay_dest) {
+        peer_submit_relayed_frame(relay_dest, relay_src, data, data_len);
     }
     
     // submit to device
