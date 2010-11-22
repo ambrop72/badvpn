@@ -49,7 +49,7 @@ typedef struct {
     int sending_len;
     struct PacketPassFairQueueFlow_s *previous_flow;
     BHeap queued_heap;
-    LinkedList2 queued_list;
+    LinkedList2 flows_list;
     int freeing;
     int use_cancel;
     BPending schedule_job;
@@ -64,10 +64,10 @@ typedef struct PacketPassFairQueueFlow_s {
     void *user;
     PacketPassInterface input;
     uint64_t time;
+    LinkedList2Node list_node;
     int is_queued;
     struct {
         BHeapNode heap_node;
-        LinkedList2Node list_node;
         uint8_t *data;
         int data_len;
     } queued;

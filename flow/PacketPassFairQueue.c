@@ -24,8 +24,12 @@
 
 #include <misc/debug.h>
 #include <misc/offset.h>
+#include <misc/minmax.h>
 
 #include <flow/PacketPassFairQueue.h>
+
+// reduce this to test time overflow handling
+#define FAIRQUEUE_MAX_TIME UINT64_MAX
 
 static int time_comparator (void *user, uint64_t *time1, uint64_t *time2)
 {
@@ -69,7 +73,7 @@ static uint64_t get_current_time (PacketPassFairQueue *m)
 static void increment_sent_flow (PacketPassFairQueueFlow *flow, int iamount)
 {
     ASSERT(iamount >= 0)
-    ASSERT(iamount <= UINT64_MAX)
+    ASSERT(iamount <= FAIRQUEUE_MAX_TIME)
     ASSERT(!flow->is_queued)
     ASSERT(!flow->m->sending_flow)
     
@@ -77,31 +81,38 @@ static void increment_sent_flow (PacketPassFairQueueFlow *flow, int iamount)
     uint64_t amount = iamount;
     
     // does time overflow?
-    if (!(flow->time + amount < flow->time)) {
-        flow->time += amount;
-    } else {
-        // get flow with lowest time
+    if (amount > FAIRQUEUE_MAX_TIME - flow->time) {
+        // get time to subtract
+        uint64_t subtract;
         BHeapNode *heap_node = BHeap_GetFirst(&m->queued_heap);
         if (!heap_node) {
-            flow->time = amount;
+            subtract = flow->time;
         } else {
             PacketPassFairQueueFlow *first_flow = UPPER_OBJECT(heap_node, PacketPassFairQueueFlow, queued.heap_node);
             ASSERT(first_flow->is_queued)
-            // subtract lowest time from all queued flows
-            uint64_t subtract = first_flow->time;
-            LinkedList2Iterator it;
-            LinkedList2Iterator_InitForward(&it, &m->queued_list);
-            LinkedList2Node *list_node;
-            while (list_node = LinkedList2Iterator_Next(&it)) {
-                PacketPassFairQueueFlow *queue_flow = UPPER_OBJECT(list_node, PacketPassFairQueueFlow, queued.list_node);
-                ASSERT(queue_flow->is_queued)
-                queue_flow->time -= subtract;
+            subtract = first_flow->time;
+        }
+        
+        // subtract time from all flows
+        LinkedList2Iterator it;
+        LinkedList2Iterator_InitForward(&it, &m->flows_list);
+        LinkedList2Node *list_node;
+        while (list_node = LinkedList2Iterator_Next(&it)) {
+            PacketPassFairQueueFlow *someflow = UPPER_OBJECT(list_node, PacketPassFairQueueFlow, list_node);
+            
+            // don't subtract more time than there is, except for the just finished flow,
+            // where we allow time to underflow and then overflow to the correct value after adding to it
+            if (subtract > someflow->time && someflow != flow) {
+                ASSERT(!someflow->is_queued)
+                someflow->time = 0;
+            } else {
+                someflow->time -= subtract;
             }
-            // update the given flow's time; note we subtract because it isn't in the queue
-            // TODO: prove this is correct
-            flow->time = flow->time - subtract + amount;
         }
     }
+    
+    // add time to flow
+    flow->time += amount;
 }
 
 static void schedule (PacketPassFairQueue *m)
@@ -118,7 +129,6 @@ static void schedule (PacketPassFairQueue *m)
     
     // remove flow from queue
     BHeap_Remove(&m->queued_heap, &qflow->queued.heap_node);
-    LinkedList2_Remove(&m->queued_list, &qflow->queued.list_node);
     qflow->is_queued = 0;
     
     // schedule send
@@ -152,18 +162,17 @@ static void input_handler_send (PacketPassFairQueueFlow *flow, uint8_t *data, in
     PacketPassFairQueue *m = flow->m;
     
     if (flow == m->previous_flow) {
-        // remove from previous flow, its time persists as was updated by output_handler_done
+        // remove from previous flow
         m->previous_flow = NULL;
     } else {
-        // assign time
-        flow->time = get_current_time(m);
+        // raise time
+        flow->time = BMAX(flow->time, get_current_time(m));
     }
     
     // queue flow
     flow->queued.data = data;
     flow->queued.data_len = data_len;
     BHeap_Insert(&m->queued_heap, &flow->queued.heap_node);
-    LinkedList2_Append(&m->queued_list, &flow->queued.list_node);
     flow->is_queued = 1;
     
     if (!m->sending_flow && !BPending_IsSet(&m->schedule_job)) {
@@ -231,8 +240,8 @@ void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *outp
     // init queued heap
     BHeap_Init(&m->queued_heap, OFFSET_DIFF(PacketPassFairQueueFlow, time, queued.heap_node), (BHeap_comparator)time_comparator, NULL);
     
-    // init queued list
-    LinkedList2_Init(&m->queued_list);
+    // init flows list
+    LinkedList2_Init(&m->flows_list);
     
     // not freeing
     m->freeing = 0;
@@ -249,7 +258,7 @@ void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *outp
 
 void PacketPassFairQueue_Free (PacketPassFairQueue *m)
 {
-    ASSERT(LinkedList2_IsEmpty(&m->queued_list))
+    ASSERT(LinkedList2_IsEmpty(&m->flows_list))
     ASSERT(!BHeap_GetFirst(&m->queued_heap))
     ASSERT(!m->previous_flow)
     ASSERT(!m->sending_flow)
@@ -281,6 +290,12 @@ void PacketPassFairQueueFlow_Init (PacketPassFairQueueFlow *flow, PacketPassFair
     // init input
     PacketPassInterface_Init(&flow->input, PacketPassInterface_GetMTU(flow->m->output), (PacketPassInterface_handler_send)input_handler_send, flow, m->pg);
     
+    // set time
+    flow->time = 0;
+    
+    // add to flows list
+    LinkedList2_Append(&m->flows_list, &flow->list_node);
+    
     // is not queued
     flow->is_queued = 0;
     
@@ -311,8 +326,10 @@ void PacketPassFairQueueFlow_Free (PacketPassFairQueueFlow *flow)
     // remove from queue
     if (flow->is_queued) {
         BHeap_Remove(&m->queued_heap, &flow->queued.heap_node);
-        LinkedList2_Remove(&m->queued_list, &flow->queued.list_node);
     }
+    
+    // remove from flows list
+    LinkedList2_Remove(&m->flows_list, &flow->list_node);
     
     // free input
     PacketPassInterface_Free(&flow->input);
