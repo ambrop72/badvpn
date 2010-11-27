@@ -93,6 +93,9 @@ extern "C" {
 /** If set, the netif has IGMP capability.
  * Set by the netif driver in its init function. */
 #define NETIF_FLAG_IGMP         0x80U
+/** Whether to pretend that we are every host for TCP packets.
+ * Set by netif_set_pretend_tcp. */
+#define NETIF_FLAG_PRETEND_TCP  0x100U
 
 /** Function prototype for netif init functions. Set up flags and output/linkoutput
  * callback functions in this function.
@@ -185,7 +188,7 @@ struct netif {
   /** link level hardware address of this interface */
   u8_t hwaddr[NETIF_MAX_HWADDR_LEN];
   /** flags (see NETIF_FLAG_ above) */
-  u8_t flags;
+  u16_t flags;
   /** descriptive abbreviation */
   char name[2];
   /** number of this interface */
@@ -266,11 +269,14 @@ void netif_remove(struct netif * netif);
    structure. */
 struct netif *netif_find(char *name);
 
+int netif_is_named (struct netif *netif, const char name[3]);
+
 void netif_set_default(struct netif *netif);
 
 void netif_set_ipaddr(struct netif *netif, ip_addr_t *ipaddr);
 void netif_set_netmask(struct netif *netif, ip_addr_t *netmask);
 void netif_set_gw(struct netif *netif, ip_addr_t *gw);
+void netif_set_pretend_tcp(struct netif *netif, u8_t pretend);
 
 void netif_set_up(struct netif *netif);
 void netif_set_down(struct netif *netif);

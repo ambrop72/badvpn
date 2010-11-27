@@ -306,6 +306,13 @@ netif_find(char *name)
   return NULL;
 }
 
+int netif_is_named (struct netif *netif, const char name[3])
+{
+    u8_t num = name[2] - '0';
+    
+    return (!memcmp(netif->name, name, 2) && netif->num == num);
+}
+
 /**
  * Change the IP address of a network interface
  *
@@ -390,6 +397,15 @@ netif_set_gw(struct netif *netif, ip_addr_t *gw)
     ip4_addr2_16(&netif->gw),
     ip4_addr3_16(&netif->gw),
     ip4_addr4_16(&netif->gw)));
+}
+
+void netif_set_pretend_tcp (struct netif *netif, u8_t pretend)
+{
+    if (pretend) {
+        netif->flags |= NETIF_FLAG_PRETEND_TCP;
+    } else {
+        netif->flags &= ~NETIF_FLAG_PRETEND_TCP;
+    }
 }
 
 /**

@@ -441,6 +441,7 @@ tcp_bind(struct tcp_pcb *pcb, ip_addr_t *ipaddr, u16_t port)
     }
   }
 
+  pcb->bound_to_netif = 0;
   if (!ip_addr_isany(ipaddr)) {
     pcb->local_ip = *ipaddr;
   }
@@ -449,6 +450,30 @@ tcp_bind(struct tcp_pcb *pcb, ip_addr_t *ipaddr, u16_t port)
   LWIP_DEBUGF(TCP_DEBUG, ("tcp_bind: bind to port %"U16_F"\n", port));
   return ERR_OK;
 }
+
+err_t
+tcp_bind_to_netif(struct tcp_pcb *pcb, const char ifname[3])
+{
+    LWIP_ERROR("tcp_bind_if: can only bind in state CLOSED", pcb->state == CLOSED, return ERR_ISCONN);
+    
+    /* Check if the interface is already in use */
+    for (int i = 0; i < NUM_TCP_PCB_LISTS; i++) {
+        for(struct tcp_pcb *cpcb = *tcp_pcb_lists[i]; cpcb != NULL; cpcb = cpcb->next) {
+            if (cpcb->bound_to_netif && !memcmp(cpcb->local_netif, ifname, sizeof(ifname))) {
+                return ERR_USE;
+            }
+        }
+    }
+    
+    pcb->bound_to_netif = 1;
+    ip_addr_set_any(&pcb->local_ip);
+    pcb->local_port = 0;
+    memcpy(pcb->local_netif, ifname, sizeof(ifname));
+    TCP_REG(&tcp_bound_pcbs, pcb);
+    LWIP_DEBUGF(TCP_DEBUG, ("tcp_bind_if: bind to interface %s", ifname));
+    return ERR_OK;
+}
+
 #if LWIP_CALLBACK_API
 /**
  * Default accept callback if no accept callback is specified by the user.
@@ -491,7 +516,7 @@ tcp_listen_with_backlog(struct tcp_pcb *pcb, u8_t backlog)
     return pcb;
   }
 #if SO_REUSE
-  if ((pcb->so_options & SOF_REUSEADDR) != 0) {
+  if ((pcb->so_options & SOF_REUSEADDR) != 0 && !pcb->have_local_netif) {
     /* Since SOF_REUSEADDR allows reusing a local address before the pcb's usage
        is declared (listen-/connection-pcb), we have to make sure now that
        this port is only used once for every local IP. */
@@ -510,7 +535,9 @@ tcp_listen_with_backlog(struct tcp_pcb *pcb, u8_t backlog)
     return NULL;
   }
   lpcb->callback_arg = pcb->callback_arg;
+  lpcb->bound_to_netif = pcb->bound_to_netif;
   lpcb->local_port = pcb->local_port;
+  memcpy(lpcb->local_netif, pcb->local_netif, sizeof(pcb->local_netif));
   lpcb->state = LISTEN;
   lpcb->prio = pcb->prio;
   lpcb->so_options = pcb->so_options;
@@ -1364,9 +1391,18 @@ tcp_pcb_purge(struct tcp_pcb *pcb)
       LWIP_ASSERT("tcp_pcb_purge: pcb->state == SYN_RCVD but tcp_listen_pcbs is NULL",
         tcp_listen_pcbs.listen_pcbs != NULL);
       for (lpcb = tcp_listen_pcbs.listen_pcbs; lpcb != NULL; lpcb = lpcb->next) {
-        if ((lpcb->local_port == pcb->local_port) &&
-            (ip_addr_isany(&lpcb->local_ip) ||
-             ip_addr_cmp(&pcb->local_ip, &lpcb->local_ip))) {
+        if (
+          (
+            !lpcb->bound_to_netif && !pcb->bound_to_netif &&
+            lpcb->local_port == pcb->local_port && (
+              ip_addr_isany(&lpcb->local_ip) ||
+              ip_addr_cmp(&pcb->local_ip, &lpcb->local_ip)
+            )
+          ) || (
+            lpcb->bound_to_netif && pcb->bound_to_netif &&
+            !memcmp(lpcb->local_netif, pcb->local_netif, sizeof(pcb->local_netif))
+          )
+        ) {
             /* port and address of the listen pcb match the timed-out pcb */
             LWIP_ASSERT("tcp_pcb_purge: listen pcb does not have accepts pending",
               lpcb->accepts_pending > 0);

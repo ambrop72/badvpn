@@ -162,7 +162,9 @@ enum tcp_state {
   /* the accept callback for listen- and normal pcbs, if LWIP_CALLBACK_API */ \
   DEF_ACCEPT_CALLBACK \
   /* ports are in host byte order */ \
-  u16_t local_port
+  int bound_to_netif; \
+  u16_t local_port; \
+  char local_netif[3]
 
 
 /* the TCP protocol control block */
@@ -339,6 +341,7 @@ void             tcp_err     (struct tcp_pcb *pcb, tcp_err_fn err);
 void             tcp_recved  (struct tcp_pcb *pcb, u16_t len);
 err_t            tcp_bind    (struct tcp_pcb *pcb, ip_addr_t *ipaddr,
                               u16_t port);
+err_t            tcp_bind_to_netif (struct tcp_pcb *pcb, const char ifname[3]);
 err_t            tcp_connect (struct tcp_pcb *pcb, ip_addr_t *ipaddr,
                               u16_t port, tcp_connected_fn connected);
 
