@@ -90,6 +90,8 @@ struct {
 struct tcp_client {
     dead_t dead;
     LinkedList2Node list_node;
+    BAddr local_addr;
+    BAddr remote_addr;
     struct tcp_pcb *pcb;
     uint8_t buf[TCP_WND];
     int buf_used;
@@ -161,6 +163,7 @@ static void device_error_handler (void *unused);
 static void device_read_handler_send (void *unused, uint8_t *data, int data_len);
 static err_t netif_init_func (struct netif *netif);
 static err_t netif_output_func (struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr);
+static void client_log (struct tcp_client *client, int level, const char *fmt, ...);
 static err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err);
 static void client_dealloc (struct tcp_client *client);
 static void client_close (struct tcp_client *client);
@@ -337,7 +340,8 @@ event_loop:
     LinkedList2Node *node;
     while (node = LinkedList2_GetFirst(&tcp_clients)) {
         struct tcp_client *client = UPPER_OBJECT(node, struct tcp_client, list_node);
-        BLog(BLOG_INFO, "free client %p", client);
+        
+        client_log(client, BLOG_INFO, "freeing");
         tcp_abort(client->pcb);
     }
     
@@ -680,14 +684,6 @@ void lwip_init_job_hadler (void *unused)
         goto fail;
     }
     
-    /*
-    if (tcp_bind(l, &addr, 80) != ERR_OK) {
-        BLog(BLOG_ERROR, "tcp_bind failed");
-        tcp_close(l);
-        goto fail;
-    }
-    */
-    
     // listen listener
     struct tcp_pcb *l2 = tcp_listen(l);
     if (!l2) {
@@ -804,6 +800,23 @@ err_t netif_output_func (struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr)
     return ERR_OK;
 }
 
+void client_log (struct tcp_client *client, int level, const char *fmt, ...)
+{
+    va_list vl;
+    va_start(vl, fmt);
+    
+    char local_addr_s[BADDR_MAX_PRINT_LEN];
+    BAddr_Print(&client->local_addr, local_addr_s);
+    
+    char remote_addr_s[BADDR_MAX_PRINT_LEN];
+    BAddr_Print(&client->remote_addr, remote_addr_s);
+    
+    BLog_Append("(%s %s): ", local_addr_s, remote_addr_s);
+    BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
+    
+    va_end(vl);
+}
+
 #define CLIENT_SYNC_START \
     BPending sync_mark; \
     BPending_Init(&sync_mark, BReactor_PendingGroup(&ss), NULL, NULL); \
@@ -867,6 +880,10 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     LinkedList2_Append(&tcp_clients, &client->list_node);
     client->pcb = newpcb;
     
+    // read addresses
+    BAddr_InitIPv4(&client->local_addr, client->pcb->local_ip.addr, hton16(client->pcb->local_port));
+    BAddr_InitIPv4(&client->remote_addr, client->pcb->remote_ip.addr, hton16(client->pcb->remote_port));
+    
     // setup handler argument
     tcp_arg(client->pcb, client);
     
@@ -883,7 +900,7 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     // set SOCKS not up
     client->socks_up = 0;
     
-    BLog(BLOG_INFO, "client %p: accepted", client);
+    client_log(client, BLOG_INFO, "accepted");
     
     CLIENT_SYNC_RETURN
 }
@@ -932,7 +949,7 @@ void client_err_func (void *arg, err_t err)
 {
     struct tcp_client *client = arg;
     
-    BLog(BLOG_INFO, "client %p: destroying (error %d)", client, (int)err);
+    client_log(client, BLOG_INFO, "destroying (error %d)", (int)err);
     
     // the pcb was taken by the caller
     
@@ -944,13 +961,13 @@ err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t e
     struct tcp_client *client = arg;
     
     if (err != ERR_OK) {
-        BLog(BLOG_INFO, "client %p: recv error", client);
+        client_log(client, BLOG_INFO, "recv error (%d)", (int)err);
         tcp_abort(client->pcb);
         return ERR_ABRT;
     }
     
     if (!p) {
-        BLog(BLOG_INFO, "client %p: connection closed", client);
+        client_log(client, BLOG_INFO, "connection closed");
         tcp_abort(client->pcb);
         return ERR_ABRT;
     }
@@ -959,7 +976,7 @@ err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t e
     
     // check if we have enough buffer
     if (p->tot_len > sizeof(client->buf) - client->buf_used) {
-        BLog(BLOG_WARNING, "client %p: no buffer for data", client);
+        client_log(client, BLOG_WARNING, "no buffer for data");
         return ERR_MEM;
     }
     
@@ -985,7 +1002,7 @@ void client_socks_handler (struct tcp_client *client, int event)
 {
     switch (event) {
         case BSOCKSCLIENT_EVENT_ERROR: {
-            BLog(BLOG_INFO, "client %p: SOCKS error", client);
+            client_log(client, BLOG_INFO, "SOCKS error");
             
             // abort client
             tcp_abort(client->pcb);
@@ -994,7 +1011,7 @@ void client_socks_handler (struct tcp_client *client, int event)
         case BSOCKSCLIENT_EVENT_UP: {
             ASSERT(!client->socks_up)
             
-            BLog(BLOG_INFO, "client %p: SOCKS up", client);
+            client_log(client, BLOG_INFO, "SOCKS up");
             
             // init sending
             client->socks_send_if = BSocksClient_GetSendInterface(&client->socks_client);
@@ -1025,18 +1042,16 @@ void client_socks_handler (struct tcp_client *client, int event)
             ASSERT(client->socks_up)
             ASSERT(!client->socks_closed)
             
-            BLog(BLOG_INFO, "client %p: SOCKS closed connection", client);
-            
             // close now if all was sent
             if (client->socks_recv_buf_used == -1 && client->socks_recv_tcp_pending == 0) {
-                BLog(BLOG_INFO, "client %p: closing now", client);
+                client_log(client, BLOG_INFO, "SOCKS closed, closing client now");
                 client_close(client);
                 return;
             }
             
             // wait for everything to be sent
             
-            BLog(BLOG_INFO, "client %p: closing later", client);
+            client_log(client, BLOG_INFO, "SOCKS closed, closing client later");
             
             // free SOCKS
             BSocksClient_Free(&client->socks_client);
@@ -1171,7 +1186,7 @@ int client_send_to_client (struct tcp_client *client)
                 break;
             }
             
-            BLog(BLOG_INFO, "client %p: tcp_write failed", client);
+            client_log(client, BLOG_INFO, "tcp_write failed (%d)", (int)err);
             tcp_abort(client->pcb);
             return -1;
         }
@@ -1183,7 +1198,7 @@ int client_send_to_client (struct tcp_client *client)
     // start sending now
     err_t err = tcp_output(client->pcb);
     if (err != ERR_OK) {
-        BLog(BLOG_INFO, "client %p: tcp_output failed", client);
+        client_log(client, BLOG_INFO, "tcp_output failed (%d)", (int)err);
         tcp_abort(client->pcb);
         return -1;
     }
@@ -1236,7 +1251,7 @@ err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
     
     // have we sent everything after SOCKS was closed?
     if (client->socks_closed && client->socks_recv_tcp_pending == 0) {
-        BLog(BLOG_INFO, "client %p: finally closing", client);
+        client_log(client, BLOG_INFO, "finally closing");
         
         client_close(client);
         return ERR_ABRT;
