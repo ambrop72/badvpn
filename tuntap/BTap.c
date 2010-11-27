@@ -29,6 +29,7 @@
 #include <objbase.h>
 #include <wtypes.h>
 #include "wintap-common.h"
+#include <tuntap/tapwin32-funcs.h>
 #else
 #include <linux/if_tun.h>
 #include <net/if.h>
@@ -43,8 +44,6 @@
 #endif
 
 #include <tuntap/BTap.h>
-
-#define REGNAME_SIZE 256
 
 static void report_error (BTap *o);
 static void input_handler_send (BTap *o, uint8_t *data, int data_len);
@@ -439,158 +438,77 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     
     #ifdef BADVPN_USE_WINAPI
     
-    if (tun) {
-        DEBUG("TUN not supported on Windows");
-        goto fail0;
-    }
-    
-    char *device_component_id;
-    char *device_name;
-    
-    char strdata[(devname ? strlen(devname) + 1 : 0)];
+    // parse device specification
     
     if (!devname) {
-        device_component_id = TAP_COMPONENT_ID;
-        device_name = NULL;
+        DEBUG("no device specification provided");
+        return 0;
+    }
+    
+    int devname_len = strlen(devname);
+    
+    char device_component_id[devname_len + 1];
+    char device_name[devname_len + 1];
+    uint32_t tun_addrs[3];
+    
+    if (tun) {
+        if (!tapwin32_parse_tun_spec(devname, device_component_id, device_name, tun_addrs)) {
+            DEBUG("failed to parse TUN device specification");
+            return 0;
+        }
     } else {
-        strcpy(strdata, devname);
-        char *colon = strstr(strdata, ":");
-        if (!colon) {
-            DEBUG("No colon in device string");
-            goto fail0;
-        }
-        *colon = '\0';
-        device_component_id = strdata;
-        device_name = colon + 1;
-        if (strlen(device_component_id) == 0) {
-            device_component_id = TAP_COMPONENT_ID;
-        }
-        if (strlen(device_name) == 0) {
-            device_name = NULL;
+        if (!tapwin32_parse_tap_spec(devname, device_component_id, device_name)) {
+            DEBUG("failed to parse TAP device specification");
+            return 0;
         }
     }
     
-    DEBUG("Opening component ID %s, name %s", device_component_id, device_name);
+    // locate device path
     
-    // open adapter key
-    // used to find all devices with the given ComponentId
-    HKEY adapter_key;
-    if (RegOpenKeyEx(
-            HKEY_LOCAL_MACHINE,
-            ADAPTER_KEY,
-            0,
-            KEY_READ,
-            &adapter_key
-    ) != ERROR_SUCCESS) {
-        DEBUG("Error opening adapter key");
+    char device_path[TAPWIN32_MAX_REG_SIZE];
+    
+    DEBUG("Looking for TAP-Win32 with component ID %s, name %s", device_component_id, device_name);
+    
+    if (!tapwin32_find_device(device_component_id, device_name, &device_path)) {
+        DEBUG("Could not find device");
         goto fail0;
     }
     
-    char net_cfg_instance_id[REGNAME_SIZE];
-    int found = 0;
-    
-    DWORD i;
-    for (i = 0;; i++) {
-        DWORD len;
-        DWORD type;
-        
-        char key_name[REGNAME_SIZE];
-        len = sizeof(key_name);
-        if (RegEnumKeyEx(adapter_key, i, key_name, &len, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) {
-            break;
-        }
-        
-        char unit_string[REGNAME_SIZE];
-        snprintf(unit_string, sizeof(unit_string), "%s\\%s", ADAPTER_KEY, key_name);
-        HKEY unit_key;
-        if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, unit_string, 0, KEY_READ, &unit_key) != ERROR_SUCCESS) {
-            continue;
-        }
-        
-        char component_id[REGNAME_SIZE];
-        len = sizeof(component_id);
-        if (RegQueryValueEx(unit_key, "ComponentId", NULL, &type, component_id, &len) != ERROR_SUCCESS || type != REG_SZ) {
-            ASSERT_FORCE(RegCloseKey(unit_key) == ERROR_SUCCESS)
-            continue;
-        }
-        
-        len = sizeof(net_cfg_instance_id);
-        if (RegQueryValueEx(unit_key, "NetCfgInstanceId", NULL, &type, net_cfg_instance_id, &len) != ERROR_SUCCESS || type != REG_SZ) {
-            ASSERT_FORCE(RegCloseKey(unit_key) == ERROR_SUCCESS)
-            continue;
-        }
-        
-        RegCloseKey(unit_key);
-        
-        // check if ComponentId matches
-        if (!strcmp(component_id, device_component_id)) {
-            // if no name was given, use the first device with the given ComponentId
-            if (!device_name) {
-                found = 1;
-                break;
-            }
-            
-            // open connection key
-            char conn_string[REGNAME_SIZE];
-            snprintf(conn_string, sizeof(conn_string), "%s\\%s\\Connection", NETWORK_CONNECTIONS_KEY, net_cfg_instance_id);
-            HKEY conn_key;
-            if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, conn_string, 0, KEY_READ, &conn_key) != ERROR_SUCCESS) {
-                continue;
-            }
-            
-            // read name
-            char name[REGNAME_SIZE];
-            len = sizeof(name);
-            if (RegQueryValueEx(conn_key, "Name", NULL, &type, name, &len) != ERROR_SUCCESS || type != REG_SZ) {
-                ASSERT_FORCE(RegCloseKey(conn_key) == ERROR_SUCCESS)
-                continue;
-            }
-            
-            ASSERT_FORCE(RegCloseKey(conn_key) == ERROR_SUCCESS)
-            
-            // check name
-            if (!strcmp(name, device_name)) {
-                found = 1;
-                break;
-            }
-        }
-    }
-    
-    ASSERT_FORCE(RegCloseKey(adapter_key) == ERROR_SUCCESS)
-    
-    if (!found) {
-        DEBUG("Could not find TAP device");
-        goto fail0;
-    }
-    
-    char device_path[REGNAME_SIZE];
-    snprintf(device_path, sizeof(device_path), "%s%s%s", USERMODEDEVICEDIR, net_cfg_instance_id, TAPSUFFIX);
+    // open device
     
     DEBUG("Opening device %s", device_path);
     
-    if ((o->device = CreateFile(
-        device_path,
-        GENERIC_READ | GENERIC_WRITE,
-        0,
-        0,
-        OPEN_EXISTING,
-        FILE_ATTRIBUTE_SYSTEM | FILE_FLAG_OVERLAPPED,
-        0
-    )) == INVALID_HANDLE_VALUE) {
+    o->device = CreateFile(device_path, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_SYSTEM|FILE_FLAG_OVERLAPPED, 0);
+    if (o->device == INVALID_HANDLE_VALUE) {
         DEBUG("CreateFile failed");
         goto fail0;
     }
     
-    // get MTU
+    // set TUN if needed
     
-    ULONG umtu;
     DWORD len;
-    if (!DeviceIoControl(o->device, TAP_IOCTL_GET_MTU, NULL, 0, &umtu, sizeof(umtu), &len, NULL)) {
-        DEBUG("DeviceIoControl(TAP_IOCTL_GET_MTU) failed");
-        goto fail1;
+    
+    if (tun) {
+        if (!DeviceIoControl(o->device, TAP_IOCTL_CONFIG_TUN, tun_addrs, sizeof(tun_addrs), tun_addrs, sizeof(tun_addrs), &len, NULL)) {
+            DEBUG("DeviceIoControl(TAP_IOCTL_CONFIG_TUN) failed");
+            goto fail1;
+        }
     }
     
-    o->frame_mtu = umtu + BTAP_ETHERNET_HEADER_LENGTH;
+    // get MTU
+    
+    if (tun) {
+        o->frame_mtu = 65535;
+    } else {
+        ULONG umtu;
+        
+        if (!DeviceIoControl(o->device, TAP_IOCTL_GET_MTU, NULL, 0, &umtu, sizeof(umtu), &len, NULL)) {
+            DEBUG("DeviceIoControl(TAP_IOCTL_GET_MTU) failed");
+            goto fail1;
+        }
+        
+        o->frame_mtu = umtu + BTAP_ETHERNET_HEADER_LENGTH;
+    }
     
     // set connected
     
