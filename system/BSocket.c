@@ -621,15 +621,16 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
     // initialize event backend
     if (!init_event_backend(bs)) {
         DEBUG("WARNING: init_event_backend failed");
-        goto fail1;
+        goto fail2;
     }
     
     DebugObject_Init(&bs->d_obj);
     
     return 0;
     
-fail1:
+fail2:
     BPending_Free(&bs->job);
+fail1:
     close_socket(fd);
 fail0:
     return -1;
