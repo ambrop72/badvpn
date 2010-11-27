@@ -105,3 +105,6 @@ add_subdirectory(client)
 
 # flooder
 add_subdirectory(flooder)
+
+# tun2socks
+add_subdirectory(tun2socks)
