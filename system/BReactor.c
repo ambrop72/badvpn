@@ -582,6 +582,23 @@ BPendingGroup * BReactor_PendingGroup (BReactor *bsys)
     return &bsys->pending_jobs;
 }
 
+int BReactor_Synchronize (BReactor *bsys, BPending *ref)
+{
+    ASSERT(ref)
+    
+    while (!bsys->exiting) {
+        ASSERT(BPendingGroup_HasJobs(&bsys->pending_jobs))
+        
+        if (BPendingGroup_PeekJob(&bsys->pending_jobs) == ref) {
+            return 1;
+        }
+        
+        BPendingGroup_ExecuteJob(&bsys->pending_jobs);
+    }
+    
+    return 0;
+}
+
 #ifdef BADVPN_USE_WINAPI
 
 int BReactor_AddHandle (BReactor *bsys, BHandle *bh)

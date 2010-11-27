@@ -97,6 +97,14 @@ int BPendingGroup_HasJobs (BPendingGroup *g);
 void BPendingGroup_ExecuteJob (BPendingGroup *g);
 
 /**
+ * Returns the top job on the job list, or NULL if there are none.
+ * 
+ * @param g the object
+ * @return the top job if there is at least one job, NULL if not
+ */
+BPending * BPendingGroup_PeekJob (BPendingGroup *g);
+
+/**
  * Initializes the object.
  * The object is initialized in not set state.
  * 

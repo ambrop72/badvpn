@@ -73,6 +73,18 @@ void BPendingGroup_ExecuteJob (BPendingGroup *g)
     return;
 }
 
+BPending * BPendingGroup_PeekJob (BPendingGroup *g)
+{
+    DebugObject_Access(&g->d_obj);
+    
+    LinkedList2Node *node = LinkedList2_GetLast(&g->jobs);
+    if (!node) {
+        return NULL;
+    }
+    
+    return UPPER_OBJECT(node, BPending, pending_node);
+}
+
 void BPending_Init (BPending *o, BPendingGroup *g, BPending_handler handler, void *user)
 {
     // init arguments

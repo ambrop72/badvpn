@@ -308,6 +308,26 @@ void BReactor_RemoveTimer (BReactor *bsys, BTimer *bt);
  */
 BPendingGroup * BReactor_PendingGroup (BReactor *bsys);
 
+/**
+ * Executes pending jobs until either:
+ *   - the reference job is reached, or
+ *   - {@link BReactor_Quit} is called.
+ * The reference job must be reached before the job list empties.
+ * The reference job will not be executed.
+ * 
+ * WARNING: Use with care. This should only be used to to work around third-party software
+ * that does not integrade into the jobs system. In particular, you should think about:
+ *   - the effects the jobs to be executed may have, and
+ *   - the environment those jobs expect to be executed in.
+ * 
+ * @param bsys the object
+ * @param ref reference job. It is not accessed in any way, only its address is compared to
+ *            pending jobs before they are executed.
+ * @return 1 if the reference job was reached,
+ *         0 if {@link BReactor_Quit} was called (either while executing a job, or before)
+ */
+int BReactor_Synchronize (BReactor *bsys, BPending *ref);
+
 #ifdef BADVPN_USE_WINAPI
 
 /**
