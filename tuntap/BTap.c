@@ -428,14 +428,21 @@ void output_handler_recv (BTap *o, uint8_t *data)
     PacketRecvInterface_Done(&o->output, bytes);
 }
 
-int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error handler_error, void *handler_error_user)
+int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error handler_error, void *handler_error_user, int tun)
 {
+    ASSERT(tun == 0 || tun == 1)
+    
     // init arguments
     o->reactor = reactor;
     o->handler_error = handler_error;
     o->handler_error_user = handler_error_user;
     
     #ifdef BADVPN_USE_WINAPI
+    
+    if (tun) {
+        DEBUG("TUN not supported on Windows");
+        goto fail0;
+    }
     
     char *device_component_id;
     char *device_name;
@@ -583,8 +590,7 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
         goto fail1;
     }
     
-    o->dev_mtu = umtu;
-    o->frame_mtu = o->dev_mtu + BTAP_ETHERNET_HEADER_LENGTH;
+    o->frame_mtu = umtu + BTAP_ETHERNET_HEADER_LENGTH;
     
     // set connected
     
@@ -637,14 +643,19 @@ fail0:
     
     if ((o->fd = open("/dev/net/tun", O_RDWR)) < 0) {
         DEBUG("error opening device");
-        return 0;
+        goto fail0;
     }
     
     // configure device
     
     struct ifreq ifr;
     memset(&ifr, 0, sizeof(ifr));
-    ifr.ifr_flags |= IFF_TAP | IFF_NO_PI;    
+    ifr.ifr_flags |= IFF_NO_PI;
+    if (tun) {
+        ifr.ifr_flags |= IFF_TUN;
+    } else {
+        ifr.ifr_flags |= IFF_TAP;
+    }
     if (devname) {
         snprintf(ifr.ifr_name, IFNAMSIZ, "%s", devname);
     }
@@ -656,29 +667,30 @@ fail0:
     
     strcpy(o->devname, ifr.ifr_name);
     
-    // open dummy socket for ioctls
-    
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        DEBUG("socket failed");
-        goto fail1;
-    }
-    
     // get MTU
-    
-    memset(&ifr, 0, sizeof(ifr));
-    strcpy(ifr.ifr_name, o->devname);
-    
-    if (ioctl(sock, SIOCGIFMTU, (void *)&ifr) < 0) {
-        DEBUG("error getting MTU");
+    if (tun) {
+        o->frame_mtu = 65535;
+    } else {
+        // open dummy socket for ioctls
+        int sock = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sock < 0) {
+            DEBUG("socket failed");
+            goto fail1;
+        }
+        
+        memset(&ifr, 0, sizeof(ifr));
+        strcpy(ifr.ifr_name, o->devname);
+        
+        if (ioctl(sock, SIOCGIFMTU, (void *)&ifr) < 0) {
+            DEBUG("error getting MTU");
+            close(sock);
+            goto fail1;
+        }
+        
+        o->frame_mtu = ifr.ifr_mtu + BTAP_ETHERNET_HEADER_LENGTH;
+        
         close(sock);
-        goto fail1;
     }
-    
-    o->dev_mtu = ifr.ifr_mtu;
-    o->frame_mtu = o->dev_mtu + BTAP_ETHERNET_HEADER_LENGTH;
-    
-    close(sock);
     
     // set non-blocking
     if (fcntl(o->fd, F_SETFL, O_NONBLOCK) < 0) {
@@ -698,6 +710,7 @@ fail0:
     
 fail1:
     ASSERT_FORCE(close(o->fd) == 0)
+fail0:
     return 0;
     
     #endif
@@ -778,11 +791,11 @@ void BTap_Free (BTap *o)
     #endif
 }
 
-int BTap_GetDeviceMTU (BTap *o)
+int BTap_GetMTU (BTap *o)
 {
     DebugObject_Access(&o->d_obj);
     
-    return o->dev_mtu;
+    return o->frame_mtu;
 }
 
 PacketPassInterface * BTap_GetInput (BTap *o)

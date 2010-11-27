@@ -44,7 +44,6 @@
 #include <misc/debug.h>
 #include <misc/offset.h>
 #include <misc/byteorder.h>
-#include <misc/ethernet_proto.h>
 #include <misc/nsskey.h>
 #include <misc/loglevel.h>
 #include <misc/loggers_string.h>
@@ -488,13 +487,13 @@ int main (int argc, char *argv[])
     }
     
     // init device
-    if (!BTap_Init(&device.btap, &ss, options.tapdev, device_error_handler, NULL)) {
+    if (!BTap_Init(&device.btap, &ss, options.tapdev, device_error_handler, NULL, 0)) {
         BLog(BLOG_ERROR, "BTap_Init failed");
         goto fail5;
     }
     
     // remember device MTU
-    device.mtu = sizeof(struct ethernet_header) + BTap_GetDeviceMTU(&device.btap);
+    device.mtu = BTap_GetMTU(&device.btap);
     
     BLog(BLOG_INFO, "device MTU is %d", device.mtu);
     

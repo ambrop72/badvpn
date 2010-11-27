@@ -56,7 +56,6 @@ typedef struct {
     BReactor *reactor;
     BTap_handler_error handler_error;
     void *handler_error_user;
-    int dev_mtu;
     int frame_mtu;
     PacketPassInterface input;
     PacketRecvInterface output;
@@ -99,9 +98,10 @@ typedef struct {
  *                Specifying a NULL devname is equivalent to specifying ":".
  * @param handler_error error handler function
  * @param handler_error_user value passed to error handler
+ * @param tun whether to create a TUN (IP) device or a TAP (Ethernet) device. Must be 0 or 1.
  * @return 1 on success, 0 on failure
  */
-int BTap_Init (BTap *o, BReactor *bsys, char *devname, BTap_handler_error handler_error, void *handler_error_user) WARN_UNUSED;
+int BTap_Init (BTap *o, BReactor *bsys, char *devname, BTap_handler_error handler_error, void *handler_error_user, int tun) WARN_UNUSED;
 
 /**
  * Frees the TAP device.
@@ -111,17 +111,16 @@ int BTap_Init (BTap *o, BReactor *bsys, char *devname, BTap_handler_error handle
 void BTap_Free (BTap *o);
 
 /**
- * Returns the device's maximum transmission unit, excluding
- * the Ethernet header.
+ * Returns the device's maximum transmission unit (including any protocol headers).
  *
  * @param o the object
- * @return device's MTU, excluding the Ethernet header
+ * @return device's MTU
  */
-int BTap_GetDeviceMTU (BTap *o);
+int BTap_GetMTU (BTap *o);
 
 /**
  * Returns a {@link PacketPassInterface} for writing packets to the device.
- * The MTU of the interface will be {@link BTap_GetDeviceMTU} + BTAP_ETHERNET_HEADER_LENGTH.
+ * The MTU of the interface will be {@link BTap_GetMTU}.
  *
  * @param o the object
  * @return input interface
@@ -130,7 +129,7 @@ PacketPassInterface * BTap_GetInput (BTap *o);
 
 /**
  * Returns a {@link PacketRecvInterface} for reading packets from the device.
- * The MTU of the interface will be {@link BTap_GetDeviceMTU} + BTAP_ETHERNET_HEADER_LENGTH.
+ * The MTU of the interface will be {@link BTap_GetMTU}.
  * The interface will support cancel functionality.
  * 
  * @param o the object
