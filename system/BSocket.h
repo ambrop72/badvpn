@@ -58,10 +58,12 @@
 #define BSOCKET_TYPE_DGRAM 2
 
 // socket events
-#define BSOCKET_READ 1
-#define BSOCKET_WRITE 2
-#define BSOCKET_ACCEPT 4
-#define BSOCKET_CONNECT 8
+#define BSOCKET_READ (1 << 0)
+#define BSOCKET_WRITE (1 << 1)
+#define BSOCKET_ACCEPT (1 << 2)
+#define BSOCKET_CONNECT (1 << 3)
+#define BSOCKET_ERROR (1 << 4)
+#define BSOCKET_NUM_EVENTS 5
 
 // default backlog if backlog is <0
 #define BSOCKET_DEFAULT_BACKLOG 128
@@ -107,8 +109,8 @@ typedef struct BSocket_t {
     int error;
     BSocket_handler global_handler;
     void *global_handler_user;
-    BSocket_handler handlers[4];
-    void *handlers_user[4];
+    BSocket_handler handlers[BSOCKET_NUM_EVENTS];
+    void *handlers_user[BSOCKET_NUM_EVENTS];
     uint8_t waitEvents;
     int connecting_status; // 0 not connecting, 1 connecting, 2 finished
     int connecting_result;

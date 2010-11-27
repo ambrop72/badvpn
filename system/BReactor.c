@@ -227,21 +227,18 @@ static void dispatch_io (BReactor *bsys)
         
         // calculate events to report
         int events = 0;
-        if (bfd->waitEvents&BREACTOR_READ) {
-            if ((event->events&EPOLLIN) || (event->events&EPOLLERR) || (event->events&EPOLLHUP)) {
-                events |= BREACTOR_READ;
-            }
+        if ((bfd->waitEvents&BREACTOR_READ) && (event->events&EPOLLIN)) {
+            events |= BREACTOR_READ;
         }
-        if (bfd->waitEvents&BREACTOR_WRITE) {
-            if ((event->events&EPOLLOUT) || (event->events&EPOLLERR) || (event->events&EPOLLHUP)) {
-                events |= BREACTOR_WRITE;
-            }
+        if ((bfd->waitEvents&BREACTOR_WRITE) && (event->events&EPOLLOUT)) {
+            events |= BREACTOR_WRITE;
+        }
+        if ((event->events&EPOLLERR) || (event->events&EPOLLHUP)) {
+            events |= BREACTOR_ERROR;
         }
         
-        // BUG: if an error occurs on the socket and neither BREACTOR_READ nor BREACTOR_WRITE were requested,
-        // we get the event from epoll as ready, but don't have anybody to tell about it, resulting in an
-        // infinite loop
         if (!events) {
+            BLog(BLOG_ERROR, "no events detected?");
             continue;
         }
         

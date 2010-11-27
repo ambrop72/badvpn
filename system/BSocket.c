@@ -45,7 +45,7 @@
 #define HANDLER_WRITE 1
 #define HANDLER_ACCEPT 2
 #define HANDLER_CONNECT 3
-#define NUM_EVENTS 4
+#define HANDLER_ERROR 4
 
 static int get_event_index (int event)
 {
@@ -58,6 +58,8 @@ static int get_event_index (int event)
             return HANDLER_ACCEPT;
         case BSOCKET_CONNECT:
             return HANDLER_CONNECT;
+        case BSOCKET_ERROR:
+            return HANDLER_ERROR;
         default:
             ASSERT(0)
             return 42;
@@ -68,15 +70,15 @@ static int handler_events[] = {
     [HANDLER_READ] = BSOCKET_READ,
     [HANDLER_WRITE] = BSOCKET_WRITE,
     [HANDLER_ACCEPT] = BSOCKET_ACCEPT,
-    [HANDLER_CONNECT] = BSOCKET_CONNECT
+    [HANDLER_CONNECT] = BSOCKET_CONNECT,
+    [HANDLER_ERROR] = BSOCKET_ERROR
 };
 
 static void init_handlers (BSocket *bs)
 {
     bs->global_handler = NULL;
     
-    int i;
-    for (i = 0; i < 4; i++) {
+    for (int i = 0; i < BSOCKET_NUM_EVENTS; i++) {
         bs->handlers[i] = NULL;
     }
 }
@@ -229,7 +231,7 @@ static void dispatch_event (BSocket *bs)
 {
     ASSERT(!bs->global_handler)
     ASSERT(bs->current_event_index >= 0)
-    ASSERT(bs->current_event_index < NUM_EVENTS)
+    ASSERT(bs->current_event_index < BSOCKET_NUM_EVENTS)
     ASSERT(((bs->ready_events)&~(bs->waitEvents)) == 0)
     
     do {
@@ -242,7 +244,7 @@ static void dispatch_event (BSocket *bs)
         bs->current_event_index++;
         bs->ready_events &= ~ev_mask;
         
-        ASSERT(!(bs->ready_events) || bs->current_event_index < NUM_EVENTS)
+        ASSERT(!(bs->ready_events) || bs->current_event_index < BSOCKET_NUM_EVENTS)
         
         if (ev_dispatch) {
             // if there are more events to dispatch, schedule job
@@ -254,7 +256,7 @@ static void dispatch_event (BSocket *bs)
             bs->handlers[ev_index](bs->handlers_user[ev_index], ev_mask);
             return;
         }
-    } while (bs->current_event_index < NUM_EVENTS);
+    } while (bs->current_event_index < BSOCKET_NUM_EVENTS);
     
     ASSERT(!bs->ready_events)
 }
@@ -263,7 +265,7 @@ static void job_handler (BSocket *bs)
 {
     ASSERT(!bs->global_handler) // BSocket_RemoveGlobalEventHandler unsets the job
     ASSERT(bs->current_event_index >= 0)
-    ASSERT(bs->current_event_index < NUM_EVENTS)
+    ASSERT(bs->current_event_index < BSOCKET_NUM_EVENTS)
     ASSERT(((bs->ready_events)&~(bs->waitEvents)) == 0) // BSocket_DisableEvent clears events from ready_events
     DebugObject_Access(&bs->d_obj);
     
@@ -325,37 +327,33 @@ static void handle_handler (BSocket *bs)
     
     int returned_events = 0;
     
-    if (bs->waitEvents&BSOCKET_READ) {
-        if ((events.lNetworkEvents&FD_READ) || (events.lNetworkEvents&FD_CLOSE)) {
-            returned_events |= BSOCKET_READ;
+    if ((bs->waitEvents&BSOCKET_READ) && ((events.lNetworkEvents&FD_READ) || (events.lNetworkEvents&FD_CLOSE))) {
+        returned_events |= BSOCKET_READ;
+    }
+    
+    if ((bs->waitEvents&BSOCKET_WRITE) && ((events.lNetworkEvents&FD_WRITE) || (events.lNetworkEvents&FD_CLOSE))) {
+        returned_events |= BSOCKET_WRITE;
+    }
+    
+    if ((bs->waitEvents&BSOCKET_ACCEPT) && (events.lNetworkEvents&FD_ACCEPT)) {
+        returned_events |= BSOCKET_ACCEPT;
+    }
+    
+    if ((bs->waitEvents&BSOCKET_CONNECT) && (events.lNetworkEvents&FD_CONNECT)) {
+        returned_events |= BSOCKET_CONNECT;
+        
+        // read connection attempt result
+        ASSERT(bs->connecting_status == 1)
+        bs->connecting_status = 2;
+        if (events.iErrorCode[FD_CONNECT_BIT] == 0) {
+            bs->connecting_result = BSOCKET_ERROR_NONE;
+        } else {
+            bs->connecting_result = translate_error(events.iErrorCode[FD_CONNECT_BIT]);
         }
     }
     
-    if (bs->waitEvents&BSOCKET_WRITE) {
-        if ((events.lNetworkEvents&FD_WRITE) || (events.lNetworkEvents&FD_CLOSE)) {
-            returned_events |= BSOCKET_WRITE;
-        }
-    }
-    
-    if (bs->waitEvents&BSOCKET_ACCEPT) {
-        if (events.lNetworkEvents&FD_ACCEPT) {
-            returned_events |= BSOCKET_ACCEPT;
-        }
-    }
-    
-    if (bs->waitEvents&BSOCKET_CONNECT) {
-        if (events.lNetworkEvents&FD_CONNECT) {
-            returned_events |= BSOCKET_CONNECT;
-            
-            // read connection attempt result
-            ASSERT(bs->connecting_status == 1)
-            bs->connecting_status = 2;
-            if (events.iErrorCode[FD_CONNECT_BIT] == 0) {
-                bs->connecting_result = BSOCKET_ERROR_NONE;
-            } else {
-                bs->connecting_result = translate_error(events.iErrorCode[FD_CONNECT_BIT]);
-            }
-        }
+    if ((bs->waitEvents&BSOCKET_ERROR) && (events.lNetworkEvents&FD_CLOSE)) {
+        returned_events |= BSOCKET_ERROR;
     }
     
     dispatch_events(bs, returned_events);
@@ -367,7 +365,7 @@ static void handle_handler (BSocket *bs)
 static int get_reactor_fd_events (int sock_events)
 {
     int res = 0;
-
+    
     if ((sock_events&BSOCKET_READ) || (sock_events&BSOCKET_ACCEPT)) {
         res |= BREACTOR_READ;
     }
@@ -384,19 +382,19 @@ static void file_descriptor_handler (BSocket *bs, int events)
     
     int returned_events = 0;
     
-    if ((bs->waitEvents&BSOCKET_READ) && (events&BREACTOR_READ)) {
+    if ((bs->waitEvents&BSOCKET_READ) && ((events&BREACTOR_READ) || (events&BREACTOR_ERROR))) {
         returned_events |= BSOCKET_READ;
     }
     
-    if ((bs->waitEvents&BSOCKET_WRITE) && (events&BREACTOR_WRITE)) {
+    if ((bs->waitEvents&BSOCKET_WRITE) && ((events&BREACTOR_WRITE) || (events&BREACTOR_ERROR))) {
         returned_events |= BSOCKET_WRITE;
     }
     
-    if ((bs->waitEvents&BSOCKET_ACCEPT) && (events&BREACTOR_READ)) {
+    if ((bs->waitEvents&BSOCKET_ACCEPT) && ((events&BREACTOR_READ) || (events&BREACTOR_ERROR))) {
         returned_events |= BSOCKET_ACCEPT;
     }
     
-    if ((bs->waitEvents&BSOCKET_CONNECT) && (events&BREACTOR_WRITE)) {
+    if ((bs->waitEvents&BSOCKET_CONNECT) && ((events&BREACTOR_WRITE) || (events&BREACTOR_ERROR))) {
         returned_events |= BSOCKET_CONNECT;
         
         // read connection attempt result
@@ -411,6 +409,10 @@ static void file_descriptor_handler (BSocket *bs, int events)
         } else {
             bs->connecting_result = translate_error(result);
         }
+    }
+    
+    if ((bs->waitEvents&BSOCKET_ERROR) && (events&BREACTOR_ERROR)) {
+        returned_events |= BSOCKET_ERROR;
     }
     
     dispatch_events(bs, returned_events);
@@ -670,10 +672,9 @@ void BSocket_AddGlobalEventHandler (BSocket *bs, BSocket_handler handler, void *
     
     ASSERT(handler)
     ASSERT(!bs->global_handler)
-    ASSERT(!bs->handlers[0])
-    ASSERT(!bs->handlers[1])
-    ASSERT(!bs->handlers[2])
-    ASSERT(!bs->handlers[3])
+    for (int i = 0; i < BSOCKET_NUM_EVENTS; i++) {
+        ASSERT(!bs->handlers[i])
+    }
     
     bs->global_handler = handler;
     bs->global_handler_user = user;
@@ -760,6 +761,8 @@ void BSocket_EnableEvent (BSocket *bs, uint8_t event)
             ASSERT(!(bs->waitEvents&BSOCKET_READ))
             ASSERT(!(bs->waitEvents&BSOCKET_WRITE))
             ASSERT(!(bs->waitEvents&BSOCKET_ACCEPT))
+            break;
+        case BSOCKET_ERROR:
             break;
         default:
             ASSERT(0)

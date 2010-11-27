@@ -132,18 +132,21 @@ void BHandle_Init (BHandle *bh, HANDLE handle, BHandle_handler handler, void *us
 
 struct BFileDescriptor_t;
 
-#define BREACTOR_READ 1
-#define BREACTOR_WRITE 2
+#define BREACTOR_READ (1 << 0)
+#define BREACTOR_WRITE (1 << 1)
+#define BREACTOR_ERROR (1 << 2)
 
 /**
- * Handler function invoked by the reactor when one or more monitored events
- * are detected.
+ * Handler function invoked by the reactor when one or more events are detected.
+ * The events argument will contain a subset of the monitored events (BREACTOR_READ, BREACTOR_WRITE),
+ * plus possibly the error event (BREACTOR_ERROR).
  * The file descriptor object is in active state, being called from within
  * the associated reactor.
  *
  * @param user value passed to {@link BFileDescriptor_Init}
- * @param events bitmask of detected events (BREACTOR_READ, BREACTOR_WRITE).
- *               Will be nonzero, and a subset of current monitored events.
+ * @param events bitmask composed of a subset of monitored events (BREACTOR_READ, BREACTOR_WRITE),
+ *               and possibly the error event (BREACTOR_ERROR).
+ *               Will be nonzero.
  */
 typedef void (*BFileDescriptor_handler) (void *user, int events);
 
@@ -252,8 +255,7 @@ int BReactor_Exec (BReactor *bsys);
  *
  * @param bsys the object
  * @param code value {@link BReactor_Exec} should return. If this is
- *             called more than once from an event loop, the last code
- *             will be returned.
+ *             called more than once, it will return the last code.
  */
 void BReactor_Quit (BReactor *bsys, int code);
 
