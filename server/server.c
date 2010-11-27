@@ -358,7 +358,7 @@ int main (int argc, char *argv[])
         }
     }
     
-    BLog(BLOG_NOTICE, "initializing "GLOBAL_PRODUCT_NAME" server "GLOBAL_VERSION);
+    BLog(BLOG_NOTICE, "initializing "GLOBAL_PRODUCT_NAME" "PROGRAM_NAME" "GLOBAL_VERSION);
     
     // initialize sockets
     if (BSocket_GlobalInit() < 0) {
