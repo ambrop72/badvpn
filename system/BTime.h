@@ -45,6 +45,8 @@ struct _BTime_global {
     #endif
     #ifdef BADVPN_USE_WINAPI
     LARGE_INTEGER start_time;
+    #else
+    btime_t start_time;
     #endif
 };
 
@@ -56,6 +58,10 @@ static void BTime_Init (void)
     
     #ifdef BADVPN_USE_WINAPI
     ASSERT_FORCE(QueryPerformanceCounter(&btime_global.start_time))
+    #else
+    struct timespec ts;
+    ASSERT_FORCE(clock_gettime(CLOCK_MONOTONIC, &ts) == 0)
+    btime_global.start_time = (int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec/1000000;
     #endif
     
     #ifndef NDEBUG
@@ -79,7 +85,7 @@ static btime_t btime_gettime ()
     
     struct timespec ts;
     ASSERT_FORCE(clock_gettime(CLOCK_MONOTONIC, &ts) == 0)
-    return ((int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec/1000000);
+    return (((int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec/1000000) - btime_global.start_time);
     
     #endif
 }
