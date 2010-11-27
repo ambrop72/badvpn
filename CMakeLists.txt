@@ -19,6 +19,9 @@ include_directories(
     ${LIBCRYPTO_INCLUDE_DIRS}
     ${NSPR_INCLUDE_DIRS}
     ${NSS_INCLUDE_DIRS}
+    lwip/custom
+    lwip/src/include
+    lwip/src/include/ipv4
 )
 
 link_directories(
@@ -83,6 +86,7 @@ add_subdirectory(nspr_support)
 add_subdirectory(server_connection)
 add_subdirectory(security)
 add_subdirectory(socksclient)
+add_subdirectory(lwip)
 if (NOT WIN32)
     add_subdirectory(ipc)
 endif ()
