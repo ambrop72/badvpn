@@ -108,21 +108,22 @@ static void signal_fd_handler (void *user, int events)
     ASSERT(bsignal_global.capturing)
     ASSERT(bsignal_global.handler)
     
-    do {
-        struct signalfd_siginfo siginfo;
-        int bytes = read(bsignal_global.signal_fd, &siginfo, sizeof(siginfo));
-        if (bytes < 0) {
-            int error = errno;
-            if (error == EAGAIN || error == EWOULDBLOCK) {
-                break;
-            }
-            ASSERT_FORCE(0)
+    struct signalfd_siginfo siginfo;
+    int bytes = read(bsignal_global.signal_fd, &siginfo, sizeof(siginfo));
+    if (bytes < 0) {
+        int error = errno;
+        if (error == EAGAIN || error == EWOULDBLOCK) {
+            return;
         }
-        ASSERT_FORCE(bytes == sizeof(siginfo))
-        
-        BLog(BLOG_DEBUG, "Dispatching signal");
-        bsignal_global.handler(bsignal_global.handler_user);
-    } while (bsignal_global.capturing && bsignal_global.handler);
+        ASSERT_FORCE(0)
+    }
+    ASSERT_FORCE(bytes == sizeof(siginfo))
+    
+    BLog(BLOG_DEBUG, "Dispatching signal");
+    
+    // call handler
+    bsignal_global.handler(bsignal_global.handler_user);
+    return;
 }
 
 #endif
