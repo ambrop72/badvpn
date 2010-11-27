@@ -11,3 +11,4 @@ flooder 4
 Listener 4
 DataProto 4
 FrameDecider 4
+BSocksClient 4

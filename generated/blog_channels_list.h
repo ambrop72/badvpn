@@ -11,3 +11,4 @@
 {.name = "Listener", .loglevel = 4},
 {.name = "DataProto", .loglevel = 4},
 {.name = "FrameDecider", .loglevel = 4},
+{.name = "BSocksClient", .loglevel = 4},

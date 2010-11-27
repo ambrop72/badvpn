@@ -11,4 +11,5 @@
 #define BLOG_CHANNEL_Listener 10
 #define BLOG_CHANNEL_DataProto 11
 #define BLOG_CHANNEL_FrameDecider 12
-#define BLOG_NUM_CHANNELS 13
+#define BLOG_CHANNEL_BSocksClient 13
+#define BLOG_NUM_CHANNELS 14
