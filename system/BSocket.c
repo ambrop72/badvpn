@@ -299,7 +299,7 @@ static void dispatch_events (BSocket *bs, int events)
 static long get_wsa_events (int sock_events)
 {
     long res = 0;
-
+    
     if ((sock_events&BSOCKET_READ)) {
         res |= FD_READ | FD_CLOSE;
     }
@@ -307,12 +307,12 @@ static long get_wsa_events (int sock_events)
         res |= FD_WRITE | FD_CLOSE;
     }
     if ((sock_events&BSOCKET_ACCEPT)) {
-        res |= FD_ACCEPT;
+        res |= FD_ACCEPT | FD_CLOSE;
     }
     if ((sock_events&BSOCKET_CONNECT)) {
-        res |= FD_CONNECT;
+        res |= FD_CONNECT | FD_CLOSE;
     }
-
+    
     return res;
 }
 
@@ -335,11 +335,11 @@ static void handle_handler (BSocket *bs)
         returned_events |= BSOCKET_WRITE;
     }
     
-    if ((bs->waitEvents&BSOCKET_ACCEPT) && (events.lNetworkEvents&FD_ACCEPT)) {
+    if ((bs->waitEvents&BSOCKET_ACCEPT) && ((events.lNetworkEvents&FD_ACCEPT) || (events.lNetworkEvents&FD_CLOSE))) {
         returned_events |= BSOCKET_ACCEPT;
     }
     
-    if ((bs->waitEvents&BSOCKET_CONNECT) && (events.lNetworkEvents&FD_CONNECT)) {
+    if ((bs->waitEvents&BSOCKET_CONNECT) && ((events.lNetworkEvents&FD_CONNECT) || (events.lNetworkEvents&FD_CLOSE))) {
         returned_events |= BSOCKET_CONNECT;
         
         // read connection attempt result
