@@ -977,7 +977,7 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
     
         if (!init_event_backend(newsock)) {
             DEBUG("WARNING: init_event_backend failed");
-            goto fail0;
+            goto fail1;
         }
         
         // init debug object
@@ -992,8 +992,9 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
     bs->error = BSOCKET_ERROR_NONE;
     return 0;
     
-fail0:
+fail1:
     BPending_Free(&newsock->job);
+fail0:
     close_socket(fd);
     bs->error = BSOCKET_ERROR_UNKNOWN;
     return -1;
