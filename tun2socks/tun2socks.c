@@ -65,6 +65,9 @@
     BPending_Init(&sync_mark, BReactor_PendingGroup(&ss), NULL, NULL); \
     BPending_Set(&sync_mark);
 
+#define SYNC_BREAK \
+    BPending_Free(&sync_mark);
+
 #define SYNC_COMMIT \
     BReactor_Synchronize(&ss, &sync_mark); \
     BPending_Free(&sync_mark);
@@ -174,9 +177,9 @@ static void client_send_to_socks (struct tcp_client *client);
 static void client_socks_send_handler_done (struct tcp_client *client, int data_len);
 static void client_recv_confirm_job_handler (struct tcp_client *client);
 static int client_force_send_to_socks (struct tcp_client *client);
-static void client_recv_from_socks (struct tcp_client *client);
+static void client_socks_recv_initiate (struct tcp_client *client);
 static void client_socks_recv_handler_done (struct tcp_client *client, int data_len);
-static int client_send_to_client (struct tcp_client *client);
+static int client_socks_recv_send_out (struct tcp_client *client);
 static err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len);
 
 int main (int argc, char **argv)
@@ -1035,7 +1038,7 @@ void client_socks_handler (struct tcp_client *client, int event)
             }
             
             // start receiving data
-            client_recv_from_socks(client);
+            client_socks_recv_initiate(client);
         } break;
         
         case BSOCKSCLIENT_EVENT_ERROR_CLOSED: {
@@ -1140,7 +1143,7 @@ int client_force_send_to_socks (struct tcp_client *client)
     return 0;
 }
 
-void client_recv_from_socks (struct tcp_client *client)
+void client_socks_recv_initiate (struct tcp_client *client)
 {
     ASSERT(client->socks_up)
     ASSERT(!client->socks_closed)
@@ -1162,12 +1165,18 @@ void client_socks_recv_handler_done (struct tcp_client *client, int data_len)
     client->socks_recv_buf_sent = 0;
     client->socks_recv_waiting = 0;
     
-    // sent to client
-    client_send_to_client(client);
-    return;
+    // send to client
+    if (client_socks_recv_send_out(client) < 0) {
+        return;
+    }
+    
+    // continue receiving if needed
+    if (client->socks_recv_buf_used == -1 && !client->socks_closed) {
+        client_socks_recv_initiate(client);
+    }
 }
 
-int client_send_to_client (struct tcp_client *client)
+int client_socks_recv_send_out (struct tcp_client *client)
 {
     ASSERT(client->socks_up)
     ASSERT(client->socks_recv_buf_used > 0)
@@ -1205,6 +1214,13 @@ int client_send_to_client (struct tcp_client *client)
     
     // more data to queue?
     if (client->socks_recv_buf_sent < client->socks_recv_buf_used) {
+        if (client->socks_recv_tcp_pending == 0) {
+            client_log(client, BLOG_ERROR, "can't queue data, but all data was confirmed!?!");
+            tcp_abort(client->pcb);
+            return -1;
+        }
+        
+        // continue in client_sent_func
         client->socks_recv_waiting = 1;
         return 0;
     }
@@ -1214,11 +1230,6 @@ int client_send_to_client (struct tcp_client *client)
     
     // we just queued some data, so it can't have been confirmed yet
     ASSERT(client->socks_recv_tcp_pending > 0)
-    
-    if (!client->socks_closed) {
-        // receive more data
-        client_recv_from_socks(client);
-    }
 
     return 0;
 }
@@ -1242,8 +1253,20 @@ err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
         client->socks_recv_waiting = 0;
         
         // send more data
-        if (client_send_to_client(client) < 0) {
+        if (client_socks_recv_send_out(client) < 0) {
             return ERR_ABRT;
+        }
+        
+        // continue receiving if needed
+        if (client->socks_recv_buf_used == -1 && !client->socks_closed) {
+            SYNC_DECL
+            SYNC_FROMHERE
+            client_socks_recv_initiate(client);
+            DEAD_ENTER(client->dead)
+            SYNC_COMMIT
+            if (DEAD_LEAVE(client->dead)) {
+                return ERR_ABRT;
+            }
         }
         
         return ERR_OK;

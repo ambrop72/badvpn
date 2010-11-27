@@ -25,9 +25,7 @@
 
 #define NO_SYS 1
 #define MEM_ALIGNMENT 8
-#define MEM_SIZE 4194304
-#define MEMP_NUM_TCP_PCB 8192
-#define MEMP_NUM_TCP_PCB_LISTEN 16
+
 #define LWIP_ARP 0
 #define ARP_QUEUEING 0
 #define IP_FORWARD 0
@@ -49,5 +47,16 @@
 #define LWIP_NETCONN 0
 #define LWIP_SOCKET 0
 #define PPP_SUPPORT 0
+
+#define MEMP_NUM_TCP_PCB_LISTEN 16
+
+#define TCP_MSS 1460
+
+#define MEMP_NUM_TCP_PCB 512
+#define TCP_SND_BUF 16384
+#define TCP_SND_QUEUELEN (4 * (TCP_SND_BUF)/(TCP_MSS))
+#define MEMP_NUM_TCP_SEG (MEMP_NUM_TCP_PCB * TCP_SND_QUEUELEN)
+
+#define MEM_SIZE ((4 * MEMP_NUM_TCP_PCB * (TCP_SND_BUF)) + 4194304)
 
 #endif

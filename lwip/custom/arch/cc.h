@@ -55,4 +55,11 @@
 #define LWIP_PLATFORM_HTONS(x) hton16(x)
 #define LWIP_PLATFORM_HTONL(x) hton32(x)
 
+// for BYTE_ORDER
+#ifdef BADVPN_USE_WINAPI
+    #include <sys/param.h>
+#else
+    #include <endian.h>
+#endif
+
 #endif

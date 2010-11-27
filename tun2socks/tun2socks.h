@@ -28,7 +28,7 @@
 #define DEVICE_WRITE_BUFFER_SIZE 1
 
 // size of temporary buffer for passing data from the SOCKS server to TCP for sending
-#define CLIENT_SOCKS_RECV_BUF_SIZE 4096
+#define CLIENT_SOCKS_RECV_BUF_SIZE 8192
 
 // option to override the destination addresses to give the SOCKS server
 //#define OVERRIDE_DEST_ADDR "10.111.0.2:2000"
