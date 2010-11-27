@@ -65,7 +65,7 @@ static int uint32_comparator (void *user, uint32_t *v1, uint32_t *v2)
     return 0;
 }
 
-static void add_mac_to_peer (FrameDeciderPeer *o, uint8_t mac[6])
+static void add_mac_to_peer (FrameDeciderPeer *o, uint8_t *mac)
 {
     FrameDecider *d = o->d;
     
@@ -122,7 +122,7 @@ static uint32_t compute_sig_for_group (uint32_t group)
     return hton32(ntoh32(group)&0x7FFFFF);
 }
 
-static uint32_t compute_sig_for_mac (uint8_t mac[6])
+static uint32_t compute_sig_for_mac (uint8_t *mac)
 {
     uint32_t sig;
     memcpy(&sig, mac + 2, 4);
