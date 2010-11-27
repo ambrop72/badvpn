@@ -215,10 +215,13 @@ done:
 
 static void fd_handler (BTap *o, int events)
 {
-    ASSERT((events&BREACTOR_WRITE) || (events&BREACTOR_READ))
     DebugObject_Access(&o->d_obj);
     
     DEAD_DECLARE
+    
+    if (events&BREACTOR_ERROR) {
+        DEBUG("WARNING: device fd reports error?");
+    }
     
     if (events&BREACTOR_WRITE) do {
         ASSERT(o->input_packet_len >= 0)
