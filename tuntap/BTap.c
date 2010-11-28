@@ -304,12 +304,15 @@ void input_handler_send (BTap *o, uint8_t *data, int data_len)
     
     #ifdef BADVPN_USE_WINAPI
     
-    if (!try_send(o, data, data_len)) {
-        // write pending
-        o->input_packet = data;
-        o->input_packet_len = data_len;
-        BReactor_EnableHandle(o->reactor, &o->input_bhandle);
-        return;
+    // ignore frames without an Ethernet header, or we get errors in WriteFile
+    if (data_len >= 14) {
+        if (!try_send(o, data, data_len)) {
+            // write pending
+            o->input_packet = data;
+            o->input_packet_len = data_len;
+            BReactor_EnableHandle(o->reactor, &o->input_bhandle);
+            return;
+        }
     }
     
     #else
