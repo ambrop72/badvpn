@@ -2208,19 +2208,18 @@ void peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len
     }
     
 out:
-    // accept packet
-    if (!local) {
+    // pass packet to device, or accept immediately
+    // NOTE: this must be done first, because DataProtoDest_SubmitRelayFrame needs the frame
+    // while it is evaluating!
+    if (local) {
+        PacketPassInterface_Sender_Send(peer->local_recv_if, data, data_len);
+    } else {
         PacketPassInterface_Done(&peer->recv_ppi);
     }
     
     // relay frame
     if (relay_dest) {
         DataProtoDest_SubmitRelayFrame(&relay_dest->send_dp, &src_peer->relay_source, data, data_len, options.send_buffer_relay_size);
-    }
-    
-    // submit to device
-    if (local) {
-        PacketPassInterface_Sender_Send(peer->local_recv_if, data, data_len);
     }
     
     // inform DataProto of received packet
