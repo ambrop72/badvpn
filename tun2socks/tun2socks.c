@@ -100,12 +100,13 @@ struct tcp_client {
     int client_closed;
     uint8_t buf[TCP_WND];
     int buf_used;
-    BPending recv_confirm_job;
     BSocksClient socks_client;
     int socks_up;
     int socks_closed;
+    int socks_closed_eof;
     StreamPassInterface *socks_send_if;
     int socks_send_prev_buf_used;
+    BPending socks_send_finished_job;
     StreamRecvInterface *socks_recv_if;
     uint8_t socks_recv_buf[CLIENT_SOCKS_RECV_BUF_SIZE];
     int socks_recv_buf_used;
@@ -173,18 +174,20 @@ static err_t netif_init_func (struct netif *netif);
 static err_t netif_output_func (struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr);
 static void client_log (struct tcp_client *client, int level, const char *fmt, ...);
 static err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err);
-static int client_close (struct tcp_client *client, int abrt);
-static int client_free (struct tcp_client *client, int abrt);
+static void client_handle_freed_client (struct tcp_client *client, int was_abrt);
+static int client_free_client (struct tcp_client *client, int gracefully);
+static void client_free_socks (struct tcp_client *client, int was_eof);
+static void client_murder (struct tcp_client *client);
 static void client_dealloc (struct tcp_client *client);
 static void client_err_func (void *arg, err_t err);
 static err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
 static void client_socks_handler (struct tcp_client *client, int event);
 static void client_send_to_socks (struct tcp_client *client);
 static void client_socks_send_handler_done (struct tcp_client *client, int data_len);
-static void client_socks_send_job_handler (struct tcp_client *client);
+static void client_socks_send_finished_job_handler (struct tcp_client *client);
 static void client_socks_recv_initiate (struct tcp_client *client);
 static void client_socks_recv_handler_done (struct tcp_client *client, int data_len);
-static void client_socks_recv_send_out (struct tcp_client *client);
+static int client_socks_recv_send_out (struct tcp_client *client);
 static err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len);
 
 int main (int argc, char **argv)
@@ -352,8 +355,9 @@ event_loop:
     while (node = LinkedList2_GetFirst(&tcp_clients)) {
         struct tcp_client *client = UPPER_OBJECT(node, struct tcp_client, list_node);
         
-        client_log(client, BLOG_INFO, "freeing");
-        client_free(client, 1);
+        client_log(client, BLOG_INFO, "killing");
+        
+        client_murder(client);
     }
     
     // free listener
@@ -890,11 +894,9 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     // setup buffer
     client->buf_used = 0;
     
-    // init recv confirm job
-    BPending_Init(&client->recv_confirm_job, BReactor_PendingGroup(&ss), (BPending_handler)client_socks_send_job_handler, client);
-    
-    // set SOCKS not up
+    // set SOCKS not up, not closed
     client->socks_up = 0;
+    client->socks_closed = 0;
     
     client_log(client, BLOG_INFO, "accepted");
     
@@ -907,59 +909,140 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     return ERR_OK;
 }
 
-int client_close (struct tcp_client *client, int abrt)
+void client_handle_freed_client (struct tcp_client *client, int was_abrt)
 {
     ASSERT(!client->client_closed)
+    ASSERT(was_abrt == 0 || was_abrt == 1)
     
-    int ret = 0;
+    // pcb was taken care of by the caller
+    
+    // kill client dead var
+    DEAD_KILL_WITH(client->dead_client, (was_abrt ? -1 : 1));
+    
+    // set client closed
+    client->client_closed = 1;
+    
+    // if we have data to be sent to SOCKS and can send it, keep sending
+    if (client->buf_used > 0 && !client->socks_closed) {
+        client_log(client, BLOG_INFO, "waiting untill buffered data is sent to SOCKS");
+    } else {
+        if (!client->socks_closed) {
+            client_free_socks(client, 0);
+        } else {
+            client_dealloc(client);
+        }
+    }
+}
+
+int client_free_client (struct tcp_client *client, int gracefully)
+{
+    ASSERT(!client->client_closed)
+    ASSERT(gracefully == 0 || gracefully == 1)
+    
+    int was_abrt = 0;
     
     // remove callbacks
     tcp_err(client->pcb, NULL);
     tcp_recv(client->pcb, NULL);
     tcp_sent(client->pcb, NULL);
     
-    // close pcb
-    if (abrt) {
+    // free pcb
+    if (!gracefully) {
         tcp_abort(client->pcb);
-        ret = 1;
+        was_abrt = 1;
     } else {
         err_t err = tcp_close(client->pcb);
         if (err != ERR_OK) {
             client_log(client, BLOG_ERROR, "tcp_close failed (%d)", err);
             
             tcp_abort(client->pcb);
-            ret = 1;
+            was_abrt = 1;
         }
     }
     
-    DEAD_KILL_WITH(client->dead_client, (ret ? -1 : 1));
+    client_handle_freed_client(client, was_abrt);
     
-    // set client closed
-    client->client_closed = 1;
-    
-    return ret;
+    return was_abrt;
 }
 
-int client_free (struct tcp_client *client, int abrt)
+void client_free_socks (struct tcp_client *client, int was_eof)
 {
-    int ret = 0;
+    ASSERT(!client->socks_closed)
+    ASSERT(was_eof == 0 || was_eof == 1)
     
-    // close client
-    if (!client->client_closed) {
-        ret = client_close(client, abrt);
+    // stop sending to SOCKS
+    if (client->socks_up) {
+        // remove send finished job
+        BPending_Free(&client->socks_send_finished_job);
+        
+        // stop receiving from client
+        if (!client->client_closed) {
+            tcp_recv(client->pcb, NULL);
+        }
     }
     
-    client_dealloc(client);
+    // free SOCKS
+    BSocksClient_Free(&client->socks_client);
     
-    return ret;
+    // set SOCKS closed
+    client->socks_closed = 1;
+    
+    // if we have data to be sent to the client and we can send it, keep sending
+    if (client->socks_up && (client->socks_recv_buf_used >= 0 || client->socks_recv_tcp_pending > 0) && !client->client_closed) {
+        client_log(client, BLOG_INFO, "waiting until buffered data is sent to client");
+         
+        // remember whether SOCKS was EOF
+        client->socks_closed_eof = was_eof;
+    } else {
+        if (!client->client_closed) {
+            client_free_client(client, was_eof);
+        } else {
+            client_dealloc(client);
+        }
+    }
+}
+
+void client_murder (struct tcp_client *client)
+{
+    // free client
+    if (!client->client_closed) {
+        // remove callbacks
+        tcp_err(client->pcb, NULL);
+        tcp_recv(client->pcb, NULL);
+        tcp_sent(client->pcb, NULL);
+        
+        // abort
+        tcp_abort(client->pcb);
+        
+        // kill client dead var
+        DEAD_KILL_WITH(client->dead_client, -1);
+        
+        // set client closed
+        client->client_closed = 1;
+    }
+    
+    // free SOCKS
+    if (!client->socks_closed) {
+        if (client->socks_up) {
+            // remove send finished job
+            BPending_Free(&client->socks_send_finished_job);
+        }
+        
+        // free SOCKS
+        BSocksClient_Free(&client->socks_client);
+        
+        // set SOCKS closed
+        client->socks_closed = 1;
+    }
+    
+    // dealloc entry
+    client_dealloc(client);
 }
 
 void client_dealloc (struct tcp_client *client)
 {
     ASSERT(client->client_closed)
-    
-    // free recv confirm job
-    BPending_Free(&client->recv_confirm_job);
+    ASSERT(client->socks_closed)
     
     // decrement counter
     ASSERT(num_clients > 0)
@@ -971,11 +1054,6 @@ void client_dealloc (struct tcp_client *client)
     // kill dead var
     DEAD_KILL(client->dead);
     
-    // free SOCKS
-    if (!client->socks_up || (client->socks_up && !client->socks_closed)) {
-        BSocksClient_Free(&client->socks_client);
-    }
-    
     // free memory
     free(client);
 }
@@ -985,36 +1063,29 @@ void client_err_func (void *arg, err_t err)
     struct tcp_client *client = arg;
     ASSERT(!client->client_closed)
     
-    client_log(client, BLOG_INFO, "error (%d)", (int)err);
+    client_log(client, BLOG_INFO, "client error (%d)", (int)err);
     
-    // the pcb was taken by the caller
-    client->client_closed = 1;
-    
-    // we haven't called tcp_abort
-    DEAD_KILL_WITH(client->dead_client, 1);
-    
-    // free the rest
-    client_dealloc(client);
+    // the pcb was taken care of by the caller
+    client_handle_freed_client(client, 0);
 }
 
 err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
 {
     struct tcp_client *client = arg;
     ASSERT(!client->client_closed)
-    ASSERT(err == ERR_OK)
+    ASSERT(err == ERR_OK) // checked in lwIP source. Otherwise, I've no idea what should
+                          // be done with the pbuf in case of an error.
     
     if (!p) {
-        // if we have data buffered for sending to SOCKS, finish sending it
-        int ret;
-        if (client->buf_used > 0 && (!client->socks_up || !client->socks_closed)) {
-            client_log(client, BLOG_INFO, "client closed, waiting (SOCKS=%d)", client->socks_up);
-            ret = client_close(client, 1);
-        } else {
-            client_log(client, BLOG_INFO, "client closed, removing now");
-            ret = client_free(client, 1);
-        }
+        client_log(client, BLOG_INFO, "client closed");
         
-        return (ret ? ERR_ABRT : ERR_OK);
+        // client closed connection
+        // NOTE: If done properly, we would keep sending the client data until SOCKS reports EOF,
+        // and then close it gracefully, preserving the EOF.
+        // But for now, abort it.
+        int ret = client_free_client(client, 0);
+        
+        return ERR_ABRT;
     }
     
     ASSERT(p->tot_len > 0)
@@ -1051,12 +1122,13 @@ err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t e
 
 void client_socks_handler (struct tcp_client *client, int event)
 {
+    ASSERT(!client->socks_closed)
+    
     switch (event) {
         case BSOCKSCLIENT_EVENT_ERROR: {
             client_log(client, BLOG_INFO, "SOCKS error");
             
-            // abort
-            client_free(client, 1);
+            client_free_socks(client, 0);
         } break;
         
         case BSOCKSCLIENT_EVENT_UP: {
@@ -1068,6 +1140,7 @@ void client_socks_handler (struct tcp_client *client, int event)
             client->socks_send_if = BSocksClient_GetSendInterface(&client->socks_client);
             StreamPassInterface_Sender_Init(client->socks_send_if, (StreamPassInterface_handler_done)client_socks_send_handler_done, client);
             client->socks_send_prev_buf_used = -1;
+            BPending_Init(&client->socks_send_finished_job, BReactor_PendingGroup(&ss), (BPending_handler)client_socks_send_finished_job_handler, client);
             
             // init receiving
             client->socks_recv_if = BSocksClient_GetRecvInterface(&client->socks_client);
@@ -1076,9 +1149,8 @@ void client_socks_handler (struct tcp_client *client, int event)
             client->socks_recv_tcp_pending = 0;
             tcp_sent(client->pcb, client_sent_func);
             
-            // set up, not closed
+            // set up
             client->socks_up = 1;
-            client->socks_closed = 0;
             
             // start sending data if there is any
             if (client->buf_used > 0) {
@@ -1093,30 +1165,10 @@ void client_socks_handler (struct tcp_client *client, int event)
         
         case BSOCKSCLIENT_EVENT_ERROR_CLOSED: {
             ASSERT(client->socks_up)
-            ASSERT(!client->socks_closed)
             
-            // if we haven't sent all data yet, wait until it is sent
-            if (!client->client_closed && (client->socks_recv_buf_used >= 0 || client->socks_recv_tcp_pending > 0)) {
-                // wait for everything to be sent
-                client_log(client, BLOG_INFO, "SOCKS closed, waiting");
-                
-                // unset recv confirm job (sending must stop)
-                BPending_Unset(&client->recv_confirm_job);
-                
-                // free SOCKS
-                BSocksClient_Free(&client->socks_client);
-                
-                // remove recv callback
-                tcp_recv(client->pcb, NULL);
-                
-                // set closed
-                client->socks_closed = 1;
-            } else {
-                // remove client now
-                client_log(client, BLOG_INFO, "SOCKS closed, removing now");
-                
-                client_free(client, 0);
-            }
+            client_log(client, BLOG_INFO, "SOCKS closed");
+            
+            client_free_socks(client, 1);
         } break;
         
         default:
@@ -1126,14 +1178,16 @@ void client_socks_handler (struct tcp_client *client, int event)
 
 void client_send_to_socks (struct tcp_client *client)
 {
-    ASSERT(client->socks_up)
     ASSERT(!client->socks_closed)
+    ASSERT(client->socks_up)
     ASSERT(client->buf_used > 0)
     ASSERT(client->socks_send_prev_buf_used == -1)
     
-    // schedule confirm
+    // remember amount of data in buffer
     client->socks_send_prev_buf_used = client->buf_used;
-    BPending_Set(&client->recv_confirm_job);
+    
+    // schedule finished job
+    BPending_Set(&client->socks_send_finished_job);
     
     // schedule sending
     StreamPassInterface_Sender_Send(client->socks_send_if, client->buf, client->buf_used);
@@ -1141,14 +1195,14 @@ void client_send_to_socks (struct tcp_client *client)
 
 void client_socks_send_handler_done (struct tcp_client *client, int data_len)
 {
-    ASSERT(client->socks_up)
     ASSERT(!client->socks_closed)
+    ASSERT(client->socks_up)
     ASSERT(client->buf_used > 0)
     ASSERT(client->socks_send_prev_buf_used > 0)
     ASSERT(data_len > 0)
     ASSERT(data_len <= client->buf_used)
     
-    // remove data from buffer
+    // remove sent data from buffer
     memmove(client->buf, client->buf + data_len, client->buf_used - data_len);
     client->buf_used -= data_len;
     
@@ -1158,25 +1212,24 @@ void client_socks_send_handler_done (struct tcp_client *client, int data_len)
     }
 }
 
-void client_socks_send_job_handler (struct tcp_client *client)
+void client_socks_send_finished_job_handler (struct tcp_client *client)
 {
-    ASSERT(client->socks_up)
     ASSERT(!client->socks_closed)
+    ASSERT(client->socks_up)
     ASSERT(client->socks_send_prev_buf_used > 0)
     ASSERT(client->buf_used <= client->socks_send_prev_buf_used)
     
     // calculate how much data was sent
     int sent = client->socks_send_prev_buf_used - client->buf_used;
     
-    // set no prev buf used
+    // unset remembered amount of data in buffer
     client->socks_send_prev_buf_used = -1;
     
     if (client->client_closed) {
-        // client was closed and we've sent everything we had buffered,
-        // destory the client
-        client_log(client, BLOG_INFO, "removing after client was closed");
+        // client was closed we've sent everything we had buffered; we're done with it
+        client_log(client, BLOG_INFO, "removing after client went down");
         
-        client_dealloc(client);
+        client_free_socks(client, 0);
     } else {
         // confirm sent data
         if (sent > 0) {
@@ -1188,8 +1241,8 @@ void client_socks_send_job_handler (struct tcp_client *client)
 void client_socks_recv_initiate (struct tcp_client *client)
 {
     ASSERT(!client->client_closed)
-    ASSERT(client->socks_up)
     ASSERT(!client->socks_closed)
+    ASSERT(client->socks_up)
     ASSERT(client->socks_recv_buf_used == -1)
     
     StreamRecvInterface_Receiver_Recv(client->socks_recv_if, client->socks_recv_buf, sizeof(client->socks_recv_buf));
@@ -1199,8 +1252,8 @@ void client_socks_recv_handler_done (struct tcp_client *client, int data_len)
 {
     ASSERT(data_len > 0)
     ASSERT(data_len <= sizeof(client->socks_recv_buf))
-    ASSERT(client->socks_up)
     ASSERT(!client->socks_closed)
+    ASSERT(client->socks_up)
     ASSERT(client->socks_recv_buf_used == -1)
     
     // if client was closed, stop receiving
@@ -1214,25 +1267,26 @@ void client_socks_recv_handler_done (struct tcp_client *client, int data_len)
     client->socks_recv_waiting = 0;
     
     // send to client
-    DEAD_ENTER(client->dead)
-    client_socks_recv_send_out(client);
-    if (DEAD_LEAVE(client->dead)) {
+    if (client_socks_recv_send_out(client) < 0) {
         return;
     }
     
     // continue receiving if needed
-    if (client->socks_recv_buf_used == -1 && !client->socks_closed && !client->client_closed) {
+    if (client->socks_recv_buf_used == -1) {
         client_socks_recv_initiate(client);
     }
 }
 
-void client_socks_recv_send_out (struct tcp_client *client)
+int client_socks_recv_send_out (struct tcp_client *client)
 {
     ASSERT(!client->client_closed)
     ASSERT(client->socks_up)
     ASSERT(client->socks_recv_buf_used > 0)
     ASSERT(client->socks_recv_buf_sent < client->socks_recv_buf_used)
     ASSERT(!client->socks_recv_waiting)
+    
+    // return value -1 means tcp_abort() was done,
+    // 0 means it wasn't and the client (pcb) is still up
     
     do {
         int to_write = BMIN(client->socks_recv_buf_used - client->socks_recv_buf_sent, tcp_sndbuf(client->pcb));
@@ -1248,8 +1302,8 @@ void client_socks_recv_send_out (struct tcp_client *client)
             
             client_log(client, BLOG_INFO, "tcp_write failed (%d)", (int)err);
             
-            client_free(client, 1);
-            return;;
+            client_free_client(client, 0);
+            return -1;
         }
         
         client->socks_recv_buf_sent += to_write;
@@ -1261,8 +1315,8 @@ void client_socks_recv_send_out (struct tcp_client *client)
     if (err != ERR_OK) {
         client_log(client, BLOG_INFO, "tcp_output failed (%d)", (int)err);
         
-        client_free(client, 1);
-        return;
+        client_free_client(client, 0);
+        return -1;
     }
     
     // more data to queue?
@@ -1270,20 +1324,19 @@ void client_socks_recv_send_out (struct tcp_client *client)
         if (client->socks_recv_tcp_pending == 0) {
             client_log(client, BLOG_ERROR, "can't queue data, but all data was confirmed !?!");
             
-            client_free(client, 1);
-            return;
+            client_free_client(client, 0);
+            return -1;
         }
         
-        // continue in client_sent_func
+        // set waiting, continue in client_sent_func
         client->socks_recv_waiting = 1;
-        return;
+        return 0;
     }
     
     // everything was queued
     client->socks_recv_buf_used = -1;
     
-    // we just queued some data, so it can't have been confirmed yet
-    ASSERT(client->socks_recv_tcp_pending > 0)
+    return 0;
 }
 
 err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
@@ -1299,19 +1352,20 @@ err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
     client->socks_recv_tcp_pending -= len;
     
     // continue queuing
-    if (client->socks_recv_buf_used > 0 && !client->client_closed) {
+    if (client->socks_recv_buf_used > 0) {
         ASSERT(client->socks_recv_waiting)
         ASSERT(client->socks_recv_buf_sent < client->socks_recv_buf_used)
         
+        // set not waiting
         client->socks_recv_waiting = 0;
         
-        // send more data
-        DEAD_ENTER(client->dead_client)
-        client_socks_recv_send_out(client);
-        DEAD_LEAVE(client->dead_client);
-        if (DEAD_KILLED) {
-            return (DEAD_KILLED == -1 ? ERR_ABRT : ERR_OK);
+        // possibly send more data
+        if (client_socks_recv_send_out(client) < 0) {
+            return ERR_ABRT;
         }
+        
+        // we just queued some data, so it can't have been confirmed yet
+        ASSERT(client->socks_recv_tcp_pending > 0)
         
         // continue receiving if needed
         if (client->socks_recv_buf_used == -1 && !client->socks_closed) {
@@ -1330,9 +1384,9 @@ err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
     
     // have we sent everything after SOCKS was closed?
     if (client->socks_closed && client->socks_recv_tcp_pending == 0) {
-        client_log(client, BLOG_INFO, "removing after SOCKS was closed");
+        client_log(client, BLOG_INFO, "removing after SOCKS went down");
         
-        int ret = client_close(client, 0);
+        int ret = client_free_client(client, client->socks_closed_eof);
         
         return (ret ? ERR_ABRT : ERR_OK);
     }
