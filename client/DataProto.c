@@ -36,20 +36,8 @@
 
 #define DATAPROTO_TIMEOUT 30000
 
-struct dp_relay_flow {
-    DataProtoRelaySource *rs;
-    DataProtoDest *dp;
-    BufferWriter ainput;
-    PacketBuffer buffer;
-    PacketPassInactivityMonitor monitor;
-    PacketPassFairQueueFlow qflow;
-    LinkedList2Node source_list_node;
-    BAVLNode source_tree_node;
-    LinkedList2Node dp_list_node;
-};
-
 static int peerid_comparator (void *user, peerid_t *val1, peerid_t *val2);
-static struct dp_relay_flow * create_relay_flow (DataProtoRelaySource *rs, DataProtoDest *dp, int num_packets);
+static struct dp_relay_flow * create_relay_flow (DataProtoRelaySource *rs, DataProtoDest *dp, int num_packets, uint8_t *first_frame, int first_frame_len);
 static void dealloc_relay_flow (struct dp_relay_flow *flow);
 static void release_relay_flow (struct dp_relay_flow *flow);
 static void flow_monitor_handler (struct dp_relay_flow *flow);
@@ -59,6 +47,8 @@ static void receive_timer_handler (DataProtoDest *o);
 static void notifier_handler (DataProtoDest *o, uint8_t *data, int data_len);
 static int pointer_comparator (void *user, void **val1, void **val2);
 static void keepalive_job_handler (DataProtoDest *o);
+static void relay_job_handler (struct dp_relay_flow *flow);
+static void submit_relay_frame (struct dp_relay_flow *flow, uint8_t *frame, int frame_len);
 
 int peerid_comparator (void *user, peerid_t *val1, peerid_t *val2)
 {
@@ -71,8 +61,10 @@ int peerid_comparator (void *user, peerid_t *val1, peerid_t *val2)
     return 0;
 }
 
-struct dp_relay_flow * create_relay_flow (DataProtoRelaySource *rs, DataProtoDest *dp, int num_packets)
+struct dp_relay_flow * create_relay_flow (DataProtoRelaySource *rs, DataProtoDest *dp, int num_packets, uint8_t *first_frame, int first_frame_len)
 {
+    ASSERT(first_frame_len >= 0)
+    ASSERT(first_frame_len <= dp->frame_mtu)
     ASSERT(!BAVL_LookupExact(&rs->relay_flows_tree, &dp))
     ASSERT(num_packets > 0)
     ASSERT(!dp->d_freeing)
@@ -84,9 +76,15 @@ struct dp_relay_flow * create_relay_flow (DataProtoRelaySource *rs, DataProtoDes
         goto fail0;
     }
     
-    // set source and dp
+    // init arguments
     flow->rs = rs;
     flow->dp = dp;
+    flow->first_frame = first_frame;
+    flow->first_frame_len = first_frame_len;
+    
+    // init first frame job
+    BPending_Init(&flow->first_frame_job, BReactor_PendingGroup(dp->reactor), (BPending_handler)relay_job_handler, flow);
+    BPending_Set(&flow->first_frame_job);
     
     // init queue flow
     PacketPassFairQueueFlow_Init(&flow->qflow, &dp->queue);
@@ -120,6 +118,7 @@ fail1:
     BufferWriter_Free(&flow->ainput);
     PacketPassInactivityMonitor_Free(&flow->monitor);
     PacketPassFairQueueFlow_Free(&flow->qflow);
+    BPending_Free(&flow->first_frame_job);
     free(flow);
 fail0:
     return NULL;
@@ -127,11 +126,7 @@ fail0:
 
 void dealloc_relay_flow (struct dp_relay_flow *flow)
 {
-    #ifndef NDEBUG
-    if (!flow->dp->d_freeing) {
-        ASSERT(!PacketPassFairQueueFlow_IsBusy(&flow->qflow))
-    }
-    #endif
+    PacketPassFairQueueFlow_AssertFree(&flow->qflow);
     
     // remove from dp list
     LinkedList2_Remove(&flow->dp->relay_flows_list, &flow->dp_list_node);
@@ -153,6 +148,9 @@ void dealloc_relay_flow (struct dp_relay_flow *flow)
     
     // free queue flow
     PacketPassFairQueueFlow_Free(&flow->qflow);
+    
+    // free first frame job
+    BPending_Free(&flow->first_frame_job);
     
     // free flow structure
     free(flow);
@@ -243,9 +241,50 @@ int pointer_comparator (void *user, void **val1, void **val2)
 
 void keepalive_job_handler (DataProtoDest *o)
 {
+    ASSERT(!o->d_freeing)
     DebugObject_Access(&o->d_obj);
     
-    PacketRecvBlocker_AllowBlockedPacket(&o->ka_blocker);
+    send_keepalive(o);
+}
+
+void relay_job_handler (struct dp_relay_flow *flow)
+{
+    ASSERT(flow->first_frame_len >= 0)
+    
+    int frame_len = flow->first_frame_len;
+    
+    // set no first frame
+    flow->first_frame_len = -1;
+    
+    // submit first frame
+    submit_relay_frame(flow, flow->first_frame, frame_len);
+}
+
+void submit_relay_frame (struct dp_relay_flow *flow, uint8_t *frame, int frame_len)
+{
+    ASSERT(flow->first_frame_len == -1)
+    
+    // get a buffer
+    uint8_t *out;
+    // safe because of PacketBufferAsyncInput
+    if (!BufferWriter_StartPacket(&flow->ainput, &out)) {
+        BLog(BLOG_NOTICE, "out of buffer for relayed frame from peer %d to %d", (int)flow->rs->source_id, (int)flow->dp->dest_id);
+        return;
+    }
+    
+    // write header
+    struct dataproto_header *header = (struct dataproto_header *)out;
+    // don't set flags, it will be set in notifier_handler
+    header->from_id = htol16(flow->rs->source_id);
+    header->num_peer_ids = htol16(1);
+    struct dataproto_peer_id *id = (struct dataproto_peer_id *)(out + sizeof(struct dataproto_header));
+    id->id = htol16(flow->dp->dest_id);
+    
+    // write data
+    memcpy(out + sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id), frame, frame_len);
+    
+    // submit it
+    BufferWriter_EndPacket(&flow->ainput, sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id) + frame_len);
 }
 
 int DataProtoDest_Init (DataProtoDest *o, BReactor *reactor, peerid_t dest_id, PacketPassInterface *output, btime_t keepalive_time, btime_t tolerance_time, DataProtoDest_handler handler, void *user)
@@ -399,34 +438,14 @@ void DataProtoDest_SubmitRelayFrame (DataProtoDest *o, DataProtoRelaySource *rs,
     BAVLNode *node = BAVL_LookupExact(&rs->relay_flows_tree, &o);
     if (!node) {
         // create new flow
-        if (!(flow = create_relay_flow(rs, o, buffer_num_packets))) {
-            return;
-        }
-    } else {
-        flow = UPPER_OBJECT(node, struct dp_relay_flow, source_tree_node);
-    }
-    
-    // get a buffer
-    uint8_t *out;
-    // safe because of PacketBufferAsyncInput
-    if (!BufferWriter_StartPacket(&flow->ainput, &out)) {
-        BLog(BLOG_NOTICE, "out of buffer for relayed frame from peer %d to %d", (int)rs->source_id, (int)o->dest_id);
+        create_relay_flow(rs, o, buffer_num_packets, data, data_len);
         return;
     }
     
-    // write header
-    struct dataproto_header *header = (struct dataproto_header *)out;
-    // don't set flags, it will be set in notifier_handler
-    header->from_id = htol16(rs->source_id);
-    header->num_peer_ids = htol16(1);
-    struct dataproto_peer_id *id = (struct dataproto_peer_id *)(out + sizeof(struct dataproto_header));
-    id->id = htol16(o->dest_id);
+    flow = UPPER_OBJECT(node, struct dp_relay_flow, source_tree_node);
     
-    // write data
-    memcpy(out + sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id), data, data_len);
-    
-    // submit it
-    BufferWriter_EndPacket(&flow->ainput, sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id) + data_len);
+    // submit frame
+    submit_relay_frame(flow, data, data_len);
 }
 
 void DataProtoDest_Received (DataProtoDest *o, int peer_receiving)

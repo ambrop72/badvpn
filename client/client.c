@@ -303,9 +303,6 @@ static int peer_generate_and_send_seed (struct peer_data *peer);
 
 static int peer_send_confirmseed (struct peer_data *peer, uint16_t seed_id);
 
-// submits a relayed frame for sending to the peer
-static void peer_submit_relayed_frame (struct peer_data *peer, struct peer_data *source_peer, uint8_t *frame, int frame_len);
-
 // handler for peer DataProto up state changes
 static void peer_dataproto_handler (struct peer_data *peer, int up);
 
@@ -2218,7 +2215,7 @@ out:
     
     // relay frame
     if (relay_dest) {
-        peer_submit_relayed_frame(relay_dest, src_peer, data, data_len);
+        DataProtoDest_SubmitRelayFrame(&relay_dest->send_dp, &src_peer->relay_source, data, data_len, options.send_buffer_relay_size);
     }
     
     // submit to device
@@ -2572,15 +2569,6 @@ int peer_send_confirmseed (struct peer_data *peer, uint16_t seed_id)
     server_end_msg();
     
     return 0;
-}
-
-void peer_submit_relayed_frame (struct peer_data *peer, struct peer_data *source_peer, uint8_t *frame, int frame_len)
-{
-    ASSERT(peer->have_link)
-    ASSERT(frame_len >= 0)
-    ASSERT(frame_len <= device.mtu)
-    
-    DataProtoDest_SubmitRelayFrame(&peer->send_dp, &source_peer->relay_source, frame, frame_len, options.send_buffer_relay_size);
 }
 
 void peer_dataproto_handler (struct peer_data *peer, int up)

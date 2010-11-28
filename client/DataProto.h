@@ -50,6 +50,8 @@
 
 typedef void (*DataProtoDest_handler) (void *user, int up);
 
+struct dp_relay_flow;
+
 /**
  * Frame destination.
  * Represents a peer as a destination for sending frames to.
@@ -113,6 +115,21 @@ typedef struct {
     DebugObject d_obj;
 } DataProtoRelaySource;
 
+struct dp_relay_flow {
+    DataProtoRelaySource *rs;
+    DataProtoDest *dp;
+    BufferWriter ainput;
+    PacketBuffer buffer;
+    PacketPassInactivityMonitor monitor;
+    PacketPassFairQueueFlow qflow;
+    LinkedList2Node source_list_node;
+    BAVLNode source_tree_node;
+    LinkedList2Node dp_list_node;
+    BPending first_frame_job;
+    uint8_t *first_frame;
+    int first_frame_len;
+};
+
 /**
  * Initializes the object.
  * 
@@ -151,11 +168,11 @@ void DataProtoDest_PrepareFree (DataProtoDest *o);
 /**
  * Submits a relayed frame.
  * Must not be in freeing state.
- * Must not be called from output Send calls.
+ * Must not be called before it evaluates.
  * 
  * @param o the object
  * @param rs relay source object representing the peer this frame came from
- * @param data frame data
+ * @param data frame data. The frame must remain accessible until this evaluates.
  * @param data_len frame length. Must be >=0.
  *                 Must be <= (output MTU) - (sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id)).
  * @param buffer_num_packets number of packets the relay buffer should hold, in case it doesn't exist.
