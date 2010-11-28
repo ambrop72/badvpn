@@ -2166,13 +2166,13 @@ void peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len
     
     dp_good = 1;
     
-    // find source peer
-    if (!(src_peer = find_peer_by_id(from_id))) {
-        peer_log(peer, BLOG_NOTICE, "receive: source peer %d not known", (int)from_id);
+    if (num_ids == 0) {
         goto out;
     }
     
-    if (num_ids == 0) {
+    // find source peer
+    if (!(src_peer = find_peer_by_id(from_id))) {
+        peer_log(peer, BLOG_NOTICE, "receive: source peer %d not known", (int)from_id);
         goto out;
     }
     
