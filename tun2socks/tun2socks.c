@@ -83,7 +83,7 @@ struct {
     #endif
     int loglevel;
     int loglevels[BLOG_NUM_CHANNELS];
-    char *tapdev;
+    char *tundev;
     char *netif_ipaddr;
     char *netif_netmask;
     char *socks_server_addr;
@@ -279,7 +279,7 @@ int main (int argc, char **argv)
     }
     
     // init TUN device
-    if (!BTap_Init(&device, &ss, options.tapdev, device_error_handler, NULL, 1)) {
+    if (!BTap_Init(&device, &ss, options.tundev, device_error_handler, NULL, 1)) {
         BLog(BLOG_ERROR, "BTap_Init failed");
         goto fail3;
     }
@@ -432,7 +432,7 @@ void print_help (const char *name)
         #endif
         "        [--loglevel <0-5/none/error/warning/notice/info/debug>]\n"
         "        [--channel-loglevel <channel-name> <0-5/none/error/warning/notice/info/debug>] ...\n"
-        "        [--tapdev <name>]\n"
+        "        [--tundev <name>]\n"
         "        --netif-ipaddr <ipaddr>\n"
         "        --netif-netmask <ipnetmask>\n"
         "        --socks-server-addr <addr>\n"
@@ -463,7 +463,7 @@ int parse_arguments (int argc, char *argv[])
     for (int i = 0; i < BLOG_NUM_CHANNELS; i++) {
         options.loglevels[i] = -1;
     }
-    options.tapdev = NULL;
+    options.tundev = NULL;
     options.netif_ipaddr = NULL;
     options.netif_netmask = NULL;
     options.socks_server_addr = NULL;
@@ -546,12 +546,12 @@ int parse_arguments (int argc, char *argv[])
             options.loglevels[channel] = loglevel;
             i += 2;
         }
-        else if (!strcmp(arg, "--tapdev")) {
+        else if (!strcmp(arg, "--tundev")) {
             if (1 >= argc - i) {
                 fprintf(stderr, "%s: requires an argument\n", arg);
                 return 0;
             }
-            options.tapdev = argv[i + 1];
+            options.tundev = argv[i + 1];
             i++;
         }
         else if (!strcmp(arg, "--netif-ipaddr")) {
