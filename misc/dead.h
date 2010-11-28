@@ -81,6 +81,13 @@ typedef int *dead_t;
 #define DEAD_KILL(ptr) ({if (ptr) *(ptr) = 1;})
 
 /**
+ * Kills the dead variable with the given value, or does nothing
+ * if the value is 0. The value will seen by {@link DEAD_LEAVE} and
+ * {@link DEAD_KILLED}.
+ */
+#define DEAD_KILL_WITH(ptr, val) ({if (ptr) *(ptr) = (val);})
+
+/**
  * Declares dead catching variables.
  */
 #define DEAD_DECLARE int __dead; dead_t __prev_ptr;
