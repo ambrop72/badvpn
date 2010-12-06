@@ -468,8 +468,6 @@ int parse_arguments (int argc, char *argv[])
     options.netif_netmask = NULL;
     options.socks_server_addr = NULL;
     
-    int have_fragmentation_latency = 0;
-    
     int i;
     for (i = 1; i < argc; i++) {
         char *arg = argv[i];
