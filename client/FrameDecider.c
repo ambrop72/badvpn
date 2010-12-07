@@ -324,52 +324,6 @@ static void group_entry_timer_handler (struct _FrameDecider_group_entry *group_e
     remove_group_entry(group_entry);
 }
 
-static int check_ipv4_packet (uint8_t *data, int data_len, struct ipv4_header **out_header, uint8_t **out_payload, int *out_payload_len)
-{
-    ASSERT(data_len >= 0)
-    
-    // check base header
-    if (data_len < sizeof(struct ipv4_header)) {
-        BLog(BLOG_DEBUG, "check ipv4: packet too short (base header)");
-        return 0;
-    }
-    struct ipv4_header *header = (struct ipv4_header *)data;
-    
-    // check version
-    if (IPV4_GET_VERSION(*header) != 4) {
-        BLog(BLOG_DEBUG, "check ipv4: version not 4");
-        return 0;
-    }
-    
-    // check options
-    int header_len = IPV4_GET_IHL(*header) * 4;
-    if (header_len < sizeof(struct ipv4_header)) {
-        BLog(BLOG_DEBUG, "check ipv4: ihl too small");
-        return 0;
-    }
-    if (header_len > data_len) {
-        BLog(BLOG_DEBUG, "check ipv4: packet too short for ihl");
-        return 0;
-    }
-    
-    // check total length
-    uint16_t total_length = ntoh16(header->total_length);
-    if (total_length < header_len) {
-        BLog(BLOG_DEBUG, "check ipv4: total length too small");
-        return 0;
-    }
-    if (total_length > data_len) {
-        BLog(BLOG_DEBUG, "check ipv4: total length too large");
-        return 0;
-    }
-    
-    *out_header = header;
-    *out_payload = data + header_len;
-    *out_payload_len = total_length - header_len;
-    
-    return 1;
-}
-
 void FrameDecider_Init (FrameDecider *o, int max_peer_macs, int max_peer_groups, btime_t igmp_group_membership_interval, btime_t igmp_last_member_query_time, BReactor *reactor)
 {
     ASSERT(max_peer_macs > 0)
@@ -445,7 +399,7 @@ void FrameDecider_AnalyzeAndDecide (FrameDecider *o, uint8_t *frame, int frame_l
         case ETHERTYPE_IPV4: {
             // check IPv4 header
             struct ipv4_header *ipv4_header;
-            if (!check_ipv4_packet(pos, len, &ipv4_header, &pos, &len)) {
+            if (!ipv4_check(pos, len, &ipv4_header, &pos, &len)) {
                 BLog(BLOG_INFO, "decide: wrong IP packet");
                 goto out;
             }
@@ -730,7 +684,7 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, uint8_t *frame, int frame_le
         case ETHERTYPE_IPV4: {
             // check IPv4 header
             struct ipv4_header *ipv4_header;
-            if (!check_ipv4_packet(pos, len, &ipv4_header, &pos, &len)) {
+            if (!ipv4_check(pos, len, &ipv4_header, &pos, &len)) {
                 BLog(BLOG_INFO, "analyze: wrong IP packet");
                 goto out;
             }
