@@ -50,12 +50,21 @@
 #define BADDR_TYPE_IPV6 2
 #ifndef BADVPN_USE_WINAPI
     #define BADDR_TYPE_UNIX 3 // only a domain number for BSocket
+    #define BADDR_TYPE_PACKET 4
 #endif
 
 #define BADDR_MAX_ADDR_LEN 128
 
 #define BIPADDR_MAX_PRINT_LEN 40
-#define BADDR_MAX_PRINT_LEN 46
+#define BADDR_MAX_PRINT_LEN 120
+
+#define BADDR_PACKET_HEADER_TYPE_ETHERNET 1
+
+#define BADDR_PACKET_PACKET_TYPE_HOST 1
+#define BADDR_PACKET_PACKET_TYPE_BROADCAST 2
+#define BADDR_PACKET_PACKET_TYPE_MULTICAST 3
+#define BADDR_PACKET_PACKET_TYPE_OTHERHOST 4
+#define BADDR_PACKET_PACKET_TYPE_OUTGOING 5
 
 typedef struct {
     int type;
@@ -101,6 +110,13 @@ typedef struct {
             uint8_t ip[16];
             uint16_t port;
         } ipv6;
+        struct {
+            uint16_t phys_proto;
+            int interface_index;
+            int header_type;
+            int packet_type;
+            uint8_t phys_addr[8];
+        } packet;
     };
 } BAddr;
 
@@ -126,6 +142,22 @@ static void BAddr_InitIPv4 (BAddr *addr, uint32_t ip, uint16_t port);
  * @param port port number in network byte order
  */
 static void BAddr_InitIPv6 (BAddr *addr, uint8_t *ip, uint16_t port);
+
+/**
+ * Initializes a packet socket (data link layer) address.
+ * Only Ethernet addresses are supported.
+ * 
+ * @param addr the object
+ * @param phys_proto identifier for the upper protocol, network byte order (EtherType)
+ * @param interface_index network interface index
+ * @param header_type data link layer header type. Must be BADDR_PACKET_HEADER_TYPE_ETHERNET.
+ * @param packet_type the manner in which packets are sent/received. Must be one of
+ *   BADDR_PACKET_PACKET_TYPE_HOST, BADDR_PACKET_PACKET_TYPE_BROADCAST,
+ *   BADDR_PACKET_PACKET_TYPE_MULTICAST, BADDR_PACKET_PACKET_TYPE_OTHERHOST,
+ *   BADDR_PACKET_PACKET_TYPE_OUTGOING.
+ * @param phys_addr data link layer address (MAC address)
+ */
+static void BAddr_InitPacket (BAddr *addr, uint16_t phys_proto, int interface_index, int header_type, int packet_type, uint8_t *phys_addr);
 
 /**
  * Determines whether the address is recognized.
@@ -437,12 +469,28 @@ void BAddr_InitIPv6 (BAddr *addr, uint8_t *ip, uint16_t port)
     addr->ipv6.port = port;
 }
 
+void BAddr_InitPacket (BAddr *addr, uint16_t phys_proto, int interface_index, int header_type, int packet_type, uint8_t *phys_addr)
+{
+    ASSERT(header_type == BADDR_PACKET_HEADER_TYPE_ETHERNET)
+    ASSERT(packet_type == BADDR_PACKET_PACKET_TYPE_HOST || packet_type == BADDR_PACKET_PACKET_TYPE_BROADCAST || 
+           packet_type == BADDR_PACKET_PACKET_TYPE_MULTICAST || packet_type == BADDR_PACKET_PACKET_TYPE_OTHERHOST ||
+           packet_type == BADDR_PACKET_PACKET_TYPE_OUTGOING)
+    
+    addr->type = BADDR_TYPE_PACKET;
+    addr->packet.phys_proto = phys_proto;
+    addr->packet.interface_index = interface_index;
+    addr->packet.header_type = header_type;
+    addr->packet.packet_type = packet_type;
+    memcpy(addr->packet.phys_addr, phys_addr, 6);
+}
+
 int BAddr_IsRecognized (BAddr *addr)
 {
     switch (addr->type) {
         case BADDR_TYPE_NONE:
         case BADDR_TYPE_IPV4:
         case BADDR_TYPE_IPV6:
+        case BADDR_TYPE_PACKET:
             return 1;
         default:
             return 0;
@@ -475,6 +523,13 @@ void BAddr_Print (BAddr *addr, char *out)
             BIPAddr_InitIPv6(&ipaddr, addr->ipv6.ip);
             BIPAddr_Print(&ipaddr, out);
             sprintf(out + strlen(out), ":%"PRIu16, ntoh16(addr->ipv6.port));
+            break;
+        case BADDR_TYPE_PACKET:
+            ASSERT(addr->packet.header_type == BADDR_PACKET_HEADER_TYPE_ETHERNET)
+            sprintf(out, "proto=%"PRIu16",ifindex=%d,htype=eth,ptype=%d,addr=%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8,
+                    addr->packet.phys_proto, (int)addr->packet.interface_index, (int)addr->packet.packet_type,
+                    addr->packet.phys_addr[0], addr->packet.phys_addr[1], addr->packet.phys_addr[2],
+                    addr->packet.phys_addr[3], addr->packet.phys_addr[4], addr->packet.phys_addr[5]);
             break;
         default:
             ASSERT(0);

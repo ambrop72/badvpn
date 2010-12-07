@@ -31,6 +31,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <sys/socket.h>
+#include <netpacket/packet.h>
+#include <net/ethernet.h>
 #endif
 
 #include <stdlib.h>
@@ -182,6 +185,9 @@ struct sys_addr {
         struct sockaddr generic;
         struct sockaddr_in ipv4;
         struct sockaddr_in6 ipv6;
+        #ifndef BADVPN_USE_WINAPI
+        struct sockaddr_ll packet;
+        #endif
     } addr;
 };
 
@@ -204,6 +210,38 @@ static void addr_socket_to_sys (struct sys_addr *out, BAddr *addr)
             memcpy(out->addr.ipv6.sin6_addr.s6_addr, addr->ipv6.ip, 16);
             out->addr.ipv6.sin6_scope_id = 0;
             break;
+        #ifndef BADVPN_USE_WINAPI
+        case BADDR_TYPE_PACKET:
+            ASSERT(addr->packet.header_type == BADDR_PACKET_HEADER_TYPE_ETHERNET)
+            memset(&out->addr.packet, 0, sizeof(out->addr.packet));
+            out->len = sizeof(out->addr.packet);
+            out->addr.packet.sll_family = AF_PACKET;
+            out->addr.packet.sll_protocol = addr->packet.phys_proto;
+            out->addr.packet.sll_ifindex = addr->packet.interface_index;
+            out->addr.packet.sll_hatype = 1; // linux/if_arp.h: #define ARPHRD_ETHER 1
+            switch (addr->packet.packet_type) {
+                case BADDR_PACKET_PACKET_TYPE_HOST:
+                    out->addr.packet.sll_pkttype = PACKET_HOST;
+                    break;
+                case BADDR_PACKET_PACKET_TYPE_BROADCAST:
+                    out->addr.packet.sll_pkttype = PACKET_BROADCAST;
+                    break;
+                case BADDR_PACKET_PACKET_TYPE_MULTICAST:
+                    out->addr.packet.sll_pkttype = PACKET_MULTICAST;
+                    break;
+                case BADDR_PACKET_PACKET_TYPE_OTHERHOST:
+                    out->addr.packet.sll_pkttype = PACKET_OTHERHOST;
+                    break;
+                case BADDR_PACKET_PACKET_TYPE_OUTGOING:
+                    out->addr.packet.sll_pkttype = PACKET_OUTGOING;
+                    break;
+                default:
+                    ASSERT(0);
+            }
+            out->addr.packet.sll_halen = 6;
+            memcpy(out->addr.packet.sll_addr, addr->packet.phys_addr, 6);
+            break;
+        #endif
         default:
             ASSERT(0)
             break;
@@ -560,6 +598,9 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
         #ifndef BADVPN_USE_WINAPI
         case BADDR_TYPE_UNIX:
             sys_domain = AF_UNIX;
+            break;
+        case BADDR_TYPE_PACKET:
+            sys_domain = AF_PACKET;
             break;
         #endif
         default:
