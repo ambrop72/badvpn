@@ -264,12 +264,23 @@ void BReactor_Quit (BReactor *bsys, int code);
  * The timer must have been initialized with {@link BTimer_Init}.
  * If the timer is in running state, it must be associated with this reactor.
  * The timer enters running state, associated with this reactor.
- * The timer's expiration time is set to the time argument.
  *
  * @param bsys the object
  * @param bt timer to start
  */
 void BReactor_SetTimer (BReactor *bsys, BTimer *bt);
+
+/**
+ * Starts a timer to expire after a given time.
+ * The timer must have been initialized with {@link BTimer_Init}.
+ * If the timer is in running state, it must be associated with this reactor.
+ * The timer enters running state, associated with this reactor.
+ *
+ * @param bsys the object
+ * @param bt timer to start
+ * @param after relative expiration time
+ */
+void BReactor_SetTimerAfter (BReactor *bsys, BTimer *bt, btime_t after);
 
 /**
  * Starts a timer to expire at the specified time.
