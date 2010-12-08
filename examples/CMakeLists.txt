@@ -21,6 +21,9 @@ target_link_libraries(bavl_test security)
 add_executable(bencryption_bench bencryption_bench.c)
 target_link_libraries(bencryption_bench system security)
 
+add_executable(dhcpclient_test dhcpclient_test.c)
+target_link_libraries(dhcpclient_test dhcpclient)
+
 if (NOT WIN32)
     add_executable(ipc_server ipc_server.c)
     target_link_libraries(ipc_server ipc)
