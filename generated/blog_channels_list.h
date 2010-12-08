@@ -13,3 +13,5 @@
 {.name = "DataProto", .loglevel = 4},
 {.name = "FrameDecider", .loglevel = 4},
 {.name = "BSocksClient", .loglevel = 4},
+{.name = "BHDCPClientCore", .loglevel = 4},
+{.name = "BHDCPClient", .loglevel = 4},

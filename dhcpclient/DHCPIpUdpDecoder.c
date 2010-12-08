@@ -46,38 +46,31 @@ static void input_handler_send (DHCPIpUdpDecoder *o, uint8_t *data, int data_len
     int pl_len;
     
     if (!ipv4_check(data, data_len, &iph, &pl, &pl_len)) {
-        DEBUG("ipv4_check failed");
         return;
     }
     
     if (ntoh8(iph->protocol) != IPV4_PROTOCOL_UDP) {
-        DEBUG("not UDP");
         return;
     }
     
     if (pl_len < sizeof(struct udp_header)) {
-        DEBUG("no UDP header");
         return;
     }
     struct udp_header *udph = (void *)pl;
     
     if (ntoh16(udph->source_port) != DHCP_SERVER_PORT) {
-        DEBUG("wrong source port");
         return;
     }
     
     if (ntoh16(udph->dest_port) != DHCP_CLIENT_PORT) {
-        DEBUG("wrong dest port");
         return;
     }
     
     int udph_length = ntoh16(udph->length);
     if (udph_length < sizeof(*udph)) {
-        DEBUG("udp length too small");
         return;
     }
     if (udph_length > data_len - (pl - data)) {
-        DEBUG("udp length too big");
         return;
     }
     

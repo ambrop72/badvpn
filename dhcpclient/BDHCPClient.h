@@ -37,26 +37,33 @@
 #include <dhcpclient/DHCPIpUdpDecoder.h>
 #include <dhcpclient/DHCPIpUdpEncoder.h>
 
+#define BDHCPCLIENT_EVENT_UP 1
+#define BDHCPCLIENT_EVENT_DOWN 2
+
+#define BDHCPCLIENT_MAX_DOMAIN_NAME_SERVERS BDHCPCLIENTCORE_MAX_DOMAIN_NAME_SERVERS
+
+typedef void (*BDHCPClient_handler) (void *user, int event);
+
 typedef struct {
     BReactor *reactor;
     BSocket sock;
+    BDHCPClient_handler handler;
+    void *user;
     FlowErrorDomain domain;
-    
     PacketCopier send_copier;
     DHCPIpUdpEncoder send_encoder;
     SinglePacketBuffer send_buffer;
     DatagramSocketSink send_sink;
-    
     DatagramSocketSource recv_source;
     SinglePacketBuffer recv_buffer;
     DHCPIpUdpDecoder recv_decoder;
     PacketCopier recv_copier;
-    
     BDHCPClientCore dhcp;
+    int up;
     DebugObject d_obj;
 } BDHCPClient;
 
-int BDHCPClient_Init (BDHCPClient *o, const char *ifname, BReactor *reactor, BDHCPClientCore_handler handler, void *user);
+int BDHCPClient_Init (BDHCPClient *o, const char *ifname, BReactor *reactor, BDHCPClient_handler handler, void *user);
 void BDHCPClient_Free (BDHCPClient *o);
 void BDHCPClient_GetClientIP (BDHCPClient *o, uint32_t *out_ip);
 void BDHCPClient_GetClientMask (BDHCPClient *o, uint32_t *out_mask);

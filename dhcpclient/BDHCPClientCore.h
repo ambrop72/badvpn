@@ -21,7 +21,7 @@
  * 
  * @section DESCRIPTION
  * 
- * DHCP client, without I/O details.
+ * DHCP client, excluding system-dependent details.
  */
 
 #ifndef BADVPN_DHCPCLIENT_BDHCPCLIENTCORE_H

@@ -113,15 +113,10 @@ void signal_handler (void *user)
     terminate(1);
 }
 
-void BDHCPClient_GetClientIP (BDHCPClient *o, uint32_t *out_ip);
-void BDHCPClient_GetClientMask (BDHCPClient *o, uint32_t *out_mask);
-int BDHCPClient_GetRouter (BDHCPClient *o, uint32_t *out_router);
-int BDHCPClient_GetDNS (BDHCPClient *o, uint32_t *out_dns_servers, size_t max_dns_servers);
-
 void dhcp_handler (void *unused, int event)
 {
     switch (event) {
-        case BDHCPCLIENTCORE_EVENT_UP: {
+        case BDHCPCLIENT_EVENT_UP: {
             printf("DHCP: up");
             
             uint32_t ip;
@@ -137,8 +132,8 @@ void dhcp_handler (void *unused, int event)
                 printf(" Router=%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, ipb[0], ipb[1], ipb[2], ipb[3]);
             }
             
-            uint32_t dns[BDHCPCLIENTCORE_MAX_DOMAIN_NAME_SERVERS];
-            int num = BDHCPClient_GetDNS(&dhcp, dns, BDHCPCLIENTCORE_MAX_DOMAIN_NAME_SERVERS);
+            uint32_t dns[BDHCPCLIENT_MAX_DOMAIN_NAME_SERVERS];
+            int num = BDHCPClient_GetDNS(&dhcp, dns, BDHCPCLIENT_MAX_DOMAIN_NAME_SERVERS);
             for (int i = 0; i < num; i++) {
                 ip=dns[i];
                 printf(" DNS=%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, ipb[0], ipb[1], ipb[2], ipb[3]);
@@ -147,7 +142,7 @@ void dhcp_handler (void *unused, int event)
             printf("\n");
         } break;
         
-        case BDHCPCLIENTCORE_EVENT_DOWN: {
+        case BDHCPCLIENT_EVENT_DOWN: {
             printf("DHCP: down\n");
         } break;
         

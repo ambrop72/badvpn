@@ -32,7 +32,7 @@ link_directories(
 
 test_big_endian(BIG_ENDIAN)
 
-add_definitions(-std=gnu99 -Werror=implicit-function-declaration -Wno-unused-value -Wno-parentheses -Wno-switch-enum)
+add_definitions(-std=gnu99 -Werror=implicit-function-declaration -Wno-unused-value -Wno-parentheses -Wno-switch-enum -Wredundant-decls)
 
 # platform-specific stuff
 if (WIN32)

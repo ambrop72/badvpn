@@ -26,14 +26,19 @@
 #include <misc/byteorder.h>
 #include <misc/minmax.h>
 #include <security/BRandom.h>
+#include <system/BLog.h>
 
 #include <dhcpclient/BDHCPClientCore.h>
+
+#include <generated/blog_channel_BHDCPClientCore.h>
 
 #define RESET_TIMEOUT 10000
 #define REQUEST_TIMEOUT 3000
 #define RENEW_REQUEST_TIMEOUT 20000
-
 #define MAX_REQUESTS 4
+#define RENEW_TIMEOUT(lease) ((btime_t)500 * (lease))
+
+#define LEASE_TIMEOUT(lease) ((btime_t)1000 * (lease) - RENEW_TIMEOUT(lease))
 
 #define STATE_RESETTING 1
 #define STATE_SENT_DISCOVER 2
@@ -66,7 +71,7 @@ static void send_message (
     ASSERT(type == DHCP_MESSAGE_TYPE_DISCOVER || type == DHCP_MESSAGE_TYPE_REQUEST)
     
     if (o->sending) {
-        DEBUG("already sending!");
+        BLog(BLOG_ERROR, "already sending");
         return;
     }
     
@@ -335,6 +340,8 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
         }
         
         if (o->state == STATE_SENT_REQUEST) {
+            BLog(BLOG_INFO, "received NAK (in sent request)");
+            
             // stop request timer
             BReactor_RemoveTimer(o->reactor, &o->request_timer);
             
@@ -345,6 +352,8 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
             o->state = STATE_RESETTING;
         }
         else if (o->state == STATE_FINISHED) {
+            BLog(BLOG_INFO, "received NAK (in finished)");
+            
             // stop renew timer
             BReactor_RemoveTimer(o->reactor, &o->renew_timer);
             
@@ -359,6 +368,8 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
             return;
         }
         else { // STATE_RENEWING
+            BLog(BLOG_INFO, "received NAK (in renewing)");
+            
             // stop renew request timer
             BReactor_RemoveTimer(o->reactor, &o->renew_request_timer);
             
@@ -392,6 +403,8 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
     }
     
     if (o->state == STATE_SENT_DISCOVER && dhcp_message_type == DHCP_MESSAGE_TYPE_OFFER) {
+        BLog(BLOG_INFO, "received OFFER");
+        
         // remember offer
         o->offered.yiaddr = o->recv_buf->yiaddr;
         o->offered.dhcp_server_identifier = dhcp_server_identifier;
@@ -420,6 +433,8 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
             return;
         }
         
+        BLog(BLOG_INFO, "received ACK (in sent request)");
+        
         // remember stuff
         o->acked.ip_address_lease_time = ip_address_lease_time;
         o->acked.subnet_mask = subnet_mask;
@@ -434,7 +449,7 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
         BReactor_RemoveTimer(o->reactor, &o->request_timer);
         
         // start renew timer
-        BReactor_SetTimerAfter(o->reactor, &o->renew_timer, 500 * o->acked.ip_address_lease_time);
+        BReactor_SetTimerAfter(o->reactor, &o->renew_timer, RENEW_TIMEOUT(o->acked.ip_address_lease_time));
         
         // set state
         o->state = STATE_FINISHED;
@@ -454,6 +469,8 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
         
         // TODO: check parameters?
         
+        BLog(BLOG_INFO, "received ACK (in renewing)");
+        
         // remember stuff
         o->acked.ip_address_lease_time = ip_address_lease_time;
         
@@ -464,7 +481,7 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
         BReactor_RemoveTimer(o->reactor, &o->lease_timer);
         
         // start renew timer
-        BReactor_SetTimerAfter(o->reactor, &o->renew_timer, 500 * o->acked.ip_address_lease_time);
+        BReactor_SetTimerAfter(o->reactor, &o->renew_timer, RENEW_TIMEOUT(o->acked.ip_address_lease_time));
         
         // set state
         o->state = STATE_FINISHED;
@@ -491,6 +508,8 @@ static void reset_timer_handler (BDHCPClientCore *o)
     ASSERT(o->state == STATE_RESETTING || o->state == STATE_SENT_DISCOVER)
     DebugObject_Access(&o->d_obj);
     
+    BLog(BLOG_INFO, "reset timer");
+    
     start_process(o);
 }
 
@@ -503,9 +522,13 @@ static void request_timer_handler (BDHCPClientCore *o)
     
     // if we have sent enough requests, start again
     if (o->request_count == MAX_REQUESTS) {
+        BLog(BLOG_INFO, "request timer, aborting");
+        
         start_process(o);
         return;
     }
+    
+    BLog(BLOG_INFO, "request timer, retrying");
     
     // send request
     send_message(o, DHCP_MESSAGE_TYPE_REQUEST, o->xid, 1, o->offered.yiaddr, 1, o->offered.dhcp_server_identifier);
@@ -522,6 +545,8 @@ static void renew_timer_handler (BDHCPClientCore *o)
     ASSERT(o->state == STATE_FINISHED)
     DebugObject_Access(&o->d_obj);
     
+    BLog(BLOG_INFO, "renew timer");
+    
     // send request
     send_message(o, DHCP_MESSAGE_TYPE_REQUEST, o->xid, 1, o->offered.yiaddr, 0, 0);
     
@@ -529,7 +554,7 @@ static void renew_timer_handler (BDHCPClientCore *o)
     BReactor_SetTimer(o->reactor, &o->renew_request_timer);
     
     // start lease timer
-    BReactor_SetTimerAfter(o->reactor, &o->lease_timer, 500 * o->acked.ip_address_lease_time);
+    BReactor_SetTimerAfter(o->reactor, &o->lease_timer, LEASE_TIMEOUT(o->acked.ip_address_lease_time));
     
     // set state
     o->state = STATE_RENEWING;
@@ -539,6 +564,8 @@ static void renew_request_timer_handler (BDHCPClientCore *o)
 {
     ASSERT(o->state == STATE_RENEWING)
     DebugObject_Access(&o->d_obj);
+    
+    BLog(BLOG_INFO, "renew request timer");
     
     // send request
     send_message(o, DHCP_MESSAGE_TYPE_REQUEST, o->xid, 1, o->offered.yiaddr, 0, 0);
@@ -551,6 +578,8 @@ static void lease_timer_handler (BDHCPClientCore *o)
 {
     ASSERT(o->state == STATE_RENEWING)
     DebugObject_Access(&o->d_obj);
+    
+    BLog(BLOG_INFO, "lease timer");
     
     // stop renew request timer
     BReactor_RemoveTimer(o->reactor, &o->renew_request_timer);
@@ -578,9 +607,11 @@ int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, Pack
     
     // allocate buffers
     if (!(o->send_buf = malloc(PacketPassInterface_GetMTU(send_if)))) {
+        BLog(BLOG_ERROR, "malloc send buf failed");
         goto fail0;
     }
     if (!(o->recv_buf = malloc(PacketRecvInterface_GetMTU(recv_if)))) {
+        BLog(BLOG_ERROR, "malloc recv buf failed");
         goto fail1;
     }
     
