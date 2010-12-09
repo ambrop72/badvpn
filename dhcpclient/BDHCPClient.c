@@ -36,7 +36,7 @@
 
 #include <dhcpclient/BDHCPClient.h>
 
-#include <generated/blog_channel_BHDCPClient.h>
+#include <generated/blog_channel_BDHCPClient.h>
 
 #define COMPONENT_SOURCE 1
 #define COMPONENT_SINK 2

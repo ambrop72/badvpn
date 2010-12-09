@@ -13,5 +13,5 @@ Listener 4
 DataProto 4
 FrameDecider 4
 BSocksClient 4
-BHDCPClientCore 4
-BHDCPClient 4
+BDHCPClientCore 4
+BDHCPClient 4

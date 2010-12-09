@@ -13,6 +13,6 @@
 #define BLOG_CHANNEL_DataProto 12
 #define BLOG_CHANNEL_FrameDecider 13
 #define BLOG_CHANNEL_BSocksClient 14
-#define BLOG_CHANNEL_BHDCPClientCore 15
-#define BLOG_CHANNEL_BHDCPClient 16
+#define BLOG_CHANNEL_BDHCPClientCore 15
+#define BLOG_CHANNEL_BDHCPClient 16
 #define BLOG_NUM_CHANNELS 17

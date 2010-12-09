@@ -30,7 +30,7 @@
 
 #include <dhcpclient/BDHCPClientCore.h>
 
-#include <generated/blog_channel_BHDCPClientCore.h>
+#include <generated/blog_channel_BDHCPClientCore.h>
 
 #define RESET_TIMEOUT 10000
 #define REQUEST_TIMEOUT 3000
