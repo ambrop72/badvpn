@@ -46,36 +46,41 @@ static void input_handler_send (DHCPIpUdpDecoder *o, uint8_t *data, int data_len
     int pl_len;
     
     if (!ipv4_check(data, data_len, &iph, &pl, &pl_len)) {
-        return;
+        goto fail;
     }
     
     if (ntoh8(iph->protocol) != IPV4_PROTOCOL_UDP) {
-        return;
+        goto fail;
     }
     
     if (pl_len < sizeof(struct udp_header)) {
-        return;
+        goto fail;
     }
     struct udp_header *udph = (void *)pl;
     
     if (ntoh16(udph->source_port) != DHCP_SERVER_PORT) {
-        return;
+        goto fail;
     }
     
     if (ntoh16(udph->dest_port) != DHCP_CLIENT_PORT) {
-        return;
+        goto fail;
     }
     
     int udph_length = ntoh16(udph->length);
     if (udph_length < sizeof(*udph)) {
-        return;
+        goto fail;
     }
     if (udph_length > data_len - (pl - data)) {
-        return;
+        goto fail;
     }
     
     // pass payload to output
     PacketPassInterface_Sender_Send(o->output, (uint8_t *)(udph + 1), udph_length - sizeof(*udph));
+    
+    return;
+    
+fail:
+    PacketPassInterface_Done(&o->input);
 }
 
 static void output_handler_done (DHCPIpUdpDecoder *o)
