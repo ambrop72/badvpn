@@ -65,6 +65,7 @@ typedef struct {
 
 int BDHCPClient_Init (BDHCPClient *o, const char *ifname, BReactor *reactor, BDHCPClient_handler handler, void *user);
 void BDHCPClient_Free (BDHCPClient *o);
+int BDHCPClient_IsUp (BDHCPClient *o);
 void BDHCPClient_GetClientIP (BDHCPClient *o, uint32_t *out_ip);
 void BDHCPClient_GetClientMask (BDHCPClient *o, uint32_t *out_mask);
 int BDHCPClient_GetRouter (BDHCPClient *o, uint32_t *out_router);

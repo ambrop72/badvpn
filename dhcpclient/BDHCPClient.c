@@ -272,8 +272,16 @@ void BDHCPClient_Free (BDHCPClient *o)
     BSocket_Free(&o->sock);
 }
 
+int BDHCPClient_IsUp (BDHCPClient *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    return o->up;
+}
+
 void BDHCPClient_GetClientIP (BDHCPClient *o, uint32_t *out_ip)
 {
+    DebugObject_Access(&o->d_obj);
     ASSERT(o->up)
     
     BDHCPClientCore_GetClientIP(&o->dhcp, out_ip);
@@ -281,6 +289,7 @@ void BDHCPClient_GetClientIP (BDHCPClient *o, uint32_t *out_ip)
 
 void BDHCPClient_GetClientMask (BDHCPClient *o, uint32_t *out_mask)
 {
+    DebugObject_Access(&o->d_obj);
     ASSERT(o->up)
     
     BDHCPClientCore_GetClientMask(&o->dhcp, out_mask);
@@ -288,6 +297,7 @@ void BDHCPClient_GetClientMask (BDHCPClient *o, uint32_t *out_mask)
 
 int BDHCPClient_GetRouter (BDHCPClient *o, uint32_t *out_router)
 {
+    DebugObject_Access(&o->d_obj);
     ASSERT(o->up)
     
     return BDHCPClientCore_GetRouter(&o->dhcp, out_router);
@@ -295,6 +305,7 @@ int BDHCPClient_GetRouter (BDHCPClient *o, uint32_t *out_router)
 
 int BDHCPClient_GetDNS (BDHCPClient *o, uint32_t *out_dns_servers, size_t max_dns_servers)
 {
+    DebugObject_Access(&o->d_obj);
     ASSERT(o->up)
     
     return BDHCPClientCore_GetDNS(&o->dhcp, out_dns_servers, max_dns_servers);
