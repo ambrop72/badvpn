@@ -29,11 +29,60 @@
 
 #include <stdint.h>
 
+#include <misc/debug.h>
+#include <misc/byteorder.h>
+
 struct udp_header {
     uint16_t source_port;
     uint16_t dest_port;
     uint16_t length;
     uint16_t checksum;
 } __attribute__((packed));
+
+static uint32_t udp_checksum_summer (uint8_t *data, uint16_t len)
+{
+    ASSERT(len % 2 == 0)
+    
+    struct ipv4_short *s = (void *)data;
+    
+    uint32_t t = 0;
+    
+    for (uint16_t i = 0; i < len / 2; i++) {
+        t += ntoh16(s[i].v);
+    }
+    
+    return t;
+}
+
+static uint16_t udp_checksum (uint8_t *udp, uint16_t len, uint32_t source_addr, uint32_t dest_addr)
+{
+    uint32_t t = 0;
+    
+    t += udp_checksum_summer((uint8_t *)&source_addr, sizeof(source_addr));
+    t += udp_checksum_summer((uint8_t *)&dest_addr, sizeof(dest_addr));
+    
+    uint16_t x;
+    x = hton16(IPV4_PROTOCOL_UDP);
+    t += udp_checksum_summer((uint8_t *)&x, sizeof(x));
+    x = hton16(len);
+    t += udp_checksum_summer((uint8_t *)&x, sizeof(x));
+    
+    if (len % 2 == 0) {
+        t += udp_checksum_summer(udp, len);
+    } else {
+        t += udp_checksum_summer(udp, len - 1);
+        
+        x = hton16((udp[len - 1] << 8));
+        t += udp_checksum_summer((uint8_t *)&x, sizeof(x));
+    }
+    
+    t = (t&0xFFFF) + (t >> 16);
+    
+    if (t == 0) {
+        t = ~t;
+    }
+    
+    return hton16(~t);
+}
 
 #endif

@@ -74,6 +74,16 @@ static void input_handler_send (DHCPIpUdpDecoder *o, uint8_t *data, int data_len
         goto fail;
     }
     
+    if (ntoh16(udph->checksum) != 0) {
+        uint16_t checksum_in_packet = udph->checksum;
+        udph->checksum = 0;
+        uint16_t checksum_computed = udp_checksum((uint8_t *)udph, udph_length, iph->source_address, iph->destination_address);
+        udph->checksum = checksum_in_packet;
+        if (checksum_in_packet != checksum_computed) {
+            goto fail;
+        }
+    }
+    
     // pass payload to output
     PacketPassInterface_Sender_Send(o->output, (uint8_t *)(udph + 1), udph_length - sizeof(*udph));
     

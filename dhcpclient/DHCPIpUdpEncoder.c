@@ -77,6 +77,10 @@ static void input_handler_done (DHCPIpUdpEncoder *o, int data_len)
     udph->length = hton16(sizeof(*udph) + data_len);
     udph->checksum = hton16(0);
     
+    // compute checksum
+    checksum = udp_checksum((uint8_t *)udph, sizeof(*udph) + data_len, iph->source_address, iph->destination_address);
+    udph->checksum = checksum;
+    
     // finish packet
     PacketRecvInterface_Done(&o->output, sizeof(struct combined_header) + data_len);
 }
