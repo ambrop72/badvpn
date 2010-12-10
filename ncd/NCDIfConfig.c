@@ -59,6 +59,8 @@ static int write_to_file (uint8_t *data, size_t data_len, FILE *f)
         data += bytes;
         data_len -= bytes;
     }
+    
+    return 1;
 }
 
 int NCDIfConfig_query (const char *ifname)
