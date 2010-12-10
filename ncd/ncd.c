@@ -257,7 +257,7 @@ int main (int argc, char **argv)
     }
     
     // parse config file
-    if (!NCDConfigParser_Parse(file, file_len, &configuration)) {
+    if (!NCDConfigParser_Parse((char *)file, file_len, &configuration)) {
         BLog(BLOG_ERROR, "NCDConfigParser_Parse failed");
         free(file);
         goto fail3;

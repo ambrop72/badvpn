@@ -104,7 +104,7 @@ void process_buffer (NCDInterfaceMonitor *o)
             int attr_len = RTA_PAYLOAD(rta);
             
             if (rta->rta_type == IFLA_IFNAME && attr_len > 0 && attr[attr_len - 1] == '\0') {
-                ifname = attr;
+                ifname = (char *)attr;
             }
         }
         
