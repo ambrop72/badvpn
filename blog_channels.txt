@@ -2,6 +2,7 @@ server 4
 client 4
 flooder 4
 tun2socks 4
+ncd 4
 StreamPeerIO 4
 DatagramPeerIO 4
 BReactor 3
@@ -15,3 +16,4 @@ FrameDecider 4
 BSocksClient 4
 BDHCPClientCore 4
 BDHCPClient 4
+NCDIfConfig 4

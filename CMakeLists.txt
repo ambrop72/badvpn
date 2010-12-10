@@ -88,6 +88,7 @@ add_subdirectory(security)
 add_subdirectory(socksclient)
 add_subdirectory(lwip)
 add_subdirectory(dhcpclient)
+add_subdirectory(ncdconfig)
 if (NOT WIN32)
     add_subdirectory(ipc)
 endif ()
@@ -109,3 +110,8 @@ add_subdirectory(flooder)
 
 # tun2socks
 add_subdirectory(tun2socks)
+
+# ncd
+if (NOT WIN32)
+    add_subdirectory(ncd)
+endif ()

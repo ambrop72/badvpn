@@ -1,0 +1,12 @@
+interface eth0 {
+    type "physical";
+    dhcp;
+    ipv4.addr "dhcp_addr";
+    ipv4.route "0.0.0.0/0" "dhcp_router" "20";
+    ipv4.dns "dhcp_dns_servers" "20";
+}
+
+interface eth2 {
+    type "physical";
+    ipv4.addr "192.168.6.1/24";
+}

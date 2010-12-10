@@ -32,6 +32,17 @@ function do_bison() {
     "${BISON_CMD[@]}" -d -o "${OUT_DIR}/bison_${name}.c" "${input}"
 }
 
+function do_lemon() {
+    local input="$1"
+    local name=$(basename "${input}")
+    (
+        cd generated &&
+        rm -f "${name}" &&
+        cp ../"${input}" "${name}" &&
+        ../lemon/lemon "${name}"
+    )
+}
+
 mkdir -p generated
 
 bproto tests/bproto_test.bproto bproto_test
@@ -42,3 +53,4 @@ bstruct security/OTPChecker.bstruct OTPChecker
 do_flex predicate/BPredicate.l BPredicate
 do_bison predicate/BPredicate.y BPredicate
 "${PHP_CMD[@]}" blog_generator/blog.php --input-file blog_channels.txt --output-dir "${OUT_DIR}"
+do_lemon ncdconfig/NCDConfigParser_parse.y

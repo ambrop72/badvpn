@@ -21,6 +21,12 @@ target_link_libraries(bavl_test security)
 add_executable(bencryption_bench bencryption_bench.c)
 target_link_libraries(bencryption_bench system security)
 
+add_executable(ncd_tokenizer_test ncd_tokenizer_test.c)
+target_link_libraries(ncd_tokenizer_test ncdconfig)
+
+add_executable(ncd_parser_test ncd_parser_test.c)
+target_link_libraries(ncd_parser_test ncdconfig)
+
 if (NOT WIN32)
     add_executable(ipc_server ipc_server.c)
     target_link_libraries(ipc_server ipc)

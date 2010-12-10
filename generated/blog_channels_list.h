@@ -2,6 +2,7 @@
 {.name = "client", .loglevel = 4},
 {.name = "flooder", .loglevel = 4},
 {.name = "tun2socks", .loglevel = 4},
+{.name = "ncd", .loglevel = 4},
 {.name = "StreamPeerIO", .loglevel = 4},
 {.name = "DatagramPeerIO", .loglevel = 4},
 {.name = "BReactor", .loglevel = 3},
@@ -15,3 +16,4 @@
 {.name = "BSocksClient", .loglevel = 4},
 {.name = "BDHCPClientCore", .loglevel = 4},
 {.name = "BDHCPClient", .loglevel = 4},
+{.name = "NCDIfConfig", .loglevel = 4},
