@@ -31,6 +31,7 @@
 
 #include <misc/debug.h>
 #include <misc/byteorder.h>
+#include <misc/ipv4_proto.h>
 
 struct udp_header {
     uint16_t source_port;
