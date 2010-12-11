@@ -73,7 +73,9 @@ static uint16_t ipv4_checksum (uint8_t *ip_hdr, uint16_t len)
         t += ntoh16(s[i].v);
     }
     
-    t = (t&0xFFFF) + (t >> 16);
+    while (t >> 16) {
+        t = (t & 0xFFFF) + (t >> 16);
+    }
     
     return hton16(~t);
 }
