@@ -77,7 +77,9 @@ static uint16_t udp_checksum (uint8_t *udp, uint16_t len, uint32_t source_addr, 
         t += udp_checksum_summer((uint8_t *)&x, sizeof(x));
     }
     
-    t = (t&0xFFFF) + (t >> 16);
+    while (t >> 16) {
+        t = (t & 0xFFFF) + (t >> 16);
+    }
     
     if (t == 0) {
         t = ~t;
