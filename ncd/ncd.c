@@ -55,6 +55,7 @@
 
 #define INTERFACE_TYPE_PHYSICAL 1
 
+#define INTERFACE_STATE_WAITDEPS 1
 #define INTERFACE_STATE_RESETTING 2
 #define INTERFACE_STATE_WAITDEVICE 3
 #define INTERFACE_STATE_WAITLINK 4
@@ -81,12 +82,21 @@ struct interface {
     int type;
     int state;
     BTimer reset_timer;
+    LinkedList2 deps_out;
+    LinkedList2 deps_in;
     int up;
     int have_dhcp;
     BDHCPClient dhcp;
     LinkedList2 ipv4_addresses;
     LinkedList2 ipv4_routes;
     LinkedList2 ipv4_dns_servers;
+};
+
+struct dependency {
+    struct interface *src;
+    struct interface *dst;
+    LinkedList2Node src_node;
+    LinkedList2Node dst_node;
 };
 
 struct ipv4_addr_entry {
@@ -140,14 +150,19 @@ static struct interface * find_interface (const char *name);
 static void monitor_handler (void *unused, const char *ifname, int if_flags);
 static int interface_init (struct NCDConfig_interfaces *conf);
 static void interface_free (struct interface *iface);
+static void interface_down_to (struct interface *iface, int state);
 static void interface_reset (struct interface *iface);
 static void interface_start (struct interface *iface);
 static void interface_link_up (struct interface *iface);
-static void interface_link_down (struct interface *iface);
-static void interface_deconfigure (struct interface *iface);
 static void interface_log (struct interface *iface, int level, const char *fmt, ...);
 static void interface_reset_timer_handler (struct interface *iface);
 static void interface_dhcp_handler (struct interface *iface, int event);
+static void interface_remove_dependencies (struct interface *iface);
+static int interface_add_dependency (struct interface *iface, struct interface *dst);
+static void remove_dependency (struct dependency *d);
+static int interface_dependencies_satisfied (struct interface *iface);
+static void interface_satisfy_incoming_depenencies (struct interface *iface);
+static void interface_unsatisfy_incoming_depenencies (struct interface *iface);
 static int interface_set_up (struct interface *iface);
 static void interface_set_down (struct interface *iface);
 static int interface_configure_ipv4 (struct interface *iface);
@@ -586,8 +601,9 @@ void load_interfaces (struct NCDConfig_interfaces *conf)
 
 void free_interfaces (void)
 {
+    // remove in reverse order so we don't have to remove incoming dependencies
     LinkedList2Node *node;
-    while (node = LinkedList2_GetFirst(&interfaces)) {
+    while (node = LinkedList2_GetLast(&interfaces)) {
         struct interface *iface = UPPER_OBJECT(node, struct interface, list_node);
         interface_free(iface);
     }
@@ -683,12 +699,8 @@ void monitor_handler (void *unused, const char *ifname, int if_flags)
     if (!(if_flags&NCDIFCONFIG_FLAG_EXISTS)) {
         if (iface->state > INTERFACE_STATE_WAITDEVICE) {
             interface_log(iface, BLOG_INFO, "device down");
-        
-            // deconfigure
-            interface_deconfigure(iface);
             
-            // set state waitdevice
-            iface->state = INTERFACE_STATE_WAITDEVICE;
+            interface_down_to(iface, INTERFACE_STATE_WAITDEVICE);
         }
     } else {
         if (iface->state == INTERFACE_STATE_RESETTING || iface->state == INTERFACE_STATE_WAITDEVICE) {
@@ -713,7 +725,7 @@ void monitor_handler (void *unused, const char *ifname, int if_flags)
             if (iface->state > INTERFACE_STATE_WAITLINK) {
                 interface_log(iface, BLOG_INFO, "link down");
                 
-                interface_link_down(iface);
+                interface_down_to(iface, INTERFACE_STATE_WAITLINK);
             }
         }
     }
@@ -759,6 +771,35 @@ int interface_init (struct NCDConfig_interfaces *conf)
     // init reset timer
     BTimer_Init(&iface->reset_timer, INTERFACE_RETRY_TIME, (BTimer_handler)interface_reset_timer_handler, iface);
     
+    // init outgoing dependencies list
+    LinkedList2_Init(&iface->deps_out);
+    
+    // init outgoing dependencies
+    struct NCDConfig_statements *need_st = conf->statements;
+    while (need_st = find_statement(need_st, "need")) {
+        char *need_ifname;
+        if (!statement_has_one_arg(need_st, &need_ifname)) {
+            interface_log(iface, BLOG_ERROR, "need: wrong arity");
+            goto fail2;
+        }
+        
+        struct interface *need_if = find_interface(need_ifname);
+        if (!need_if) {
+            interface_log(iface, BLOG_ERROR, "need: %s: unknown interface", need_ifname);
+            goto fail2;
+        }
+        
+        if (!interface_add_dependency(iface, need_if)) {
+            interface_log(iface, BLOG_ERROR, "need: %s: failed to add dependency", need_ifname);
+            goto fail2;
+        }
+        
+        need_st = need_st->next;
+    }
+    
+    // init incoming dependencies list
+    LinkedList2_Init(&iface->deps_in);
+    
     // set not up
     iface->up = 0;
     
@@ -781,6 +822,8 @@ int interface_init (struct NCDConfig_interfaces *conf)
     
     return 1;
     
+fail2:
+    interface_remove_dependencies(iface);
 fail1:
     free(iface);
 fail0:
@@ -789,11 +832,26 @@ fail0:
 
 void interface_free (struct interface *iface)
 {
-    // deconfigure
-    interface_deconfigure(iface);
+    ASSERT(LinkedList2_IsEmpty(&iface->deps_in))
+    
+    // deconfigure IPv4
+    interface_deconfigure_ipv4(iface);
+    
+    // free DHCP
+    if (iface->have_dhcp) {
+        BDHCPClient_Free(&iface->dhcp);
+    }
+    
+    // set down
+    if (iface->up) {
+        interface_set_down(iface);
+    }
     
     // remove from interfaces list
     LinkedList2_Remove(&interfaces, &iface->list_node);
+    
+    // remove outgoing dependencies
+    interface_remove_dependencies(iface);
     
     // stop reset timer
     BReactor_RemoveTimer(&ss, &iface->reset_timer);
@@ -802,29 +860,64 @@ void interface_free (struct interface *iface)
     free(iface);
 }
 
+void interface_down_to (struct interface *iface, int state)
+{
+    ASSERT(state >= INTERFACE_STATE_WAITDEPS)
+    
+    if (state < INTERFACE_STATE_FINISHED) {
+        // unsatisfy incoming dependencies
+        interface_unsatisfy_incoming_depenencies(iface);
+        
+        // deconfigure IPv4
+        interface_deconfigure_ipv4(iface);
+    }
+    
+    // deconfigure DHCP
+    if (state < INTERFACE_STATE_DHCP && iface->have_dhcp) {
+        BDHCPClient_Free(&iface->dhcp);
+        iface->have_dhcp = 0;
+    }
+    
+    // set down
+    if (state < INTERFACE_STATE_WAITLINK && iface->up) {
+        interface_set_down(iface);
+    }
+    
+    // start/stop reset timer
+    if (state == INTERFACE_STATE_RESETTING) {
+        BReactor_SetTimer(&ss, &iface->reset_timer);
+    } else {
+        BReactor_RemoveTimer(&ss, &iface->reset_timer);
+    }
+    
+    // set state
+    iface->state = state;
+}
+
 void interface_reset (struct interface *iface)
 {
     interface_log(iface, BLOG_INFO, "will try again later");
     
-    // deconfigure
-    interface_deconfigure(iface);
-    
-    // set reset timer
-    BReactor_SetTimer(&ss, &iface->reset_timer);
-    
-    // set state
-    iface->state = INTERFACE_STATE_RESETTING;
+    interface_down_to(iface, INTERFACE_STATE_RESETTING);
 }
 
 void interface_start (struct interface *iface)
 {
+    ASSERT(!BTimer_IsRunning(&iface->reset_timer))
     ASSERT(!iface->up)
     ASSERT(!iface->have_dhcp)
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_addresses))
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_routes))
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_dns_servers))
     
-    interface_log(iface, BLOG_INFO, "starting");
+    // check dependencies
+    if (!interface_dependencies_satisfied(iface)) {
+        interface_log(iface, BLOG_INFO, "waiting for dependencies");
+        
+        // waiting for dependencies
+        iface->state = INTERFACE_STATE_WAITDEPS;
+        return;
+    }
     
     // query interface state
     int flags = NCDIfConfig_query(iface->conf->name);
@@ -897,44 +990,13 @@ void interface_link_up (struct interface *iface)
     // set state finished
     iface->state = INTERFACE_STATE_FINISHED;
     
+    // satisfy incoming dependencies
+    interface_satisfy_incoming_depenencies(iface);
+    
     return;
     
 fail:
     interface_reset(iface);
-}
-
-void interface_link_down (struct interface *iface)
-{
-    ASSERT(iface->up)
-    
-    // deconfigure IPv4
-    interface_deconfigure_ipv4(iface);
-    
-    // free DHCP
-    if (iface->have_dhcp) {
-        BDHCPClient_Free(&iface->dhcp);
-        iface->have_dhcp = 0;
-    }
-    
-    // set state waitlink
-    iface->state = INTERFACE_STATE_WAITLINK;
-}
-
-void interface_deconfigure (struct interface *iface)
-{
-    // deconfigure IPv4
-    interface_deconfigure_ipv4(iface);
-    
-    // free DHCP
-    if (iface->have_dhcp) {
-        BDHCPClient_Free(&iface->dhcp);
-        iface->have_dhcp = 0;
-    }
-    
-    // set down
-    if (iface->up) {
-        interface_set_down(iface);
-    }
 }
 
 void interface_log (struct interface *iface, int level, const char *fmt, ...)
@@ -972,6 +1034,9 @@ void interface_dhcp_handler (struct interface *iface, int event)
             // set state
             iface->state = INTERFACE_STATE_FINISHED;
             
+            // satisfy incoming dependencies
+            interface_satisfy_incoming_depenencies(iface);
+            
             return;
             
         fail:
@@ -983,15 +1048,107 @@ void interface_dhcp_handler (struct interface *iface, int event)
             
             interface_log(iface, BLOG_INFO, "DHCP down");
             
-            // deconfigure IPv4
-            interface_deconfigure_ipv4(iface);
-            
-            // set state
-            iface->state = INTERFACE_STATE_DHCP;
+            interface_down_to(iface, INTERFACE_STATE_DHCP);
         } break;
         
         default:
             ASSERT(0);
+    }
+}
+
+void interface_remove_dependencies (struct interface *iface)
+{
+    LinkedList2Node *node;
+    while (node = LinkedList2_GetFirst(&iface->deps_out)) {
+        struct dependency *d = UPPER_OBJECT(node, struct dependency, src_node);
+        ASSERT(d->src == iface)
+        
+        remove_dependency(d);
+    }
+}
+
+int interface_add_dependency (struct interface *iface, struct interface *dst_iface)
+{
+    // allocate entry
+    struct dependency *d = malloc(sizeof(*d));
+    if (!d) {
+        return 0;
+    }
+    
+    // set src and dst
+    d->src = iface;
+    d->dst = dst_iface;
+    
+    // insert to src list
+    LinkedList2_Append(&iface->deps_out, &d->src_node);
+    
+    // insert to dst list
+    LinkedList2_Append(&dst_iface->deps_in, &d->dst_node);
+    
+    return 1;
+}
+
+void remove_dependency (struct dependency *d)
+{
+    // remove from dst list
+    LinkedList2_Remove(&d->dst->deps_in, &d->dst_node);
+    
+    // remove from src list
+    LinkedList2_Remove(&d->src->deps_out, &d->src_node);
+    
+    // free entry
+    free(d);
+}
+
+int interface_dependencies_satisfied (struct interface *iface)
+{
+    LinkedList2Iterator it;
+    LinkedList2Iterator_InitForward(&it, &iface->deps_out);
+    LinkedList2Node *node;
+    while (node = LinkedList2Iterator_Next(&it)) {
+        struct dependency *d = UPPER_OBJECT(node, struct dependency, src_node);
+        ASSERT(d->src == iface)
+        
+        if (d->dst->state != INTERFACE_STATE_FINISHED) {
+            LinkedList2Iterator_Free(&it);
+            return 0;
+        }
+    }
+    
+    return 1;
+}
+
+void interface_satisfy_incoming_depenencies (struct interface *iface)
+{
+    LinkedList2Iterator it;
+    LinkedList2Iterator_InitForward(&it, &iface->deps_in);
+    LinkedList2Node *node;
+    while (node = LinkedList2Iterator_Next(&it)) {
+        struct dependency *d = UPPER_OBJECT(node, struct dependency, dst_node);
+        ASSERT(d->dst == iface)
+        
+        if (d->src->state == INTERFACE_STATE_WAITDEPS) {
+            interface_log(d->src, BLOG_INFO, "dependency %s satisfied", iface->conf->name);
+            
+            interface_start(d->src);
+        }
+    }
+}
+
+void interface_unsatisfy_incoming_depenencies (struct interface *iface)
+{
+    LinkedList2Iterator it;
+    LinkedList2Iterator_InitForward(&it, &iface->deps_in);
+    LinkedList2Node *node;
+    while (node = LinkedList2Iterator_Next(&it)) {
+        struct dependency *d = UPPER_OBJECT(node, struct dependency, dst_node);
+        ASSERT(d->dst == iface)
+        
+        if (d->src->state > INTERFACE_STATE_WAITDEPS) {
+            interface_log(d->src, BLOG_INFO, "dependency %s no longer satisfied", iface->conf->name);
+            
+            interface_down_to(d->src, INTERFACE_STATE_WAITDEPS);
+        }
     }
 }
 
