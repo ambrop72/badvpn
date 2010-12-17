@@ -23,6 +23,7 @@
 #ifndef BADVPN_NCD_NCDINTERFACEMONITOR_H
 #define BADVPN_NCD_NCDINTERFACEMONITOR_H
 
+#include <sys/socket.h>
 #include <linux/netlink.h>
 
 #include <misc/debug.h>
