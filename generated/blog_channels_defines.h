@@ -17,4 +17,5 @@
 #define BLOG_CHANNEL_BDHCPClientCore 16
 #define BLOG_CHANNEL_BDHCPClient 17
 #define BLOG_CHANNEL_NCDIfConfig 18
-#define BLOG_NUM_CHANNELS 19
+#define BLOG_CHANNEL_BUnixSignal 19
+#define BLOG_NUM_CHANNELS 20
