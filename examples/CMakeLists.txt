@@ -36,4 +36,7 @@ if (NOT WIN32)
 
     add_executable(dhcpclient_test dhcpclient_test.c)
     target_link_libraries(dhcpclient_test dhcpclient)
+
+    add_executable(bprocess_example bprocess_example.c)
+    target_link_libraries(bprocess_example system)
 endif ()
