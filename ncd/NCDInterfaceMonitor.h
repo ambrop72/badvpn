@@ -25,11 +25,11 @@
 
 #include <linux/netlink.h>
 
-#include <ncd/NCDIfConfig.h>
-
+#include <misc/debug.h>
 #include <system/DebugObject.h>
 #include <system/BReactor.h>
 #include <system/BPending.h>
+#include <ncd/NCDIfConfig.h>
 
 typedef void (*NCDInterfaceMonitor_handler) (void *user, const char *ifname, int if_flags);
 
@@ -46,7 +46,7 @@ typedef struct {
     DebugObject d_obj;
 } NCDInterfaceMonitor;
 
-int NCDInterfaceMonitor_Init (NCDInterfaceMonitor *o, BReactor *reactor, NCDInterfaceMonitor_handler handler, void *user);
+int NCDInterfaceMonitor_Init (NCDInterfaceMonitor *o, BReactor *reactor, NCDInterfaceMonitor_handler handler, void *user) WARN_UNUSED;
 void NCDInterfaceMonitor_Free (NCDInterfaceMonitor *o);
 
 #endif
