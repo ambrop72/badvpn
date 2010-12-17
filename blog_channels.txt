@@ -18,3 +18,4 @@ BDHCPClientCore 4
 BDHCPClient 4
 NCDIfConfig 4
 BUnixSignal 4
+BProcess 4

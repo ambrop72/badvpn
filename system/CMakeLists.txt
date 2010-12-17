@@ -8,6 +8,7 @@ if (NOT WIN32)
     list(APPEND BSYSTEM_ADDITIONAL_SOURCES
         BLog_syslog.c
         BUnixSignal.c
+        BProcess.c
     )
 endif ()
 
