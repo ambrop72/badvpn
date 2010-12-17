@@ -137,11 +137,6 @@ static void print_help (const char *name);
 static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
-static int statement_name_is (struct NCDConfig_statements *st, const char *needle);
-static int statement_has_one_arg (struct NCDConfig_statements *st, char **arg1_out);
-static int statement_has_two_args (struct NCDConfig_statements *st, char **arg1_out, char **arg2_out);
-static int statement_has_three_args (struct NCDConfig_statements *st, char **arg1_out, char **arg2_out, char **arg3_out);
-static struct NCDConfig_statements * find_statement (struct NCDConfig_statements *st, const char *needle);
 static void load_interfaces (struct NCDConfig_interfaces *conf);
 static void free_interfaces (void);
 static int set_dns_servers (void);
@@ -510,87 +505,6 @@ void signal_handler (void *unused)
     return;
 }
 
-int statement_name_is (struct NCDConfig_statements *st, const char *needle)
-{
-    ASSERT(st->names)
-    
-    size_t l;
-    
-    struct NCDConfig_strings *name = st->names;
-    if (!(l = string_begins_with(needle, name->value))) {
-        return 0;
-    }
-    needle += l;
-    
-    name = name->next;
-    
-    while (name) {
-        if (!(l = string_begins_with(needle, "."))) {
-            return 0;
-        }
-        needle += l;
-        
-        if (!(l = string_begins_with(needle, name->value))) {
-            return 0;
-        }
-        needle += l;
-        
-        name = name->next;
-    }
-    
-    if (*needle) {
-        return 0;
-    }
-    
-    return 1;
-}
-
-int statement_has_one_arg (struct NCDConfig_statements *st, char **arg1_out)
-{
-    if (!(st->args && !st->args->next)) {
-        return 0;
-    }
-    
-    *arg1_out = st->args->value;
-    return 1;
-}
-
-int statement_has_two_args (struct NCDConfig_statements *st, char **arg1_out, char **arg2_out)
-{
-    if (!(st->args && st->args->next && !st->args->next->next)) {
-        return 0;
-    }
-    
-    *arg1_out = st->args->value;
-    *arg2_out = st->args->next->value;
-    return 1;
-}
-
-int statement_has_three_args (struct NCDConfig_statements *st, char **arg1_out, char **arg2_out, char **arg3_out)
-{
-    if (!(st->args && st->args->next && st->args->next->next && !st->args->next->next->next)) {
-        return 0;
-    }
-    
-    *arg1_out = st->args->value;
-    *arg2_out = st->args->next->value;
-    *arg3_out = st->args->next->next->value;
-    return 1;
-}
-
-struct NCDConfig_statements * find_statement (struct NCDConfig_statements *st, const char *needle)
-{
-    while (st) {
-        if (statement_name_is(st, needle)) {
-            return st;
-        }
-        
-        st = st->next;
-    }
-    
-    return NULL;
-}
-
 void load_interfaces (struct NCDConfig_interfaces *conf)
 {
     while (conf) {
@@ -750,13 +664,13 @@ int interface_init (struct NCDConfig_interfaces *conf)
     iface->conf = conf;
     
     // set type
-    struct NCDConfig_statements *type_st = find_statement(conf->statements, "type");
+    struct NCDConfig_statements *type_st = NCDConfig_find_statement(conf->statements, "type");
     if (!type_st) {
         interface_log(iface, BLOG_ERROR, "missing type");
         goto fail1;
     }
     char *type;
-    if (!statement_has_one_arg(type_st, &type)) {
+    if (!NCDConfig_statement_has_one_arg(type_st, &type)) {
         interface_log(iface, BLOG_ERROR, "type: wrong arity");
         goto fail1;
     }
@@ -776,9 +690,9 @@ int interface_init (struct NCDConfig_interfaces *conf)
     
     // init outgoing dependencies
     struct NCDConfig_statements *need_st = conf->statements;
-    while (need_st = find_statement(need_st, "need")) {
+    while (need_st = NCDConfig_find_statement(need_st, "need")) {
         char *need_ifname;
-        if (!statement_has_one_arg(need_st, &need_ifname)) {
+        if (!NCDConfig_statement_has_one_arg(need_st, &need_ifname)) {
             interface_log(iface, BLOG_ERROR, "need: wrong arity");
             goto fail2;
         }
@@ -960,7 +874,7 @@ void interface_link_up (struct interface *iface)
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_dns_servers))
     
     // check for DHCP
-    struct NCDConfig_statements *dhcp_st = find_statement(iface->conf->statements, "dhcp");
+    struct NCDConfig_statements *dhcp_st = NCDConfig_find_statement(iface->conf->statements, "dhcp");
     if (dhcp_st) {
         if (dhcp_st->args) {
             interface_log(iface, BLOG_ERROR, "dhcp: wrong arity");
@@ -1223,10 +1137,10 @@ int interface_add_ipv4_addresses (struct interface *iface)
     
     struct NCDConfig_statements *st = iface->conf->statements;
     
-    while (st = find_statement(st, "ipv4.addr")) {
+    while (st = NCDConfig_find_statement(st, "ipv4.addr")) {
         // get address string
         char *addrstr;
-        if (!statement_has_one_arg(st, &addrstr)) {
+        if (!NCDConfig_statement_has_one_arg(st, &addrstr)) {
             interface_log(iface, BLOG_ERROR, "ipv4.addr: wrong arity");
             return 0;
         }
@@ -1288,12 +1202,12 @@ int interface_add_ipv4_routes (struct interface *iface)
     
     struct NCDConfig_statements *st = iface->conf->statements;
     
-    while (st = find_statement(st, "ipv4.route")) {
+    while (st = NCDConfig_find_statement(st, "ipv4.route")) {
         // read statement
         char *dest_str;
         char *gateway_str;
         char *metric_str;
-        if (!statement_has_three_args(st, &dest_str, &gateway_str, &metric_str)) {
+        if (!NCDConfig_statement_has_three_args(st, &dest_str, &gateway_str, &metric_str)) {
             interface_log(iface, BLOG_ERROR, "ipv4.route: wrong arity");
             return 0;
         }
@@ -1361,11 +1275,11 @@ int interface_add_ipv4_dns_servers (struct interface *iface)
     
     struct NCDConfig_statements *st = iface->conf->statements;
     
-    while (st = find_statement(st, "ipv4.dns")) {
+    while (st = NCDConfig_find_statement(st, "ipv4.dns")) {
         // read statement
         char *addr_str;
         char *priority_str;
-        if (!statement_has_two_args(st, &addr_str, &priority_str)) {
+        if (!NCDConfig_statement_has_two_args(st, &addr_str, &priority_str)) {
             interface_log(iface, BLOG_ERROR, "ipv4.dns: wrong arity");
             return 0;
         }

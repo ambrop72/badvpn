@@ -51,4 +51,10 @@ struct NCDConfig_interfaces * NCDConfig_make_interfaces (char *name, struct NCDC
 struct NCDConfig_statements * NCDConfig_make_statements (struct NCDConfig_strings *names, int have_args, struct NCDConfig_strings *args, int have_next, struct NCDConfig_statements *next);
 struct NCDConfig_strings * NCDConfig_make_strings (char *value, int have_next, struct NCDConfig_strings *next);
 
+int NCDConfig_statement_name_is (struct NCDConfig_statements *st, const char *needle);
+struct NCDConfig_statements * NCDConfig_find_statement (struct NCDConfig_statements *st, const char *needle);
+int NCDConfig_statement_has_one_arg (struct NCDConfig_statements *st, char **arg1_out);
+int NCDConfig_statement_has_two_args (struct NCDConfig_statements *st, char **arg1_out, char **arg2_out);
+int NCDConfig_statement_has_three_args (struct NCDConfig_statements *st, char **arg1_out, char **arg2_out, char **arg3_out);
+
 #endif

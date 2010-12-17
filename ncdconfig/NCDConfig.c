@@ -20,10 +20,12 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <ncdconfig/NCDConfig.h>
-
 #include <stdlib.h>
 #include <string.h>
+
+#include <misc/string_begins_with.h>
+
+#include <ncdconfig/NCDConfig.h>
 
 void NCDConfig_free_interfaces (struct NCDConfig_interfaces *v)
 {
@@ -131,4 +133,85 @@ fail:
     free(value);
     NCDConfig_free_strings(next);
     return NULL;
+}
+
+int NCDConfig_statement_name_is (struct NCDConfig_statements *st, const char *needle)
+{
+    ASSERT(st->names)
+    
+    size_t l;
+    
+    struct NCDConfig_strings *name = st->names;
+    if (!(l = string_begins_with(needle, name->value))) {
+        return 0;
+    }
+    needle += l;
+    
+    name = name->next;
+    
+    while (name) {
+        if (!(l = string_begins_with(needle, "."))) {
+            return 0;
+        }
+        needle += l;
+        
+        if (!(l = string_begins_with(needle, name->value))) {
+            return 0;
+        }
+        needle += l;
+        
+        name = name->next;
+    }
+    
+    if (*needle) {
+        return 0;
+    }
+    
+    return 1;
+}
+
+struct NCDConfig_statements * NCDConfig_find_statement (struct NCDConfig_statements *st, const char *needle)
+{
+    while (st) {
+        if (NCDConfig_statement_name_is(st, needle)) {
+            return st;
+        }
+        
+        st = st->next;
+    }
+    
+    return NULL;
+}
+
+int NCDConfig_statement_has_one_arg (struct NCDConfig_statements *st, char **arg1_out)
+{
+    if (!(st->args && !st->args->next)) {
+        return 0;
+    }
+    
+    *arg1_out = st->args->value;
+    return 1;
+}
+
+int NCDConfig_statement_has_two_args (struct NCDConfig_statements *st, char **arg1_out, char **arg2_out)
+{
+    if (!(st->args && st->args->next && !st->args->next->next)) {
+        return 0;
+    }
+    
+    *arg1_out = st->args->value;
+    *arg2_out = st->args->next->value;
+    return 1;
+}
+
+int NCDConfig_statement_has_three_args (struct NCDConfig_statements *st, char **arg1_out, char **arg2_out, char **arg3_out)
+{
+    if (!(st->args && st->args->next && st->args->next->next && !st->args->next->next->next)) {
+        return 0;
+    }
+    
+    *arg1_out = st->args->value;
+    *arg2_out = st->args->next->value;
+    *arg3_out = st->args->next->next->value;
+    return 1;
 }
