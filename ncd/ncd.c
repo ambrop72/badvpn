@@ -40,7 +40,7 @@
 #include <dhcpclient/BDHCPClient.h>
 #include <ncdconfig/NCDConfigParser.h>
 #include <ncd/NCDIfConfig.h>
-#include <ncd/NCDInterfaceMonitor.h>
+#include <ncd/NCDInterfaceModule.h>
 
 #ifndef BADVPN_USE_WINAPI
 #include <system/BLog_syslog.h>
@@ -53,14 +53,20 @@
 #define LOGGER_STDOUT 1
 #define LOGGER_SYSLOG 2
 
-#define INTERFACE_TYPE_PHYSICAL 1
-
 #define INTERFACE_STATE_WAITDEPS 1
 #define INTERFACE_STATE_RESETTING 2
-#define INTERFACE_STATE_WAITDEVICE 3
-#define INTERFACE_STATE_WAITLINK 4
-#define INTERFACE_STATE_DHCP 5
-#define INTERFACE_STATE_FINISHED 6
+#define INTERFACE_STATE_WAITMODULE 3
+#define INTERFACE_STATE_DHCP 4
+#define INTERFACE_STATE_FINISHED 5
+
+// interface modules
+extern const struct NCDInterfaceModule ncd_interface_physical;
+
+// interface modules list
+const struct NCDInterfaceModule *interface_modules[] = {
+    &ncd_interface_physical,
+    NULL
+};
 
 // command-line options
 struct {
@@ -79,12 +85,12 @@ struct {
 struct interface {
     LinkedList2Node list_node; // node in interfaces
     struct NCDConfig_interfaces *conf;
-    int type;
+    const struct NCDInterfaceModule *module;
     int state;
     BTimer reset_timer;
     LinkedList2 deps_out;
     LinkedList2 deps_in;
-    int up;
+    void *module_instance;
     int have_dhcp;
     BDHCPClient dhcp;
     LinkedList2 ipv4_addresses;
@@ -123,9 +129,6 @@ BReactor ss;
 // configuration
 struct NCDConfig_interfaces *configuration;
 
-// interface monitor
-NCDInterfaceMonitor monitor;
-
 // interfaces
 LinkedList2 interfaces;
 
@@ -142,15 +145,17 @@ static void free_interfaces (void);
 static int set_dns_servers (void);
 static int dns_qsort_comparator (const void *v1, const void *v2);
 static struct interface * find_interface (const char *name);
-static void monitor_handler (void *unused, const char *ifname, int if_flags);
 static int interface_init (struct NCDConfig_interfaces *conf);
 static void interface_free (struct interface *iface);
 static void interface_down_to (struct interface *iface, int state);
 static void interface_reset (struct interface *iface);
 static void interface_start (struct interface *iface);
-static void interface_link_up (struct interface *iface);
+static void interface_module_up (struct interface *iface);
 static void interface_log (struct interface *iface, int level, const char *fmt, ...);
 static void interface_reset_timer_handler (struct interface *iface);
+static int interface_module_init (struct interface *iface, int *initial_up_state);
+static void interface_module_free (struct interface *iface);
+static void interface_module_handler_event (struct interface *iface, int event);
 static void interface_dhcp_handler (struct interface *iface, int event);
 static void interface_remove_dependencies (struct interface *iface);
 static int interface_add_dependency (struct interface *iface, struct interface *dst);
@@ -158,8 +163,6 @@ static void remove_dependency (struct dependency *d);
 static int interface_dependencies_satisfied (struct interface *iface);
 static void interface_satisfy_incoming_depenencies (struct interface *iface);
 static void interface_unsatisfy_incoming_depenencies (struct interface *iface);
-static int interface_set_up (struct interface *iface);
-static void interface_set_down (struct interface *iface);
 static int interface_configure_ipv4 (struct interface *iface);
 static void interface_deconfigure_ipv4 (struct interface *iface);
 static int interface_add_ipv4_addresses (struct interface *iface);
@@ -276,12 +279,6 @@ int main (int argc, char **argv)
     // fee config file memory
     free(file);
     
-    // init interface monitor
-    if (!NCDInterfaceMonitor_Init(&monitor, &ss, monitor_handler, NULL)) {
-        BLog(BLOG_ERROR, "NCDInterfaceMonitor_Init failed");
-        goto fail4;
-    }
-    
     // init interfaces list
     LinkedList2_Init(&interfaces);
     
@@ -298,8 +295,6 @@ int main (int argc, char **argv)
     goto event_loop;
     
 fail5:
-    NCDInterfaceMonitor_Free(&monitor);
-fail4:
     NCDConfig_free_interfaces(configuration);
 fail3:
     BSignal_RemoveHandler();
@@ -337,9 +332,6 @@ void terminate (void)
     
     // free interfaces
     free_interfaces();
-    
-    // free interface monitor
-    NCDInterfaceMonitor_Free(&monitor);
     
     // free configuration
     NCDConfig_free_interfaces(configuration);
@@ -603,48 +595,6 @@ struct interface * find_interface (const char *name)
     return NULL;
 }
 
-void monitor_handler (void *unused, const char *ifname, int if_flags)
-{
-    struct interface *iface = find_interface(ifname);
-    if (!iface) {
-        return;
-    }
-    
-    if (!(if_flags&NCDIFCONFIG_FLAG_EXISTS)) {
-        if (iface->state > INTERFACE_STATE_WAITDEVICE) {
-            interface_log(iface, BLOG_INFO, "device down");
-            
-            interface_down_to(iface, INTERFACE_STATE_WAITDEVICE);
-        }
-    } else {
-        if (iface->state == INTERFACE_STATE_RESETTING || iface->state == INTERFACE_STATE_WAITDEVICE) {
-            interface_log(iface, BLOG_INFO, "device up");
-        
-            // stop reset timer (if it was resetting)
-            BReactor_RemoveTimer(&ss, &iface->reset_timer);
-            
-            // start
-            interface_start(iface);
-            
-            return;
-        }
-        
-        if ((if_flags&NCDIFCONFIG_FLAG_RUNNING)) {
-            if (iface->state == INTERFACE_STATE_WAITLINK) {
-                interface_log(iface, BLOG_INFO, "link up");
-                
-                interface_link_up(iface);
-            }
-        } else {
-            if (iface->state > INTERFACE_STATE_WAITLINK) {
-                interface_log(iface, BLOG_INFO, "link down");
-                
-                interface_down_to(iface, INTERFACE_STATE_WAITLINK);
-            }
-        }
-    }
-}
-
 int interface_init (struct NCDConfig_interfaces *conf)
 {
     // check for existing interface
@@ -663,7 +613,7 @@ int interface_init (struct NCDConfig_interfaces *conf)
     // set conf
     iface->conf = conf;
     
-    // set type
+    // find interface module
     struct NCDConfig_statements *type_st = NCDConfig_find_statement(conf->statements, "type");
     if (!type_st) {
         interface_log(iface, BLOG_ERROR, "missing type");
@@ -674,13 +624,17 @@ int interface_init (struct NCDConfig_interfaces *conf)
         interface_log(iface, BLOG_ERROR, "type: wrong arity");
         goto fail1;
     }
-    if (!strcmp(type, "physical")) {
-        iface->type = INTERFACE_TYPE_PHYSICAL;
+    const struct NCDInterfaceModule **m;
+    for (m = interface_modules; *m; m++) {
+        if (!strcmp((*m)->type, type)) {
+            break;
+        }
     }
-    else {
+    if (!*m) {
         interface_log(iface, BLOG_ERROR, "type: unknown value");
         goto fail1;
     }
+    iface->module = *m;
     
     // init reset timer
     BTimer_Init(&iface->reset_timer, INTERFACE_RETRY_TIME, (BTimer_handler)interface_reset_timer_handler, iface);
@@ -714,8 +668,8 @@ int interface_init (struct NCDConfig_interfaces *conf)
     // init incoming dependencies list
     LinkedList2_Init(&iface->deps_in);
     
-    // set not up
-    iface->up = 0;
+    // set no module instance
+    iface->module_instance = NULL;
     
     // set no DHCP
     iface->have_dhcp = 0;
@@ -756,9 +710,9 @@ void interface_free (struct interface *iface)
         BDHCPClient_Free(&iface->dhcp);
     }
     
-    // set down
-    if (iface->up) {
-        interface_set_down(iface);
+    // free module instance
+    if (iface->module_instance) {
+        interface_module_free(iface);
     }
     
     // remove from interfaces list
@@ -792,9 +746,9 @@ void interface_down_to (struct interface *iface, int state)
         iface->have_dhcp = 0;
     }
     
-    // set down
-    if (state < INTERFACE_STATE_WAITLINK && iface->up) {
-        interface_set_down(iface);
+    // free module instance
+    if (state < INTERFACE_STATE_WAITMODULE && iface->module_instance) {
+        interface_module_free(iface);
     }
     
     // start/stop reset timer
@@ -818,7 +772,7 @@ void interface_reset (struct interface *iface)
 void interface_start (struct interface *iface)
 {
     ASSERT(!BTimer_IsRunning(&iface->reset_timer))
-    ASSERT(!iface->up)
+    ASSERT(!iface->module_instance)
     ASSERT(!iface->have_dhcp)
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_addresses))
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_routes))
@@ -833,31 +787,21 @@ void interface_start (struct interface *iface)
         return;
     }
     
-    // query interface state
-    int flags = NCDIfConfig_query(iface->conf->name);
+    // init module
+    int initial_up_state;
+    if (!interface_module_init(iface, &initial_up_state)) {
+        goto fail;
+    }
     
-    if (!(flags&NCDIFCONFIG_FLAG_EXISTS)) {
-        interface_log(iface, BLOG_INFO, "device doesn't exist");
+    if (!initial_up_state) {
+        interface_log(iface, BLOG_INFO, "waiting for module");
         
-        // waiting for device
-        iface->state = INTERFACE_STATE_WAITDEVICE;
+        // waiting for module
+        iface->state = INTERFACE_STATE_WAITMODULE;
         return;
     }
     
-    if ((flags&NCDIFCONFIG_FLAG_UP)) {
-        interface_log(iface, BLOG_ERROR, "device already up - NOT configuring");
-        goto fail;
-    }
-    
-    // set interface up
-    if (!interface_set_up(iface)) {
-        goto fail;
-    }
-    
-    interface_log(iface, BLOG_INFO, "waiting for link");
-    
-    // waiting for link
-    iface->state = INTERFACE_STATE_WAITLINK;
+    interface_module_up(iface);
     
     return;
     
@@ -865,9 +809,9 @@ fail:
     interface_reset(iface);
 }
 
-void interface_link_up (struct interface *iface)
+void interface_module_up (struct interface *iface)
 {
-    ASSERT(iface->up)
+    ASSERT(iface->module_instance)
     ASSERT(!iface->have_dhcp)
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_addresses))
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_routes))
@@ -928,6 +872,71 @@ void interface_reset_timer_handler (struct interface *iface)
     
     // start interface
     interface_start(iface);
+}
+
+int interface_module_init (struct interface *iface, int *initial_up_state)
+{
+    ASSERT(!iface->module_instance)
+    
+    struct NCDInterfaceModule_ncd_params params = { 
+        .reactor = &ss,
+        .conf = iface->conf, 
+        .handler_event = (NCDInterfaceModule_handler_event)interface_module_handler_event, 
+        .user = iface
+    };
+    
+    // call module function new
+    if (!(iface->module_instance = iface->module->func_new(params, initial_up_state))) {
+        interface_log(iface, BLOG_ERROR, "failed to inizialice module instance");
+        return 0;
+    }
+    
+    ASSERT(*initial_up_state == 0 || *initial_up_state == 1)
+    
+    return 1;
+}
+
+void interface_module_free (struct interface *iface)
+{
+    ASSERT(iface->module_instance)
+    
+    // call module function free
+    iface->module->func_free(iface->module_instance);
+    
+    iface->module_instance = NULL;
+}
+
+void interface_module_handler_event (struct interface *iface, int event)
+{
+    ASSERT(iface->module_instance)
+    ASSERT(iface->state >= INTERFACE_STATE_WAITMODULE)
+    
+    switch (event) {
+        case NCDINTERFACEMODULE_EVENT_UP: {
+            ASSERT(iface->state == INTERFACE_STATE_WAITMODULE)
+            
+            interface_log(iface, BLOG_INFO, "module up");
+            
+            interface_module_up(iface);
+        } break;
+        
+        case NCDINTERFACEMODULE_EVENT_DOWN: {
+            ASSERT(iface->state > INTERFACE_STATE_WAITMODULE)
+            
+            interface_log(iface, BLOG_INFO, "module down");
+            
+            interface_down_to(iface, INTERFACE_STATE_WAITMODULE);
+        } break;
+        
+        case NCDINTERFACEMODULE_EVENT_ERROR: {
+            interface_log(iface, BLOG_INFO, "module error");
+            
+            interface_reset(iface);
+        } break;
+        
+        default:
+            ASSERT(0);
+    }
 }
 
 void interface_dhcp_handler (struct interface *iface, int event)
@@ -1064,33 +1073,6 @@ void interface_unsatisfy_incoming_depenencies (struct interface *iface)
             interface_down_to(d->src, INTERFACE_STATE_WAITDEPS);
         }
     }
-}
-
-int interface_set_up (struct interface *iface)
-{
-    ASSERT(!iface->up)
-    
-    // set up
-    if (!NCDIfConfig_set_up(iface->conf->name)) {
-        interface_log(iface, BLOG_ERROR, "failed to set up");
-        return 0;
-    }
-    
-    iface->up = 1;
-    
-    return 1;
-}
-
-void interface_set_down (struct interface *iface)
-{
-    ASSERT(iface->up)
-    
-    // set down
-    if (!NCDIfConfig_set_down(iface->conf->name)) {
-        interface_log(iface, BLOG_ERROR, "failed to set down");
-    }
-    
-    iface->up = 0;
 }
 
 int interface_configure_ipv4 (struct interface *iface)

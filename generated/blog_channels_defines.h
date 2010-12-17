@@ -19,4 +19,5 @@
 #define BLOG_CHANNEL_NCDIfConfig 18
 #define BLOG_CHANNEL_BUnixSignal 19
 #define BLOG_CHANNEL_BProcess 20
-#define BLOG_NUM_CHANNELS 21
+#define BLOG_CHANNEL_ncd_interface_physical 21
+#define BLOG_NUM_CHANNELS 22
