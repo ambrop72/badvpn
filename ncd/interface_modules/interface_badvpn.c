@@ -99,7 +99,7 @@ fail0:
 
 static void process_handler (struct instance *o, int normally, uint8_t normally_exit_status)
 {
-    NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_ERROR, "process terminated");
+    NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_INFO, "process terminated");
     
     // set not need terminate
     o->need_terminate = 0;
