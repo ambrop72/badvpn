@@ -49,61 +49,80 @@ static void call_handler (BProcess *o, int normally, uint8_t normally_exit_statu
     #endif
 }
 
-static void signal_handler (BProcessManager *o, struct BUnixSignal_siginfo siginfo)
+static BProcess * find_process (BProcessManager *o, pid_t pid)
 {
-    ASSERT(siginfo.signo == SIGCHLD)
-    DebugObject_Access(&o->d_obj);
-    
-    // read exit status with waitpid()
-    int status;
-    pid_t res = waitpid(siginfo.pid, &status, WNOHANG);
-    if (res < 0) {
-        BLog(BLOG_DEBUG, "waitpid(%"PRIiMAX") failed", (intmax_t)siginfo.pid);
-        return;
-    }
-    if (res == 0) {
-        BLog(BLOG_ERROR, "waitpid(%"PRIiMAX") returned 0", (intmax_t)siginfo.pid);
-        return;
-    }
-    
-    // find process
-    BProcess *p = NULL;
     LinkedList2Iterator it;
     LinkedList2Iterator_InitForward(&it, &o->processes);
     LinkedList2Node *node;
     while (node = LinkedList2Iterator_Next(&it)) {
-        BProcess *this_p = UPPER_OBJECT(node, BProcess, list_node);
-        if (this_p->pid == siginfo.pid) {
-            p = this_p;
+        BProcess *p = UPPER_OBJECT(node, BProcess, list_node);
+        if (p->pid == pid) {
             LinkedList2Iterator_Free(&it);
-            break;
+            return p;
         }
     }
     
-    if (!p) {
-        BLog(BLOG_DEBUG, "got SIGCHLD for unknown pid");
+    return NULL;
+}
+
+static void work_signals (BProcessManager *o)
+{
+    // read exit status with waitpid()
+    int status;
+    pid_t pid = waitpid(-1, &status, WNOHANG);
+    if (pid <= 0) {
         return;
+    }
+    
+    // schedule next waitpid
+    BPending_Set(&o->wait_job);
+    
+    // find process
+    BProcess *p = find_process(o, pid);
+    if (!p) {
+        BLog(BLOG_DEBUG, "unknown child %p");
     }
     
     if (WIFEXITED(status)) {
         uint8_t exit_status = WEXITSTATUS(status);
         
-        BLog(BLOG_INFO, "child %"PRIiMAX" exited with status %"PRIu8, (intmax_t)p->pid, exit_status);
+        BLog(BLOG_INFO, "child %"PRIiMAX" exited with status %"PRIu8, (intmax_t)pid, exit_status);
         
-        call_handler(p, 1, exit_status);
-        return;
+        if (p) {
+            call_handler(p, 1, exit_status);
+            return;
+        }
     }
-    
-    if (WIFSIGNALED(status)) {
+    else if (WIFSIGNALED(status)) {
         int signo = WTERMSIG(status);
         
-        BLog(BLOG_INFO, "child %"PRIiMAX" exited with signal %d", (intmax_t)p->pid, signo);
+        BLog(BLOG_INFO, "child %"PRIiMAX" exited with signal %d", (intmax_t)pid, signo);
         
-        call_handler(p, 0, 0);
-        return;
+        if (p) {
+            call_handler(p, 0, 0);
+            return;
+        }
     }
+    else {
+        BLog(BLOG_ERROR, "unknown wait status type for pid %"PRIiMAX" (%d)", (intmax_t)pid, status);
+    }
+}
+
+static void wait_job_handler (BProcessManager *o)
+{
+    DebugObject_Access(&o->d_obj);
     
-    BLog(BLOG_ERROR, "unknown wait status type for pid %"PRIiMAX" (%d)", (intmax_t)p->pid, status);
+    work_signals(o);
+    return;
+}
+
+static void signal_handler (BProcessManager *o, struct BUnixSignal_siginfo siginfo)
+{
+    ASSERT(siginfo.signo == SIGCHLD)
+    DebugObject_Access(&o->d_obj);
+    
+    work_signals(o);
+    return;
 }
 
 int BProcessManager_Init (BProcessManager *o, BReactor *reactor)
@@ -123,6 +142,9 @@ int BProcessManager_Init (BProcessManager *o, BReactor *reactor)
     // init processes list
     LinkedList2_Init(&o->processes);
     
+    // init wait job
+    BPending_Init(&o->wait_job, BReactor_PendingGroup(o->reactor), (BPending_handler)wait_job_handler, o);
+    
     DebugObject_Init(&o->d_obj);
     
     return 1;
@@ -135,6 +157,9 @@ void BProcessManager_Free (BProcessManager *o)
 {
     ASSERT(LinkedList2_IsEmpty(&o->processes))
     DebugObject_Free(&o->d_obj);
+    
+    // free wait job
+    BPending_Free(&o->wait_job);
     
     // free signal handling
     BUnixSignal_Free(&o->signal, 1);

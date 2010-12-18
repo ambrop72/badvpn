@@ -31,11 +31,13 @@
 #include <structure/LinkedList2.h>
 #include <system/DebugObject.h>
 #include <system/BUnixSignal.h>
+#include <system/BPending.h>
 
 typedef struct {
     BReactor *reactor;
     BUnixSignal signal;
     LinkedList2 processes;
+    BPending wait_job;
     DebugObject d_obj;
 } BProcessManager;
 
