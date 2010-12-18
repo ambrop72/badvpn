@@ -178,7 +178,9 @@ static void func_free (void *vo)
     BProcess_Free(&o->process);
     
     // remove TAP device
-    NCDIfConfig_remove_tuntap(o->i->conf->name, 0);
+    if (!NCDIfConfig_remove_tuntap(o->i->conf->name, 0)) {
+        NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_ERROR, "failed to remove TAP device");
+    }
     
     // free instance
     free(o);
