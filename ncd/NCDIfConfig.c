@@ -29,7 +29,11 @@
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <sys/ioctl.h>
-
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <linux/if_tun.h>
+  
 #include <misc/debug.h>
 #include <system/BLog.h>
 
@@ -140,34 +144,36 @@ int NCDIfConfig_remove_ipv4_addr (const char *ifname, struct ipv4_ifaddr ifaddr)
     return !run_command(cmd);
 }
 
-int NCDIfConfig_add_ipv4_route (struct ipv4_ifaddr dest, uint32_t gateway, int metric, const char *device)
+static int route_cmd (const char *cmdtype, struct ipv4_ifaddr dest, const uint32_t *gateway, int metric, const char *device)
 {
     ASSERT(dest.prefix >= 0)
     ASSERT(dest.prefix <= 32)
     
     uint8_t *d_addr = (uint8_t *)&dest.addr;
-    uint8_t *g_addr = (uint8_t *)&gateway;
+    
+    char gwstr[60];
+    if (gateway) {
+        const uint8_t *g_addr = (uint8_t *)gateway;
+        sprintf(gwstr, " gw %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, g_addr[0], g_addr[1], g_addr[2], g_addr[3]);
+    } else {
+        sprintf(gwstr, "");
+    }
     
     char cmd[100];
-    sprintf(cmd, ROUTE_CMD" add -net %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"/%d gw %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8" metric %d dev %s",
-            d_addr[0], d_addr[1], d_addr[2], d_addr[3], dest.prefix, g_addr[0], g_addr[1], g_addr[2], g_addr[3], metric, device);
+    sprintf(cmd, ROUTE_CMD" %s -net %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"/%d%s metric %d dev %s",
+            cmdtype, d_addr[0], d_addr[1], d_addr[2], d_addr[3], dest.prefix, gwstr, metric, device);
     
     return !run_command(cmd);
 }
 
-int NCDIfConfig_remove_ipv4_route (struct ipv4_ifaddr dest, uint32_t gateway, int metric, const char *device)
+int NCDIfConfig_add_ipv4_route (struct ipv4_ifaddr dest, const uint32_t *gateway, int metric, const char *device)
 {
-    ASSERT(dest.prefix >= 0)
-    ASSERT(dest.prefix <= 32)
-    
-    uint8_t *d_addr = (uint8_t *)&dest.addr;
-    uint8_t *g_addr = (uint8_t *)&gateway;
-    
-    char cmd[100];
-    sprintf(cmd, ROUTE_CMD" del -net %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"/%d gw %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8" metric %d dev %s",
-            d_addr[0], d_addr[1], d_addr[2], d_addr[3], dest.prefix, g_addr[0], g_addr[1], g_addr[2], g_addr[3], metric, device);
-    
-    return !run_command(cmd);
+    return route_cmd("add", dest, gateway, metric, device);
+}
+
+int NCDIfConfig_remove_ipv4_route (struct ipv4_ifaddr dest, const uint32_t *gateway, int metric, const char *device)
+{
+    return route_cmd("del", dest, gateway, metric, device);
 }
 
 int NCDIfConfig_set_dns_servers (uint32_t *servers, size_t num_servers)
@@ -210,6 +216,79 @@ int NCDIfConfig_set_dns_servers (uint32_t *servers, size_t num_servers)
     
 fail1:
     fclose(temp_file);
+fail0:
+    return 0;
+}
+
+static int open_tuntap (const char *ifname, int flags)
+{
+    int fd = open("/dev/net/tun", O_RDWR);
+    if (fd < 0) {
+         BLog(BLOG_ERROR, "open tun failed");
+         return -1;
+    }
+    
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof(ifr));
+    ifr.ifr_flags = flags;
+    snprintf(ifr.ifr_name, IFNAMSIZ, "%s", ifname);
+    
+    if (ioctl(fd, TUNSETIFF, (void *)&ifr) < 0) {
+        BLog(BLOG_ERROR, "TUNSETIFF failed");
+        close(fd);
+        return -1;
+    }
+    
+    return fd;
+}
+
+int NCDIfConfig_make_tuntap (const char *ifname, const char *owner, int tun)
+{
+    int fd;
+    if ((fd = open_tuntap(ifname, (tun ? IFF_TUN : IFF_TAP))) < 0) {
+        goto fail0;
+    }
+    
+    if (owner) {
+        if (ioctl(fd, TUNSETOWNER, owner) < 0) {
+            BLog(BLOG_ERROR, "TUNSETOWNER failed");
+            goto fail1;
+        }
+    }
+    
+    if (ioctl(fd, TUNSETPERSIST, (void *)1) < 0) {
+        BLog(BLOG_ERROR, "TUNSETPERSIST failed");
+        goto fail1;
+    }
+    
+    close(fd);
+    
+    return 1;
+    
+fail1:
+    close(fd);
+fail0:
+    return 0;
+}
+
+int NCDIfConfig_remove_tuntap (const char *ifname, int tun)
+{
+    int fd;
+    if ((fd = open_tuntap(ifname, (tun ? IFF_TUN : IFF_TAP))) < 0) {
+        goto fail0;
+    }
+    
+    if (ioctl(fd, TUNSETPERSIST, (void *)0) < 0) {
+        BLog(BLOG_ERROR, "TUNSETPERSIST failed");
+        goto fail1;
+    }
+    
+    close(fd);
+    
+    return 1;
+    
+fail1:
+    close(fd);
 fail0:
     return 0;
 }

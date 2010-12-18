@@ -35,6 +35,7 @@
 #include <structure/LinkedList2.h>
 #include <system/BLog.h>
 #include <system/BReactor.h>
+#include <system/BProcess.h>
 #include <system/BSignal.h>
 #include <system/BSocket.h>
 #include <dhcpclient/BDHCPClient.h>
@@ -90,7 +91,8 @@ struct interface {
     BTimer reset_timer;
     LinkedList2 deps_out;
     LinkedList2 deps_in;
-    void *module_instance;
+    int have_module_instance;
+    NCDInterfaceModuleInst module_instance;
     int have_dhcp;
     BDHCPClient dhcp;
     LinkedList2 ipv4_addresses;
@@ -113,6 +115,7 @@ struct ipv4_addr_entry {
 struct ipv4_route_entry {
     LinkedList2Node list_node; // node in interface.ipv4_routes
     struct ipv4_ifaddr dest;
+    int have_gateway;
     uint32_t gateway;
     int metric;
 };
@@ -125,6 +128,9 @@ struct ipv4_dns_entry {
 
 // reactor
 BReactor ss;
+
+// process manager
+BProcessManager manager;
 
 // configuration
 struct NCDConfig_interfaces *configuration;
@@ -153,9 +159,10 @@ static void interface_start (struct interface *iface);
 static void interface_module_up (struct interface *iface);
 static void interface_log (struct interface *iface, int level, const char *fmt, ...);
 static void interface_reset_timer_handler (struct interface *iface);
-static int interface_module_init (struct interface *iface, int *initial_up_state);
+static int interface_module_init (struct interface *iface);
 static void interface_module_free (struct interface *iface);
 static void interface_module_handler_event (struct interface *iface, int event);
+static void interface_module_handler_error (struct interface *iface);
 static void interface_dhcp_handler (struct interface *iface, int event);
 static void interface_remove_dependencies (struct interface *iface);
 static int interface_add_dependency (struct interface *iface, struct interface *dst);
@@ -173,11 +180,11 @@ static int interface_add_ipv4_dns_servers (struct interface *iface);
 static void interface_remove_ipv4_dns_servers (struct interface *iface);
 static int interface_add_ipv4_addr (struct interface *iface, struct ipv4_ifaddr ifaddr);
 static void interface_remove_ipv4_addr (struct interface *iface, struct ipv4_addr_entry *entry);
-static int interface_add_ipv4_route (struct interface *iface, struct ipv4_ifaddr dest, uint32_t gateway, int metric);
+static int interface_add_ipv4_route (struct interface *iface, struct ipv4_ifaddr dest, const uint32_t *gateway, int metric);
 static void interface_remove_ipv4_route (struct interface *iface, struct ipv4_route_entry *entry);
 static struct ipv4_addr_entry * interface_add_ipv4_addr_entry (struct interface *iface, struct ipv4_ifaddr ifaddr);
 static void interface_remove_ipv4_addr_entry (struct interface *iface, struct ipv4_addr_entry *entry);
-static struct ipv4_route_entry * interface_add_ipv4_route_entry (struct interface *iface, struct ipv4_ifaddr dest, uint32_t gateway, int metric);
+static struct ipv4_route_entry * interface_add_ipv4_route_entry (struct interface *iface, struct ipv4_ifaddr dest, const uint32_t *gateway, int metric);
 static void interface_remove_ipv4_route_entry (struct interface *iface, struct ipv4_route_entry *entry);
 static struct ipv4_dns_entry * interface_add_ipv4_dns_entry (struct interface *iface, uint32_t addr, int priority);
 static void interface_remove_ipv4_dns_entry (struct interface *iface, struct ipv4_dns_entry *entry);
@@ -250,6 +257,12 @@ int main (int argc, char **argv)
         goto fail1;
     }
     
+    // init process manager
+    if (!BProcessManager_Init(&manager, &ss)) {
+        BLog(BLOG_ERROR, "BProcessManager_Init failed");
+        goto fail1a;
+    }
+    
     // setup signal handler
     if (!BSignal_Init(&ss, signal_handler, NULL)) {
         BLog(BLOG_ERROR, "BSignal_Init failed");
@@ -294,6 +307,8 @@ fail5:
 fail3:
     BSignal_Finish();
 fail2:
+    BProcessManager_Free(&manager);
+fail1a:
     BReactor_Free(&ss);
 fail1:
     BLog(BLOG_ERROR, "initialization failed");
@@ -333,6 +348,9 @@ void terminate (void)
     
     // remove signal handler
     BSignal_Finish();
+    
+    // free process manager
+    BProcessManager_Free(&manager);
     
     // exit reactor
     BReactor_Quit(&ss, 1);
@@ -664,7 +682,7 @@ int interface_init (struct NCDConfig_interfaces *conf)
     LinkedList2_Init(&iface->deps_in);
     
     // set no module instance
-    iface->module_instance = NULL;
+    iface->have_module_instance = 0;
     
     // set no DHCP
     iface->have_dhcp = 0;
@@ -706,7 +724,7 @@ void interface_free (struct interface *iface)
     }
     
     // free module instance
-    if (iface->module_instance) {
+    if (iface->have_module_instance) {
         interface_module_free(iface);
     }
     
@@ -742,7 +760,7 @@ void interface_down_to (struct interface *iface, int state)
     }
     
     // free module instance
-    if (state < INTERFACE_STATE_WAITMODULE && iface->module_instance) {
+    if (state < INTERFACE_STATE_WAITMODULE && iface->have_module_instance) {
         interface_module_free(iface);
     }
     
@@ -767,7 +785,7 @@ void interface_reset (struct interface *iface)
 void interface_start (struct interface *iface)
 {
     ASSERT(!BTimer_IsRunning(&iface->reset_timer))
-    ASSERT(!iface->module_instance)
+    ASSERT(!iface->have_module_instance)
     ASSERT(!iface->have_dhcp)
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_addresses))
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_routes))
@@ -783,20 +801,14 @@ void interface_start (struct interface *iface)
     }
     
     // init module
-    int initial_up_state;
-    if (!interface_module_init(iface, &initial_up_state)) {
+    if (!interface_module_init(iface)) {
         goto fail;
     }
     
-    if (!initial_up_state) {
-        interface_log(iface, BLOG_INFO, "waiting for module");
-        
-        // waiting for module
-        iface->state = INTERFACE_STATE_WAITMODULE;
-        return;
-    }
+    interface_log(iface, BLOG_INFO, "waiting for module");
     
-    interface_module_up(iface);
+    // waiting for module
+    iface->state = INTERFACE_STATE_WAITMODULE;
     
     return;
     
@@ -806,7 +818,7 @@ fail:
 
 void interface_module_up (struct interface *iface)
 {
-    ASSERT(iface->module_instance)
+    ASSERT(iface->have_module_instance)
     ASSERT(!iface->have_dhcp)
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_addresses))
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_routes))
@@ -869,39 +881,37 @@ void interface_reset_timer_handler (struct interface *iface)
     interface_start(iface);
 }
 
-int interface_module_init (struct interface *iface, int *initial_up_state)
+int interface_module_init (struct interface *iface)
 {
-    ASSERT(!iface->module_instance)
+    ASSERT(!iface->have_module_instance)
     
-    struct NCDInterfaceModuleNCD params = { 
-        .reactor = &ss,
-        .conf = iface->conf, 
-        .handler_event = (NCDInterfaceModule_handler_event)interface_module_handler_event, 
-        .user = iface
-    };
-    
-    if (!(iface->module_instance = NCDInterfaceModule_New(iface->module, params, initial_up_state))) {
-        interface_log(iface, BLOG_ERROR, "failed to inizialice module instance");
+    if (!NCDInterfaceModuleInst_Init(
+        &iface->module_instance, iface->module, &ss, &manager, iface->conf,
+        (NCDInterfaceModule_handler_event)interface_module_handler_event,
+        (NCDInterfaceModule_handler_error)interface_module_handler_error,
+        iface
+    )) {
+        interface_log(iface, BLOG_ERROR, "failed to initialize module instance");
         return 0;
     }
     
-    ASSERT(*initial_up_state == 0 || *initial_up_state == 1)
+    iface->have_module_instance = 1;
     
     return 1;
 }
 
 void interface_module_free (struct interface *iface)
 {
-    ASSERT(iface->module_instance)
+    ASSERT(iface->have_module_instance)
     
-    NCDInterfaceModule_Free(iface->module, iface->module_instance);
+    NCDInterfaceModuleInst_Free(&iface->module_instance);
     
-    iface->module_instance = NULL;
+    iface->have_module_instance = 0;
 }
 
 void interface_module_handler_event (struct interface *iface, int event)
 {
-    ASSERT(iface->module_instance)
+    ASSERT(iface->have_module_instance)
     ASSERT(iface->state >= INTERFACE_STATE_WAITMODULE)
     
     switch (event) {
@@ -921,15 +931,19 @@ void interface_module_handler_event (struct interface *iface, int event)
             interface_down_to(iface, INTERFACE_STATE_WAITMODULE);
         } break;
         
-        case NCDINTERFACEMODULE_EVENT_ERROR: {
-            interface_log(iface, BLOG_INFO, "module error");
-            
-            interface_reset(iface);
-        } break;
-        
         default:
             ASSERT(0);
     }
+}
+
+void interface_module_handler_error (struct interface *iface)
+{
+    ASSERT(iface->have_module_instance)
+    ASSERT(iface->state >= INTERFACE_STATE_WAITMODULE)
+    
+    interface_log(iface, BLOG_INFO, "module error");
+            
+    interface_reset(iface);
 }
 
 void interface_dhcp_handler (struct interface *iface, int event)
@@ -1194,6 +1208,7 @@ int interface_add_ipv4_routes (struct interface *iface)
             return 0;
         }
         
+        int have_gateway;
         uint32_t gateway;
         
         // is gateway a DHCP router?
@@ -1209,19 +1224,28 @@ int interface_add_ipv4_routes (struct interface *iface)
                 interface_log(iface, BLOG_ERROR, "ipv4.route: (%s,%s,%s): gateway: DHCP did not provide a router", dest_str, gateway_str, metric_str);
                 return 0;
             }
-        } else {
+            
+            have_gateway = 1;
+        }
+        else if (!strcmp(gateway_str, "none")) {
+            // no gateway
+            have_gateway = 0;
+        }
+        else {
             // parse gateway string
             if (!ipaddr_parse_ipv4_addr(gateway_str, strlen(gateway_str), &gateway)) {
                 interface_log(iface, BLOG_ERROR, "ipv4.route: (%s,%s,%s): gateway: wrong format", dest_str, gateway_str, metric_str);
                 return 0;
             }
+            
+            have_gateway = 1;
         }
         
         // parse metric string
         int metric = atoi(metric_str);
         
         // add this address
-        if (!interface_add_ipv4_route(iface, dest, gateway, metric)) {
+        if (!interface_add_ipv4_route(iface, dest, (have_gateway ? &gateway : NULL), metric)) {
             interface_log(iface, BLOG_ERROR, "ipv4.route: (%s,%s,%s): failed to add", dest_str, gateway_str, metric_str);
             return 0;
         }
@@ -1345,7 +1369,7 @@ void interface_remove_ipv4_addr (struct interface *iface, struct ipv4_addr_entry
     interface_remove_ipv4_addr_entry(iface, entry);
 }
 
-int interface_add_ipv4_route (struct interface *iface, struct ipv4_ifaddr dest, uint32_t gateway, int metric)
+int interface_add_ipv4_route (struct interface *iface, struct ipv4_ifaddr dest, const uint32_t *gateway, int metric)
 {
     // add address entry
     struct ipv4_route_entry *entry = interface_add_ipv4_route_entry(iface, dest, gateway, metric);
@@ -1367,7 +1391,7 @@ int interface_add_ipv4_route (struct interface *iface, struct ipv4_ifaddr dest, 
 void interface_remove_ipv4_route (struct interface *iface, struct ipv4_route_entry *entry)
 {
     // remove the route
-    if (!NCDIfConfig_remove_ipv4_route(entry->dest, entry->gateway, entry->metric, iface->conf->name)) {
+    if (!NCDIfConfig_remove_ipv4_route(entry->dest, (entry->have_gateway ? &entry->gateway : NULL), entry->metric, iface->conf->name)) {
         interface_log(iface, BLOG_ERROR, "failed to remove ipv4 route");
     }
     
@@ -1402,7 +1426,7 @@ void interface_remove_ipv4_addr_entry (struct interface *iface, struct ipv4_addr
     free(entry);
 }
 
-struct ipv4_route_entry * interface_add_ipv4_route_entry (struct interface *iface, struct ipv4_ifaddr dest, uint32_t gateway, int metric)
+struct ipv4_route_entry * interface_add_ipv4_route_entry (struct interface *iface, struct ipv4_ifaddr dest, const uint32_t *gateway, int metric)
 {
     // allocate entry
     struct ipv4_route_entry *entry = malloc(sizeof(*entry));
@@ -1412,7 +1436,12 @@ struct ipv4_route_entry * interface_add_ipv4_route_entry (struct interface *ifac
     
     // set info
     entry->dest = dest;
-    entry->gateway = gateway;
+    if (gateway) {
+        entry->have_gateway = 1;
+        entry->gateway = *gateway;
+    } else {
+        entry->have_gateway = 0;
+    }
     entry->metric = metric;
     
     // add to list
