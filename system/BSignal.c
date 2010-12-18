@@ -24,10 +24,7 @@
 #include <windows.h>
 #else
 #include <signal.h>
-#include <sys/signalfd.h>
-#include <unistd.h>
-#include <errno.h>
-#include <fcntl.h>
+#include <system/BUnixSignal.h>
 #endif
 
 #include <misc/debug.h>
@@ -37,25 +34,19 @@
 
 #include <generated/blog_channel_BSignal.h>
 
-#define EMPTY_SIGSET(_set) sigemptyset(&_set);
-#define FILL_SIGSET(_set) sigemptyset(&_set); sigaddset(&_set, SIGTERM); sigaddset(&_set, SIGINT);
-
 struct {
     int initialized;
-    int capturing;
+    int finished;
+    BReactor *reactor;
     BSignal_handler handler;
-    void *handler_user;
-    BReactor *handler_reactor;
+    void *user;
     #ifdef BADVPN_USE_WINAPI
     CRITICAL_SECTION handler_mutex; // mutex to make sure only one handler is working at a time
-    CRITICAL_SECTION state_mutex; // mutex for capturing and signal_pending
-    int signal_pending;
     HANDLE signal_sem1;
     HANDLE signal_sem2;
     BHandle bhandle;
     #else
-    int signal_fd;
-    BFileDescriptor bfd;
+    BUnixSignal signal;
     #endif
 } bsignal_global = {
     .initialized = 0,
@@ -66,34 +57,25 @@ struct {
 static void signal_handle_handler (void *user)
 {
     ASSERT(bsignal_global.initialized)
-    ASSERT(bsignal_global.capturing)
-    ASSERT(bsignal_global.handler)
+    ASSERT(!bsignal_global.finished)
     
-    ASSERT(bsignal_global.signal_pending)
-    bsignal_global.signal_pending = 0;
     ASSERT_FORCE(ReleaseSemaphore(bsignal_global.signal_sem2, 1, NULL))
     
     BLog(BLOG_DEBUG, "Dispatching signal");
-    bsignal_global.handler(bsignal_global.handler_user);
+    
+    // call handler
+    bsignal_global.handler(bsignal_global.user);
+    return;
 }
 
-static BOOL ctrl_handler (DWORD type)
+static BOOL WINAPI ctrl_handler (DWORD type)
 {
-    ASSERT(bsignal_global.initialized)
+    // don't check bsignal_global.initialized to avoid a race
     
     EnterCriticalSection(&bsignal_global.handler_mutex);
     
-    EnterCriticalSection(&bsignal_global.state_mutex);
-    if (bsignal_global.capturing) {
-        ASSERT(!bsignal_global.signal_pending)
-        bsignal_global.signal_pending = 1;
-        ASSERT_FORCE(ReleaseSemaphore(bsignal_global.signal_sem1, 1, NULL))
-        LeaveCriticalSection(&bsignal_global.state_mutex);
-        
-        ASSERT_FORCE(WaitForSingleObject(bsignal_global.signal_sem2, INFINITE) == WAIT_OBJECT_0)
-    } else {
-        LeaveCriticalSection(&bsignal_global.state_mutex);
-    }
+    ASSERT_FORCE(ReleaseSemaphore(bsignal_global.signal_sem1, 1, NULL))
+    ASSERT_FORCE(WaitForSingleObject(bsignal_global.signal_sem2, INFINITE) == WAIT_OBJECT_0)
     
     LeaveCriticalSection(&bsignal_global.handler_mutex);
     
@@ -102,44 +84,35 @@ static BOOL ctrl_handler (DWORD type)
 
 #else
 
-static void signal_fd_handler (void *user, int events)
+static void unix_signal_handler (void *user, struct BUnixSignal_siginfo siginfo)
 {
+    ASSERT(siginfo.signo == SIGTERM || siginfo.signo == SIGINT)
     ASSERT(bsignal_global.initialized)
-    ASSERT(bsignal_global.capturing)
-    ASSERT(bsignal_global.handler)
-    
-    struct signalfd_siginfo siginfo;
-    int bytes = read(bsignal_global.signal_fd, &siginfo, sizeof(siginfo));
-    if (bytes < 0) {
-        int error = errno;
-        if (error == EAGAIN || error == EWOULDBLOCK) {
-            return;
-        }
-        ASSERT_FORCE(0)
-    }
-    ASSERT_FORCE(bytes == sizeof(siginfo))
+    ASSERT(!bsignal_global.finished)
     
     BLog(BLOG_DEBUG, "Dispatching signal");
     
     // call handler
-    bsignal_global.handler(bsignal_global.handler_user);
+    bsignal_global.handler(bsignal_global.user);
     return;
 }
 
 #endif
 
-int BSignal_Init (void)
+int BSignal_Init (BReactor *reactor, BSignal_handler handler, void *user) 
 {
     ASSERT(!bsignal_global.initialized)
+    
+    // init arguments
+    bsignal_global.reactor = reactor;
+    bsignal_global.handler = handler;
+    bsignal_global.user = user;
     
     BLog(BLOG_DEBUG, "BSignal initializing");
     
     #ifdef BADVPN_USE_WINAPI
     
     InitializeCriticalSection(&bsignal_global.handler_mutex);
-    InitializeCriticalSection(&bsignal_global.state_mutex);
-    
-    bsignal_global.signal_pending = 0;
     
     if (!(bsignal_global.signal_sem1 = CreateSemaphore(NULL, 0, 1, NULL))) {
         BLog(BLOG_ERROR, "CreateSemaphore failed");
@@ -151,168 +124,71 @@ int BSignal_Init (void)
         goto fail2;
     }
     
+    // init BHandle
     BHandle_Init(&bsignal_global.bhandle, bsignal_global.signal_sem1, signal_handle_handler, NULL);
+    if (!BReactor_AddHandle(bsignal_global.reactor, &bsignal_global.bhandle)) {
+        BLog(BLOG_ERROR, "BReactor_AddHandle failed");
+        goto fail3;
+    }
+    BReactor_EnableHandle(bsignal_global.reactor, &bsignal_global.bhandle);
+    
+    // configure ctrl handler
+    if (!SetConsoleCtrlHandler(ctrl_handler, TRUE)) {
+        BLog(BLOG_ERROR, "SetConsoleCtrlHandler failed");
+        goto fail4;
+    }
     
     #else
     
-    // create signalfd fd
-    sigset_t emptyset;
-    FILL_SIGSET(emptyset)
-    if ((bsignal_global.signal_fd = signalfd(-1, &emptyset, 0)) < 0) {
-        BLog(BLOG_ERROR, "signalfd failed");
+    sigset_t sset;
+    ASSERT_FORCE(sigemptyset(&sset) == 0)
+    ASSERT_FORCE(sigaddset(&sset, SIGTERM) == 0)
+    ASSERT_FORCE(sigaddset(&sset, SIGINT) == 0)
+    
+    // init BUnixSignal
+    if (!BUnixSignal_Init(&bsignal_global.signal, bsignal_global.reactor, sset, unix_signal_handler, NULL)) {
+        BLog(BLOG_ERROR, "BUnixSignal_Init failed");
         goto fail0;
     }
     
-    // set non-blocking
-    if (fcntl(bsignal_global.signal_fd, F_SETFL, O_NONBLOCK) < 0) {
-        DEBUG("cannot set non-blocking");
-        goto fail1;
-    }
-    
-    // init BFileDescriptor
-    BFileDescriptor_Init(&bsignal_global.bfd, bsignal_global.signal_fd, signal_fd_handler, NULL);
-    
     #endif
     
-    bsignal_global.capturing = 0;
     bsignal_global.initialized = 1;
+    bsignal_global.finished = 0;
     
     return 1;
     
     #ifdef BADVPN_USE_WINAPI
+fail4:
+    BReactor_RemoveHandle(bsignal_global.reactor, &bsignal_global.bhandle);
+fail3:
+    ASSERT_FORCE(CloseHandle(bsignal_global.signal_sem2))
 fail2:
     ASSERT_FORCE(CloseHandle(bsignal_global.signal_sem1))
 fail1:
-    DeleteCriticalSection(&bsignal_global.state_mutex);
     DeleteCriticalSection(&bsignal_global.handler_mutex);
-    #else
-fail1:
-    ASSERT_FORCE(close(bsignal_global.signal_fd) == 0)
     #endif
     
 fail0:
     return 0;
 }
 
-void BSignal_Capture (void)
+void BSignal_Finish (void)
 {
     ASSERT(bsignal_global.initialized)
-    ASSERT(!bsignal_global.capturing)
-    
-    BLog(BLOG_DEBUG, "BSignal capturing");
+    ASSERT(!bsignal_global.finished)
     
     #ifdef BADVPN_USE_WINAPI
     
-    ASSERT(!bsignal_global.signal_pending)
-    
-    EnterCriticalSection(&bsignal_global.state_mutex);
-    bsignal_global.capturing = 1;
-    LeaveCriticalSection(&bsignal_global.state_mutex);
-    ASSERT_FORCE(SetConsoleCtrlHandler((PHANDLER_ROUTINE)ctrl_handler, TRUE))
+    // free BHandle
+    BReactor_RemoveHandle(bsignal_global.reactor, &bsignal_global.bhandle);
     
     #else
     
-    sigset_t signals;
-    FILL_SIGSET(signals)
-    ASSERT_FORCE(sigprocmask(SIG_BLOCK, &signals, NULL) == 0)
-    
-    bsignal_global.capturing = 1;
+    // free BUnixSignal
+    BUnixSignal_Free(&bsignal_global.signal, 0);
     
     #endif
     
-    bsignal_global.handler = NULL;
-}
-
-void BSignal_Uncapture (void)
-{
-    ASSERT(bsignal_global.initialized)
-    ASSERT(bsignal_global.capturing)
-    ASSERT(!bsignal_global.handler)
-    
-    BLog(BLOG_DEBUG, "BSignal uncapturing");
-    
-    #ifdef BADVPN_USE_WINAPI
-    
-    ASSERT_FORCE(SetConsoleCtrlHandler(NULL, FALSE))
-    EnterCriticalSection(&bsignal_global.state_mutex);
-    
-    if (bsignal_global.signal_pending) {
-        bsignal_global.signal_pending = 0;
-        // consume sem1 which the handler incremented to prevent
-        // the event loop from reacting to the signal
-        ASSERT_FORCE(WaitForSingleObject(bsignal_global.signal_sem1, INFINITE) == WAIT_OBJECT_0)
-        // allow the handler to return
-        // no need to wait for it; it only waits on sem2, which nothing else
-        // needs until it returns
-        ASSERT_FORCE(ReleaseSemaphore(bsignal_global.signal_sem2, 1, NULL))
-    }
-    
-    #else
-    
-    sigset_t signals;
-    FILL_SIGSET(signals)
-    ASSERT_FORCE(sigprocmask(SIG_UNBLOCK, &signals, NULL) == 0)
-    
-    #endif
-    
-    bsignal_global.capturing = 0;
-    
-    #ifdef BADVPN_USE_WINAPI
-    
-    LeaveCriticalSection(&bsignal_global.state_mutex);
-    
-    #endif
-}
-
-int BSignal_SetHandler (BReactor *reactor, BSignal_handler handler, void *user)
-{
-    ASSERT(bsignal_global.initialized)
-    ASSERT(bsignal_global.capturing)
-    ASSERT(!bsignal_global.handler)
-    ASSERT(handler)
-    
-    #ifdef BADVPN_USE_WINAPI
-    
-    if (!BReactor_AddHandle(reactor, &bsignal_global.bhandle)) {
-        BLog(BLOG_ERROR, "BReactor_AddHandle failed");
-        return 0;
-    }
-    
-    BReactor_EnableHandle(reactor, &bsignal_global.bhandle);
-    
-    #else
-    
-    if (!BReactor_AddFileDescriptor(reactor, &bsignal_global.bfd)) {
-        BLog(BLOG_ERROR, "BReactor_AddFileDescriptor failed");
-        return 0;
-    }
-    
-    BReactor_SetFileDescriptorEvents(reactor, &bsignal_global.bfd, BREACTOR_READ);
-    
-    #endif
-    
-    bsignal_global.handler = handler;
-    bsignal_global.handler_user = user;
-    bsignal_global.handler_reactor = reactor;
-    
-    return 1;
-}
-
-void BSignal_RemoveHandler (void)
-{
-    ASSERT(bsignal_global.initialized)
-    ASSERT(bsignal_global.capturing)
-    ASSERT(bsignal_global.handler)
-    
-    #ifdef BADVPN_USE_WINAPI
-    
-    BReactor_RemoveHandle(bsignal_global.handler_reactor, &bsignal_global.bhandle);
-    
-    #else
-    
-    BReactor_RemoveFileDescriptor(bsignal_global.handler_reactor, &bsignal_global.bfd);
-    
-    #endif
-    
-    bsignal_global.handler = NULL;
+    bsignal_global.finished = 1;
 }

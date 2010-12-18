@@ -251,13 +251,8 @@ int main (int argc, char **argv)
     }
     
     // setup signal handler
-    if (!BSignal_Init()) {
+    if (!BSignal_Init(&ss, signal_handler, NULL)) {
         BLog(BLOG_ERROR, "BSignal_Init failed");
-        goto fail2;
-    }
-    BSignal_Capture();
-    if (!BSignal_SetHandler(&ss, signal_handler, NULL)) {
-        BLog(BLOG_ERROR, "BSignal_SetHandler failed");
         goto fail2;
     }
     
@@ -297,7 +292,7 @@ int main (int argc, char **argv)
 fail5:
     NCDConfig_free_interfaces(configuration);
 fail3:
-    BSignal_RemoveHandler();
+    BSignal_Finish();
 fail2:
     BReactor_Free(&ss);
 fail1:
@@ -337,7 +332,7 @@ void terminate (void)
     NCDConfig_free_interfaces(configuration);
     
     // remove signal handler
-    BSignal_RemoveHandler();
+    BSignal_Finish();
     
     // exit reactor
     BReactor_Quit(&ss, 1);

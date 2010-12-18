@@ -59,15 +59,8 @@ int main (int argc, char **argv)
         goto fail1;
     }
     
-    if (!BSignal_Init()) {
+    if (!BSignal_Init(&reactor, signal_handler, NULL)) {
         DEBUG("BSignal_Init failed");
-        goto fail2;
-    }
-    
-    BSignal_Capture();
-    
-    if (!BSignal_SetHandler(&reactor, signal_handler, NULL)) {
-        DEBUG("BSignal_SetHandler failed");
         goto fail2;
     }
     
@@ -87,7 +80,7 @@ int main (int argc, char **argv)
     return ret;
     
 fail3:
-    BSignal_RemoveHandler();
+    BSignal_Finish();
 fail2:
     BReactor_Free(&reactor);
 fail1:
@@ -101,7 +94,7 @@ void terminate (int ret)
 {
     BDHCPClient_Free(&dhcp);
     
-    BSignal_RemoveHandler();
+    BSignal_Finish();
     
     BReactor_Quit(&reactor, ret);
 }

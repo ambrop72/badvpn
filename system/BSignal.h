@@ -37,41 +37,17 @@ typedef void (*BSignal_handler) (void *user);
  * The object is created in not capturing state.
  * {@link BLog_Init} must have been done.
  *
- * @return 1 on success, 0 on failure
- */
-int BSignal_Init (void) WARN_UNUSED;
-
-/**
- * Starts capturing signals.
- * The object must be in not capturing state.
- * The object enters capturing state.
- */
-void BSignal_Capture (void);
-
-/**
- * Stops capturing signals.
- * The object must be in capturing state.
- * A signal handler must not be configured.
- * The object enters not capturing state.
- */
-void BSignal_Uncapture (void);
-
-/**
- * Configures a reactor and a handler for signals.
- * The object must be in capturing state.
- * A handler must not be already configured.
- *
  * @param reactor {@link BReactor} from which the handler will be called
  * @param handler callback function invoked from the reactor
  * @param user value passed to callback function
- * @return 1 on success, 0 on failure.
+ * @return 1 on success, 0 on failure
  */
-int BSignal_SetHandler (BReactor *reactor, BSignal_handler handler, void *user) WARN_UNUSED;
+int BSignal_Init (BReactor *reactor, BSignal_handler handler, void *user) WARN_UNUSED;
 
 /**
- * Deconfigures a signal reactor and handler.
- * A handler must be configured.
+ * Finishes signal handling.
+ * {@link BSignal_Init} must not be called again.
  */
-void BSignal_RemoveHandler (void);
+void BSignal_Finish (void);
 
 #endif

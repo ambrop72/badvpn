@@ -268,13 +268,8 @@ int main (int argc, char **argv)
     quitting = 0;
     
     // setup signal handler
-    if (!BSignal_Init()) {
+    if (!BSignal_Init(&ss, signal_handler, NULL)) {
         BLog(BLOG_ERROR, "BSignal_Init failed");
-        goto fail2;
-    }
-    BSignal_Capture();
-    if (!BSignal_SetHandler(&ss, signal_handler, NULL)) {
-        BLog(BLOG_ERROR, "BSignal_SetHandler failed");
         goto fail2;
     }
     
@@ -334,7 +329,7 @@ fail4:
     PacketPassInterface_Free(&device_read_interface);
     BTap_Free(&device);
 fail3:
-    BSignal_RemoveHandler();
+    BSignal_Finish();
 fail2:
     BReactor_Free(&ss);
 fail1:
@@ -407,7 +402,7 @@ void terminate (void)
     BTap_Free(&device);
     
     // remove signal handler
-    BSignal_RemoveHandler();
+    BSignal_Finish();
     
     // set quitting
     quitting = 1;

@@ -412,13 +412,8 @@ int main (int argc, char *argv[])
     }
     
     // setup signal handler
-    if (!BSignal_Init()) {
+    if (!BSignal_Init(&ss, signal_handler, NULL)) {
         BLog(BLOG_ERROR, "BSignal_Init failed");
-        goto fail2a;
-    }
-    BSignal_Capture();
-    if (!BSignal_SetHandler(&ss, signal_handler, NULL)) {
-        BLog(BLOG_ERROR, "BSignal_SetHandler failed");
         goto fail2a;
     }
     
@@ -517,7 +512,7 @@ fail3:
         ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
         PL_ArenaFinish();
     }
-    BSignal_RemoveHandler();
+    BSignal_Finish();
 fail2a:
     BReactor_Free(&ss);
 fail2:
@@ -627,7 +622,7 @@ void terminate (void)
     }
     
     // remove signal handler
-    BSignal_RemoveHandler();
+    BSignal_Finish();
     
     // free relay predicate
     if (options.relay_predicate) {
