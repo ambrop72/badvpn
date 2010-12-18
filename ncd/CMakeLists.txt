@@ -4,6 +4,7 @@ add_executable(badvpn-ncd
     NCDInterfaceMonitor.c
     NCDInterfaceModule.c
     interface_modules/interface_physical.c
+    interface_modules/interface_badvpn.c
 )
 target_link_libraries(badvpn-ncd system dhcpclient ncdconfig)
 

@@ -62,10 +62,12 @@
 
 // interface modules
 extern const struct NCDInterfaceModule ncd_interface_physical;
+extern const struct NCDInterfaceModule ncd_interface_badvpn;
 
 // interface modules list
 const struct NCDInterfaceModule *interface_modules[] = {
     &ncd_interface_physical,
+    &ncd_interface_badvpn,
     NULL
 };
 
