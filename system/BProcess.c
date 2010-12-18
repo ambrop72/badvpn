@@ -54,6 +54,18 @@ static void signal_handler (BProcessManager *o, struct BUnixSignal_siginfo sigin
     ASSERT(siginfo.signo == SIGCHLD)
     DebugObject_Access(&o->d_obj);
     
+    // read exit status with waitpid()
+    int status;
+    pid_t res = waitpid(siginfo.pid, &status, WNOHANG);
+    if (res < 0) {
+        BLog(BLOG_DEBUG, "waitpid(%"PRIiMAX") failed", (intmax_t)siginfo.pid);
+        return;
+    }
+    if (res == 0) {
+        BLog(BLOG_ERROR, "waitpid(%"PRIiMAX") returned 0", (intmax_t)siginfo.pid);
+        return;
+    }
+    
     // find process
     BProcess *p = NULL;
     LinkedList2Iterator it;
@@ -69,19 +81,7 @@ static void signal_handler (BProcessManager *o, struct BUnixSignal_siginfo sigin
     }
     
     if (!p) {
-        BLog(BLOG_ERROR, "got SIGCHLD for unknown pid");
-        return;
-    }
-    
-    // read exit status with waitpid()
-    int status;
-    pid_t res = waitpid(p->pid, &status, WNOHANG);
-    if (res < 0) {
-        BLog(BLOG_ERROR, "waitpid(%"PRIiMAX") failed", (intmax_t)p->pid);
-        return;
-    }
-    if (res == 0) {
-        BLog(BLOG_ERROR, "waitpid(%"PRIiMAX") returned 0", (intmax_t)p->pid);
+        BLog(BLOG_DEBUG, "got SIGCHLD for unknown pid");
         return;
     }
     
