@@ -19,4 +19,3 @@
 {.name = "NCDIfConfig", .loglevel = 4},
 {.name = "BUnixSignal", .loglevel = 4},
 {.name = "BProcess", .loglevel = 4},
-{.name = "ncd_interface_physical", .loglevel = 4},

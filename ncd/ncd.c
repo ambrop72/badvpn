@@ -873,15 +873,14 @@ int interface_module_init (struct interface *iface, int *initial_up_state)
 {
     ASSERT(!iface->module_instance)
     
-    struct NCDInterfaceModule_ncd_params params = { 
+    struct NCDInterfaceModuleNCD params = { 
         .reactor = &ss,
         .conf = iface->conf, 
         .handler_event = (NCDInterfaceModule_handler_event)interface_module_handler_event, 
         .user = iface
     };
     
-    // call module function new
-    if (!(iface->module_instance = iface->module->func_new(params, initial_up_state))) {
+    if (!(iface->module_instance = NCDInterfaceModule_New(iface->module, params, initial_up_state))) {
         interface_log(iface, BLOG_ERROR, "failed to inizialice module instance");
         return 0;
     }
@@ -895,8 +894,7 @@ void interface_module_free (struct interface *iface)
 {
     ASSERT(iface->module_instance)
     
-    // call module function free
-    iface->module->func_free(iface->module_instance);
+    NCDInterfaceModule_Free(iface->module, iface->module_instance);
     
     iface->module_instance = NULL;
 }

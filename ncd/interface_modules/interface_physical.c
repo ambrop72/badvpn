@@ -25,19 +25,16 @@
 
 #include <misc/dead.h>
 #include <system/DebugObject.h>
-#include <system/BLog.h>
 #include <ncd/NCDInterfaceModule.h>
 #include <ncd/NCDIfConfig.h>
 #include <ncd/NCDInterfaceMonitor.h>
-
-#include <generated/blog_channel_ncd_interface_physical.h>
 
 #define STATE_WAITDEVICE 1
 #define STATE_WAITLINK 2
 #define STATE_FINISHED 3
 
 struct instance {
-    struct NCDInterfaceModule_ncd_params params;
+    struct NCDInterfaceModuleNCD params;
     NCDInterfaceMonitor monitor;
     int state;
     DebugObject d_obj;
@@ -46,28 +43,13 @@ struct instance {
     #endif
 };
 
-static void instance_log (struct instance *o, int level, const char *fmt, ...)
-{
-    va_list vl;
-    va_start(vl, fmt);
-    BLog_Append("interface %s: ", o->params.conf->name);
-    BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
-    va_end(vl);
-}
-
-static void report_event (struct instance *o, int event)
-{
-    o->params.handler_event(o->params.user, event);
-    return;
-}
-
 static void report_error (struct instance *o)
 {
     #ifndef NDEBUG
     DEAD_ENTER(o->d_dead)
     #endif
     
-    report_event(o, NCDINTERFACEMODULE_EVENT_ERROR);
+    NCDInterfaceModuleNCD_Event(&o->params, NCDINTERFACEMODULE_EVENT_ERROR);
     
     #ifndef NDEBUG
     ASSERT(DEAD_KILLED)
@@ -81,23 +63,23 @@ static int try_start (struct instance *o)
     int flags = NCDIfConfig_query(o->params.conf->name);
     
     if (!(flags&NCDIFCONFIG_FLAG_EXISTS)) {
-        instance_log(o, BLOG_INFO, "device doesn't exist");
+        NCDInterfaceModuleNCD_Log(&o->params, BLOG_INFO, "device doesn't exist");
         
         // waiting for device
         o->state = STATE_WAITDEVICE;
     } else {
         if ((flags&NCDIFCONFIG_FLAG_UP)) {
-            instance_log(o, BLOG_ERROR, "device already up - NOT configuring");
+            NCDInterfaceModuleNCD_Log(&o->params, BLOG_ERROR, "device already up - NOT configuring");
             return 0;
         }
         
         // set interface up
         if (!NCDIfConfig_set_up(o->params.conf->name)) {
-            instance_log(o, BLOG_ERROR, "failed to set device up");
+            NCDInterfaceModuleNCD_Log(&o->params, BLOG_ERROR, "failed to set device up");
             return 0;
         }
         
-        instance_log(o, BLOG_INFO, "waiting for link");
+        NCDInterfaceModuleNCD_Log(&o->params, BLOG_INFO, "waiting for link");
         
         // waiting for link
         o->state = STATE_WAITLINK;
@@ -118,20 +100,20 @@ static void monitor_handler (struct instance *o, const char *ifname, int if_flag
         if (o->state > STATE_WAITDEVICE) {
             int prev_state = o->state;
             
-            instance_log(o, BLOG_INFO, "device down");
+            NCDInterfaceModuleNCD_Log(&o->params, BLOG_INFO, "device down");
             
             // set state
             o->state = STATE_WAITDEVICE;
             
             // report
             if (prev_state == STATE_FINISHED) {
-                report_event(o, NCDINTERFACEMODULE_EVENT_DOWN);
+                NCDInterfaceModuleNCD_Event(&o->params, NCDINTERFACEMODULE_EVENT_DOWN);
                 return;
             }
         }
     } else {
         if (o->state == STATE_WAITDEVICE) {
-            instance_log(o, BLOG_INFO, "device up");
+            NCDInterfaceModuleNCD_Log(&o->params, BLOG_INFO, "device up");
             
             if (!try_start(o)) {
                 report_error(o);
@@ -143,36 +125,36 @@ static void monitor_handler (struct instance *o, const char *ifname, int if_flag
         
         if ((if_flags&NCDIFCONFIG_FLAG_RUNNING)) {
             if (o->state == STATE_WAITLINK) {
-                instance_log(o, BLOG_INFO, "link up");
+                NCDInterfaceModuleNCD_Log(&o->params, BLOG_INFO, "link up");
                 
                 // set state
                 o->state = STATE_FINISHED;
                 
                 // report
-                report_event(o, NCDINTERFACEMODULE_EVENT_UP);
+                NCDInterfaceModuleNCD_Event(&o->params, NCDINTERFACEMODULE_EVENT_UP);
                 return;
             }
         } else {
             if (o->state == STATE_FINISHED) {
-                instance_log(o, BLOG_INFO, "link down");
+                NCDInterfaceModuleNCD_Log(&o->params, BLOG_INFO, "link down");
                 
                 // set state
                 o->state = STATE_WAITLINK;
                 
                 // report
-                report_event(o, NCDINTERFACEMODULE_EVENT_DOWN);
+                NCDInterfaceModuleNCD_Event(&o->params, NCDINTERFACEMODULE_EVENT_DOWN);
                 return;
             }
         }
     }
 }
 
-static void * func_new (struct NCDInterfaceModule_ncd_params params, int *initial_up_state)
+static void * func_new (struct NCDInterfaceModuleNCD params, int *initial_up_state)
 {
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
     if (!o) {
-        BLog(BLOG_ERROR, "failed to allocate instance");
+        NCDInterfaceModuleNCD_Log(&params, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
     
@@ -181,7 +163,7 @@ static void * func_new (struct NCDInterfaceModule_ncd_params params, int *initia
     
     // init monitor
     if (!NCDInterfaceMonitor_Init(&o->monitor, o->params.reactor, (NCDInterfaceMonitor_handler)monitor_handler, o)) {
-        instance_log(o, BLOG_ERROR, "NCDInterfaceMonitor_Init failed");
+        NCDInterfaceModuleNCD_Log(&o->params, BLOG_ERROR, "NCDInterfaceMonitor_Init failed");
         goto fail1;
     }
     

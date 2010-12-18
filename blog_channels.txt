@@ -19,4 +19,3 @@ BDHCPClient 4
 NCDIfConfig 4
 BUnixSignal 4
 BProcess 4
-ncd_interface_physical 4
