@@ -58,7 +58,7 @@ typedef struct {
 int BProcessManager_Init (BProcessManager *o, BReactor *reactor) WARN_UNUSED;
 void BProcessManager_Free (BProcessManager *o);
 
-int BProcess_Init (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[]) WARN_UNUSED;
+int BProcess_Init (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[], const char *username) WARN_UNUSED;
 void BProcess_Free (BProcess *o);
 int BProcess_Terminate (BProcess *o);
 int BProcess_Kill (BProcess *o);

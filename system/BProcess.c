@@ -27,6 +27,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>
+#include <grp.h>
+#include <pwd.h>
+#include <errno.h>
 
 #include <misc/offset.h>
 #include <system/BLog.h>
@@ -165,7 +168,7 @@ void BProcessManager_Free (BProcessManager *o)
     BUnixSignal_Free(&o->signal, 1);
 }
 
-int BProcess_Init (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[])
+int BProcess_Init (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[], const char *username)
 {
     // init arguments
     o->m = m;
@@ -182,13 +185,47 @@ int BProcess_Init (BProcess *o, BProcessManager *m, BProcess_handler handler, vo
     if (pid == 0) {
         // this is child
         
+        // find maximum file descriptors
         int max_fd = sysconf(_SC_OPEN_MAX);
         if (max_fd < 0) {
             abort();
         }
         
+        // close all file descriptors
         for (int i = 0; i < max_fd; i++) {
             close(i);
+        }
+        
+        // assume identity of username, if requested
+        if (username) {
+            size_t bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
+            if (bufsize < 0) {
+                bufsize = 16384;
+            }
+            
+            char *buf = malloc(bufsize);
+            if (!buf) {
+                abort();
+            }
+            
+            struct passwd pwd;
+            struct passwd *res;
+            getpwnam_r(username, &pwd, buf, bufsize, &res);
+            if (!res) {
+                abort();
+            }
+            
+            if (initgroups(username, pwd.pw_gid) < 0) {
+                abort();
+            }
+            
+            if (setgid(pwd.pw_gid) < 0) {
+                abort();
+            }
+            
+            if (setuid(pwd.pw_uid) < 0) {
+                abort();
+            }
         }
         
         execv(file, argv);

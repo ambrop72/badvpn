@@ -97,6 +97,25 @@ fail0:
     return 0;
 }
 
+static const char * read_user (struct instance *o)
+{
+    // find statement
+    struct NCDConfig_statements *user_st = NCDConfig_find_statement(o->i->conf->statements, "badvpn.user");
+    if (!user_st) {
+        NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_ERROR, "badvpn.user missing");
+        return NULL;
+    }
+    
+    // check arity
+    char *user_arg;
+    if (!NCDConfig_statement_has_one_arg(user_st, &user_arg)) {
+        NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_ERROR, "badvpn.user: wrong arity");
+        return NULL;
+    }
+    
+    return user_arg;
+}
+
 static void process_handler (struct instance *o, int normally, uint8_t normally_exit_status)
 {
     NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_INFO, "process terminated");
@@ -133,6 +152,12 @@ static void * func_new (NCDInterfaceModuleInst *i)
         goto fail2;
     }
     
+    // read username
+    const char *username = read_user(o);
+    if (!username) {
+        goto fail2;
+    }
+    
     // build cmdline
     CmdLine cl;
     if (!build_cmdline(o, &cl)) {
@@ -141,7 +166,7 @@ static void * func_new (NCDInterfaceModuleInst *i)
     }
     
     // start process
-    if (!BProcess_Init(&o->process, o->i->manager, (BProcess_handler)process_handler, o, ((char **)cl.arr.v)[0], (char **)cl.arr.v)) {
+    if (!BProcess_Init(&o->process, o->i->manager, (BProcess_handler)process_handler, o, ((char **)cl.arr.v)[0], (char **)cl.arr.v, username)) {
         NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_ERROR, "BProcess_Init failed");
         CmdLine_Free(&cl);
         goto fail2;

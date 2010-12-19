@@ -73,7 +73,7 @@ int main (int argc, char **argv)
     
     char **p_argv = argv + 1;
     
-    if (!BProcess_Init(&process, &manager, process_handler, NULL, program, p_argv)) {
+    if (!BProcess_Init(&process, &manager, process_handler, NULL, program, p_argv, NULL)) {
         DEBUG("BProcess_Init failed");
         goto fail4;
     }
