@@ -64,8 +64,7 @@ static void signalfd_handler (BUnixSignal *o, int events)
     BLog(BLOG_DEBUG, "dispatching signal %d", signo);
     
     // call handler
-    struct BUnixSignal_siginfo dispatch_siginfo = { .signo = signo, .pid = siginfo.ssi_pid };
-    o->handler(o->user, dispatch_siginfo);
+    o->handler(o->user, signo);
     return;
 }
 

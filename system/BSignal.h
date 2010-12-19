@@ -36,6 +36,10 @@ typedef void (*BSignal_handler) (void *user);
  * Initializes signal handling.
  * The object is created in not capturing state.
  * {@link BLog_Init} must have been done.
+ * 
+ * WARNING: make sure this won't interfere with other components:
+ *   - on Linux, this uses {@link BUnixSignal} to catch SIGTERM and SIGINT,
+ *   - on Windows, this sets up a handler with SetConsoleCtrlHandler.
  *
  * @param reactor {@link BReactor} from which the handler will be called
  * @param handler callback function invoked from the reactor

@@ -84,9 +84,9 @@ static BOOL WINAPI ctrl_handler (DWORD type)
 
 #else
 
-static void unix_signal_handler (void *user, struct BUnixSignal_siginfo siginfo)
+static void unix_signal_handler (void *user, int signo)
 {
-    ASSERT(siginfo.signo == SIGTERM || siginfo.signo == SIGINT)
+    ASSERT(signo == SIGTERM || signo == SIGINT)
     ASSERT(bsignal_global.initialized)
     ASSERT(!bsignal_global.finished)
     

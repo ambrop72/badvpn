@@ -116,9 +116,9 @@ static void wait_job_handler (BProcessManager *o)
     return;
 }
 
-static void signal_handler (BProcessManager *o, struct BUnixSignal_siginfo siginfo)
+static void signal_handler (BProcessManager *o, int signo)
 {
-    ASSERT(siginfo.signo == SIGCHLD)
+    ASSERT(signo == SIGCHLD)
     DebugObject_Access(&o->d_obj);
     
     work_signals(o);

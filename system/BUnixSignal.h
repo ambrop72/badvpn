@@ -34,12 +34,13 @@
 #include <system/BReactor.h>
 #include <system/DebugObject.h>
 
-struct BUnixSignal_siginfo {
-    int signo;
-    pid_t pid;
-};
-
-typedef void (*BUnixSignal_handler) (void *user, struct BUnixSignal_siginfo siginfo);
+/**
+ * Handler function called when a signal is received.
+ * 
+ * @param user as in {@link BUnixSignal_Init}
+ * @param signo signal number. Will be one of the signals provided to {@link signals}.
+ */
+typedef void (*BUnixSignal_handler) (void *user, int signo);
 
 /**
  * Object for catching unix signals.
@@ -57,6 +58,9 @@ typedef struct {
 /**
  * Initializes the object.
  * {@link BLog_Init} must have been done.
+ * 
+ * WARNING: for every signal number there should be at most one {@link BUnixSignal}
+ * object handling it (or anything else that could interfere).
  * 
  * This blocks the signal using sigprocmask() and sets up signalfd() for receiving
  * signals.
