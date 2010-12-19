@@ -54,6 +54,7 @@
 #define LOGGER_STDOUT 1
 #define LOGGER_SYSLOG 2
 
+#define INTERFACE_STATE_TERMINATING 0
 #define INTERFACE_STATE_WAITDEPS 1
 #define INTERFACE_STATE_RESETTING 2
 #define INTERFACE_STATE_WAITMODULE 3
@@ -93,6 +94,7 @@ struct interface {
     BTimer reset_timer;
     LinkedList2 deps_out;
     LinkedList2 deps_in;
+    BPending terminating_module_job;
     int have_module_instance;
     NCDInterfaceModuleInst module_instance;
     int module_instance_finishing;
@@ -133,6 +135,9 @@ struct ipv4_dns_entry {
 // reactor
 BReactor ss;
 
+// are we terminating
+int terminating;
+
 // process manager
 BProcessManager manager;
 
@@ -146,17 +151,18 @@ LinkedList2 interfaces;
 size_t num_ipv4_dns_servers;
 
 static void terminate (void);
+static void work_terminate (void);
 static void print_help (const char *name);
 static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static void load_interfaces (struct NCDConfig_interfaces *conf);
-static void free_interfaces (void);
 static int set_dns_servers (void);
 static int dns_qsort_comparator (const void *v1, const void *v2);
 static struct interface * find_interface (const char *name);
 static int interface_init (struct NCDConfig_interfaces *conf);
-static void interface_free (struct interface *iface);
+static void interface_terminate (struct interface *iface);
+static void interface_terminating_module_job_handler (struct interface *iface);
 static void interface_down_to (struct interface *iface, int state);
 static void interface_reset (struct interface *iface);
 static void interface_start (struct interface *iface);
@@ -167,6 +173,8 @@ static int interface_module_init (struct interface *iface);
 static void interface_module_free (struct interface *iface);
 static void interface_module_handler_event (struct interface *iface, int event);
 static void interface_module_handler_error (struct interface *iface);
+static int interface_dhcp_init (struct interface *iface);
+static void interface_dhcp_free (struct interface *iface);
 static void interface_dhcp_handler (struct interface *iface, int event);
 static void interface_remove_dependencies (struct interface *iface);
 static int interface_add_dependency (struct interface *iface, struct interface *dst);
@@ -261,6 +269,9 @@ int main (int argc, char **argv)
         goto fail1;
     }
     
+    // set not terminating
+    terminating = 0;
+    
     // init process manager
     if (!BProcessManager_Init(&manager, &ss)) {
         BLog(BLOG_ERROR, "BProcessManager_Init failed");
@@ -304,60 +315,54 @@ int main (int argc, char **argv)
     // init interfaces
     load_interfaces(configuration);
     
-    goto event_loop;
+    // enter event loop
+    BLog(BLOG_NOTICE, "entering event loop");
+    BReactor_Exec(&ss);
     
 fail5:
+    // free configuration
     NCDConfig_free_interfaces(configuration);
 fail3:
+    // remove signal handler
     BSignal_Finish();
 fail2:
+    // free process manager
     BProcessManager_Free(&manager);
 fail1a:
+    // free reactor
     BReactor_Free(&ss);
 fail1:
-    BLog(BLOG_ERROR, "initialization failed");
+    // free logger
+    BLog(BLOG_NOTICE, "exiting");
     BLog_Free();
 fail0:
     // finish objects
     DebugObjectGlobal_Finish();
+    
     return 1;
-    
-event_loop:
-    // enter event loop
-    BLog(BLOG_NOTICE, "entering event loop");
-    int ret = BReactor_Exec(&ss);
-    
-    // free reactor
-    BReactor_Free(&ss);
-    
-    // free logger
-    BLog(BLOG_NOTICE, "exiting");
-    BLog_Free();
-    
-    // finish objects
-    DebugObjectGlobal_Finish();
-    
-    return ret;
 }
 
 void terminate (void)
 {
+    ASSERT(!terminating)
+    
     BLog(BLOG_NOTICE, "tearing down");
     
-    // free interfaces
-    free_interfaces();
+    terminating = 1;
     
-    // free configuration
-    NCDConfig_free_interfaces(configuration);
+    work_terminate();
+}
+
+void work_terminate (void)
+{
+    ASSERT(terminating)
     
-    // remove signal handler
-    BSignal_Finish();
-    
-    // free process manager
-    BProcessManager_Free(&manager);
-    
-    // exit reactor
-    BReactor_Quit(&ss, 1);
+    if (LinkedList2_IsEmpty(&interfaces)) {
+        BReactor_Quit(&ss, 1);
+    } else {
+        struct interface *iface = UPPER_OBJECT(LinkedList2_GetLast(&interfaces), struct interface, list_node);
+        interface_terminate(iface);
+    }
 }
 
 void print_help (const char *name)
@@ -510,8 +515,9 @@ void signal_handler (void *unused)
 {
     BLog(BLOG_NOTICE, "termination requested");
     
-    terminate();
-    return;
+    if (!terminating) {
+        terminate();
+    }
 }
 
 void load_interfaces (struct NCDConfig_interfaces *conf)
@@ -519,16 +525,6 @@ void load_interfaces (struct NCDConfig_interfaces *conf)
     while (conf) {
         interface_init(conf);
         conf = conf->next;
-    }
-}
-
-void free_interfaces (void)
-{
-    // remove in reverse order so we don't have to remove incoming dependencies
-    LinkedList2Node *node;
-    while (node = LinkedList2_GetLast(&interfaces)) {
-        struct interface *iface = UPPER_OBJECT(node, struct interface, list_node);
-        interface_free(iface);
     }
 }
 
@@ -685,6 +681,9 @@ int interface_init (struct NCDConfig_interfaces *conf)
     // init incoming dependencies list
     LinkedList2_Init(&iface->deps_in);
     
+    // init terminating module job
+    BPending_Init(&iface->terminating_module_job, BReactor_PendingGroup(&ss), (BPending_handler)interface_terminating_module_job_handler, iface);
+    
     // set no module instance
     iface->have_module_instance = 0;
     
@@ -715,22 +714,51 @@ fail0:
     return 0;
 }
 
-void interface_free (struct interface *iface)
+void interface_terminate (struct interface *iface)
 {
+    ASSERT(terminating)
     ASSERT(LinkedList2_IsEmpty(&iface->deps_in))
+    
+    // stop reset timer
+    BReactor_RemoveTimer(&ss, &iface->reset_timer);
     
     // deconfigure IPv4
     interface_deconfigure_ipv4(iface);
     
     // free DHCP
     if (iface->have_dhcp) {
-        BDHCPClient_Free(&iface->dhcp);
+        interface_dhcp_free(iface);
     }
     
-    // free module instance
+    // finish module instance
     if (iface->have_module_instance) {
-        interface_module_free(iface);
+        if (!iface->module_instance_finishing) {
+            NCDInterfaceModuleInst_Finish(&iface->module_instance);
+            iface->module_instance_finishing = 1;
+        }
+        
+        interface_log(iface, BLOG_INFO, "waiting for module to finish");
+        
+        // wait for module to finish
+        iface->state = INTERFACE_STATE_TERMINATING;
+    } else {
+        // continue now
+        BPending_Set(&iface->terminating_module_job);
     }
+}
+
+void interface_terminating_module_job_handler (struct interface *iface)
+{
+    ASSERT(terminating)
+    ASSERT(!BTimer_IsRunning(&iface->reset_timer))
+    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_addresses))
+    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_routes))
+    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_dns_servers))
+    ASSERT(!iface->have_dhcp)
+    ASSERT(!iface->have_module_instance)
+    
+    // free terminating module job
+    BPending_Free(&iface->terminating_module_job);
     
     // remove from interfaces list
     LinkedList2_Remove(&interfaces, &iface->list_node);
@@ -738,11 +766,11 @@ void interface_free (struct interface *iface)
     // remove outgoing dependencies
     interface_remove_dependencies(iface);
     
-    // stop reset timer
-    BReactor_RemoveTimer(&ss, &iface->reset_timer);
-    
     // free memory
     free(iface);
+    
+    // continue terminating
+    work_terminate();
 }
 
 void interface_down_to (struct interface *iface, int state)
@@ -759,8 +787,7 @@ void interface_down_to (struct interface *iface, int state)
     
     // deconfigure DHCP
     if (state < INTERFACE_STATE_DHCP && iface->have_dhcp) {
-        BDHCPClient_Free(&iface->dhcp);
-        iface->have_dhcp = 0;
+        interface_dhcp_free(iface);
     }
     
     // finish module instance
@@ -849,13 +876,9 @@ void interface_module_up (struct interface *iface)
         }
         
         // init DHCP client
-        if (!BDHCPClient_Init(&iface->dhcp, iface->conf->name, &ss, (BDHCPClient_handler)interface_dhcp_handler, iface)) {
-            interface_log(iface, BLOG_ERROR, "BDHCPClient_Init failed");
+        if (!interface_dhcp_init(iface)) {
             goto fail;
         }
-        
-        // set have DHCP
-        iface->have_dhcp = 1;
         
         // set state
         iface->state = INTERFACE_STATE_DHCP;
@@ -972,13 +995,41 @@ void interface_module_handler_error (struct interface *iface)
         // free module
         interface_module_free(iface);
         
-        if (
-            iface->state == INTERFACE_STATE_WAITDEPS ||
-            (iface->state == INTERFACE_STATE_RESETTING && !BTimer_IsRunning(&iface->reset_timer))
-        ) {
-            interface_start(iface);
+        if (iface->state >= INTERFACE_STATE_WAITDEPS) {
+            if (
+                iface->state == INTERFACE_STATE_WAITDEPS ||
+                (iface->state == INTERFACE_STATE_RESETTING && !BTimer_IsRunning(&iface->reset_timer))
+            ) {
+                interface_start(iface);
+            }
+        }
+        else { // INTERFACE_STATE_TERMINATING
+            BPending_Set(&iface->terminating_module_job);
         }
     }
+}
+
+static int interface_dhcp_init (struct interface *iface)
+{
+    ASSERT(!iface->have_dhcp)
+    
+    if (!BDHCPClient_Init(&iface->dhcp, iface->conf->name, &ss, (BDHCPClient_handler)interface_dhcp_handler, iface)) {
+        interface_log(iface, BLOG_ERROR, "BDHCPClient_Init failed");
+        return 0;
+    }
+    
+    iface->have_dhcp = 1;
+    
+    return 1;
+}
+
+static void interface_dhcp_free (struct interface *iface)
+{
+    ASSERT(iface->have_dhcp)
+    
+    BDHCPClient_Free(&iface->dhcp);
+    
+    iface->have_dhcp = 0;
 }
 
 void interface_dhcp_handler (struct interface *iface, int event)
