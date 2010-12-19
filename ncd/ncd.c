@@ -95,6 +95,8 @@ struct interface {
     LinkedList2 deps_in;
     int have_module_instance;
     NCDInterfaceModuleInst module_instance;
+    int module_instance_finishing;
+    int module_instance_error;
     int have_dhcp;
     BDHCPClient dhcp;
     LinkedList2 ipv4_addresses;
@@ -761,9 +763,15 @@ void interface_down_to (struct interface *iface, int state)
         iface->have_dhcp = 0;
     }
     
-    // free module instance
+    // finish module instance
     if (state < INTERFACE_STATE_WAITMODULE && iface->have_module_instance) {
-        interface_module_free(iface);
+        if (iface->module_instance_error) {
+            interface_module_free(iface);
+        }
+        else if (!iface->module_instance_finishing) {
+            NCDInterfaceModuleInst_Finish(&iface->module_instance);
+            iface->module_instance_finishing = 1;
+        }
     }
     
     // start/stop reset timer
@@ -787,11 +795,17 @@ void interface_reset (struct interface *iface)
 void interface_start (struct interface *iface)
 {
     ASSERT(!BTimer_IsRunning(&iface->reset_timer))
-    ASSERT(!iface->have_module_instance)
     ASSERT(!iface->have_dhcp)
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_addresses))
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_routes))
     ASSERT(LinkedList2_IsEmpty(&iface->ipv4_dns_servers))
+    
+    if (iface->have_module_instance) {
+        ASSERT(iface->module_instance_finishing)
+        
+        interface_log(iface, BLOG_ERROR, "module still finishing");
+        return;
+    }
     
     // check dependencies
     if (!interface_dependencies_satisfied(iface)) {
@@ -898,6 +912,8 @@ int interface_module_init (struct interface *iface)
     }
     
     iface->have_module_instance = 1;
+    iface->module_instance_finishing = 0;
+    iface->module_instance_error = 0;
     
     return 1;
 }
@@ -941,11 +957,28 @@ void interface_module_handler_event (struct interface *iface, int event)
 void interface_module_handler_error (struct interface *iface)
 {
     ASSERT(iface->have_module_instance)
-    ASSERT(iface->state >= INTERFACE_STATE_WAITMODULE)
+    ASSERT(!iface->module_instance_error)
     
-    interface_log(iface, BLOG_INFO, "module error");
-            
-    interface_reset(iface);
+    if (iface->state >= INTERFACE_STATE_WAITMODULE) {
+        interface_log(iface, BLOG_INFO, "module error");
+        
+        // set module error so it will be freed
+        iface->module_instance_error = 1;
+        
+        interface_reset(iface);
+    } else {
+        interface_log(iface, BLOG_INFO, "module finished");
+        
+        // free module
+        interface_module_free(iface);
+        
+        if (
+            iface->state == INTERFACE_STATE_WAITDEPS ||
+            (iface->state == INTERFACE_STATE_RESETTING && !BTimer_IsRunning(&iface->reset_timer))
+        ) {
+            interface_start(iface);
+        }
+    }
 }
 
 void interface_dhcp_handler (struct interface *iface, int event)
