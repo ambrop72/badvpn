@@ -127,6 +127,18 @@ struct NCDConfig_interfaces *configuration;
 // processes
 LinkedList2 processes;
 
+// job for initializing processes
+BPending init_job;
+
+// next process for init job
+struct NCDConfig_interfaces *init_next;
+
+// job for initiating shutdown of processes
+BPending free_job;
+
+// process iterator for free job
+LinkedList2Iterator free_it;
+
 static void terminate (void);
 static void print_help (const char *name);
 static void print_version (void);
@@ -151,6 +163,8 @@ static void process_statement_log (struct process_statement *ps, int level, cons
 static void process_statement_set_error (struct process_statement *ps);
 static void process_statement_instance_handler_event (struct process_statement *ps, int event);
 static void process_statement_instance_handler_died (struct process_statement *ps, int is_error);
+static void init_job_handler (void *unused);
+static void free_job_handler (void *unused);
 
 int main (int argc, char **argv)
 {
@@ -264,12 +278,15 @@ int main (int argc, char **argv)
     // init processes list
     LinkedList2_Init(&processes);
     
-    // init processes
-    struct NCDConfig_interfaces *pc = configuration;
-    while (pc) {
-        process_new(pc);
-        pc = pc->next;
-    }
+    // init init job
+    BPending_Init(&init_job, BReactor_PendingGroup(&ss), init_job_handler, NULL);
+    
+    // init free job
+    BPending_Init(&free_job, BReactor_PendingGroup(&ss), free_job_handler, NULL);
+    
+    // start initializing processes
+    init_next = configuration;
+    BPending_Set(&init_job);
     
     // enter event loop
     BLog(BLOG_NOTICE, "entering event loop");
@@ -281,6 +298,12 @@ int main (int argc, char **argv)
         struct process *p = UPPER_OBJECT(n, struct process, list_node);
         process_free(p);
     }
+    
+    // free free job
+    BPending_Free(&free_job);
+    
+    // free init job
+    BPending_Free(&init_job);
 fail5:
     // free configuration
     NCDConfig_free_interfaces(configuration);
@@ -317,13 +340,9 @@ void terminate (void)
         return;
     }
     
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &processes);
-    LinkedList2Node *n;
-    while (n = LinkedList2Iterator_Next(&it)) {
-        struct process *p = UPPER_OBJECT(n, struct process, list_node);
-        process_work(p);
-    }
+    // start free job
+    LinkedList2Iterator_InitForward(&free_it, &processes);
+    BPending_Set(&free_job);
 }
 
 void print_help (const char *name)
@@ -1048,6 +1067,43 @@ void process_statement_instance_handler_died (struct process_statement *ps, int 
     if (is_error) {
         process_statement_log(ps, BLOG_ERROR, "with error");
     }
+    
+    process_work(p);
+    return;
+}
+
+void init_job_handler (void *unused)
+{
+    ASSERT(!terminating)
+    
+    if (!init_next) {
+        // initialized all processes
+        return;
+    }
+    
+    struct NCDConfig_interfaces *conf = init_next;
+    
+    // schedule next
+    init_next = init_next->next;
+    BPending_Set(&init_job);
+    
+    // init process
+    process_new(conf);
+}
+
+void free_job_handler (void *unused)
+{
+    ASSERT(terminating)
+    
+    LinkedList2Node *n = LinkedList2Iterator_Next(&free_it);
+    if (!n) {
+        // done initiating shutdown for all processes
+        return;
+    }
+    struct process *p = UPPER_OBJECT(n, struct process, list_node);
+    
+    // schedule next
+    BPending_Set(&free_job);
     
     process_work(p);
     return;
