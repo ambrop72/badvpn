@@ -50,7 +50,7 @@ int main (int argc, char **argv)
     // print
     struct NCDConfig_interfaces *iface = ast;
     while (iface) {
-        printf("Interface %s\n", iface->name);
+        printf("process %s\n", iface->name);
         
         struct NCDConfig_statements *st = iface->statements;
         while (st) {
@@ -66,9 +66,26 @@ int main (int argc, char **argv)
             
             printf("\n");
             
-            struct NCDConfig_strings *arg = st->args;
+            struct NCDConfig_arguments *arg = st->args;
             while (arg) {
-                printf("    %s\n", arg->value);
+                switch (arg->type) {
+                    case NCDCONFIG_ARG_STRING:
+                        printf("    string: %s\n", arg->string);
+                        break;
+                    case NCDCONFIG_ARG_VAR:
+                        printf("    var: ");
+                        struct NCDConfig_strings *n = arg->var;
+                        printf("%s", n->value);
+                        n = n->next;
+                        while (n) {
+                            printf(".%s", n->value);
+                            n = n->next;
+                        }
+                        printf("\n");
+                        break;
+                    default:
+                        ASSERT(0);
+                }
                 arg = arg->next;
             }
             

@@ -1,12 +1,20 @@
-interface eth0 {
-    type "physical";
-    dhcp;
-    ipv4.addr "dhcp_addr";
-    ipv4.route "0.0.0.0/0" "dhcp_router" "20";
-    ipv4.dns "dhcp_dns_servers" "20";
-}
+# Network card using DHCP
+process lan {
+    # Make the interface name a variable so we can refer to it.
+    var("eth0") dev;
 
-interface eth2 {
-    type "physical";
-    ipv4.addr "192.168.6.1/24";
+    # Wait for the network card appear and for the cable to be plugged in.
+    net.backend.physical(dev);
+
+    # Start DHCP.
+    net.ipv4.dhcp(dev) dhcp;
+
+    # Once DHCP obtains an IP address, assign it to the interface.
+    net.ipv4.addr(dev, dhcp.addr, dhcp.prefix);
+
+    # Add a default route.
+    net.ipv4.route("0.0.0.0", "0", dhcp.gateway, "20", dev);
+
+    # Add DNS servers.
+    net.dns(dhcp.dns_servers, "20");
 }

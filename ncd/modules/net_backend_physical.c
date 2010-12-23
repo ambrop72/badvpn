@@ -1,5 +1,5 @@
 /**
- * @file interface_physical.c
+ * @file net_backend_physical.c
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -21,22 +21,29 @@
  * 
  * @section DESCRIPTION
  * 
- * Physical interface backend.
+ * Physical network interface module.
+ * 
+ * Synopsis: net.backend.physical(string ifname)
  */
 
 #include <stdlib.h>
 #include <string.h>
 
-#include <ncd/NCDInterfaceModule.h>
+#include <ncd/NCDModule.h>
 #include <ncd/NCDIfConfig.h>
 #include <ncd/NCDInterfaceMonitor.h>
+
+#include <generated/blog_channel_ncd_net_backend_physical.h>
+
+#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 #define STATE_WAITDEVICE 1
 #define STATE_WAITLINK 2
 #define STATE_FINISHED 3
 
 struct instance {
-    NCDInterfaceModuleInst *i;
+    NCDModuleInst *i;
+    const char *ifname;
     NCDInterfaceMonitor monitor;
     int state;
 };
@@ -44,26 +51,26 @@ struct instance {
 static int try_start (struct instance *o)
 {
     // query interface state
-    int flags = NCDIfConfig_query(o->i->conf->name);
+    int flags = NCDIfConfig_query(o->ifname);
     
     if (!(flags&NCDIFCONFIG_FLAG_EXISTS)) {
-        NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_INFO, "device doesn't exist");
+        ModuleLog(o->i, BLOG_INFO, "device doesn't exist");
         
         // waiting for device
         o->state = STATE_WAITDEVICE;
     } else {
         if ((flags&NCDIFCONFIG_FLAG_UP)) {
-            NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_ERROR, "device already up - NOT configuring");
+            ModuleLog(o->i, BLOG_ERROR, "device already up - NOT configuring");
             return 0;
         }
         
         // set interface up
-        if (!NCDIfConfig_set_up(o->i->conf->name)) {
-            NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_ERROR, "failed to set device up");
+        if (!NCDIfConfig_set_up(o->ifname)) {
+            ModuleLog(o->i, BLOG_ERROR, "failed to set device up");
             return 0;
         }
         
-        NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_INFO, "waiting for link");
+        ModuleLog(o->i, BLOG_INFO, "waiting for link");
         
         // waiting for link
         o->state = STATE_WAITLINK;
@@ -74,7 +81,7 @@ static int try_start (struct instance *o)
 
 static void monitor_handler (struct instance *o, const char *ifname, int if_flags)
 {
-    if (strcmp(ifname, o->i->conf->name)) {
+    if (strcmp(ifname, o->ifname)) {
         return;
     }
     
@@ -82,22 +89,22 @@ static void monitor_handler (struct instance *o, const char *ifname, int if_flag
         if (o->state > STATE_WAITDEVICE) {
             int prev_state = o->state;
             
-            NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_INFO, "device down");
+            ModuleLog(o->i, BLOG_INFO, "device down");
             
             // set state
             o->state = STATE_WAITDEVICE;
             
             // report
             if (prev_state == STATE_FINISHED) {
-                NCDInterfaceModuleInst_Backend_Event(o->i, NCDINTERFACEMODULE_EVENT_DOWN);
+                NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
             }
         }
     } else {
         if (o->state == STATE_WAITDEVICE) {
-            NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_INFO, "device up");
+            ModuleLog(o->i, BLOG_INFO, "device up");
             
             if (!try_start(o)) {
-                NCDInterfaceModuleInst_Backend_Error(o->i);
+                NCDModuleInst_Backend_Died(o->i, 1);
                 return;
             }
             
@@ -106,43 +113,55 @@ static void monitor_handler (struct instance *o, const char *ifname, int if_flag
         
         if ((if_flags&NCDIFCONFIG_FLAG_RUNNING)) {
             if (o->state == STATE_WAITLINK) {
-                NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_INFO, "link up");
+                ModuleLog(o->i, BLOG_INFO, "link up");
                 
                 // set state
                 o->state = STATE_FINISHED;
                 
                 // report
-                NCDInterfaceModuleInst_Backend_Event(o->i, NCDINTERFACEMODULE_EVENT_UP);
+                NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
             }
         } else {
             if (o->state == STATE_FINISHED) {
-                NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_INFO, "link down");
+                ModuleLog(o->i, BLOG_INFO, "link down");
                 
                 // set state
                 o->state = STATE_WAITLINK;
                 
                 // report
-                NCDInterfaceModuleInst_Backend_Event(o->i, NCDINTERFACEMODULE_EVENT_DOWN);
+                NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
             }
         }
     }
 }
 
-static void * func_new (NCDInterfaceModuleInst *i)
+static void * func_new (NCDModuleInst *i)
 {
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
     if (!o) {
-        NCDInterfaceModuleInst_Backend_Log(i, BLOG_ERROR, "failed to allocate instance");
+        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
     
     // init arguments
     o->i = i;
     
+    // check arguments
+    NCDValue *arg;
+    if (!NCDValue_ListRead(i->args, 1, &arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
+        goto fail1;
+    }
+    if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong type");
+        goto fail1;
+    }
+    o->ifname = NCDValue_StringValue(arg);
+    
     // init monitor
     if (!NCDInterfaceMonitor_Init(&o->monitor, o->i->reactor, (NCDInterfaceMonitor_handler)monitor_handler, o)) {
-        NCDInterfaceModuleInst_Backend_Log(o->i, BLOG_ERROR, "NCDInterfaceMonitor_Init failed");
+        ModuleLog(o->i, BLOG_ERROR, "NCDInterfaceMonitor_Init failed");
         goto fail1;
     }
     
@@ -166,7 +185,7 @@ static void func_free (void *vo)
     
     // set interface down
     if (o->state > STATE_WAITDEVICE) {
-        NCDIfConfig_set_down(o->i->conf->name);
+        NCDIfConfig_set_down(o->ifname);
     }
     
     // free monitor
@@ -176,17 +195,8 @@ static void func_free (void *vo)
     free(o);
 }
 
-static void func_finish (void *vo)
-{
-    struct instance *o = vo;
-    
-    NCDInterfaceModuleInst_Backend_Error(o->i);
-    return;
-}
-
-const struct NCDInterfaceModule ncd_interface_physical = {
-    .type = "physical",
+const struct NCDModule ncdmodule_net_backend_physical = {
+    .type = "net.backend.physical",
     .func_new = func_new,
-    .func_free = func_free,
-    .func_finish = func_finish
+    .func_free = func_free
 };

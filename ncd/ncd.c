@@ -24,24 +24,23 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include <misc/version.h>
 #include <misc/loggers_string.h>
 #include <misc/loglevel.h>
 #include <misc/offset.h>
 #include <misc/read_file.h>
-#include <misc/string_begins_with.h>
-#include <misc/ipaddr.h>
+#include <misc/balloc.h>
 #include <structure/LinkedList2.h>
 #include <system/BLog.h>
 #include <system/BReactor.h>
 #include <system/BProcess.h>
 #include <system/BSignal.h>
 #include <system/BSocket.h>
-#include <dhcpclient/BDHCPClient.h>
 #include <ncdconfig/NCDConfigParser.h>
-#include <ncd/NCDIfConfig.h>
-#include <ncd/NCDInterfaceModule.h>
+#include <ncd/NCDModule.h>
+#include <ncd/modules/modules.h>
 
 #ifndef BADVPN_USE_WINAPI
 #include <system/BLog_syslog.h>
@@ -54,22 +53,49 @@
 #define LOGGER_STDOUT 1
 #define LOGGER_SYSLOG 2
 
-#define INTERFACE_STATE_TERMINATING 0
-#define INTERFACE_STATE_WAITDEPS 1
-#define INTERFACE_STATE_RESETTING 2
-#define INTERFACE_STATE_WAITMODULE 3
-#define INTERFACE_STATE_DHCP 4
-#define INTERFACE_STATE_FINISHED 5
+#define SSTATE_CHILD 1
+#define SSTATE_ADULT 2
+#define SSTATE_DYING 3
+#define SSTATE_FORGOTTEN 4
 
-// interface modules
-extern const struct NCDInterfaceModule ncd_interface_physical;
-extern const struct NCDInterfaceModule ncd_interface_badvpn;
+struct statement {
+    const struct NCDModule *module;
+    struct argument_elem *first_arg;
+    char *name;
+};
 
-// interface modules list
-const struct NCDInterfaceModule *interface_modules[] = {
-    &ncd_interface_physical,
-    &ncd_interface_badvpn,
-    NULL
+struct argument_elem {
+    int is_var;
+    union {
+        struct {
+            char *modname;
+            char *varname;
+        } var;
+        NCDValue val;
+    };
+    struct argument_elem *next_arg;
+};
+
+struct process {
+    char *name;
+    size_t num_statements;
+    struct process_statement *statements;
+    size_t ap;
+    size_t fp;
+    BTimer wait_timer;
+    LinkedList2Node list_node; // node in processes
+};
+
+struct process_statement {
+    struct process *p;
+    size_t i;
+    struct statement s;
+    int state;
+    int have_error;
+    btime_t error_until;
+    NCDModuleInst inst;
+    NCDValue inst_args;
+    char logprefix[50];
 };
 
 // command-line options
@@ -86,52 +112,6 @@ struct {
     char *config_file;
 } options;
 
-struct interface {
-    LinkedList2Node list_node; // node in interfaces
-    struct NCDConfig_interfaces *conf;
-    const struct NCDInterfaceModule *module;
-    int state;
-    BTimer reset_timer;
-    LinkedList2 deps_out;
-    LinkedList2 deps_in;
-    BPending terminating_module_job;
-    int have_module_instance;
-    NCDInterfaceModuleInst module_instance;
-    int module_instance_finishing;
-    int module_instance_error;
-    int have_dhcp;
-    BDHCPClient dhcp;
-    LinkedList2 ipv4_addresses;
-    LinkedList2 ipv4_routes;
-    LinkedList2 ipv4_dns_servers;
-};
-
-struct dependency {
-    struct interface *src;
-    struct interface *dst;
-    LinkedList2Node src_node;
-    LinkedList2Node dst_node;
-};
-
-struct ipv4_addr_entry {
-    LinkedList2Node list_node; // node in interface.ipv4_addresses
-    struct ipv4_ifaddr ifaddr;
-};
-
-struct ipv4_route_entry {
-    LinkedList2Node list_node; // node in interface.ipv4_routes
-    struct ipv4_ifaddr dest;
-    int have_gateway;
-    uint32_t gateway;
-    int metric;
-};
-
-struct ipv4_dns_entry {
-    LinkedList2Node list_node; // node in interface.ipv4_dns_servers
-    uint32_t addr;
-    int priority;
-};
-
 // reactor
 BReactor ss;
 
@@ -144,62 +124,33 @@ BProcessManager manager;
 // configuration
 struct NCDConfig_interfaces *configuration;
 
-// interfaces
-LinkedList2 interfaces;
-
-// number of DNS servers
-size_t num_ipv4_dns_servers;
+// processes
+LinkedList2 processes;
 
 static void terminate (void);
-static void work_terminate (void);
 static void print_help (const char *name);
 static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
-static void load_interfaces (struct NCDConfig_interfaces *conf);
-static int set_dns_servers (void);
-static int dns_qsort_comparator (const void *v1, const void *v2);
-static struct interface * find_interface (const char *name);
-static int interface_init (struct NCDConfig_interfaces *conf);
-static void interface_terminate (struct interface *iface);
-static void interface_terminating_module_job_handler (struct interface *iface);
-static void interface_down_to (struct interface *iface, int state);
-static void interface_reset (struct interface *iface);
-static void interface_start (struct interface *iface);
-static void interface_module_up (struct interface *iface);
-static void interface_log (struct interface *iface, int level, const char *fmt, ...);
-static void interface_reset_timer_handler (struct interface *iface);
-static int interface_module_init (struct interface *iface);
-static void interface_module_free (struct interface *iface);
-static void interface_module_handler_event (struct interface *iface, int event);
-static void interface_module_handler_error (struct interface *iface);
-static int interface_dhcp_init (struct interface *iface);
-static void interface_dhcp_free (struct interface *iface);
-static void interface_dhcp_handler (struct interface *iface, int event);
-static void interface_remove_dependencies (struct interface *iface);
-static int interface_add_dependency (struct interface *iface, struct interface *dst);
-static void remove_dependency (struct dependency *d);
-static int interface_dependencies_satisfied (struct interface *iface);
-static void interface_satisfy_incoming_depenencies (struct interface *iface);
-static void interface_unsatisfy_incoming_depenencies (struct interface *iface);
-static int interface_configure_ipv4 (struct interface *iface);
-static void interface_deconfigure_ipv4 (struct interface *iface);
-static int interface_add_ipv4_addresses (struct interface *iface);
-static void interface_remove_ipv4_addresses (struct interface *iface);
-static int interface_add_ipv4_routes (struct interface *iface);
-static void interface_remove_ipv4_routes (struct interface *iface);
-static int interface_add_ipv4_dns_servers (struct interface *iface);
-static void interface_remove_ipv4_dns_servers (struct interface *iface);
-static int interface_add_ipv4_addr (struct interface *iface, struct ipv4_ifaddr ifaddr);
-static void interface_remove_ipv4_addr (struct interface *iface, struct ipv4_addr_entry *entry);
-static int interface_add_ipv4_route (struct interface *iface, struct ipv4_ifaddr dest, const uint32_t *gateway, int metric);
-static void interface_remove_ipv4_route (struct interface *iface, struct ipv4_route_entry *entry);
-static struct ipv4_addr_entry * interface_add_ipv4_addr_entry (struct interface *iface, struct ipv4_ifaddr ifaddr);
-static void interface_remove_ipv4_addr_entry (struct interface *iface, struct ipv4_addr_entry *entry);
-static struct ipv4_route_entry * interface_add_ipv4_route_entry (struct interface *iface, struct ipv4_ifaddr dest, const uint32_t *gateway, int metric);
-static void interface_remove_ipv4_route_entry (struct interface *iface, struct ipv4_route_entry *entry);
-static struct ipv4_dns_entry * interface_add_ipv4_dns_entry (struct interface *iface, uint32_t addr, int priority);
-static void interface_remove_ipv4_dns_entry (struct interface *iface, struct ipv4_dns_entry *entry);
+static int statement_init (struct statement *s, struct NCDConfig_statements *conf);
+static void statement_free (struct statement *s);
+static void statement_free_args (struct statement *s);
+static int process_new (struct NCDConfig_interfaces *conf);
+static void process_free (struct process *p);
+static void process_free_statements (struct process *p);
+static void process_assert_pointers (struct process *p);
+static void process_assert (struct process *p);
+static void process_log (struct process *p, int level, const char *fmt, ...);
+static void process_work (struct process *p);
+static void process_fight (struct process *p);
+static void process_advance (struct process *p);
+static void process_wait (struct process *p);
+static void process_wait_timer_handler (struct process *p);
+static void process_retreat (struct process *p);
+static void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...);
+static void process_statement_set_error (struct process_statement *ps);
+static void process_statement_instance_handler_event (struct process_statement *ps, int event);
+static void process_statement_instance_handler_died (struct process_statement *ps, int is_error);
 
 int main (int argc, char **argv)
 {
@@ -302,23 +253,34 @@ int main (int argc, char **argv)
     // fee config file memory
     free(file);
     
-    // init interfaces list
-    LinkedList2_Init(&interfaces);
-    
-    // set no DNS servers
-    num_ipv4_dns_servers = 0;
-    if (!set_dns_servers()) {
-        BLog(BLOG_ERROR, "failed to set no DNS servers");
-        goto fail5;
+    // init modules
+    for (const struct NCDModule **m = ncd_modules; *m; m++) {
+        if ((*m)->func_globalinit && !(*m)->func_globalinit()) {
+            BLog(BLOG_ERROR, "globalinit failed for module %s", (*m)->type);
+            goto fail5;
+        }
     }
     
-    // init interfaces
-    load_interfaces(configuration);
+    // init processes list
+    LinkedList2_Init(&processes);
+    
+    // init processes
+    struct NCDConfig_interfaces *pc = configuration;
+    while (pc) {
+        process_new(pc);
+        pc = pc->next;
+    }
     
     // enter event loop
     BLog(BLOG_NOTICE, "entering event loop");
     BReactor_Exec(&ss);
     
+    // free processes
+    LinkedList2Node *n;
+    while (n = LinkedList2_GetFirst(&processes)) {
+        struct process *p = UPPER_OBJECT(n, struct process, list_node);
+        process_free(p);
+    }
 fail5:
     // free configuration
     NCDConfig_free_interfaces(configuration);
@@ -350,18 +312,17 @@ void terminate (void)
     
     terminating = 1;
     
-    work_terminate();
-}
-
-void work_terminate (void)
-{
-    ASSERT(terminating)
-    
-    if (LinkedList2_IsEmpty(&interfaces)) {
+    if (LinkedList2_IsEmpty(&processes)) {
         BReactor_Quit(&ss, 1);
-    } else {
-        struct interface *iface = UPPER_OBJECT(LinkedList2_GetLast(&interfaces), struct interface, list_node);
-        interface_terminate(iface);
+        return;
+    }
+    
+    LinkedList2Iterator it;
+    LinkedList2Iterator_InitForward(&it, &processes);
+    LinkedList2Node *n;
+    while (n = LinkedList2Iterator_Next(&it)) {
+        struct process *p = UPPER_OBJECT(n, struct process, list_node);
+        process_work(p);
     }
 }
 
@@ -520,1060 +481,574 @@ void signal_handler (void *unused)
     }
 }
 
-void load_interfaces (struct NCDConfig_interfaces *conf)
+int statement_init (struct statement *s, struct NCDConfig_statements *conf)
 {
-    while (conf) {
-        interface_init(conf);
-        conf = conf->next;
-    }
-}
-
-struct dns_sort_entry {
-    uint32_t addr;
-    int priority;
-};
-
-int set_dns_servers (void)
-{
-    // collect servers
-    
-    struct dns_sort_entry servers[num_ipv4_dns_servers];
-    size_t num_servers = 0;
-    
-    LinkedList2Iterator if_it;
-    LinkedList2Iterator_InitForward(&if_it, &interfaces);
-    LinkedList2Node *if_node;
-    while (if_node = LinkedList2Iterator_Next(&if_it)) {
-        struct interface *iface = UPPER_OBJECT(if_node, struct interface, list_node);
-        
-        LinkedList2Iterator serv_it;
-        LinkedList2Iterator_InitForward(&serv_it, &iface->ipv4_dns_servers);
-        LinkedList2Node *serv_node;
-        while (serv_node = LinkedList2Iterator_Next(&serv_it)) {
-            struct ipv4_dns_entry *dns = UPPER_OBJECT(serv_node, struct ipv4_dns_entry, list_node);
-            
-            servers[num_servers].addr = dns->addr;
-            servers[num_servers].priority= dns->priority;
-            num_servers++;
-        }
-    }
-    
-    ASSERT(num_servers == num_ipv4_dns_servers)
-    
-    // sort by priority
-    qsort(servers, num_servers, sizeof(servers[0]), dns_qsort_comparator);
-    
-    // copy addresses into an array
-    uint32_t addrs[num_servers];
-    for (size_t i = 0; i < num_servers; i++) {
-        addrs[i] = servers[i].addr;
-    }
-    
-    // set servers
-    if (!NCDIfConfig_set_dns_servers(addrs, num_servers)) {
-        BLog(BLOG_ERROR, "failed to set DNS servers");
-        return 0;
-    }
-    
-    return 1;
-}
-
-int dns_qsort_comparator (const void *v1, const void *v2)
-{
-    const struct dns_sort_entry *e1 = v1;
-    const struct dns_sort_entry *e2 = v2;
-    
-    if (e1->priority < e2->priority) {
-        return -1;
-    }
-    if (e1->priority > e2->priority) {
-        return 1;
-    }
-    return 0;
-}
-
-struct interface * find_interface (const char *name)
-{
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &interfaces);
-    LinkedList2Node *node;
-    while (node = LinkedList2Iterator_Next(&it)) {
-        struct interface *iface = UPPER_OBJECT(node, struct interface, list_node);
-        if (!strcmp(iface->conf->name, name)) {
-            LinkedList2Iterator_Free(&it);
-            return iface;
-        }
-    }
-    
-    return NULL;
-}
-
-int interface_init (struct NCDConfig_interfaces *conf)
-{
-    // check for existing interface
-    if (find_interface(conf->name)) {
-        BLog(BLOG_ERROR, "interface %s already exists", conf->name);
+    // find module
+    char *module_name = NCDConfig_concat_strings(conf->names);
+    if (!module_name) {
         goto fail0;
     }
-    
-    // allocate interface entry
-    struct interface *iface = malloc(sizeof(*iface));
-    if (!iface) {
-        BLog(BLOG_ERROR, "malloc failed for interface %s", conf->name);
-        goto fail0;
-    }
-    
-    // set conf
-    iface->conf = conf;
-    
-    // find interface module
-    struct NCDConfig_statements *type_st = NCDConfig_find_statement(conf->statements, "type");
-    if (!type_st) {
-        interface_log(iface, BLOG_ERROR, "missing type");
-        goto fail1;
-    }
-    char *type;
-    if (!NCDConfig_statement_has_one_arg(type_st, &type)) {
-        interface_log(iface, BLOG_ERROR, "type: wrong arity");
-        goto fail1;
-    }
-    const struct NCDInterfaceModule **m;
-    for (m = interface_modules; *m; m++) {
-        if (!strcmp((*m)->type, type)) {
+    const struct NCDModule **m;
+    for (m = ncd_modules; *m; m++) {
+        if (!strcmp(module_name, (*m)->type)) {
             break;
         }
     }
     if (!*m) {
-        interface_log(iface, BLOG_ERROR, "type: unknown value");
-        goto fail1;
+        BLog(BLOG_ERROR, "no module for statement %s", module_name);
+        free(module_name);
+        goto fail0;
     }
-    iface->module = *m;
+    free(module_name);
     
-    // init reset timer
-    BTimer_Init(&iface->reset_timer, INTERFACE_RETRY_TIME, (BTimer_handler)interface_reset_timer_handler, iface);
+    // set module
+    s->module = *m;
     
-    // init outgoing dependencies list
-    LinkedList2_Init(&iface->deps_out);
-    
-    // init outgoing dependencies
-    struct NCDConfig_statements *need_st = conf->statements;
-    while (need_st = NCDConfig_find_statement(need_st, "need")) {
-        char *need_ifname;
-        if (!NCDConfig_statement_has_one_arg(need_st, &need_ifname)) {
-            interface_log(iface, BLOG_ERROR, "need: wrong arity");
-            goto fail2;
+    // init arguments
+    s->first_arg = NULL;
+    struct argument_elem **prevptr = &s->first_arg;
+    struct NCDConfig_arguments *arg = conf->args;
+    while (arg) {
+        struct argument_elem *e = malloc(sizeof(*e));
+        if (!e) {
+            goto fail1;
         }
         
-        struct interface *need_if = find_interface(need_ifname);
-        if (!need_if) {
-            interface_log(iface, BLOG_ERROR, "need: %s: unknown interface", need_ifname);
-            goto fail2;
+        switch (arg->type) {
+            case NCDCONFIG_ARG_STRING: {
+                if (!NCDValue_InitString(&e->val, arg->string)) {
+                    free(e);
+                    goto fail1;
+                }
+                
+                e->is_var = 0;
+            } break;
+            
+            case NCDCONFIG_ARG_VAR: {
+                if (!(e->var.modname = strdup(arg->var->value))) {
+                    free(e);
+                    goto fail1;
+                }
+                
+                if (!arg->var->next) {
+                    e->var.varname = NULL;
+                } else {
+                    if (!(e->var.varname = NCDConfig_concat_strings(arg->var->next))) {
+                        free(e->var.modname);
+                        free(e);
+                        goto fail1;
+                    }
+                }
+                
+                e->is_var = 1;
+            } break;
+            
+            default:
+                ASSERT(0);
         }
         
-        if (!interface_add_dependency(iface, need_if)) {
-            interface_log(iface, BLOG_ERROR, "need: %s: failed to add dependency", need_ifname);
-            goto fail2;
-        }
+        *prevptr = e;
+        e->next_arg = NULL;
+        prevptr = &e->next_arg;
         
-        need_st = need_st->next;
+        arg = arg->next;
     }
     
-    // init incoming dependencies list
-    LinkedList2_Init(&iface->deps_in);
-    
-    // init terminating module job
-    BPending_Init(&iface->terminating_module_job, BReactor_PendingGroup(&ss), (BPending_handler)interface_terminating_module_job_handler, iface);
-    
-    // set no module instance
-    iface->have_module_instance = 0;
-    
-    // set no DHCP
-    iface->have_dhcp = 0;
-    
-    // init ipv4 addresses list
-    LinkedList2_Init(&iface->ipv4_addresses);
-    
-    // init ipv4 routes list
-    LinkedList2_Init(&iface->ipv4_routes);
-    
-    // init ipv4 dns servers list
-    LinkedList2_Init(&iface->ipv4_dns_servers);
-    
-    // insert to interfaces list
-    LinkedList2_Append(&interfaces, &iface->list_node);
-    
-    interface_start(iface);
+    // init name
+    if (!conf->name) {
+        s->name = NULL;
+    } else {
+        if (!(s->name = strdup(conf->name))) {
+            goto fail1;
+        }
+    }
     
     return 1;
     
-fail2:
-    interface_remove_dependencies(iface);
 fail1:
-    free(iface);
+    statement_free_args(s);
 fail0:
     return 0;
 }
 
-void interface_terminate (struct interface *iface)
+void statement_free (struct statement *s)
 {
-    ASSERT(terminating)
-    ASSERT(LinkedList2_IsEmpty(&iface->deps_in))
+    // free name
+    free(s->name);
     
-    // stop reset timer
-    BReactor_RemoveTimer(&ss, &iface->reset_timer);
-    
-    // deconfigure IPv4
-    interface_deconfigure_ipv4(iface);
-    
-    // free DHCP
-    if (iface->have_dhcp) {
-        interface_dhcp_free(iface);
+    // free arguments
+    statement_free_args(s);
+}
+
+void statement_free_args (struct statement *s)
+{
+    struct argument_elem *e = s->first_arg;
+    while (e) {
+        if (e->is_var) {
+            free(e->var.modname);
+            free(e->var.varname);
+        } else {
+            NCDValue_Free(&e->val);
+        }
+        struct argument_elem *n = e->next_arg;
+        free(e);
+        e = n;
+    }
+}
+
+int process_new (struct NCDConfig_interfaces *conf)
+{
+    // allocate strucure
+    struct process *p = malloc(sizeof(*p));
+    if (!p) {
+        goto fail0;
     }
     
-    // finish module instance
-    if (iface->have_module_instance) {
-        if (!iface->module_instance_finishing) {
-            NCDInterfaceModuleInst_Finish(&iface->module_instance);
-            iface->module_instance_finishing = 1;
+    // init name
+    if (!(p->name = strdup(conf->name))) {
+        goto fail1;
+    }
+    
+    // count statements
+    size_t num_st = 0;
+    struct NCDConfig_statements *st = conf->statements;
+    while (st) {
+        num_st++;
+        st = st->next;
+    }
+    
+    // statements array
+    if (!(p->statements = BAllocArray(num_st, sizeof(p->statements[0])))) {
+        goto fail2;
+    }
+    p->num_statements = 0;
+    
+    // init statements
+    st = conf->statements;
+    while (st) {
+        struct process_statement *ps = &p->statements[p->num_statements];
+        
+        ps->p = p;
+        ps->i = p->num_statements;
+        
+        if (!statement_init(&ps->s, st)) {
+            goto fail3;
         }
         
-        interface_log(iface, BLOG_INFO, "waiting for module to finish");
+        ps->state = SSTATE_FORGOTTEN;
         
-        // wait for module to finish
-        iface->state = INTERFACE_STATE_TERMINATING;
-    } else {
-        // continue now
-        BPending_Set(&iface->terminating_module_job);
+        ps->have_error = 0;
+        
+        p->num_statements++;
+        
+        st = st->next;
     }
+    
+    // set AP=0
+    p->ap = 0;
+    
+    // set FP=0
+    p->fp = 0;
+    
+    // init timer
+    BTimer_Init(&p->wait_timer, RETRY_TIME, (BTimer_handler)process_wait_timer_handler, p);
+    
+    // insert to processes list
+    LinkedList2_Append(&processes, &p->list_node);
+    
+    process_work(p);
+    
+    return 1;
+    
+fail3:
+    process_free_statements(p);
+fail2:
+    free(p->name);
+fail1:
+    free(p);
+fail0:
+    return 0;
 }
 
-void interface_terminating_module_job_handler (struct interface *iface)
+void process_free (struct process *p)
 {
-    ASSERT(terminating)
-    ASSERT(!BTimer_IsRunning(&iface->reset_timer))
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_addresses))
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_routes))
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_dns_servers))
-    ASSERT(!iface->have_dhcp)
-    ASSERT(!iface->have_module_instance)
+    ASSERT(p->ap == 0)
+    ASSERT(p->fp == 0)
     
-    // free terminating module job
-    BPending_Free(&iface->terminating_module_job);
+    // remove from processes list
+    LinkedList2_Remove(&processes, &p->list_node);
     
-    // remove from interfaces list
-    LinkedList2_Remove(&interfaces, &iface->list_node);
+    // free timer
+    BReactor_RemoveTimer(&ss, &p->wait_timer);
     
-    // remove outgoing dependencies
-    interface_remove_dependencies(iface);
+    // free statements
+    process_free_statements(p);
     
-    // free memory
-    free(iface);
+    // free name
+    free(p->name);
     
-    // continue terminating
-    work_terminate();
+    // free strucure
+    free(p);
 }
 
-void interface_down_to (struct interface *iface, int state)
+void process_free_statements (struct process *p)
 {
-    ASSERT(state >= INTERFACE_STATE_WAITDEPS)
-    
-    if (state < INTERFACE_STATE_FINISHED) {
-        // unsatisfy incoming dependencies
-        interface_unsatisfy_incoming_depenencies(iface);
-        
-        // deconfigure IPv4
-        interface_deconfigure_ipv4(iface);
+    // free statments
+    for (size_t i = 0; i < p->num_statements; i++) {
+        struct process_statement *ps = &p->statements[i];
+        statement_free(&ps->s);
     }
     
-    // deconfigure DHCP
-    if (state < INTERFACE_STATE_DHCP && iface->have_dhcp) {
-        interface_dhcp_free(iface);
-    }
+    // free stataments array
+    free(p->statements);
+}
+
+void process_assert_pointers (struct process *p)
+{
+    ASSERT(p->ap <= p->num_statements)
+    ASSERT(p->fp >= p->ap)
+    ASSERT(p->fp <= p->num_statements)
     
-    // finish module instance
-    if (state < INTERFACE_STATE_WAITMODULE && iface->have_module_instance) {
-        if (iface->module_instance_error) {
-            interface_module_free(iface);
+    // check AP
+    for (size_t i = 0; i < p->ap; i++) {
+        if (i == p->ap - 1) {
+            ASSERT(p->statements[i].state == SSTATE_ADULT || p->statements[i].state == SSTATE_CHILD)
+        } else {
+            ASSERT(p->statements[i].state == SSTATE_ADULT)
         }
-        else if (!iface->module_instance_finishing) {
-            NCDInterfaceModuleInst_Finish(&iface->module_instance);
-            iface->module_instance_finishing = 1;
-        }
     }
     
-    // start/stop reset timer
-    if (state == INTERFACE_STATE_RESETTING) {
-        BReactor_SetTimer(&ss, &iface->reset_timer);
-    } else {
-        BReactor_RemoveTimer(&ss, &iface->reset_timer);
+    // check FP
+    size_t fp = p->num_statements;
+    while (fp > 0 && p->statements[fp - 1].state == SSTATE_FORGOTTEN) {
+        fp--;
     }
-    
-    // set state
-    iface->state = state;
+    ASSERT(p->fp == fp)
 }
 
-void interface_reset (struct interface *iface)
+void process_assert (struct process *p)
 {
-    interface_log(iface, BLOG_INFO, "will try again later");
-    
-    interface_down_to(iface, INTERFACE_STATE_RESETTING);
+    process_assert_pointers(p);
 }
 
-void interface_start (struct interface *iface)
-{
-    ASSERT(!BTimer_IsRunning(&iface->reset_timer))
-    ASSERT(!iface->have_dhcp)
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_addresses))
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_routes))
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_dns_servers))
-    
-    if (iface->have_module_instance) {
-        ASSERT(iface->module_instance_finishing)
-        
-        interface_log(iface, BLOG_ERROR, "module still finishing");
-        return;
-    }
-    
-    // check dependencies
-    if (!interface_dependencies_satisfied(iface)) {
-        interface_log(iface, BLOG_INFO, "waiting for dependencies");
-        
-        // waiting for dependencies
-        iface->state = INTERFACE_STATE_WAITDEPS;
-        return;
-    }
-    
-    // init module
-    if (!interface_module_init(iface)) {
-        goto fail;
-    }
-    
-    interface_log(iface, BLOG_INFO, "waiting for module");
-    
-    // waiting for module
-    iface->state = INTERFACE_STATE_WAITMODULE;
-    
-    return;
-    
-fail:
-    interface_reset(iface);
-}
-
-void interface_module_up (struct interface *iface)
-{
-    ASSERT(iface->have_module_instance)
-    ASSERT(!iface->have_dhcp)
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_addresses))
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_routes))
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_dns_servers))
-    
-    // check for DHCP
-    struct NCDConfig_statements *dhcp_st = NCDConfig_find_statement(iface->conf->statements, "dhcp");
-    if (dhcp_st) {
-        if (dhcp_st->args) {
-            interface_log(iface, BLOG_ERROR, "dhcp: wrong arity");
-            goto fail;
-        }
-        
-        // init DHCP client
-        if (!interface_dhcp_init(iface)) {
-            goto fail;
-        }
-        
-        // set state
-        iface->state = INTERFACE_STATE_DHCP;
-        
-        return;
-    }
-    
-    // configure IPv4
-    if (!interface_configure_ipv4(iface)) {
-        goto fail;
-    }
-    
-    // set state finished
-    iface->state = INTERFACE_STATE_FINISHED;
-    
-    // satisfy incoming dependencies
-    interface_satisfy_incoming_depenencies(iface);
-    
-    return;
-    
-fail:
-    interface_reset(iface);
-}
-
-void interface_log (struct interface *iface, int level, const char *fmt, ...)
+void process_log (struct process *p, int level, const char *fmt, ...)
 {
     va_list vl;
     va_start(vl, fmt);
-    BLog_Append("interface %s: ", iface->conf->name);
+    BLog_Append("process %s: ", p->name);
     BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
     va_end(vl);
 }
 
-void interface_reset_timer_handler (struct interface *iface)
+void process_work (struct process *p)
 {
-    ASSERT(iface->state == INTERFACE_STATE_RESETTING)
+    process_assert_pointers(p);
     
-    // start interface
-    interface_start(iface);
-}
-
-int interface_module_init (struct interface *iface)
-{
-    ASSERT(!iface->have_module_instance)
+    // stop timer in case we were WAITING
+    BReactor_RemoveTimer(&ss, &p->wait_timer);
     
-    if (!NCDInterfaceModuleInst_Init(
-        &iface->module_instance, iface->module, &ss, &manager, iface->conf,
-        (NCDInterfaceModule_handler_event)interface_module_handler_event,
-        (NCDInterfaceModule_handler_error)interface_module_handler_error,
-        iface
-    )) {
-        interface_log(iface, BLOG_ERROR, "failed to initialize module instance");
-        return 0;
+    if (terminating) {
+        process_retreat(p);
+        return;
     }
     
-    iface->have_module_instance = 1;
-    iface->module_instance_finishing = 0;
-    iface->module_instance_error = 0;
-    
-    return 1;
+    process_fight(p);
 }
 
-void interface_module_free (struct interface *iface)
+void process_fight (struct process *p)
 {
-    ASSERT(iface->have_module_instance)
-    
-    NCDInterfaceModuleInst_Free(&iface->module_instance);
-    
-    iface->have_module_instance = 0;
-}
-
-void interface_module_handler_event (struct interface *iface, int event)
-{
-    ASSERT(iface->have_module_instance)
-    ASSERT(iface->state >= INTERFACE_STATE_WAITMODULE)
-    
-    switch (event) {
-        case NCDINTERFACEMODULE_EVENT_UP: {
-            ASSERT(iface->state == INTERFACE_STATE_WAITMODULE)
-            
-            interface_log(iface, BLOG_INFO, "module up");
-            
-            interface_module_up(iface);
-        } break;
-        
-        case NCDINTERFACEMODULE_EVENT_DOWN: {
-            ASSERT(iface->state > INTERFACE_STATE_WAITMODULE)
-            
-            interface_log(iface, BLOG_INFO, "module down");
-            
-            interface_down_to(iface, INTERFACE_STATE_WAITMODULE);
-        } break;
-        
-        default:
-            ASSERT(0);
-    }
-}
-
-void interface_module_handler_error (struct interface *iface)
-{
-    ASSERT(iface->have_module_instance)
-    ASSERT(!iface->module_instance_error)
-    
-    if (iface->state >= INTERFACE_STATE_WAITMODULE) {
-        interface_log(iface, BLOG_INFO, "module error");
-        
-        // set module error so it will be freed
-        iface->module_instance_error = 1;
-        
-        interface_reset(iface);
-    } else {
-        interface_log(iface, BLOG_INFO, "module finished");
-        
-        // free module
-        interface_module_free(iface);
-        
-        if (iface->state >= INTERFACE_STATE_WAITDEPS) {
-            if (
-                iface->state == INTERFACE_STATE_WAITDEPS ||
-                (iface->state == INTERFACE_STATE_RESETTING && !BTimer_IsRunning(&iface->reset_timer))
-            ) {
-                interface_start(iface);
-            }
-        }
-        else { // INTERFACE_STATE_TERMINATING
-            BPending_Set(&iface->terminating_module_job);
-        }
-    }
-}
-
-static int interface_dhcp_init (struct interface *iface)
-{
-    ASSERT(!iface->have_dhcp)
-    
-    if (!BDHCPClient_Init(&iface->dhcp, iface->conf->name, &ss, (BDHCPClient_handler)interface_dhcp_handler, iface)) {
-        interface_log(iface, BLOG_ERROR, "BDHCPClient_Init failed");
-        return 0;
-    }
-    
-    iface->have_dhcp = 1;
-    
-    return 1;
-}
-
-static void interface_dhcp_free (struct interface *iface)
-{
-    ASSERT(iface->have_dhcp)
-    
-    BDHCPClient_Free(&iface->dhcp);
-    
-    iface->have_dhcp = 0;
-}
-
-void interface_dhcp_handler (struct interface *iface, int event)
-{
-    ASSERT(iface->have_dhcp)
-    
-    switch (event) {
-        case BDHCPCLIENT_EVENT_UP: {
-            ASSERT(iface->state == INTERFACE_STATE_DHCP)
-            
-            interface_log(iface, BLOG_INFO, "DHCP up");
-            
-            // configure IPv4
-            if (!interface_configure_ipv4(iface)) {
-                goto fail;
-            }
-            
-            // set state
-            iface->state = INTERFACE_STATE_FINISHED;
-            
-            // satisfy incoming dependencies
-            interface_satisfy_incoming_depenencies(iface);
-            
-            return;
-            
-        fail:
-            interface_reset(iface);
-        } break;
-        
-        case BDHCPCLIENT_EVENT_DOWN: {
-            ASSERT(iface->state == INTERFACE_STATE_FINISHED)
-            
-            interface_log(iface, BLOG_INFO, "DHCP down");
-            
-            interface_down_to(iface, INTERFACE_STATE_DHCP);
-        } break;
-        
-        default:
-            ASSERT(0);
-    }
-}
-
-void interface_remove_dependencies (struct interface *iface)
-{
-    LinkedList2Node *node;
-    while (node = LinkedList2_GetFirst(&iface->deps_out)) {
-        struct dependency *d = UPPER_OBJECT(node, struct dependency, src_node);
-        ASSERT(d->src == iface)
-        
-        remove_dependency(d);
-    }
-}
-
-int interface_add_dependency (struct interface *iface, struct interface *dst_iface)
-{
-    // allocate entry
-    struct dependency *d = malloc(sizeof(*d));
-    if (!d) {
-        return 0;
-    }
-    
-    // set src and dst
-    d->src = iface;
-    d->dst = dst_iface;
-    
-    // insert to src list
-    LinkedList2_Append(&iface->deps_out, &d->src_node);
-    
-    // insert to dst list
-    LinkedList2_Append(&dst_iface->deps_in, &d->dst_node);
-    
-    return 1;
-}
-
-void remove_dependency (struct dependency *d)
-{
-    // remove from dst list
-    LinkedList2_Remove(&d->dst->deps_in, &d->dst_node);
-    
-    // remove from src list
-    LinkedList2_Remove(&d->src->deps_out, &d->src_node);
-    
-    // free entry
-    free(d);
-}
-
-int interface_dependencies_satisfied (struct interface *iface)
-{
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &iface->deps_out);
-    LinkedList2Node *node;
-    while (node = LinkedList2Iterator_Next(&it)) {
-        struct dependency *d = UPPER_OBJECT(node, struct dependency, src_node);
-        ASSERT(d->src == iface)
-        
-        if (d->dst->state != INTERFACE_STATE_FINISHED) {
-            LinkedList2Iterator_Free(&it);
-            return 0;
-        }
-    }
-    
-    return 1;
-}
-
-void interface_satisfy_incoming_depenencies (struct interface *iface)
-{
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &iface->deps_in);
-    LinkedList2Node *node;
-    while (node = LinkedList2Iterator_Next(&it)) {
-        struct dependency *d = UPPER_OBJECT(node, struct dependency, dst_node);
-        ASSERT(d->dst == iface)
-        
-        if (d->src->state == INTERFACE_STATE_WAITDEPS) {
-            interface_log(d->src, BLOG_INFO, "dependency %s satisfied", iface->conf->name);
-            
-            interface_start(d->src);
-        }
-    }
-}
-
-void interface_unsatisfy_incoming_depenencies (struct interface *iface)
-{
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &iface->deps_in);
-    LinkedList2Node *node;
-    while (node = LinkedList2Iterator_Next(&it)) {
-        struct dependency *d = UPPER_OBJECT(node, struct dependency, dst_node);
-        ASSERT(d->dst == iface)
-        
-        if (d->src->state > INTERFACE_STATE_WAITDEPS) {
-            interface_log(d->src, BLOG_INFO, "dependency %s no longer satisfied", iface->conf->name);
-            
-            interface_down_to(d->src, INTERFACE_STATE_WAITDEPS);
-        }
-    }
-}
-
-int interface_configure_ipv4 (struct interface *iface)
-{
-    ASSERT(!(iface->have_dhcp) || BDHCPClient_IsUp(&iface->dhcp))
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_addresses))
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_routes))
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_dns_servers))
-    
-    // configure addresses
-    if (!interface_add_ipv4_addresses(iface)) {
-        return 0;
-    }
-    
-    // configure routes
-    if (!interface_add_ipv4_routes(iface)) {
-        return 0;
-    }
-    
-    // configure DNS servers
-    if (!interface_add_ipv4_dns_servers(iface)) {
-        return 0;
-    }
-    
-    return 1;
-}
-
-void interface_deconfigure_ipv4 (struct interface *iface)
-{
-    // remove DNS servers
-    interface_remove_ipv4_dns_servers(iface);
-    
-    // remove routes
-    interface_remove_ipv4_routes(iface);
-    
-    // remove addresses
-    interface_remove_ipv4_addresses(iface);
-}
-
-int interface_add_ipv4_addresses (struct interface *iface)
-{
-    ASSERT(!(iface->have_dhcp) || BDHCPClient_IsUp(&iface->dhcp))
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_addresses))
-    
-    struct NCDConfig_statements *st = iface->conf->statements;
-    
-    while (st = NCDConfig_find_statement(st, "ipv4.addr")) {
-        // get address string
-        char *addrstr;
-        if (!NCDConfig_statement_has_one_arg(st, &addrstr)) {
-            interface_log(iface, BLOG_ERROR, "ipv4.addr: wrong arity");
-            return 0;
+    if (p->ap == p->fp) {
+        if (!(p->ap > 0 && p->statements[p->ap - 1].state == SSTATE_CHILD)) {
+            // advance
+            process_advance(p);
         }
         
-        struct ipv4_ifaddr ifaddr;
-        
-        // is this a DHCP address?
-        if (!strcmp(addrstr, "dhcp_addr")) {
-            // check if DHCP is enabled
-            if (!iface->have_dhcp) {
-                interface_log(iface, BLOG_ERROR, "ipv4.addr: %s: DHCP not enabled", addrstr);
-                return 0;
-            }
-            
-            // get address and mask
-            uint32_t addr;
-            BDHCPClient_GetClientIP(&iface->dhcp, &addr);
-            uint32_t mask;
-            BDHCPClient_GetClientMask(&iface->dhcp, &mask);
-            
-            // convert to ifaddr
-            if (!ipaddr_ipv4_ifaddr_from_addr_mask(addr, mask, &ifaddr)) {
-                interface_log(iface, BLOG_ERROR, "ipv4.addr: %s: wrong mask", addrstr);
-                return 0;
-            }
-        } else {
-            // parse address string
-            if (!ipaddr_parse_ipv4_ifaddr(addrstr, &ifaddr)) {
-                interface_log(iface, BLOG_ERROR, "ipv4.addr: %s: wrong format", addrstr);
-                return 0;
-            }
-        }
-        
-        // add this address
-        if (!interface_add_ipv4_addr(iface, ifaddr)) {
-            interface_log(iface, BLOG_ERROR, "ipv4.addr: %s: failed to add", addrstr);
-            return 0;
-        }
-        
-        st = st->next;
+        return;
     }
     
-    return 1;
-}
-
-void interface_remove_ipv4_addresses (struct interface *iface)
-{
-    LinkedList2Node *node;
-    while (node = LinkedList2_GetLast(&iface->ipv4_addresses)) {
-        struct ipv4_addr_entry *entry = UPPER_OBJECT(node, struct ipv4_addr_entry, list_node);
-        interface_remove_ipv4_addr(iface, entry);
-    }
-}
-
-int interface_add_ipv4_routes (struct interface *iface)
-{
-    ASSERT(!(iface->have_dhcp) || BDHCPClient_IsUp(&iface->dhcp))
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_routes))
-    
-    struct NCDConfig_statements *st = iface->conf->statements;
-    
-    while (st = NCDConfig_find_statement(st, "ipv4.route")) {
-        // read statement
-        char *dest_str;
-        char *gateway_str;
-        char *metric_str;
-        if (!NCDConfig_statement_has_three_args(st, &dest_str, &gateway_str, &metric_str)) {
-            interface_log(iface, BLOG_ERROR, "ipv4.route: wrong arity");
-            return 0;
-        }
+    // order the last living statement to die, if needed
+    struct process_statement *ps = &p->statements[p->fp - 1];
+    if (ps->state != SSTATE_DYING) {
+        process_statement_log(ps, BLOG_INFO, "killing");
         
-        // parse dest string
-        struct ipv4_ifaddr dest;
-        if (!ipaddr_parse_ipv4_ifaddr(dest_str, &dest)) {
-            interface_log(iface, BLOG_ERROR, "ipv4.route: (%s,%s,%s): dest: wrong format", dest_str, gateway_str, metric_str);
-            return 0;
-        }
+        // order it to die
+        NCDModuleInst_Die(&ps->inst);
         
-        int have_gateway;
-        uint32_t gateway;
-        
-        // is gateway a DHCP router?
-        if (!strcmp(gateway_str, "dhcp_router")) {
-            // check if DHCP is enabled
-            if (!iface->have_dhcp) {
-                interface_log(iface, BLOG_ERROR, "ipv4.route: (%s,%s,%s): gateway: DHCP not enabled", dest_str, gateway_str, metric_str);
-                return 0;
-            }
-            
-            // obtain gateway from DHCP
-            if (!BDHCPClient_GetRouter(&iface->dhcp, &gateway)) {
-                interface_log(iface, BLOG_ERROR, "ipv4.route: (%s,%s,%s): gateway: DHCP did not provide a router", dest_str, gateway_str, metric_str);
-                return 0;
-            }
-            
-            have_gateway = 1;
-        }
-        else if (!strcmp(gateway_str, "none")) {
-            // no gateway
-            have_gateway = 0;
-        }
-        else {
-            // parse gateway string
-            if (!ipaddr_parse_ipv4_addr(gateway_str, strlen(gateway_str), &gateway)) {
-                interface_log(iface, BLOG_ERROR, "ipv4.route: (%s,%s,%s): gateway: wrong format", dest_str, gateway_str, metric_str);
-                return 0;
-            }
-            
-            have_gateway = 1;
-        }
-        
-        // parse metric string
-        int metric = atoi(metric_str);
-        
-        // add this address
-        if (!interface_add_ipv4_route(iface, dest, (have_gateway ? &gateway : NULL), metric)) {
-            interface_log(iface, BLOG_ERROR, "ipv4.route: (%s,%s,%s): failed to add", dest_str, gateway_str, metric_str);
-            return 0;
-        }
-        
-        st = st->next;
+        // set statement state DYING
+        ps->state = SSTATE_DYING;
     }
     
-    return 1;
+    process_assert(p);
 }
 
-void interface_remove_ipv4_routes (struct interface *iface)
+void process_advance (struct process *p)
 {
-    LinkedList2Node *node;
-    while (node = LinkedList2_GetLast(&iface->ipv4_routes)) {
-        struct ipv4_route_entry *entry = UPPER_OBJECT(node, struct ipv4_route_entry, list_node);
-        interface_remove_ipv4_route(iface, entry);
+    ASSERT(p->ap == p->fp)
+    ASSERT(!(p->ap > 0) || p->statements[p->ap - 1].state == SSTATE_ADULT)
+    
+    if (p->ap == p->num_statements) {
+        process_log(p, BLOG_INFO, "victory");
+        
+        process_assert(p);
+        return;
     }
-}
-
-int interface_add_ipv4_dns_servers (struct interface *iface)
-{
-    ASSERT(!(iface->have_dhcp) || BDHCPClient_IsUp(&iface->dhcp))
-    ASSERT(LinkedList2_IsEmpty(&iface->ipv4_dns_servers))
     
-    // read servers into entries
+    struct process_statement *ps = &p->statements[p->ap];
     
-    struct NCDConfig_statements *st = iface->conf->statements;
+    // check if we need to wait
+    if (ps->have_error && ps->error_until > btime_gettime()) {
+        process_wait(p);
+        return;
+    }
     
-    while (st = NCDConfig_find_statement(st, "ipv4.dns")) {
-        // read statement
-        char *addr_str;
-        char *priority_str;
-        if (!NCDConfig_statement_has_two_args(st, &addr_str, &priority_str)) {
-            interface_log(iface, BLOG_ERROR, "ipv4.dns: wrong arity");
-            return 0;
-        }
+    process_statement_log(ps, BLOG_INFO, "initializing");
+    
+    // init arguments list
+    NCDValue_InitList(&ps->inst_args);
+    
+    // build arguments
+    struct argument_elem *arg = ps->s.first_arg;
+    while (arg) {
+        NCDValue v;
         
-        // parse priority string
-        int priority = atoi(priority_str);
-        
-        // are these DHCP DNS servers?
-        if (!strcmp(addr_str, "dhcp_dns_servers")) {
-            // get servers from DHCP
-            uint32_t addrs[BDHCPCLIENT_MAX_DOMAIN_NAME_SERVERS];
-            int num_addrs = BDHCPClient_GetDNS(&iface->dhcp, addrs, BDHCPCLIENT_MAX_DOMAIN_NAME_SERVERS);
-            
-            // add entries
-            for (int i = 0; i < num_addrs; i++) {
-                // add entry
-                if (!interface_add_ipv4_dns_entry(iface, addrs[i], priority)) {
-                    interface_log(iface, BLOG_ERROR, "ipv4.dns: (%s,%s): failed to add entry", addr_str, priority_str);
-                    return 0;
+        if (arg->is_var) {
+            // find referred-to statement
+            struct process_statement *rps;
+            size_t i;
+            for (i = p->ap; i > 0; i--) {
+                rps = &p->statements[i - 1];
+                if (rps->s.name && !strcmp(rps->s.name, arg->var.modname)) {
+                    break;
                 }
             }
-        } else {
-            // parse addr string
-            uint32_t addr;
-            if (!ipaddr_parse_ipv4_addr(addr_str, strlen(addr_str), &addr)) {
-                interface_log(iface, BLOG_ERROR, "ipv4.dns: (%s,%s): addr: wrong format", addr_str, priority_str);
-                return 0;
+            if (i == 0) {
+                process_statement_log(ps, BLOG_ERROR, "unknown statement name in variable: %s.%s", arg->var.modname, arg->var.varname);
+                goto fail1;
             }
+            ASSERT(rps->state == SSTATE_ADULT)
             
-            // add entry
-            if (!interface_add_ipv4_dns_entry(iface, addr, priority)) {
-                interface_log(iface, BLOG_ERROR, "ipv4.dns: (%s,%s): failed to add entry", addr_str, priority_str);
-                return 0;
+            // resolve variable
+            const char *real_varname = (arg->var.varname ? arg->var.varname : "");
+            if (!NCDModuleInst_GetVar(&rps->inst, real_varname, &v)) {
+                process_statement_log(ps, BLOG_ERROR, "failed to resolve variable: %s.%s", arg->var.modname, real_varname);
+                goto fail1;
+            }
+        } else {
+            if (!NCDValue_InitCopy(&v, &arg->val)) {
+                process_statement_log(ps, BLOG_ERROR, "NCDValue_InitCopy failed");
+                goto fail1;
             }
         }
         
-        st = st->next;
+        // move to list
+        if (!NCDValue_ListAppend(&ps->inst_args, v)) {
+            process_statement_log(ps, BLOG_ERROR, "NCDValue_ListAppend failed");
+            NCDValue_Free(&v);
+            goto fail1;
+        }
+        
+        arg = arg->next_arg;
     }
     
-    // set servers
-    if (!set_dns_servers()) {
-        return 0;
+    // generate log prefix
+    snprintf(ps->logprefix, sizeof(ps->logprefix), "process %s: statement %zu: module: ", p->name, ps->i);
+    
+    // initialize module instance
+    if (!NCDModuleInst_Init(
+        &ps->inst, ps->s.name, ps->s.module, &ps->inst_args, ps->logprefix, &ss, &manager,
+        (NCDModule_handler_event)process_statement_instance_handler_event, (NCDModule_handler_died)process_statement_instance_handler_died, ps
+    )) {
+        process_statement_log(ps, BLOG_ERROR, "failed to initialize");
+        goto fail1;
     }
     
-    return 1;
+    // set statement state CHILD
+    ps->state = SSTATE_CHILD;
+    
+    // increment AP
+    p->ap++;
+    
+    // increment FP
+    p->fp++;
+    
+    process_assert(p);
+    
+    return;
+    
+fail1:
+    NCDValue_Free(&ps->inst_args);
+    process_statement_set_error(ps);
+    process_wait(p);
 }
 
-void interface_remove_ipv4_dns_servers (struct interface *iface)
+void process_wait (struct process *p)
 {
-    // remove entries
-    LinkedList2Node *node;
-    while (node = LinkedList2_GetFirst(&iface->ipv4_dns_servers)) {
-        struct ipv4_dns_entry *entry = UPPER_OBJECT(node, struct ipv4_dns_entry, list_node);
-        interface_remove_ipv4_dns_entry(iface, entry);
-    }
+    ASSERT(p->ap == p->fp)
+    ASSERT(!(p->ap > 0) || p->statements[p->ap - 1].state == SSTATE_ADULT)
+    ASSERT(p->ap < p->num_statements)
+    ASSERT(p->statements[p->ap].have_error)
     
-    // set servers
-    set_dns_servers();
+    process_statement_log(&p->statements[p->ap], BLOG_INFO, "waiting after error");
+    
+    // set timer
+    BReactor_SetTimerAbsolute(&ss, &p->wait_timer, p->statements[p->ap].error_until);
+    
+    process_assert(p);
 }
 
-int interface_add_ipv4_addr (struct interface *iface, struct ipv4_ifaddr ifaddr)
+void process_wait_timer_handler (struct process *p)
 {
-    // add address entry
-    struct ipv4_addr_entry *entry = interface_add_ipv4_addr_entry(iface, ifaddr);
-    if (!entry) {
-        interface_log(iface, BLOG_ERROR, "failed to add ipv4 address entry");
-        return 0;
-    }
+    ASSERT(p->ap == p->fp)
+    ASSERT(!(p->ap > 0) || p->statements[p->ap - 1].state == SSTATE_ADULT)
+    ASSERT(p->ap < p->num_statements)
+    ASSERT(p->statements[p->ap].have_error)
     
-    // assign the address
-    if (!NCDIfConfig_add_ipv4_addr(iface->conf->name, ifaddr)) {
-        interface_log(iface, BLOG_ERROR, "failed to assign ipv4 address");
-        interface_remove_ipv4_addr_entry(iface, entry);
-        return 0;
-    }
+    process_log(p, BLOG_INFO, "retrying");
     
-    return 1;
+    // clear error
+    p->statements[p->ap].have_error = 0;
+    
+    process_advance(p);
 }
 
-void interface_remove_ipv4_addr (struct interface *iface, struct ipv4_addr_entry *entry)
+void process_retreat (struct process *p)
 {
-    // remove the address
-    if (!NCDIfConfig_remove_ipv4_addr(iface->conf->name, entry->ifaddr)) {
-        interface_log(iface, BLOG_ERROR, "failed to remove ipv4 address");
+    if (p->fp == 0) {
+        // finished retreating
+        process_free(p);
+        
+        // if there are no more processes, exit program
+        if (LinkedList2_IsEmpty(&processes)) {
+            BReactor_Quit(&ss, 1);
+        }
+        
+        return;
     }
     
-    // remove address entry
-    interface_remove_ipv4_addr_entry(iface, entry);
+    // order the last living statement to die, if needed
+    struct process_statement *ps = &p->statements[p->fp - 1];
+    if (ps->state != SSTATE_DYING) {
+        process_statement_log(ps, BLOG_INFO, "killing");
+        
+        // order it to die
+        NCDModuleInst_Die(&ps->inst);
+        
+        // set statement state DYING
+        ps->state = SSTATE_DYING;
+        
+        // update AP
+        if (p->ap > ps->i) {
+            p->ap = ps->i;
+        }
+    }
+    
+    process_assert(p);
 }
 
-int interface_add_ipv4_route (struct interface *iface, struct ipv4_ifaddr dest, const uint32_t *gateway, int metric)
+void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...)
 {
-    // add address entry
-    struct ipv4_route_entry *entry = interface_add_ipv4_route_entry(iface, dest, gateway, metric);
-    if (!entry) {
-        interface_log(iface, BLOG_ERROR, "failed to add ipv4 route entry");
-        return 0;
-    }
-    
-    // add the route
-    if (!NCDIfConfig_add_ipv4_route(dest, gateway, metric, iface->conf->name)) {
-        interface_log(iface, BLOG_ERROR, "failed to add ipv4 route");
-        interface_remove_ipv4_route_entry(iface, entry);
-        return 0;
-    }
-    
-    return 1;
+    va_list vl;
+    va_start(vl, fmt);
+    BLog_Append("process %s: statement %zu: ", ps->p->name, ps->i);
+    BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
+    va_end(vl);
 }
 
-void interface_remove_ipv4_route (struct interface *iface, struct ipv4_route_entry *entry)
+void process_statement_set_error (struct process_statement *ps)
 {
-    // remove the route
-    if (!NCDIfConfig_remove_ipv4_route(entry->dest, (entry->have_gateway ? &entry->gateway : NULL), entry->metric, iface->conf->name)) {
-        interface_log(iface, BLOG_ERROR, "failed to remove ipv4 route");
-    }
+    ASSERT(ps->state == SSTATE_FORGOTTEN)
     
-    // remove address entry
-    interface_remove_ipv4_route_entry(iface, entry);
+    ps->have_error = 1;
+    ps->error_until = btime_gettime() + RETRY_TIME;
 }
 
-
-struct ipv4_addr_entry * interface_add_ipv4_addr_entry (struct interface *iface, struct ipv4_ifaddr ifaddr)
+void process_statement_instance_handler_event (struct process_statement *ps, int event)
 {
-    // allocate entry
-    struct ipv4_addr_entry *entry = malloc(sizeof(*entry));
-    if (!entry) {
-        return NULL;
+    ASSERT(ps->state == SSTATE_CHILD || ps->state == SSTATE_ADULT)
+    
+    struct process *p = ps->p;
+    
+    switch (event) {
+        case NCDMODULE_EVENT_UP: {
+            ASSERT(ps->state == SSTATE_CHILD)
+            
+            process_statement_log(ps, BLOG_INFO, "up");
+            
+            // set state ADULT
+            ps->state = SSTATE_ADULT;
+        } break;
+        
+        case NCDMODULE_EVENT_DOWN: {
+            ASSERT(ps->state == SSTATE_ADULT)
+            
+            process_statement_log(ps, BLOG_INFO, "down");
+            
+            // set state CHILD
+            ps->state = SSTATE_CHILD;
+            
+            // update AP
+            if (p->ap > ps->i + 1) {
+                p->ap = ps->i + 1;
+            }
+        } break;
+        
+        case NCDMODULE_EVENT_DYING: {
+            ASSERT(ps->state == SSTATE_CHILD || ps->state == SSTATE_ADULT)
+            
+            process_statement_log(ps, BLOG_INFO, "dying");
+            
+            // set state DYING
+            ps->state = SSTATE_DYING;
+            
+            // update AP
+            if (p->ap > ps->i) {
+                p->ap = ps->i;
+            }
+        } break;
     }
     
-    // set ifaddr
-    entry->ifaddr = ifaddr;
-    
-    // add to list
-    LinkedList2_Append(&iface->ipv4_addresses, &entry->list_node);
-    
-    return entry;
+    process_work(p);
+    return;
 }
 
-void interface_remove_ipv4_addr_entry (struct interface *iface, struct ipv4_addr_entry *entry)
+void process_statement_instance_handler_died (struct process_statement *ps, int is_error)
 {
-    // remove from list
-    LinkedList2_Remove(&iface->ipv4_addresses, &entry->list_node);
+    ASSERT(ps->state == SSTATE_CHILD || ps->state == SSTATE_ADULT || ps->state == SSTATE_DYING)
     
-    // free entry
-    free(entry);
-}
-
-struct ipv4_route_entry * interface_add_ipv4_route_entry (struct interface *iface, struct ipv4_ifaddr dest, const uint32_t *gateway, int metric)
-{
-    // allocate entry
-    struct ipv4_route_entry *entry = malloc(sizeof(*entry));
-    if (!entry) {
-        return NULL;
-    }
+    struct process *p = ps->p;
     
-    // set info
-    entry->dest = dest;
-    if (gateway) {
-        entry->have_gateway = 1;
-        entry->gateway = *gateway;
+    // free instance
+    NCDModuleInst_Free(&ps->inst);
+    
+    // free instance arguments
+    NCDValue_Free(&ps->inst_args);
+    
+    // set state FORGOTTEN
+    ps->state = SSTATE_FORGOTTEN;
+    
+    // set error
+    if (is_error) {
+        process_statement_set_error(ps);
     } else {
-        entry->have_gateway = 0;
-    }
-    entry->metric = metric;
-    
-    // add to list
-    LinkedList2_Append(&iface->ipv4_routes, &entry->list_node);
-    
-    return entry;
-}
-
-void interface_remove_ipv4_route_entry (struct interface *iface, struct ipv4_route_entry *entry)
-{
-    // remove from list
-    LinkedList2_Remove(&iface->ipv4_routes, &entry->list_node);
-    
-    // free entry
-    free(entry);
-}
-
-struct ipv4_dns_entry * interface_add_ipv4_dns_entry (struct interface *iface, uint32_t addr, int priority)
-{
-    // allocate entry
-    struct ipv4_dns_entry *entry = malloc(sizeof(*entry));
-    if (!entry) {
-        return NULL;
+        ps->have_error = 0;
     }
     
-    // set info
-    entry->addr = addr;
-    entry->priority = priority;
+    // update AP
+    if (p->ap > ps->i) {
+        p->ap = ps->i;
+    }
     
-    // add to list
-    LinkedList2_Append(&iface->ipv4_dns_servers, &entry->list_node);
+    // update FP
+    while (p->fp > 0 && p->statements[p->fp - 1].state == SSTATE_FORGOTTEN) {
+        p->fp--;
+    }
     
-    // increment number of DNS servers
-    num_ipv4_dns_servers++;
+    process_statement_log(ps, BLOG_INFO, "died");
     
-    return entry;
-}
-
-void interface_remove_ipv4_dns_entry (struct interface *iface, struct ipv4_dns_entry *entry)
-{
-    // decrement number of DNS servers
-    num_ipv4_dns_servers--;
+    if (is_error) {
+        process_statement_log(ps, BLOG_ERROR, "with error");
+    }
     
-    // remove from list
-    LinkedList2_Remove(&iface->ipv4_dns_servers, &entry->list_node);
-    
-    // free entry
-    free(entry);
+    process_work(p);
+    return;
 }

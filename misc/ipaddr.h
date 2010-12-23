@@ -38,7 +38,9 @@ struct ipv4_ifaddr {
     int prefix;
 };
 
-static int ipaddr_parse_ipv4_addr (char *name, size_t name_len, uint32_t *out_addr);
+static int ipaddr_parse_ipv4_addr_bin (char *name, size_t name_len, uint32_t *out_addr);
+static int ipaddr_parse_ipv4_addr (char *name, uint32_t *out_addr);
+static int ipaddr_parse_ipv4_prefix (char *str, int *num);
 static int ipaddr_parse_ipv4_ifaddr (char *str, struct ipv4_ifaddr *out);
 static int ipaddr_ipv4_ifaddr_from_addr_mask (uint32_t addr, uint32_t mask, struct ipv4_ifaddr *out);
 
@@ -68,7 +70,7 @@ static int ipaddr_parse_number (char *data, size_t data_len, int *out)
     return 1;
 }
 
-int ipaddr_parse_ipv4_addr (char *name, size_t name_len, uint32_t *out_addr)
+int ipaddr_parse_ipv4_addr_bin (char *name, size_t name_len, uint32_t *out_addr)
 {
     for (size_t i = 0; ; i++) {
         size_t j;
@@ -106,6 +108,22 @@ int ipaddr_parse_ipv4_addr (char *name, size_t name_len, uint32_t *out_addr)
     }
 }
 
+int ipaddr_parse_ipv4_addr (char *name, uint32_t *out_addr)
+{
+    return ipaddr_parse_ipv4_addr_bin(name, strlen(name), out_addr);
+}
+
+int ipaddr_parse_ipv4_prefix (char *str, int *num)
+{
+    if (strlen(str) > 2 || !ipaddr_parse_number(str, strlen(str), num)) {
+        return 0;
+    }
+    if (*num > 32) {
+        return 0;
+    }
+    return 1;
+}
+
 int ipaddr_parse_ipv4_ifaddr (char *str, struct ipv4_ifaddr *out)
 {
     char *slash = strstr(str, "/");
@@ -113,7 +131,7 @@ int ipaddr_parse_ipv4_ifaddr (char *str, struct ipv4_ifaddr *out)
         return 0;
     }
     
-    if (!ipaddr_parse_ipv4_addr(str, (slash - str), &out->addr)) {
+    if (!ipaddr_parse_ipv4_addr_bin(str, (slash - str), &out->addr)) {
         return 0;
     }
     

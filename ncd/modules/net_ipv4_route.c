@@ -1,0 +1,137 @@
+/**
+ * @file net_ipv4_route.c
+ * @author Ambroz Bizjak <ambrop7@gmail.com>
+ * 
+ * @section LICENSE
+ * 
+ * This file is part of BadVPN.
+ * 
+ * BadVPN is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2
+ * as published by the Free Software Foundation.
+ * 
+ * BadVPN is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * 
+ * @section DESCRIPTION
+ * 
+ * IPv4 route module.
+ * 
+ * Synopsis: net.ipv4.route(string dest, string dest_prefix, string gateway, string metric, string ifname)
+ */
+
+#include <stdlib.h>
+#include <string.h>
+
+#include <ncd/NCDModule.h>
+#include <ncd/NCDIfConfig.h>
+
+#include <generated/blog_channel_ncd_net_ipv4_route.h>
+
+#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+
+struct instance {
+    NCDModuleInst *i;
+    struct ipv4_ifaddr dest;
+    int have_gateway;
+    uint32_t gateway;
+    int metric;
+    const char *ifname;
+};
+
+static void * func_new (NCDModuleInst *i)
+{
+    // allocate instance
+    struct instance *o = malloc(sizeof(*o));
+    if (!o) {
+        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        goto fail0;
+    }
+    
+    // init arguments
+    o->i = i;
+    
+    // read arguments
+    NCDValue *dest_arg;
+    NCDValue *dest_prefix_arg;
+    NCDValue *gateway_arg;
+    NCDValue *metric_arg;
+    NCDValue *ifname_arg;
+    if (!NCDValue_ListRead(o->i->args, 5, &dest_arg, &dest_prefix_arg, &gateway_arg, &metric_arg, &ifname_arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
+        goto fail1;
+    }
+    if (NCDValue_Type(dest_arg) != NCDVALUE_STRING || NCDValue_Type(dest_prefix_arg) != NCDVALUE_STRING || NCDValue_Type(gateway_arg) != NCDVALUE_STRING ||
+        NCDValue_Type(metric_arg) != NCDVALUE_STRING || NCDValue_Type(ifname_arg) != NCDVALUE_STRING) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong type");
+        goto fail1;
+    }
+    
+    // read dest
+    if (!ipaddr_parse_ipv4_addr(NCDValue_StringValue(dest_arg), &o->dest.addr)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong dest addr");
+        goto fail1;
+    }
+    if (!ipaddr_parse_ipv4_prefix(NCDValue_StringValue(dest_prefix_arg), &o->dest.prefix)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong dest prefix");
+        goto fail1;
+    }
+    
+    // read gateway
+    char *gateway_str = NCDValue_StringValue(gateway_arg);
+    if (!strcmp(gateway_str, "none")) {
+        o->have_gateway = 0;
+    } else {
+        if (!ipaddr_parse_ipv4_addr(gateway_str, &o->gateway)) {
+            ModuleLog(o->i, BLOG_ERROR, "wrong gateway");
+            goto fail1;
+        }
+        o->have_gateway = 1;
+    }
+    
+    // read metric
+    o->metric = atoi(NCDValue_StringValue(metric_arg));
+    
+    // read ifname
+    o->ifname = NCDValue_StringValue(ifname_arg);
+    
+    // add route
+    if (!NCDIfConfig_add_ipv4_route(o->dest, (o->have_gateway ? &o->gateway : NULL), o->metric, o->ifname)) {
+        ModuleLog(o->i, BLOG_ERROR, "failed to add route");
+        goto fail1;
+    }
+    
+    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    
+    return o;
+    
+fail1:
+    free(o);
+fail0:
+    return NULL;
+}
+
+static void func_free (void *vo)
+{
+    struct instance *o = vo;
+    
+    // remove route
+    if (!NCDIfConfig_remove_ipv4_route(o->dest, (o->have_gateway ? &o->gateway : NULL), o->metric, o->ifname)) {
+        ModuleLog(o->i, BLOG_ERROR, "failed to remove route");
+    }
+    
+    // free instance
+    free(o);
+}
+
+const struct NCDModule ncdmodule_net_ipv4_route = {
+    .type = "net.ipv4.route",
+    .func_new = func_new,
+    .func_free = func_free
+};

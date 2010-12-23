@@ -47,14 +47,23 @@ static int tokenizer_output (void *user, int token, char *value, size_t pos)
         case NCD_TOKEN_CURLY_CLOSE:
             printf("curly_close\n");
             break;
+        case NCD_TOKEN_ROUND_OPEN:
+            printf("round_open\n");
+            break;
+        case NCD_TOKEN_ROUND_CLOSE:
+            printf("round_close\n");
+            break;
         case NCD_TOKEN_SEMICOLON:
             printf("semicolon\n");
             break;
         case NCD_TOKEN_DOT:
             printf("dot\n");
             break;
-        case NCD_TOKEN_INTERFACE:
-            printf("interface\n");
+        case NCD_TOKEN_COMMA:
+            printf("comma\n");
+            break;
+        case NCD_TOKEN_PROCESS:
+            printf("process\n");
             break;
         case NCD_TOKEN_NAME:
             printf("name %s\n", value);

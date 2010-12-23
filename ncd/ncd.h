@@ -23,5 +23,5 @@
 // name of the program
 #define PROGRAM_NAME "ncd"
 
-// how long to wait after interface configuratio fails before trying again
-#define INTERFACE_RETRY_TIME 10000
+// how long to wait after an error before retrying
+#define RETRY_TIME 5000

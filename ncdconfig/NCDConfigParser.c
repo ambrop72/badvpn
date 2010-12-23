@@ -57,11 +57,19 @@ static int tokenizer_output (void *user, int token, char *value, size_t position
         } break;
         
         case NCD_TOKEN_CURLY_OPEN: {
-            Parse(state->parser, CURRLY_OPEN, NULL, &state->out);
+            Parse(state->parser, CURLY_OPEN, NULL, &state->out);
         } break;
         
         case NCD_TOKEN_CURLY_CLOSE: {
             Parse(state->parser, CURLY_CLOSE, NULL, &state->out);
+        } break;
+        
+        case NCD_TOKEN_ROUND_OPEN: {
+            Parse(state->parser, ROUND_OPEN, NULL, &state->out);
+        } break;
+        
+        case NCD_TOKEN_ROUND_CLOSE: {
+            Parse(state->parser, ROUND_CLOSE, NULL, &state->out);
         } break;
         
         case NCD_TOKEN_SEMICOLON: {
@@ -72,8 +80,12 @@ static int tokenizer_output (void *user, int token, char *value, size_t position
             Parse(state->parser, DOT, NULL, &state->out);
         } break;
         
-        case NCD_TOKEN_INTERFACE: {
-            Parse(state->parser, INTERFACE, NULL, &state->out);
+        case NCD_TOKEN_COMMA: {
+            Parse(state->parser, COMMA, NULL, &state->out);
+        } break;
+        
+        case NCD_TOKEN_PROCESS: {
+            Parse(state->parser, PROCESS, NULL, &state->out);
         } break;
         
         case NCD_TOKEN_NAME: {

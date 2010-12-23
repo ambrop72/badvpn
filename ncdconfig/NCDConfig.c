@@ -24,6 +24,7 @@
 #include <string.h>
 
 #include <misc/string_begins_with.h>
+#include <misc/expstring.h>
 
 #include <ncdconfig/NCDConfig.h>
 
@@ -47,8 +48,31 @@ void NCDConfig_free_statements (struct NCDConfig_statements *v)
     }
     
     NCDConfig_free_strings(v->names);
-    NCDConfig_free_strings(v->args);
+    NCDConfig_free_arguments(v->args);
+    free(v->name);
     NCDConfig_free_statements(v->next);
+    
+    free(v);
+}
+
+void NCDConfig_free_arguments (struct NCDConfig_arguments *v)
+{
+    if (!v) {
+        return;
+    }
+    
+    switch (v->type) {
+        case NCDCONFIG_ARG_STRING:
+            free(v->string);
+            break;
+        case NCDCONFIG_ARG_VAR:
+            NCDConfig_free_strings(v->var);
+            break;
+        default:
+            ASSERT(0);
+    }
+    
+    NCDConfig_free_arguments(v->next);
     
     free(v);
 }
@@ -89,27 +113,71 @@ fail:
     return NULL;
 }
 
-struct NCDConfig_statements * NCDConfig_make_statements (struct NCDConfig_strings *names, int need_args, struct NCDConfig_strings *args, int need_next, struct NCDConfig_statements *next)
+struct NCDConfig_statements * NCDConfig_make_statements (struct NCDConfig_strings *names, struct NCDConfig_arguments *args, char *name, struct NCDConfig_statements *next)
 {
-    if (!names || (need_args && !args) || (need_next && !next)) {
-        goto fail;
-    }
-    
     struct NCDConfig_statements *v = malloc(sizeof(*v));
     if (!v) {
         goto fail;
     }
-
+    
     v->names = names;
     v->args = args;
+    v->name = name;
     v->next = next;
 
     return v;
     
 fail:
     NCDConfig_free_strings(names);
-    NCDConfig_free_strings(args);
+    NCDConfig_free_arguments(args);
+    free(name);
     NCDConfig_free_statements(next);
+    return NULL;
+}
+
+struct NCDConfig_arguments * NCDConfig_make_arguments_string (char *str, int need_next, struct NCDConfig_arguments *next)
+{
+    if (!str || (need_next && !next)) {
+        goto fail;
+    }
+    
+    struct NCDConfig_arguments *v = malloc(sizeof(*v));
+    if (!v) {
+        goto fail;
+    }
+    
+    v->type = NCDCONFIG_ARG_STRING;
+    v->string = str;
+    v->next = next;
+    
+    return v;
+    
+fail:
+    free(str);
+    NCDConfig_free_arguments(next);
+    return NULL;
+}
+
+struct NCDConfig_arguments * NCDConfig_make_arguments_var (struct NCDConfig_strings *var, int need_next, struct NCDConfig_arguments *next)
+{
+    if (!var || (need_next && !next)) {
+        goto fail;
+    }
+    
+    struct NCDConfig_arguments *v = malloc(sizeof(*v));
+    if (!v) {
+        goto fail;
+    }
+    
+    v->type = NCDCONFIG_ARG_VAR;
+    v->var = var;
+    v->next = next;
+    
+    return v;
+    
+fail:
+    NCDConfig_free_strings(var);
+    NCDConfig_free_arguments(next);
     return NULL;
 }
 
@@ -183,35 +251,34 @@ struct NCDConfig_statements * NCDConfig_find_statement (struct NCDConfig_stateme
     return NULL;
 }
 
-int NCDConfig_statement_has_one_arg (struct NCDConfig_statements *st, char **arg1_out)
+char * NCDConfig_concat_strings (struct NCDConfig_strings *s)
 {
-    if (!(st->args && !st->args->next)) {
-        return 0;
+    ExpString str;
+    if (!ExpString_Init(&str)) {
+        goto fail0;
     }
     
-    *arg1_out = st->args->value;
-    return 1;
-}
-
-int NCDConfig_statement_has_two_args (struct NCDConfig_statements *st, char **arg1_out, char **arg2_out)
-{
-    if (!(st->args && st->args->next && !st->args->next->next)) {
-        return 0;
+    if (!ExpString_Append(&str, s->value)) {
+        goto fail1;
     }
     
-    *arg1_out = st->args->value;
-    *arg2_out = st->args->next->value;
-    return 1;
-}
-
-int NCDConfig_statement_has_three_args (struct NCDConfig_statements *st, char **arg1_out, char **arg2_out, char **arg3_out)
-{
-    if (!(st->args && st->args->next && st->args->next->next && !st->args->next->next->next)) {
-        return 0;
+    s = s->next;
+    
+    while (s) {
+        if (!ExpString_Append(&str, ".")) {
+            goto fail1;
+        }
+        if (!ExpString_Append(&str, s->value)) {
+            goto fail1;
+        }
+        
+        s = s->next;
     }
     
-    *arg1_out = st->args->value;
-    *arg2_out = st->args->next->value;
-    *arg3_out = st->args->next->next->value;
-    return 1;
+    return ExpString_Get(&str);
+    
+fail1:
+    ExpString_Free(&str);
+fail0:
+    return NULL;
 }

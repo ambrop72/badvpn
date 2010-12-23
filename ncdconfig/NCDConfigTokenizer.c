@@ -59,17 +59,33 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
         void *token_val = NULL;
         char dec[NCD_MAX_SIZE + 1];
         
-        if (l = data_begins_with(str, left, "{")) {
+        if (*str == '#') {
+            l = 1;
+            while (l < left && str[l] != '\n') {
+                l++;
+            }
+            token = 0;
+        }
+        else if (l = data_begins_with(str, left, "{")) {
             token = NCD_TOKEN_CURLY_OPEN;
         }
         else if (l = data_begins_with(str, left, "}")) {
             token = NCD_TOKEN_CURLY_CLOSE;
+        }
+        else if (l = data_begins_with(str, left, "(")) {
+            token = NCD_TOKEN_ROUND_OPEN;
+        }
+        else if (l = data_begins_with(str, left, ")")) {
+            token = NCD_TOKEN_ROUND_CLOSE;
         }
         else if (l = data_begins_with(str, left, ";")) {
             token = NCD_TOKEN_SEMICOLON;
         }
         else if (l = data_begins_with(str, left, ".")) {
             token = NCD_TOKEN_DOT;
+        }
+        else if (l = data_begins_with(str, left, ",")) {
+            token = NCD_TOKEN_COMMA;
         }
         else if (is_name_first_char(*str)) {
             l = 1;
@@ -90,8 +106,8 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
             memcpy(dec, str, l);
             dec[l] = '\0';
             
-            if (!strcmp(dec, "interface")) {
-                token = NCD_TOKEN_INTERFACE;
+            if (!strcmp(dec, "process")) {
+                token = NCD_TOKEN_PROCESS;
             }
             else {
                 token = NCD_TOKEN_NAME;

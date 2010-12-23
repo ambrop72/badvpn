@@ -1,7 +1,10 @@
-#define INTERFACE                       1
+#define PROCESS                         1
 #define NAME                            2
-#define CURRLY_OPEN                     3
+#define CURLY_OPEN                      3
 #define CURLY_CLOSE                     4
-#define SEMICOLON                       5
-#define DOT                             6
-#define STRING                          7
+#define ROUND_OPEN                      5
+#define ROUND_CLOSE                     6
+#define SEMICOLON                       7
+#define DOT                             8
+#define STRING                          9
+#define COMMA                          10
