@@ -52,8 +52,17 @@ struct parser_out {
 %destructor statement_names { NCDConfig_free_strings($$); }
 %destructor statement_args { NCDConfig_free_arguments($$); }
 
+%stack_size 1000
+
 %syntax_error {
     parser_out->syntax_error = 1;
+}
+
+// workaroud Lemon bug: if the stack overflows, the token that caused the overflow will be leaked
+%stack_overflow {
+    if (yypMinor) {
+        free(yypMinor->yy0);
+    }
 }
 
 input ::= interfaces(A). {
