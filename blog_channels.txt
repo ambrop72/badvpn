@@ -5,6 +5,7 @@ tun2socks 4
 ncd 4
 ncd_var 4
 ncd_list 4
+ncd_depend 4
 ncd_net_backend_physical 4
 ncd_net_backend_badvpn 4
 ncd_net_dns 4

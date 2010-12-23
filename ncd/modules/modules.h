@@ -23,10 +23,13 @@
 #ifndef BADVPN_NCD_MODULES_MODULES_H
 #define BADVPN_NCD_MODULES_MODULES_H
 
+#include <stddef.h>
+
 #include <ncd/NCDModule.h>
 
 extern const struct NCDModuleGroup ncdmodule_var;
 extern const struct NCDModuleGroup ncdmodule_list;
+extern const struct NCDModuleGroup ncdmodule_depend;
 extern const struct NCDModuleGroup ncdmodule_net_backend_physical;
 extern const struct NCDModuleGroup ncdmodule_net_backend_badvpn;
 extern const struct NCDModuleGroup ncdmodule_net_dns;
@@ -37,6 +40,7 @@ extern const struct NCDModuleGroup ncdmodule_net_ipv4_dhcp;
 static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_var,
     &ncdmodule_list,
+    &ncdmodule_depend,
     &ncdmodule_net_backend_physical,
     &ncdmodule_net_backend_badvpn,
     &ncdmodule_net_dns,

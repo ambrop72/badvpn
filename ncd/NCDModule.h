@@ -36,6 +36,9 @@
 #define NCDMODULE_EVENT_DOWN 2
 #define NCDMODULE_EVENT_DYING 3
 
+#define NCDMODULE_TOEVENT_DIE 101
+#define NCDMODULE_TOEVENT_CLEAN 102
+
 typedef void (*NCDModule_handler_event) (void *user, int event);
 typedef void (*NCDModule_handler_died) (void *user, int is_error);
 
@@ -53,7 +56,8 @@ typedef struct {
     void *user;
     BPending event_job;
     int event_job_event;
-    BPending die_job;
+    BPending toevent_job;
+    int toevent_job_event;
     int state;
     void *inst_user;
     DebugObject d_obj;
@@ -65,7 +69,7 @@ typedef struct {
 int NCDModuleInst_Init (NCDModuleInst *n, const char *name, const struct NCDModule *m, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
                         NCDModule_handler_event handler_event, NCDModule_handler_died handler_died, void *user);
 void NCDModuleInst_Free (NCDModuleInst *n);
-void NCDModuleInst_Die (NCDModuleInst *n);
+void NCDModuleInst_Event (NCDModuleInst *n, int event);
 int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out);
 void NCDModuleInst_Backend_Event (NCDModuleInst *n, int event);
 void NCDModuleInst_Backend_Died (NCDModuleInst *n, int is_error);
@@ -76,6 +80,7 @@ typedef void * (*NCDModule_func_new) (NCDModuleInst *params);
 typedef void (*NCDModule_func_free) (void *o);
 typedef void (*NCDModule_func_die) (void *o);
 typedef int (*NCDModule_func_getvar) (void *o, const char *name, NCDValue *out);
+typedef void (*NCDModule_func_clean) (void *o);
 
 struct NCDModule {
     const char *type;
@@ -83,6 +88,7 @@ struct NCDModule {
     NCDModule_func_free func_free;
     NCDModule_func_die func_die;
     NCDModule_func_getvar func_getvar;
+    NCDModule_func_clean func_clean;
 };
 
 struct NCDModuleGroup {

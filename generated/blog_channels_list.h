@@ -5,6 +5,7 @@
 {.name = "ncd", .loglevel = 4},
 {.name = "ncd_var", .loglevel = 4},
 {.name = "ncd_list", .loglevel = 4},
+{.name = "ncd_depend", .loglevel = 4},
 {.name = "ncd_net_backend_physical", .loglevel = 4},
 {.name = "ncd_net_backend_badvpn", .loglevel = 4},
 {.name = "ncd_net_dns", .loglevel = 4},

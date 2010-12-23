@@ -83,6 +83,7 @@ struct process {
     size_t ap;
     size_t fp;
     BTimer wait_timer;
+    BPending advance_job;
     LinkedList2Node list_node; // node in processes
 };
 
@@ -156,6 +157,7 @@ static void process_assert (struct process *p);
 static void process_log (struct process *p, int level, const char *fmt, ...);
 static void process_work (struct process *p);
 static void process_fight (struct process *p);
+static void process_advance_job_handler (struct process *p);
 static void process_advance (struct process *p);
 static void process_wait (struct process *p);
 static void process_wait_timer_handler (struct process *p);
@@ -681,6 +683,9 @@ int process_new (struct NCDConfig_interfaces *conf)
     // init timer
     BTimer_Init(&p->wait_timer, RETRY_TIME, (BTimer_handler)process_wait_timer_handler, p);
     
+    // init advance job
+    BPending_Init(&p->advance_job, BReactor_PendingGroup(&ss), (BPending_handler)process_advance_job_handler, p);
+    
     // insert to processes list
     LinkedList2_Append(&processes, &p->list_node);
     
@@ -705,6 +710,9 @@ void process_free (struct process *p)
     
     // remove from processes list
     LinkedList2_Remove(&processes, &p->list_node);
+    
+    // free advance job
+    BPending_Free(&p->advance_job);
     
     // free timer
     BReactor_RemoveTimer(&ss, &p->wait_timer);
@@ -775,6 +783,11 @@ void process_work (struct process *p)
     // stop timer in case we were WAITING
     BReactor_RemoveTimer(&ss, &p->wait_timer);
     
+    // stop advance job if we can't advance
+    if (!(p->ap == p->fp && !terminating)) {
+        BPending_Unset(&p->advance_job);
+    }
+    
     if (terminating) {
         process_retreat(p);
         return;
@@ -786,27 +799,39 @@ void process_work (struct process *p)
 void process_fight (struct process *p)
 {
     if (p->ap == p->fp) {
-        if (!(p->ap > 0 && p->statements[p->ap - 1].state == SSTATE_CHILD)) {
-            // advance
-            process_advance(p);
+        // schedule advance
+        BPending_Set(&p->advance_job);
+        
+        // report clean
+        if (p->ap > 0) {
+            NCDModuleInst_Event(&p->statements[p->ap - 1].inst, NCDMODULE_TOEVENT_CLEAN);
+        }
+    } else {
+        // order the last living statement to die, if needed
+        struct process_statement *ps = &p->statements[p->fp - 1];
+        if (ps->state != SSTATE_DYING) {
+            process_statement_log(ps, BLOG_INFO, "killing");
+            
+            // order it to die
+            NCDModuleInst_Event(&ps->inst, NCDMODULE_TOEVENT_DIE);
+            
+            // set statement state DYING
+            ps->state = SSTATE_DYING;
         }
         
-        return;
+        process_assert(p);
     }
+}
+
+void process_advance_job_handler (struct process *p)
+{
+    ASSERT(p->ap == p->fp)
+    ASSERT(!terminating)
     
-    // order the last living statement to die, if needed
-    struct process_statement *ps = &p->statements[p->fp - 1];
-    if (ps->state != SSTATE_DYING) {
-        process_statement_log(ps, BLOG_INFO, "killing");
-        
-        // order it to die
-        NCDModuleInst_Die(&ps->inst);
-        
-        // set statement state DYING
-        ps->state = SSTATE_DYING;
+    if (!(p->ap > 0 && p->statements[p->ap - 1].state == SSTATE_CHILD)) {
+        // advance
+        process_advance(p);
     }
-    
-    process_assert(p);
 }
 
 void process_advance (struct process *p)
@@ -959,7 +984,7 @@ void process_retreat (struct process *p)
         process_statement_log(ps, BLOG_INFO, "killing");
         
         // order it to die
-        NCDModuleInst_Die(&ps->inst);
+        NCDModuleInst_Event(&ps->inst, NCDMODULE_TOEVENT_DIE);
         
         // set statement state DYING
         ps->state = SSTATE_DYING;

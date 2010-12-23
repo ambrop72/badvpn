@@ -34,17 +34,35 @@ static void event_job_handler (NCDModuleInst *n)
     return;
 }
 
-static void die_job_handler (NCDModuleInst *n)
+static void toevent_job_handler (NCDModuleInst *n)
 {
     DebugObject_Access(&n->d_obj);
     
-    if (!n->m->func_die) {
-        NCDModuleInst_Backend_Died(n, 0);
-        return;
+    switch (n->toevent_job_event) {
+        case NCDMODULE_TOEVENT_DIE: {
+            ASSERT(n->state == STATE_DYING)
+            
+            if (!n->m->func_die) {
+                NCDModuleInst_Backend_Died(n, 0);
+                return;
+            }
+            
+            n->m->func_die(n->inst_user);
+            return;
+        } break;
+        
+        case NCDMODULE_TOEVENT_CLEAN: {
+            ASSERT(n->state == STATE_UP || n->state == STATE_DOWN)
+            
+            if (n->m->func_clean) {
+                n->m->func_clean(n->inst_user);
+                return;
+            }
+        } break;
+        
+        default:
+            ASSERT(0);
     }
-    
-    n->m->func_die(n->inst_user);
-    return;
 }
 
 int NCDModuleInst_Init (NCDModuleInst *n, const char *name, const struct NCDModule *m, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
@@ -64,8 +82,8 @@ int NCDModuleInst_Init (NCDModuleInst *n, const char *name, const struct NCDModu
     // init event job
     BPending_Init(&n->event_job, BReactor_PendingGroup(n->reactor), (BPending_handler)event_job_handler, n);
     
-    // init die job
-    BPending_Init(&n->die_job, BReactor_PendingGroup(n->reactor), (BPending_handler)die_job_handler, n);
+    // init toevent job
+    BPending_Init(&n->toevent_job, BReactor_PendingGroup(n->reactor), (BPending_handler)toevent_job_handler, n);
     
     // set state
     n->state = STATE_DOWN;
@@ -83,7 +101,7 @@ int NCDModuleInst_Init (NCDModuleInst *n, const char *name, const struct NCDModu
     return 1;
     
 fail1:
-    BPending_Free(&n->die_job);
+    BPending_Free(&n->toevent_job);
     BPending_Free(&n->event_job);
     return 0;
 }
@@ -98,23 +116,31 @@ void NCDModuleInst_Free (NCDModuleInst *n)
     // free backend
     n->m->func_free(n->inst_user);
     
-    // free die job
-    BPending_Free(&n->die_job);
+    // free toevent job
+    BPending_Free(&n->toevent_job);
     
     // free event job
     BPending_Free(&n->event_job);
 }
 
-void NCDModuleInst_Die (NCDModuleInst *n)
+void NCDModuleInst_Event (NCDModuleInst *n, int event)
 {
+    ASSERT(event == NCDMODULE_TOEVENT_DIE || event == NCDMODULE_TOEVENT_CLEAN)
     ASSERT(n->state == STATE_UP || n->state == STATE_DOWN)
+    ASSERT(!BPending_IsSet(&n->event_job))
+    ASSERT(!BPending_IsSet(&n->toevent_job))
     DebugObject_Access(&n->d_obj);
     
-    // set state
-    n->state = STATE_DYING;
+    if (event == NCDMODULE_TOEVENT_DIE) {
+        // set state
+        n->state = STATE_DYING;
+    }
+    
+    // remember event
+    n->toevent_job_event = event;
     
     // set job
-    BPending_Set(&n->die_job);
+    BPending_Set(&n->toevent_job);
 }
 
 int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out)
@@ -136,6 +162,7 @@ void NCDModuleInst_Backend_Event (NCDModuleInst *n, int event)
     ASSERT(!(event == NCDMODULE_EVENT_DOWN) || n->state == STATE_UP)
     ASSERT(!(event == NCDMODULE_EVENT_DYING) || (n->state == STATE_DOWN || n->state == STATE_UP))
     ASSERT(!BPending_IsSet(&n->event_job))
+    ASSERT(!BPending_IsSet(&n->toevent_job))
     
     switch (event) {
         case NCDMODULE_EVENT_UP:
