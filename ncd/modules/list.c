@@ -84,9 +84,17 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     return 0;
 }
 
-const struct NCDModule ncdmodule_list = {
-    .type = "list",
-    .func_new = func_new,
-    .func_free = func_free,
-    .func_getvar = func_getvar
+static const struct NCDModule modules[] = {
+    {
+        .type = "list",
+        .func_new = func_new,
+        .func_free = func_free,
+        .func_getvar = func_getvar
+    }, {
+        .type = NULL
+    }
+};
+
+const struct NCDModuleGroup ncdmodule_list = {
+    .modules = modules
 };

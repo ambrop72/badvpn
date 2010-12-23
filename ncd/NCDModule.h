@@ -79,11 +79,15 @@ typedef int (*NCDModule_func_getvar) (void *o, const char *name, NCDValue *out);
 
 struct NCDModule {
     const char *type;
-    NCDModule_func_globalinit func_globalinit;
     NCDModule_func_new func_new;
     NCDModule_func_free func_free;
     NCDModule_func_die func_die;
     NCDModule_func_getvar func_getvar;
+};
+
+struct NCDModuleGroup {
+    NCDModule_func_globalinit func_globalinit;
+    const struct NCDModule *modules;
 };
 
 #endif

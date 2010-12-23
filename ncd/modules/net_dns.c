@@ -270,9 +270,17 @@ static void func_free (void *vo)
     free(o);
 }
 
-const struct NCDModule ncdmodule_net_dns = {
-    .type = "net.dns",
+static const struct NCDModule modules[] = {
+    {
+        .type = "net.dns",
+        .func_new = func_new,
+        .func_free = func_free
+    }, {
+        .type = NULL
+    }
+};
+
+const struct NCDModuleGroup ncdmodule_net_dns = {
     .func_globalinit = func_globalinit,
-    .func_new = func_new,
-    .func_free = func_free
+    .modules = modules
 };

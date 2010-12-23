@@ -130,8 +130,16 @@ static void func_free (void *vo)
     free(o);
 }
 
-const struct NCDModule ncdmodule_net_ipv4_route = {
-    .type = "net.ipv4.route",
-    .func_new = func_new,
-    .func_free = func_free
+static const struct NCDModule modules[] = {
+    {
+        .type = "net.ipv4.route",
+        .func_new = func_new,
+        .func_free = func_free
+    }, {
+        .type = NULL
+    }
+};
+
+const struct NCDModuleGroup ncdmodule_net_ipv4_route = {
+    .modules = modules
 };

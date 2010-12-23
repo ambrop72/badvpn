@@ -195,8 +195,16 @@ static void func_free (void *vo)
     free(o);
 }
 
-const struct NCDModule ncdmodule_net_backend_physical = {
-    .type = "net.backend.physical",
-    .func_new = func_new,
-    .func_free = func_free
+static const struct NCDModule modules[] = {
+    {
+        .type = "net.backend.physical",
+        .func_new = func_new,
+        .func_free = func_free
+    }, {
+        .type = NULL
+    }
+};
+
+const struct NCDModuleGroup ncdmodule_net_backend_physical = {
+    .modules = modules
 };

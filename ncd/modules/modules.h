@@ -25,16 +25,16 @@
 
 #include <ncd/NCDModule.h>
 
-extern const struct NCDModule ncdmodule_var;
-extern const struct NCDModule ncdmodule_list;
-extern const struct NCDModule ncdmodule_net_backend_physical;
-extern const struct NCDModule ncdmodule_net_backend_badvpn;
-extern const struct NCDModule ncdmodule_net_dns;
-extern const struct NCDModule ncdmodule_net_ipv4_addr;
-extern const struct NCDModule ncdmodule_net_ipv4_route;
-extern const struct NCDModule ncdmodule_net_ipv4_dhcp;
+extern const struct NCDModuleGroup ncdmodule_var;
+extern const struct NCDModuleGroup ncdmodule_list;
+extern const struct NCDModuleGroup ncdmodule_net_backend_physical;
+extern const struct NCDModuleGroup ncdmodule_net_backend_badvpn;
+extern const struct NCDModuleGroup ncdmodule_net_dns;
+extern const struct NCDModuleGroup ncdmodule_net_ipv4_addr;
+extern const struct NCDModuleGroup ncdmodule_net_ipv4_route;
+extern const struct NCDModuleGroup ncdmodule_net_ipv4_dhcp;
 
-static const struct NCDModule *ncd_modules[] = {
+static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_var,
     &ncdmodule_list,
     &ncdmodule_net_backend_physical,

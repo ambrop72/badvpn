@@ -144,6 +144,7 @@ static void print_help (const char *name);
 static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
+static const struct NCDModule * find_module (const char *name);
 static int statement_init (struct statement *s, struct NCDConfig_statements *conf);
 static void statement_free (struct statement *s);
 static void statement_free_args (struct statement *s);
@@ -268,9 +269,9 @@ int main (int argc, char **argv)
     free(file);
     
     // init modules
-    for (const struct NCDModule **m = ncd_modules; *m; m++) {
-        if ((*m)->func_globalinit && !(*m)->func_globalinit()) {
-            BLog(BLOG_ERROR, "globalinit failed for module %s", (*m)->type);
+    for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
+        if ((*g)->func_globalinit && !(*g)->func_globalinit()) {
+            BLog(BLOG_ERROR, "globalinit failed for some module");
             goto fail5;
         }
     }
@@ -500,6 +501,19 @@ void signal_handler (void *unused)
     }
 }
 
+const struct NCDModule * find_module (const char *name)
+{
+    for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
+        for (const struct NCDModule *m = (*g)->modules; m->type; m++) {
+            if (!strcmp(m->type, name)) {
+                return m;
+            }
+        }
+    }
+    
+    return NULL;
+}
+
 int statement_init (struct statement *s, struct NCDConfig_statements *conf)
 {
     // find module
@@ -507,13 +521,8 @@ int statement_init (struct statement *s, struct NCDConfig_statements *conf)
     if (!module_name) {
         goto fail0;
     }
-    const struct NCDModule **m;
-    for (m = ncd_modules; *m; m++) {
-        if (!strcmp(module_name, (*m)->type)) {
-            break;
-        }
-    }
-    if (!*m) {
+    const struct NCDModule *m = find_module(module_name);
+    if (!m) {
         BLog(BLOG_ERROR, "no module for statement %s", module_name);
         free(module_name);
         goto fail0;
@@ -521,7 +530,7 @@ int statement_init (struct statement *s, struct NCDConfig_statements *conf)
     free(module_name);
     
     // set module
-    s->module = *m;
+    s->module = m;
     
     // init arguments
     s->first_arg = NULL;

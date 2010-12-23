@@ -203,9 +203,17 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     return 0;
 }
 
-const struct NCDModule ncdmodule_net_ipv4_dhcp = {
-    .type = "net.ipv4.dhcp",
-    .func_new = func_new,
-    .func_free = func_free,
-    .func_getvar = func_getvar
+static const struct NCDModule modules[] = {
+    {
+        .type = "net.ipv4.dhcp",
+        .func_new = func_new,
+        .func_free = func_free,
+        .func_getvar = func_getvar
+    }, {
+        .type = NULL
+    }
+};
+
+const struct NCDModuleGroup ncdmodule_net_ipv4_dhcp = {
+    .modules = modules
 };

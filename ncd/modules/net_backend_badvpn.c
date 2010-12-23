@@ -253,9 +253,17 @@ static void func_die (void *vo)
     return;
 }
 
-const struct NCDModule ncdmodule_net_backend_badvpn = {
-    .type = "net.backend.badvpn",
-    .func_new = func_new,
-    .func_free = func_free,
-    .func_die = func_die
+static const struct NCDModule modules[] = {
+    {
+        .type = "net.backend.badvpn",
+        .func_new = func_new,
+        .func_free = func_free,
+        .func_die = func_die
+    }, {
+        .type = NULL
+    }
+};
+
+const struct NCDModuleGroup ncdmodule_net_backend_badvpn = {
+    .modules = modules
 };
