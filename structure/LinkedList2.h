@@ -140,6 +140,22 @@ static void LinkedList2_InsertAfter (LinkedList2 *list, LinkedList2Node *node, L
 static void LinkedList2_Remove (LinkedList2 *list, LinkedList2Node *node);
 
 /**
+ * Returns the next node of a given node.
+ * 
+ * @param node reference node
+ * @return next node, or NULL if none
+ */
+static LinkedList2Node * LinkedList2Node_Next (LinkedList2Node *node);
+
+/**
+ * Returns the previous node of a given node.
+ * 
+ * @param node reference node
+ * @return previous node, or NULL if none
+ */
+static LinkedList2Node * LinkedList2Node_Prev (LinkedList2Node *node);
+
+/**
  * Initializes a linked list iterator.
  * The iterator memory must remain available until either of these occurs:
  *   - the list is no longer needed, or
@@ -294,6 +310,16 @@ void LinkedList2_Remove (LinkedList2 *list, LinkedList2Node *node)
     } else {
         list->last = node->p;
     }
+}
+
+LinkedList2Node * LinkedList2Node_Next (LinkedList2Node *node)
+{
+    return node->n;
+}
+
+LinkedList2Node * LinkedList2Node_Prev (LinkedList2Node *node)
+{
+    return node->p;
 }
 
 void LinkedList2Iterator_Init (LinkedList2Iterator *it, LinkedList2 *list, int dir, LinkedList2Node *node)
