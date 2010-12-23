@@ -33,6 +33,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <linux/if_tun.h>
+#include <pwd.h>
   
 #include <misc/debug.h>
 #include <system/BLog.h>
@@ -42,7 +43,6 @@
 #include <generated/blog_channel_NCDIfConfig.h>
 
 #define IP_CMD "ip"
-#define ROUTE_CMD "route"
 #define RESOLVCONF_FILE "/etc/resolv.conf"
 #define RESOLVCONF_TEMP_FILE "/etc/resolv.conf-ncd-temp"
 
@@ -154,13 +154,13 @@ static int route_cmd (const char *cmdtype, struct ipv4_ifaddr dest, const uint32
     char gwstr[60];
     if (gateway) {
         const uint8_t *g_addr = (uint8_t *)gateway;
-        sprintf(gwstr, " gw %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, g_addr[0], g_addr[1], g_addr[2], g_addr[3]);
+        sprintf(gwstr, " via %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, g_addr[0], g_addr[1], g_addr[2], g_addr[3]);
     } else {
         sprintf(gwstr, "");
     }
     
     char cmd[100];
-    sprintf(cmd, ROUTE_CMD" %s -net %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"/%d%s metric %d dev %s",
+    sprintf(cmd, IP_CMD" route %s %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"/%d%s metric %d dev %s",
             cmdtype, d_addr[0], d_addr[1], d_addr[2], d_addr[3], dest.prefix, gwstr, metric, device);
     
     return !run_command(cmd);
@@ -250,7 +250,31 @@ int NCDIfConfig_make_tuntap (const char *ifname, const char *owner, int tun)
     }
     
     if (owner) {
-        if (ioctl(fd, TUNSETOWNER, owner) < 0) {
+        size_t bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
+        if (bufsize < 0) {
+            bufsize = 16384;
+        }
+        
+        char *buf = malloc(bufsize);
+        if (!buf) {
+            BLog(BLOG_ERROR, "malloc failed");
+            goto fail1;
+        }
+        
+        struct passwd pwd;
+        struct passwd *res;
+        getpwnam_r(owner, &pwd, buf, bufsize, &res);
+        if (!res) {
+            BLog(BLOG_ERROR, "getpwnam_r failed");
+            free(buf);
+            goto fail1;
+        }
+        
+        int uid = pwd.pw_uid;
+        
+        free(buf);
+        
+        if (ioctl(fd, TUNSETOWNER, uid) < 0) {
             BLog(BLOG_ERROR, "TUNSETOWNER failed");
             goto fail1;
         }
