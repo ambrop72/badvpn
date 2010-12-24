@@ -24,6 +24,7 @@
  * iptables module.
  * 
  * Synopsis: net.iptables.append(string table, string chain, string arg1,  ...)
+ * Synopsis: net.iptables.policy(string table, string chain, string target, string revert_target)
  */
 
 #include <stdlib.h>
@@ -37,7 +38,7 @@
 
 #define IPTABLES_PATH "/sbin/iptables"
 
-static int build_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+static int build_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
 {
     // read arguments
     NCDValue *table_arg;
@@ -103,15 +104,82 @@ fail0:
     return 0;
 }
 
-static void * func_new (NCDModuleInst *i)
+static int build_policy_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
 {
-    return command_template_new(i, build_cmdline, BLOG_CURRENT_CHANNEL);
+    // read arguments
+    NCDValue *table_arg;
+    NCDValue *chain_arg;
+    NCDValue *target_arg;
+    NCDValue *revert_target_arg;
+    if (!NCDValue_ListRead(i->args, 4, &table_arg, &chain_arg, &target_arg, &revert_target_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (NCDValue_Type(table_arg) != NCDVALUE_STRING || NCDValue_Type(chain_arg) != NCDVALUE_STRING ||
+        NCDValue_Type(target_arg) != NCDVALUE_STRING || NCDValue_Type(revert_target_arg) != NCDVALUE_STRING
+    ) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    char *table = NCDValue_StringValue(table_arg);
+    char *chain = NCDValue_StringValue(chain_arg);
+    char *target = NCDValue_StringValue(target_arg);
+    char *revert_target = NCDValue_StringValue(revert_target_arg);
+    
+    // alloc exec
+    if (!(*exec = strdup(IPTABLES_PATH))) {
+        ModuleLog(i, BLOG_ERROR, "strdup failed");
+        goto fail0;
+    }
+    
+    // start cmdline
+    if (!CmdLine_Init(cl)) {
+        ModuleLog(i, BLOG_ERROR, "CmdLine_Init failed");
+        goto fail1;
+    }
+    
+    // add arguments
+    if (!CmdLine_Append(cl, IPTABLES_PATH) || !CmdLine_Append(cl, "-t") || !CmdLine_Append(cl, table) ||
+        !CmdLine_Append(cl, "-P") || !CmdLine_Append(cl, chain) || !CmdLine_Append(cl, (remove ? revert_target : target))) {
+        ModuleLog(i, BLOG_ERROR, "CmdLine_Append failed");
+        goto fail2;
+    }
+    
+    // finish
+    if (!CmdLine_Finish(cl)) {
+        ModuleLog(i, BLOG_ERROR, "CmdLine_Finish failed");
+        goto fail2;
+    }
+    
+    return 1;
+    
+fail2:
+    CmdLine_Free(cl);
+fail1:
+    free(*exec);
+fail0:
+    return 0;
+}
+
+static void * append_func_new (NCDModuleInst *i)
+{
+    return command_template_new(i, build_append_cmdline, BLOG_CURRENT_CHANNEL);
+}
+
+static void * policy_func_new (NCDModuleInst *i)
+{
+    return command_template_new(i, build_policy_cmdline, BLOG_CURRENT_CHANNEL);
 }
 
 static const struct NCDModule modules[] = {
     {
         .type = "net.iptables.append",
-        .func_new = func_new,
+        .func_new = append_func_new,
+        .func_free = command_template_func_free,
+        .func_die = command_template_func_die
+    }, {
+        .type = "net.iptables.policy",
+        .func_new = policy_func_new,
         .func_free = command_template_func_free,
         .func_die = command_template_func_die
     }, {
