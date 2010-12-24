@@ -12,7 +12,7 @@
 # reports having transitioned into the UP state, it initializes the next statement in the DOWN state,
 # and so on.
 #
-# However, execution can go in the other direction to. A statement in the UP state can, at any time,
+# However, execution can go in the other direction too. A statement in the UP state can, at any time,
 # report having transitioned into the DOWN state. At this point, any statements after that one will
 # automatically be de-initialized. The de-initiazation is done from the bottom up. First the last
 # initialized statement after the problematic statement is requested to terminate and enters the
@@ -167,7 +167,7 @@ process vpn {
     # The VPN client program needs to know some IP addresses in order to tell other peers where to connect to.
     # Obtain this informations from variables in the "lan" process through the depend() statement. TODO: not implemented yet!
 
-    # Construct the local address (addr + port). TODO: concat not implemented yet!
+    # Construct the local address (addr + port).
     concat(landep.ipaddr, ":", port) local_addr_arg;
 
     # Construct the Internet address (assuming we are behind a NAT).

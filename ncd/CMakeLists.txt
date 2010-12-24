@@ -7,6 +7,7 @@ add_executable(badvpn-ncd
     modules/var.c
     modules/list.c
     modules/depend.c
+    modules/concat.c
     modules/net_backend_physical.c
     modules/net_backend_badvpn.c
     modules/net_dns.c
