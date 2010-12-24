@@ -56,5 +56,6 @@ size_t NCDValue_ListCount (NCDValue *o);
 NCDValue * NCDValue_ListFirst (NCDValue *o);
 NCDValue * NCDValue_ListNext (NCDValue *o, NCDValue *ev);
 int NCDValue_ListRead (NCDValue *o, int num, ...);
+int NCDValue_ListReadHead (NCDValue *o, int num, ...);
 
 #endif

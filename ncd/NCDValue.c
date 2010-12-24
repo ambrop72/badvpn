@@ -241,3 +241,33 @@ int NCDValue_ListRead (NCDValue *o, int num, ...)
     
     return 1;
 }
+
+int NCDValue_ListReadHead (NCDValue *o, int num, ...)
+{
+    value_assert(o);
+    ASSERT(o->type == NCDVALUE_LIST)
+    ASSERT(num >= 0)
+    
+    if (num > NCDValue_ListCount(o)) {
+        return 0;
+    }
+    
+    va_list ap;
+    va_start(ap, num);
+    
+    LinkedList2Node *n = LinkedList2_GetFirst(&o->list);
+    while (num > 0) {
+        ASSERT(n)
+        NCDListElement *e = UPPER_OBJECT(n, NCDListElement, list_node);
+        
+        NCDValue **dest = va_arg(ap, NCDValue **);
+        *dest = &e->v;
+        
+        n = LinkedList2Node_Next(n);
+        num--;
+    }
+    
+    va_end(ap);
+    
+    return 1;
+}
