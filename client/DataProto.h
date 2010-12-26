@@ -30,7 +30,6 @@
 #include <stdint.h>
 
 #include <protocol/scproto.h>
-#include <misc/dead.h>
 #include <misc/debugcounter.h>
 #include <misc/debug.h>
 #include <structure/LinkedList2.h>
@@ -57,7 +56,6 @@ struct dp_relay_flow;
  * Represents a peer as a destination for sending frames to.
  */
 typedef struct {
-    dead_t dead;
     BReactor *reactor;
     peerid_t dest_id;
     int mtu;
@@ -88,7 +86,6 @@ typedef struct {
  * Buffers frames received from the TAP device, addressed to a particular peer.
  */
 typedef struct {
-    dead_t dead;
     int frame_mtu;
     peerid_t source_id;
     peerid_t dest_id;
@@ -108,7 +105,6 @@ typedef struct {
  * Represents relaying of frames from one particular peer to other peers.
  */
 typedef struct {
-    dead_t dead;
     peerid_t source_id;
     LinkedList2 relay_flows_list;
     BAVL relay_flows_tree;

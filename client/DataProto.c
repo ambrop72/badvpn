@@ -298,9 +298,6 @@ int DataProtoDest_Init (DataProtoDest *o, BReactor *reactor, peerid_t dest_id, P
     o->handler = handler;
     o->user = user;
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // set MTU
     o->mtu = PacketPassInterface_GetMTU(output);
     
@@ -407,9 +404,6 @@ void DataProtoDest_Free (DataProtoDest *o)
     
     // free keepalive job
     BPending_Free(&o->keepalive_job);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
 
 void DataProtoDest_PrepareFree (DataProtoDest *o)
@@ -490,9 +484,6 @@ int DataProtoLocalSource_Init (DataProtoLocalSource *o, int frame_mtu, peerid_t 
     // calculate packet MTU
     int packet_mtu = o->frame_mtu + sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id);
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // init connector
     PacketPassConnector_Init(&o->connector, packet_mtu, BReactor_PendingGroup(reactor));
     
@@ -532,9 +523,6 @@ void DataProtoLocalSource_Free (DataProtoLocalSource *o)
     
     // free connector
     PacketPassConnector_Free(&o->connector);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
 
 void DataProtoLocalSource_SubmitFrame (DataProtoLocalSource *o, uint8_t *data, int data_len)
@@ -640,9 +628,6 @@ void DataProtoRelaySource_Init (DataProtoRelaySource *o, peerid_t source_id)
     // init arguments
     o->source_id = source_id;
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // init relay flows list
     LinkedList2_Init(&o->relay_flows_list);
     
@@ -657,9 +642,6 @@ void DataProtoRelaySource_Free (DataProtoRelaySource *o)
     ASSERT(BAVL_IsEmpty(&o->relay_flows_tree))
     ASSERT(LinkedList2_IsEmpty(&o->relay_flows_list))
     DebugObject_Free(&o->d_obj);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
 
 int DataProtoRelaySource_IsEmpty (DataProtoRelaySource *o)
