@@ -27,7 +27,7 @@
 #include <unistd.h>
 
 #include <misc/debug.h>
-#include <misc/dead.h>
+#include <misc/debugerror.h>
 #include <structure/LinkedList2.h>
 #include <system/DebugObject.h>
 #include <system/BUnixSignal.h>
@@ -50,9 +50,7 @@ typedef struct {
     pid_t pid;
     LinkedList2Node list_node; // node in BProcessManager.processes
     DebugObject d_obj;
-    #ifndef NDEBUG
-    dead_t d_dead;
-    #endif
+    DebugError d_err;
 } BProcess;
 
 int BProcessManager_Init (BProcessManager *o, BReactor *reactor) WARN_UNUSED;

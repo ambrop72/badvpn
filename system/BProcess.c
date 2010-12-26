@@ -40,16 +40,7 @@
 
 static void call_handler (BProcess *o, int normally, uint8_t normally_exit_status)
 {
-    #ifndef NDEBUG
-    DEAD_ENTER(o->d_dead)
-    #endif
-    
-    o->handler(o->user, normally, normally_exit_status);
-    
-    #ifndef NDEBUG
-    ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(o->d_dead);
-    #endif
+    DEBUGERROR(&o->d_err, o->handler(o->user, normally, normally_exit_status))
 }
 
 static BProcess * find_process (BProcessManager *o, pid_t pid)
@@ -240,9 +231,7 @@ int BProcess_Init (BProcess *o, BProcessManager *m, BProcess_handler handler, vo
     LinkedList2_Append(&o->m->processes, &o->list_node);
     
     DebugObject_Init(&o->d_obj);
-    #ifndef NDEBUG
-    DEAD_INIT(o->d_dead);
-    #endif
+    DebugError_Init(&o->d_err);
     
     return 1;
     
@@ -252,10 +241,8 @@ fail0:
 
 void BProcess_Free (BProcess *o)
 {
+    DebugError_Free(&o->d_err);
     DebugObject_Free(&o->d_obj);
-    #ifndef NDEBUG
-    DEAD_KILL(o->d_dead);
-    #endif
     
     // remove from processes list
     LinkedList2_Remove(&o->m->processes, &o->list_node);
