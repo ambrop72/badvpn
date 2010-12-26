@@ -26,16 +26,7 @@
 
 static void report_error (StreamSocketSource *s, int error)
 {
-    #ifndef NDEBUG
-    DEAD_ENTER(s->d_dead)
-    #endif
-    
-    FlowErrorReporter_ReportError(&s->rep, &error);
-    
-    #ifndef NDEBUG
-    ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(s->d_dead);
-    #endif
+    DEBUGERROR(&s->d_err, FlowErrorReporter_ReportError(&s->rep, &error))
 }
 
 static void try_recv (StreamSocketSource *s)
@@ -109,16 +100,12 @@ void StreamSocketSource_Init (StreamSocketSource *s, FlowErrorReporter rep, BSoc
     s->out_avail = -1;
     
     DebugObject_Init(&s->d_obj);
-    #ifndef NDEBUG
-    DEAD_INIT(s->d_dead);
-    #endif
+    DebugError_Init(&s->d_err);
 }
 
 void StreamSocketSource_Free (StreamSocketSource *s)
 {
-    #ifndef NDEBUG
-    DEAD_KILL(s->d_dead);
-    #endif
+    DebugError_Free(&s->d_err);
     DebugObject_Free(&s->d_obj);
     
     // free output
