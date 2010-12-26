@@ -35,7 +35,6 @@ char *packets[MAX_PACKETS];
 int num_packets;
 int current_packet;
 int waiting;
-dead_t dead;
 BReactor reactor;
 BIPC ipc;
 PacketPassInterface recv_if;
@@ -74,8 +73,6 @@ int main (int argc, char **argv)
     current_packet = 0;
     
     waiting = 0;
-    
-    DEAD_INIT(dead);
     
     BLog_InitStdout();
     
@@ -132,8 +129,6 @@ void terminate (int ret)
     BSignal_Finish();
     
     BReactor_Quit(&reactor, ret);
-    
-    DEAD_KILL(dead);
 }
 
 void signal_handler (void *user)
