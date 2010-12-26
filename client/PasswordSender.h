@@ -29,7 +29,7 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
+#include <misc/debugerror.h>
 #include <system/BSocket.h>
 #include <system/DebugObject.h>
 #include <flow/SinglePacketSender.h>
@@ -53,7 +53,6 @@ typedef void (*PasswordSender_handler) (void *user, int is_error);
  * Object used to send a password to a {@link PasswordListener} server.
  */
 typedef struct {
-    dead_t dead;
     uint64_t password;
     int ssl;
     union {
@@ -70,6 +69,7 @@ typedef struct {
         PRStreamSink ssl;
     } sink;
     DebugObject d_obj;
+    DebugError d_err;
 } PasswordSender;
 
 /**

@@ -28,16 +28,7 @@
 
 static void call_handler (PasswordSender *o, int is_error)
 {
-    #ifndef NDEBUG
-    DEAD_ENTER(o->dead)
-    #endif
-    
-    o->handler(o->user, is_error);
-    
-    #ifndef NDEBUG
-    ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(o->dead);
-    #endif
+    DEBUGERROR(&o->d_err, o->handler(o->user, is_error))
 }
 
 static void error_handler (PasswordSender *o, int component, const void *data)
@@ -72,9 +63,6 @@ void PasswordSender_Init (PasswordSender *o, uint64_t password, int ssl, BSocket
     o->handler = handler;
     o->user = user;
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // init error handler
     FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)error_handler, o);
     
@@ -95,10 +83,12 @@ void PasswordSender_Init (PasswordSender *o, uint64_t password, int ssl, BSocket
     SinglePacketSender_Init(&o->sps, (uint8_t *)&o->password, sizeof(o->password), PacketStreamSender_GetInput(&o->pss), (SinglePacketSender_handler)sent_handler, o, BReactor_PendingGroup(reactor));
     
     DebugObject_Init(&o->d_obj);
+    DebugError_Init(&o->d_err);
 }
 
 void PasswordSender_Free (PasswordSender *o)
 {
+    DebugError_Free(&o->d_err);
     DebugObject_Free(&o->d_obj);
     
     // free SinglePacketSender
@@ -113,7 +103,4 @@ void PasswordSender_Free (PasswordSender *o)
     } else {
         StreamSocketSink_Free(&o->sink.plain);
     }
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
