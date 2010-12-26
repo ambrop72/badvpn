@@ -94,9 +94,7 @@ int NCDModuleInst_Init (NCDModuleInst *n, const char *name, const struct NCDModu
     }
     
     DebugObject_Init(&n->d_obj);
-    #ifndef NDEBUG
-    DEAD_INIT(n->d_dead);
-    #endif
+    DebugError_Init(&n->d_err);
     
     return 1;
     
@@ -108,9 +106,7 @@ fail1:
 
 void NCDModuleInst_Free (NCDModuleInst *n)
 {
-    #ifndef NDEBUG
-    DEAD_KILL(n->d_dead);
-    #endif
+    DebugError_Free(&n->d_err);
     DebugObject_Free(&n->d_obj);
     
     // free backend
@@ -189,16 +185,7 @@ void NCDModuleInst_Backend_Died (NCDModuleInst *n, int is_error)
 {
     ASSERT(is_error == 0 || is_error == 1)
     
-    #ifndef NDEBUG
-    DEAD_ENTER(n->d_dead)
-    #endif
-    
-    n->handler_died(n->user, is_error);
-    
-    #ifndef NDEBUG
-    ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(n->d_dead);
-    #endif
+    DEBUGERROR(&n->d_err, n->handler_died(n->user, is_error))
 }
 
 void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const char *fmt, ...)

@@ -25,6 +25,7 @@
 
 #include <stdarg.h>
 
+#include <misc/debugerror.h>
 #include <system/BReactor.h>
 #include <system/BProcess.h>
 #include <system/BPending.h>
@@ -61,9 +62,7 @@ typedef struct {
     int state;
     void *inst_user;
     DebugObject d_obj;
-    #ifndef NDEBUG
-    dead_t d_dead;
-    #endif
+    DebugError d_err;
 } NCDModuleInst;
 
 int NCDModuleInst_Init (NCDModuleInst *n, const char *name, const struct NCDModule *m, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
