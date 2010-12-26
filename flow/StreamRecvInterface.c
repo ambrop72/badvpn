@@ -24,56 +24,26 @@
 
 void _StreamRecvInterface_job_operation (StreamRecvInterface *i)
 {
-    ASSERT(i->d_user_busy)
-    ASSERT(i->buf_len > 0)
-    ASSERT(i->handler_done)
+    ASSERT(i->state == SRI_STATE_OPERATION_PENDING)
     DebugObject_Access(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_AmOut(&i->d_in_operation);
-    DebugIn_AmOut(&i->d_in_done);
-    #endif
     
-    // call operation handler
-    #ifndef NDEBUG
-    DebugIn_GoIn(&i->d_in_operation);
-    DEAD_ENTER(i->d_dead)
-    #endif
-    i->handler_operation(i->user_provider, i->buf, i->buf_len);
-    #ifndef NDEBUG
-    if (DEAD_LEAVE(i->d_dead)) {
-        return;
-    }
-    DebugIn_GoOut(&i->d_in_operation);
-    #endif
+    // set state
+    i->state = SRI_STATE_BUSY;
+    
+    // call handler
+    i->handler_operation(i->user_provider, i->job_operation_data, i->job_operation_len);
+    return;
 }
 
 void _StreamRecvInterface_job_done (StreamRecvInterface *i)
 {
-    ASSERT(i->d_user_busy)
-    ASSERT(i->buf_len > 0)
-    ASSERT(i->done_len > 0)
-    ASSERT(i->done_len <= i->buf_len)
-    ASSERT(i->handler_done)
+    ASSERT(i->state == SRI_STATE_DONE_PENDING)
     DebugObject_Access(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_AmOut(&i->d_in_operation);
-    DebugIn_AmOut(&i->d_in_done);
-    #endif
     
-    #ifndef NDEBUG
-    i->d_user_busy = 0;
-    #endif
+    // set state
+    i->state = SRI_STATE_NONE;
     
-    // call done handler
-    #ifndef NDEBUG
-    DebugIn_GoIn(&i->d_in_done);
-    DEAD_ENTER(i->d_dead)
-    #endif
-    i->handler_done(i->user_user, i->done_len);
-    #ifndef NDEBUG
-    if (DEAD_LEAVE(i->d_dead)) {
-        return;
-    }
-    DebugIn_GoOut(&i->d_in_done);
-    #endif
+    // call handler
+    i->handler_done(i->user_user, i->job_done_len);
+    return;
 }

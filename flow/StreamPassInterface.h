@@ -35,11 +35,14 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <misc/dead.h>
 #include <misc/debug.h>
-#include <misc/debugin.h>
 #include <system/DebugObject.h>
 #include <system/BPending.h>
+
+#define SPI_STATE_NONE 1
+#define SPI_STATE_OPERATION_PENDING 2
+#define SPI_STATE_BUSY 3
+#define SPI_STATE_DONE_PENDING 4
 
 typedef void (*StreamPassInterface_handler_send) (void *user, uint8_t *data, int data_len);
 
@@ -54,24 +57,19 @@ typedef struct {
     StreamPassInterface_handler_done handler_done;
     void *user_user;
     
-    // jobs
+    // operation job
     BPending job_operation;
+    uint8_t *job_operation_data;
+    int job_operation_len;
+    
+    // done job
     BPending job_done;
+    int job_done_len;
     
-    // packet supplied by user
-    uint8_t *buf;
-    int buf_len;
-    
-    // length supplied by done
-    int done_len;
+    // state
+    int state;
     
     DebugObject d_obj;
-    #ifndef NDEBUG
-    DebugIn d_in_operation;
-    DebugIn d_in_done;
-    dead_t d_dead;
-    int d_user_busy;
-    #endif
 } StreamPassInterface;
 
 static void StreamPassInterface_Init (StreamPassInterface *i, StreamPassInterface_handler_send handler_operation, void *user, BPendingGroup *pg);
@@ -100,20 +98,14 @@ void StreamPassInterface_Init (StreamPassInterface *i, StreamPassInterface_handl
     BPending_Init(&i->job_operation, pg, (BPending_handler)_StreamPassInterface_job_operation, i);
     BPending_Init(&i->job_done, pg, (BPending_handler)_StreamPassInterface_job_done, i);
     
+    // set state
+    i->state = SPI_STATE_NONE;
+    
     DebugObject_Init(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_Init(&i->d_in_operation);
-    DebugIn_Init(&i->d_in_done);
-    DEAD_INIT(i->d_dead);
-    i->d_user_busy = 0;
-    #endif
 }
 
 void StreamPassInterface_Free (StreamPassInterface *i)
 {
-    #ifndef NDEBUG
-    DEAD_KILL(i->d_dead);
-    #endif
     DebugObject_Free(&i->d_obj);
     
     // free jobs
@@ -123,20 +115,17 @@ void StreamPassInterface_Free (StreamPassInterface *i)
 
 void StreamPassInterface_Done (StreamPassInterface *i, int data_len)
 {
+    ASSERT(i->state == SPI_STATE_BUSY)
     ASSERT(data_len > 0)
-    ASSERT(data_len <= i->buf_len)
-    ASSERT(i->d_user_busy)
-    ASSERT(i->buf_len > 0)
-    ASSERT(i->handler_done)
-    ASSERT(!BPending_IsSet(&i->job_operation))
+    ASSERT(data_len <= i->job_operation_len)
     DebugObject_Access(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_AmOut(&i->d_in_done);
-    #endif
     
-    i->done_len = data_len;
-    
+    // schedule done
+    i->job_done_len = data_len;
     BPending_Set(&i->job_done);
+    
+    // set state
+    i->state = SPI_STATE_DONE_PENDING;
 }
 
 void StreamPassInterface_Sender_Init (StreamPassInterface *i, StreamPassInterface_handler_done handler_done, void *user)
@@ -153,21 +142,17 @@ void StreamPassInterface_Sender_Send (StreamPassInterface *i, uint8_t *data, int
 {
     ASSERT(data_len > 0)
     ASSERT(data)
-    ASSERT(!i->d_user_busy)
+    ASSERT(i->state == SPI_STATE_NONE)
     ASSERT(i->handler_done)
     DebugObject_Access(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_AmOut(&i->d_in_operation);
-    #endif
     
-    i->buf = data;
-    i->buf_len = data_len;
-    
-    #ifndef NDEBUG
-    i->d_user_busy = 1;
-    #endif
-    
+    // schedule operation
+    i->job_operation_data = data;
+    i->job_operation_len = data_len;
     BPending_Set(&i->job_operation);
+    
+    // set state
+    i->state = SPI_STATE_OPERATION_PENDING;
 }
 
 #endif

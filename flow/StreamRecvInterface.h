@@ -24,8 +24,8 @@
  * Interface allowing a stream receiver to receive stream data from a stream sender.
  * 
  * Note that this interface behaves exactly the same and has the same code as
- * {@link StreamRecvInterface} if names and its external semantics are disregarded.
- * If you modify this file, you should probably modify {@link StreamRecvInterface}
+ * {@link StreamPassInterface} if names and its external semantics are disregarded.
+ * If you modify this file, you should probably modify {@link StreamPassInterface}
  * too.
  */
 
@@ -35,11 +35,14 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <misc/dead.h>
 #include <misc/debug.h>
-#include <misc/debugin.h>
 #include <system/DebugObject.h>
 #include <system/BPending.h>
+
+#define SRI_STATE_NONE 1
+#define SRI_STATE_OPERATION_PENDING 2
+#define SRI_STATE_BUSY 3
+#define SRI_STATE_DONE_PENDING 4
 
 typedef void (*StreamRecvInterface_handler_recv) (void *user, uint8_t *data, int data_len);
 
@@ -54,24 +57,19 @@ typedef struct {
     StreamRecvInterface_handler_done handler_done;
     void *user_user;
     
-    // jobs
+    // operation job
     BPending job_operation;
+    uint8_t *job_operation_data;
+    int job_operation_len;
+    
+    // done job
     BPending job_done;
+    int job_done_len;
     
-    // packet supplied by user
-    uint8_t *buf;
-    int buf_len;
-    
-    // length supplied by done
-    int done_len;
+    // state
+    int state;
     
     DebugObject d_obj;
-    #ifndef NDEBUG
-    DebugIn d_in_operation;
-    DebugIn d_in_done;
-    dead_t d_dead;
-    int d_user_busy;
-    #endif
 } StreamRecvInterface;
 
 static void StreamRecvInterface_Init (StreamRecvInterface *i, StreamRecvInterface_handler_recv handler_operation, void *user, BPendingGroup *pg);
@@ -100,20 +98,14 @@ void StreamRecvInterface_Init (StreamRecvInterface *i, StreamRecvInterface_handl
     BPending_Init(&i->job_operation, pg, (BPending_handler)_StreamRecvInterface_job_operation, i);
     BPending_Init(&i->job_done, pg, (BPending_handler)_StreamRecvInterface_job_done, i);
     
+    // set state
+    i->state = SRI_STATE_NONE;
+    
     DebugObject_Init(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_Init(&i->d_in_operation);
-    DebugIn_Init(&i->d_in_done);
-    DEAD_INIT(i->d_dead);
-    i->d_user_busy = 0;
-    #endif
 }
 
 void StreamRecvInterface_Free (StreamRecvInterface *i)
 {
-    #ifndef NDEBUG
-    DEAD_KILL(i->d_dead);
-    #endif
     DebugObject_Free(&i->d_obj);
     
     // free jobs
@@ -123,20 +115,17 @@ void StreamRecvInterface_Free (StreamRecvInterface *i)
 
 void StreamRecvInterface_Done (StreamRecvInterface *i, int data_len)
 {
+    ASSERT(i->state == SRI_STATE_BUSY)
     ASSERT(data_len > 0)
-    ASSERT(data_len <= i->buf_len)
-    ASSERT(i->d_user_busy)
-    ASSERT(i->buf_len > 0)
-    ASSERT(i->handler_done)
-    ASSERT(!BPending_IsSet(&i->job_operation))
+    ASSERT(data_len <= i->job_operation_len)
     DebugObject_Access(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_AmOut(&i->d_in_done);
-    #endif
     
-    i->done_len = data_len;
-    
+    // schedule done
+    i->job_done_len = data_len;
     BPending_Set(&i->job_done);
+    
+    // set state
+    i->state = SRI_STATE_DONE_PENDING;
 }
 
 void StreamRecvInterface_Receiver_Init (StreamRecvInterface *i, StreamRecvInterface_handler_done handler_done, void *user)
@@ -153,21 +142,17 @@ void StreamRecvInterface_Receiver_Recv (StreamRecvInterface *i, uint8_t *data, i
 {
     ASSERT(data_len > 0)
     ASSERT(data)
-    ASSERT(!i->d_user_busy)
+    ASSERT(i->state == SRI_STATE_NONE)
     ASSERT(i->handler_done)
     DebugObject_Access(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_AmOut(&i->d_in_operation);
-    #endif
     
-    i->buf = data;
-    i->buf_len = data_len;
-    
-    #ifndef NDEBUG
-    i->d_user_busy = 1;
-    #endif
-    
+    // schedule operation
+    i->job_operation_data = data;
+    i->job_operation_len = data_len;
     BPending_Set(&i->job_operation);
+    
+    // set state
+    i->state = SRI_STATE_OPERATION_PENDING;
 }
 
 #endif

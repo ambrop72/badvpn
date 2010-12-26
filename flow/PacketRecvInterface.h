@@ -30,11 +30,14 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <misc/dead.h>
 #include <misc/debug.h>
-#include <misc/debugin.h>
 #include <system/DebugObject.h>
 #include <system/BPending.h>
+
+#define PRI_STATE_NONE 1
+#define PRI_STATE_OPERATION_PENDING 2
+#define PRI_STATE_BUSY 3
+#define PRI_STATE_DONE_PENDING 4
 
 typedef void (*PacketRecvInterface_handler_recv) (void *user, uint8_t *data);
 
@@ -50,23 +53,18 @@ typedef struct {
     PacketRecvInterface_handler_done handler_done;
     void *user_user;
     
-    // jobs
+    // operation job
     BPending job_operation;
+    uint8_t *job_operation_data;
+    
+    // done job
     BPending job_done;
+    int job_done_len;
     
-    // buffer supplied by user
-    uint8_t *buf;
-    
-    // length supplied by done
-    int done_len;
+    // state
+    int state;
     
     DebugObject d_obj;
-    #ifndef NDEBUG
-    DebugIn d_in_operation;
-    DebugIn d_in_done;
-    dead_t d_dead;
-    int d_user_busy;
-    #endif
 } PacketRecvInterface;
 
 static void PacketRecvInterface_Init (PacketRecvInterface *i, int mtu, PacketRecvInterface_handler_recv handler_operation, void *user, BPendingGroup *pg);
@@ -100,20 +98,14 @@ void PacketRecvInterface_Init (PacketRecvInterface *i, int mtu, PacketRecvInterf
     BPending_Init(&i->job_operation, pg, (BPending_handler)_PacketRecvInterface_job_operation, i);
     BPending_Init(&i->job_done, pg, (BPending_handler)_PacketRecvInterface_job_done, i);
     
+    // set state
+    i->state = PRI_STATE_NONE;
+    
     DebugObject_Init(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_Init(&i->d_in_operation);
-    DebugIn_Init(&i->d_in_done);
-    DEAD_INIT(i->d_dead);
-    i->d_user_busy = 0;
-    #endif
 }
 
 void PacketRecvInterface_Free (PacketRecvInterface *i)
 {
-    #ifndef NDEBUG
-    DEAD_KILL(i->d_dead);
-    #endif
     DebugObject_Free(&i->d_obj);
     
     // free jobs
@@ -125,17 +117,15 @@ void PacketRecvInterface_Done (PacketRecvInterface *i, int data_len)
 {
     ASSERT(data_len >= 0)
     ASSERT(data_len <= i->mtu)
-    ASSERT(i->d_user_busy)
-    ASSERT(i->handler_done)
-    ASSERT(!BPending_IsSet(&i->job_operation))
+    ASSERT(i->state == PRI_STATE_BUSY)
     DebugObject_Access(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_AmOut(&i->d_in_done);
-    #endif
     
-    i->done_len = data_len;
-    
+    // schedule done
+    i->job_done_len = data_len;
     BPending_Set(&i->job_done);
+    
+    // set state
+    i->state = PRI_STATE_DONE_PENDING;
 }
 
 int PacketRecvInterface_GetMTU (PacketRecvInterface *i)
@@ -158,20 +148,16 @@ void PacketRecvInterface_Receiver_Init (PacketRecvInterface *i, PacketRecvInterf
 void PacketRecvInterface_Receiver_Recv (PacketRecvInterface *i, uint8_t *data)
 {
     ASSERT(!(i->mtu > 0) || data)
-    ASSERT(!i->d_user_busy)
+    ASSERT(i->state == PRI_STATE_NONE)
     ASSERT(i->handler_done)
     DebugObject_Access(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_AmOut(&i->d_in_operation);
-    #endif
     
+    // schedule operation
+    i->job_operation_data = data;
     BPending_Set(&i->job_operation);
     
-    i->buf = data;
-    
-    #ifndef NDEBUG
-    i->d_user_busy = 1;
-    #endif
+    // set state
+    i->state = PRI_STATE_OPERATION_PENDING;
 }
 
 #endif

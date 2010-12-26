@@ -30,11 +30,14 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <misc/dead.h>
 #include <misc/debug.h>
-#include <misc/debugin.h>
 #include <system/DebugObject.h>
 #include <system/BPending.h>
+
+#define PPI_STATE_NONE 1
+#define PPI_STATE_OPERATION_PENDING 2
+#define PPI_STATE_BUSY 3
+#define PPI_STATE_DONE_PENDING 4
 
 typedef void (*PacketPassInterface_handler_send) (void *user, uint8_t *data, int data_len);
 
@@ -53,22 +56,18 @@ typedef struct {
     PacketPassInterface_handler_done handler_done;
     void *user_user;
     
-    // jobs
+    // operation job
     BPending job_operation;
+    uint8_t *job_operation_data;
+    int job_operation_len;
+    
+    // done job
     BPending job_done;
     
-    // packet supplied by user
-    uint8_t *buf;
-    int buf_len;
+    // state
+    int state;
     
     DebugObject d_obj;
-    #ifndef NDEBUG
-    DebugIn d_in_operation;
-    DebugIn d_in_cancel;
-    DebugIn d_in_done;
-    dead_t d_dead;
-    int d_user_busy;
-    #endif
 } PacketPassInterface;
 
 static void PacketPassInterface_Init (PacketPassInterface *i, int mtu, PacketPassInterface_handler_send handler_operation, void *user, BPendingGroup *pg);
@@ -109,21 +108,14 @@ void PacketPassInterface_Init (PacketPassInterface *i, int mtu, PacketPassInterf
     BPending_Init(&i->job_operation, pg, (BPending_handler)_PacketPassInterface_job_operation, i);
     BPending_Init(&i->job_done, pg, (BPending_handler)_PacketPassInterface_job_done, i);
     
+    // set state
+    i->state = PPI_STATE_NONE;
+    
     DebugObject_Init(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_Init(&i->d_in_operation);
-    DebugIn_Init(&i->d_in_cancel);
-    DebugIn_Init(&i->d_in_done);
-    DEAD_INIT(i->d_dead);
-    i->d_user_busy = 0;
-    #endif
 }
 
 void PacketPassInterface_Free (PacketPassInterface *i)
 {
-    #ifndef NDEBUG
-    DEAD_KILL(i->d_dead);
-    #endif
     DebugObject_Free(&i->d_obj);
     
     // free jobs
@@ -142,18 +134,14 @@ void PacketPassInterface_EnableCancel (PacketPassInterface *i, PacketPassInterfa
 
 void PacketPassInterface_Done (PacketPassInterface *i)
 {
-    ASSERT(i->d_user_busy)
-    ASSERT(i->buf_len >= 0)
-    ASSERT(i->buf_len <= i->mtu)
-    ASSERT(i->handler_done)
-    ASSERT(!BPending_IsSet(&i->job_operation))
+    ASSERT(i->state == PPI_STATE_BUSY)
     DebugObject_Access(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_AmOut(&i->d_in_cancel);
-    DebugIn_AmOut(&i->d_in_done);
-    #endif
     
+    // schedule done
     BPending_Set(&i->job_done);
+    
+    // set state
+    i->state = PPI_STATE_DONE_PENDING;
 }
 
 int PacketPassInterface_GetMTU (PacketPassInterface *i)
@@ -178,55 +166,37 @@ void PacketPassInterface_Sender_Send (PacketPassInterface *i, uint8_t *data, int
     ASSERT(data_len >= 0)
     ASSERT(data_len <= i->mtu)
     ASSERT(!(data_len > 0) || data)
-    ASSERT(!i->d_user_busy)
+    ASSERT(i->state == PPI_STATE_NONE)
     ASSERT(i->handler_done)
     DebugObject_Access(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_AmOut(&i->d_in_operation);
-    DebugIn_AmOut(&i->d_in_cancel);
-    #endif
     
-    i->buf = data;
-    i->buf_len = data_len;
-    
-    #ifndef NDEBUG
-    i->d_user_busy = 1;
-    #endif
-    
+    // schedule operation
+    i->job_operation_data = data;
+    i->job_operation_len = data_len;
     BPending_Set(&i->job_operation);
+    
+    // set state
+    i->state = PPI_STATE_OPERATION_PENDING;
 }
 
 void PacketPassInterface_Sender_Cancel (PacketPassInterface *i)
 {
-    ASSERT(i->d_user_busy)
-    ASSERT(i->buf_len >= 0)
-    ASSERT(i->buf_len <= i->mtu)
+    ASSERT(i->state == PPI_STATE_OPERATION_PENDING || i->state == PPI_STATE_BUSY || i->state == PPI_STATE_DONE_PENDING)
     ASSERT(i->handler_cancel)
-    ASSERT(i->handler_done)
     DebugObject_Access(&i->d_obj);
-    #ifndef NDEBUG
-    DebugIn_AmOut(&i->d_in_operation);
-    DebugIn_AmOut(&i->d_in_cancel);
-    #endif
     
+    int prev_state = i->state;
+    
+    // unset jobs
     BPending_Unset(&i->job_operation);
     BPending_Unset(&i->job_done);
     
-    #ifndef NDEBUG
-    i->d_user_busy = 0;
-    #endif
+    // set state
+    i->state = PPI_STATE_NONE;
     
-    if (!BPending_IsSet(&i->job_operation) && !BPending_IsSet(&i->job_done)) {
-        #ifndef NDEBUG
-        DebugIn_GoIn(&i->d_in_cancel);
-        DEAD_ENTER(i->d_dead)
-        #endif
+    if (prev_state == PPI_STATE_BUSY) {
         i->handler_cancel(i->user_provider);
-        #ifndef NDEBUG
-        ASSERT(!DEAD_KILLED)
-        DEAD_LEAVE(i->d_dead);
-        DebugIn_GoOut(&i->d_in_cancel);
-        #endif
+        return;
     }
 }
 
