@@ -115,9 +115,6 @@ typedef void (*ServerConnection_handler_message) (void *user, peerid_t peer_id, 
  * Object used to communicate with a VPN chat server.
  */
 typedef struct {
-    // dead var
-    dead_t dead;
-    
     // reactor
     BReactor *reactor;
     
