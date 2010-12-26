@@ -53,16 +53,7 @@ static void send_handler_done (BSocksClient *o);
 
 void report_error (BSocksClient *o, int error)
 {
-    #ifndef NDEBUG
-    DEAD_ENTER(o->d_dead)
-    #endif
-    
-    o->handler(o->user, error);
-    
-    #ifndef NDEBUG
-    ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(o->d_dead);
-    #endif
+    DEBUGERROR(&o->d_err, o->handler(o->user, error))
 }
 
 void init_control_io (BSocksClient *o)
@@ -367,9 +358,7 @@ int BSocksClient_Init (BSocksClient *o, BAddr server_addr, BAddr dest_addr, BSoc
     o->state = STATE_CONNECTING;
     
     DebugObject_Init(&o->d_obj);
-    #ifndef NDEBUG
-    DEAD_INIT(o->d_dead);
-    #endif
+    DebugError_Init(&o->d_err);
     
     return 1;
     
@@ -381,9 +370,7 @@ fail0:
 
 void BSocksClient_Free (BSocksClient *o)
 {
-    #ifndef NDEBUG
-    DEAD_KILL(o->d_dead);
-    #endif
+    DebugError_Free(&o->d_err);
     DebugObject_Free(&o->d_obj);
     
     if (o->state == STATE_UP) {

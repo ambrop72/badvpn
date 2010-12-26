@@ -30,7 +30,7 @@
 #include <stdint.h>
 
 #include <misc/debug.h>
-#include <misc/dead.h>
+#include <misc/debugerror.h>
 #include <misc/socks_proto.h>
 #include <system/DebugObject.h>
 #include <system/BSocket.h>
@@ -90,9 +90,7 @@ typedef struct {
         } up;
     };
     DebugObject d_obj;
-    #ifndef NDEBUG
-    dead_t d_dead;
-    #endif
+    DebugError d_err;
 } BSocksClient;
 
 int BSocksClient_Init (BSocksClient *o, BAddr server_addr, BAddr dest_addr, BSocksClient_handler handler, void *user, BReactor *reactor) WARN_UNUSED;
