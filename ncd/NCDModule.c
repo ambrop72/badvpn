@@ -94,7 +94,7 @@ int NCDModuleInst_Init (NCDModuleInst *n, const char *name, const struct NCDModu
     }
     
     DebugObject_Init(&n->d_obj);
-    DebugError_Init(&n->d_err);
+    DebugError_Init(&n->d_err, BReactor_PendingGroup(n->reactor));
     
     return 1;
     

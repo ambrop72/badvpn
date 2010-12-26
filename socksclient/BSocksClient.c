@@ -358,7 +358,7 @@ int BSocksClient_Init (BSocksClient *o, BAddr server_addr, BAddr dest_addr, BSoc
     o->state = STATE_CONNECTING;
     
     DebugObject_Init(&o->d_obj);
-    DebugError_Init(&o->d_err);
+    DebugError_Init(&o->d_err, BReactor_PendingGroup(o->reactor));
     
     return 1;
     

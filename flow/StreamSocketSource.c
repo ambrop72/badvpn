@@ -100,7 +100,7 @@ void StreamSocketSource_Init (StreamSocketSource *s, FlowErrorReporter rep, BSoc
     s->out_avail = -1;
     
     DebugObject_Init(&s->d_obj);
-    DebugError_Init(&s->d_err);
+    DebugError_Init(&s->d_err, BReactor_PendingGroup(BSocket_Reactor(s->bsock)));
 }
 
 void StreamSocketSource_Free (StreamSocketSource *s)

@@ -231,7 +231,7 @@ int BProcess_Init (BProcess *o, BProcessManager *m, BProcess_handler handler, vo
     LinkedList2_Append(&o->m->processes, &o->list_node);
     
     DebugObject_Init(&o->d_obj);
-    DebugError_Init(&o->d_err);
+    DebugError_Init(&o->d_err, BReactor_PendingGroup(m->reactor));
     
     return 1;
     

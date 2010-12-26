@@ -437,4 +437,12 @@ int BSocket_ConnectUnix (BSocket *bs, const char *path) WARN_UNUSED;
 
 #endif
 
+/**
+ * Returns the {@link BReactor} of this socket.
+ * 
+ * @param bs the object
+ * @return {@link BReactor} of this socket
+ */
+BReactor * BSocket_Reactor (BSocket *bs);
+
 #endif

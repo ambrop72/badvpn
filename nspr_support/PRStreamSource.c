@@ -100,7 +100,7 @@ void PRStreamSource_Init (PRStreamSource *s, FlowErrorReporter rep, BPRFileDesc 
     s->out_avail = -1;
     
     DebugObject_Init(&s->d_obj);
-    DebugError_Init(&s->d_err);
+    DebugError_Init(&s->d_err, BReactor_PendingGroup(BPRFileDesc_Reactor(s->bprfd)));
 }
 
 void PRStreamSource_Free (PRStreamSource *s)

@@ -109,7 +109,7 @@ int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, PacketPassInterfa
     }
     
     DebugObject_Init(&o->d_obj);
-    DebugError_Init(&o->d_err);
+    DebugError_Init(&o->d_err, BReactor_PendingGroup(reactor));
     
     return 1;
     
@@ -142,7 +142,7 @@ int BIPC_InitAccept (BIPC *o, BIPCServer *server, int send_mtu, PacketPassInterf
     }
     
     DebugObject_Init(&o->d_obj);
-    DebugError_Init(&o->d_err);
+    DebugError_Init(&o->d_err, BReactor_PendingGroup(reactor));
     
     return 1;
     

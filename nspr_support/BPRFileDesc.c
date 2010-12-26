@@ -223,7 +223,7 @@ void BPRFileDesc_Init (BPRFileDesc *obj, PRFileDesc *prfd)
     init_bottom(obj);
     
     // init job
-    BPending_Init(&obj->job, BReactor_PendingGroup(((BSocket *)obj->bottom->secret)->bsys), (BPending_handler)job_handler, obj);
+    BPending_Init(&obj->job, BReactor_PendingGroup(BSocket_Reactor((BSocket *)obj->bottom->secret)), (BPending_handler)job_handler, obj);
     
     DebugObject_Init(&obj->d_obj);
 }
@@ -317,4 +317,11 @@ void BPRFileDesc_DisableEvent (BPRFileDesc *obj, PRInt16 event)
     if (!obj->dispatching) {
         update_bottom(obj);
     }
+}
+
+BReactor * BPRFileDesc_Reactor (BPRFileDesc *obj)
+{
+    DebugObject_Access(&obj->d_obj);
+    
+    return BSocket_Reactor((BSocket *)obj->bottom->secret);
 }

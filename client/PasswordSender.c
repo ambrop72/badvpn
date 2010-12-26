@@ -83,7 +83,7 @@ void PasswordSender_Init (PasswordSender *o, uint64_t password, int ssl, BSocket
     SinglePacketSender_Init(&o->sps, (uint8_t *)&o->password, sizeof(o->password), PacketStreamSender_GetInput(&o->pss), (SinglePacketSender_handler)sent_handler, o, BReactor_PendingGroup(reactor));
     
     DebugObject_Init(&o->d_obj);
-    DebugError_Init(&o->d_err);
+    DebugError_Init(&o->d_err, BReactor_PendingGroup(reactor));
 }
 
 void PasswordSender_Free (PasswordSender *o)

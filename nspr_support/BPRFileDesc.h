@@ -132,4 +132,12 @@ void BPRFileDesc_EnableEvent (BPRFileDesc *obj, PRInt16 event);
  */
 void BPRFileDesc_DisableEvent (BPRFileDesc *obj, PRInt16 event);
 
+/**
+ * Returns the {@link BReactor} used by this object.
+ * 
+ * @param obj the object
+ * @return {@link BReactor} used by this object
+ */
+BReactor * BPRFileDesc_Reactor (BPRFileDesc *obj);
+
 #endif

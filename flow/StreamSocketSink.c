@@ -95,7 +95,7 @@ void StreamSocketSink_Init (StreamSocketSink *s, FlowErrorReporter rep, BSocket 
     s->in_len = -1;
     
     DebugObject_Init(&s->d_obj);
-    DebugError_Init(&s->d_err);
+    DebugError_Init(&s->d_err, BReactor_PendingGroup(BSocket_Reactor(s->bsock)));
 }
 
 void StreamSocketSink_Free (StreamSocketSink *s)

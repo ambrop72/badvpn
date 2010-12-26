@@ -530,7 +530,7 @@ int ServerConnection_Init (
     o->state = STATE_CONNECTING;
     
     DebugObject_Init(&o->d_obj);
-    DebugError_Init(&o->d_err);
+    DebugError_Init(&o->d_err, BReactor_PendingGroup(o->reactor));
     
     return 1;
     

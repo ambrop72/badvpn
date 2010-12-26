@@ -1520,4 +1520,11 @@ int BSocket_ConnectUnix (BSocket *bs, const char *path)
     return 0;
 }
 
+BReactor * BSocket_Reactor (BSocket *bs)
+{
+    DebugObject_Access(&bs->d_obj);
+    
+    return bs->bsys;
+}
+
 #endif

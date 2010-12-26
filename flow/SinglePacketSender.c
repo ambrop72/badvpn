@@ -55,7 +55,7 @@ void SinglePacketSender_Init (SinglePacketSender *o, uint8_t *packet, int packet
     PacketPassInterface_Sender_Send(o->output, packet, packet_len);
     
     DebugObject_Init(&o->d_obj);
-    DebugError_Init(&o->d_err);
+    DebugError_Init(&o->d_err, pg);
 }
 
 void SinglePacketSender_Free (SinglePacketSender *o)
