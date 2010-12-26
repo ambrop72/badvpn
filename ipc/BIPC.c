@@ -30,16 +30,7 @@ static void error_handler (BIPC *o, int component, const void *data)
 {
     DebugObject_Access(&o->d_obj);
     
-    #ifndef NDEBUG
-    DEAD_ENTER(o->dead)
-    #endif
-    
-    o->handler(o->user);
-    
-    #ifndef NDEBUG
-    ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(o->dead);
-    #endif
+    DEBUGERROR(&o->d_err, o->handler(o->user))
 }
 
 static int init_io (BIPC *o, int send_mtu, PacketPassInterface *recv_if, BReactor *reactor)
@@ -100,9 +91,6 @@ int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, PacketPassInterfa
     o->handler = handler;
     o->user = user;
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // init socket
     if (BSocket_Init(&o->sock, reactor, BADDR_TYPE_UNIX, BSOCKET_TYPE_STREAM) < 0) {
         DEBUG("BSocket_Init failed");
@@ -121,6 +109,7 @@ int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, PacketPassInterfa
     }
     
     DebugObject_Init(&o->d_obj);
+    DebugError_Init(&o->d_err);
     
     return 1;
     
@@ -141,9 +130,6 @@ int BIPC_InitAccept (BIPC *o, BIPCServer *server, int send_mtu, PacketPassInterf
     o->handler = handler;
     o->user = user;
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // accept socket
     if (!Listener_Accept(&server->listener, &o->sock, NULL)) {
         DEBUG("Listener_Accept failed");
@@ -156,6 +142,7 @@ int BIPC_InitAccept (BIPC *o, BIPCServer *server, int send_mtu, PacketPassInterf
     }
     
     DebugObject_Init(&o->d_obj);
+    DebugError_Init(&o->d_err);
     
     return 1;
     
@@ -167,6 +154,7 @@ fail0:
 
 void BIPC_Free (BIPC *o)
 {
+    DebugError_Free(&o->d_err);
     DebugObject_Free(&o->d_obj);
     
     // free I/O
@@ -174,9 +162,6 @@ void BIPC_Free (BIPC *o)
     
     // free socket
     BSocket_Free(&o->sock);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
 
 PacketPassInterface * BIPC_GetSendInterface (BIPC *o)

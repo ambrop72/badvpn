@@ -30,7 +30,7 @@
 
 #include <protocol/packetproto.h>
 #include <misc/debug.h>
-#include <misc/dead.h>
+#include <misc/debugerror.h>
 #include <system/BSocket.h>
 #include <system/DebugObject.h>
 #include <flow/StreamSocketSink.h>
@@ -54,7 +54,6 @@ typedef void (*BIPC_handler) (void *user);
  * An abstraction of a reliable, sequenced, message-oriented two-way IPC.
  */
 typedef struct {
-    dead_t dead;
     BSocket sock;
     FlowErrorDomain domain;
     BIPC_handler handler;
@@ -72,6 +71,7 @@ typedef struct {
     PacketProtoDecoder recv_decoder;
     
     DebugObject d_obj;
+    DebugError d_err;
 } BIPC;
 
 /**
