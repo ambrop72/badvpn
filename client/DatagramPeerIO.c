@@ -335,7 +335,7 @@ PacketPassInterface * DatagramPeerIO_GetSendInput (DatagramPeerIO *o)
 
 int DatagramPeerIO_Connect (DatagramPeerIO *o, BAddr addr)
 {
-    ASSERT(BAddr_IsRecognized(&addr) && !BAddr_IsInvalid(&addr))
+    ASSERT(!BAddr_IsInvalid(&addr))
     DebugObject_Access(&o->d_obj);
     
     // reset mode
@@ -375,7 +375,7 @@ fail1:
 
 int DatagramPeerIO_Bind (DatagramPeerIO *o, BAddr addr)
 {
-    ASSERT(BAddr_IsRecognized(&addr) && !BAddr_IsInvalid(&addr))
+    ASSERT(!BAddr_IsInvalid(&addr))
     DebugObject_Access(&o->d_obj);
     
     // reset mode

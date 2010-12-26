@@ -80,7 +80,7 @@ static void BIPAddr_InitIPv4 (BIPAddr *addr, uint32_t ip);
 
 static void BIPAddr_InitIPv6 (BIPAddr *addr, uint8_t *ip);
 
-static int BIPAddr_IsRecognized (BIPAddr *addr);
+static void BIPAddr_Assert (BIPAddr *addr);
 
 static int BIPAddr_IsInvalid (BIPAddr *addr);
 
@@ -160,17 +160,16 @@ static void BAddr_InitIPv6 (BAddr *addr, uint8_t *ip, uint16_t port);
 static void BAddr_InitPacket (BAddr *addr, uint16_t phys_proto, int interface_index, int header_type, int packet_type, uint8_t *phys_addr);
 
 /**
- * Determines whether the address is recognized.
+ * Does nothing.
  *
  * @param addr the object
- * @return 1 if recognized, 0 if not
  */
-static int BAddr_IsRecognized (BAddr *addr);
+static void BAddr_Assert (BAddr *addr);
 
 /**
  * Determines whether the address is an invalid address.
  *
- * @param addr the object. Must be recognized according to {@link BAddr_IsRecognized}.
+ * @param addr the object
  * @return 1 if invalid, 0 if invalid
  **/
 static int BAddr_IsInvalid (BAddr *addr);
@@ -178,7 +177,7 @@ static int BAddr_IsInvalid (BAddr *addr);
 /**
  * Returns the port number in the address.
  *
- * @param addr the object. Must be recognized according to {@link BAddr_IsRecognized},
+ * @param addr the object
  *             Must be an IPv4 or IPv6 address.
  * @return port number, in network byte order
  */
@@ -187,7 +186,7 @@ static uint16_t BAddr_GetPort (BAddr *addr);
 /**
  * Returns the IP address in the address.
  *
- * @param addr the object. Must be recognized according to {@link BAddr_IsRecognized},
+ * @param addr the object
  *             Must be an IPv4 or IPv6 address.
  * @param ipaddr IP address will be returned here
  */
@@ -196,7 +195,7 @@ static void BAddr_GetIPAddr (BAddr *addr, BIPAddr *ipaddr);
 /**
  * Sets the port number in the address.
  *
- * @param addr the object. Must be recognized according to {@link BAddr_IsRecognized},
+ * @param addr the object
  *             Must be an IPv4 or IPv6 address.
  * @param port port number, in network byte order
  */
@@ -257,21 +256,21 @@ void BIPAddr_InitIPv6 (BIPAddr *addr, uint8_t *ip)
     memcpy(addr->ipv6, ip, 16);
 }
 
-int BIPAddr_IsRecognized (BIPAddr *addr)
+void BIPAddr_Assert (BIPAddr *addr)
 {
     switch (addr->type) {
         case BADDR_TYPE_NONE:
         case BADDR_TYPE_IPV4:
         case BADDR_TYPE_IPV6:
-            return 1;
+            return;
         default:
-            return 0;
+            ASSERT(0);
     }
 }
 
 int BIPAddr_IsInvalid (BIPAddr *addr)
 {
-    ASSERT(BIPAddr_IsRecognized(addr))
+    BIPAddr_Assert(addr);
     
     return (addr->type == BADDR_TYPE_NONE);
 }
@@ -341,8 +340,8 @@ int BIPAddr_Resolve (BIPAddr *addr, char *str, int noresolve)
 
 int BIPAddr_Compare (BIPAddr *addr1, BIPAddr *addr2)
 {
-    ASSERT(BIPAddr_IsRecognized(addr1))
-    ASSERT(BIPAddr_IsRecognized(addr2))
+    BIPAddr_Assert(addr1);
+    BIPAddr_Assert(addr2);
     
     if (addr1->type != addr2->type) {
         return 0;
@@ -363,7 +362,7 @@ int BIPAddr_Compare (BIPAddr *addr1, BIPAddr *addr2)
 
 uint16_t BAddr_GetPort (BAddr *addr)
 {
-    ASSERT(BAddr_IsRecognized(addr))
+    BAddr_Assert(addr);
     ASSERT(addr->type == BADDR_TYPE_IPV4 || addr->type == BADDR_TYPE_IPV6)
     
     switch (addr->type) {
@@ -379,7 +378,7 @@ uint16_t BAddr_GetPort (BAddr *addr)
 
 void BAddr_GetIPAddr (BAddr *addr, BIPAddr *ipaddr)
 {
-    ASSERT(BAddr_IsRecognized(addr))
+    BAddr_Assert(addr);
     ASSERT(addr->type == BADDR_TYPE_IPV4 || addr->type == BADDR_TYPE_IPV6)
     
     switch (addr->type) {
@@ -396,7 +395,7 @@ void BAddr_GetIPAddr (BAddr *addr, BIPAddr *ipaddr)
 
 void BAddr_SetPort (BAddr *addr, uint16_t port)
 {
-    ASSERT(BAddr_IsRecognized(addr))
+    BAddr_Assert(addr);
     ASSERT(addr->type == BADDR_TYPE_IPV4 || addr->type == BADDR_TYPE_IPV6)
     
     switch (addr->type) {
@@ -488,7 +487,7 @@ void BAddr_InitPacket (BAddr *addr, uint16_t phys_proto, int interface_index, in
 
 #endif
 
-int BAddr_IsRecognized (BAddr *addr)
+void BAddr_Assert (BAddr *addr)
 {
     switch (addr->type) {
         case BADDR_TYPE_NONE:
@@ -497,22 +496,22 @@ int BAddr_IsRecognized (BAddr *addr)
         #ifndef BADVPN_USE_WINAPI
         case BADDR_TYPE_PACKET:
         #endif
-            return 1;
+            return;
         default:
-            return 0;
+            ASSERT(0);
     }
 }
 
 int BAddr_IsInvalid (BAddr *addr)
 {
-    ASSERT(BAddr_IsRecognized(addr))
+    BAddr_Assert(addr);
     
     return (addr->type == BADDR_TYPE_NONE);
 }
 
 void BAddr_Print (BAddr *addr, char *out)
 {
-    ASSERT(BAddr_IsRecognized(addr))
+    BAddr_Assert(addr);
     
     BIPAddr ipaddr;
     

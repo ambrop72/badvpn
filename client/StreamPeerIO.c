@@ -651,7 +651,7 @@ PacketPassInterface * StreamPeerIO_GetSendInput (StreamPeerIO *pio)
 
 int StreamPeerIO_Connect (StreamPeerIO *pio, BAddr addr, uint64_t password, CERTCertificate *ssl_cert, SECKEYPrivateKey *ssl_key)
 {
-    ASSERT(BAddr_IsRecognized(&addr) && !BAddr_IsInvalid(&addr))
+    ASSERT(!BAddr_IsInvalid(&addr))
     DebugObject_Access(&pio->d_obj);
     
     // reset state

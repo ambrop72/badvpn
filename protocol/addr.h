@@ -82,7 +82,7 @@ static int addr_read (uint8_t *data, int data_len, BAddr *out_addr) WARN_UNUSED;
 
 int addr_supported (BAddr addr)
 {
-    ASSERT(BAddr_IsRecognized(&addr))
+    BAddr_Assert(&addr);
     
     switch (addr.type) {
         case BADDR_TYPE_IPV4:

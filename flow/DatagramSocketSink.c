@@ -86,8 +86,8 @@ static void socket_handler (DatagramSocketSink *s, int event)
 void DatagramSocketSink_Init (DatagramSocketSink *s, FlowErrorReporter rep, BSocket *bsock, int mtu, BAddr addr, BIPAddr local_addr, BPendingGroup *pg)
 {
     ASSERT(mtu >= 0)
-    ASSERT(BAddr_IsRecognized(&addr) && !BAddr_IsInvalid(&addr))
-    ASSERT(BIPAddr_IsRecognized(&local_addr))
+    ASSERT(!BAddr_IsInvalid(&addr))
+    BIPAddr_Assert(&local_addr);
     
     // init arguments
     s->rep = rep;
@@ -127,8 +127,8 @@ PacketPassInterface * DatagramSocketSink_GetInput (DatagramSocketSink *s)
 
 void DatagramSocketSink_SetAddresses (DatagramSocketSink *s, BAddr addr, BIPAddr local_addr)
 {
-    ASSERT(BAddr_IsRecognized(&addr) && !BAddr_IsInvalid(&addr))
-    ASSERT(BIPAddr_IsRecognized(&local_addr))
+    ASSERT(!BAddr_IsInvalid(&addr))
+    BIPAddr_Assert(&local_addr);
     DebugObject_Access(&s->d_obj);
     
     s->addr = addr;
