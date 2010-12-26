@@ -32,7 +32,6 @@
 #include <misc/nsskey.h>
 #include <misc/byteorder.h>
 #include <misc/loggers_string.h>
-#include <misc/dead.h>
 #include <system/BLog.h>
 #include <system/BReactor.h>
 #include <system/BSignal.h>
@@ -52,9 +51,6 @@
 
 #define LOGGER_STDOUT 1
 #define LOGGER_SYSLOG 2
-
-// program dead variable
-dead_t dead;
 
 // command-line options
 struct {
@@ -158,9 +154,6 @@ int main (int argc, char *argv[])
     if (argc <= 0) {
         return 1;
     }
-    
-    // init dead variable
-    DEAD_INIT(dead);
     
     // parse command-line arguments
     if (!parse_arguments(argc, argv)) {
@@ -373,9 +366,6 @@ void terminate (void)
     
     // remove signal handler
     BSignal_Finish();
-    
-    // kill dead variable
-    DEAD_KILL(dead);
     
     // exit reactor
     BReactor_Quit(&ss, 1);
