@@ -39,8 +39,8 @@
 #include <cert.h>
 #include <keyhi.h>
 
-#include <misc/dead.h>
 #include <misc/debug.h>
+#include <misc/debugerror.h>
 #include <protocol/scproto.h>
 #include <protocol/msgproto.h>
 #include <system/DebugObject.h>
@@ -201,6 +201,7 @@ typedef struct {
     BPending start_job;
     
     DebugObject d_obj;
+    DebugError d_err;
 } ServerConnection;
 
 /**

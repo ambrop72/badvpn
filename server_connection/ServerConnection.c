@@ -52,20 +52,7 @@ static void end_packet (ServerConnection *o, uint8_t type);
 
 void report_error (ServerConnection *o)
 {
-    ASSERT(!o->error)
-    
-    o->error = 1;
-    
-    #ifndef NDEBUG
-    DEAD_ENTER(o->dead)
-    #endif
-    
-    o->handler_error(o->user);
-    
-    #ifndef NDEBUG
-    ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(o->dead);
-    #endif
+    DEBUGERROR(&o->d_err, o->handler_error(o->user))
 }
 
 void connect_handler (ServerConnection *o, int event)
@@ -522,9 +509,6 @@ int ServerConnection_Init (
     o->handler_endclient = handler_endclient;
     o->handler_message = handler_message;
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // init socket
     if (BSocket_Init(&o->sock, o->reactor, addr.type, BSOCKET_TYPE_STREAM) < 0) {
         BLog(BLOG_ERROR, "BSocket_Init failed (%d)", BSocket_GetError(&o->sock));
@@ -545,10 +529,8 @@ int ServerConnection_Init (
     // set state
     o->state = STATE_CONNECTING;
     
-    // set no error
-    o->error = 0;
-    
     DebugObject_Init(&o->d_obj);
+    DebugError_Init(&o->d_err);
     
     return 1;
     
@@ -560,6 +542,7 @@ fail0:
 
 void ServerConnection_Free (ServerConnection *o)
 {
+    DebugError_Free(&o->d_err);
     DebugObject_Free(&o->d_obj);
     
     if (o->state > STATE_CONNECTING) {
@@ -608,9 +591,6 @@ void ServerConnection_Free (ServerConnection *o)
     
     // free socket
     BSocket_Free(&o->sock);
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
 
 int ServerConnection_IsReady (ServerConnection *o)
@@ -622,12 +602,12 @@ int ServerConnection_IsReady (ServerConnection *o)
 
 int ServerConnection_StartMessage (ServerConnection *o, void **data, peerid_t peer_id, int len)
 {
-    ASSERT(!o->error)
     ASSERT(o->state == STATE_COMPLETE)
     ASSERT(o->output_local_packet_len == -1)
     ASSERT(len >= 0)
     ASSERT(len <= SC_MAX_MSGLEN)
     ASSERT(data || len == 0)
+    DebugError_AssertNoError(&o->d_err);
     DebugObject_Access(&o->d_obj);
     
     uint8_t *packet;
@@ -647,9 +627,9 @@ int ServerConnection_StartMessage (ServerConnection *o, void **data, peerid_t pe
 
 void ServerConnection_EndMessage (ServerConnection *o)
 {
-    ASSERT(!o->error)
     ASSERT(o->state == STATE_COMPLETE)
     ASSERT(o->output_local_packet_len >= 0)
+    DebugError_AssertNoError(&o->d_err);
     DebugObject_Access(&o->d_obj);
     
     end_packet(o, SCID_OUTMSG);
@@ -657,8 +637,8 @@ void ServerConnection_EndMessage (ServerConnection *o)
 
 PacketPassInterface * ServerConnection_GetSendInterface (ServerConnection *o)
 {
-    ASSERT(!o->error)
     ASSERT(o->state == STATE_COMPLETE)
+    DebugError_AssertNoError(&o->d_err);
     DebugObject_Access(&o->d_obj);
     
     return PacketPassPriorityQueueFlow_GetInput(&o->output_user_qflow);
