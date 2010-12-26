@@ -32,22 +32,23 @@
 static void socket_handler (Listener *o, int event)
 {
     ASSERT(event == BSOCKET_ACCEPT)
+    DebugObject_Access(&o->d_obj);
     
-    o->accepted = 0;
+    // schedule accept job (to accept and close the connection in case the handler doesn't)
+    BPending_Set(&o->accept_job);
     
-    DebugIn_GoIn(&o->d_in_handler);
-    DEAD_ENTER(o->dead)
+    // call handler
     o->handler(o->user);
-    if (DEAD_LEAVE(o->dead)) {
-        return;
-    }
-    DebugIn_GoOut(&o->d_in_handler);
+    return;
+}
+
+static void accept_job_handler (Listener *o)
+{
+    DebugObject_Access(&o->d_obj);
     
-    // if there was no attempt to accept, do it now, discarding the client
-    if (!o->accepted) {
-        if (BSocket_Accept(o->sock, NULL, NULL) < 0) {
-            BLog(BLOG_ERROR, "BSocket_Accept failed (%d)", BSocket_GetError(o->sock));
-        }
+    // accept and discard the connection
+    if (BSocket_Accept(o->sock, NULL, NULL) < 0) {
+        BLog(BLOG_ERROR, "BSocket_Accept failed (%d)", BSocket_GetError(o->sock));
     }
 }
 
@@ -59,9 +60,6 @@ int Listener_Init (Listener *o, BReactor *reactor, BAddr addr, Listener_handler 
     o->reactor = reactor;
     o->handler = handler;
     o->user = user;
-    
-    // init dead var
-    DEAD_INIT(o->dead);
     
     // set not existing
     o->existing = 0;
@@ -91,10 +89,9 @@ int Listener_Init (Listener *o, BReactor *reactor, BAddr addr, Listener_handler 
     BSocket_AddEventHandler(o->sock, BSOCKET_ACCEPT, (BSocket_handler)socket_handler, o);
     BSocket_EnableEvent(o->sock, BSOCKET_ACCEPT);
     
-    // init debug in handler
-    DebugIn_Init(&o->d_in_handler);
+    // init accept job
+    BPending_Init(&o->accept_job, BReactor_PendingGroup(o->reactor), (BPending_handler)accept_job_handler, o);
     
-    // init debug object
     DebugObject_Init(&o->d_obj);
     
     return 1;
@@ -113,9 +110,6 @@ void Listener_InitExisting (Listener *o, BReactor *reactor, BSocket *sock, Liste
     o->user = user;
     o->sock = sock;
     
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // set existing
     o->existing = 1;
     
@@ -123,33 +117,36 @@ void Listener_InitExisting (Listener *o, BReactor *reactor, BSocket *sock, Liste
     BSocket_AddEventHandler(o->sock, BSOCKET_ACCEPT, (BSocket_handler)socket_handler, o);
     BSocket_EnableEvent(o->sock, BSOCKET_ACCEPT);
     
-    // init debug in handler
-    DebugIn_Init(&o->d_in_handler);
+    // init accept job
+    BPending_Init(&o->accept_job, BReactor_PendingGroup(o->reactor), (BPending_handler)accept_job_handler, o);
     
-    // init debug object
     DebugObject_Init(&o->d_obj);
 }
 
 void Listener_Free (Listener *o)
 {
-    // free debug object
     DebugObject_Free(&o->d_obj);
+    
+    // free accept job
+    BPending_Free(&o->accept_job);
+    
+    // remove socket event handler
+    BSocket_RemoveEventHandler(o->sock, BSOCKET_ACCEPT);
     
     if (!o->existing) {
         // free socket
         BSocket_Free(&o->our_sock);
     }
-    
-    // free dead var
-    DEAD_KILL(o->dead);
 }
 
 int Listener_Accept (Listener *o, BSocket *sockout, BAddr *addrout)
 {
     ASSERT(sockout)
-    ASSERT(DebugIn_In(&o->d_in_handler))
+    ASSERT(BPending_IsSet(&o->accept_job))
+    DebugObject_Access(&o->d_obj);
     
-    o->accepted = 1;
+    // unset accept job
+    BPending_Unset(&o->accept_job);
     
     if (BSocket_Accept(o->sock, sockout, addrout) < 0) {
         BLog(BLOG_ERROR, "BSocket_Accept failed (%d)", BSocket_GetError(o->sock));

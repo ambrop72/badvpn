@@ -27,9 +27,6 @@
 #ifndef BADVPN_SYSTEM_LISTENER_H
 #define BADVPN_SYSTEM_LISTENER_H
 
-#include <misc/dead.h>
-#include <misc/debugcounter.h>
-#include <misc/debugin.h>
 #include <system/DebugObject.h>
 #include <system/BSocket.h>
 
@@ -48,15 +45,13 @@ typedef void (*Listener_handler) (void *user);
  * Object used to listen on a socket and accept clients.
  */
 typedef struct {
-    dead_t dead;
     BReactor *reactor;
     int existing;
     BSocket our_sock;
     BSocket *sock;
     Listener_handler handler;
     void *user;
-    int accepted;
-    DebugIn d_in_handler;
+    BPending accept_job;
     DebugObject d_obj;
 } Listener;
 
@@ -94,7 +89,8 @@ void Listener_Free (Listener *o);
 
 /**
  * Accepts a connection.
- * Must be called from within the {@link Listener_handler} handler.
+ * Must be called from within the {@link Listener_handler} handler or its jobs, and
+ * at most once.
  * 
  * @param o the object
  * @param sockout uninitialized {@link BSocket} structure to put the new socket in.
