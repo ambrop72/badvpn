@@ -29,7 +29,7 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
+#include <misc/debugerror.h>
 #include <system/DebugObject.h>
 #include <system/BSocket.h>
 #include <flow/StreamPassInterface.h>
@@ -47,9 +47,7 @@ typedef struct {
     int in_len;
     uint8_t *in;
     DebugObject d_obj;
-    #ifndef NDEBUG
-    dead_t d_dead;
-    #endif
+    DebugError d_err;
 } StreamSocketSink;
 
 /**
