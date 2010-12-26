@@ -306,9 +306,6 @@ int PasswordListener_Init (PasswordListener *l, BReactor *bsys, BAddr listen_add
         goto fail2;
     }
     
-    // initialize dead variable
-    DEAD_INIT(l->dead);
-    
     // init debug object
     DebugObject_Init(&l->d_obj);
     
@@ -338,9 +335,6 @@ void PasswordListener_Free (PasswordListener *l)
         struct PasswordListenerClient *client = UPPER_OBJECT(node, struct PasswordListenerClient, list_node);
         cleanup_client(l, client);
     }
-    
-    // kill dead variable
-    DEAD_KILL(l->dead);
     
     // free listener
     Listener_Free(&l->listener);

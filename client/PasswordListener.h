@@ -35,7 +35,6 @@
 #include <cert.h>
 #include <keyhi.h>
 
-#include <misc/dead.h>
 #include <misc/debug.h>
 #include <system/DebugObject.h>
 #include <system/Listener.h>
@@ -75,7 +74,6 @@ typedef struct {
     LinkedList2 clients_used;
     BAVL passwords;
     Listener listener;
-    dead_t dead;
 } PasswordListener;
 
 typedef struct {
