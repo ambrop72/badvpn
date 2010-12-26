@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <misc/dead.h>
 #include <misc/debug.h>
 #include <misc/offset.h>
 #include <structure/LinkedList2.h>
@@ -43,7 +42,6 @@ BIPCServer server;
 LinkedList2 clients;
 
 struct client {
-    dead_t dead;
     BIPC ipc;
     PacketPassInterface recv_if;
     PacketPassInterface *send_if;
@@ -134,8 +132,6 @@ void server_handler (void *user)
         goto fail0;
     }
     
-    DEAD_INIT(client->dead);
-    
     PacketPassInterface_Init(&client->recv_if, RECV_MTU, (PacketPassInterface_handler_send)client_recv_handler_send, client, BReactor_PendingGroup(&reactor));
     
     if (!BIPC_InitAccept(&client->ipc, &server, 0, &client->recv_if, (BIPC_handler)client_ipc_handler, client, &reactor)) {
@@ -168,8 +164,6 @@ void remove_client (struct client *client)
     BIPC_Free(&client->ipc);
     
     PacketPassInterface_Free(&client->recv_if);
-    
-    DEAD_KILL(client->dead);
     
     free(client);
 }
