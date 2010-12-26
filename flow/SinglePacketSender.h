@@ -29,7 +29,7 @@
 
 #include <stdint.h>
 
-#include <misc/dead.h>
+#include <misc/debugerror.h>
 #include <system/DebugObject.h>
 #include <flow/PacketPassInterface.h>
 
@@ -49,9 +49,7 @@ typedef struct {
     SinglePacketSender_handler handler;
     void *user;
     DebugObject d_obj;
-    #ifndef NDEBUG
-    dead_t d_dead;
-    #endif
+    DebugError d_err;
 } SinglePacketSender;
 
 /**

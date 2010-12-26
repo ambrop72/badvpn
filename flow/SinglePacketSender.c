@@ -26,16 +26,7 @@
 
 static void call_handler (SinglePacketSender *o)
 {
-    #ifndef NDEBUG
-    DEAD_ENTER(o->d_dead)
-    #endif
-    
-    o->handler(o->user);
-    
-    #ifndef NDEBUG
-    ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(o->d_dead);
-    #endif
+    DEBUGERROR(&o->d_err, o->handler(o->user));
 }
 
 static void output_handler_done (SinglePacketSender *o)
@@ -64,15 +55,11 @@ void SinglePacketSender_Init (SinglePacketSender *o, uint8_t *packet, int packet
     PacketPassInterface_Sender_Send(o->output, packet, packet_len);
     
     DebugObject_Init(&o->d_obj);
-    #ifndef NDEBUG
-    DEAD_INIT(o->d_dead);
-    #endif
+    DebugError_Init(&o->d_err);
 }
 
 void SinglePacketSender_Free (SinglePacketSender *o)
 {
-    #ifndef NDEBUG
-    DEAD_KILL(o->d_dead);
-    #endif
+    DebugError_Free(&o->d_err);
     DebugObject_Free(&o->d_obj);
 }
