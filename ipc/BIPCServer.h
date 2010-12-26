@@ -29,7 +29,6 @@
 #define BADVPN_IPC_BIPCSERVER_H
 
 #include <misc/debug.h>
-#include <misc/dead.h>
 #include <system/BSocket.h>
 #include <system/Listener.h>
 #include <system/DebugObject.h>
