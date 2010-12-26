@@ -125,6 +125,7 @@ static int try_recv (BTap *o, uint8_t *data, int *data_len)
 static void write_handle_handler (BTap *o)
 {
     ASSERT(o->input_packet_len >= 0)
+    DebugError_AssertNoError(&o->d_err);
     DebugObject_Access(&o->d_obj);
     
     // disable handle event
@@ -151,6 +152,7 @@ static void write_handle_handler (BTap *o)
 static void read_handle_handler (BTap *o)
 {
     ASSERT(o->output_packet)
+    DebugError_AssertNoError(&o->d_err);
     DebugObject_Access(&o->d_obj);
     
     int bytes;
@@ -214,9 +216,8 @@ done:
 
 static void fd_handler (BTap *o, int events)
 {
+    DebugError_AssertNoError(&o->d_err);
     DebugObject_Access(&o->d_obj);
-    
-    DEAD_DECLARE
     
     if (events&BREACTOR_ERROR) {
         DEBUG("WARNING: device fd reports error?");
@@ -283,16 +284,7 @@ static void fd_handler (BTap *o, int events)
 
 void report_error (BTap *o)
 {
-    #ifndef NDEBUG
-    DEAD_ENTER(o->dead)
-    #endif
-    
-    o->handler_error(o->handler_error_user);
-    
-    #ifndef NDEBUG
-    ASSERT(DEAD_KILLED)
-    DEAD_LEAVE(o->dead);
-    #endif
+    DEBUGERROR(&o->d_err, o->handler_error(o->handler_error_user));
 }
 
 void input_handler_send (BTap *o, uint8_t *data, int data_len)
@@ -300,6 +292,7 @@ void input_handler_send (BTap *o, uint8_t *data, int data_len)
     ASSERT(data_len >= 0)
     ASSERT(data_len <= o->frame_mtu)
     ASSERT(o->input_packet_len == -1)
+    DebugError_AssertNoError(&o->d_err);
     DebugObject_Access(&o->d_obj);
     
     #ifdef BADVPN_USE_WINAPI
@@ -345,6 +338,7 @@ void input_handler_send (BTap *o, uint8_t *data, int data_len)
 void input_handler_cancel (BTap *o)
 {
     DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
     ASSERT(o->input_packet_len >= 0)
     
     #ifdef BADVPN_USE_WINAPI
@@ -386,6 +380,7 @@ void output_handler_recv (BTap *o, uint8_t *data)
 {
     ASSERT(data)
     ASSERT(!o->output_packet)
+    DebugError_AssertNoError(&o->d_err);
     DebugObject_Access(&o->d_obj);
     
     #ifdef BADVPN_USE_WINAPI
@@ -637,9 +632,6 @@ fail0:
     #endif
     
 success:
-    // init dead var
-    DEAD_INIT(o->dead);
-    
     // init input
     PacketPassInterface_Init(&o->input, o->frame_mtu, (PacketPassInterface_handler_send)input_handler_send, o, BReactor_PendingGroup(o->reactor));
     PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_cancel)input_handler_cancel);
@@ -654,12 +646,14 @@ success:
     o->output_packet = NULL;
     
     DebugObject_Init(&o->d_obj);
+    DebugError_Init(&o->d_err);
     
     return 1;
 }
 
 void BTap_Free (BTap *o)
 {
+    DebugError_Free(&o->d_err);
     DebugObject_Free(&o->d_obj);
     
     // free output
@@ -667,9 +661,6 @@ void BTap_Free (BTap *o)
     
     // free input
     PacketPassInterface_Free(&o->input);
-    
-    // kill dead variable
-    DEAD_KILL(o->dead);
     
     #ifdef BADVPN_USE_WINAPI
     

@@ -34,8 +34,8 @@
 #include <net/if.h>
 #endif
 
-#include <misc/dead.h>
 #include <misc/debug.h>
+#include <misc/debugerror.h>
 #include <system/DebugObject.h>
 #include <system/BReactor.h>
 #include <flow/PacketRecvInterface.h>
@@ -52,7 +52,6 @@ typedef void (*BTap_handler_error) (void *used);
  * and read from the device using {@link PacketRecvInterface}.
  */
 typedef struct {
-    dead_t dead;
     BReactor *reactor;
     BTap_handler_error handler_error;
     void *handler_error_user;
@@ -79,6 +78,7 @@ typedef struct {
     #endif
     
     DebugObject d_obj;
+    DebugError d_err;
 } BTap;
 
 /**
