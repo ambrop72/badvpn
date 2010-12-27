@@ -25,7 +25,6 @@
 #include <misc/debug.h>
 #include <system/DebugObject.h>
 #include <system/BLog.h>
-#include <system/BSignal.h>
 #include <ipc/BIPC.h>
 
 #define SEND_MTU 100
@@ -41,7 +40,6 @@ PacketPassInterface recv_if;
 PacketPassInterface *send_if;
 
 static void terminate (int ret);
-static void signal_handler (void *user);
 static void ipc_handler (void *user);
 static void send_packets (void);
 static void ipc_send_handler_done (void *user);
@@ -52,6 +50,8 @@ int main (int argc, char **argv)
     if (argc <= 0) {
         return 1;
     }
+    
+    int ret = 1;
     
     if (argc < 2) {
         printf("Usage: %s <path> [message] ...\n", argv[0]);
@@ -81,11 +81,6 @@ int main (int argc, char **argv)
         goto fail1;
     }
     
-    if (!BSignal_Init(&reactor, signal_handler, NULL)) {
-        DEBUG("BSignal_Init failed");
-        goto fail2;
-    }
-    
     PacketPassInterface_Init(&recv_if, 0, ipc_recv_handler_send, NULL, BReactor_PendingGroup(&reactor));
     
     if (!BIPC_InitConnect(&ipc, path, SEND_MTU, &recv_if, ipc_handler, NULL, &reactor)) {
@@ -98,44 +93,24 @@ int main (int argc, char **argv)
     
     send_packets();
     
-    int ret = BReactor_Exec(&reactor);
+    ret = BReactor_Exec(&reactor);
     
-    BReactor_Free(&reactor);
-    
-    BLog_Free();
-    
-    DebugObjectGlobal_Finish();
-    
-    return ret;
-    
+    BIPC_Free(&ipc);
 fail3:
     PacketPassInterface_Free(&recv_if);
-    BSignal_Finish();
 fail2:
     BReactor_Free(&reactor);
 fail1:
     BLog_Free();
 fail0:
     DebugObjectGlobal_Finish();
-    return 1;
+    
+    return ret;
 }
 
 void terminate (int ret)
 {
-    BIPC_Free(&ipc);
-    
-    PacketPassInterface_Free(&recv_if);
-    
-    BSignal_Finish();
-    
     BReactor_Quit(&reactor, ret);
-}
-
-void signal_handler (void *user)
-{
-    DEBUG("termination requested");
-    
-    terminate(1);
 }
 
 void ipc_handler (void *user)
