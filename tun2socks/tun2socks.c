@@ -319,39 +319,14 @@ int main (int argc, char **argv)
     // init number of clients
     num_clients = 0;
     
-    goto event_loop;
-    
-fail5:
-    BufferWriter_Free(&device_write_writer);
-    BPending_Free(&lwip_init_job);
-    SinglePacketBuffer_Free(&device_read_buffer);
-fail4:
-    PacketPassInterface_Free(&device_read_interface);
-    BTap_Free(&device);
-fail3:
-    BSignal_Finish();
-fail2:
-    BReactor_Free(&ss);
-fail1:
-    BLog(BLOG_ERROR, "initialization failed");
-    BLog_Free();
-fail0:
-    // finish objects
-    DebugObjectGlobal_Finish();
-    return 1;
-    
-event_loop:
     // enter event loop
     BLog(BLOG_NOTICE, "entering event loop");
-    int ret = BReactor_Exec(&ss);
+    BReactor_Exec(&ss);
     
     // free clients
     LinkedList2Node *node;
     while (node = LinkedList2_GetFirst(&tcp_clients)) {
         struct tcp_client *client = UPPER_OBJECT(node, struct tcp_client, list_node);
-        
-        client_log(client, BLOG_INFO, "killing");
-        
         client_murder(client);
     }
     
@@ -365,17 +340,26 @@ event_loop:
         netif_remove(&netif);
     }
     
-    // free reactor
+    BReactor_RemoveTimer(&ss, &tcp_timer);
+    PacketBuffer_Free(&device_write_buffer);
+fail5:
+    BufferWriter_Free(&device_write_writer);
+    BPending_Free(&lwip_init_job);
+    SinglePacketBuffer_Free(&device_read_buffer);
+fail4:
+    PacketPassInterface_Free(&device_read_interface);
+    BTap_Free(&device);
+fail3:
+    BSignal_Finish();
+fail2:
     BReactor_Free(&ss);
-    
-    // free logger
+fail1:
     BLog(BLOG_NOTICE, "exiting");
     BLog_Free();
-    
-    // finish objects
+fail0:
     DebugObjectGlobal_Finish();
     
-    return ret;
+    return 1;
 }
 
 void terminate (void)
@@ -384,30 +368,10 @@ void terminate (void)
     
     BLog(BLOG_NOTICE, "tearing down");
     
-    // free TCP timer
-    BReactor_RemoveTimer(&ss, &tcp_timer);
-    
-    // free device writing
-    PacketBuffer_Free(&device_write_buffer);
-    BufferWriter_Free(&device_write_writer);
-    
-    // free lwip init job
-    BPending_Free(&lwip_init_job);
-    
-    // free device reading
-    SinglePacketBuffer_Free(&device_read_buffer);
-    PacketPassInterface_Free(&device_read_interface);
-    
-    // free device
-    BTap_Free(&device);
-    
-    // remove signal handler
-    BSignal_Finish();
-    
     // set quitting
     quitting = 1;
     
-    // exit reactor
+    // exit event loop
     BReactor_Quit(&ss, 1);
 }
 
@@ -637,7 +601,6 @@ void signal_handler (void *unused)
     BLog(BLOG_NOTICE, "termination requested");
     
     terminate();
-    return;
 }
 
 void lwip_init_job_hadler (void *unused)
