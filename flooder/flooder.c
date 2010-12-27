@@ -280,15 +280,23 @@ int main (int argc, char *argv[])
     // set server not ready
     server_ready = 0;
     
-    goto event_loop;
+    // enter event loop
+    BLog(BLOG_NOTICE, "entering event loop");
+    BReactor_Exec(&ss);
     
-    // cleanup on error
+    if (server_ready) {
+        SinglePacketBuffer_Free(&flood_buffer);
+        PacketProtoEncoder_Free(&flood_encoder);
+        PacketRecvInterface_Free(&flood_source);
+    }
+    
+    ServerConnection_Free(&server);
 fail5:
     if (options.ssl) {
         CERT_DestroyCertificate(client_cert);
         SECKEY_DestroyPrivateKey(client_key);
 fail4:
-        SSL_ShutdownServerSessionIDCache();
+        ASSERT_FORCE(SSL_ShutdownServerSessionIDCache() == SECSuccess)
 fail3:
         SSL_ClearSessionCache();
         ASSERT_FORCE(NSS_Shutdown() == SECSuccess)
@@ -296,79 +304,25 @@ fail2:
         ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
         PL_ArenaFinish();
     }
+    
     BSignal_Finish();
 fail1a:
     BReactor_Free(&ss);
 fail1:
-    BLog(BLOG_ERROR, "initialization failed");
-    BLog_Free();
-fail0:
-    // finish objects
-    DebugObjectGlobal_Finish();
-    return 1;
-    
-event_loop:
-    // enter event loop
-    BLog(BLOG_NOTICE, "entering event loop");
-    int ret = BReactor_Exec(&ss);
-    
-    // free reactor
-    BReactor_Free(&ss);
-    
-    // free logger
     BLog(BLOG_NOTICE, "exiting");
     BLog_Free();
-    
-    // finish objects
+fail0:
     DebugObjectGlobal_Finish();
     
-    return ret;
+    return 1;
 }
 
 void terminate (void)
 {
     BLog(BLOG_NOTICE, "tearing down");
     
-    if (server_ready) {
-        // free flooding
-        
-        // free buffer
-        SinglePacketBuffer_Free(&flood_buffer);
-        
-        // free encoder
-        PacketProtoEncoder_Free(&flood_encoder);
-        
-        // free source
-        PacketRecvInterface_Free(&flood_source);
-    }
-    
-    // free server
-    ServerConnection_Free(&server);
-    
-    if (options.ssl) {
-        // free client certificate and private key
-        CERT_DestroyCertificate(client_cert);
-        SECKEY_DestroyPrivateKey(client_key);
-        
-        // free server cache
-        ASSERT_FORCE(SSL_ShutdownServerSessionIDCache() == SECSuccess)
-        
-        // free client cache
-        SSL_ClearSessionCache();
-        
-        // free NSS
-        ASSERT_FORCE(NSS_Shutdown() == SECSuccess)
-        
-        // free NSPR
-        ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
-        PL_ArenaFinish();
-    }
-    
-    // remove signal handler
-    BSignal_Finish();
-    
-    // exit reactor
-    BReactor_Quit(&ss, 1);
+    // exit event loop
+    BReactor_Quit(&ss, 0);
 }
 
 void print_help (const char *name)
