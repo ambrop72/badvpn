@@ -33,7 +33,6 @@
 BReactor reactor;
 BDHCPClient dhcp;
 
-static void terminate (int ret);
 static void signal_handler (void *user);
 static void dhcp_handler (void *unused, int event);
 
@@ -69,16 +68,9 @@ int main (int argc, char **argv)
         goto fail3;
     }
     
-    int ret = BReactor_Exec(&reactor);
+    BReactor_Exec(&reactor);
     
-    BReactor_Free(&reactor);
-    
-    BLog_Free();
-    
-    DebugObjectGlobal_Finish();
-    
-    return ret;
-    
+    BDHCPClient_Free(&dhcp);
 fail3:
     BSignal_Finish();
 fail2:
@@ -87,23 +79,15 @@ fail1:
     BLog_Free();
 fail0:
     DebugObjectGlobal_Finish();
+    
     return 1;
-}
-
-void terminate (int ret)
-{
-    BDHCPClient_Free(&dhcp);
-    
-    BSignal_Finish();
-    
-    BReactor_Quit(&reactor, ret);
 }
 
 void signal_handler (void *user)
 {
     DEBUG("termination requested");
     
-    terminate(1);
+    BReactor_Quit(&reactor, 0);
 }
 
 void dhcp_handler (void *unused, int event)
