@@ -35,7 +35,6 @@ BReactor reactor;
 BProcessManager manager;
 BProcess process;
 
-static void terminate (int ret);
 static void signal_handler (void *user);
 static void process_handler (void *user, int normally, uint8_t normally_exit_status);
 
@@ -44,6 +43,8 @@ int main (int argc, char **argv)
     if (argc <= 0) {
         return 1;
     }
+    
+    int ret = 1;
     
     if (argc < 2) {
         printf("Usage: %s <program> [argument ...]\n", argv[0]);
@@ -78,16 +79,9 @@ int main (int argc, char **argv)
         goto fail4;
     }
     
-    int ret = BReactor_Exec(&reactor);
+    ret = BReactor_Exec(&reactor);
     
-    BReactor_Free(&reactor);
-    
-    BLog_Free();
-    
-    DebugObjectGlobal_Finish();
-    
-    return ret;
-    
+    BProcess_Free(&process);
 fail4:
     BProcessManager_Free(&manager);
 fail3:
@@ -98,18 +92,8 @@ fail1:
     BLog_Free();
 fail0:
     DebugObjectGlobal_Finish();
-    return 1;
-}
-
-void terminate (int ret)
-{
-    BProcess_Free(&process);
     
-    BProcessManager_Free(&manager);
-    
-    BSignal_Finish();
-    
-    BReactor_Quit(&reactor, ret);
+    return ret;
 }
 
 void signal_handler (void *user)
@@ -125,5 +109,5 @@ void process_handler (void *user, int normally, uint8_t normally_exit_status)
     
     int ret = (normally ? normally_exit_status : 1);
     
-    terminate(ret);
+    BReactor_Quit(&reactor, ret);
 }
