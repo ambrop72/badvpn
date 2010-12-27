@@ -526,68 +526,9 @@ int main (int argc, char *argv[])
         goto fail10;
     }
     
-    goto event_loop;
-    
-    // cleanup on error
-fail10:
-    FrameDecider_Free(&frame_decider);
-fail7:
-    PacketPassFairQueue_Free(&device.output_queue);
-    SinglePacketBuffer_Free(&device.input_buffer);
-fail5a:
-    PacketPassInterface_Free(&device.input_interface);
-    BTap_Free(&device.btap);
-fail5:
-    if (options.transport_mode == TRANSPORT_MODE_TCP) {
-        while (num_listeners-- > 0) {
-            PasswordListener_Free(&listeners[num_listeners]);
-        }
-    }
-fail4a:
-    if (options.ssl) {
-        CERT_DestroyCertificate(client_cert);
-        SECKEY_DestroyPrivateKey(client_key);
-fail4:
-        SSL_ShutdownServerSessionIDCache();
-fail3:
-        SSL_ClearSessionCache();
-        ASSERT_FORCE(NSS_Shutdown() == SECSuccess)
-fail2:
-        ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
-        PL_ArenaFinish();
-    }
-    BSignal_Finish();
-fail1b:
-    BReactor_Free(&ss);
-fail1:
-    BLog(BLOG_ERROR, "initialization failed");
-    BLog_Free();
-fail0:
-    // finish objects
-    DebugObjectGlobal_Finish();
-    return 1;
-    
-event_loop:
     // enter event loop
     BLog(BLOG_NOTICE, "entering event loop");
-    int ret = BReactor_Exec(&ss);
-    
-    // free reactor
-    BReactor_Free(&ss);
-    
-    // free logger
-    BLog(BLOG_NOTICE, "exiting");
-    BLog_Free();
-    
-    // finish objects
-    DebugObjectGlobal_Finish();
-    
-    return ret;
-}
-
-void terminate (void)
-{
-    BLog(BLOG_NOTICE, "tearing down");
+    BReactor_Exec(&ss);
     
     // allow freeing local receive flows
     PacketPassFairQueue_PrepareFree(&device.output_queue);
@@ -619,53 +560,52 @@ void terminate (void)
         peer_dealloc(peer);
     }
     
-    // free server
     ServerConnection_Free(&server);
-    
-    // free frame decider
+fail10:
     FrameDecider_Free(&frame_decider);
-    
-    // free device output
+fail7:
     PacketPassFairQueue_Free(&device.output_queue);
-    
-    // free device input
     SinglePacketBuffer_Free(&device.input_buffer);
+fail5a:
     PacketPassInterface_Free(&device.input_interface);
-    
-    // free device
     BTap_Free(&device.btap);
-    
-    // free listeners
+fail5:
     if (options.transport_mode == TRANSPORT_MODE_TCP) {
-        for (int i = num_bind_addrs - 1; i >= 0; i--) {
-            PasswordListener_Free(&listeners[i]);
+        while (num_listeners-- > 0) {
+            PasswordListener_Free(&listeners[num_listeners]);
         }
     }
-    
+fail4a:
     if (options.ssl) {
-        // free client certificate and private key
         CERT_DestroyCertificate(client_cert);
         SECKEY_DestroyPrivateKey(client_key);
-        
-        // free server cache
+fail4:
         ASSERT_FORCE(SSL_ShutdownServerSessionIDCache() == SECSuccess)
-        
-        // free client cache
+fail3:
         SSL_ClearSessionCache();
-        
-        // free NSS
         ASSERT_FORCE(NSS_Shutdown() == SECSuccess)
-        
-        // free NSPR
+fail2:
         ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
         PL_ArenaFinish();
     }
-    
-    // remove signal handler
     BSignal_Finish();
+fail1b:
+    BReactor_Free(&ss);
+fail1:
+    BLog(BLOG_NOTICE, "exiting");
+    BLog_Free();
+fail0:
+    // finish objects
+    DebugObjectGlobal_Finish();
+    return 1;
+}
+
+void terminate (void)
+{
+    BLog(BLOG_NOTICE, "tearing down");
     
-    // exit reactor
-    BReactor_Quit(&ss, 1);
+    // exit event loop
+    BReactor_Quit(&ss, 0);
 }
 
 void print_help (const char *name)
