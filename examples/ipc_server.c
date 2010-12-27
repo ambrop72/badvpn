@@ -27,11 +27,8 @@
 
 #include <misc/debug.h>
 #include <misc/offset.h>
-#include <structure/LinkedList2.h>
 #include <system/DebugObject.h>
 #include <system/BLog.h>
-#include <system/BSignal.h>
-#include <flow/SinglePacketBuffer.h>
 #include <ipc/BIPCServer.h>
 #include <ipc/BIPC.h>
 
@@ -39,7 +36,6 @@
 
 BReactor reactor;
 BIPCServer server;
-LinkedList2 clients;
 
 struct client {
     BIPC ipc;
@@ -48,7 +44,6 @@ struct client {
     LinkedList2Node list_node;
 };
 
-static void signal_handler (void *user);
 static void server_handler (void *user);
 static void remove_client (struct client *client);
 static void client_ipc_handler (struct client *client);
@@ -75,53 +70,22 @@ int main (int argc, char **argv)
         goto fail1;
     }
     
-    if (!BSignal_Init(&reactor, signal_handler, NULL)) {
-        DEBUG("BSignal_Init failed");
+    if (!BIPCServer_Init(&server, path, server_handler, NULL, &reactor)) {
+        DEBUG("BIPCServer_Init failed");
         goto fail2;
     }
     
-    if (!BIPCServer_Init(&server, path, server_handler, NULL, &reactor)) {
-        DEBUG("BIPCServer_Init failed");
-        goto fail3;
-    }
+    BReactor_Exec(&reactor);
     
-    LinkedList2_Init(&clients);
+    ASSERT(0)
     
-    int ret = BReactor_Exec(&reactor);
-    
-    BReactor_Free(&reactor);
-    
-    BLog_Free();
-    
-    DebugObjectGlobal_Finish();
-    
-    return ret;
-    
-fail3:
-    BSignal_Finish();
 fail2:
     BReactor_Free(&reactor);
 fail1:
     BLog_Free();
     DebugObjectGlobal_Finish();
+    
     return 1;
-}
-
-void signal_handler (void *user)
-{
-    DEBUG("termination requested");
-    
-    LinkedList2Node *node;
-    while (node = LinkedList2_GetFirst(&clients)) {
-        struct client *client = UPPER_OBJECT(node, struct client, list_node);
-        remove_client(client);
-    }
-    
-    BIPCServer_Free(&server);
-    
-    BSignal_Finish();
-    
-    BReactor_Quit(&reactor, 1);
 }
 
 void server_handler (void *user)
@@ -142,8 +106,6 @@ void server_handler (void *user)
     client->send_if = BIPC_GetSendInterface(&client->ipc);
     PacketPassInterface_Sender_Init(client->send_if, (PacketPassInterface_handler_done)client_send_handler_done, client);
     
-    LinkedList2_Append(&clients, &client->list_node);
-    
     DEBUG("client connected");
     
     return;
@@ -158,8 +120,6 @@ fail0:
 void remove_client (struct client *client)
 {
     DEBUG("removing client");
-    
-    LinkedList2_Remove(&clients, &client->list_node);
     
     BIPC_Free(&client->ipc);
     
