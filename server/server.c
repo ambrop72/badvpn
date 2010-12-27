@@ -490,75 +490,9 @@ int main (int argc, char *argv[])
         num_listeners++;
     }
     
-    goto event_loop;
-    
-    // cleanup on error
-fail7:
-    while (num_listeners > 0) {
-        num_listeners--;
-        Listener_Free(&listeners[num_listeners]);
-    }
-fail6:
-    if (options.ssl) {
-        ASSERT_FORCE(PR_Close(model_prfd) == PR_SUCCESS)
-fail5:
-        CERT_DestroyCertificate(server_cert);
-        SECKEY_DestroyPrivateKey(server_key);
-fail4a:
-        SSL_ShutdownServerSessionIDCache();
-fail4:
-        ASSERT_FORCE(NSS_Shutdown() == SECSuccess)
-fail3:
-        ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
-        PL_ArenaFinish();
-    }
-    BSignal_Finish();
-fail2a:
-    BReactor_Free(&ss);
-fail2:
-    if (options.relay_predicate) {
-        BPredicateFunction_Free(&relay_predicate_func_raddr);
-        BPredicateFunction_Free(&relay_predicate_func_paddr);
-        BPredicateFunction_Free(&relay_predicate_func_rname);
-        BPredicateFunction_Free(&relay_predicate_func_pname);
-        BPredicate_Free(&relay_predicate);
-    }
-fail1_1:
-    if (options.comm_predicate) {
-        BPredicateFunction_Free(&comm_predicate_func_p2addr);
-        BPredicateFunction_Free(&comm_predicate_func_p1addr);
-        BPredicateFunction_Free(&comm_predicate_func_p2name);
-        BPredicateFunction_Free(&comm_predicate_func_p1name);
-        BPredicate_Free(&comm_predicate);
-    }
-fail1:
-    BLog(BLOG_ERROR, "initialization failed");
-    BLog_Free();
-fail0:
-    DebugObjectGlobal_Finish();
-    return 1;
-    
-event_loop:
     // enter event loop
     BLog(BLOG_NOTICE, "entering event loop");
-    int ret = BReactor_Exec(&ss);
-    
-    // free reactor
-    BReactor_Free(&ss);
-    
-    // free logger
-    BLog(BLOG_NOTICE, "exiting");
-    BLog_Free();
-    
-    // finish objects
-    DebugObjectGlobal_Finish();
-    
-    return ret;
-}
-
-void terminate (void)
-{
-    BLog(BLOG_NOTICE, "tearing down");
+    BReactor_Exec(&ss);
     
     // free clients
     LinkedList2Node *node;
@@ -595,36 +529,31 @@ void terminate (void)
         // deallocate client
         client_dealloc(client);
     }
-    
-    // free listeners
+fail7:
     while (num_listeners > 0) {
         num_listeners--;
         Listener_Free(&listeners[num_listeners]);
     }
     
     if (options.ssl) {
-        // free model
+fail6:
         ASSERT_FORCE(PR_Close(model_prfd) == PR_SUCCESS)
-        
-        // free certificate and private key
+fail5:
         CERT_DestroyCertificate(server_cert);
         SECKEY_DestroyPrivateKey(server_key);
-        
-        // free server cache
-        SSL_ShutdownServerSessionIDCache();
-        
-        // free NSS
+fail4a:
+        ASSERT_FORCE(SSL_ShutdownServerSessionIDCache() == SECSuccess)
+fail4:
         ASSERT_FORCE(NSS_Shutdown() == SECSuccess)
-        
-        // free NSPR
+fail3:
         ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
         PL_ArenaFinish();
     }
     
-    // remove signal handler
     BSignal_Finish();
-    
-    // free relay predicate
+fail2a:
+    BReactor_Free(&ss);
+fail2:
     if (options.relay_predicate) {
         BPredicateFunction_Free(&relay_predicate_func_raddr);
         BPredicateFunction_Free(&relay_predicate_func_paddr);
@@ -632,8 +561,7 @@ void terminate (void)
         BPredicateFunction_Free(&relay_predicate_func_pname);
         BPredicate_Free(&relay_predicate);
     }
-    
-    // free communication predicate
+fail1_1:
     if (options.comm_predicate) {
         BPredicateFunction_Free(&comm_predicate_func_p2addr);
         BPredicateFunction_Free(&comm_predicate_func_p1addr);
@@ -641,9 +569,21 @@ void terminate (void)
         BPredicateFunction_Free(&comm_predicate_func_p1name);
         BPredicate_Free(&comm_predicate);
     }
+fail1:
+    BLog(BLOG_NOTICE, "exiting");
+    BLog_Free();
+fail0:
+    DebugObjectGlobal_Finish();
+    
+    return 1;
+}
+
+void terminate (void)
+{
+    BLog(BLOG_NOTICE, "tearing down");
     
     // exit event loop
-    BReactor_Quit(&ss, 1);
+    BReactor_Quit(&ss, 0);
 }
 
 void print_help (const char *name)
