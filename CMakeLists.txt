@@ -91,6 +91,7 @@ add_subdirectory(dhcpclient)
 add_subdirectory(ncdconfig)
 if (NOT WIN32)
     add_subdirectory(ipc)
+    add_subdirectory(process)
 endif ()
 
 # example programs

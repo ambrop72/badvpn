@@ -35,9 +35,9 @@
 #include <structure/LinkedList2.h>
 #include <system/BLog.h>
 #include <system/BReactor.h>
-#include <system/BProcess.h>
 #include <system/BSignal.h>
 #include <system/BSocket.h>
+#include <process/BProcess.h>
 #include <ncdconfig/NCDConfigParser.h>
 #include <ncd/NCDModule.h>
 #include <ncd/modules/modules.h>

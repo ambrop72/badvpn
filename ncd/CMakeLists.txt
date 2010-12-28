@@ -17,7 +17,7 @@ add_executable(badvpn-ncd
     modules/net_ipv4_route.c
     modules/net_ipv4_dhcp.c
 )
-target_link_libraries(badvpn-ncd system dhcpclient ncdconfig)
+target_link_libraries(badvpn-ncd system dhcpclient ncdconfig process)
 
 install(
     TARGETS badvpn-ncd

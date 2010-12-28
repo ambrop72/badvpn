@@ -27,9 +27,9 @@
 
 #include <misc/debugerror.h>
 #include <system/BReactor.h>
-#include <system/BProcess.h>
 #include <system/BPending.h>
 #include <system/BLog.h>
+#include <process/BProcess.h>
 #include <ncdconfig/NCDConfig.h>
 #include <ncd/NCDValue.h>
 

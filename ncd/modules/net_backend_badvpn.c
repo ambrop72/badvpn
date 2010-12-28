@@ -30,7 +30,6 @@
 #include <string.h>
 
 #include <misc/cmdline.h>
-#include <system/BProcess.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDIfConfig.h>
 
