@@ -21,6 +21,7 @@
  */
 
 #include <stddef.h>
+#include <string.h>
 #include <inttypes.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -159,12 +160,31 @@ void BProcessManager_Free (BProcessManager *o)
     BUnixSignal_Free(&o->signal, 1);
 }
 
-int BProcess_Init (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[], const char *username)
+static int fds_contains (const int *fds, int fd, size_t *pos)
+{
+    for (size_t i = 0; fds[i] >= 0; i++) {
+        if (fds[i] == fd) {
+            if (pos) {
+                *pos = i;
+            }
+            
+            return 1;
+        }
+    }
+    
+    return 0;
+}
+
+int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[], const char *username, const int *fds, const int *fds_map)
 {
     // init arguments
     o->m = m;
     o->handler = handler;
     o->user = user;
+    
+    // count fds
+    size_t num_fds;
+    for (num_fds = 0; fds[num_fds] >= 0; num_fds++);
     
     // fork
     pid_t pid = fork();
@@ -176,15 +196,51 @@ int BProcess_Init (BProcess *o, BProcessManager *m, BProcess_handler handler, vo
     if (pid == 0) {
         // this is child
         
+        // copy fds array
+        int *fds2 = malloc((num_fds + 1) * sizeof(fds2[0]));
+        if (!fds2) {
+            abort();
+        }
+        memcpy(fds2, fds, (num_fds + 1) * sizeof(fds2[0]));
+        
         // find maximum file descriptors
         int max_fd = sysconf(_SC_OPEN_MAX);
         if (max_fd < 0) {
             abort();
         }
         
-        // close all file descriptors
+        // close file descriptors
         for (int i = 0; i < max_fd; i++) {
+            // if it's one of the given fds, don't close it
+            if (fds_contains(fds2, i, NULL)) {
+                continue;
+            }
+            
             close(i);
+        }
+        
+        // map fds to requested fd numbers
+        while (*fds2 >= 0) {
+            // resolve possible conflict
+            size_t cpos;
+            if (fds_contains(fds2 + 1, *fds_map, &cpos)) {
+                // dup() the fd to a new number; the old one will be closed
+                // in the following dup2()
+                if ((fds2[1 + cpos] = dup(fds2[1 + cpos])) < 0) {
+                    abort();
+                }
+            }
+            
+            // dup fd
+            if (dup2(*fds2, *fds_map) < 0) {
+                abort();
+            }
+            
+            // close original fd
+            close(*fds2);
+            
+            fds2++;
+            fds_map++;
         }
         
         // assume identity of username, if requested
@@ -237,6 +293,13 @@ int BProcess_Init (BProcess *o, BProcessManager *m, BProcess_handler handler, vo
     
 fail0:
     return 0;
+}
+
+int BProcess_Init (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[], const char *username)
+{
+    int fds[] = {-1};
+    
+    return BProcess_InitWithFds(o, m, handler, user, file, argv, username, fds, NULL);
 }
 
 void BProcess_Free (BProcess *o)
