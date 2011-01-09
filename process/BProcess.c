@@ -231,13 +231,15 @@ int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler hand
                 }
             }
             
-            // dup fd
-            if (dup2(*fds2, *fds_map) < 0) {
-                abort();
+            if (*fds2 != *fds_map) {
+                // dup fd
+                if (dup2(*fds2, *fds_map) < 0) {
+                    abort();
+                }
+                
+                // close original fd
+                close(*fds2);
             }
-            
-            // close original fd
-            close(*fds2);
             
             fds2++;
             fds_map++;
