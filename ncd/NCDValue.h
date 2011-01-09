@@ -47,7 +47,7 @@ int NCDValue_InitCopy (NCDValue *o, NCDValue *v);
 void NCDValue_Free (NCDValue *o);
 int NCDValue_Type (NCDValue *o);
 
-int NCDValue_InitString (NCDValue *o, char *str);
+int NCDValue_InitString (NCDValue *o, const char *str);
 char * NCDValue_StringValue (NCDValue *o);
 
 void NCDValue_InitList (NCDValue *o);
