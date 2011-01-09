@@ -26,6 +26,8 @@
  * Synopsis: provide(string name)
  * 
  * Synopsis: depend(string name)
+ * Variables: Provides variables available from the corresponding provide,
+ *     ("modname.varname" or "modname").
  */
 
 #include <stdlib.h>
@@ -293,6 +295,39 @@ static void depend_func_clean (void *vo)
     }
 }
 
+static int depend_func_getvar (void *vo, const char *name_orig, NCDValue *out)
+{
+    struct depend *o = vo;
+    ASSERT(o->p)
+    
+    int ret = 0;
+    
+    char *name = strdup(name_orig);
+    if (!name) {
+        ModuleLog(o->i, BLOG_ERROR, "strdup failed");
+        goto fail0;
+    }
+    
+    const char *modname;
+    const char *varname;
+    
+    char *dot = strstr(name, ".");
+    if (!dot) {
+        modname = name;
+        varname = "";
+    } else {
+        *dot = '\0';
+        modname = name;
+        varname = dot + 1;
+    }
+    
+    ret = NCDModuleInst_Backend_GetVar(o->p->i, modname, varname, out);
+    
+    free(name);
+fail0:
+    return ret;
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "provide",
@@ -303,7 +338,8 @@ static const struct NCDModule modules[] = {
         .type = "depend",
         .func_new = depend_func_new,
         .func_free = depend_func_free,
-        .func_clean = depend_func_clean
+        .func_clean = depend_func_clean,
+        .func_getvar = depend_func_getvar
     }, {
         .type = NULL
     }
