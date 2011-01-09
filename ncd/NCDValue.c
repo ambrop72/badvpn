@@ -114,7 +114,7 @@ int NCDValue_Type (NCDValue *o)
     return o->type;
 }
 
-int NCDValue_InitString (NCDValue *o, char *str)
+int NCDValue_InitString (NCDValue *o, const char *str)
 {
     size_t len = strlen(str);
     
