@@ -20,6 +20,7 @@ add_library(system
     DebugObject.c
     BPending.c
     Listener.c
+    BEventLock.c
     ${BSYSTEM_ADDITIONAL_SOURCES}
 )
 target_link_libraries(system ${BSYSTEM_ADDITIONAL_LIBS})
