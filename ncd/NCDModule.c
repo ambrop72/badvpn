@@ -66,7 +66,7 @@ static void toevent_job_handler (NCDModuleInst *n)
 }
 
 int NCDModuleInst_Init (NCDModuleInst *n, const char *name, const struct NCDModule *m, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
-                        NCDModule_handler_event handler_event, NCDModule_handler_died handler_died, void *user)
+                        NCDModule_handler_event handler_event, NCDModule_handler_died handler_died, NCDModule_handler_getvar handler_getvar, void *user)
 {
     // init arguments
     n->name = name;
@@ -77,6 +77,7 @@ int NCDModuleInst_Init (NCDModuleInst *n, const char *name, const struct NCDModu
     n->manager = manager;
     n->handler_event = handler_event;
     n->handler_died = handler_died;
+    n->handler_getvar = handler_getvar;
     n->user = user;
     
     // init event job
@@ -186,6 +187,17 @@ void NCDModuleInst_Backend_Died (NCDModuleInst *n, int is_error)
     ASSERT(is_error == 0 || is_error == 1)
     
     DEBUGERROR(&n->d_err, n->handler_died(n->user, is_error))
+}
+
+int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *modname, const char *varname, NCDValue *out)
+{
+    ASSERT(modname)
+    ASSERT(varname)
+    
+    int res = n->handler_getvar(n->user, modname, varname, out);
+    ASSERT(res == 0 || res == 1)
+    
+    return res;
 }
 
 void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const char *fmt, ...)

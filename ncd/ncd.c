@@ -152,6 +152,7 @@ static void statement_free_args (struct statement *s);
 static int process_new (struct NCDConfig_interfaces *conf);
 static void process_free (struct process *p);
 static void process_free_statements (struct process *p);
+static size_t process_rap (struct process *p);
 static void process_assert_pointers (struct process *p);
 static void process_log (struct process *p, int level, const char *fmt, ...);
 static void process_work (struct process *p);
@@ -159,10 +160,12 @@ static void process_advance_job_handler (struct process *p);
 static void process_advance (struct process *p);
 static void process_wait (struct process *p);
 static void process_wait_timer_handler (struct process *p);
+static int process_resolve_variable (struct process *p, size_t pos, const char *modname, const char *varname, NCDValue *out);
 static void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...);
 static void process_statement_set_error (struct process_statement *ps);
 static void process_statement_instance_handler_event (struct process_statement *ps, int event);
 static void process_statement_instance_handler_died (struct process_statement *ps, int is_error);
+static int process_statement_instance_handler_getvar (struct process_statement *ps, const char *modname, const char *varname, NCDValue *out);
 static void init_job_handler (void *unused);
 static void free_job_handler (void *unused);
 
@@ -724,6 +727,15 @@ void process_free (struct process *p)
     free(p);
 }
 
+size_t process_rap (struct process *p)
+{
+    if (p->ap > 0 && p->statements[p->ap - 1].state == SSTATE_CHILD) {
+        return (p->ap - 1);
+    } else {
+        return p->ap;
+    }
+}
+
 void process_free_statements (struct process *p)
 {
     // free statments
@@ -853,7 +865,7 @@ void process_advance_job_handler (struct process *p)
 void process_advance (struct process *p)
 {
     ASSERT(p->ap == p->fp)
-    ASSERT(!(p->ap > 0 && p->statements[p->ap - 1].state == SSTATE_CHILD))
+    ASSERT(p->ap == process_rap(p))
     
     if (p->ap == p->num_statements) {
         process_log(p, BLOG_INFO, "victory");
@@ -881,25 +893,10 @@ void process_advance (struct process *p)
         NCDValue v;
         
         if (arg->is_var) {
-            // find referred-to statement
-            struct process_statement *rps;
-            size_t i;
-            for (i = p->ap; i > 0; i--) {
-                rps = &p->statements[i - 1];
-                if (rps->s.name && !strcmp(rps->s.name, arg->var.modname)) {
-                    break;
-                }
-            }
-            if (i == 0) {
-                process_statement_log(ps, BLOG_ERROR, "unknown statement name in variable: %s.%s", arg->var.modname, arg->var.varname);
-                goto fail1;
-            }
-            ASSERT(rps->state == SSTATE_ADULT)
-            
-            // resolve variable
             const char *real_varname = (arg->var.varname ? arg->var.varname : "");
-            if (!NCDModuleInst_GetVar(&rps->inst, real_varname, &v)) {
-                process_statement_log(ps, BLOG_ERROR, "failed to resolve variable: %s.%s", arg->var.modname, real_varname);
+            
+            if (!process_resolve_variable(p, p->ap, arg->var.modname, real_varname, &v)) {
+                process_statement_log(ps, BLOG_ERROR, "failed to resolve variable");
                 goto fail1;
             }
         } else {
@@ -925,7 +922,10 @@ void process_advance (struct process *p)
     // initialize module instance
     if (!NCDModuleInst_Init(
         &ps->inst, ps->s.name, ps->s.module, &ps->inst_args, ps->logprefix, &ss, &manager,
-        (NCDModule_handler_event)process_statement_instance_handler_event, (NCDModule_handler_died)process_statement_instance_handler_died, ps
+        (NCDModule_handler_event)process_statement_instance_handler_event,
+        (NCDModule_handler_died)process_statement_instance_handler_died,
+        (NCDModule_handler_getvar)process_statement_instance_handler_getvar,
+        ps
     )) {
         process_statement_log(ps, BLOG_ERROR, "failed to initialize");
         goto fail1;
@@ -953,7 +953,7 @@ fail1:
 void process_wait (struct process *p)
 {
     ASSERT(p->ap == p->fp)
-    ASSERT(!(p->ap > 0 && p->statements[p->ap - 1].state == SSTATE_CHILD))
+    ASSERT(p->ap == process_rap(p))
     ASSERT(p->ap < p->num_statements)
     ASSERT(p->statements[p->ap].have_error)
     
@@ -968,7 +968,7 @@ void process_wait (struct process *p)
 void process_wait_timer_handler (struct process *p)
 {
     ASSERT(p->ap == p->fp)
-    ASSERT(!(p->ap > 0 && p->statements[p->ap - 1].state == SSTATE_CHILD))
+    ASSERT(p->ap == process_rap(p))
     ASSERT(p->ap < p->num_statements)
     ASSERT(p->statements[p->ap].have_error)
     
@@ -978,6 +978,37 @@ void process_wait_timer_handler (struct process *p)
     p->statements[p->ap].have_error = 0;
     
     process_advance(p);
+}
+
+int process_resolve_variable (struct process *p, size_t pos, const char *modname, const char *varname, NCDValue *out)
+{
+    ASSERT(pos >= 0)
+    ASSERT(pos <= process_rap(p))
+    ASSERT(modname)
+    ASSERT(varname)
+    
+    // find referred-to statement
+    struct process_statement *rps;
+    size_t i;
+    for (i = pos; i > 0; i--) {
+        rps = &p->statements[i - 1];
+        if (rps->s.name && !strcmp(rps->s.name, modname)) {
+            break;
+        }
+    }
+    if (i == 0) {
+        process_log(p, BLOG_ERROR, "unknown statement name in variable: %s.%s", modname, varname);
+        return 0;
+    }
+    ASSERT(rps->state == SSTATE_ADULT)
+    
+    // resolve variable
+    if (!NCDModuleInst_GetVar(&rps->inst, varname, out)) {
+        process_log(p, BLOG_ERROR, "failed to resolve variable: %s.%s", modname, varname);
+        return 0;
+    }
+    
+    return 1;
 }
 
 void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...)
@@ -1086,6 +1117,16 @@ void process_statement_instance_handler_died (struct process_statement *ps, int 
     
     process_work(p);
     return;
+}
+
+int process_statement_instance_handler_getvar (struct process_statement *ps, const char *modname, const char *varname, NCDValue *out)
+{
+    if (ps->i > process_rap(ps->p)) {
+        process_statement_log(ps, BLOG_ERROR, "tried to resolve variable %s.%s but it's dirty", modname, varname);
+        return 0;
+    }
+    
+    return process_resolve_variable(ps->p, ps->i, modname, varname, out);
 }
 
 void init_job_handler (void *unused)

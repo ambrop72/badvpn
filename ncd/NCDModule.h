@@ -42,6 +42,7 @@
 
 typedef void (*NCDModule_handler_event) (void *user, int event);
 typedef void (*NCDModule_handler_died) (void *user, int is_error);
+typedef int (*NCDModule_handler_getvar) (void *user, const char *modname, const char *varname, NCDValue *out);
 
 struct NCDModule;
 
@@ -54,6 +55,7 @@ typedef struct {
     BProcessManager *manager;
     NCDModule_handler_event handler_event;
     NCDModule_handler_died handler_died;
+    NCDModule_handler_getvar handler_getvar;
     void *user;
     BPending event_job;
     int event_job_event;
@@ -66,12 +68,13 @@ typedef struct {
 } NCDModuleInst;
 
 int NCDModuleInst_Init (NCDModuleInst *n, const char *name, const struct NCDModule *m, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
-                        NCDModule_handler_event handler_event, NCDModule_handler_died handler_died, void *user);
+                        NCDModule_handler_event handler_event, NCDModule_handler_died handler_died, NCDModule_handler_getvar handler_getvar, void *user);
 void NCDModuleInst_Free (NCDModuleInst *n);
 void NCDModuleInst_Event (NCDModuleInst *n, int event);
 int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out);
 void NCDModuleInst_Backend_Event (NCDModuleInst *n, int event);
 void NCDModuleInst_Backend_Died (NCDModuleInst *n, int is_error);
+int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *modname, const char *varname, NCDValue *out);
 void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const char *fmt, ...);
 
 typedef int (*NCDModule_func_globalinit) (void);
