@@ -270,12 +270,20 @@ int main (int argc, char **argv)
     // fee config file memory
     free(file);
     
+    // init module params
+    struct NCDModuleInitParams params = {
+        .reactor = &ss,
+        .manager = &manager
+    };
+    
     // init modules
+    size_t num_inited_modules = 0;
     for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
-        if ((*g)->func_globalinit && !(*g)->func_globalinit()) {
+        if ((*g)->func_globalinit && !(*g)->func_globalinit(params)) {
             BLog(BLOG_ERROR, "globalinit failed for some module");
             goto fail5;
         }
+        num_inited_modules++;
     }
     
     // init processes list
@@ -308,6 +316,14 @@ int main (int argc, char **argv)
     // free init job
     BPending_Free(&init_job);
 fail5:
+    // free modules
+    while (num_inited_modules > 0) {
+        const struct NCDModuleGroup **g = &ncd_modules[num_inited_modules - 1];
+        if ((*g)->func_globalfree) {
+            (*g)->func_globalfree();
+        }
+        num_inited_modules--;
+    }
     // free configuration
     NCDConfig_free_interfaces(configuration);
 fail3:

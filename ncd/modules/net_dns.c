@@ -173,7 +173,7 @@ static int set_servers (void)
     return 1;
 }
 
-static int func_globalinit (void)
+static int func_globalinit (struct NCDModuleInitParams params)
 {
     LinkedList2_Init(&instances);
     

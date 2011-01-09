@@ -74,7 +74,7 @@ static struct provide * find_provide (const char *name)
     return NULL;
 }
 
-static int func_globalinit (void)
+static int func_globalinit (struct NCDModuleInitParams params)
 {
     // init provides list
     LinkedList2_Init(&provides);

@@ -46,6 +46,11 @@ typedef int (*NCDModule_handler_getvar) (void *user, const char *modname, const 
 
 struct NCDModule;
 
+struct NCDModuleInitParams {
+    BReactor *reactor;
+    BProcessManager *manager;
+};
+
 typedef struct {
     const char *name;
     const struct NCDModule *m;
@@ -77,7 +82,8 @@ void NCDModuleInst_Backend_Died (NCDModuleInst *n, int is_error);
 int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *modname, const char *varname, NCDValue *out);
 void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const char *fmt, ...);
 
-typedef int (*NCDModule_func_globalinit) (void);
+typedef int (*NCDModule_func_globalinit) (const struct NCDModuleInitParams params);
+typedef void (*NCDModule_func_globalfree) (void);
 typedef void * (*NCDModule_func_new) (NCDModuleInst *params);
 typedef void (*NCDModule_func_free) (void *o);
 typedef void (*NCDModule_func_die) (void *o);
@@ -95,6 +101,7 @@ struct NCDModule {
 
 struct NCDModuleGroup {
     NCDModule_func_globalinit func_globalinit;
+    NCDModule_func_globalfree func_globalfree;
     const struct NCDModule *modules;
 };
 
