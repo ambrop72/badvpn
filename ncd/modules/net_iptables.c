@@ -30,6 +30,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <system/BEventLock.h>
+
 #include <ncd/modules/command_template.h>
 
 #include <generated/blog_channel_ncd_net_iptables.h>
@@ -37,6 +39,8 @@
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 #define IPTABLES_PATH "/sbin/iptables"
+
+BEventLock iptables_lock;
 
 static int build_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
 {
@@ -161,14 +165,28 @@ fail0:
     return 0;
 }
 
+static int func_globalinit (struct NCDModuleInitParams params)
+{
+    // init iptables lock
+    BEventLock_Init(&iptables_lock, BReactor_PendingGroup(params.reactor));
+    
+    return 1;
+}
+
+static void func_globalfree (void)
+{
+    // free iptables lock
+    BEventLock_Free(&iptables_lock);
+}
+
 static void * append_func_new (NCDModuleInst *i)
 {
-    return command_template_new(i, build_append_cmdline, BLOG_CURRENT_CHANNEL);
+    return command_template_new(i, build_append_cmdline, BLOG_CURRENT_CHANNEL, &iptables_lock);
 }
 
 static void * policy_func_new (NCDModuleInst *i)
 {
-    return command_template_new(i, build_policy_cmdline, BLOG_CURRENT_CHANNEL);
+    return command_template_new(i, build_policy_cmdline, BLOG_CURRENT_CHANNEL, &iptables_lock);
 }
 
 static const struct NCDModule modules[] = {
@@ -188,5 +206,7 @@ static const struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_net_iptables = {
-    .modules = modules
+    .modules = modules,
+    .func_globalinit = func_globalinit,
+    .func_globalfree = func_globalfree
 };

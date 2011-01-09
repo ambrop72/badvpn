@@ -29,13 +29,14 @@
 #define BADVPN_NCD_MODULES_COMMAND_TEMPLATE_H
 
 #include <misc/cmdline.h>
+#include <system/BEventLock.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_net_iptables.h>
 
 typedef int (*command_template_build_cmdline) (NCDModuleInst *i, int remove, char **exec, CmdLine *cl);
 
-void * command_template_new (NCDModuleInst *i, command_template_build_cmdline build_cmdline, int blog_channel);
+void * command_template_new (NCDModuleInst *i, command_template_build_cmdline build_cmdline, int blog_channel, BEventLock *elock);
 void command_template_func_free (void *vo);
 void command_template_func_die (void *vo);
 
