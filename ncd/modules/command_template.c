@@ -77,8 +77,6 @@ static void lock_handler (struct instance *o)
     ASSERT(o->state == STATE_ADDING_LOCK || o->state == STATE_DELETING_LOCK)
     ASSERT(!o->have_process)
     
-    NCDModuleInst_Backend_Log(o->i, o->blog_channel, BLOG_ERROR, "GotLock");
-    
     int remove = (o->state == STATE_DELETING_LOCK);
     
     // start process
