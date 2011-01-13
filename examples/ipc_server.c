@@ -27,6 +27,7 @@
 
 #include <misc/debug.h>
 #include <misc/offset.h>
+#include <structure/LinkedList2.h>
 #include <system/DebugObject.h>
 #include <system/BLog.h>
 #include <ipc/BIPCServer.h>
