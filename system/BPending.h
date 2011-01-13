@@ -28,7 +28,7 @@
 #define BADVPN_SYSTEM_BPENDING_H
 
 #include <misc/debugcounter.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <system/DebugObject.h>
 
 /**
@@ -46,7 +46,7 @@ typedef void (*BPending_handler) (void *user);
  * Object that contains a list of jobs pending execution.
  */
 typedef struct {
-    LinkedList2 jobs;
+    LinkedList1 jobs;
     DebugCounter pending_ctr;
     DebugObject d_obj;
 } BPendingGroup;
@@ -59,7 +59,7 @@ typedef struct {
     BPending_handler handler;
     void *user;
     int pending;
-    LinkedList2Node pending_node;
+    LinkedList1Node pending_node;
     DebugObject d_obj;
 } BPending;
 
