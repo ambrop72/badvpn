@@ -53,13 +53,6 @@ typedef int btimeout_t;
 #define WAITRES_TIMED_OUT(_res) ((_res) == 0)
 #endif
 
-static void dispatch_jobs (BReactor *bsys)
-{
-    while (!bsys->exiting && BPendingGroup_HasJobs(&bsys->pending_jobs)) {
-        BPendingGroup_ExecuteJob(&bsys->pending_jobs);
-    }
-}
-
 static int timer_comparator (void *user, btime_t *val1, btime_t *val2)
 {
     if (*val1 < *val2) {
@@ -140,55 +133,7 @@ static void move_first_timers (BReactor *bsys)
     }
 }
 
-static void dispatch_timers (BReactor *bsys)
-{
-    // call event hendlers for expired timers
-    // Handler functions are free to remove any timer, and if a pending
-    // expired timer is removed, it will not be reported.
-    
-    LinkedList2Node *list_node;
-    while (!bsys->exiting && (list_node = LinkedList2_GetFirst(&bsys->timers_expired_list))) {
-        BTimer *timer = UPPER_OBJECT(list_node, BTimer, list_node);
-        ASSERT(timer->active)
-        ASSERT(timer->expired)
-        
-        // remove from expired list
-        LinkedList2_Remove(&bsys->timers_expired_list, &timer->list_node);
-        
-        // set inactive
-        timer->active = 0;
-        
-        // call handler
-        BLog(BLOG_DEBUG, "Dispatching timer");
-        timer->handler(timer->handler_pointer);
-        
-        // dispatch jobs
-        dispatch_jobs(bsys);
-    }
-}
-
-#ifdef BADVPN_USE_WINAPI
-
-static void dispatch_io (BReactor *bsys)
-{
-    if (!bsys->exiting && bsys->returned_object) {
-        BHandle *bh = bsys->returned_object;
-        bsys->returned_object = NULL;
-        ASSERT(bh->active)
-        ASSERT(bh->position >= 0 && bh->position < bsys->enabled_num)
-        ASSERT(bh == bsys->enabled_objects[bh->position])
-        ASSERT(bh->h == bsys->enabled_handles[bh->position])
-        
-        // call handler
-        BLog(BLOG_DEBUG, "Dispatching handle");
-        bh->handler(bh->user);
-        
-        // dispatch jobs
-        dispatch_jobs(bsys);
-    }
-}
-
-#else
+#ifndef BADVPN_USE_WINAPI
 
 static void set_fd_pointers (BReactor *bsys)
 {
@@ -202,52 +147,6 @@ static void set_fd_pointers (BReactor *bsys)
         ASSERT(bfd->active)
         ASSERT(!bfd->epoll_returned_ptr)
         bfd->epoll_returned_ptr = (BFileDescriptor **)&event->data.ptr;
-    }
-}
-
-static void dispatch_io (BReactor *bsys)
-{
-    while (!bsys->exiting && bsys->epoll_results_pos < bsys->epoll_results_num) {
-        // grab event
-        struct epoll_event *event = &bsys->epoll_results[bsys->epoll_results_pos];
-        bsys->epoll_results_pos++;
-        
-        // check if the BFileDescriptor was removed
-        if (!event->data.ptr) {
-            continue;
-        }
-        
-        // get BFileDescriptor
-        BFileDescriptor *bfd = (BFileDescriptor *)event->data.ptr;
-        ASSERT(bfd->active)
-        ASSERT(bfd->epoll_returned_ptr == (BFileDescriptor **)&event->data.ptr)
-        
-        // zero pointer to the epoll entry
-        bfd->epoll_returned_ptr = NULL;
-        
-        // calculate events to report
-        int events = 0;
-        if ((bfd->waitEvents&BREACTOR_READ) && (event->events&EPOLLIN)) {
-            events |= BREACTOR_READ;
-        }
-        if ((bfd->waitEvents&BREACTOR_WRITE) && (event->events&EPOLLOUT)) {
-            events |= BREACTOR_WRITE;
-        }
-        if ((event->events&EPOLLERR) || (event->events&EPOLLHUP)) {
-            events |= BREACTOR_ERROR;
-        }
-        
-        if (!events) {
-            BLog(BLOG_ERROR, "no events detected?");
-            continue;
-        }
-        
-        // call handler
-        BLog(BLOG_DEBUG, "Dispatching file descriptor");
-        bfd->handler(bfd->user, events);
-        
-        // dispatch jobs
-        dispatch_jobs(bsys);
     }
 }
 
@@ -501,15 +400,95 @@ void BReactor_Free (BReactor *bsys)
 int BReactor_Exec (BReactor *bsys)
 {
     BLog(BLOG_DEBUG, "Entering event loop");
-
-    while (1) {
-        dispatch_jobs(bsys);
-        dispatch_timers(bsys);
-        dispatch_io(bsys);
-        
-        if (bsys->exiting) {
-            break;
+    
+    while (!bsys->exiting) {
+        // dispatch job
+        if (BPendingGroup_HasJobs(&bsys->pending_jobs)) {
+            BPendingGroup_ExecuteJob(&bsys->pending_jobs);
+            continue;
         }
+        
+        // dispatch timer
+        LinkedList2Node *list_node = LinkedList2_GetFirst(&bsys->timers_expired_list);
+        if (list_node) {
+            BTimer *timer = UPPER_OBJECT(list_node, BTimer, list_node);
+            ASSERT(timer->active)
+            ASSERT(timer->expired)
+            
+            // remove from expired list
+            LinkedList2_Remove(&bsys->timers_expired_list, &timer->list_node);
+            
+            // set inactive
+            timer->active = 0;
+            
+            // call handler
+            BLog(BLOG_DEBUG, "Dispatching timer");
+            timer->handler(timer->handler_pointer);
+            continue;
+        }
+        
+        #ifdef BADVPN_USE_WINAPI
+        
+        // dispatch handle
+        if (bsys->returned_object) {
+            BHandle *bh = bsys->returned_object;
+            bsys->returned_object = NULL;
+            ASSERT(bh->active)
+            ASSERT(bh->position >= 0 && bh->position < bsys->enabled_num)
+            ASSERT(bh == bsys->enabled_objects[bh->position])
+            ASSERT(bh->h == bsys->enabled_handles[bh->position])
+            
+            // call handler
+            BLog(BLOG_DEBUG, "Dispatching handle");
+            bh->handler(bh->user);
+            continue;
+        }
+        
+        #else
+        
+        // dispatch file descriptor
+        if (bsys->epoll_results_pos < bsys->epoll_results_num) {
+            // grab event
+            struct epoll_event *event = &bsys->epoll_results[bsys->epoll_results_pos];
+            bsys->epoll_results_pos++;
+            
+            // check if the BFileDescriptor was removed
+            if (!event->data.ptr) {
+                continue;
+            }
+            
+            // get BFileDescriptor
+            BFileDescriptor *bfd = (BFileDescriptor *)event->data.ptr;
+            ASSERT(bfd->active)
+            ASSERT(bfd->epoll_returned_ptr == (BFileDescriptor **)&event->data.ptr)
+            
+            // zero pointer to the epoll entry
+            bfd->epoll_returned_ptr = NULL;
+            
+            // calculate events to report
+            int events = 0;
+            if ((bfd->waitEvents&BREACTOR_READ) && (event->events&EPOLLIN)) {
+                events |= BREACTOR_READ;
+            }
+            if ((bfd->waitEvents&BREACTOR_WRITE) && (event->events&EPOLLOUT)) {
+                events |= BREACTOR_WRITE;
+            }
+            if ((event->events&EPOLLERR) || (event->events&EPOLLHUP)) {
+                events |= BREACTOR_ERROR;
+            }
+            
+            if (!events) {
+                BLog(BLOG_ERROR, "no events detected?");
+                continue;
+            }
+            
+            // call handler
+            BLog(BLOG_DEBUG, "Dispatching file descriptor");
+            bfd->handler(bfd->user, events);
+            continue;
+        }
+        
+        #endif
         
         wait_for_events(bsys);
     }
