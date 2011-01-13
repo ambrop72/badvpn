@@ -84,7 +84,7 @@ static int move_expired_timers (BReactor *bsys, btime_t now)
         BHeap_Remove(&bsys->timers_heap, &timer->heap_node);
         
         // add to expired timers list
-        LinkedList2_Append(&bsys->timers_expired_list, &timer->list_node);
+        LinkedList1_Append(&bsys->timers_expired_list, &timer->list_node);
 
         // set expired
         timer->expired = 1;
@@ -106,7 +106,7 @@ static void move_first_timers (BReactor *bsys)
     BHeap_Remove(&bsys->timers_heap, &first_timer->heap_node);
     
     // add to expired timers list
-    LinkedList2_Append(&bsys->timers_expired_list, &first_timer->list_node);
+    LinkedList1_Append(&bsys->timers_expired_list, &first_timer->list_node);
     
     // set expired
     first_timer->expired = 1;
@@ -126,7 +126,7 @@ static void move_first_timers (BReactor *bsys)
         BHeap_Remove(&bsys->timers_heap, &timer->heap_node);
         
         // add to expired timers list
-        LinkedList2_Append(&bsys->timers_expired_list, &timer->list_node);
+        LinkedList1_Append(&bsys->timers_expired_list, &timer->list_node);
         
         // set expired
         timer->expired = 1;
@@ -156,7 +156,7 @@ static void wait_for_events (BReactor *bsys)
 {
     // must have processed all pending events
     ASSERT(!BPendingGroup_HasJobs(&bsys->pending_jobs))
-    ASSERT(LinkedList2_IsEmpty(&bsys->timers_expired_list))
+    ASSERT(LinkedList1_IsEmpty(&bsys->timers_expired_list))
     #ifdef BADVPN_USE_WINAPI
     ASSERT(!bsys->returned_object)
     #else
@@ -336,7 +336,7 @@ int BReactor_Init (BReactor *bsys)
     
     // init timers
     BHeap_Init(&bsys->timers_heap, OFFSET_DIFF(BTimer, absTime, heap_node), (BHeap_comparator)timer_comparator, NULL);
-    LinkedList2_Init(&bsys->timers_expired_list);
+    LinkedList1_Init(&bsys->timers_expired_list);
     
     #ifdef BADVPN_USE_WINAPI
     
@@ -376,7 +376,7 @@ void BReactor_Free (BReactor *bsys)
     // {pending group has no BPending objects}
     ASSERT(!BPendingGroup_HasJobs(&bsys->pending_jobs))
     ASSERT(!BHeap_GetFirst(&bsys->timers_heap))
-    ASSERT(LinkedList2_IsEmpty(&bsys->timers_expired_list))
+    ASSERT(LinkedList1_IsEmpty(&bsys->timers_expired_list))
     DebugObject_Free(&bsys->d_obj);
     #ifdef BADVPN_USE_WINAPI
     ASSERT(bsys->num_handles == 0)
@@ -409,14 +409,14 @@ int BReactor_Exec (BReactor *bsys)
         }
         
         // dispatch timer
-        LinkedList2Node *list_node = LinkedList2_GetFirst(&bsys->timers_expired_list);
+        LinkedList1Node *list_node = LinkedList1_GetFirst(&bsys->timers_expired_list);
         if (list_node) {
             BTimer *timer = UPPER_OBJECT(list_node, BTimer, list_node);
             ASSERT(timer->active)
             ASSERT(timer->expired)
             
             // remove from expired list
-            LinkedList2_Remove(&bsys->timers_expired_list, &timer->list_node);
+            LinkedList1_Remove(&bsys->timers_expired_list, &timer->list_node);
             
             // set inactive
             timer->active = 0;
@@ -551,7 +551,7 @@ void BReactor_RemoveTimer (BReactor *bsys, BTimer *bt)
 
     if (bt->expired) {
         // remove from expired list
-        LinkedList2_Remove(&bsys->timers_expired_list, &bt->list_node);
+        LinkedList1_Remove(&bsys->timers_expired_list, &bt->list_node);
     } else {
         // remove from running heap
         BHeap_Remove(&bsys->timers_heap, &bt->heap_node);

@@ -39,7 +39,7 @@
 #include <misc/debug.h>
 #include <misc/debugcounter.h>
 #include <system/DebugObject.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <structure/BHeap.h>
 #include <system/BTime.h>
 #include <system/BPending.h>
@@ -70,7 +70,7 @@ typedef struct BTimer_t {
     btime_t absTime;
     union {
         BHeapNode heap_node;
-        LinkedList2Node list_node;
+        LinkedList1Node list_node;
     };
 } BTimer;
 
@@ -195,7 +195,7 @@ typedef struct {
     
     // timers
     BHeap timers_heap;
-    LinkedList2 timers_expired_list;
+    LinkedList1 timers_expired_list;
     
     #ifdef BADVPN_USE_WINAPI
     
