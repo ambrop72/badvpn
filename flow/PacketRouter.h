@@ -40,7 +40,7 @@
  * @param user as in {@link PacketRouter_Init}
  * @param buf the buffer for the packet. May be modified by the user.
  *            Will have space for mtu bytes. Only valid in the job context of
- *            this handler, until {@link PacketRouter_Route} is called successfully 
+ *            this handler, until {@link PacketRouter_Route} is called successfully.
  * @param recv_len length of the input packet (located at recv_offset bytes offset)
  */
 typedef void (*PacketRouter_handler) (void *user, uint8_t *buf, int recv_len);
@@ -90,8 +90,6 @@ void PacketRouter_Free (PacketRouter *o);
 /**
  * Routes the current packet to the given buffer.
  * Must be called from the job context of the {@link PacketRouter_handler} handler.
- * This function must not have been called successfully with a NULL next_buf in this
- * handler.
  * On success, copies part of the current packet to next one (regardless if next_buf
  * is provided or not; if not, copies before receiving another packet).
  * 
@@ -100,9 +98,9 @@ void PacketRouter_Free (PacketRouter *o);
  *            Must be >=0 and <=mtu.
  * @param output buffer to route to. Its MTU must be the same as of this object.
  * @param next_buf if not NULL, on success, will be set to the address of a new current
- *                 packet. In this case, this function can be called again to route the packet
- *                 to another buffer. The returned pointer will be valid within the job context
- *                 of the calling {@link PacketRouter_handler} handler, like the previous one.
+ *                 packet that can be routed. The pointer will be valid in the job context of
+ *                 the calling handler, until this function is called successfully again
+ *                 (as for the original pointer provided by the handler).
  * @param copy_offset Offset from the beginning for copying to the next packet.
  *                    Must be >=0 and <=mtu.
  * @param copy_len Number of bytes to copy from the old current

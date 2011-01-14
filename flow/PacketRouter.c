@@ -110,12 +110,6 @@ int PacketRouter_Route (PacketRouter *o, int len, RouteBuffer *output, uint8_t *
     
     if (next_buf) {
         *next_buf = RouteBufferSource_Pointer(&o->rbs);
-    } else {
-        // unset next job
-        BPending_Unset(&o->next_job);
-        
-        // receive
-        PacketRecvInterface_Receiver_Recv(o->input, RouteBufferSource_Pointer(&o->rbs) + o->recv_offset);
     }
     
     return 1;
