@@ -359,7 +359,7 @@ void FrameDecider_Free (FrameDecider *o)
     DebugObject_Free(&o->d_obj);
 }
 
-void FrameDecider_AnalyzeAndDecide (FrameDecider *o, uint8_t *frame, int frame_len)
+void FrameDecider_AnalyzeAndDecide (FrameDecider *o, const uint8_t *frame, int frame_len)
 {
     ASSERT(frame_len >= 0)
     DebugObject_Access(&o->d_obj);
@@ -383,7 +383,7 @@ void FrameDecider_AnalyzeAndDecide (FrameDecider *o, uint8_t *frame, int frame_l
     
     // analyze frame
     
-    uint8_t *pos = frame;
+    const uint8_t *pos = frame;
     int len = frame_len;
     
     if (len < sizeof(struct ethernet_header)) {
@@ -399,7 +399,7 @@ void FrameDecider_AnalyzeAndDecide (FrameDecider *o, uint8_t *frame, int frame_l
         case ETHERTYPE_IPV4: {
             // check IPv4 header
             struct ipv4_header *ipv4_header;
-            if (!ipv4_check(pos, len, &ipv4_header, &pos, &len)) {
+            if (!ipv4_check((uint8_t *)pos, len, &ipv4_header, (uint8_t **)&pos, &len)) {
                 BLog(BLOG_INFO, "decide: wrong IP packet");
                 goto out;
             }
@@ -662,12 +662,12 @@ void FrameDeciderPeer_Free (FrameDeciderPeer *o)
     BFree(o->mac_entries);
 }
 
-void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, uint8_t *frame, int frame_len)
+void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int frame_len)
 {
     ASSERT(frame_len >= 0)
     DebugObject_Access(&o->d_obj);
     
-    uint8_t *pos = frame;
+    const uint8_t *pos = frame;
     int len = frame_len;
     
     if (len < sizeof(struct ethernet_header)) {
@@ -684,7 +684,7 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, uint8_t *frame, int frame_le
         case ETHERTYPE_IPV4: {
             // check IPv4 header
             struct ipv4_header *ipv4_header;
-            if (!ipv4_check(pos, len, &ipv4_header, &pos, &len)) {
+            if (!ipv4_check((uint8_t *)pos, len, &ipv4_header, (uint8_t **)&pos, &len)) {
                 BLog(BLOG_INFO, "analyze: wrong IP packet");
                 goto out;
             }

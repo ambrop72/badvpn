@@ -133,7 +133,7 @@ void FrameDecider_Free (FrameDecider *o);
  * @param frame frame data
  * @param frame_len frame length. Must be >=0.
  */
-void FrameDecider_AnalyzeAndDecide (FrameDecider *o, uint8_t *frame, int frame_len);
+void FrameDecider_AnalyzeAndDecide (FrameDecider *o, const uint8_t *frame, int frame_len);
 
 /**
  * Returns the next peer that the frame submitted to {@link FrameDecider_AnalyzeAndDecide} should be
@@ -167,6 +167,6 @@ void FrameDeciderPeer_Free (FrameDeciderPeer *o);
  * @param frame frame data
  * @param frame_len frame length. Must be >=0.
  */
-void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, uint8_t *frame, int frame_len);
+void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int frame_len);
 
 #endif
