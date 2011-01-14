@@ -247,7 +247,7 @@ int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler hand
         
         // assume identity of username, if requested
         if (username) {
-            size_t bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
+            long bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
             if (bufsize < 0) {
                 bufsize = 16384;
             }

@@ -250,7 +250,7 @@ int NCDIfConfig_make_tuntap (const char *ifname, const char *owner, int tun)
     }
     
     if (owner) {
-        size_t bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
+        long bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
         if (bufsize < 0) {
             bufsize = 16384;
         }
