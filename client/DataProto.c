@@ -289,6 +289,7 @@ void submit_relay_frame (struct dp_relay_flow *flow, uint8_t *frame, int frame_l
 
 static void device_router_handler (DataProtoDevice *o, uint8_t *buf, int recv_len)
 {
+    ASSERT(buf)
     ASSERT(recv_len >= 0)
     ASSERT(recv_len <= o->frame_mtu)
     DebugObject_Access(&o->d_obj);
@@ -570,6 +571,7 @@ void DataProtoLocalSource_Route (DataProtoLocalSource *o, int more)
 {
     ASSERT(more == 0 || more == 1)
     PacketRouter_AssertRoute(&o->device->router);
+    ASSERT(o->device->current_buf)
     if (o->dp) {
         ASSERT(!o->dp->freeing)
     }
@@ -587,15 +589,13 @@ void DataProtoLocalSource_Route (DataProtoLocalSource *o, int more)
     uint8_t *next_buf;
     if (!PacketRouter_Route(
         &o->device->router, DATAPROTO_MAX_OVERHEAD + o->device->current_recv_len, &o->rbuf,
-        (more ? &next_buf : NULL), DATAPROTO_MAX_OVERHEAD, (more ? o->device->current_recv_len : 0)
+        &next_buf, DATAPROTO_MAX_OVERHEAD, (more ? o->device->current_recv_len : 0)
     )) {
         BLog(BLOG_NOTICE, "out of buffer for frame from peer %d to %d", (int)o->source_id, (int)o->dest_id);
         return;
     }
     
-    if (more) {
-        o->device->current_buf = next_buf;
-    }
+    o->device->current_buf = (more ? next_buf : NULL);
 }
 
 void DataProtoLocalSource_Attach (DataProtoLocalSource *o, DataProtoDest *dp)
