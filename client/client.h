@@ -85,8 +85,7 @@ struct device_data {
     int mtu;
     
     // input
-    SinglePacketBuffer input_buffer;
-    PacketPassInterface input_interface;
+    DataProtoDevice input_dpd;
     
     // output
     PacketPassFairQueue output_queue;

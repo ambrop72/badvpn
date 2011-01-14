@@ -67,7 +67,7 @@ struct dp_relay_flow * create_relay_flow (DataProtoRelaySource *rs, DataProtoDes
     ASSERT(first_frame_len <= dp->frame_mtu)
     ASSERT(!BAVL_LookupExact(&rs->relay_flows_tree, &dp))
     ASSERT(num_packets > 0)
-    ASSERT(!dp->d_freeing)
+    ASSERT(!dp->freeing)
     
     // allocate flow structure
     struct dp_relay_flow *flow = malloc(sizeof(struct dp_relay_flow));
@@ -158,7 +158,7 @@ void dealloc_relay_flow (struct dp_relay_flow *flow)
 
 void release_relay_flow (struct dp_relay_flow *flow)
 {
-    ASSERT(!flow->dp->d_freeing)
+    ASSERT(!flow->dp->freeing)
     
     // release it if it's busy
     if (PacketPassFairQueueFlow_IsBusy(&flow->qflow)) {
@@ -171,7 +171,7 @@ void release_relay_flow (struct dp_relay_flow *flow)
 
 void flow_monitor_handler (struct dp_relay_flow *flow)
 {
-    ASSERT(!flow->dp->d_freeing)
+    ASSERT(!flow->dp->freeing)
     
     BLog(BLOG_NOTICE, "relay flow from peer %d to %d timed out", (int)flow->rs->source_id, (int)flow->dp->dest_id);
     
@@ -180,7 +180,7 @@ void flow_monitor_handler (struct dp_relay_flow *flow)
 
 void monitor_handler (DataProtoDest *o)
 {
-    ASSERT(!o->d_freeing)
+    ASSERT(!o->freeing)
     DebugObject_Access(&o->d_obj);
     
     send_keepalive(o);
@@ -188,7 +188,7 @@ void monitor_handler (DataProtoDest *o)
 
 void send_keepalive (DataProtoDest *o)
 {
-    ASSERT(!o->d_freeing)
+    ASSERT(!o->freeing)
     
     BLog(BLOG_DEBUG, "sending keepalive to peer %d", (int)o->dest_id);
     
@@ -241,7 +241,7 @@ int pointer_comparator (void *user, void **val1, void **val2)
 
 void keepalive_job_handler (DataProtoDest *o)
 {
-    ASSERT(!o->d_freeing)
+    ASSERT(!o->freeing)
     DebugObject_Access(&o->d_obj);
     
     send_keepalive(o);
@@ -285,6 +285,21 @@ void submit_relay_frame (struct dp_relay_flow *flow, uint8_t *frame, int frame_l
     
     // submit it
     BufferWriter_EndPacket(&flow->ainput, sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id) + frame_len);
+}
+
+static void device_router_handler (DataProtoDevice *o, uint8_t *buf, int recv_len)
+{
+    ASSERT(recv_len >= 0)
+    ASSERT(recv_len <= o->frame_mtu)
+    DebugObject_Access(&o->d_obj);
+    
+    // remember packet
+    o->current_buf = buf;
+    o->current_recv_len = recv_len;
+    
+    // call handler
+    o->handler(o->user, buf + DATAPROTO_MAX_OVERHEAD, recv_len);
+    return;
 }
 
 int DataProtoDest_Init (DataProtoDest *o, BReactor *reactor, peerid_t dest_id, PacketPassInterface *output, btime_t keepalive_time, btime_t tolerance_time, DataProtoDest_handler handler, void *user)
@@ -342,12 +357,14 @@ int DataProtoDest_Init (DataProtoDest *o, BReactor *reactor, peerid_t dest_id, P
     // init relay flows list
     LinkedList2_Init(&o->relay_flows_list);
     
+    // set not freeing
+    o->freeing = 0;
+    
     DebugCounter_Init(&o->flows_counter);
     DebugObject_Init(&o->d_obj);
     
     #ifndef NDEBUG
     o->d_output = output;
-    o->d_freeing = 0;
     #endif
     
     return 1;
@@ -413,9 +430,8 @@ void DataProtoDest_PrepareFree (DataProtoDest *o)
     // allow freeing queue flows
     PacketPassFairQueue_PrepareFree(&o->queue);
     
-    #ifndef NDEBUG
-    o->d_freeing = 1;
-    #endif
+    // set freeing
+    o->freeing = 1;
 }
 
 void DataProtoDest_SubmitRelayFrame (DataProtoDest *o, DataProtoRelaySource *rs, uint8_t *data, int data_len, int buffer_num_packets)
@@ -423,7 +439,7 @@ void DataProtoDest_SubmitRelayFrame (DataProtoDest *o, DataProtoRelaySource *rs,
     ASSERT(data_len >= 0)
     ASSERT(data_len <= o->frame_mtu)
     ASSERT(buffer_num_packets > 0)
-    ASSERT(!o->d_freeing)
+    ASSERT(!o->freeing)
     DebugObject_Access(&rs->d_obj);
     DebugObject_Access(&o->d_obj);
     
@@ -445,7 +461,7 @@ void DataProtoDest_SubmitRelayFrame (DataProtoDest *o, DataProtoRelaySource *rs,
 void DataProtoDest_Received (DataProtoDest *o, int peer_receiving)
 {
     ASSERT(peer_receiving == 0 || peer_receiving == 1)
-    ASSERT(!o->d_freeing)
+    ASSERT(!o->freeing)
     DebugObject_Access(&o->d_obj);
     
     int prev_up = o->up;
@@ -470,29 +486,56 @@ void DataProtoDest_Received (DataProtoDest *o, int peer_receiving)
     }
 }
 
-int DataProtoLocalSource_Init (DataProtoLocalSource *o, int frame_mtu, peerid_t source_id, peerid_t dest_id, int num_packets, BReactor *reactor)
+int DataProtoDevice_Init (DataProtoDevice *o, PacketRecvInterface *input, DataProtoDevice_handler handler, void *user, BReactor *reactor)
 {
-    ASSERT(frame_mtu >= 0)
-    ASSERT(frame_mtu <= INT_MAX - (sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id)))
+    ASSERT(PacketRecvInterface_GetMTU(input) <= INT_MAX - DATAPROTO_MAX_OVERHEAD)
+    
+    // init arguments
+    o->handler = handler;
+    o->user = user;
+    o->reactor = reactor;
+    
+    // remember frame MTU
+    o->frame_mtu = PacketRecvInterface_GetMTU(input);
+    
+    // init router
+    if (!PacketRouter_Init(&o->router, DATAPROTO_MAX_OVERHEAD + o->frame_mtu, DATAPROTO_MAX_OVERHEAD, input, (PacketRouter_handler)device_router_handler, o, BReactor_PendingGroup(reactor))) {
+        goto fail1;
+    }
+    
+    DebugObject_Init(&o->d_obj);
+    DebugCounter_Init(&o->d_ctr);
+    
+    return 1;
+    
+fail1:
+    return 0;
+}
+
+void DataProtoDevice_Free (DataProtoDevice *o)
+{
+    DebugCounter_Free(&o->d_ctr);
+    DebugObject_Free(&o->d_obj);
+    
+    // free router
+    PacketRouter_Free(&o->router);
+}
+
+int DataProtoLocalSource_Init (DataProtoLocalSource *o, DataProtoDevice *device, peerid_t source_id, peerid_t dest_id, int num_packets)
+{
     ASSERT(num_packets > 0)
     
     // init arguments
-    o->frame_mtu = frame_mtu;
+    o->device = device;
     o->source_id = source_id;
     o->dest_id = dest_id;
     
-    // calculate packet MTU
-    int packet_mtu = o->frame_mtu + sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id);
-    
     // init connector
-    PacketPassConnector_Init(&o->connector, packet_mtu, BReactor_PendingGroup(reactor));
+    PacketPassConnector_Init(&o->connector, DATAPROTO_MAX_OVERHEAD + device->frame_mtu, BReactor_PendingGroup(device->reactor));
     
-    // init async input
-    BufferWriter_Init(&o->ainput, packet_mtu, BReactor_PendingGroup(reactor));
-    
-    // init buffer
-    if (!PacketBuffer_Init(&o->buffer, BufferWriter_GetOutput(&o->ainput), PacketPassConnector_GetInput(&o->connector), num_packets, BReactor_PendingGroup(reactor))) {
-        BLog(BLOG_ERROR, "PacketBuffer_Init failed");
+    // init route buffer
+    if (!RouteBuffer_Init(&o->rbuf, DATAPROTO_MAX_OVERHEAD + device->frame_mtu, PacketPassConnector_GetInput(&o->connector), num_packets)) {
+        BLog(BLOG_ERROR, "RouteBuffer_Init failed");
         goto fail1;
     }
     
@@ -500,11 +543,11 @@ int DataProtoLocalSource_Init (DataProtoLocalSource *o, int frame_mtu, peerid_t 
     o->dp = NULL;
     
     DebugObject_Init(&o->d_obj);
+    DebugCounter_Increment(&device->d_ctr);
     
     return 1;
     
 fail1:
-    BufferWriter_Free(&o->ainput);
     PacketPassConnector_Free(&o->connector);
 fail0:
     return 0;
@@ -513,57 +556,54 @@ fail0:
 void DataProtoLocalSource_Free (DataProtoLocalSource *o)
 {
     ASSERT(!o->dp)
+    DebugCounter_Decrement(&o->device->d_ctr);
     DebugObject_Free(&o->d_obj);
     
-    // free buffer
-    PacketBuffer_Free(&o->buffer);
-    
-    // free async input
-    BufferWriter_Free(&o->ainput);
+    // free route buffer
+    RouteBuffer_Free(&o->rbuf);
     
     // free connector
     PacketPassConnector_Free(&o->connector);
 }
 
-void DataProtoLocalSource_SubmitFrame (DataProtoLocalSource *o, uint8_t *data, int data_len)
+void DataProtoLocalSource_Route (DataProtoLocalSource *o, int more)
 {
-    ASSERT(data_len >= 0)
-    ASSERT(data_len <= o->frame_mtu)
+    ASSERT(more == 0 || more == 1)
+    PacketRouter_AssertRoute(&o->device->router);
     if (o->dp) {
-        ASSERT(!o->d_dp_released)
-        ASSERT(!o->dp->d_freeing)
+        ASSERT(!o->dp->freeing)
     }
     DebugObject_Access(&o->d_obj);
     
-    // get a buffer
-    uint8_t *out;
-    // safe because of PacketBufferAsyncInput
-    if (!BufferWriter_StartPacket(&o->ainput, &out)) {
+    // write header
+    struct dataproto_header *header = (struct dataproto_header *)o->device->current_buf;
+    // don't set flags, it will be set in notifier_handler
+    header->from_id = htol16(o->source_id);
+    header->num_peer_ids = htol16(1);
+    struct dataproto_peer_id *id = (struct dataproto_peer_id *)(header + 1);
+    id->id = htol16(o->dest_id);
+    
+    // route
+    uint8_t *next_buf;
+    if (!PacketRouter_Route(
+        &o->device->router, DATAPROTO_MAX_OVERHEAD + o->device->current_recv_len, &o->rbuf,
+        (more ? &next_buf : NULL), DATAPROTO_MAX_OVERHEAD, (more ? o->device->current_recv_len : 0)
+    )) {
         BLog(BLOG_NOTICE, "out of buffer for frame from peer %d to %d", (int)o->source_id, (int)o->dest_id);
         return;
     }
     
-    // write header
-    struct dataproto_header *header = (struct dataproto_header *)out;
-    // don't set flags, it will be set in notifier_handler
-    header->from_id = htol16(o->source_id);
-    header->num_peer_ids = htol16(1);
-    struct dataproto_peer_id *id = (struct dataproto_peer_id *)(out + sizeof(struct dataproto_header));
-    id->id = htol16(o->dest_id);
-    
-    // write data
-    memcpy(out + sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id), data, data_len);
-    
-    // submit it
-    BufferWriter_EndPacket(&o->ainput, sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id) + data_len);
+    if (more) {
+        o->device->current_buf = next_buf;
+    }
 }
 
 void DataProtoLocalSource_Attach (DataProtoLocalSource *o, DataProtoDest *dp)
 {
     ASSERT(dp)
     ASSERT(!o->dp)
-    ASSERT(o->frame_mtu <= dp->frame_mtu)
-    ASSERT(!dp->d_freeing)
+    ASSERT(o->device->frame_mtu <= dp->frame_mtu)
+    ASSERT(!dp->freeing)
     DebugObject_Access(&o->d_obj);
     DebugObject_Access(&dp->d_obj);
     
@@ -578,37 +618,21 @@ void DataProtoLocalSource_Attach (DataProtoLocalSource *o, DataProtoDest *dp)
     
     // increment flows counter
     DebugCounter_Increment(&dp->flows_counter);
-    
-    #ifndef NDEBUG
-    o->d_dp_released = 0;
-    #endif
-}
-
-void DataProtoLocalSource_Release (DataProtoLocalSource *o)
-{
-    ASSERT(o->dp)
-    ASSERT(!o->d_dp_released)
-    ASSERT(!o->dp->d_freeing)
-    DebugObject_Access(&o->d_obj);
-    
-    if (PacketPassFairQueueFlow_IsBusy(&o->dp_qflow)) {
-        PacketPassFairQueueFlow_Release(&o->dp_qflow);
-    }
-    
-    #ifndef NDEBUG
-    o->d_dp_released = 1;
-    #endif
 }
 
 void DataProtoLocalSource_Detach (DataProtoLocalSource *o)
 {
     #ifndef NDEBUG
     ASSERT(o->dp)
-    ASSERT(o->d_dp_released || o->dp->d_freeing)
     #endif
     DebugObject_Access(&o->d_obj);
     
     DataProtoDest *dp = o->dp;
+    
+    // release flow if needed
+    if (!o->dp->freeing && PacketPassFairQueueFlow_IsBusy(&o->dp_qflow)) {
+        PacketPassFairQueueFlow_Release(&o->dp_qflow);
+    }
     
     // decrement flows counter
     DebugCounter_Decrement(&dp->flows_counter);

@@ -240,11 +240,7 @@ static void peer_dealloc_relay_provider (struct peer_data *peer);
 static void peer_install_relaying (struct peer_data *peer, struct peer_data *relay);
 
 // uninstall relaying for a peer
-static void peer_uninstall_relaying (struct peer_data *peer);
-
-// deallocates relaying for a peer. Used when the relay is beeing freed,
-// and when uninstalling relaying after having released the connection.
-static void peer_dealloc_relaying (struct peer_data *peer);
+static void peer_free_relaying (struct peer_data *peer);
 
 // handle a peer that needs a relay
 static void peer_need_relay (struct peer_data *peer);
@@ -312,8 +308,8 @@ static struct peer_data * find_peer_by_id (peerid_t id);
 // device error handler
 static void device_error_handler (void *unused);
 
-// PacketPassInterfacre handler for packets from the device
-static void device_input_handler_send (void *unused, uint8_t *data, int data_len);
+// DataProtoDevice handler for packets from the device
+static void device_input_dpd_handler (void *unused, const uint8_t *frame, int frame_len);
 
 // assign relays to clients waiting for them
 static void assign_relays (void);
@@ -490,8 +486,8 @@ int main (int argc, char *argv[])
     BLog(BLOG_INFO, "device MTU is %d", device.mtu);
     
     // init device input
-    PacketPassInterface_Init(&device.input_interface, device.mtu, device_input_handler_send, NULL, BReactor_PendingGroup(&ss));
-    if (!SinglePacketBuffer_Init(&device.input_buffer, BTap_GetOutput(&device.btap), &device.input_interface, BReactor_PendingGroup(&ss))) {
+    if (!DataProtoDevice_Init(&device.input_dpd, BTap_GetOutput(&device.btap), device_input_dpd_handler, NULL, &ss)) {
+        BLog(BLOG_ERROR, "DataProtoDevice_Init failed");
         goto fail5a;
     }
     
@@ -563,11 +559,9 @@ int main (int argc, char *argv[])
     ServerConnection_Free(&server);
 fail10:
     FrameDecider_Free(&frame_decider);
-fail7:
     PacketPassFairQueue_Free(&device.output_queue);
-    SinglePacketBuffer_Free(&device.input_buffer);
+    DataProtoDevice_Free(&device.input_dpd);
 fail5a:
-    PacketPassInterface_Free(&device.input_interface);
     BTap_Free(&device.btap);
 fail5:
     if (options.transport_mode == TRANSPORT_MODE_TCP) {
@@ -1221,7 +1215,7 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     }
     
     // init local flow
-    if (!DataProtoLocalSource_Init(&peer->local_dpflow, device.mtu, my_id, peer->id, options.send_buffer_size, &ss)) {
+    if (!DataProtoLocalSource_Init(&peer->local_dpflow, &device.input_dpd, my_id, peer->id, options.send_buffer_size)) {
         peer_log(peer, BLOG_ERROR, "DataProtoLocalSource_Init failed");
         goto fail1;
     }
@@ -1294,7 +1288,7 @@ void peer_remove (struct peer_data *peer)
     
     // uninstall relaying
     if (peer->have_relaying) {
-        peer_uninstall_relaying(peer);
+        peer_free_relaying(peer);
     }
     
     // disable relay provider
@@ -1501,7 +1495,7 @@ int peer_new_link (struct peer_data *peer)
         peer_free_link(peer);
     }
     else if (peer->have_relaying) {
-        peer_uninstall_relaying(peer);
+        peer_free_relaying(peer);
     }
     else if (peer->waiting_relay) {
         peer_unregister_need_relay(peer);
@@ -1550,7 +1544,7 @@ void peer_disable_relay_provider (struct peer_data *peer)
         ASSERT(relay_user->relaying_peer == peer)
         
         // disconnect relay user
-        peer_uninstall_relaying(relay_user);
+        peer_free_relaying(relay_user);
         
         // add it to need relay list
         peer_register_need_relay(relay_user);
@@ -1584,7 +1578,7 @@ void peer_dealloc_relay_provider (struct peer_data *peer)
         ASSERT(relay_user->relaying_peer == peer)
         
         // disconnect relay user
-        peer_dealloc_relaying(relay_user);
+        peer_free_relaying(relay_user);
         
         // add it to need relay list
         peer_register_need_relay(relay_user);
@@ -1620,7 +1614,7 @@ void peer_install_relaying (struct peer_data *peer, struct peer_data *relay)
     peer->have_relaying = 1;
 }
 
-void peer_uninstall_relaying (struct peer_data *peer)
+void peer_free_relaying (struct peer_data *peer)
 {
     ASSERT(peer->have_relaying)
     
@@ -1632,24 +1626,6 @@ void peer_uninstall_relaying (struct peer_data *peer)
     ASSERT(relay->have_link)
     
     peer_log(peer, BLOG_INFO, "uninstalling relaying through %d", (int)relay->id);
-    
-    // release local flow before detaching it
-    DataProtoLocalSource_Release(&peer->local_dpflow);
-    
-    // link out relay
-    peer_dealloc_relaying(peer);
-}
-
-void peer_dealloc_relaying (struct peer_data *peer)
-{
-    ASSERT(peer->have_relaying)
-    
-    ASSERT(!peer->have_link)
-    ASSERT(!peer->waiting_relay)
-    
-    struct peer_data *relay = peer->relaying_peer;
-    ASSERT(relay->is_relay)
-    ASSERT(relay->have_link)
     
     // detach local flow from relay
     DataProtoLocalSource_Detach(&peer->local_dpflow);
@@ -1669,7 +1645,7 @@ void peer_need_relay (struct peer_data *peer)
     }
     
     if (peer->have_relaying) {
-        peer_uninstall_relaying(peer);
+        peer_free_relaying(peer);
     }
     
     if (peer->waiting_relay) {
@@ -2546,22 +2522,20 @@ void device_error_handler (void *unused)
     return;
 }
 
-void device_input_handler_send (void *unused, uint8_t *data, int data_len)
+void device_input_dpd_handler (void *unused, const uint8_t *frame, int frame_len)
 {
-    ASSERT(data_len >= 0)
-    ASSERT(data_len <= device.mtu)
-    
-    // accept packet
-    PacketPassInterface_Done(&device.input_interface);
+    ASSERT(frame_len >= 0)
     
     // give frame to decider
-    FrameDecider_AnalyzeAndDecide(&frame_decider, data, data_len);
+    FrameDecider_AnalyzeAndDecide(&frame_decider, frame, frame_len);
     
     // forward frame to peers
-    FrameDeciderPeer *decider_peer;
-    while (decider_peer = FrameDecider_NextDestination(&frame_decider)) {
+    FrameDeciderPeer *decider_peer = FrameDecider_NextDestination(&frame_decider);
+    while (decider_peer) {
+        FrameDeciderPeer *next = FrameDecider_NextDestination(&frame_decider);
         struct peer_data *peer = UPPER_OBJECT(decider_peer, struct peer_data, decider_peer);
-        DataProtoLocalSource_SubmitFrame(&peer->local_dpflow, data, data_len);
+        DataProtoLocalSource_Route(&peer->local_dpflow, !!next);
+        decider_peer = next;
     }
 }
 

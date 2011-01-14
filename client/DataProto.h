@@ -46,8 +46,10 @@
 #include <flow/BufferWriter.h>
 #include <flow/PacketBuffer.h>
 #include <flow/PacketPassConnector.h>
+#include <flow/PacketRouter.h>
 
 typedef void (*DataProtoDest_handler) (void *user, int up);
+typedef void (*DataProtoDevice_handler) (void *user, const uint8_t *frame, int frame_len);
 
 struct dp_relay_flow;
 
@@ -73,31 +75,43 @@ typedef struct {
     void *user;
     LinkedList2 relay_flows_list;
     BPending keepalive_job;
+    int freeing;
     DebugCounter flows_counter;
     DebugObject d_obj;
     #ifndef NDEBUG
     PacketPassInterface *d_output;
-    int d_freeing;
     #endif
 } DataProtoDest;
+
+/**
+ * Object that receives frames from a device and routes
+ * them to buffers in {@link DataProtoLocalSource} objects.
+ */
+typedef struct {
+    DataProtoDevice_handler handler;
+    void *user;
+    BReactor *reactor;
+    int frame_mtu;
+    PacketRouter router;
+    uint8_t *current_buf;
+    int current_recv_len;
+    DebugObject d_obj;
+    DebugCounter d_ctr;
+} DataProtoDevice;
 
 /**
  * Local frame source.
  * Buffers frames received from the TAP device, addressed to a particular peer.
  */
 typedef struct {
-    int frame_mtu;
+    DataProtoDevice *device;
     peerid_t source_id;
     peerid_t dest_id;
-    BufferWriter ainput;
-    PacketBuffer buffer;
+    RouteBuffer rbuf;
     PacketPassConnector connector;
     DataProtoDest *dp;
     PacketPassFairQueueFlow dp_qflow;
     DebugObject d_obj;
-    #ifndef NDEBUG
-    int d_dp_released;
-    #endif
 } DataProtoLocalSource;
 
 /**
@@ -190,21 +204,39 @@ void DataProtoDest_SubmitRelayFrame (DataProtoDest *o, DataProtoRelaySource *rs,
 void DataProtoDest_Received (DataProtoDest *o, int peer_receiving);
 
 /**
+ * Initiazes the object.
+ * 
+ * @param o the object
+ * @param input device input. Its input MTU must be <= INT_MAX - DATAPROTO_MAX_OVERHEAD.
+ * @param handler handler called when a packet arrives to allow the user to route it to
+ *                appropriate {@link DataProtoLocalSource} objects.
+ * @param user value passed to handler
+ * @param reactor reactor we live in
+ * @return 1 on success, 0 on failure
+ */
+int DataProtoDevice_Init (DataProtoDevice *o, PacketRecvInterface *input, DataProtoDevice_handler handler, void *user, BReactor *reactor) WARN_UNUSED;
+
+/**
+ * Frees the object.
+ * There must be no {@link DataProtoLocalSource} objects referring to this device.
+ * 
+ * @param o the object
+ */
+void DataProtoDevice_Free (DataProtoDevice *o);
+
+/**
  * Initializes the object.
  * The object is initialized in not attached state.
  * 
  * @param o the object
- * @param frame_mtu maximum frame size. Must be >=0.
- *                  Must be <= INT_MAX - (sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id)).
- * @param source_id ID of the peer from which the frames submitted to this object originate from,
- *                  i.e. our ID
- * @param dest_id ID of the peer to which the frames are to be delivered to
+ * @param device device to receive frames from
+ * @param source_id source peer ID to encode in the headers (i.e. our ID)
+ * @param dest_id destination peer ID to encode in the headers (i.e. ID if the peer this
+ *                object belongs to)
  * @param num_packets number of packets the buffer should hold. Must be >0.
- * @param reactor reactor we live in. Must be the same as with all destinations this
- *                source will be attached to.
  * @return 1 on success, 0 on failure
  */
-int DataProtoLocalSource_Init (DataProtoLocalSource *o, int frame_mtu, peerid_t source_id, peerid_t dest_id, int num_packets, BReactor *reactor) WARN_UNUSED;
+int DataProtoLocalSource_Init (DataProtoLocalSource *o, DataProtoDevice *device, peerid_t source_id, peerid_t dest_id, int num_packets) WARN_UNUSED;
 
 /**
  * Frees the object.
@@ -215,23 +247,20 @@ int DataProtoLocalSource_Init (DataProtoLocalSource *o, int frame_mtu, peerid_t 
 void DataProtoLocalSource_Free (DataProtoLocalSource *o);
 
 /**
- * Submits a frame.
- * If the object is in attached state:
- * - The object must be in not released state.
- * - The destination must not be in freeing state.
- * - Must not be called from destination's output Send calls.
- * - May invoke the destination's output I/O.
+ * Routes a frame from the device to this object.
+ * Must be called from within the job context of the {@link DataProtoDevice_handler} handler.
+ * Must not be called after this has been called with more=0 for the current frame.
  * 
  * @param o the object
- * @param data frame data
- * @param data_len frame length. Must be >=0 and <=frame_mtu.
+ * @param more whether the current frame may have to be routed to more
+ *             objects. If 0, must not be called again until the handler is
+ *             called for the next frame. Must be 0 or 1.
  */
-void DataProtoLocalSource_SubmitFrame (DataProtoLocalSource *o, uint8_t *data, int data_len);
+void DataProtoLocalSource_Route (DataProtoLocalSource *o, int more);
 
 /**
  * Attaches the object to a destination.
  * The object must be in not attached state.
- * The object enters attached and not released state.
  * 
  * @param o the object
  * @param dp destination to attach to. This object's frame_mtu must be <= destination's
@@ -240,21 +269,8 @@ void DataProtoLocalSource_SubmitFrame (DataProtoLocalSource *o, uint8_t *data, i
 void DataProtoLocalSource_Attach (DataProtoLocalSource *o, DataProtoDest *dp);
 
 /**
- * Releases the object to allow detaching it from the destination.
- * The object must be in attached and not released state.
- * The destination must not be in freeing state.
- * The object enters attached and released state.
- * Must not be called from destination's output Send calls.
- * May invoke the destination's output Cancel call.
- * 
- * @param o the object
- */
-void DataProtoLocalSource_Release (DataProtoLocalSource *o);
-
-/**
  * Detaches the object from a destination.
  * The object must be in attached state.
- * Either the object must be in released state, or the destination must be in freeing state.
  * Unless the destination is in freeing state, must not be called from destination's
  * output Send calls.
  * 
