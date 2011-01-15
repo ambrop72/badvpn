@@ -186,15 +186,38 @@ int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler hand
     size_t num_fds;
     for (num_fds = 0; fds[num_fds] >= 0; num_fds++);
     
-    // fork
-    pid_t pid = fork();
-    if (pid < 0) {
-        BLog(BLOG_ERROR, "fork failed");
+    // block signals
+    // needed to prevent parent's signal handlers from being called
+    // in the child
+    sigset_t sset_all;
+    sigfillset(&sset_all);
+    sigset_t sset_old;
+    if (sigprocmask(SIG_SETMASK, &sset_all, &sset_old) < 0) {
+        BLog(BLOG_ERROR, "sigprocmask failed");
         goto fail0;
     }
     
+    // fork
+    pid_t pid = fork();
+    
     if (pid == 0) {
         // this is child
+        
+        // restore signal dispositions
+        for (int i = 1; i < NSIG; i++) {
+            struct sigaction sa;
+            memset(&sa, 0, sizeof(sa));
+            sa.sa_handler = SIG_DFL;
+            sa.sa_flags = 0;
+            sigaction(i, &sa, NULL);
+        }
+        
+        // unblock signals
+        sigset_t sset_none;
+        sigemptyset(&sset_none);
+        if (sigprocmask(SIG_SETMASK, &sset_none, NULL) < 0) {
+            abort();
+        }
         
         // copy fds array
         int *fds2 = malloc((num_fds + 1) * sizeof(fds2[0]));
@@ -280,6 +303,14 @@ int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler hand
         execv(file, argv);
         
         abort();
+    }
+    
+    // restore original signal mask
+    ASSERT_FORCE(sigprocmask(SIG_SETMASK, &sset_old, NULL) == 0)
+    
+    if (pid < 0) {
+        BLog(BLOG_ERROR, "fork failed");
+        goto fail0;
     }
     
     // remember pid
