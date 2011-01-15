@@ -31,6 +31,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <misc/debug.h>
 #include <misc/byteorder.h>
 
 struct ipv4_ifaddr {
@@ -43,6 +44,8 @@ static int ipaddr_parse_ipv4_addr (char *name, uint32_t *out_addr);
 static int ipaddr_parse_ipv4_prefix (char *str, int *num);
 static int ipaddr_parse_ipv4_ifaddr (char *str, struct ipv4_ifaddr *out);
 static int ipaddr_ipv4_ifaddr_from_addr_mask (uint32_t addr, uint32_t mask, struct ipv4_ifaddr *out);
+static int ipaddr_ipv4_mask_from_prefix (int prefix);
+static int ipaddr_ipv4_addrs_in_network (uint32_t addr1, uint32_t addr2, int netprefix);
 
 static int ipaddr_char_is_digit (char c)
 {
@@ -173,6 +176,29 @@ int ipaddr_ipv4_ifaddr_from_addr_mask (uint32_t addr, uint32_t mask, struct ipv4
     out->addr = addr;
     out->prefix = i;
     return 1;
+}
+
+int ipaddr_ipv4_mask_from_prefix (int prefix)
+{
+    ASSERT(prefix >= 0)
+    ASSERT(prefix <= 32)
+    
+    uint32_t t = 0;
+    for (int i = 0; i < prefix; i++) {
+        t |= 1 << (32 - i - 1);
+    }
+    
+    return hton32(t);
+}
+
+int ipaddr_ipv4_addrs_in_network (uint32_t addr1, uint32_t addr2, int netprefix)
+{
+    ASSERT(netprefix >= 0)
+    ASSERT(netprefix <= 32)
+    
+    uint32_t mask = ipaddr_ipv4_mask_from_prefix(netprefix);
+    
+    return !!((addr1 & mask) == (addr2 & mask));
 }
 
 #endif
