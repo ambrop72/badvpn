@@ -24,18 +24,9 @@
 
 #include <flow/PacketPassNotifier.h>
 
-static void input_handler_send (PacketPassNotifier *o, uint8_t *data, int data_len);
-static void input_handler_cancel (PacketPassNotifier *o);
-static void output_handler_done (PacketPassNotifier *o);
-
 void input_handler_send (PacketPassNotifier *o, uint8_t *data, int data_len)
 {
-    ASSERT(!o->d_in_have)
     DebugObject_Access(&o->d_obj);
-    
-    #ifndef NDEBUG
-    o->d_in_have = 1;
-    #endif
     
     // schedule send
     PacketPassInterface_Sender_Send(o->output, data, data_len);
@@ -49,26 +40,16 @@ void input_handler_send (PacketPassNotifier *o, uint8_t *data, int data_len)
 
 void input_handler_cancel (PacketPassNotifier *o)
 {
-    ASSERT(o->d_in_have)
     DebugObject_Access(&o->d_obj);
     
     PacketPassInterface_Sender_Cancel(o->output);
-    
-    #ifndef NDEBUG
-    o->d_in_have = 0;
-    #endif
 }
 
 void output_handler_done (PacketPassNotifier *o)
 {
-    ASSERT(o->d_in_have)
     DebugObject_Access(&o->d_obj);
     
     PacketPassInterface_Done(&o->input);
-    
-    #ifndef NDEBUG
-    o->d_in_have = 0;
-    #endif
 }
 
 void PacketPassNotifier_Init (PacketPassNotifier *o, PacketPassInterface *output, BPendingGroup *pg)
@@ -89,9 +70,6 @@ void PacketPassNotifier_Init (PacketPassNotifier *o, PacketPassInterface *output
     o->handler = NULL;
     
     DebugObject_Init(&o->d_obj);
-    #ifndef NDEBUG
-    o->d_in_have = 0;
-    #endif
 }
 
 void PacketPassNotifier_Free (PacketPassNotifier *o)

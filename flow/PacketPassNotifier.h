@@ -52,9 +52,6 @@ typedef struct {
     PacketPassNotifier_handler_notify handler;
     void *handler_user;
     DebugObject d_obj;
-    #ifndef NDEBUG
-    int d_in_have;
-    #endif
 } PacketPassNotifier;
 
 /**
