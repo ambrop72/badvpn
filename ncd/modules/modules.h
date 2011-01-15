@@ -33,6 +33,7 @@ extern const struct NCDModuleGroup ncdmodule_depend;
 extern const struct NCDModuleGroup ncdmodule_concat;
 extern const struct NCDModuleGroup ncdmodule_if;
 extern const struct NCDModuleGroup ncdmodule_strcmp;
+extern const struct NCDModuleGroup ncdmodule_ip_in_network;
 extern const struct NCDModuleGroup ncdmodule_net_backend_physical;
 extern const struct NCDModuleGroup ncdmodule_net_backend_badvpn;
 extern const struct NCDModuleGroup ncdmodule_net_dns;
@@ -48,6 +49,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_concat,
     &ncdmodule_if,
     &ncdmodule_strcmp,
+    &ncdmodule_ip_in_network,
     &ncdmodule_net_backend_physical,
     &ncdmodule_net_backend_badvpn,
     &ncdmodule_net_dns,

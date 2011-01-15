@@ -9,6 +9,7 @@ ncd_depend 4
 ncd_concat 4
 ncd_if 4
 ncd_strcmp 4
+ncd_ip_in_network 4
 ncd_net_backend_physical 4
 ncd_net_backend_badvpn 4
 ncd_net_dns 4
