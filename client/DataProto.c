@@ -376,8 +376,10 @@ void DataProtoDest_Free (DataProtoDest *o)
     DebugObject_Free(&o->d_obj);
     
     // allow freeing queue flows
-    // need to set freeing=1 so free_relay_flow knows not to release
-    DataProtoDest_PrepareFree(o);
+    PacketPassFairQueue_PrepareFree(&o->queue);
+    
+    // set freeing so free_relay_flow will not attempt releasing
+    o->freeing = 1;
     
     // free relay flows
     LinkedList2Node *node;
