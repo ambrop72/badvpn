@@ -296,12 +296,12 @@ void DataProtoRelaySource_Init (DataProtoRelaySource *o, peerid_t source_id);
 void DataProtoRelaySource_Free (DataProtoRelaySource *o);
 
 /**
- * Checks if the object has no relay flows.
+ * Asserts that the object can be freed.
  * 
  * @param o the object
  * @return 1 if there are no relay flows, 0 if at least one
  */
-int DataProtoRelaySource_IsEmpty (DataProtoRelaySource *o);
+void DataProtoRelaySource_AssertFree (DataProtoRelaySource *o);
 
 /**
  * Removes all relay flows by releasing them.

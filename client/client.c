@@ -1316,7 +1316,7 @@ void peer_dealloc (struct peer_data *peer)
 {
     ASSERT(!peer->have_relaying)
     ASSERT(!peer->is_relay)
-    ASSERT(DataProtoRelaySource_IsEmpty(&peer->relay_source))
+    DataProtoRelaySource_AssertFree(&peer->relay_source);
     PacketPassFairQueueFlow_AssertFree(&peer->local_recv_qflow);
     
     LinkedList2Iterator it;

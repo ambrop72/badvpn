@@ -38,8 +38,7 @@
 
 static int peerid_comparator (void *user, peerid_t *val1, peerid_t *val2);
 static struct dp_relay_flow * create_relay_flow (DataProtoRelaySource *rs, DataProtoDest *dp, int num_packets, uint8_t *first_frame, int first_frame_len);
-static void dealloc_relay_flow (struct dp_relay_flow *flow);
-static void release_relay_flow (struct dp_relay_flow *flow);
+static void free_relay_flow (struct dp_relay_flow *flow);
 static void flow_monitor_handler (struct dp_relay_flow *flow);
 static void monitor_handler (DataProtoDest *o);
 static void send_keepalive (DataProtoDest *o);
@@ -124,9 +123,12 @@ fail0:
     return NULL;
 }
 
-void dealloc_relay_flow (struct dp_relay_flow *flow)
+void free_relay_flow (struct dp_relay_flow *flow)
 {
-    PacketPassFairQueueFlow_AssertFree(&flow->qflow);
+    // release it if it's busy
+    if (!flow->dp->freeing && PacketPassFairQueueFlow_IsBusy(&flow->qflow)) {
+        PacketPassFairQueueFlow_Release(&flow->qflow);
+    }
     
     // remove from dp list
     LinkedList2_Remove(&flow->dp->relay_flows_list, &flow->dp_list_node);
@@ -156,26 +158,13 @@ void dealloc_relay_flow (struct dp_relay_flow *flow)
     free(flow);
 }
 
-void release_relay_flow (struct dp_relay_flow *flow)
-{
-    ASSERT(!flow->dp->freeing)
-    
-    // release it if it's busy
-    if (PacketPassFairQueueFlow_IsBusy(&flow->qflow)) {
-        PacketPassFairQueueFlow_Release(&flow->qflow);
-    }
-    
-    // remove flow
-    dealloc_relay_flow(flow);
-}
-
 void flow_monitor_handler (struct dp_relay_flow *flow)
 {
     ASSERT(!flow->dp->freeing)
     
     BLog(BLOG_NOTICE, "relay flow from peer %d to %d timed out", (int)flow->rs->source_id, (int)flow->dp->dest_id);
     
-    release_relay_flow(flow);
+    free_relay_flow(flow);
 }
 
 void monitor_handler (DataProtoDest *o)
@@ -387,13 +376,14 @@ void DataProtoDest_Free (DataProtoDest *o)
     DebugObject_Free(&o->d_obj);
     
     // allow freeing queue flows
-    PacketPassFairQueue_PrepareFree(&o->queue);
+    // need to set freeing=1 so free_relay_flow knows not to release
+    DataProtoDest_PrepareFree(o);
     
     // free relay flows
     LinkedList2Node *node;
     while (node = LinkedList2_GetFirst(&o->relay_flows_list)) {
         struct dp_relay_flow *flow = UPPER_OBJECT(node, struct dp_relay_flow, dp_list_node);
-        dealloc_relay_flow(flow);
+        free_relay_flow(flow);
     }
     
     // free receive timer
@@ -668,11 +658,10 @@ void DataProtoRelaySource_Free (DataProtoRelaySource *o)
     DebugObject_Free(&o->d_obj);
 }
 
-int DataProtoRelaySource_IsEmpty (DataProtoRelaySource *o)
+void DataProtoRelaySource_AssertFree (DataProtoRelaySource *o)
 {
+    ASSERT(LinkedList2_IsEmpty(&o->relay_flows_list))
     DebugObject_Access(&o->d_obj);
-    
-    return LinkedList2_IsEmpty(&o->relay_flows_list);
 }
 
 void DataProtoRelaySource_Release (DataProtoRelaySource *o)
@@ -683,7 +672,7 @@ void DataProtoRelaySource_Release (DataProtoRelaySource *o)
     while (node = LinkedList2_GetFirst(&o->relay_flows_list)) {
         struct dp_relay_flow *flow = UPPER_OBJECT(node, struct dp_relay_flow, source_list_node);
         
-        release_relay_flow(flow);
+        free_relay_flow(flow);
     }
 }
 
@@ -696,6 +685,6 @@ void DataProtoRelaySource_FreeRelease (DataProtoRelaySource *o)
         struct dp_relay_flow *flow = UPPER_OBJECT(node, struct dp_relay_flow, source_list_node);
         
         DataProtoDest_PrepareFree(flow->dp);
-        dealloc_relay_flow(flow);
+        free_relay_flow(flow);
     }
 }
