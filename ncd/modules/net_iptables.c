@@ -42,6 +42,10 @@
 
 BEventLock iptables_lock;
 
+struct instance {
+    command_template_instance cti;
+};
+
 static int build_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
 {
     // read arguments
@@ -179,27 +183,63 @@ static void func_globalfree (void)
     BEventLock_Free(&iptables_lock);
 }
 
+static void * func_new (NCDModuleInst *i, command_template_build_cmdline build_cmdline)
+{
+    struct instance *o = malloc(sizeof(*o));
+    if (!o) {
+        BLog(BLOG_ERROR, "malloc failed");
+        goto fail0;
+    }
+    
+    if (!command_template_new(&o->cti, i, build_cmdline, BLOG_CURRENT_CHANNEL, &iptables_lock)) {
+        goto fail1;
+    }
+    
+    return o;
+    
+fail1:
+    free(o);
+fail0:
+    return NULL;
+}
+
 static void * append_func_new (NCDModuleInst *i)
 {
-    return command_template_new(i, build_append_cmdline, BLOG_CURRENT_CHANNEL, &iptables_lock);
+    return func_new(i, build_append_cmdline);
 }
 
 static void * policy_func_new (NCDModuleInst *i)
 {
-    return command_template_new(i, build_policy_cmdline, BLOG_CURRENT_CHANNEL, &iptables_lock);
+    return func_new(i, build_policy_cmdline);
+}
+
+static void func_free (void *vo)
+{
+    struct instance *o = vo;
+    
+    command_template_free(&o->cti);
+    
+    free(o);
+}
+
+static void func_die (void *vo)
+{
+    struct instance *o = vo;
+    
+    command_template_die(&o->cti);
 }
 
 static const struct NCDModule modules[] = {
     {
         .type = "net.iptables.append",
         .func_new = append_func_new,
-        .func_free = command_template_func_free,
-        .func_die = command_template_func_die
+        .func_free = func_free,
+        .func_die = func_die
     }, {
         .type = "net.iptables.policy",
         .func_new = policy_func_new,
-        .func_free = command_template_func_free,
-        .func_die = command_template_func_die
+        .func_free = func_free,
+        .func_die = func_die
     }, {
         .type = NULL
     }

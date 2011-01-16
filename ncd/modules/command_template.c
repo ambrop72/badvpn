@@ -32,20 +32,10 @@
 #define STATE_DELETING_LOCK 5
 #define STATE_DELETING 6
 
-struct instance {
-    NCDModuleInst *i;
-    command_template_build_cmdline build_cmdline;
-    int blog_channel;
-    BEventLockJob elock_job;
-    int state;
-    int have_process;
-    BProcess process;
-};
+static int start_process (command_template_instance *o, int remove);
+static void process_handler (command_template_instance *o, int normally, uint8_t normally_exit_status);
 
-static int start_process (struct instance *o, int remove);
-static void process_handler (struct instance *o, int normally, uint8_t normally_exit_status);
-
-int start_process (struct instance *o, int remove)
+int start_process (command_template_instance *o, int remove)
 {
     int ret = 0;
     
@@ -72,7 +62,7 @@ fail0:
     return ret;
 }
 
-static void lock_handler (struct instance *o)
+static void lock_handler (command_template_instance *o)
 {
     ASSERT(o->state == STATE_ADDING_LOCK || o->state == STATE_DELETING_LOCK)
     ASSERT(!o->have_process)
@@ -92,7 +82,7 @@ static void lock_handler (struct instance *o)
     o->state = (remove ? STATE_DELETING : STATE_ADDING);
 }
 
-void process_handler (struct instance *o, int normally, uint8_t normally_exit_status)
+void process_handler (command_template_instance *o, int normally, uint8_t normally_exit_status)
 {
     ASSERT(o->have_process)
     ASSERT(o->state == STATE_ADDING || o->state == STATE_ADDING_NEED_DELETE || o->state == STATE_DELETING)
@@ -137,15 +127,8 @@ void process_handler (struct instance *o, int normally, uint8_t normally_exit_st
     }
 }
 
-void * command_template_new (NCDModuleInst *i, command_template_build_cmdline build_cmdline, int blog_channel, BEventLock *elock)
+int command_template_new (command_template_instance *o, NCDModuleInst *i, command_template_build_cmdline build_cmdline, int blog_channel, BEventLock *elock)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        NCDModuleInst_Backend_Log(i, blog_channel, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    
     // init arguments
     o->i = i;
     o->build_cmdline = build_cmdline;
@@ -163,16 +146,11 @@ void * command_template_new (NCDModuleInst *i, command_template_build_cmdline bu
     // set state
     o->state = STATE_ADDING_LOCK;
     
-    return o;
-    
-fail0:
-    return NULL;
+    return 1;
 }
 
-void command_template_func_free (void *vo)
+void command_template_free (command_template_instance *o)
 {
-    struct instance *o = vo;
-    
     // free process
     if (o->have_process) {
         // kill process
@@ -184,14 +162,10 @@ void command_template_func_free (void *vo)
     
     // free lock job
     BEventLockJob_Free(&o->elock_job);
-    
-    // free instance
-    free(o);
 }
 
-void command_template_func_die (void *vo)
+void command_template_die (command_template_instance *o)
 {
-    struct instance *o = vo;
     ASSERT(o->state == STATE_ADDING_LOCK || o->state == STATE_ADDING || o->state == STATE_DONE)
     
     switch (o->state) {

@@ -36,8 +36,18 @@
 
 typedef int (*command_template_build_cmdline) (NCDModuleInst *i, int remove, char **exec, CmdLine *cl);
 
-void * command_template_new (NCDModuleInst *i, command_template_build_cmdline build_cmdline, int blog_channel, BEventLock *elock);
-void command_template_func_free (void *vo);
-void command_template_func_die (void *vo);
+typedef struct {
+    NCDModuleInst *i;
+    command_template_build_cmdline build_cmdline;
+    int blog_channel;
+    BEventLockJob elock_job;
+    int state;
+    int have_process;
+    BProcess process;
+} command_template_instance;
+
+int command_template_new (command_template_instance *o, NCDModuleInst *i, command_template_build_cmdline build_cmdline, int blog_channel, BEventLock *elock);
+void command_template_free (command_template_instance *o);
+void command_template_die (command_template_instance *o);
 
 #endif
