@@ -10,6 +10,7 @@
 {.name = "ncd_if", .loglevel = 4},
 {.name = "ncd_strcmp", .loglevel = 4},
 {.name = "ncd_ip_in_network", .loglevel = 4},
+{.name = "ncd_run", .loglevel = 4},
 {.name = "ncd_net_backend_physical", .loglevel = 4},
 {.name = "ncd_net_backend_badvpn", .loglevel = 4},
 {.name = "ncd_net_dns", .loglevel = 4},
