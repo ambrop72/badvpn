@@ -21,11 +21,13 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <sys/ioctl.h>
+#include <linux/filter.h>
 
 #include <misc/debug.h>
 #include <misc/byteorder.h>
@@ -45,6 +47,15 @@
 #define DHCP_CLIENT_PORT 68
 
 #define IPUDP_OVERHEAD (sizeof(struct ipv4_header) + sizeof(struct udp_header))
+
+static const struct sock_filter dhcp_sock_filter[] = {
+    BPF_STMT(BPF_LD + BPF_B + BPF_ABS, 9),                        // A <- IP protocol
+    BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, IPV4_PROTOCOL_UDP, 0, 3), // IP protocol = UDP ?
+    BPF_STMT(BPF_LD + BPF_H + BPF_ABS, 22),                       // A <- UDP destination port
+    BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, DHCP_CLIENT_PORT, 0, 1),  // UDP destination port = DHCP client ?
+    BPF_STMT(BPF_RET + BPF_K, 65535),                             // return all
+    BPF_STMT(BPF_RET + BPF_K, 0)                                  // ignore
+};
 
 static void error_handler (BDHCPClient *o, int component, const void *data)
 {
@@ -167,6 +178,20 @@ int BDHCPClient_Init (BDHCPClient *o, const char *ifname, BReactor *reactor, BDH
     if (BSocket_Init(&o->sock, o->reactor, BADDR_TYPE_PACKET, BSOCKET_TYPE_DGRAM) < 0) {
         BLog(BLOG_ERROR, "BSocket_Init failed");
         goto fail0;
+    }
+    
+    // set socket filter
+    {
+        size_t flen = sizeof(dhcp_sock_filter) / sizeof(dhcp_sock_filter[0]);
+        struct sock_filter filter[flen];
+        memcpy(filter, dhcp_sock_filter, sizeof(filter));
+        struct sock_fprog fprog = {
+            .len = flen,
+            .filter = filter
+        };
+        if (setsockopt(BSocket_SockFd(&o->sock), SOL_SOCKET, SO_ATTACH_FILTER, &fprog, sizeof(fprog)) < 0) {
+            BLog(BLOG_NOTICE, "not using socket filter");
+        }
     }
     
     // bind socket
