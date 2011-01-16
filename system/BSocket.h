@@ -445,4 +445,12 @@ int BSocket_ConnectUnix (BSocket *bs, const char *path) WARN_UNUSED;
  */
 BReactor * BSocket_Reactor (BSocket *bs);
 
+/**
+ * Returns the underlying file descriptor of the socket.
+ * 
+ * @param bs the object
+ * @return file descriptor
+ */
+int BSocket_SockFd (BSocket *bs);
+
 #endif

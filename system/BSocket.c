@@ -1528,3 +1528,10 @@ BReactor * BSocket_Reactor (BSocket *bs)
     
     return bs->bsys;
 }
+
+int BSocket_SockFd (BSocket *bs)
+{
+    DebugObject_Access(&bs->d_obj);
+    
+    return bs->socket;
+}
