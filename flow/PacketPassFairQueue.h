@@ -29,11 +29,11 @@
 
 #include <stdint.h>
 
-#include <system/DebugObject.h>
-#include <system/BPending.h>
 #include <misc/debugcounter.h>
 #include <structure/BHeap.h>
 #include <structure/LinkedList2.h>
+#include <system/DebugObject.h>
+#include <system/BPending.h>
 #include <flow/PacketPassInterface.h>
 
 typedef void (*PacketPassFairQueue_handler_busy) (void *user);
@@ -45,17 +45,17 @@ struct PacketPassFairQueueFlow_s;
  */
 typedef struct {
     PacketPassInterface *output;
+    BPendingGroup *pg;
+    int use_cancel;
     struct PacketPassFairQueueFlow_s *sending_flow;
     int sending_len;
     struct PacketPassFairQueueFlow_s *previous_flow;
     BHeap queued_heap;
     LinkedList2 flows_list;
     int freeing;
-    int use_cancel;
     BPending schedule_job;
-    BPendingGroup *pg;
-    DebugCounter d_ctr;
     DebugObject d_obj;
+    DebugCounter d_ctr;
 } PacketPassFairQueue;
 
 typedef struct PacketPassFairQueueFlow_s {
@@ -78,7 +78,7 @@ typedef struct PacketPassFairQueueFlow_s {
  * Initializes the queue.
  *
  * @param m the object
- * @param output output interface
+ * @param output output interface. Its MTU must be <=FAIRQUEUE_MAX_TIME.
  * @param pg pending group
  * @param use_cancel whether cancel functionality is required. Must be 0 or 1.
  *                   If 1, output must support cancel functionality.

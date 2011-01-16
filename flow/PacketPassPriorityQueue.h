@@ -29,10 +29,10 @@
 
 #include <stdint.h>
 
-#include <system/DebugObject.h>
-#include <system/BPending.h>
 #include <misc/debugcounter.h>
 #include <structure/BHeap.h>
+#include <system/DebugObject.h>
+#include <system/BPending.h>
 #include <flow/PacketPassInterface.h>
 
 typedef void (*PacketPassPriorityQueue_handler_busy) (void *user);
@@ -44,23 +44,22 @@ struct PacketPassPriorityQueueFlow_s;
  */
 typedef struct {
     PacketPassInterface *output;
+    BPendingGroup *pg;
+    int use_cancel;
     struct PacketPassPriorityQueueFlow_s *sending_flow;
-    int sending_len;
     BHeap queued_heap;
     int freeing;
-    int use_cancel;
     BPending schedule_job;
-    BPendingGroup *pg;
-    DebugCounter d_ctr;
     DebugObject d_obj;
+    DebugCounter d_ctr;
 } PacketPassPriorityQueue;
 
 typedef struct PacketPassPriorityQueueFlow_s {
     PacketPassPriorityQueue *m;
+    int priority;
     PacketPassPriorityQueue_handler_busy handler_busy;
     void *user;
     PacketPassInterface input;
-    int priority;
     int is_queued;
     struct {
         BHeapNode heap_node;
