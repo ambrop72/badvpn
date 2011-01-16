@@ -492,7 +492,7 @@ int main (int argc, char *argv[])
     }
     
     // init device output
-    PacketPassFairQueue_Init(&device.output_queue, BTap_GetInput(&device.btap), BReactor_PendingGroup(&ss), 1);
+    PacketPassFairQueue_Init(&device.output_queue, BTap_GetInput(&device.btap), BReactor_PendingGroup(&ss), 1, 1);
     
     // calculate data MTU
     data_mtu = DATAPROTO_MAX_OVERHEAD + device.mtu;

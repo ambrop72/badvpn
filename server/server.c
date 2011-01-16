@@ -1234,7 +1234,7 @@ int client_init_io (struct client_data *client)
     PacketPassPriorityQueueFlow_Init(&client->output_peers_qflow, &client->output_priorityqueue, 0);
     
     // init fair queue (for different peers)
-    PacketPassFairQueue_Init(&client->output_peers_fairqueue, PacketPassPriorityQueueFlow_GetInput(&client->output_peers_qflow), BReactor_PendingGroup(&ss), 0);
+    PacketPassFairQueue_Init(&client->output_peers_fairqueue, PacketPassPriorityQueueFlow_GetInput(&client->output_peers_qflow), BReactor_PendingGroup(&ss), 0, 1);
     
     // init list of flows
     LinkedList2_Init(&client->output_peers_flows);

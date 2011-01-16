@@ -70,15 +70,13 @@ static uint64_t get_current_time (PacketPassFairQueue *m)
     return (have ? time : 0);
 }
 
-static void increment_sent_flow (PacketPassFairQueueFlow *flow, int iamount)
+static void increment_sent_flow (PacketPassFairQueueFlow *flow, uint64_t amount)
 {
-    ASSERT(iamount >= 0)
-    ASSERT(iamount <= FAIRQUEUE_MAX_TIME)
-    ASSERT(!flow->is_queued)
-    ASSERT(!flow->m->sending_flow)
-    
     PacketPassFairQueue *m = flow->m;
-    uint64_t amount = iamount;
+    
+    ASSERT(amount <= FAIRQUEUE_MAX_TIME)
+    ASSERT(!flow->is_queued)
+    ASSERT(!m->sending_flow)
     
     // does time overflow?
     if (amount > FAIRQUEUE_MAX_TIME - flow->time) {
@@ -195,7 +193,7 @@ static void output_handler_done (PacketPassFairQueue *m)
     m->previous_flow = flow;
     
     // update flow time by packet size
-    increment_sent_flow(flow, m->sending_len);
+    increment_sent_flow(flow, (uint64_t)m->packet_weight + m->sending_len);
     
     // schedule schedule
     BPending_Set(&m->schedule_job);
@@ -215,9 +213,11 @@ static void output_handler_done (PacketPassFairQueue *m)
     }
 }
 
-void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *output, BPendingGroup *pg, int use_cancel)
+void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *output, BPendingGroup *pg, int use_cancel, int packet_weight)
 {
     ASSERT(PacketPassInterface_GetMTU(output) <= FAIRQUEUE_MAX_TIME)
+    ASSERT(packet_weight > 0)
+    ASSERT(packet_weight <= FAIRQUEUE_MAX_TIME - PacketPassInterface_GetMTU(output))
     ASSERT(use_cancel == 0 || use_cancel == 1)
     ASSERT(!use_cancel || PacketPassInterface_HasCancel(output))
     
@@ -225,6 +225,7 @@ void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *outp
     m->output = output;
     m->pg = pg;
     m->use_cancel = use_cancel;
+    m->packet_weight = packet_weight;
     
     // init output
     PacketPassInterface_Sender_Init(m->output, (PacketPassInterface_handler_done)output_handler_done, m);

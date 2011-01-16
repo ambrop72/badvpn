@@ -47,6 +47,7 @@ typedef struct {
     PacketPassInterface *output;
     BPendingGroup *pg;
     int use_cancel;
+    int packet_weight;
     struct PacketPassFairQueueFlow_s *sending_flow;
     int sending_len;
     struct PacketPassFairQueueFlow_s *previous_flow;
@@ -76,14 +77,17 @@ typedef struct PacketPassFairQueueFlow_s {
 
 /**
  * Initializes the queue.
+ * (output MTU + packet_weight <= FAIRQUEUE_MAX_TIME) must hold.
  *
  * @param m the object
- * @param output output interface. Its MTU must be <=FAIRQUEUE_MAX_TIME.
+ * @param output output interface
  * @param pg pending group
  * @param use_cancel whether cancel functionality is required. Must be 0 or 1.
  *                   If 1, output must support cancel functionality.
+ * @param packet_weight additional weight a packet bears. Must be >0, to keep
+ *                      the queue fair for zero size packets.
  */
-void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *output, BPendingGroup *pg, int use_cancel);
+void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *output, BPendingGroup *pg, int use_cancel, int packet_weight);
 
 /**
  * Frees the queue.
