@@ -30,9 +30,7 @@ static void output_handler_recv (StreamRecvConnector *o, uint8_t *data, int data
 {
     ASSERT(data_avail > 0)
     ASSERT(o->out_avail == -1)
-    if (o->input) {
-        ASSERT(!o->in_blocking)
-    }
+    DebugObject_Access(&o->d_obj);
     
     // remember output packet
     o->out_avail = data_avail;
@@ -41,7 +39,6 @@ static void output_handler_recv (StreamRecvConnector *o, uint8_t *data, int data
     if (o->input) {
         // schedule receive
         StreamRecvInterface_Receiver_Recv(o->input, o->out, o->out_avail);
-        o->in_blocking = 1;
     }
 }
 
@@ -51,10 +48,7 @@ static void input_handler_done (StreamRecvConnector *o, int data_len)
     ASSERT(data_len <= o->out_avail)
     ASSERT(o->out_avail > 0)
     ASSERT(o->input)
-    ASSERT(o->in_blocking)
-    
-    // input not blocking any more
-    o->in_blocking = 0;
+    DebugObject_Access(&o->d_obj);
     
     // have no output packet
     o->out_avail = -1;
@@ -103,13 +97,9 @@ void StreamRecvConnector_ConnectInput (StreamRecvConnector *o, StreamRecvInterfa
     // init input
     StreamRecvInterface_Receiver_Init(o->input, (StreamRecvInterface_handler_done)input_handler_done, o);
     
-    // set input not blocking
-    o->in_blocking = 0;
-    
     // if we have an output packet, schedule receive
     if (o->out_avail > 0) {
         StreamRecvInterface_Receiver_Recv(o->input, o->out, o->out_avail);
-        o->in_blocking = 1;
     }
 }
 

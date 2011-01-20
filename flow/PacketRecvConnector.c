@@ -29,9 +29,6 @@
 static void output_handler_recv (PacketRecvConnector *o, uint8_t *data)
 {
     ASSERT(!o->out_have)
-    if (o->input) {
-        ASSERT(!o->in_blocking)
-    }
     DebugObject_Access(&o->d_obj);
     
     // remember output packet
@@ -41,7 +38,6 @@ static void output_handler_recv (PacketRecvConnector *o, uint8_t *data)
     if (o->input) {
         // schedule receive
         PacketRecvInterface_Receiver_Recv(o->input, o->out);
-        o->in_blocking = 1;
     }
 }
 
@@ -49,11 +45,7 @@ static void input_handler_done (PacketRecvConnector *o, int data_len)
 {
     ASSERT(o->out_have)
     ASSERT(o->input)
-    ASSERT(o->in_blocking)
     DebugObject_Access(&o->d_obj);
-    
-    // input not blocking any more
-    o->in_blocking = 0;
     
     // have no output packet
     o->out_have = 0;
@@ -108,13 +100,9 @@ void PacketRecvConnector_ConnectInput (PacketRecvConnector *o, PacketRecvInterfa
     // init input
     PacketRecvInterface_Receiver_Init(o->input, (PacketRecvInterface_handler_done)input_handler_done, o);
     
-    // set input not blocking
-    o->in_blocking = 0;
-    
     // if we have an output packet, schedule receive
     if (o->out_have) {
         PacketRecvInterface_Receiver_Recv(o->input, o->out);
-        o->in_blocking = 1;
     }
 }
 

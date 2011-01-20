@@ -43,7 +43,6 @@ typedef struct {
     int in_len;
     uint8_t *in;
     PacketPassInterface *output;
-    int out_blocking;
     DebugObject d_obj;
 } PacketPassConnector;
 

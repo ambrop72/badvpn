@@ -31,9 +31,6 @@ static void input_handler_send (PacketPassConnector *o, uint8_t *data, int data_
     ASSERT(data_len >= 0)
     ASSERT(data_len <= o->input_mtu)
     ASSERT(o->in_len == -1)
-    if (o->output) {
-        ASSERT(!o->out_blocking)
-    }
     DebugObject_Access(&o->d_obj);
     
     // remember input packet
@@ -43,7 +40,6 @@ static void input_handler_send (PacketPassConnector *o, uint8_t *data, int data_
     if (o->output) {
         // schedule send
         PacketPassInterface_Sender_Send(o->output, o->in, o->in_len);
-        o->out_blocking = 1;
     }
 }
 
@@ -51,11 +47,7 @@ static void output_handler_done (PacketPassConnector *o)
 {
     ASSERT(o->in_len >= 0)
     ASSERT(o->output)
-    ASSERT(o->out_blocking)
     DebugObject_Access(&o->d_obj);
-    
-    // output not blocking any more
-    o->out_blocking = 0;
     
     // have no input packet
     o->in_len = -1;
@@ -110,13 +102,9 @@ void PacketPassConnector_ConnectOutput (PacketPassConnector *o, PacketPassInterf
     // init output
     PacketPassInterface_Sender_Init(o->output, (PacketPassInterface_handler_done)output_handler_done, o);
     
-    // set output not blocking
-    o->out_blocking = 0;
-    
     // if we have an input packet, schedule send
     if (o->in_len >= 0) {
         PacketPassInterface_Sender_Send(o->output, o->in, o->in_len);
-        o->out_blocking = 1;
     }
 }
 

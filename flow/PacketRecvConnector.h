@@ -43,7 +43,6 @@ typedef struct {
     int out_have;
     uint8_t *out;
     PacketRecvInterface *input;
-    int in_blocking;
     DebugObject d_obj;
 } PacketRecvConnector;
 
