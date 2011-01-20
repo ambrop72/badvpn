@@ -36,6 +36,9 @@
 #include <system/BPending.h>
 #include <flow/PacketPassInterface.h>
 
+// reduce this to test time overflow handling
+#define FAIRQUEUE_MAX_TIME 501
+
 typedef void (*PacketPassFairQueue_handler_busy) (void *user);
 
 struct PacketPassFairQueueFlow_s;

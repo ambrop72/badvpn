@@ -28,9 +28,6 @@
 
 #include <flow/PacketPassFairQueue.h>
 
-// reduce this to test time overflow handling
-#define FAIRQUEUE_MAX_TIME UINT64_MAX
-
 static int time_comparator (void *user, uint64_t *time1, uint64_t *time2)
 {
     if (*time1 < *time2) {
