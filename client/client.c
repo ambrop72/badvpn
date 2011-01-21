@@ -36,6 +36,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <limits.h>
 
 #include <protocol/msgproto.h>
 #include <protocol/addr.h>
@@ -415,7 +416,7 @@ int main (int argc, char *argv[])
     // setup signal handler
     if (!BSignal_Init(&ss, signal_handler, NULL)) {
         BLog(BLOG_ERROR, "BSignal_Init failed");
-        goto fail1b;
+        goto fail2;
     }
     
     if (options.ssl) {
@@ -425,35 +426,35 @@ int main (int argc, char *argv[])
         // register local NSPR file types
         if (!DummyPRFileDesc_GlobalInit()) {
             BLog(BLOG_ERROR, "DummyPRFileDesc_GlobalInit failed");
-            goto fail2;
+            goto fail3;
         }
         if (!BSocketPRFileDesc_GlobalInit()) {
             BLog(BLOG_ERROR, "BSocketPRFileDesc_GlobalInit failed");
-            goto fail2;
+            goto fail3;
         }
         
         // init NSS
         if (NSS_Init(options.nssdb) != SECSuccess) {
             BLog(BLOG_ERROR, "NSS_Init failed (%d)", (int)PR_GetError());
-            goto fail2;
+            goto fail3;
         }
         
         // set cipher policy
         if (NSS_SetDomesticPolicy() != SECSuccess) {
             BLog(BLOG_ERROR, "NSS_SetDomesticPolicy failed (%d)", (int)PR_GetError());
-            goto fail3;
+            goto fail4;
         }
         
         // init server cache
         if (SSL_ConfigServerSessionIDCache(0, 0, 0, NULL) != SECSuccess) {
             BLog(BLOG_ERROR, "SSL_ConfigServerSessionIDCache failed (%d)", (int)PR_GetError());
-            goto fail3;
+            goto fail4;
         }
         
         // open server certificate and private key
         if (!open_nss_cert_and_key(options.client_cert_name, &client_cert, &client_key)) {
             BLog(BLOG_ERROR, "Cannot open certificate and key");
-            goto fail4;
+            goto fail5;
         }
     }
     
@@ -468,7 +469,7 @@ int main (int argc, char *argv[])
                 (options.peer_ssl ? client_key : NULL)
             )) {
                 BLog(BLOG_ERROR, "PasswordListener_Init failed");
-                goto fail5;
+                goto fail6;
             }
             num_listeners++;
         }
@@ -477,7 +478,7 @@ int main (int argc, char *argv[])
     // init device
     if (!BTap_Init(&device.btap, &ss, options.tapdev, device_error_handler, NULL, 0)) {
         BLog(BLOG_ERROR, "BTap_Init failed");
-        goto fail5;
+        goto fail6;
     }
     
     // remember device MTU
@@ -488,13 +489,17 @@ int main (int argc, char *argv[])
     // init device input
     if (!DataProtoDevice_Init(&device.input_dpd, BTap_GetOutput(&device.btap), device_input_dpd_handler, NULL, &ss)) {
         BLog(BLOG_ERROR, "DataProtoDevice_Init failed");
-        goto fail5a;
+        goto fail7;
     }
     
     // init device output
     PacketPassFairQueue_Init(&device.output_queue, BTap_GetInput(&device.btap), BReactor_PendingGroup(&ss), 1, 1);
     
     // calculate data MTU
+    if (device.mtu > INT_MAX - DATAPROTO_MAX_OVERHEAD) {
+        BLog(BLOG_ERROR, "Device MTU is too large");
+        goto fail8;
+    }
     data_mtu = DATAPROTO_MAX_OVERHEAD + device.mtu;
     
     // init peers list
@@ -519,7 +524,7 @@ int main (int argc, char *argv[])
         server_handler_error, server_handler_ready, server_handler_newclient, server_handler_endclient, server_handler_message
     )) {
         BLog(BLOG_ERROR, "ServerConnection_Init failed");
-        goto fail10;
+        goto fail9;
     }
     
     // enter event loop
@@ -557,33 +562,33 @@ int main (int argc, char *argv[])
     }
     
     ServerConnection_Free(&server);
-fail10:
+fail9:
     FrameDecider_Free(&frame_decider);
+fail8:
     PacketPassFairQueue_Free(&device.output_queue);
     DataProtoDevice_Free(&device.input_dpd);
-fail5a:
+fail7:
     BTap_Free(&device.btap);
-fail5:
+fail6:
     if (options.transport_mode == TRANSPORT_MODE_TCP) {
         while (num_listeners-- > 0) {
             PasswordListener_Free(&listeners[num_listeners]);
         }
     }
-fail4a:
     if (options.ssl) {
         CERT_DestroyCertificate(client_cert);
         SECKEY_DestroyPrivateKey(client_key);
-fail4:
+fail5:
         ASSERT_FORCE(SSL_ShutdownServerSessionIDCache() == SECSuccess)
-fail3:
+fail4:
         SSL_ClearSessionCache();
         ASSERT_FORCE(NSS_Shutdown() == SECSuccess)
-fail2:
+fail3:
         ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
         PL_ArenaFinish();
     }
     BSignal_Finish();
-fail1b:
+fail2:
     BReactor_Free(&ss);
 fail1:
     BLog(BLOG_NOTICE, "exiting");

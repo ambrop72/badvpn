@@ -56,6 +56,7 @@ int init_persistent_io (DatagramPeerIO *o, btime_t latency, PacketPassInterface 
     
     // init assembler
     if (!FragmentProtoAssembler_Init(&o->recv_assembler, o->spproto_payload_mtu, recv_userif, 1, fragmentproto_max_chunks_for_frame(o->spproto_payload_mtu, o->payload_mtu), BReactor_PendingGroup(o->reactor))) {
+        BLog(BLOG_ERROR, "FragmentProtoAssembler_Init failed");
         goto fail0;
     }
     
@@ -64,6 +65,7 @@ int init_persistent_io (DatagramPeerIO *o, btime_t latency, PacketPassInterface 
     
     // init decoder
     if (!SPProtoDecoder_Init(&o->recv_decoder, PacketPassNotifier_GetInput(&o->recv_notifier), o->sp_params, 2, BReactor_PendingGroup(o->reactor))) {
+        BLog(BLOG_ERROR, "SPProtoDecoder_Init failed");
         goto fail1;
     }
     
@@ -72,6 +74,7 @@ int init_persistent_io (DatagramPeerIO *o, btime_t latency, PacketPassInterface 
     
     // init buffer
     if (!SinglePacketBuffer_Init(&o->recv_buffer, PacketRecvConnector_GetOutput(&o->recv_connector), SPProtoDecoder_GetInput(&o->recv_decoder), BReactor_PendingGroup(o->reactor))) {
+        BLog(BLOG_ERROR, "SinglePacketBuffer_Init failed");
         goto fail2;
     }
     
@@ -81,7 +84,7 @@ int init_persistent_io (DatagramPeerIO *o, btime_t latency, PacketPassInterface 
     FragmentProtoDisassembler_Init(&o->send_disassembler, o->reactor, o->payload_mtu, o->spproto_payload_mtu, -1, latency);
     
     // init encoder
-    if (!SPProtoEncoder_Init(&o->send_encoder, o->sp_params, FragmentProtoDisassembler_GetOutput(&o->send_disassembler), BReactor_PendingGroup(o->reactor))) {
+    if (!SPProtoEncoder_Init(&o->send_encoder, FragmentProtoDisassembler_GetOutput(&o->send_disassembler), o->sp_params, BReactor_PendingGroup(o->reactor))) {
         BLog(BLOG_ERROR, "SPProtoEncoder_Init failed");
         goto fail3;
     }
@@ -277,10 +280,8 @@ void send_encoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_l
 int DatagramPeerIO_Init (DatagramPeerIO *o, BReactor *reactor, int payload_mtu, int socket_mtu, struct spproto_security_params sp_params, btime_t latency, PacketPassInterface *recv_userif)
 {
     ASSERT(payload_mtu >= 0)
-    ASSERT(payload_mtu <= UINT16_MAX)
     ASSERT(socket_mtu >= 0)
-    ASSERT(spproto_validate_security_params(sp_params))
-    ASSERT(spproto_payload_mtu_for_carrier_mtu(sp_params, socket_mtu) > sizeof(struct fragmentproto_chunk_header))
+    spproto_assert_security_params(sp_params);
     ASSERT(PacketPassInterface_GetMTU(recv_userif) >= payload_mtu)
     
     // set parameters
@@ -288,11 +289,23 @@ int DatagramPeerIO_Init (DatagramPeerIO *o, BReactor *reactor, int payload_mtu, 
     o->payload_mtu = payload_mtu;
     o->sp_params = sp_params;
     
+    // check payload MTU (for FragmentProto)
+    if (o->payload_mtu > UINT16_MAX) {
+        BLog(BLOG_ERROR, "payload MTU is too big");
+        goto fail1;
+    }
+    
     // calculate SPProto payload MTU
-    o->spproto_payload_mtu = spproto_payload_mtu_for_carrier_mtu(o->sp_params, socket_mtu);
+    if ((o->spproto_payload_mtu = spproto_payload_mtu_for_carrier_mtu(o->sp_params, socket_mtu)) <= (int)sizeof(struct fragmentproto_chunk_header)) {
+        BLog(BLOG_ERROR, "socket MTU is too small");
+        goto fail1;
+    }
     
     // calculate effective socket MTU
-    o->effective_socket_mtu = spproto_carrier_mtu_for_payload_mtu(o->sp_params, o->spproto_payload_mtu);
+    if ((o->effective_socket_mtu = spproto_carrier_mtu_for_payload_mtu(o->sp_params, o->spproto_payload_mtu)) < 0) {
+        BLog(BLOG_ERROR, "spproto_carrier_mtu_for_payload_mtu failed !?");
+        goto fail1;
+    }
     
     // set no OTP warning handler
     if (SPPROTO_HAVE_OTP(o->sp_params)) {

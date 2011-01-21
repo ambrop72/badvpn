@@ -51,6 +51,7 @@
 #define BADVPN_PROTOCOL_SPPROTO_H
 
 #include <stdint.h>
+#include <limits.h>
 
 #include <misc/debug.h>
 #include <misc/balign.h>
@@ -117,34 +118,30 @@ struct spproto_otpdata {
 #define SPPROTO_HEADER_LEN(_params) (SPPROTO_HEADER_HASH_OFF(_params) + SPPROTO_HEADER_HASH_LEN(_params))
 
 /**
- * Checks if the given SPProto security parameters are valid.
+ * Asserts that the given SPProto security parameters are valid.
  * 
- * @param params security parameters to check
- * @return 1 if valid, 0 if not
+ * @param params security parameters
  */
-static int spproto_validate_security_params (struct spproto_security_params params)
+static void spproto_assert_security_params (struct spproto_security_params params)
 {
-    return (
-        (params.hash_mode == SPPROTO_HASH_MODE_NONE || BHash_type_valid(params.hash_mode)) &&
-        (params.encryption_mode == SPPROTO_ENCRYPTION_MODE_NONE || BEncryption_cipher_valid(params.encryption_mode)) &&
-        (params.otp_mode == SPPROTO_OTP_MODE_NONE || BEncryption_cipher_valid(params.otp_mode)) &&
-        (params.otp_mode == SPPROTO_OTP_MODE_NONE || params.otp_num > 0)
-    );
+    ASSERT(params.hash_mode == SPPROTO_HASH_MODE_NONE || BHash_type_valid(params.hash_mode))
+    ASSERT(params.encryption_mode == SPPROTO_ENCRYPTION_MODE_NONE || BEncryption_cipher_valid(params.encryption_mode))
+    ASSERT(params.otp_mode == SPPROTO_OTP_MODE_NONE || BEncryption_cipher_valid(params.otp_mode))
+    ASSERT(params.otp_mode == SPPROTO_OTP_MODE_NONE || params.otp_num > 0)
 }
 
 /**
  * Calculates the maximum payload size for SPProto given the
  * security parameters and the maximum encoded packet size.
  * 
- * @param params security parameters Must be valid according to
- *               {@link spproto_validate_security_params}.
+ * @param params security parameters
  * @param carrier_mtu maximum encoded packet size. Must be >=0.
  * @return maximum payload size. Negative means is is impossible
  *         to encode anything.
  */
 static int spproto_payload_mtu_for_carrier_mtu (struct spproto_security_params params, int carrier_mtu)
 {
-    ASSERT(spproto_validate_security_params(params))
+    spproto_assert_security_params(params);
     ASSERT(carrier_mtu >= 0)
     
     if (params.encryption_mode == SPPROTO_ENCRYPTION_MODE_NONE) {
@@ -159,20 +156,28 @@ static int spproto_payload_mtu_for_carrier_mtu (struct spproto_security_params p
  * Calculates the maximum encoded packet size for SPProto given the
  * security parameters and the maximum payload size.
  * 
- * @param params security parameters Must be valid according to
- *               {@link spproto_validate_security_params}.
+ * @param params security parameters
  * @param payload_mtu maximum payload size. Must be >=0.
- * @return maximum encoded packet size
+ * @return maximum encoded packet size, -1 if payload_mtu is too large
  */
 static int spproto_carrier_mtu_for_payload_mtu (struct spproto_security_params params, int payload_mtu)
 {
-    ASSERT(spproto_validate_security_params(params))
+    spproto_assert_security_params(params);
     ASSERT(payload_mtu >= 0)
     
     if (params.encryption_mode == SPPROTO_ENCRYPTION_MODE_NONE) {
+        if (payload_mtu > INT_MAX - SPPROTO_HEADER_LEN(params)) {
+            return -1;
+        }
+        
         return (SPPROTO_HEADER_LEN(params) + payload_mtu);
     } else {
         int block_size = BEncryption_cipher_block_size(params.encryption_mode);
+        
+        if (payload_mtu > INT_MAX - (block_size + SPPROTO_HEADER_LEN(params) + block_size)) {
+            return -1;
+        }
+        
         return (block_size + BALIGN_UP_N((SPPROTO_HEADER_LEN(params) + payload_mtu + 1), block_size));
     }
 }

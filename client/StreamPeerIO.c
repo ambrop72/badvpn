@@ -632,6 +632,12 @@ int StreamPeerIO_Init (
     pio->handler_error = handler_error;
     pio->user = user;
     
+    // check payload MTU
+    if (pio->payload_mtu > PACKETPROTO_MAXPAYLOAD) {
+        BLog(BLOG_ERROR, "payload MTU is too large");
+        goto fail0;
+    }
+    
     // init persistent I/O modules
     if (!init_persistent_io(pio, user_recv_if)) {
         goto fail0;

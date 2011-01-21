@@ -61,8 +61,9 @@ typedef struct {
  * Initializes the object.
  *
  * @param o the object
- * @param output output interface
- * @param sp_params CCProto parameters. Must be valid.
+ * @param output output interface. Its MTU must not be too large, i.e. this must hold:
+ *               spproto_carrier_mtu_for_payload_mtu(sp_params, output MTU) >= 0
+ * @param sp_params SPProto parameters
  * @param encryption_key if using encryption, the encryption key
  * @param num_otp_seeds if using OTPs, how many OTP seeds to keep for checking
  *                      receiving packets. Must be >=2 if using OTPs.

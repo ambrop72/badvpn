@@ -68,12 +68,13 @@ typedef struct {
  * The object is initialized in blocked state.
  *
  * @param o the object
- * @param sp_params SPProto security parameters. Must be valid according to {@link spproto_validate_security_params}.
- * @param input input interface
+ * @param input input interface. Its MTU must not be too large, i.e. this must hold:
+ *              spproto_carrier_mtu_for_payload_mtu(sp_params, input MTU) >= 0
+ * @param sp_params SPProto security parameters
  * @param pg pending group
  * @return 1 on success, 0 on failure
  */
-int SPProtoEncoder_Init (SPProtoEncoder *o, struct spproto_security_params sp_params, PacketRecvInterface *input, BPendingGroup *pg) WARN_UNUSED;
+int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, BPendingGroup *pg) WARN_UNUSED;
 
 /**
  * Frees the object.

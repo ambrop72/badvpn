@@ -69,15 +69,15 @@ void PasswordSender_Init (PasswordSender *o, uint64_t password, int ssl, BSocket
     // init sink
     StreamPassInterface *sink_if;
     if (o->ssl) {
-        PRStreamSink_Init(&o->sink.ssl, FlowErrorReporter_Create(&o->domain, COMPONENT_SINK), o->ssl_bprfd,  BReactor_PendingGroup(reactor));
+        PRStreamSink_Init(&o->sink.ssl, FlowErrorReporter_Create(&o->domain, COMPONENT_SINK), o->ssl_bprfd, BReactor_PendingGroup(reactor));
         sink_if = PRStreamSink_GetInput(&o->sink.ssl);
     } else {
-        StreamSocketSink_Init(&o->sink.plain, FlowErrorReporter_Create(&o->domain, COMPONENT_SINK), o->plain_sock,  BReactor_PendingGroup(reactor));
+        StreamSocketSink_Init(&o->sink.plain, FlowErrorReporter_Create(&o->domain, COMPONENT_SINK), o->plain_sock, BReactor_PendingGroup(reactor));
         sink_if = StreamSocketSink_GetInput(&o->sink.plain);
     }
     
     // init PacketStreamSender
-    PacketStreamSender_Init(&o->pss, sink_if, sizeof(o->password),  BReactor_PendingGroup(reactor));
+    PacketStreamSender_Init(&o->pss, sink_if, sizeof(o->password), BReactor_PendingGroup(reactor));
     
     // init SinglePacketSender
     SinglePacketSender_Init(&o->sps, (uint8_t *)&o->password, sizeof(o->password), PacketStreamSender_GetInput(&o->pss), (SinglePacketSender_handler)sent_handler, o, BReactor_PendingGroup(reactor));

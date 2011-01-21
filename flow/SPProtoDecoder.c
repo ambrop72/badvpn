@@ -169,7 +169,8 @@ static void output_handler_done (SPProtoDecoder *o)
 
 int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg)
 {
-    ASSERT(spproto_validate_security_params(sp_params))
+    spproto_assert_security_params(sp_params);
+    ASSERT(spproto_carrier_mtu_for_payload_mtu(sp_params, PacketPassInterface_GetMTU(output)) >= 0)
     ASSERT(!SPPROTO_HAVE_OTP(sp_params) || num_otp_seeds >= 2)
     
     // init arguments

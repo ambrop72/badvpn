@@ -97,7 +97,6 @@ static void write_chunks (FragmentProtoDisassembler *o)
 static void input_handler_send (FragmentProtoDisassembler *o, uint8_t *data, int data_len)
 {
     ASSERT(data_len >= 0)
-    ASSERT(data_len <= o->input_mtu)
     ASSERT(o->in_len == -1)
     
     // set input packet
@@ -161,13 +160,12 @@ void FragmentProtoDisassembler_Init (FragmentProtoDisassembler *o, BReactor *rea
     
     // init arguments
     o->reactor = reactor;
-    o->input_mtu = input_mtu;
     o->output_mtu = output_mtu;
     o->chunk_mtu = chunk_mtu;
     o->latency = latency;
     
     // init input
-    PacketPassInterface_Init(&o->input, o->input_mtu, (PacketPassInterface_handler_send)input_handler_send, o, BReactor_PendingGroup(reactor));
+    PacketPassInterface_Init(&o->input, input_mtu, (PacketPassInterface_handler_send)input_handler_send, o, BReactor_PendingGroup(reactor));
     PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_cancel)input_handler_cancel);
     
     // init output

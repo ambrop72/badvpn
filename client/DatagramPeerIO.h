@@ -134,7 +134,7 @@ typedef struct {
  * @param socket_mtu maximum datagram size for the socket. Must be >=0. Must be large enough so it is possible to
  *                   send a FragmentProto chunk with one byte of data over SPProto, i.e. the following has to hold:
  *                   spproto_payload_mtu_for_carrier_mtu(sp_params, socket_mtu) > sizeof(struct fragmentproto_chunk_header)
- * @param sp_params SPProto security parameters. Must be valid according to {@link spproto_validate_security_params}.
+ * @param sp_params SPProto security parameters
  * @param latency latency parameter to {@link FragmentProtoDisassembler_Init}.
  * @param recv_userif interface to pass received packets to the user. Its MTU must be >=payload_mtu.
  * @return 1 on success, 0 on failure

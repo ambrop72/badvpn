@@ -51,8 +51,8 @@ static int encode_packet (SPProtoEncoder *o)
     
     ASSERT(o->in_len <= o->input_mtu)
     
-    // plaintext is either output packet or our buffer
-    uint8_t *plaintext = (!SPPROTO_HAVE_ENCRYPTION(o->sp_params) ? o->out : o->buf);
+    // determine plaintext location
+    uint8_t *plaintext = (SPPROTO_HAVE_ENCRYPTION(o->sp_params) ? o->buf : o->out);
     
     // plaintext begins with header
     uint8_t *header = plaintext;
@@ -62,7 +62,7 @@ static int encode_packet (SPProtoEncoder *o)
     
     // write OTP
     if (SPPROTO_HAVE_OTP(o->sp_params)) {
-        struct spproto_otpdata *header_otpd = (struct spproto_otpdata *)(header + SPPROTO_HEADER_OTPDATA_OFF(o->group->sp_params));
+        struct spproto_otpdata *header_otpd = (struct spproto_otpdata *)(header + SPPROTO_HEADER_OTPDATA_OFF(o->sp_params));
         header_otpd->seed_id = htol16(o->otpgen_seed_id);
         header_otpd->otp = OTPGenerator_GetOTP(&o->otpgen);
     }
@@ -105,18 +105,6 @@ static int encode_packet (SPProtoEncoder *o)
         out_len = plaintext_len;
     }
     
-    return out_len;
-}
-
-static void do_encode (SPProtoEncoder *o)
-{
-    ASSERT(o->in_len >= 0)
-    ASSERT(o->out_have)
-    ASSERT(can_encode(o))
-    
-    // encode
-    int out_len = encode_packet(o);
-    
     // finish packet
     o->in_len = -1;
     o->out_have = 0;
@@ -126,7 +114,7 @@ static void do_encode (SPProtoEncoder *o)
 static void maybe_encode (SPProtoEncoder *o)
 {
     if (o->in_len >= 0 && o->out_have && can_encode(o)) {
-        do_encode(o);
+        encode_packet(o);
     }
 }
 
@@ -141,32 +129,33 @@ static void output_handler_recv (SPProtoEncoder *o, uint8_t *data)
     o->out = data;
     
     // determine plaintext location
-    uint8_t *plaintext = (!SPPROTO_HAVE_ENCRYPTION(o->sp_params) ? o->out : o->buf);
+    uint8_t *plaintext = (SPPROTO_HAVE_ENCRYPTION(o->sp_params) ? o->buf : o->out);
     
     // schedule receive
     PacketRecvInterface_Receiver_Recv(o->input, plaintext + SPPROTO_HEADER_LEN(o->sp_params));
 }
 
-static void input_handler_done (SPProtoEncoder *o, int in_len)
+static void input_handler_done (SPProtoEncoder *o, int data_len)
 {
-    ASSERT(in_len >= 0)
-    ASSERT(in_len <= o->input_mtu)
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= o->input_mtu)
     ASSERT(o->in_len == -1)
     ASSERT(o->out_have)
     DebugObject_Access(&o->d_obj);
     
     // remember input packet
-    o->in_len = in_len;
+    o->in_len = data_len;
     
     // encode if possible
     if (can_encode(o)) {
-        do_encode(o);
+        encode_packet(o);
     }
 }
 
-int SPProtoEncoder_Init (SPProtoEncoder *o, struct spproto_security_params sp_params, PacketRecvInterface *input, BPendingGroup *pg)
+int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, BPendingGroup *pg)
 {
-    ASSERT(spproto_validate_security_params(sp_params))
+    spproto_assert_security_params(sp_params);
+    ASSERT(spproto_carrier_mtu_for_payload_mtu(sp_params, PacketRecvInterface_GetMTU(input)) >= 0)
     
     // init parameters
     o->sp_params = sp_params;

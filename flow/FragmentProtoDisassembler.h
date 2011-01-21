@@ -46,7 +46,6 @@
  */
 typedef struct {
     BReactor *reactor;
-    int input_mtu;
     int output_mtu;
     int chunk_mtu;
     btime_t latency;
@@ -67,7 +66,7 @@ typedef struct {
  *
  * @param o the object
  * @param reactor reactor we live in
- * @param input_mtu maximum input packet size. Must be >=0 and <2^16
+ * @param input_mtu maximum input packet size. Must be >=0 and <=UINT16_MAX.
  * @param output_mtu maximum output packet size. Must be >sizeof(struct fragmentproto_chunk_header).
  * @param chunk_mtu maximum chunk size. Must be >0, or <0 for no explicit limit.
  * @param latency maximum time a pending output packet with some data can wait for more data
