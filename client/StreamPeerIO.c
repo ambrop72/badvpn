@@ -22,10 +22,6 @@
 
 #include <stdlib.h>
 
-#include <openssl/rand.h>
-
-#include <prio.h>
-
 #include <ssl.h>
 #include <sslerr.h>
 
@@ -57,6 +53,10 @@
 #define LISTEN_STATE_GOTCLIENT 1
 #define LISTEN_STATE_FINISHED 2
 
+#define COMPONENT_SOURCE 1
+#define COMPONENT_SINK 2
+#define COMPONENT_DECODER 3
+
 static int init_persistent_io (StreamPeerIO *pio, PacketPassInterface *user_recv_if);
 static void free_persistent_io (StreamPeerIO *pio);
 static void connecting_connect_handler (StreamPeerIO *pio, int event);
@@ -73,10 +73,6 @@ static int compare_certificate (StreamPeerIO *pio, CERTCertificate *cert);
 static void reset_state (StreamPeerIO *pio);
 static void cleanup_socket (sslsocket *sock, int ssl);
 static void reset_and_report_error (StreamPeerIO *pio);
-
-#define COMPONENT_SOURCE 1
-#define COMPONENT_SINK 2
-#define COMPONENT_DECODER 3
 
 void connecting_connect_handler (StreamPeerIO *pio, int event)
 {
@@ -164,28 +160,31 @@ SECStatus client_auth_certificate_callback (StreamPeerIO *pio, PRFileDesc *fd, P
     // don't have domain names. We byte-compare the certificate to the one reported
     // by the server anyway.
     
+    SECStatus ret = SECFailure;
+    
     CERTCertificate *server_cert = SSL_PeerCertificate(pio->connect.sock.ssl_prfd);
     if (!server_cert) {
         BLog(BLOG_ERROR, "SSL_PeerCertificate failed");
         PORT_SetError(SSL_ERROR_BAD_CERTIFICATE);
-        return SECFailure;
+        goto fail1;
     }
     
-    SECStatus verify_result = CERT_VerifyCertNow(CERT_GetDefaultCertDB(), server_cert, PR_TRUE, certUsageSSLServer, SSL_RevealPinArg(pio->connect.sock.ssl_prfd));
-    if (verify_result == SECFailure) {
-        goto out;
+    if (CERT_VerifyCertNow(CERT_GetDefaultCertDB(), server_cert, PR_TRUE, certUsageSSLServer, SSL_RevealPinArg(pio->connect.sock.ssl_prfd)) != SECSuccess) {
+        goto fail2;
     }
     
     // compare to certificate provided by the server
     if (!compare_certificate(pio, server_cert)) {
-        verify_result = SECFailure;
         PORT_SetError(SSL_ERROR_BAD_CERTIFICATE);
-        goto out;
+        goto fail2;
     }
     
-out:
+    ret = SECSuccess;
+    
+fail2:
     CERT_DestroyCertificate(server_cert);
-    return verify_result;
+fail1:
+    return ret;
 }
 
 SECStatus client_client_auth_data_callback (StreamPeerIO *pio, PRFileDesc *fd, CERTDistNames *caNames, CERTCertificate **pRetCert, SECKEYPrivateKey **pRetKey)
@@ -195,16 +194,26 @@ SECStatus client_client_auth_data_callback (StreamPeerIO *pio, PRFileDesc *fd, C
     ASSERT(pio->connect.state == CONNECT_STATE_HANDSHAKE)
     DebugObject_Access(&pio->d_obj);
     
-    if (!(*pRetCert = CERT_DupCertificate(pio->connect.ssl_cert))) {
-        return SECFailure;
+    CERTCertificate *cert = CERT_DupCertificate(pio->connect.ssl_cert);
+    if (!cert) {
+        BLog(BLOG_ERROR, "CERT_DupCertificate failed");
+        goto fail0;
     }
     
-    if (!(*pRetKey = SECKEY_CopyPrivateKey(pio->connect.ssl_key))) {
-        CERT_DestroyCertificate(*pRetCert);
-        return SECFailure;
+    SECKEYPrivateKey *key = SECKEY_CopyPrivateKey(pio->connect.ssl_key);
+    if (!key) {
+        BLog(BLOG_ERROR, "SECKEY_CopyPrivateKey failed");
+        goto fail1;
     }
     
+    *pRetCert = cert;
+    *pRetKey = key;
     return SECSuccess;
+    
+fail1:
+    CERT_DestroyCertificate(cert);
+fail0:
+    return SECFailure;
 }
 
 void connecting_try_handshake (StreamPeerIO *pio)
@@ -254,6 +263,9 @@ fail0:
 
 void connecting_handshake_read_handler (StreamPeerIO *pio, PRInt16 event)
 {
+    ASSERT(pio->ssl)
+    ASSERT(pio->mode == MODE_CONNECT)
+    ASSERT(pio->connect.state == CONNECT_STATE_HANDSHAKE)
     DebugObject_Access(&pio->d_obj);
     
     connecting_try_handshake(pio);
@@ -268,7 +280,7 @@ static void connecting_pwsender_handler (StreamPeerIO *pio, int is_error)
     
     if (is_error) {
         BLog(BLOG_NOTICE, "error sending password");
-        BLog(BLOG_NOTICE,"BSocket error %d", BSocket_GetError(&pio->connect.sock.sock));
+        BLog(BLOG_NOTICE, "BSocket error %d", BSocket_GetError(&pio->connect.sock.sock));
         if (pio->ssl) {
             BLog(BLOG_NOTICE, "NSPR error %d", (int)PR_GetError());
         }
@@ -305,7 +317,7 @@ void error_handler (StreamPeerIO *pio, int component, const void *data)
     switch (component) {
         case COMPONENT_SOURCE:
         case COMPONENT_SINK:
-            BLog(BLOG_NOTICE,"BSocket error %d", BSocket_GetError(&pio->sock->sock));
+            BLog(BLOG_NOTICE, "BSocket error %d", BSocket_GetError(&pio->sock->sock));
             if (pio->ssl) {
                 BLog(BLOG_NOTICE, "NSPR error %d", (int)PR_GetError());
             }
@@ -489,10 +501,13 @@ int compare_certificate (StreamPeerIO *pio, CERTCertificate *cert)
 {
     ASSERT(pio->ssl)
     
+    int ret = 0;
+    
+    // alloc arena
     PRArenaPool *arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
     if (!arena) {
-        BLog(BLOG_ERROR, "WARNING: PORT_NewArena failed");
-        return 0;
+        BLog(BLOG_ERROR, "PORT_NewArena failed");
+        goto fail0;
     }
     
     // encode server certificate
@@ -501,19 +516,21 @@ int compare_certificate (StreamPeerIO *pio, CERTCertificate *cert)
     der.data = NULL;
     if (!SEC_ASN1EncodeItem(arena, &der, cert, SEC_ASN1_GET(CERT_CertificateTemplate))) {
         BLog(BLOG_ERROR, "SEC_ASN1EncodeItem failed");
-        PORT_FreeArena(arena, PR_FALSE);
-        return 0;
+        goto fail1;
     }
     
     // byte compare
     if (der.len != pio->ssl_peer_cert_len || memcmp(der.data, pio->ssl_peer_cert, der.len)) {
         BLog(BLOG_NOTICE, "Client certificate doesn't match");
-        PORT_FreeArena(arena, PR_FALSE);
-        return 0;
+        goto fail1;
     }
     
+    ret = 1;
+    
+fail1:
     PORT_FreeArena(arena, PR_FALSE);
-    return 1;
+fail0:
+    return ret;
 }
 
 void reset_state (StreamPeerIO *pio)
@@ -617,7 +634,7 @@ int StreamPeerIO_Init (
     
     // init persistent I/O modules
     if (!init_persistent_io(pio, user_recv_if)) {
-        return 0;
+        goto fail0;
     }
     
     // set mode none
@@ -629,6 +646,9 @@ int StreamPeerIO_Init (
     DebugObject_Init(&pio->d_obj);
     
     return 1;
+    
+fail0:
+    return 0;
 }
 
 void StreamPeerIO_Free (StreamPeerIO *pio)
