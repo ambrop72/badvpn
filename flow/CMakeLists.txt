@@ -6,7 +6,6 @@ add_library(flow
     PacketRecvConnector.c
     StreamRecvConnector.c
     PacketRecvBlocker.c
-    PacketRecvNotifier.c
     PacketPassNotifier.c
     PacketBuffer.c
     SinglePacketBuffer.c
