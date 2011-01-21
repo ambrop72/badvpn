@@ -136,10 +136,11 @@ typedef struct {
  *                   spproto_payload_mtu_for_carrier_mtu(sp_params, socket_mtu) > sizeof(struct fragmentproto_chunk_header)
  * @param sp_params SPProto security parameters
  * @param latency latency parameter to {@link FragmentProtoDisassembler_Init}.
+ * @param num_frames num_frames parameter to {@link FragmentProtoAssembler_Init}. Must be >0.
  * @param recv_userif interface to pass received packets to the user. Its MTU must be >=payload_mtu.
  * @return 1 on success, 0 on failure
  */
-int DatagramPeerIO_Init (DatagramPeerIO *o, BReactor *reactor, int payload_mtu, int socket_mtu, struct spproto_security_params sp_params, btime_t latency, PacketPassInterface *recv_userif) WARN_UNUSED;
+int DatagramPeerIO_Init (DatagramPeerIO *o, BReactor *reactor, int payload_mtu, int socket_mtu, struct spproto_security_params sp_params, btime_t latency, int num_frames, PacketPassInterface *recv_userif) WARN_UNUSED;
 
 /**
  * Frees the object.

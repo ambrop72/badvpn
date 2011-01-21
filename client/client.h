@@ -52,7 +52,9 @@
 // maximum number of multicast addresses per peer
 #define PEER_MAX_GROUPS 16
 // how long we wait for a packet to reach full size before sending it (see FragmentProtoDisassembler latency argument)
-#define PEER_DEFAULT_FRAGMENTATION_LATENCY 0
+#define PEER_UDP_DEFAULT_FRAGMENTATION_LATENCY 0
+// value related to how much out-of-order input we tolerate (see FragmentProtoAssembler num_frames argument)
+#define PEER_UDP_ASSEMBLER_NUM_FRAMES 4
 // keep-alive packet interval for p2p communication
 #define PEER_KEEPALIVE_INTERVAL 10000
 // keep-alive receive timer for p2p communication (after how long to consider the link down)

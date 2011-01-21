@@ -36,7 +36,7 @@
 #define DATAGRAMPEERIO_COMPONENT_SINK 1
 #define DATAGRAMPEERIO_COMPONENT_SOURCE 2
 
-static int init_persistent_io (DatagramPeerIO *o, btime_t latency, PacketPassInterface *recv_userif);
+static int init_persistent_io (DatagramPeerIO *o, btime_t latency, int num_frames, PacketPassInterface *recv_userif);
 static void free_persistent_io (DatagramPeerIO *o);
 static void init_sending (DatagramPeerIO *o, BAddr addr, BIPAddr local_addr);
 static void free_sending (DatagramPeerIO *o);
@@ -47,7 +47,7 @@ static void reset_mode (DatagramPeerIO *o);
 static void recv_decoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_len);
 static void send_encoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_len);
 
-int init_persistent_io (DatagramPeerIO *o, btime_t latency, PacketPassInterface *recv_userif)
+int init_persistent_io (DatagramPeerIO *o, btime_t latency, int num_frames, PacketPassInterface *recv_userif)
 {
     // init error domain
     FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)error_handler, o);
@@ -55,7 +55,7 @@ int init_persistent_io (DatagramPeerIO *o, btime_t latency, PacketPassInterface 
     // init receiving
     
     // init assembler
-    if (!FragmentProtoAssembler_Init(&o->recv_assembler, o->spproto_payload_mtu, recv_userif, 1, fragmentproto_max_chunks_for_frame(o->spproto_payload_mtu, o->payload_mtu), BReactor_PendingGroup(o->reactor))) {
+    if (!FragmentProtoAssembler_Init(&o->recv_assembler, o->spproto_payload_mtu, recv_userif, num_frames, fragmentproto_max_chunks_for_frame(o->spproto_payload_mtu, o->payload_mtu), BReactor_PendingGroup(o->reactor))) {
         BLog(BLOG_ERROR, "FragmentProtoAssembler_Init failed");
         goto fail0;
     }
@@ -277,11 +277,12 @@ void send_encoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_l
     }
 }
 
-int DatagramPeerIO_Init (DatagramPeerIO *o, BReactor *reactor, int payload_mtu, int socket_mtu, struct spproto_security_params sp_params, btime_t latency, PacketPassInterface *recv_userif)
+int DatagramPeerIO_Init (DatagramPeerIO *o, BReactor *reactor, int payload_mtu, int socket_mtu, struct spproto_security_params sp_params, btime_t latency, int num_frames, PacketPassInterface *recv_userif)
 {
     ASSERT(payload_mtu >= 0)
     ASSERT(socket_mtu >= 0)
     spproto_assert_security_params(sp_params);
+    ASSERT(num_frames > 0)
     ASSERT(PacketPassInterface_GetMTU(recv_userif) >= payload_mtu)
     
     // set parameters
@@ -316,7 +317,7 @@ int DatagramPeerIO_Init (DatagramPeerIO *o, BReactor *reactor, int payload_mtu, 
     o->mode = DATAGRAMPEERIO_MODE_NONE;
     
     // init persistent I/O objects
-    if (!init_persistent_io(o, latency, recv_userif)) {
+    if (!init_persistent_io(o, latency, num_frames, recv_userif)) {
         goto fail1;
     }
     

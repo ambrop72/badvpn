@@ -684,7 +684,7 @@ int parse_arguments (int argc, char *argv[])
     options.encryption_mode = -1;
     options.hash_mode = -1;
     options.otp_mode = SPPROTO_OTP_MODE_NONE;
-    options.fragmentation_latency = PEER_DEFAULT_FRAGMENTATION_LATENCY;
+    options.fragmentation_latency = PEER_UDP_DEFAULT_FRAGMENTATION_LATENCY;
     options.peer_ssl = 0;
     options.send_buffer_size = PEER_DEFAULT_SEND_BUFFER_SIZE;
     options.send_buffer_relay_size = PEER_DEFAULT_SEND_BUFFER_RELAY_SIZE;
@@ -1398,9 +1398,8 @@ int peer_init_link (struct peer_data *peer)
     if (options.transport_mode == TRANSPORT_MODE_UDP) {
         // init DatagramPeerIO
         if (!DatagramPeerIO_Init(
-            &peer->pio.udp.pio, &ss, data_mtu, CLIENT_UDP_MTU,
-            sp_params, options.fragmentation_latency,
-            &peer->recv_ppi
+            &peer->pio.udp.pio, &ss, data_mtu, CLIENT_UDP_MTU, sp_params,
+            options.fragmentation_latency, PEER_UDP_ASSEMBLER_NUM_FRAMES, &peer->recv_ppi
         )) {
             peer_log(peer, BLOG_ERROR, "DatagramPeerIO_Init failed");
             goto fail1;
