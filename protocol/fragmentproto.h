@@ -76,12 +76,13 @@ struct fragmentproto_chunk_header {
  * in a FragmentProto packet.
  * 
  * @param carrier_mtu MTU of the carrier, i.e. maximum length of FragmentProto packets. Must be >sizeof(struct fragmentproto_chunk_header).
- * @param frame_mtu maximum frame size
+ * @param frame_mtu maximum frame size. Must be >=0.
  * @return maximum number of chunks needed. Will be >0.
  */
 static int fragmentproto_max_chunks_for_frame (int carrier_mtu, int frame_mtu)
 {
     ASSERT(carrier_mtu > sizeof(struct fragmentproto_chunk_header))
+    ASSERT(frame_mtu >= 0)
     
     return (BDIVIDE_UP(frame_mtu, (carrier_mtu - sizeof(struct fragmentproto_chunk_header))) + 1);
 }

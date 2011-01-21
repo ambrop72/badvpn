@@ -109,6 +109,11 @@ static int encode_packet (SPProtoEncoder *o)
     o->in_len = -1;
     o->out_have = 0;
     PacketRecvInterface_Done(&o->output, out_len);
+    
+    // schedule OTP warning handler
+    if (SPPROTO_HAVE_OTP(o->sp_params) && OTPGenerator_GetPosition(&o->otpgen) == o->otp_warning_count) {
+        BPending_Set(&o->handler_job);
+    }
 }
 
 static void maybe_encode (SPProtoEncoder *o)
@@ -152,14 +157,31 @@ static void input_handler_done (SPProtoEncoder *o, int data_len)
     }
 }
 
-int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, BPendingGroup *pg)
+static void handler_job_hander (SPProtoEncoder *o)
+{
+    ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
+    DebugObject_Access(&o->d_obj);
+    
+    o->handler(o->user);
+    return;
+}
+
+int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, int otp_warning_count, SPProtoEncoder_handler handler, void *user, BPendingGroup *pg)
 {
     spproto_assert_security_params(sp_params);
     ASSERT(spproto_carrier_mtu_for_payload_mtu(sp_params, PacketRecvInterface_GetMTU(input)) >= 0)
+    if (SPPROTO_HAVE_OTP(sp_params)) {
+        ASSERT(otp_warning_count > 0)
+        ASSERT(otp_warning_count <= sp_params.otp_num)
+        ASSERT(handler)
+    }
     
-    // init parameters
-    o->sp_params = sp_params;
+    // init arguments
     o->input = input;
+    o->sp_params = sp_params;
+    o->otp_warning_count = otp_warning_count;
+    o->handler = handler;
+    o->user = user;
     
     // calculate hash size
     if (SPPROTO_HAVE_HASH(o->sp_params)) {
@@ -210,6 +232,9 @@ int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct s
         }
     }
     
+    // init handler job
+    BPending_Init(&o->handler_job, pg, (BPending_handler)handler_job_hander, o);
+    
     DebugObject_Init(&o->d_obj);
     
     return 1;
@@ -226,6 +251,9 @@ fail0:
 void SPProtoEncoder_Free (SPProtoEncoder *o)
 {
     DebugObject_Free(&o->d_obj);
+    
+    // free handler job
+    BPending_Free(&o->handler_job);
     
     // free plaintext buffer
     if (SPPROTO_HAVE_ENCRYPTION(o->sp_params)) {
@@ -309,12 +337,4 @@ void SPProtoEncoder_RemoveOTPSeed (SPProtoEncoder *o)
     
     // reset OTP generator
     OTPGenerator_Reset(&o->otpgen);
-}
-
-int SPProtoEncoder_GetOTPPosition (SPProtoEncoder *o)
-{
-    ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
-    DebugObject_Access(&o->d_obj);
-    
-    return OTPGenerator_GetPosition(&o->otpgen);
 }

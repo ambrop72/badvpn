@@ -1399,15 +1399,11 @@ int peer_init_link (struct peer_data *peer)
         // init DatagramPeerIO
         if (!DatagramPeerIO_Init(
             &peer->pio.udp.pio, &ss, data_mtu, CLIENT_UDP_MTU, sp_params,
-            options.fragmentation_latency, PEER_UDP_ASSEMBLER_NUM_FRAMES, &peer->recv_ppi
+            options.fragmentation_latency, PEER_UDP_ASSEMBLER_NUM_FRAMES, &peer->recv_ppi,
+            options.otp_num_warn, (DatagramPeerIO_handler_otp_warning)peer_udp_pio_handler_seed_warning, peer
         )) {
             peer_log(peer, BLOG_ERROR, "DatagramPeerIO_Init failed");
             goto fail1;
-        }
-        
-        // init OTP warning handler
-        if (SPPROTO_HAVE_OTP(sp_params)) {
-            DatagramPeerIO_SetOTPWarningHandler(&peer->pio.udp.pio, (DatagramPeerIO_handler_otp_warning)peer_udp_pio_handler_seed_warning, peer, options.otp_num_warn);
         }
         
         // init send seed state

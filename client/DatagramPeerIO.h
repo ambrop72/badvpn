@@ -48,7 +48,6 @@
 #include <flow/SPProtoDecoder.h>
 #include <flow/FragmentProtoAssembler.h>
 #include <flow/PacketPassNotifier.h>
-#include <flow/PacketRecvNotifier.h>
 
 /**
  * Handler function invoked when the number of used OTPs has reached
@@ -91,7 +90,6 @@ typedef struct {
     // sending base
     FragmentProtoDisassembler send_disassembler;
     SPProtoEncoder send_encoder;
-    PacketRecvNotifier send_notifier;
     SinglePacketBuffer send_buffer;
     PacketPassConnector send_connector;
     
@@ -101,11 +99,6 @@ typedef struct {
     SPProtoDecoder recv_decoder;
     PacketPassNotifier recv_notifier;
     FragmentProtoAssembler recv_assembler;
-    
-    // OTP warning handler
-    DatagramPeerIO_handler_otp_warning handler_otp_warning;
-    void *handler_otp_warning_user;
-    int handler_otp_warning_num_used;
     
     // mode
     int mode;
@@ -138,9 +131,25 @@ typedef struct {
  * @param latency latency parameter to {@link FragmentProtoDisassembler_Init}.
  * @param num_frames num_frames parameter to {@link FragmentProtoAssembler_Init}. Must be >0.
  * @param recv_userif interface to pass received packets to the user. Its MTU must be >=payload_mtu.
+ * @param otp_warning_count If using OTPs, after how many encoded packets to call the handler.
+ *                          In this case, must be >0 and <=sp_params.otp_num.
+ * @param handler_otp_warning OTP warning handler
+ * @param user value to pass to handler
  * @return 1 on success, 0 on failure
  */
-int DatagramPeerIO_Init (DatagramPeerIO *o, BReactor *reactor, int payload_mtu, int socket_mtu, struct spproto_security_params sp_params, btime_t latency, int num_frames, PacketPassInterface *recv_userif) WARN_UNUSED;
+int DatagramPeerIO_Init (
+    DatagramPeerIO *o,
+    BReactor *reactor,
+    int payload_mtu,
+    int socket_mtu,
+    struct spproto_security_params sp_params,
+    btime_t latency,
+    int num_frames,
+    PacketPassInterface *recv_userif,
+    int otp_warning_count,
+    DatagramPeerIO_handler_otp_warning handler_otp_warning,
+    void *user
+) WARN_UNUSED;
 
 /**
  * Frees the object.
@@ -235,19 +244,5 @@ void DatagramPeerIO_AddOTPRecvSeed (DatagramPeerIO *o, uint16_t seed_id, uint8_t
  * @param o the object
  */
 void DatagramPeerIO_RemoveOTPRecvSeeds (DatagramPeerIO *o);
-
-/**
- * Sets the OTP warning handler.
- * OTPs must be enabled.
- *
- * @param o the object
- * @param handler handler function. NULL to disable handler.
- * @param user value passed to handler function
- * @param num_used after how many used OTPs to invoke the handler. Must be >0 unless handler is NULL.
- *                 The handler will be invoked when exactly that many OTPs have been used. If the handler
- *                 is configured when the warning level has already been reached, it will not be called
- *                 until a new send seed is set or the handler is reconfigured.
- */
-void DatagramPeerIO_SetOTPWarningHandler (DatagramPeerIO *o, DatagramPeerIO_handler_otp_warning handler, void *user, int num_used);
 
 #endif

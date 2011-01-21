@@ -37,13 +37,25 @@
 #include <flow/PacketRecvInterface.h>
 
 /**
+ * Event context handler called when the remaining number of
+ * OTPs equals the warning number after having encoded a packet.
+ * 
+ * @param user as in {@link SPProtoEncoder_Init}
+ */
+typedef void (*SPProtoEncoder_handler) (void *user);
+
+/**
  * Object which encodes packets according to SPProto.
  *
  * Input is with {@link PacketRecvInterface}.
  * Output is with {@link PacketRecvInterface}.
  */
 typedef struct {
+    PacketRecvInterface *input;
     struct spproto_security_params sp_params;
+    int otp_warning_count;
+    SPProtoEncoder_handler handler;
+    void *user;
     int hash_size;
     int enc_block_size;
     int enc_key_size;
@@ -51,15 +63,14 @@ typedef struct {
     uint16_t otpgen_seed_id;
     int have_encryption_key;
     BEncryption encryptor;
-    
     int input_mtu;
     int output_mtu;
-    PacketRecvInterface *input;
     int in_len;
     PacketRecvInterface output;
     int out_have;
     uint8_t *out;
     uint8_t *buf;
+    BPending handler_job;
     DebugObject d_obj;
 } SPProtoEncoder;
 
@@ -71,10 +82,14 @@ typedef struct {
  * @param input input interface. Its MTU must not be too large, i.e. this must hold:
  *              spproto_carrier_mtu_for_payload_mtu(sp_params, input MTU) >= 0
  * @param sp_params SPProto security parameters
+ * @param otp_warning_count If using OTPs, after how many encoded packets to call the handler.
+ *                          In this case, must be >0 and <=sp_params.otp_num.
+ * @param handler OTP warning handler
+ * @param user value to pass to handler
  * @param pg pending group
  * @return 1 on success, 0 on failure
  */
-int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, BPendingGroup *pg) WARN_UNUSED;
+int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, int otp_warning_count, SPProtoEncoder_handler handler, void *user, BPendingGroup *pg) WARN_UNUSED;
 
 /**
  * Frees the object.
@@ -128,15 +143,5 @@ void SPProtoEncoder_SetOTPSeed (SPProtoEncoder *o, uint16_t seed_id, uint8_t *ke
  * @param o the object
  */
 void SPProtoEncoder_RemoveOTPSeed (SPProtoEncoder *o);
-
-/**
- * Returns the number of OTPs used so far, or total number if
- * no seed has been set yet.
- * OTPs must be enabled.
- *
- * @param o the object
- * @return OTP position
- */
-int SPProtoEncoder_GetOTPPosition (SPProtoEncoder *o);
 
 #endif

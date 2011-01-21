@@ -36,7 +36,7 @@
 #define DATAGRAMPEERIO_COMPONENT_SINK 1
 #define DATAGRAMPEERIO_COMPONENT_SOURCE 2
 
-static int init_persistent_io (DatagramPeerIO *o, btime_t latency, int num_frames, PacketPassInterface *recv_userif);
+static int init_persistent_io (DatagramPeerIO *o, btime_t latency, int num_frames, PacketPassInterface *recv_userif, int otp_warning_count, DatagramPeerIO_handler_otp_warning handler_otp_warning, void *user);
 static void free_persistent_io (DatagramPeerIO *o);
 static void init_sending (DatagramPeerIO *o, BAddr addr, BIPAddr local_addr);
 static void free_sending (DatagramPeerIO *o);
@@ -45,9 +45,8 @@ static void free_receiving (DatagramPeerIO *o);
 static void error_handler (DatagramPeerIO *o, int component, const void *data);
 static void reset_mode (DatagramPeerIO *o);
 static void recv_decoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_len);
-static void send_encoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_len);
 
-int init_persistent_io (DatagramPeerIO *o, btime_t latency, int num_frames, PacketPassInterface *recv_userif)
+int init_persistent_io (DatagramPeerIO *o, btime_t latency, int num_frames, PacketPassInterface *recv_userif, int otp_warning_count, DatagramPeerIO_handler_otp_warning handler_otp_warning, void *user)
 {
     // init error domain
     FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)error_handler, o);
@@ -84,22 +83,16 @@ int init_persistent_io (DatagramPeerIO *o, btime_t latency, int num_frames, Pack
     FragmentProtoDisassembler_Init(&o->send_disassembler, o->reactor, o->payload_mtu, o->spproto_payload_mtu, -1, latency);
     
     // init encoder
-    if (!SPProtoEncoder_Init(&o->send_encoder, FragmentProtoDisassembler_GetOutput(&o->send_disassembler), o->sp_params, BReactor_PendingGroup(o->reactor))) {
+    if (!SPProtoEncoder_Init(&o->send_encoder, FragmentProtoDisassembler_GetOutput(&o->send_disassembler), o->sp_params, otp_warning_count, handler_otp_warning, user, BReactor_PendingGroup(o->reactor))) {
         BLog(BLOG_ERROR, "SPProtoEncoder_Init failed");
         goto fail3;
-    }
-    
-    // init notifier
-    PacketRecvNotifier_Init(&o->send_notifier, SPProtoEncoder_GetOutput(&o->send_encoder), BReactor_PendingGroup(o->reactor));
-    if (SPPROTO_HAVE_OTP(o->sp_params)) {
-        PacketRecvNotifier_SetHandler(&o->send_notifier, (PacketRecvNotifier_handler_notify)send_encoder_notifier_handler, o);
     }
     
     // init connector
     PacketPassConnector_Init(&o->send_connector, o->effective_socket_mtu, BReactor_PendingGroup(o->reactor));
     
     // init buffer
-    if (!SinglePacketBuffer_Init(&o->send_buffer, PacketRecvNotifier_GetOutput(&o->send_notifier), PacketPassConnector_GetInput(&o->send_connector), BReactor_PendingGroup(o->reactor))) {
+    if (!SinglePacketBuffer_Init(&o->send_buffer, SPProtoEncoder_GetOutput(&o->send_encoder), PacketPassConnector_GetInput(&o->send_connector), BReactor_PendingGroup(o->reactor))) {
         BLog(BLOG_ERROR, "SinglePacketBuffer_Init failed");
         goto fail4;
     }
@@ -108,7 +101,6 @@ int init_persistent_io (DatagramPeerIO *o, btime_t latency, int num_frames, Pack
 
 fail4:
     PacketPassConnector_Free(&o->send_connector);
-    PacketRecvNotifier_Free(&o->send_notifier);
     SPProtoEncoder_Free(&o->send_encoder);
 fail3:
     FragmentProtoDisassembler_Free(&o->send_disassembler);
@@ -128,7 +120,6 @@ void free_persistent_io (DatagramPeerIO *o)
     // free sending base
     SinglePacketBuffer_Free(&o->send_buffer);
     PacketPassConnector_Free(&o->send_connector);
-    PacketRecvNotifier_Free(&o->send_notifier);
     SPProtoEncoder_Free(&o->send_encoder);
     FragmentProtoDisassembler_Free(&o->send_disassembler);
     
@@ -212,36 +203,28 @@ void error_handler (DatagramPeerIO *o, int component, const void *data)
 
 void reset_mode (DatagramPeerIO *o)
 {
-    switch (o->mode) {
-        case DATAGRAMPEERIO_MODE_NONE:
-            break;
-        case DATAGRAMPEERIO_MODE_CONNECT:
-            // set default mode
-            o->mode = DATAGRAMPEERIO_MODE_NONE;
-            // free receiving
-            free_receiving(o);
-            // free sending
-            free_sending(o);
-            // free socket
-            BSocket_Free(&o->sock);
-            break;
-        case DATAGRAMPEERIO_MODE_BIND:
-            // set default mode
-            o->mode = DATAGRAMPEERIO_MODE_NONE;
-            // remove recv notifier handler
-            PacketPassNotifier_SetHandler(&o->recv_notifier, NULL, NULL);
-            // free receiving
-            free_receiving(o);
-            // free sending
-            if (o->bind_sending_up) {
-                free_sending(o);
-            }
-            // free socket
-            BSocket_Free(&o->sock);
-            break;
-        default:
-            ASSERT(0);
+    ASSERT(o->mode == DATAGRAMPEERIO_MODE_NONE || o->mode == DATAGRAMPEERIO_MODE_CONNECT || o->mode == DATAGRAMPEERIO_MODE_BIND)
+    
+    if (o->mode == DATAGRAMPEERIO_MODE_NONE) {
+        return;
     }
+    
+    // free sending
+    if (o->mode == DATAGRAMPEERIO_MODE_CONNECT || o->bind_sending_up) {
+        free_sending(o);
+    }
+    
+    // remove recv notifier handler
+    PacketPassNotifier_SetHandler(&o->recv_notifier, NULL, NULL);
+    
+    // free receiving
+    free_receiving(o);
+    
+    // free socket
+    BSocket_Free(&o->sock);
+    
+    // set mode
+    o->mode = DATAGRAMPEERIO_MODE_NONE;
 }
 
 void recv_decoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_len)
@@ -266,24 +249,30 @@ void recv_decoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_l
     }
 }
 
-void send_encoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_len)
-{
-    ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
-    DebugObject_Access(&o->d_obj);
-    
-    if (o->handler_otp_warning && SPProtoEncoder_GetOTPPosition(&o->send_encoder) == o->handler_otp_warning_num_used) { 
-        o->handler_otp_warning(o->handler_otp_warning_user);
-        return;
-    }
-}
-
-int DatagramPeerIO_Init (DatagramPeerIO *o, BReactor *reactor, int payload_mtu, int socket_mtu, struct spproto_security_params sp_params, btime_t latency, int num_frames, PacketPassInterface *recv_userif)
+int DatagramPeerIO_Init (
+    DatagramPeerIO *o,
+    BReactor *reactor,
+    int payload_mtu,
+    int socket_mtu,
+    struct spproto_security_params sp_params,
+    btime_t latency,
+    int num_frames,
+    PacketPassInterface *recv_userif,
+    int otp_warning_count,
+    DatagramPeerIO_handler_otp_warning handler_otp_warning,
+    void *user
+)
 {
     ASSERT(payload_mtu >= 0)
     ASSERT(socket_mtu >= 0)
     spproto_assert_security_params(sp_params);
     ASSERT(num_frames > 0)
     ASSERT(PacketPassInterface_GetMTU(recv_userif) >= payload_mtu)
+    if (SPPROTO_HAVE_OTP(sp_params)) {
+        ASSERT(otp_warning_count > 0)
+        ASSERT(otp_warning_count <= sp_params.otp_num)
+        ASSERT(handler_otp_warning)
+    }
     
     // set parameters
     o->reactor = reactor;
@@ -308,16 +297,11 @@ int DatagramPeerIO_Init (DatagramPeerIO *o, BReactor *reactor, int payload_mtu, 
         goto fail1;
     }
     
-    // set no OTP warning handler
-    if (SPPROTO_HAVE_OTP(o->sp_params)) {
-        o->handler_otp_warning = NULL;
-    }
-    
     // set mode none
     o->mode = DATAGRAMPEERIO_MODE_NONE;
     
     // init persistent I/O objects
-    if (!init_persistent_io(o, latency, num_frames, recv_userif)) {
+    if (!init_persistent_io(o, latency, num_frames, recv_userif, otp_warning_count, handler_otp_warning, user)) {
         goto fail1;
     }
     
@@ -429,7 +413,7 @@ fail1:
 
 void DatagramPeerIO_SetEncryptionKey (DatagramPeerIO *o, uint8_t *encryption_key)
 {
-    ASSERT(o->sp_params.encryption_mode != SPPROTO_ENCRYPTION_MODE_NONE)
+    ASSERT(SPPROTO_HAVE_ENCRYPTION(o->sp_params))
     DebugObject_Access(&o->d_obj);
     
     // set sending key
@@ -441,7 +425,7 @@ void DatagramPeerIO_SetEncryptionKey (DatagramPeerIO *o, uint8_t *encryption_key
 
 void DatagramPeerIO_RemoveEncryptionKey (DatagramPeerIO *o)
 {
-    ASSERT(o->sp_params.encryption_mode != SPPROTO_ENCRYPTION_MODE_NONE)
+    ASSERT(SPPROTO_HAVE_ENCRYPTION(o->sp_params))
     DebugObject_Access(&o->d_obj);
     
     // remove sending key
@@ -485,15 +469,4 @@ void DatagramPeerIO_RemoveOTPRecvSeeds (DatagramPeerIO *o)
     
     // remove receiving seeds
     SPProtoDecoder_RemoveOTPSeeds(&o->recv_decoder);
-}
-
-void DatagramPeerIO_SetOTPWarningHandler (DatagramPeerIO *o, DatagramPeerIO_handler_otp_warning handler, void *user, int num_used)
-{
-    ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
-    ASSERT(!handler || num_used > 0)
-    DebugObject_Access(&o->d_obj);
-    
-    o->handler_otp_warning = handler;
-    o->handler_otp_warning_user = user;
-    o->handler_otp_warning_num_used = num_used;
 }
