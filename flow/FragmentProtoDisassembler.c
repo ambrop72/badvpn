@@ -143,7 +143,7 @@ static void timer_handler (FragmentProtoDisassembler *o)
 {
     ASSERT(o->latency >= 0)
     ASSERT(o->out)
-    ASSERT(o->in_len = -1)
+    ASSERT(o->in_len == -1)
     
     // set no output packet
     o->out = NULL;
