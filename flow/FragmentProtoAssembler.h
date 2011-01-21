@@ -36,6 +36,8 @@
 #include <structure/BAVL.h>
 #include <flow/PacketPassInterface.h>
 
+#define FPA_MAX_TIME UINT32_MAX
+
 struct FragmentProtoAssembler_chunk {
     int start;
     int len;
@@ -62,12 +64,9 @@ struct FragmentProtoAssembler_frame {
  * Output is with {@link PacketPassInterface}.
  */
 typedef struct {
-    DebugObject d_obj;
     PacketPassInterface input;
-    int input_mtu;
     PacketPassInterface *output;
     int output_mtu;
-    int num_frames;
     int num_chunks;
     uint32_t time;
     int time_tolerance;
@@ -80,9 +79,7 @@ typedef struct {
     int in_len;
     uint8_t *in;
     int in_pos;
-    int output_ready;
-    uint8_t *output_packet_data;
-    int output_packet_len;
+    DebugObject d_obj;
 } FragmentProtoAssembler;
 
 /**
@@ -92,7 +89,9 @@ typedef struct {
  * @param o the object
  * @param input_mtu maximum input packet size. Must be >=0.
  * @param output output interface
- * @param num_frames number of frames we can hold. Must be >0 and < UINT32_MAX.
+ * @param num_frames number of frames we can hold. Must be >0 and < FPA_MAX_TIME.
+ *  To make the assembler tolerate out-of-order input of degree D, set to D+2.
+ *  Here, D is the minimum size of a hypothetical buffer needed to order the input.
  * @param num_chunks maximum number of chunks a frame can come in. Must be >0.
  * @param pg pending group
  * @return 1 on success, 0 on failure
