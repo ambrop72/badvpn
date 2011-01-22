@@ -26,7 +26,7 @@
 
 static void report_error (DatagramSocketSink *s, int error)
 {
-    FlowErrorReporter_ReportError(&s->rep, &error);
+    FlowErrorReporter_ReportError(&s->rep, error);
     return;
 }
 

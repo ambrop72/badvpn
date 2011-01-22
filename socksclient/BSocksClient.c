@@ -45,7 +45,7 @@ static void init_up_io (BSocksClient *o);
 static void free_up_io (BSocksClient *o);
 static void start_receive (BSocksClient *o, uint8_t *dest, int total);
 static void do_receive (BSocksClient *o);
-static void error_handler (BSocksClient *o, int component, const void *data);
+static void error_handler (BSocksClient *o, int component, int code);
 static void socket_error_handler (BSocksClient *o, int event);
 static void connect_handler (BSocksClient *o, int event);
 static void recv_handler_done (BSocksClient *o, int data_len);
@@ -116,12 +116,12 @@ void do_receive (BSocksClient *o)
     StreamRecvInterface_Receiver_Recv(o->control.recv_if, o->control.recv_dest + o->control.recv_len, o->control.recv_total - o->control.recv_len);
 }
 
-void error_handler (BSocksClient *o, int component, const void *data)
+void error_handler (BSocksClient* o, int component, int code)
 {
     ASSERT(component == COMPONENT_SOURCE || component == COMPONENT_SINK)
     DebugObject_Access(&o->d_obj);
     
-    if (o->state == STATE_UP && component == COMPONENT_SOURCE && *((int *)data) == STREAMSOCKETSOURCE_ERROR_CLOSED) {
+    if (o->state == STATE_UP && component == COMPONENT_SOURCE && code == STREAMSOCKETSOURCE_ERROR_CLOSED) {
         BLog(BLOG_DEBUG, "connection closed");
         
         report_error(o, BSOCKSCLIENT_EVENT_ERROR_CLOSED);

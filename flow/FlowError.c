@@ -36,7 +36,7 @@ FlowErrorReporter FlowErrorReporter_Create (FlowErrorDomain *domain, int compone
     return r;
 }
 
-void FlowErrorReporter_ReportError (FlowErrorReporter *reporter, const void *data)
+void FlowErrorReporter_ReportError (FlowErrorReporter *reporter, int code)
 {
-    reporter->domain->handler(reporter->domain->user, reporter->component, data);
+    reporter->domain->handler(reporter->domain->user, reporter->component, code);
 }

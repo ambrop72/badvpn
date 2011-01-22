@@ -35,9 +35,9 @@
  * @param user value specified to {@link FlowErrorDomain_Init}
  * @param component identifier of the component reporting the error, as in
  *                  {@link FlowErrorReporter_Create}
- * @param data component-specific error data, as in {@link FlowErrorReporter_ReportError}
+ * @param code component-specific error data, as in {@link FlowErrorReporter_ReportError}
  */ 
-typedef void (*FlowErrorDomain_handler) (void *user, int component, const void *data);
+typedef void (*FlowErrorDomain_handler) (void *user, int component, int code);
 
 /**
  * Object used to report errors from multiple sources to the same error handler.
@@ -78,8 +78,8 @@ FlowErrorReporter FlowErrorReporter_Create (FlowErrorDomain *domain, int compone
  *
  * @param reporter a {@link FlowErrorReporter} structure containing the error domain and
  *                 component identifier user to report the error
- * @param data component-specific error data
+ * @param code component-specific error data
  */
-void FlowErrorReporter_ReportError (FlowErrorReporter *reporter, const void *data);
+void FlowErrorReporter_ReportError (FlowErrorReporter *reporter, int code);
 
 #endif

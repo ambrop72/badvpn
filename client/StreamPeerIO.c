@@ -65,7 +65,7 @@ static SECStatus client_client_auth_data_callback (StreamPeerIO *pio, PRFileDesc
 static void connecting_try_handshake (StreamPeerIO *pio);
 static void connecting_handshake_read_handler (StreamPeerIO *pio, PRInt16 event);
 static void connecting_pwsender_handler (StreamPeerIO *pio, int is_error);
-static void error_handler (StreamPeerIO *pio, int component, const void *data);
+static void error_handler (StreamPeerIO *pio, int component, int code);
 static void listener_handler_client (StreamPeerIO *pio, sslsocket *sock);
 static int init_io (StreamPeerIO *pio, sslsocket *sock);
 static void free_io (StreamPeerIO *pio);
@@ -309,7 +309,7 @@ fail0:
     return;
 }
 
-void error_handler (StreamPeerIO *pio, int component, const void *data)
+void error_handler (StreamPeerIO *pio, int component, int code)
 {
     ASSERT(pio->sock)
     DebugObject_Access(&pio->d_obj);
@@ -323,7 +323,7 @@ void error_handler (StreamPeerIO *pio, int component, const void *data)
             }
             break;
         case COMPONENT_DECODER:
-            BLog(BLOG_NOTICE, "decoder error %d", *((int *)data));
+            BLog(BLOG_NOTICE, "decoder error %d", code);
             break;
         default:
             ASSERT(0);

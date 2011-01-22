@@ -36,7 +36,7 @@ static void output_handler_done (PacketProtoDecoder *enc);
 
 void report_error (PacketProtoDecoder *enc, int error)
 {
-    FlowErrorReporter_ReportError(&enc->rep, &error);
+    FlowErrorReporter_ReportError(&enc->rep, error);
     return;
 }
 

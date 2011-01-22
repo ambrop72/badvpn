@@ -26,7 +26,7 @@
 
 static void report_error (StreamSocketSink *s, int error)
 {
-    DEBUGERROR(&s->d_err, FlowErrorReporter_ReportError(&s->rep, &error))
+    DEBUGERROR(&s->d_err, FlowErrorReporter_ReportError(&s->rep, error))
 }
 
 static void try_send (StreamSocketSink *s)

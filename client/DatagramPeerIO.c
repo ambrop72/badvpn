@@ -40,7 +40,7 @@ static void init_sending (DatagramPeerIO *o, BAddr addr, BIPAddr local_addr);
 static void free_sending (DatagramPeerIO *o);
 static void init_receiving (DatagramPeerIO *o);
 static void free_receiving (DatagramPeerIO *o);
-static void error_handler (DatagramPeerIO *o, int component, const void *data);
+static void error_handler (DatagramPeerIO *o, int component, int code);
 static void reset_mode (DatagramPeerIO *o);
 static void recv_decoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_len);
 
@@ -80,16 +80,14 @@ void free_receiving (DatagramPeerIO *o)
     DatagramSocketSource_Free(&o->recv_source);
 }
 
-void error_handler (DatagramPeerIO *o, int component, const void *data)
+void error_handler (DatagramPeerIO *o, int component, int code)
 {
     ASSERT(o->mode == DATAGRAMPEERIO_MODE_CONNECT || o->mode == DATAGRAMPEERIO_MODE_BIND)
     DebugObject_Access(&o->d_obj);
     
-    int error = *((int *)data);
-    
     switch (component) {
         case DATAGRAMPEERIO_COMPONENT_SINK:
-            switch (error) {
+            switch (code) {
                 case DATAGRAMSOCKETSINK_ERROR_BSOCKET:
                     BLog(BLOG_NOTICE, "sink BSocket error %d", BSocket_GetError(&o->sock));
                     break;
@@ -101,7 +99,7 @@ void error_handler (DatagramPeerIO *o, int component, const void *data)
             }
             break;
         case DATAGRAMPEERIO_COMPONENT_SOURCE:
-            switch (error) {
+            switch (code) {
                 case DATAGRAMSOCKETSOURCE_ERROR_BSOCKET:
                     BLog(BLOG_NOTICE, "source BSocket error %d", BSocket_GetError(&o->sock));
                     break;

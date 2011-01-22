@@ -26,7 +26,7 @@
 #define COMPONENT_SINK 2
 #define COMPONENT_DECODER 3
 
-static void error_handler (BIPC *o, int component, const void *data)
+static void error_handler (BIPC *o, int component, int code)
 {
     DebugObject_Access(&o->d_obj);
     

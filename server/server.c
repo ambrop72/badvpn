@@ -219,7 +219,7 @@ static int client_init_io (struct client_data *client);
 static void client_dealloc_io (struct client_data *client);
 
 // handler for client I/O errors. Removes the client.
-static void client_error_handler (struct client_data *client, int component, const void *data);
+static void client_error_handler (struct client_data *client, int component, int code);
 
 // provides a buffer for sending a control packet to the client
 static int client_start_control_packet (struct client_data *client, void **data, int len);
@@ -1306,7 +1306,7 @@ void client_dealloc_io (struct client_data *client)
     }
 }
 
-void client_error_handler (struct client_data *client, int component, const void *data)
+void client_error_handler (struct client_data *client, int component, int code)
 {
     ASSERT(INITSTATUS_HASLINK(client->initstatus))
     ASSERT(!client->dying)
@@ -1320,7 +1320,7 @@ void client_error_handler (struct client_data *client, int component, const void
             }
             break;
         case COMPONENT_DECODER:
-            client_log(client, BLOG_NOTICE, "decoder error %d", *((int *)data));
+            client_log(client, BLOG_NOTICE, "decoder error %d", code);
             break;
         default:
             ASSERT(0);

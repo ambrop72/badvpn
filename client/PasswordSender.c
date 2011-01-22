@@ -31,7 +31,7 @@ static void call_handler (PasswordSender *o, int is_error)
     DEBUGERROR(&o->d_err, o->handler(o->user, is_error))
 }
 
-static void error_handler (PasswordSender *o, int component, const void *data)
+static void error_handler (PasswordSender *o, int component, int code)
 {
     ASSERT(component == COMPONENT_SINK)
     DebugObject_Access(&o->d_obj);

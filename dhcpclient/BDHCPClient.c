@@ -57,7 +57,7 @@ static const struct sock_filter dhcp_sock_filter[] = {
     BPF_STMT(BPF_RET + BPF_K, 0)                                  // ignore
 };
 
-static void error_handler (BDHCPClient *o, int component, const void *data)
+static void error_handler (BDHCPClient *o, int component, int code)
 {
     DebugObject_Access(&o->d_obj);
     

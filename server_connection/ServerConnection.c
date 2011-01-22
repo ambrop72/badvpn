@@ -41,7 +41,7 @@ static void report_error (ServerConnection *o);
 static void connect_handler (ServerConnection *o, int event);
 static void pending_handler (ServerConnection *o);
 static SECStatus client_auth_data_callback (ServerConnection *o, PRFileDesc *fd, CERTDistNames *caNames, CERTCertificate **pRetCert, SECKEYPrivateKey **pRetKey);
-static void error_handler (ServerConnection *o, int component, const void *data);
+static void error_handler (ServerConnection *o, int component, int code);
 static void input_handler_send (ServerConnection *o, uint8_t *data, int data_len);
 static void packet_hello (ServerConnection *o, uint8_t *data, int data_len);
 static void packet_newclient (ServerConnection *o, uint8_t *data, int data_len);
@@ -261,7 +261,7 @@ SECStatus client_auth_data_callback (ServerConnection *o, PRFileDesc *fd, CERTDi
     return SECSuccess;
 }
 
-void error_handler (ServerConnection *o, int component, const void *data)
+void error_handler (ServerConnection *o, int component, int code)
 {
     ASSERT(o->state >= STATE_WAITINIT)
     DebugObject_Access(&o->d_obj);
@@ -275,7 +275,7 @@ void error_handler (ServerConnection *o, int component, const void *data)
             }
             break;
         case COMPONENT_DECODER:
-            BLog(BLOG_ERROR, "decoder error %d", *((int *)data));
+            BLog(BLOG_ERROR, "decoder error %d", code);
             break;
         default:
             ASSERT(0);
