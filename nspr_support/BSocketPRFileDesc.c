@@ -29,8 +29,11 @@
 
 #include <misc/debug.h>
 #include <misc/offset.h>
+#include <system/BLog.h>
 
 #include <nspr_support/BSocketPRFileDesc.h>
+
+#include <generated/blog_channel_BSocketPRFileDesc.h>
 
 #ifndef NDEBUG
 int bsocketprfiledesc_initialized = 0;
@@ -82,6 +85,7 @@ static PRInt32 method_read (PRFileDesc *fd, void *buf, PRInt32 amount)
                 PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
                 return -1;
             default:
+                BLog(BLOG_NOTICE, "BSocket_Recv failed (%d)", BSocket_GetError(bsock));
                 PR_SetError(PR_UNKNOWN_ERROR, 0);
                 return -1;
         }
@@ -108,6 +112,7 @@ static PRInt32 method_write (PRFileDesc *fd, const void *buf, PRInt32 amount)
                 PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
                 return -1;
             default:
+                BLog(BLOG_NOTICE, "BSocket_Send failed (%d)", BSocket_GetError(bsock));
                 PR_SetError(PR_UNKNOWN_ERROR, 0);
                 return -1;
         }

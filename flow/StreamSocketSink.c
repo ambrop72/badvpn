@@ -21,8 +21,11 @@
  */
 
 #include <misc/debug.h>
+#include <system/BLog.h>
 
 #include <flow/StreamSocketSink.h>
+
+#include <generated/blog_channel_StreamSocketSink.h>
 
 static void report_error (StreamSocketSink *s, int error)
 {
@@ -41,6 +44,7 @@ static void try_send (StreamSocketSink *s)
     }
     
     if (res < 0) {
+        BLog(BLOG_NOTICE, "BSocket_Send failed (%d)", BSocket_GetError(s->bsock));
         report_error(s, STREAMSOCKETSINK_ERROR_BSOCKET);
         return;
     }

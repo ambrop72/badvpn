@@ -21,8 +21,11 @@
  */
 
 #include <misc/debug.h>
+#include <system/BLog.h>
 
 #include <flow/StreamSocketSource.h>
+
+#include <generated/blog_channel_StreamSocketSource.h>
 
 static void report_error (StreamSocketSource *s, int error)
 {
@@ -41,11 +44,13 @@ static void try_recv (StreamSocketSource *s)
     }
     
     if (res < 0) {
+        BLog(BLOG_NOTICE, "BSocket_Recv failed (%d)", BSocket_GetError(s->bsock));
         report_error(s, STREAMSOCKETSOURCE_ERROR_BSOCKET);
         return;
     }
     
     if (res == 0) {
+        BLog(BLOG_NOTICE, "Connection closed");
         report_error(s, STREAMSOCKETSOURCE_ERROR_CLOSED);
         return;
     }

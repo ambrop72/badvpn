@@ -20,11 +20,16 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <inttypes.h>
+
 #include <prerror.h>
 
 #include <misc/debug.h>
+#include <system/BLog.h>
 
 #include <nspr_support/PRStreamSink.h>
+
+#include <generated/blog_channel_PRStreamSink.h>
 
 static void report_error (PRStreamSink *s, int error)
 {
@@ -43,6 +48,7 @@ static void try_send (PRStreamSink *s)
     }
     
     if (res < 0) {
+        BLog(BLOG_NOTICE, "PR_Write failed (%"PRIi32")", PR_GetError());
         report_error(s, PRSTREAMSINK_ERROR_NSPR);
         return;
     }

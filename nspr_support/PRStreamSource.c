@@ -20,11 +20,16 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <inttypes.h>
+
 #include <prerror.h>
 
 #include <misc/debug.h>
+#include <system/BLog.h>
 
 #include <nspr_support/PRStreamSource.h>
+
+#include <generated/blog_channel_PRStreamSource.h>
 
 static void report_error (PRStreamSource *s, int error)
 {
@@ -43,11 +48,13 @@ static void try_recv (PRStreamSource *s)
     }
     
     if (res < 0) {
+        BLog(BLOG_NOTICE, "PR_Read failed (%"PRIi32")", PR_GetError());
         report_error(s, PRSTREAMSOURCE_ERROR_NSPR);
         return;
     }
     
     if (res == 0) {
+        BLog(BLOG_NOTICE, "Connection closed");
         report_error(s, PRSTREAMSOURCE_ERROR_CLOSED);
         return;
     }

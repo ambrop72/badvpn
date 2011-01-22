@@ -21,8 +21,11 @@
  */
 
 #include <misc/debug.h>
+#include <system/BLog.h>
 
 #include <flow/DatagramSocketSource.h>
+
+#include <generated/blog_channel_DatagramSocketSource.h>
 
 static void report_error (DatagramSocketSource *s, int error)
 {
@@ -42,6 +45,8 @@ static void try_recv (DatagramSocketSource *s)
     }
     
     if (res < 0) {
+        BLog(BLOG_NOTICE, "BSocket_RecvFromTo failed (%d)", BSocket_GetError(s->bsock));
+        
         // schedule retry
         BPending_Set(&s->retry_job);
         

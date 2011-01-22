@@ -34,3 +34,10 @@ BDHCPClient 4
 NCDIfConfig 4
 BUnixSignal 4
 BProcess 4
+StreamSocketSink 4
+StreamSocketSource 4
+DatagramSocketSink 4
+DatagramSocketSource 4
+PRStreamSink 4
+PRStreamSource 4
+BSocketPRFileDesc 4

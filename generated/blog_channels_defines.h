@@ -34,4 +34,11 @@
 #define BLOG_CHANNEL_NCDIfConfig 33
 #define BLOG_CHANNEL_BUnixSignal 34
 #define BLOG_CHANNEL_BProcess 35
-#define BLOG_NUM_CHANNELS 36
+#define BLOG_CHANNEL_StreamSocketSink 36
+#define BLOG_CHANNEL_StreamSocketSource 37
+#define BLOG_CHANNEL_DatagramSocketSink 38
+#define BLOG_CHANNEL_DatagramSocketSource 39
+#define BLOG_CHANNEL_PRStreamSink 40
+#define BLOG_CHANNEL_PRStreamSource 41
+#define BLOG_CHANNEL_BSocketPRFileDesc 42
+#define BLOG_NUM_CHANNELS 43

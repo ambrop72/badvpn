@@ -21,8 +21,11 @@
  */
 
 #include <misc/debug.h>
+#include <system/BLog.h>
 
 #include <flow/DatagramSocketSink.h>
+
+#include <generated/blog_channel_DatagramSocketSink.h>
 
 static void report_error (DatagramSocketSink *s, int error)
 {
@@ -48,10 +51,12 @@ static void try_send (DatagramSocketSink *s)
     PacketPassInterface_Done(&s->input);
     
     if (res < 0) {
+        BLog(BLOG_NOTICE, "BSocket_SendToFrom failed (%d)", BSocket_GetError(s->bsock));
         report_error(s, DATAGRAMSOCKETSINK_ERROR_BSOCKET);
         return;
     }
     else if (res != old_len) {
+        BLog(BLOG_NOTICE, "Sent only %d out of %d", res, old_len);
         report_error(s, DATAGRAMSOCKETSINK_ERROR_WRONGSIZE);
         return;
     }
