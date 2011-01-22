@@ -314,21 +314,6 @@ void error_handler (StreamPeerIO *pio, int component, int code)
     ASSERT(pio->sock)
     DebugObject_Access(&pio->d_obj);
     
-    switch (component) {
-        case COMPONENT_SOURCE:
-        case COMPONENT_SINK:
-            BLog(BLOG_NOTICE, "BSocket error %d", BSocket_GetError(&pio->sock->sock));
-            if (pio->ssl) {
-                BLog(BLOG_NOTICE, "NSPR error %d", (int)PR_GetError());
-            }
-            break;
-        case COMPONENT_DECODER:
-            BLog(BLOG_NOTICE, "decoder error %d", code);
-            break;
-        default:
-            ASSERT(0);
-    }
-    
     // cleanup
     reset_and_report_error(pio);
     return;

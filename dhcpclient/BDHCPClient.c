@@ -61,18 +61,7 @@ static void error_handler (BDHCPClient *o, int component, int code)
 {
     DebugObject_Access(&o->d_obj);
     
-    switch (component) {
-        case COMPONENT_SOURCE: {
-            BLog(BLOG_ERROR, "source error");
-        } break;
-        
-        case COMPONENT_SINK: {
-            BLog(BLOG_ERROR, "sink error");
-        } break;
-        
-        default:
-            ASSERT(0);
-    }
+    BLog(BLOG_ERROR, "error");
 }
 
 static void dhcp_handler (BDHCPClient *o, int event)

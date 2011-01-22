@@ -41,3 +41,4 @@ DatagramSocketSource 4
 PRStreamSink 4
 PRStreamSource 4
 BSocketPRFileDesc 4
+PacketProtoDecoder 4

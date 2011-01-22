@@ -1311,20 +1311,7 @@ void client_error_handler (struct client_data *client, int component, int code)
     ASSERT(INITSTATUS_HASLINK(client->initstatus))
     ASSERT(!client->dying)
     
-    switch (component) {
-        case COMPONENT_SOURCE:
-        case COMPONENT_SINK:
-            client_log(client, BLOG_NOTICE, "BSocket error %d", BSocket_GetError(&client->sock));
-            if (options.ssl) {
-                client_log(client, BLOG_NOTICE, "NSPR error %d", (int)PR_GetError());
-            }
-            break;
-        case COMPONENT_DECODER:
-            client_log(client, BLOG_NOTICE, "decoder error %d", code);
-            break;
-        default:
-            ASSERT(0);
-    }
+    client_log(client, BLOG_NOTICE, "error");
     
     client_remove(client);
     return;

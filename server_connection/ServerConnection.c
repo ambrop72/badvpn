@@ -266,23 +266,6 @@ void error_handler (ServerConnection *o, int component, int code)
     ASSERT(o->state >= STATE_WAITINIT)
     DebugObject_Access(&o->d_obj);
     
-    switch (component) {
-        case COMPONENT_SOURCE:
-        case COMPONENT_SINK:
-            BLog(BLOG_ERROR, "BSocket error %d", BSocket_GetError(&o->sock));
-            if (o->have_ssl) {
-                BLog(BLOG_ERROR, "NSPR error %d", (int)PR_GetError());
-            }
-            break;
-        case COMPONENT_DECODER:
-            BLog(BLOG_ERROR, "decoder error %d", code);
-            break;
-        default:
-            ASSERT(0);
-    }
-    
-    BLog(BLOG_ERROR, "lost connection");
-    
     report_error(o);
     return;
 }

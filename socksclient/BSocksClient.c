@@ -122,13 +122,9 @@ void error_handler (BSocksClient* o, int component, int code)
     DebugObject_Access(&o->d_obj);
     
     if (o->state == STATE_UP && component == COMPONENT_SOURCE && code == STREAMSOCKETSOURCE_ERROR_CLOSED) {
-        BLog(BLOG_DEBUG, "connection closed");
-        
         report_error(o, BSOCKSCLIENT_EVENT_ERROR_CLOSED);
         return;
     }
-    
-    BLog(BLOG_NOTICE, "socket error (%d)", BSocket_GetError(&o->sock));
     
     report_error(o, BSOCKSCLIENT_EVENT_ERROR);
     return;

@@ -41,3 +41,4 @@
 {.name = "PRStreamSink", .loglevel = 4},
 {.name = "PRStreamSource", .loglevel = 4},
 {.name = "BSocketPRFileDesc", .loglevel = 4},
+{.name = "PacketProtoDecoder", .loglevel = 4},

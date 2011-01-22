@@ -26,8 +26,11 @@
 #include <misc/debug.h>
 #include <misc/byteorder.h>
 #include <misc/minmax.h>
+#include <system/BLog.h>
 
 #include <flow/PacketProtoDecoder.h>
+
+#include <generated/blog_channel_PacketProtoDecoder.h>
 
 static void report_error (PacketProtoDecoder *enc, int error);
 static void process_data (PacketProtoDecoder *enc);
@@ -59,6 +62,7 @@ void process_data (PacketProtoDecoder *enc)
         
         // check data length
         if (data_len > enc->output_mtu) {
+            BLog(BLOG_NOTICE, "error: packet too large");
             was_error = 1;
             break;
         }

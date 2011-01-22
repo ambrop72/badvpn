@@ -85,31 +85,7 @@ void error_handler (DatagramPeerIO *o, int component, int code)
     ASSERT(o->mode == DATAGRAMPEERIO_MODE_CONNECT || o->mode == DATAGRAMPEERIO_MODE_BIND)
     DebugObject_Access(&o->d_obj);
     
-    switch (component) {
-        case DATAGRAMPEERIO_COMPONENT_SINK:
-            switch (code) {
-                case DATAGRAMSOCKETSINK_ERROR_BSOCKET:
-                    BLog(BLOG_NOTICE, "sink BSocket error %d", BSocket_GetError(&o->sock));
-                    break;
-                case DATAGRAMSOCKETSINK_ERROR_WRONGSIZE:
-                    BLog(BLOG_NOTICE, "sink wrong size error");
-                    break;
-                default:
-                    ASSERT(0);
-            }
-            break;
-        case DATAGRAMPEERIO_COMPONENT_SOURCE:
-            switch (code) {
-                case DATAGRAMSOCKETSOURCE_ERROR_BSOCKET:
-                    BLog(BLOG_NOTICE, "source BSocket error %d", BSocket_GetError(&o->sock));
-                    break;
-                default:
-                    ASSERT(0);
-            }
-            break;
-        default:
-            ASSERT(0);
-    }
+    BLog(BLOG_NOTICE, "error");
 }
 
 void reset_mode (DatagramPeerIO *o)
