@@ -280,11 +280,6 @@ static void connecting_pwsender_handler (StreamPeerIO *pio, int is_error)
     
     if (is_error) {
         BLog(BLOG_NOTICE, "error sending password");
-        BLog(BLOG_NOTICE, "BSocket error %d", BSocket_GetError(&pio->connect.sock.sock));
-        if (pio->ssl) {
-            BLog(BLOG_NOTICE, "NSPR error %d", (int)PR_GetError());
-        }
-        
         goto fail0;
     }
     
