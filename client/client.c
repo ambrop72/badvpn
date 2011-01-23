@@ -1436,7 +1436,7 @@ int peer_init_link (struct peer_data *peer)
     }
     
     // init sending
-    if (!DataProtoDest_Init(&peer->send_dp, &ss, peer->id, link_if, PEER_KEEPALIVE_INTERVAL, PEER_KEEPALIVE_RECEIVE_TIMER, (DataProtoDest_handler)peer_dataproto_handler, peer)) {
+    if (!DataProtoDest_Init(&peer->send_dp, &ss, link_if, PEER_KEEPALIVE_INTERVAL, PEER_KEEPALIVE_RECEIVE_TIMER, (DataProtoDest_handler)peer_dataproto_handler, peer)) {
         peer_log(peer, BLOG_ERROR, "DataProto_Init failed");
         goto fail2;
     }

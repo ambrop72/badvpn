@@ -29,11 +29,8 @@
 
 #include <stdint.h>
 
-#include <protocol/scproto.h>
 #include <misc/debugcounter.h>
 #include <misc/debug.h>
-#include <structure/LinkedList2.h>
-#include <structure/BAVL.h>
 #include <system/DebugObject.h>
 #include <system/BReactor.h>
 #include <system/BPending.h>
@@ -43,15 +40,11 @@
 #include <flow/DataProtoKeepaliveSource.h>
 #include <flow/PacketRecvBlocker.h>
 #include <flow/SinglePacketBuffer.h>
-#include <flow/BufferWriter.h>
-#include <flow/PacketBuffer.h>
 #include <flow/PacketPassConnector.h>
 #include <flow/PacketRouter.h>
 
 typedef void (*DataProtoDest_handler) (void *user, int up);
 typedef void (*DataProtoDevice_handler) (void *user, const uint8_t *frame, int frame_len);
-
-struct dp_relay_flow;
 
 /**
  * Frame destination.
@@ -59,7 +52,6 @@ struct dp_relay_flow;
  */
 typedef struct {
     BReactor *reactor;
-    peerid_t dest_id;
     int mtu;
     int frame_mtu;
     PacketPassFairQueue queue;
@@ -73,7 +65,6 @@ typedef struct {
     int up;
     DataProtoDest_handler handler;
     void *user;
-    LinkedList2 relay_flows_list;
     BPending keepalive_job;
     int freeing;
     DebugCounter flows_counter;
@@ -115,37 +106,10 @@ typedef struct {
 } DataProtoLocalSource;
 
 /**
- * Relay frame source.
- * Represents relaying of frames from one particular peer to other peers.
- */
-typedef struct {
-    peerid_t source_id;
-    LinkedList2 relay_flows_list;
-    BAVL relay_flows_tree;
-    DebugObject d_obj;
-} DataProtoRelaySource;
-
-struct dp_relay_flow {
-    DataProtoRelaySource *rs;
-    DataProtoDest *dp;
-    BufferWriter ainput;
-    PacketBuffer buffer;
-    PacketPassInactivityMonitor monitor;
-    PacketPassFairQueueFlow qflow;
-    LinkedList2Node source_list_node;
-    BAVLNode source_tree_node;
-    LinkedList2Node dp_list_node;
-    BPending first_frame_job;
-    uint8_t *first_frame;
-    int first_frame_len;
-};
-
-/**
  * Initializes the object.
  * 
  * @param o the object
  * @param reactor reactor we live in
- * @param dest_id ID of the peer this object sends to
  * @param output output interface. Must support cancel functionality. Its MTU must be
  *               >=sizeof(struct dataproto_header)+sizeof(struct dataproto_peer_id).
  * @param keepalive_time keepalive time
@@ -155,7 +119,7 @@ struct dp_relay_flow {
  * @param user value to pass to handler
  * @return 1 on success, 0 on failure
  */
-int DataProtoDest_Init (DataProtoDest *o, BReactor *reactor, peerid_t dest_id, PacketPassInterface *output, btime_t keepalive_time, btime_t tolerance_time, DataProtoDest_handler handler, void *user) WARN_UNUSED;
+int DataProtoDest_Init (DataProtoDest *o, BReactor *reactor, PacketPassInterface *output, btime_t keepalive_time, btime_t tolerance_time, DataProtoDest_handler handler, void *user) WARN_UNUSED;
 
 /**
  * Frees the object.
@@ -174,21 +138,6 @@ void DataProtoDest_Free (DataProtoDest *o);
  * @param o the object
  */
 void DataProtoDest_PrepareFree (DataProtoDest *o);
-
-/**
- * Submits a relayed frame.
- * Must not be in freeing state.
- * Must not be called before it evaluates.
- * 
- * @param o the object
- * @param rs relay source object representing the peer this frame came from
- * @param data frame data. The frame must remain accessible until this evaluates.
- * @param data_len frame length. Must be >=0.
- *                 Must be <= (output MTU) - (sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id)).
- * @param buffer_num_packets number of packets the relay buffer should hold, in case it doesn't exist.
- *                           Must be >0.
- */
-void DataProtoDest_SubmitRelayFrame (DataProtoDest *o, DataProtoRelaySource *rs, uint8_t *data, int data_len, int buffer_num_packets);
 
 /**
  * Notifies the object that a packet was received from the peer.
@@ -277,50 +226,5 @@ void DataProtoLocalSource_Attach (DataProtoLocalSource *o, DataProtoDest *dp);
  * @param o the object
  */
 void DataProtoLocalSource_Detach (DataProtoLocalSource *o);
-
-/**
- * Initializes the object
- * 
- * @param o the object
- * @param source_id ID of the peer whose relayed frames this object represents
- */
-void DataProtoRelaySource_Init (DataProtoRelaySource *o, peerid_t source_id);
-
-/**
- * Frees the object.
- * The object must have no relay flows (guaranteed if no frames have been submitted
- * with it using {@link DataProtoDest_SubmitRelayFrame}).
- * 
- * @param o the object
- */
-void DataProtoRelaySource_Free (DataProtoRelaySource *o);
-
-/**
- * Asserts that the object can be freed.
- * 
- * @param o the object
- * @return 1 if there are no relay flows, 0 if at least one
- */
-void DataProtoRelaySource_AssertFree (DataProtoRelaySource *o);
-
-/**
- * Removes all relay flows by releasing them.
- * None of the destinations must be in freeing state.
- * Must not be called from any of the destinations' output Send calls.
- * May invoke the destinations' output Cancel calls.
- * 
- * @param o the object
- */
-void DataProtoRelaySource_Release (DataProtoRelaySource *o);
-
-/**
- * Removes all relay flows by putting destinations into freeing state.
- * May put destinations into freeing state (as if {@link DataProtoDest_PrepareFree}
- * was called on them).
- * This should only be used while freeing the entire frame sending system.
- * 
- * @param o the object
- */
-void DataProtoRelaySource_FreeRelease (DataProtoRelaySource *o);
 
 #endif
