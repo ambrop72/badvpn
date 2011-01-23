@@ -25,7 +25,6 @@
 #include <limits.h>
 
 #include <protocol/dataproto.h>
-#include <misc/offset.h>
 #include <misc/byteorder.h>
 #include <misc/debug.h>
 #include <system/BLog.h>
@@ -34,26 +33,11 @@
 
 #include <generated/blog_channel_DataProto.h>
 
-#define DATAPROTO_TIMEOUT 30000
-
-static int peerid_comparator (void *user, peerid_t *val1, peerid_t *val2);
 static void monitor_handler (DataProtoDest *o);
 static void send_keepalive (DataProtoDest *o);
 static void receive_timer_handler (DataProtoDest *o);
 static void notifier_handler (DataProtoDest *o, uint8_t *data, int data_len);
-static int pointer_comparator (void *user, void **val1, void **val2);
 static void keepalive_job_handler (DataProtoDest *o);
-
-int peerid_comparator (void *user, peerid_t *val1, peerid_t *val2)
-{
-    if (*val1 < *val2) {
-        return -1;
-    }
-    if (*val1 > *val2) {
-        return 1;
-    }
-    return 0;
-}
 
 void monitor_handler (DataProtoDest *o)
 {
@@ -99,17 +83,6 @@ void notifier_handler (DataProtoDest *o, uint8_t *data, int data_len)
     if (BTimer_IsRunning(&o->receive_timer)) {
         header->flags |= DATAPROTO_FLAGS_RECEIVING_KEEPALIVES;
     }
-}
-
-int pointer_comparator (void *user, void **val1, void **val2)
-{
-    if (*val1 < *val2) {
-        return -1;
-    }
-    if (*val1 > *val2) {
-        return 1;
-    }
-    return 0;
 }
 
 void keepalive_job_handler (DataProtoDest *o)
