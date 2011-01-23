@@ -42,4 +42,5 @@
 #define BLOG_CHANNEL_PRStreamSource 41
 #define BLOG_CHANNEL_BSocketPRFileDesc 42
 #define BLOG_CHANNEL_PacketProtoDecoder 43
-#define BLOG_NUM_CHANNELS 44
+#define BLOG_CHANNEL_DPRelay 44
+#define BLOG_NUM_CHANNELS 45

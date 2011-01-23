@@ -555,7 +555,7 @@ int main (int argc, char *argv[])
         }
         
         // free relay source
-        DataProtoRelaySource_FreeRelease(&peer->relay_source);
+        DPRelaySource_PrepareFreeDestinations(&peer->relay_source);
         
         // deallocate peer
         peer_dealloc(peer);
@@ -1231,7 +1231,12 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     PacketPassInterface_Sender_Init(peer->local_recv_if, (PacketPassInterface_handler_done)local_recv_qflow_output_handler_done, peer);
     
     // init relay source
-    DataProtoRelaySource_Init(&peer->relay_source, peer->id);
+    if (!DPRelaySource_Init(&peer->relay_source, peer->id, device.mtu, &ss)) {
+        goto fail2;
+    }
+    
+    // init relay sink
+    DPRelaySink_Init(&peer->relay_sink, peer->id, &ss);
     
     // have no link
     peer->have_link = 0;
@@ -1278,7 +1283,9 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     }
     
 fail5:
-    DataProtoRelaySource_Free(&peer->relay_source);
+    DPRelaySink_Free(&peer->relay_sink);
+    DPRelaySource_Free(&peer->relay_source);
+fail2:
     PacketPassFairQueueFlow_Free(&peer->local_recv_qflow);
     DataProtoLocalSource_Free(&peer->local_dpflow);
 fail1:
@@ -1302,9 +1309,6 @@ void peer_remove (struct peer_data *peer)
         peer_dealloc_relay_provider(peer);
     }
     
-    // release relay flows
-    DataProtoRelaySource_Release(&peer->relay_source);
-    
     // release local receive flow
     if (PacketPassFairQueueFlow_IsBusy(&peer->local_recv_qflow)) {
         PacketPassFairQueueFlow_Release(&peer->local_recv_qflow);
@@ -1321,7 +1325,6 @@ void peer_dealloc (struct peer_data *peer)
 {
     ASSERT(!peer->have_relaying)
     ASSERT(!peer->is_relay)
-    DataProtoRelaySource_AssertFree(&peer->relay_source);
     PacketPassFairQueueFlow_AssertFree(&peer->local_recv_qflow);
     
     LinkedList2Iterator it;
@@ -1355,8 +1358,11 @@ void peer_dealloc (struct peer_data *peer)
     // free retry timer
     BReactor_RemoveTimer(&ss, &peer->reset_timer);
     
+    // free relay sink
+    DPRelaySink_Free(&peer->relay_sink);
+    
     // free relay source
-    DataProtoRelaySource_Free(&peer->relay_source);
+    DPRelaySource_Free(&peer->relay_source);
     
     // free local receive flow
     PacketPassFairQueueFlow_Free(&peer->local_recv_qflow);
@@ -1435,8 +1441,11 @@ int peer_init_link (struct peer_data *peer)
         goto fail2;
     }
     
-    // attach local flow to our DataProto
+    // attach local flow to our DataProtoDest
     DataProtoLocalSource_Attach(&peer->local_dpflow, &peer->send_dp);
+    
+    // attach relay sink flows to our DataProtoDest
+    DPRelaySink_Attach(&peer->relay_sink, &peer->send_dp);
     
     peer->have_link = 1;
     
@@ -1464,7 +1473,10 @@ void peer_free_link (struct peer_data *peer)
     // allow detaching DataProto flows
     DataProtoDest_PrepareFree(&peer->send_dp);
     
-    // detach local flow from our DataProto
+    // detach relay sink flows from our DataProtoDest
+    DPRelaySink_Detach(&peer->relay_sink);
+    
+    // detach local flow from our DataProtoDest
     DataProtoLocalSource_Detach(&peer->local_dpflow);
     
     // free sending
@@ -2130,7 +2142,7 @@ out:
     
     // relay frame
     if (relay_dest) {
-        DataProtoDest_SubmitRelayFrame(&relay_dest->send_dp, &src_peer->relay_source, data, data_len, options.send_buffer_relay_size);
+        DPRelaySource_SubmitFrame(&src_peer->relay_source, &relay_dest->relay_sink, data, data_len, options.send_buffer_relay_size);
     }
     
     // inform DataProto of received packet

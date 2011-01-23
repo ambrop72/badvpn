@@ -32,6 +32,7 @@
 #include <client/DatagramPeerIO.h>
 #include <client/StreamPeerIO.h>
 #include <client/DataProto.h>
+#include <client/DPRelay.h>
 #include <client/FrameDecider.h>
 
 // NOTE: all time values are in milliseconds
@@ -112,7 +113,10 @@ struct peer_data {
     PacketPassFairQueueFlow local_recv_qflow;
     
     // relay source
-    DataProtoRelaySource relay_source;
+    DPRelaySource relay_source;
+    
+    // relay sink
+    DPRelaySink relay_sink;
     
     // flag if link objects are initialized
     int have_link;
