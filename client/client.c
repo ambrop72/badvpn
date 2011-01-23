@@ -1704,6 +1704,14 @@ int peer_reset (struct peer_data *peer)
 {
     peer_log(peer, BLOG_NOTICE, "resetting");
     
+    // free link
+    if (peer->have_link) {
+        if (peer->is_relay) {
+            peer_disable_relay_provider(peer);
+        }
+        peer_free_link(peer);
+    }
+    
     if (peer_am_master(peer)) {
         // if we're the master, schedule retry
         BReactor_SetTimer(&ss, &peer->reset_timer);
@@ -2118,12 +2126,6 @@ void peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len
         struct peer_data *dest_peer = find_peer_by_id(id);
         if (!dest_peer) {
             peer_log(peer, BLOG_NOTICE, "relay destination peer not known");
-            goto out;
-        }
-        
-        // check if the destination peer has link
-        if (!dest_peer->have_link) {
-            peer_log(peer, BLOG_NOTICE, "relay destination peer has no link");
             goto out;
         }
         
