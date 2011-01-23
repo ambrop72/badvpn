@@ -2124,7 +2124,7 @@ void peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len
         
         // lookup destination peer
         struct peer_data *dest_peer = find_peer_by_id(id);
-        if (!dest_peer) {
+        if (!dest_peer || dest_peer == src_peer) {
             peer_log(peer, BLOG_NOTICE, "relay destination peer not known");
             goto out;
         }
