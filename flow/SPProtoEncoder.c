@@ -43,7 +43,7 @@ static int can_encode (SPProtoEncoder *o)
     );
 }
 
-static int encode_packet (SPProtoEncoder *o)
+static void encode_packet (SPProtoEncoder *o)
 {
     ASSERT(o->in_len >= 0)
     ASSERT(o->out_have)
