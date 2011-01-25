@@ -52,7 +52,6 @@ typedef void (*DataProtoDevice_handler) (void *user, const uint8_t *frame, int f
  */
 typedef struct {
     BReactor *reactor;
-    int mtu;
     int frame_mtu;
     PacketPassFairQueue queue;
     PacketPassInactivityMonitor monitor;
@@ -69,9 +68,6 @@ typedef struct {
     int freeing;
     DebugCounter flows_counter;
     DebugObject d_obj;
-    #ifndef NDEBUG
-    PacketPassInterface *d_output;
-    #endif
 } DataProtoDest;
 
 /**

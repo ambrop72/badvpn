@@ -112,18 +112,15 @@ static void device_router_handler (DataProtoDevice *o, uint8_t *buf, int recv_le
 int DataProtoDest_Init (DataProtoDest *o, BReactor *reactor, PacketPassInterface *output, btime_t keepalive_time, btime_t tolerance_time, DataProtoDest_handler handler, void *user)
 {
     ASSERT(PacketPassInterface_HasCancel(output))
-    ASSERT(PacketPassInterface_GetMTU(output) >= sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id))
+    ASSERT(PacketPassInterface_GetMTU(output) >= DATAPROTO_MAX_OVERHEAD)
     
     // init arguments
     o->reactor = reactor;
     o->handler = handler;
     o->user = user;
     
-    // set MTU
-    o->mtu = PacketPassInterface_GetMTU(output);
-    
     // set frame MTU
-    o->frame_mtu = o->mtu - (sizeof(struct dataproto_header) + sizeof(struct dataproto_peer_id));
+    o->frame_mtu = PacketPassInterface_GetMTU(output) - DATAPROTO_MAX_OVERHEAD;
     
     // schedule keep-alive (needs to be before the buffer)
     BPending_Init(&o->keepalive_job, BReactor_PendingGroup(o->reactor), (BPending_handler)keepalive_job_handler, o);
@@ -151,7 +148,7 @@ int DataProtoDest_Init (DataProtoDest *o, BReactor *reactor, PacketPassInterface
     // init keepalive buffer
     if (!SinglePacketBuffer_Init(&o->ka_buffer, PacketRecvBlocker_GetOutput(&o->ka_blocker), PacketPassFairQueueFlow_GetInput(&o->ka_qflow), BReactor_PendingGroup(o->reactor))) {
         BLog(BLOG_ERROR, "SinglePacketBuffer_Init failed");
-        goto fail0;
+        goto fail1;
     }
     
     // init receive timer
@@ -166,13 +163,9 @@ int DataProtoDest_Init (DataProtoDest *o, BReactor *reactor, PacketPassInterface
     DebugCounter_Init(&o->flows_counter);
     DebugObject_Init(&o->d_obj);
     
-    #ifndef NDEBUG
-    o->d_output = output;
-    #endif
-    
     return 1;
     
-fail0:
+fail1:
     PacketRecvBlocker_Free(&o->ka_blocker);
     DataProtoKeepaliveSource_Free(&o->ka_source);
     PacketPassFairQueueFlow_Free(&o->ka_qflow);
@@ -393,9 +386,7 @@ void DataProtoLocalSource_Attach (DataProtoLocalSource *o, DataProtoDest *dp)
 
 void DataProtoLocalSource_Detach (DataProtoLocalSource *o)
 {
-    #ifndef NDEBUG
     ASSERT(o->dp)
-    #endif
     DebugObject_Access(&o->d_obj);
     
     DataProtoDest *dp = o->dp;
