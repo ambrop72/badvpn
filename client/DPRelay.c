@@ -46,7 +46,7 @@ static struct DPRelay_flow * create_flow (DPRelaySource *src, DPRelaySink *sink,
     flow->sink = sink;
     
     // init DataProtoLocalSource
-    if (!DataProtoLocalSource_Init(&flow->dpls, &src->device, src->source_id, sink->dest_id, num_packets)) {
+    if (!DataProtoLocalSource_Init(&flow->dpls, &src->device, src->source_id, sink->dest_id, num_packets, -1, NULL, NULL)) {
         BLog(BLOG_ERROR, "relay flow %d->%d: DataProtoLocalSource_Init failed", (int)src->source_id, (int)sink->dest_id);
         goto fail1;
     }

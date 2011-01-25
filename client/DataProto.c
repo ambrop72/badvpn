@@ -286,7 +286,10 @@ void DataProtoDevice_Free (DataProtoDevice *o)
     PacketRouter_Free(&o->router);
 }
 
-int DataProtoLocalSource_Init (DataProtoLocalSource *o, DataProtoDevice *device, peerid_t source_id, peerid_t dest_id, int num_packets)
+int DataProtoLocalSource_Init (
+    DataProtoLocalSource *o, DataProtoDevice *device, peerid_t source_id, peerid_t dest_id, int num_packets,
+    int inactivity_time, DataProtoLocalSource_handler_inactivity handler_inactivity, void *user
+)
 {
     ASSERT(num_packets > 0)
     
@@ -294,12 +297,20 @@ int DataProtoLocalSource_Init (DataProtoLocalSource *o, DataProtoDevice *device,
     o->device = device;
     o->source_id = source_id;
     o->dest_id = dest_id;
+    o->inactivity_time = inactivity_time;
     
     // init connector
     PacketPassConnector_Init(&o->connector, DATAPROTO_MAX_OVERHEAD + device->frame_mtu, BReactor_PendingGroup(device->reactor));
     
+    // init inactivity monitor
+    PacketPassInterface *buf_out = PacketPassConnector_GetInput(&o->connector);
+    if (o->inactivity_time >= 0) {
+        PacketPassInactivityMonitor_Init(&o->monitor, buf_out, device->reactor, o->inactivity_time, handler_inactivity, user);
+        buf_out = PacketPassInactivityMonitor_GetInput(&o->monitor);
+    }
+    
     // init route buffer
-    if (!RouteBuffer_Init(&o->rbuf, DATAPROTO_MAX_OVERHEAD + device->frame_mtu, PacketPassConnector_GetInput(&o->connector), num_packets)) {
+    if (!RouteBuffer_Init(&o->rbuf, DATAPROTO_MAX_OVERHEAD + device->frame_mtu, buf_out, num_packets)) {
         BLog(BLOG_ERROR, "RouteBuffer_Init failed");
         goto fail1;
     }
@@ -313,6 +324,9 @@ int DataProtoLocalSource_Init (DataProtoLocalSource *o, DataProtoDevice *device,
     return 1;
     
 fail1:
+    if (o->inactivity_time >= 0) {
+        PacketPassInactivityMonitor_Free(&o->monitor);
+    }
     PacketPassConnector_Free(&o->connector);
 fail0:
     return 0;
@@ -326,6 +340,11 @@ void DataProtoLocalSource_Free (DataProtoLocalSource *o)
     
     // free route buffer
     RouteBuffer_Free(&o->rbuf);
+    
+    // free inactivity monitor
+    if (o->inactivity_time >= 0) {
+        PacketPassInactivityMonitor_Free(&o->monitor);
+    }
     
     // free connector
     PacketPassConnector_Free(&o->connector);

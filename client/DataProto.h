@@ -45,6 +45,7 @@
 
 typedef void (*DataProtoDest_handler) (void *user, int up);
 typedef void (*DataProtoDevice_handler) (void *user, const uint8_t *frame, int frame_len);
+typedef void (*DataProtoLocalSource_handler_inactivity) (void *user);
 
 /**
  * Frame destination.
@@ -94,7 +95,9 @@ typedef struct {
     DataProtoDevice *device;
     peerid_t source_id;
     peerid_t dest_id;
+    int inactivity_time;
     RouteBuffer rbuf;
+    PacketPassInactivityMonitor monitor;
     PacketPassConnector connector;
     DataProtoDest *dp;
     PacketPassFairQueueFlow dp_qflow;
@@ -179,9 +182,18 @@ void DataProtoDevice_Free (DataProtoDevice *o);
  * @param dest_id destination peer ID to encode in the headers (i.e. ID if the peer this
  *                object belongs to)
  * @param num_packets number of packets the buffer should hold. Must be >0.
+ * @param inactivity_time milliseconds of output inactivity after which to call the
+ *                        inactivity handler; <0 to disable. Note that the object is considered
+ *                        active as long as its buffer is non-empty, even if is not attached to
+ *                        a {@link DataProtoDest}.
+ * @param handler_inactivity inactivity handler, if inactivity_time >=0
+ * @param user value to pass to handler
  * @return 1 on success, 0 on failure
  */
-int DataProtoLocalSource_Init (DataProtoLocalSource *o, DataProtoDevice *device, peerid_t source_id, peerid_t dest_id, int num_packets) WARN_UNUSED;
+int DataProtoLocalSource_Init (
+    DataProtoLocalSource *o, DataProtoDevice *device, peerid_t source_id, peerid_t dest_id, int num_packets,
+    int inactivity_time, DataProtoLocalSource_handler_inactivity handler_inactivity, void *user
+) WARN_UNUSED;
 
 /**
  * Frees the object.
