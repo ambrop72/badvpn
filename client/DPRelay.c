@@ -64,6 +64,8 @@ static struct DPRelay_flow * create_flow (DPRelaySource *src, DPRelaySink *sink,
         DataProtoLocalSource_Attach(&flow->dpls, sink->dest);
     }
     
+    BLog(BLOG_INFO, "relay flow %d->%d: created", (int)src->source_id, (int)sink->dest_id);
+    
     return flow;
     
 fail1:
@@ -99,7 +101,7 @@ static void free_flow (struct DPRelay_flow *flow)
 
 static void flow_inactivity_handler (struct DPRelay_flow *flow)
 {
-    BLog(BLOG_ERROR, "relay flow %d->%d: timed out", (int)flow->src->source_id, (int)flow->sink->dest_id);
+    BLog(BLOG_INFO, "relay flow %d->%d: timed out", (int)flow->src->source_id, (int)flow->sink->dest_id);
     
     free_flow(flow);
 }
