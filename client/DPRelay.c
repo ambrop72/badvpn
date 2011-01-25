@@ -30,7 +30,9 @@
 
 #include <generated/blog_channel_DPRelay.h>
 
-static struct DPRelay_flow * create_flow (DPRelaySource *src, DPRelaySink *sink, int num_packets)
+static void flow_inactivity_handler (struct DPRelay_flow *flow);
+
+static struct DPRelay_flow * create_flow (DPRelaySource *src, DPRelaySink *sink, int num_packets, int inactivity_time)
 {
     ASSERT(num_packets > 0)
     
@@ -46,7 +48,7 @@ static struct DPRelay_flow * create_flow (DPRelaySource *src, DPRelaySink *sink,
     flow->sink = sink;
     
     // init DataProtoLocalSource
-    if (!DataProtoLocalSource_Init(&flow->dpls, &src->device, src->source_id, sink->dest_id, num_packets, -1, NULL, NULL)) {
+    if (!DataProtoLocalSource_Init(&flow->dpls, &src->device, src->source_id, sink->dest_id, num_packets, inactivity_time, (DataProtoLocalSource_handler_inactivity)flow_inactivity_handler, flow)) {
         BLog(BLOG_ERROR, "relay flow %d->%d: DataProtoLocalSource_Init failed", (int)src->source_id, (int)sink->dest_id);
         goto fail1;
     }
@@ -93,6 +95,13 @@ static void free_flow (struct DPRelay_flow *flow)
     
     // free structore
     free(flow);
+}
+
+static void flow_inactivity_handler (struct DPRelay_flow *flow)
+{
+    BLog(BLOG_ERROR, "relay flow %d->%d: timed out", (int)flow->src->source_id, (int)flow->sink->dest_id);
+    
+    free_flow(flow);
 }
 
 static struct DPRelay_flow * source_find_flow (DPRelaySource *o, DPRelaySink *sink)
@@ -177,7 +186,7 @@ void DPRelaySource_Free (DPRelaySource *o)
     BufferWriter_Free(&o->writer);
 }
 
-void DPRelaySource_SubmitFrame (DPRelaySource *o, DPRelaySink *sink, uint8_t *data, int data_len, int num_packets)
+void DPRelaySource_SubmitFrame (DPRelaySource *o, DPRelaySink *sink, uint8_t *data, int data_len, int num_packets, int inactivity_time)
 {
     ASSERT(data_len >= 0)
     ASSERT(data_len <= o->frame_mtu)
@@ -203,7 +212,7 @@ void DPRelaySource_SubmitFrame (DPRelaySource *o, DPRelaySink *sink, uint8_t *da
     // this comes _after_ writing the packet, in case flow initialization schedules jobs
     struct DPRelay_flow *flow = source_find_flow(o, sink);
     if (!flow) {
-        if (!(flow = create_flow(o, sink, num_packets))) {
+        if (!(flow = create_flow(o, sink, num_packets, inactivity_time))) {
             return;
         }
     }

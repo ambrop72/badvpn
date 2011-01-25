@@ -63,7 +63,7 @@ struct DPRelay_flow {
 
 int DPRelaySource_Init (DPRelaySource *o, peerid_t source_id, int frame_mtu, BReactor *reactor) WARN_UNUSED;
 void DPRelaySource_Free (DPRelaySource *o);
-void DPRelaySource_SubmitFrame (DPRelaySource *o, DPRelaySink *sink, uint8_t *data, int data_len, int num_packets);
+void DPRelaySource_SubmitFrame (DPRelaySource *o, DPRelaySink *sink, uint8_t *data, int data_len, int num_packets, int inactivity_time);
 void DPRelaySource_PrepareFreeDestinations (DPRelaySource *o);
 
 void DPRelaySink_Init (DPRelaySink *o, peerid_t dest_id, BReactor *reactor);
