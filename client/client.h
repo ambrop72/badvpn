@@ -64,6 +64,8 @@
 #define PEER_DEFAULT_SEND_BUFFER_SIZE 32
 // size of frame send buffer for relayed packets, in number of frames
 #define PEER_DEFAULT_SEND_BUFFER_RELAY_SIZE 32
+// time after an unused relay flow is freed (-1 for never)
+#define PEER_RELAY_FLOW_INACTIVITY_TIME 10000
 // retry time
 #define PEER_RETRY_TIME 5000
 

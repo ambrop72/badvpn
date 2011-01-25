@@ -2144,7 +2144,7 @@ out:
     
     // relay frame
     if (relay_dest) {
-        DPRelaySource_SubmitFrame(&src_peer->relay_source, &relay_dest->relay_sink, data, data_len, options.send_buffer_relay_size, -1);
+        DPRelaySource_SubmitFrame(&src_peer->relay_source, &relay_dest->relay_sink, data, data_len, options.send_buffer_relay_size, PEER_RELAY_FLOW_INACTIVITY_TIME);
     }
     
     // inform DataProto of received packet
