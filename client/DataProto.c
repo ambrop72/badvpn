@@ -181,7 +181,7 @@ int DataProtoDest_Init (DataProtoDest *o, BReactor *reactor, PacketPassInterface
     // set not freeing
     o->freeing = 0;
     
-    DebugCounter_Init(&o->flows_counter);
+    DebugCounter_Init(&o->d_ctr);
     DebugObject_Init(&o->d_obj);
     
     return 1;
@@ -199,7 +199,7 @@ fail1:
 
 void DataProtoDest_Free (DataProtoDest *o)
 {
-    DebugCounter_Free(&o->flows_counter);
+    DebugCounter_Free(&o->d_ctr);
     DebugObject_Free(&o->d_obj);
     
     // free handler job
@@ -373,9 +373,7 @@ void DataProtoLocalSource_Route (DataProtoLocalSource *o, int more)
     ASSERT(more == 0 || more == 1)
     PacketRouter_AssertRoute(&o->device->router);
     ASSERT(o->device->current_buf)
-    if (o->dp) {
-        ASSERT(!o->dp->freeing)
-    }
+    ASSERT(!o->dp || !o->dp->freeing)
     DebugObject_Access(&o->d_obj);
     
     // write header
@@ -392,7 +390,7 @@ void DataProtoLocalSource_Route (DataProtoLocalSource *o, int more)
         &o->device->router, DATAPROTO_MAX_OVERHEAD + o->device->current_recv_len, &o->rbuf,
         &next_buf, DATAPROTO_MAX_OVERHEAD, (more ? o->device->current_recv_len : 0)
     )) {
-        BLog(BLOG_NOTICE, "out of buffer for frame from peer %d to %d", (int)o->source_id, (int)o->dest_id);
+        BLog(BLOG_NOTICE, "buffer full: %d->%d", (int)o->source_id, (int)o->dest_id);
         return;
     }
     
@@ -417,8 +415,7 @@ void DataProtoLocalSource_Attach (DataProtoLocalSource *o, DataProtoDest *dp)
     // connect to queue flow
     PacketPassConnector_ConnectOutput(&o->connector, PacketPassFairQueueFlow_GetInput(&o->dp_qflow));
     
-    // increment flows counter
-    DebugCounter_Increment(&dp->flows_counter);
+    DebugCounter_Increment(&dp->d_ctr);
 }
 
 void DataProtoLocalSource_Detach (DataProtoLocalSource *o)
@@ -433,9 +430,6 @@ void DataProtoLocalSource_Detach (DataProtoLocalSource *o)
         PacketPassFairQueueFlow_Release(&o->dp_qflow);
     }
     
-    // decrement flows counter
-    DebugCounter_Decrement(&dp->flows_counter);
-    
     // disconnect from queue flow
     PacketPassConnector_DisconnectOutput(&o->connector);
     
@@ -444,4 +438,6 @@ void DataProtoLocalSource_Detach (DataProtoLocalSource *o)
     
     // set no DataProto
     o->dp = NULL;
+    
+    DebugCounter_Decrement(&dp->d_ctr);
 }

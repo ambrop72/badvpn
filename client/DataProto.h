@@ -68,8 +68,8 @@ typedef struct {
     BPending keepalive_job;
     BPending up_job;
     int freeing;
-    DebugCounter flows_counter;
     DebugObject d_obj;
+    DebugCounter d_ctr;
 } DataProtoDest;
 
 /**
