@@ -172,6 +172,9 @@ LinkedList2 relays;
 // peers than need a relay
 LinkedList2 waiting_relay_peers;
 
+// object for queuing relay packets to relay flows
+DPRelayRouter relay_router;
+
 // server connection
 ServerConnection server;
 
@@ -518,6 +521,12 @@ int main (int argc, char *argv[])
     // init need relay list
     LinkedList2_Init(&waiting_relay_peers);
     
+    // init DPRelayRouter
+    if (!DPRelayRouter_Init(&relay_router, device.mtu, &ss)) {
+        BLog(BLOG_ERROR, "DPRelayRouter_Init failed");
+        goto fail8a;
+    }
+    
     // start connecting to server
     if (!ServerConnection_Init(
         &server, &ss, server_addr, SC_KEEPALIVE_INTERVAL, SERVER_BUFFER_MIN_PACKETS, options.ssl, client_cert, client_key, server_name, NULL,
@@ -563,6 +572,8 @@ int main (int argc, char *argv[])
     
     ServerConnection_Free(&server);
 fail9:
+    DPRelayRouter_Free(&relay_router);
+fail8a:
     FrameDecider_Free(&frame_decider);
 fail8:
     PacketPassFairQueue_Free(&device.output_queue);
@@ -1231,9 +1242,7 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     PacketPassInterface_Sender_Init(peer->local_recv_if, (PacketPassInterface_handler_done)local_recv_qflow_output_handler_done, peer);
     
     // init relay source
-    if (!DPRelaySource_Init(&peer->relay_source, peer->id, device.mtu, &ss)) {
-        goto fail2;
-    }
+    DPRelaySource_Init(&peer->relay_source, &relay_router, peer->id, &ss);
     
     // init relay sink
     DPRelaySink_Init(&peer->relay_sink, peer->id, &ss);
@@ -1285,7 +1294,6 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
 fail5:
     DPRelaySink_Free(&peer->relay_sink);
     DPRelaySource_Free(&peer->relay_source);
-fail2:
     PacketPassFairQueueFlow_Free(&peer->local_recv_qflow);
     DataProtoLocalSource_Free(&peer->local_dpflow);
 fail1:
@@ -2154,7 +2162,7 @@ out:
     
     // relay frame
     if (relay_dest) {
-        DPRelaySource_SubmitFrame(&src_peer->relay_source, &relay_dest->relay_sink, data, data_len, options.send_buffer_relay_size, PEER_RELAY_FLOW_INACTIVITY_TIME);
+        DPRelayRouter_SubmitFrame(&relay_router, &src_peer->relay_source, &relay_dest->relay_sink, data, data_len, options.send_buffer_relay_size, PEER_RELAY_FLOW_INACTIVITY_TIME);
     }
     
     // inform DataProto of received packet

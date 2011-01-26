@@ -48,7 +48,7 @@ static struct DPRelay_flow * create_flow (DPRelaySource *src, DPRelaySink *sink,
     flow->sink = sink;
     
     // init DataProtoLocalSource
-    if (!DataProtoLocalSource_Init(&flow->dpls, &src->device, src->source_id, sink->dest_id, num_packets, inactivity_time, (DataProtoLocalSource_handler_inactivity)flow_inactivity_handler, flow)) {
+    if (!DataProtoLocalSource_Init(&flow->dpls, &src->router->device, src->source_id, sink->dest_id, num_packets, inactivity_time, (DataProtoLocalSource_handler_inactivity)flow_inactivity_handler, flow)) {
         BLog(BLOG_ERROR, "relay flow %d->%d: DataProtoLocalSource_Init failed", (int)src->source_id, (int)sink->dest_id);
         goto fail1;
     }
@@ -81,9 +81,9 @@ static void free_flow (struct DPRelay_flow *flow)
         DataProtoLocalSource_Detach(&flow->dpls);
     }
     
-    // remove from source's current flow
-    if (flow->src->current_flow == flow) {
-        flow->src->current_flow = NULL;
+    // remove posible router reference
+    if (flow->src->router->current_flow == flow) {
+        flow->src->router->current_flow = NULL;
     }
     
     // remove from sink list
@@ -121,7 +121,7 @@ static struct DPRelay_flow * source_find_flow (DPRelaySource *o, DPRelaySink *si
     return NULL;
 }
 
-static void source_device_handler (DPRelaySource *o, const uint8_t *frame, int frame_len)
+static void source_device_handler (DPRelayRouter *o, const uint8_t *frame, int frame_len)
 {
     DebugObject_Access(&o->d_obj);
     
@@ -136,13 +136,12 @@ static void source_device_handler (DPRelaySource *o, const uint8_t *frame, int f
     o->current_flow = NULL;
 }
 
-int DPRelaySource_Init (DPRelaySource *o, peerid_t source_id, int frame_mtu, BReactor *reactor)
+int DPRelayRouter_Init (DPRelayRouter *o, int frame_mtu, BReactor *reactor)
 {
     ASSERT(frame_mtu >= 0)
     ASSERT(frame_mtu <= INT_MAX - DATAPROTO_MAX_OVERHEAD)
     
     // init arguments
-    o->source_id = source_id;
     o->frame_mtu = frame_mtu;
     
     // init BufferWriter
@@ -153,13 +152,11 @@ int DPRelaySource_Init (DPRelaySource *o, peerid_t source_id, int frame_mtu, BRe
         goto fail1;
     }
     
-    // init flows list
-    LinkedList1_Init(&o->flows_list);
-    
     // have no current flow
     o->current_flow = NULL;
     
     DebugObject_Init(&o->d_obj);
+    DebugCounter_Init(&o->d_ctr);
     
     return 1;
     
@@ -168,18 +165,11 @@ fail1:
     return 0;
 }
 
-void DPRelaySource_Free (DPRelaySource *o)
+void DPRelayRouter_Free (DPRelayRouter *o)
 {
+    ASSERT(!o->current_flow) // have no sources
+    DebugCounter_Free(&o->d_ctr);
     DebugObject_Free(&o->d_obj);
-    
-    // free flows, detaching them if needed
-    LinkedList1Node *node;
-    while (node = LinkedList1_GetFirst(&o->flows_list)) {
-        struct DPRelay_flow *flow = UPPER_OBJECT(node, struct DPRelay_flow, src_list_node);
-        free_flow(flow);
-    }
-    
-    ASSERT(!o->current_flow)
     
     // free DataProtoDevice
     DataProtoDevice_Free(&o->device);
@@ -188,19 +178,21 @@ void DPRelaySource_Free (DPRelaySource *o)
     BufferWriter_Free(&o->writer);
 }
 
-void DPRelaySource_SubmitFrame (DPRelaySource *o, DPRelaySink *sink, uint8_t *data, int data_len, int num_packets, int inactivity_time)
+void DPRelayRouter_SubmitFrame (DPRelayRouter *o, DPRelaySource *src, DPRelaySink *sink, uint8_t *data, int data_len, int num_packets, int inactivity_time)
 {
     ASSERT(data_len >= 0)
     ASSERT(data_len <= o->frame_mtu)
     ASSERT(num_packets > 0)
     ASSERT(!o->current_flow)
+    ASSERT(src->router == o)
     DebugObject_Access(&o->d_obj);
+    DebugObject_Access(&src->d_obj);
     DebugObject_Access(&sink->d_obj);
     
     // get memory location
     uint8_t *out;
     if (!BufferWriter_StartPacket(&o->writer, &out)) {
-        BLog(BLOG_ERROR, "BufferWriter_StartPacket failed for frame %d->%d !?", (int)o->source_id, (int)sink->dest_id);
+        BLog(BLOG_ERROR, "BufferWriter_StartPacket failed for frame %d->%d !?", (int)src->source_id, (int)sink->dest_id);
         return;
     }
     
@@ -212,15 +204,43 @@ void DPRelaySource_SubmitFrame (DPRelaySource *o, DPRelaySink *sink, uint8_t *da
     
     // get a flow
     // this comes _after_ writing the packet, in case flow initialization schedules jobs
-    struct DPRelay_flow *flow = source_find_flow(o, sink);
+    struct DPRelay_flow *flow = source_find_flow(src, sink);
     if (!flow) {
-        if (!(flow = create_flow(o, sink, num_packets, inactivity_time))) {
+        if (!(flow = create_flow(src, sink, num_packets, inactivity_time))) {
             return;
         }
     }
     
     // remember flow so we know where to route the frame in source_device_handler
     o->current_flow = flow;
+}
+
+void DPRelaySource_Init (DPRelaySource *o, DPRelayRouter *router, peerid_t source_id, BReactor *reactor)
+{
+    DebugObject_Access(&router->d_obj);
+    
+    // init arguments
+    o->router = router;
+    o->source_id = source_id;
+    
+    // init flows list
+    LinkedList1_Init(&o->flows_list);
+    
+    DebugObject_Init(&o->d_obj);
+    DebugCounter_Increment(&o->router->d_ctr);
+}
+
+void DPRelaySource_Free (DPRelaySource *o)
+{
+    DebugCounter_Decrement(&o->router->d_ctr);
+    DebugObject_Free(&o->d_obj);
+    
+    // free flows, detaching them if needed
+    LinkedList1Node *node;
+    while (node = LinkedList1_GetFirst(&o->flows_list)) {
+        struct DPRelay_flow *flow = UPPER_OBJECT(node, struct DPRelay_flow, src_list_node);
+        free_flow(flow);
+    }
 }
 
 void DPRelaySource_PrepareFreeDestinations (DPRelaySource *o)

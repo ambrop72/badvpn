@@ -37,12 +37,18 @@
 struct DPRelay_flow;
 
 typedef struct {
-    peerid_t source_id;
     int frame_mtu;
     BufferWriter writer;
     DataProtoDevice device;
-    LinkedList1 flows_list;
     struct DPRelay_flow *current_flow;
+    DebugObject d_obj;
+    DebugCounter d_ctr;
+} DPRelayRouter;
+
+typedef struct {
+    DPRelayRouter *router;
+    peerid_t source_id;
+    LinkedList1 flows_list;
     DebugObject d_obj;
 } DPRelaySource;
 
@@ -61,9 +67,12 @@ struct DPRelay_flow {
     LinkedList1Node sink_list_node;
 };
 
-int DPRelaySource_Init (DPRelaySource *o, peerid_t source_id, int frame_mtu, BReactor *reactor) WARN_UNUSED;
+int DPRelayRouter_Init (DPRelayRouter *o, int frame_mtu, BReactor *reactor) WARN_UNUSED;
+void DPRelayRouter_Free (DPRelayRouter *o);
+void DPRelayRouter_SubmitFrame (DPRelayRouter *o, DPRelaySource *src, DPRelaySink *sink, uint8_t *data, int data_len, int num_packets, int inactivity_time);
+
+void DPRelaySource_Init (DPRelaySource *o, DPRelayRouter *router, peerid_t source_id, BReactor *reactor);
 void DPRelaySource_Free (DPRelaySource *o);
-void DPRelaySource_SubmitFrame (DPRelaySource *o, DPRelaySink *sink, uint8_t *data, int data_len, int num_packets, int inactivity_time);
 void DPRelaySource_PrepareFreeDestinations (DPRelaySource *o);
 
 void DPRelaySink_Init (DPRelaySink *o, peerid_t dest_id, BReactor *reactor);
