@@ -35,9 +35,11 @@
 
 static void monitor_handler (DataProtoDest *o);
 static void send_keepalive (DataProtoDest *o);
+static void refresh_up_job (DataProtoDest *o);
 static void receive_timer_handler (DataProtoDest *o);
 static void notifier_handler (DataProtoDest *o, uint8_t *data, int data_len);
 static void keepalive_job_handler (DataProtoDest *o);
+static void up_job_handler (DataProtoDest *o);
 
 void monitor_handler (DataProtoDest *o)
 {
@@ -54,20 +56,23 @@ void send_keepalive (DataProtoDest *o)
     PacketRecvBlocker_AllowBlockedPacket(&o->ka_blocker);
 }
 
+void refresh_up_job (DataProtoDest *o)
+{
+    if (o->up != o->up_report) {
+        BPending_Set(&o->up_job);
+    } else {
+        BPending_Unset(&o->up_job);
+    }
+}
+
 void receive_timer_handler (DataProtoDest *o)
 {
     DebugObject_Access(&o->d_obj);
     
-    int prev_up = o->up;
-    
     // consider down
     o->up = 0;
     
-    // call handler if up state changed
-    if (o->handler && o->up != prev_up) {
-        o->handler(o->user, o->up);
-        return;
-    }
+    refresh_up_job(o);
 }
 
 void notifier_handler (DataProtoDest *o, uint8_t *data, int data_len)
@@ -91,6 +96,18 @@ void keepalive_job_handler (DataProtoDest *o)
     DebugObject_Access(&o->d_obj);
     
     send_keepalive(o);
+}
+
+void up_job_handler (DataProtoDest *o)
+{
+    ASSERT(o->up != o->up_report)
+    ASSERT(!o->freeing)
+    DebugObject_Access(&o->d_obj);
+    
+    o->up_report = o->up;
+    
+    o->handler(o->user, o->up);
+    return;
 }
 
 static void device_router_handler (DataProtoDevice *o, uint8_t *buf, int recv_len)
@@ -154,8 +171,12 @@ int DataProtoDest_Init (DataProtoDest *o, BReactor *reactor, PacketPassInterface
     // init receive timer
     BTimer_Init(&o->receive_timer, tolerance_time, (BTimer_handler)receive_timer_handler, o);
     
+    // init handler job
+    BPending_Init(&o->up_job, BReactor_PendingGroup(o->reactor), (BPending_handler)up_job_handler, o);
+    
     // set not up
     o->up = 0;
+    o->up_report = 0;
     
     // set not freeing
     o->freeing = 0;
@@ -180,6 +201,9 @@ void DataProtoDest_Free (DataProtoDest *o)
 {
     DebugCounter_Free(&o->flows_counter);
     DebugObject_Free(&o->d_obj);
+    
+    // free handler job
+    BPending_Free(&o->up_job);
     
     // allow freeing queue flows
     PacketPassFairQueue_PrepareFree(&o->queue);
@@ -229,8 +253,6 @@ void DataProtoDest_Received (DataProtoDest *o, int peer_receiving)
     ASSERT(!o->freeing)
     DebugObject_Access(&o->d_obj);
     
-    int prev_up = o->up;
-    
     // reset receive timer
     BReactor_SetTimer(o->reactor, &o->receive_timer);
     
@@ -244,11 +266,7 @@ void DataProtoDest_Received (DataProtoDest *o, int peer_receiving)
         o->up = 1;
     }
     
-    // call handler if up state changed
-    if (o->handler && o->up != prev_up) {
-        o->handler(o->user, o->up);
-        return;
-    }
+    refresh_up_job(o);
 }
 
 int DataProtoDevice_Init (DataProtoDevice *o, PacketRecvInterface *input, DataProtoDevice_handler handler, void *user, BReactor *reactor)

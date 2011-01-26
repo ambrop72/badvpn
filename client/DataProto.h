@@ -33,7 +33,6 @@
 #include <misc/debug.h>
 #include <system/DebugObject.h>
 #include <system/BReactor.h>
-#include <system/BPending.h>
 #include <flow/PacketPassFairQueue.h>
 #include <flow/PacketPassInactivityMonitor.h>
 #include <flow/PacketPassNotifier.h>
@@ -63,9 +62,11 @@ typedef struct {
     PacketPassFairQueueFlow ka_qflow;
     BTimer receive_timer;
     int up;
+    int up_report;
     DataProtoDest_handler handler;
     void *user;
     BPending keepalive_job;
+    BPending up_job;
     int freeing;
     DebugCounter flows_counter;
     DebugObject d_obj;
@@ -110,7 +111,7 @@ typedef struct {
  * @param o the object
  * @param reactor reactor we live in
  * @param output output interface. Must support cancel functionality. Its MTU must be
- *               >=sizeof(struct dataproto_header)+sizeof(struct dataproto_peer_id).
+ *               >=DATAPROTO_MAX_OVERHEAD.
  * @param keepalive_time keepalive time
  * @param tolerance_time after how long of not having received anything from the peer
  *                       to consider the link down
@@ -141,9 +142,6 @@ void DataProtoDest_PrepareFree (DataProtoDest *o);
 /**
  * Notifies the object that a packet was received from the peer.
  * Must not be in freeing state.
- * Must not be called from output Send calls.
- * May call the up state handler.
- * May invoke output I/O.
  * 
  * @param o the object
  * @param peer_receiving whether the DATAPROTO_FLAGS_RECEIVING_KEEPALIVES flag was set in the packet.
@@ -220,16 +218,14 @@ void DataProtoLocalSource_Route (DataProtoLocalSource *o, int more);
  * The object must be in not attached state.
  * 
  * @param o the object
- * @param dp destination to attach to. This object's frame_mtu must be <= destination's
- *           (output MTU)-(sizeof(struct dataproto_header)+sizeof(struct dataproto_peer_id)).
+ * @param dp destination to attach to. This object's frame_mtu must be <=
+ *           (output MTU of dp) - DATAPROTO_MAX_OVERHEAD.
  */
 void DataProtoLocalSource_Attach (DataProtoLocalSource *o, DataProtoDest *dp);
 
 /**
  * Detaches the object from a destination.
  * The object must be in attached state.
- * Unless the destination is in freeing state, must not be called from destination's
- * output Send calls.
  * 
  * @param o the object
  */
