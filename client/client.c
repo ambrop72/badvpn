@@ -1245,7 +1245,7 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     DPRelaySource_Init(&peer->relay_source, &relay_router, peer->id, &ss);
     
     // init relay sink
-    DPRelaySink_Init(&peer->relay_sink, peer->id, &ss);
+    DPRelaySink_Init(&peer->relay_sink, peer->id);
     
     // have no link
     peer->have_link = 0;

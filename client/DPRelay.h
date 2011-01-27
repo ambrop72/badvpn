@@ -75,7 +75,7 @@ void DPRelaySource_Init (DPRelaySource *o, DPRelayRouter *router, peerid_t sourc
 void DPRelaySource_Free (DPRelaySource *o);
 void DPRelaySource_PrepareFreeDestinations (DPRelaySource *o);
 
-void DPRelaySink_Init (DPRelaySink *o, peerid_t dest_id, BReactor *reactor);
+void DPRelaySink_Init (DPRelaySink *o, peerid_t dest_id);
 void DPRelaySink_Free (DPRelaySink *o);
 void DPRelaySink_Attach (DPRelaySink *o, DataProtoDest *dest);
 void DPRelaySink_Detach (DPRelaySink *o);

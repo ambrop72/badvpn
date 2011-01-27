@@ -257,7 +257,7 @@ void DPRelaySource_PrepareFreeDestinations (DPRelaySource *o)
     }
 }
 
-void DPRelaySink_Init (DPRelaySink *o, peerid_t dest_id, BReactor *reactor)
+void DPRelaySink_Init (DPRelaySink *o, peerid_t dest_id)
 {
     // init arguments
     o->dest_id = dest_id;
