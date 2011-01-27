@@ -165,7 +165,7 @@ process vpn {
 
     # Construct dynamic parts of command line options.
     # The VPN client program needs to know some IP addresses in order to tell other peers where to connect to.
-    # Obtain this informations from variables in the "lan" process through the depend() statement. TODO: not implemented yet!
+    # Obtain this informations from variables in the "lan" process through the depend() statement.
 
     # Construct the local address (addr + port).
     concat(landep.ipaddr, ":", port) local_addr_arg;
@@ -189,9 +189,87 @@ process vpn {
     ) args;
 
     # Start the BadVPN backend.
+    # "badvpn" is the user account which the VPN client will run as.
+    # If you use SSL, the NSS database must be accessible to this user.
     net.backend.badvpn(dev, "badvpn", "/usr/bin/badvpn-client-26", args);
 
     # Assign an IP address to the VPN interface.
     # (we could easily use DHCP here!)
     net.ipv4.addr(dev, "10.0.0.1", "24");
+}
+
+#
+# BadVPN, but configured differently based on what network we're in.
+# The network is identified based on the IP address we were assigned by DHCP.
+# The different configuration should provide appropriate addresses to the VPN client.
+#
+
+process lan {
+    ... (interface config stuff using DHCP, see above) ...
+    ... (the 'ipaddr' variable holds the local IP address) ...
+
+    # Match the address to various known networks.
+    ip_in_network(ipaddr, "192.168.4.0", "24") is_lan1;
+    ip_in_network(ipaddr, "192.168.7.0", "24") is_lan2;
+
+    # Allow VPN to start at this point.
+    provide("LAN");
+}
+
+process vpn {
+    # Need the local interface to be working in order start VPN.
+    depend("LAN") landep;
+
+    # Choose the name of the network interface.
+    var("tap3") dev;
+
+    # Choose appropriate configuration.
+    provide("VPN_CONF_START");
+    depend("VPN_CONF_END") config;
+
+    # Start the BadVPN backend.
+    net.backend.badvpn(dev, "badvpn", "/usr/bin/badvpn-client-26", config.args);
+
+    # Assign an IP address to the VPN interface.
+    net.ipv4.addr(dev, "10.0.0.1", "24");
+}
+
+process vpn_config_lan1 {
+    depend("VPN_CONF_START") dep;
+
+    # Proceed only if we're in lan1.
+    if(dep.landep.is_lan1);
+
+    list(
+        ...
+    ) args;
+
+    provide("VPN_CONF_END");
+}
+
+process vpn_config_lan2 {
+    depend("VPN_CONF_START") dep;
+
+    # Proceed only if we're in lan2.
+    if(dep.landep.is_lan2);
+
+    list(
+        ...
+    ) args;
+
+    provide("VPN_CONF_END");
+}
+
+process vpn_config_inet {
+    depend("VPN_CONF_START") dep;
+
+    # Proceed only if we're not in any known network.
+    ifnot(dep.landep.is_lan1);
+    ifnot(dep.landep.is_lan2);
+
+    list(
+        ...
+    ) args;
+
+    provide("VPN_CONF_END");
 }
