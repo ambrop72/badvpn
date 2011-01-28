@@ -75,6 +75,14 @@ badvpn-client \- VPN node daemon for the BadVPN peer-to-peer VPN system
 .br
 .RB "[" --send-buffer-relay-size " <num-packets>]"
 .br
+.RB "[" --max-macs " <num>]"
+.br
+.RB "[" --max-groups " <num>]"
+.br
+.RB "[" --igmp-group-membership-interval " <ms>]"
+.br
+.RB "[" --igmp-last-member-query-time " <ms>]"
+.br
 .RE
 .SH INTRODUCTION
 .P
@@ -205,6 +213,20 @@ number of packets.
 .BR --send-buffer-relay-size " <num-packets>"
 Sets the minimum size of the peers' send buffers for relaying frames from other peers, in number of
 packets.
+.TP
+.BR --max-macs " <num>"
+Sets the maximum number of MAC addresses to remember for a peer. When the number is exceeded, the least
+recently used slot will be reused.
+.TP
+.BR --max-groups " <num>"
+Sets the maximum number of IGMP group memberships to remember for a peer. When the number is exceeded,
+the least recently used slot will be reused.
+.TP
+.BR --igmp-group-membership-interval " <ms>"
+Sets the Group Membership Interval parameter for IGMP snooping, in milliseconds.
+.TP
+.BR --igmp-last-member-query-time " <ms>"
+Sets the Last Member Query Time parameter for IGMP snooping, in milliseconds.
 .SH "EXIT CODE"
 .P
 If initialization fails, exits with code 1. Otherwise runs until termination is requested or server connection

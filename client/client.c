@@ -114,6 +114,10 @@ struct {
     int num_scopes;
     int send_buffer_size;
     int send_buffer_relay_size;
+    int max_macs;
+    int max_groups;
+    int igmp_group_membership_interval;
+    int igmp_last_member_query_time;
 } options;
 
 // bind addresses
@@ -513,7 +517,7 @@ int main (int argc, char *argv[])
     BAVL_Init(&peers_tree, OFFSET_DIFF(struct peer_data, id, tree_node), (BAVL_comparator)peerid_comparator, NULL);
     
     // init frame decider
-    FrameDecider_Init(&frame_decider, PEER_MAX_MACS, PEER_MAX_GROUPS, IGMP_GROUP_MEMBERSHIP_INTERVAL, IGMP_LAST_MEMBER_QUERY_TIME, &ss);
+    FrameDecider_Init(&frame_decider, options.max_macs, options.max_groups, options.igmp_group_membership_interval, options.igmp_last_member_query_time, &ss);
     
     // init relays list
     LinkedList2_Init(&relays);
@@ -656,6 +660,10 @@ void print_help (const char *name)
         "        )\n"
         "        [--send-buffer-size <num-packets>]\n"
         "        [--send-buffer-relay-size <num-packets>]\n"
+        "        [--max-macs <num>]\n"
+        "        [--max-groups <num>]\n"
+        "        [--igmp-group-membership-interval <ms>]\n"
+        "        [--igmp-last-member-query-time <ms>]\n"
         "Address format is a.b.c.d:port (IPv4) or [addr]:port (IPv6).\n",
         name
     );
@@ -695,10 +703,14 @@ int parse_arguments (int argc, char *argv[])
     options.encryption_mode = -1;
     options.hash_mode = -1;
     options.otp_mode = SPPROTO_OTP_MODE_NONE;
-    options.fragmentation_latency = PEER_UDP_DEFAULT_FRAGMENTATION_LATENCY;
+    options.fragmentation_latency = PEER_DEFAULT_UDP_FRAGMENTATION_LATENCY;
     options.peer_ssl = 0;
     options.send_buffer_size = PEER_DEFAULT_SEND_BUFFER_SIZE;
     options.send_buffer_relay_size = PEER_DEFAULT_SEND_BUFFER_RELAY_SIZE;
+    options.max_macs = PEER_DEFAULT_MAX_MACS;
+    options.max_groups = PEER_DEFAULT_MAX_GROUPS;
+    options.igmp_group_membership_interval = DEFAULT_IGMP_GROUP_MEMBERSHIP_INTERVAL;
+    options.igmp_last_member_query_time = DEFAULT_IGMP_LAST_MEMBER_QUERY_TIME;
     
     int have_fragmentation_latency = 0;
     
@@ -1004,6 +1016,50 @@ int parse_arguments (int argc, char *argv[])
                 return 0;
             }
             if ((options.send_buffer_relay_size = atoi(argv[i + 1])) <= 0) {
+                fprintf(stderr, "%s: wrong argument\n", arg);
+                return 0;
+            }
+            i++;
+        }
+        else if (!strcmp(arg, "--max-macs")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            if ((options.max_macs = atoi(argv[i + 1])) <= 0) {
+                fprintf(stderr, "%s: wrong argument\n", arg);
+                return 0;
+            }
+            i++;
+        }
+        else if (!strcmp(arg, "--max-groups")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            if ((options.max_groups = atoi(argv[i + 1])) <= 0) {
+                fprintf(stderr, "%s: wrong argument\n", arg);
+                return 0;
+            }
+            i++;
+        }
+        else if (!strcmp(arg, "--igmp-group-membership-interval")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            if ((options.igmp_group_membership_interval = atoi(argv[i + 1])) <= 0) {
+                fprintf(stderr, "%s: wrong argument\n", arg);
+                return 0;
+            }
+            i++;
+        }
+        else if (!strcmp(arg, "--igmp-last-member-query-time")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            if ((options.igmp_last_member_query_time = atoi(argv[i + 1])) <= 0) {
                 fprintf(stderr, "%s: wrong argument\n", arg);
                 return 0;
             }

@@ -49,11 +49,11 @@
 // maximum number of peers
 #define MAX_PEERS 256
 // maximum number of peer's MAC addresses to remember
-#define PEER_MAX_MACS 16
+#define PEER_DEFAULT_MAX_MACS 16
 // maximum number of multicast addresses per peer
-#define PEER_MAX_GROUPS 16
+#define PEER_DEFAULT_MAX_GROUPS 16
 // how long we wait for a packet to reach full size before sending it (see FragmentProtoDisassembler latency argument)
-#define PEER_UDP_DEFAULT_FRAGMENTATION_LATENCY 0
+#define PEER_DEFAULT_UDP_FRAGMENTATION_LATENCY 0
 // value related to how much out-of-order input we tolerate (see FragmentProtoAssembler num_frames argument)
 #define PEER_UDP_ASSEMBLER_NUM_FRAMES 4
 // keep-alive packet interval for p2p communication
@@ -71,17 +71,15 @@
 
 // for how long a peer can send no Membership Reports for a group
 // before the peer and group are disassociated
-#define IGMP_GROUP_MEMBERSHIP_INTERVAL 260000
+#define DEFAULT_IGMP_GROUP_MEMBERSHIP_INTERVAL 260000
 // how long to wait for joins after a Group Specific query has been
 // forwarded to a peer before assuming there are no listeners at the peer
-#define IGMP_LAST_MEMBER_QUERY_TIME 2000
+#define DEFAULT_IGMP_LAST_MEMBER_QUERY_TIME 2000
 
 // maximum bind addresses
 #define MAX_BIND_ADDRS 8
-
 // maximum external addresses per bind address
 #define MAX_EXT_ADDRS 8
-
 // maximum scopes
 #define MAX_SCOPES 8
 
