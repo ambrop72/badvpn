@@ -20,3 +20,4 @@ mkdir -p "${DEST}"/lib
 cp "${NSSOBJ}/lib"/{libnspr4,libplc4,libplds4,ssl3,smime3,nss3}.lib "${DEST}"/lib/
 mkdir -p "${DEST}"/bin
 cp "${NSSOBJ}/lib"/*.dll "${DEST}"/bin/
+cp "${NSSOBJ}/bin"/*.exe "${DEST}"/bin/
