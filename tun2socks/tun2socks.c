@@ -858,7 +858,8 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     
     DEAD_ENTER(client->dead_client)
     SYNC_COMMIT
-    if (DEAD_LEAVE(client->dead_client) == -1) {
+    DEAD_LEAVE2(client->dead_client)
+    if (DEAD_KILLED == -1) {
         return ERR_ABRT;
     }
     
@@ -1066,7 +1067,8 @@ err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t e
         client_send_to_socks(client);
         DEAD_ENTER(client->dead_client)
         SYNC_COMMIT
-        if (DEAD_LEAVE(client->dead_client) == -1) {
+        DEAD_LEAVE2(client->dead_client)
+        if (DEAD_KILLED == -1) {
             return ERR_ABRT;
         }
     }
@@ -1246,7 +1248,7 @@ int client_socks_recv_send_out (struct tcp_client *client)
     // 0 means it wasn't and the client (pcb) is still up
     
     do {
-        int to_write = BMIN(client->socks_recv_buf_used - client->socks_recv_buf_sent, tcp_sndbuf(client->pcb));
+        int to_write = bmin_int(client->socks_recv_buf_used - client->socks_recv_buf_sent, tcp_sndbuf(client->pcb));
         if (to_write == 0) {
             break;
         }
@@ -1331,7 +1333,8 @@ err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
             client_socks_recv_initiate(client);
             DEAD_ENTER(client->dead)
             SYNC_COMMIT
-            if (DEAD_LEAVE(client->dead)) {
+            DEAD_LEAVE2(client->dead)
+            if (DEAD_KILLED) {
                 return ERR_ABRT;
             }
         }

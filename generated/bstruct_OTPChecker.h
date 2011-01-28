@@ -39,7 +39,7 @@ static void oc_tableParams_Init (oc_tableParams *o, int num_entries)
     cur_size = (sizeof(uint16_t));
     cur_align = (__alignof__(uint16_t));
     cur_count = (1);
-    o->id_off = BALIGN_UP_N(o->len, cur_align);
+    o->id_off = balign_up(o->len, cur_align);
     o->id_size = cur_size;
     #ifndef NDEBUG
     o->id_count = cur_count;
@@ -50,7 +50,7 @@ static void oc_tableParams_Init (oc_tableParams *o, int num_entries)
     cur_size = (sizeof(struct OTPChecker_entry));
     cur_align = (__alignof__(struct OTPChecker_entry));
     cur_count = (num_entries);
-    o->entries_off = BALIGN_UP_N(o->len, cur_align);
+    o->entries_off = balign_up(o->len, cur_align);
     o->entries_size = cur_size;
     #ifndef NDEBUG
     o->entries_count = cur_count;
@@ -113,7 +113,7 @@ static void oc_tablesParams_Init (oc_tablesParams *o, int num_tables, int num_en
     cur_size = o->tables_params.len;
     cur_align = o->tables_params.align;
     cur_count = (num_tables);
-    o->tables_off = BALIGN_UP_N(o->len, cur_align);
+    o->tables_off = balign_up(o->len, cur_align);
     o->tables_size = cur_size;
     #ifndef NDEBUG
     o->tables_count = cur_count;

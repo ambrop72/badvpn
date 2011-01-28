@@ -83,7 +83,7 @@ static void encode_packet (SPProtoEncoder *o)
     
     if (SPPROTO_HAVE_ENCRYPTION(o->sp_params)) {
         // encrypting pad(header + payload)
-        int cyphertext_len = BALIGN_UP_N((plaintext_len + 1), o->enc_block_size);
+        int cyphertext_len = balign_up((plaintext_len + 1), o->enc_block_size);
         
         // write padding
         plaintext[plaintext_len] = 1;
@@ -226,7 +226,7 @@ int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct s
     
     // allocate plaintext buffer
     if (SPPROTO_HAVE_ENCRYPTION(o->sp_params)) {
-        int buf_size = BALIGN_UP_N((SPPROTO_HEADER_LEN(o->sp_params) + o->input_mtu + 1), o->enc_block_size);
+        int buf_size = balign_up((SPPROTO_HEADER_LEN(o->sp_params) + o->input_mtu + 1), o->enc_block_size);
         if (!(o->buf = malloc(buf_size))) {
             goto fail1;
         }

@@ -38,8 +38,6 @@
  * Macro for forced assertions.
  * Evaluates the argument and terminates the program abnormally
  * if the result is false.
- * Expands to an expression with the type and value of the result
- * of the evaluation.
  */
 
 /**
@@ -48,7 +46,6 @@
  * Macro for assertions.
  * The argument may or may not be evaluated.
  * If the argument is evaluated, it must not evaluate to false.
- * Expands to an expression of type void.
  */
 
 /**
@@ -57,8 +54,6 @@
  * Macro for always-evaluated assertions.
  * The argument is evaluated.
  * The argument must not evaluate to false.
- * Expands to an expression with the type and value of the result
- * of the evaluation.
  */
 
 /**
@@ -94,30 +89,27 @@
 
 #define ASSERT_FORCE(e) \
     { \
-        typeof (e) _assert_res = (e); \
-        if (!_assert_res) { \
+        if (!(e)) { \
             fprintf(stderr, "%s:%d Assertion failed\n", __FILE__, __LINE__); \
             abort(); \
         } \
-        _assert_res; \
     }
 
 #ifdef NDEBUG
-    #define DEBUG_ZERO_MEMORY(buf, len)
-    #define ASSERT(e) { ; }
+    #define DEBUG_ZERO_MEMORY(buf, len) {}
+    #define ASSERT(e) {}
     #define ASSERT_EXECUTE(e) { (e); }
 #else
     #define DEBUG_ZERO_MEMORY(buf, len) { memset((buf), 0, (len)); }
     #ifdef BADVPN_USE_C_ASSERT
-        #define ASSERT(e) { assert(e); ; }
+        #define ASSERT(e) { assert(e); }
         #define ASSERT_EXECUTE(e) \
             { \
-                typeof (e) _assert_res = (e); \
+                int _assert_res = !!(e); \
                 assert(_assert_res); \
-                _assert_res; \
             }
     #else
-        #define ASSERT(e) { ASSERT_FORCE(e); ; }
+        #define ASSERT(e) ASSERT_FORCE(e)
         #define ASSERT_EXECUTE(e) ASSERT_FORCE(e)
     #endif
 #endif

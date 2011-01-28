@@ -42,9 +42,9 @@ static void write_chunks (FragmentProtoDisassembler *o)
     // write chunks to output packet
     do {
         // calculate chunk length
-        int chunk_len = BMIN(IN_AVAIL, OUT_AVAIL);
+        int chunk_len = bmin_int(IN_AVAIL, OUT_AVAIL);
         if (o->chunk_mtu > 0) {
-            chunk_len = BMIN(chunk_len, o->chunk_mtu);
+            chunk_len = bmin_int(chunk_len, o->chunk_mtu);
         }
         
         // write chunk header

@@ -20,6 +20,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <limits.h>
+
 #include <security/OTPCalculator.h>
 
 int OTPCalculator_Init (OTPCalculator *calc, int num_otps, int cipher)
@@ -31,11 +33,15 @@ int OTPCalculator_Init (OTPCalculator *calc, int num_otps, int cipher)
     calc->num_otps = num_otps;
     calc->cipher = cipher;
     
+    if (calc->num_otps > SIZE_MAX / sizeof(otp_t)) {
+        goto fail0;
+    }
+    
     // remember block size
     calc->block_size = BEncryption_cipher_block_size(calc->cipher);
     
     // calculate number of blocks
-    calc->num_blocks = BDIVIDE_UP(calc->num_otps * sizeof(otp_t), calc->block_size);
+    calc->num_blocks = bdivide_up(calc->num_otps * sizeof(otp_t), calc->block_size);
     
     // allocate buffer
     calc->data = malloc(calc->num_blocks * calc->block_size);

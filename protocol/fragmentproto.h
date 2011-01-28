@@ -84,7 +84,7 @@ static int fragmentproto_max_chunks_for_frame (int carrier_mtu, int frame_mtu)
     ASSERT(carrier_mtu > sizeof(struct fragmentproto_chunk_header))
     ASSERT(frame_mtu >= 0)
     
-    return (BDIVIDE_UP(frame_mtu, (carrier_mtu - sizeof(struct fragmentproto_chunk_header))) + 1);
+    return (bdivide_up(frame_mtu, (carrier_mtu - sizeof(struct fragmentproto_chunk_header))) + 1);
 }
 
 #endif

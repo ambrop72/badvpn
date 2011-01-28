@@ -27,38 +27,32 @@
 #ifndef BADVPN_MISC_BALIGN_H
 #define BADVPN_MISC_BALIGN_H
 
-#include <stdlib.h>
+#include <stddef.h>
 
 /**
- * Aligns the integer x up to n bytes.
+ * Aligns x up to n.
  */
-#define BALIGN_UP_N(x,n) \
-    ({\
-        typeof (x) _x = (x);\
-        typeof (n) _n = (n);\
-        typeof (x) _r = _x % _n;\
-        _r ? _x + (_n - _r) : _x;\
-    })
+static size_t balign_up (size_t x, size_t n)
+{
+    size_t r = x % n;
+    return (r ? x + (n - r) : x);
+}
 
 /**
- * Aligns the integer x down to n bytes.
+ * Aligns x down to n.
  */
-#define BALIGN_DOWN_N(x,n) \
-    ({\
-        typeof (x) _x = (x);\
-        typeof (n) _n = (n);\
-        _x - (_x % _n);\
-    })
+static size_t balign_down (size_t x, size_t n)
+{
+    return (x - (x % n));
+}
 
 /**
- * Calculates the quotient of integers a and b, rounded up.
+ * Calculates the quotient of a and b, rounded up.
  */
-#define BDIVIDE_UP(a,b) \
-    ({\
-        typeof (a) _a = (a);\
-        typeof (b) _b = (b);\
-        typeof (a) _r = _a % _b;\
-        _r > 0 ? _a / _b + 1 : _a / _b;\
-    })
+static size_t bdivide_up (size_t a, size_t b)
+{
+    size_t r = a % b;
+    return (r > 0 ? a / b + 1 : a / b);
+}
 
 #endif

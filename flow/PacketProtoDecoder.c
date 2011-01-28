@@ -140,7 +140,7 @@ int PacketProtoDecoder_Init (PacketProtoDecoder *enc, FlowErrorReporter rep, Str
     PacketPassInterface_Sender_Init(enc->output, (PacketPassInterface_handler_done)output_handler_done, enc);
     
     // set output MTU, limit by maximum payload size
-    enc->output_mtu = BMIN(PacketPassInterface_GetMTU(enc->output), PACKETPROTO_MAXPAYLOAD);
+    enc->output_mtu = bmin_int(PacketPassInterface_GetMTU(enc->output), PACKETPROTO_MAXPAYLOAD);
     
     // init buffer state
     enc->buf_size = PACKETPROTO_ENCLEN(enc->output_mtu);

@@ -159,7 +159,7 @@ static void input_handler_send (PacketPassFairQueueFlow *flow, uint8_t *data, in
         m->previous_flow = NULL;
     } else {
         // raise time
-        flow->time = BMAX(flow->time, get_current_time(m));
+        flow->time = bmax_uint64(flow->time, get_current_time(m));
     }
     
     // queue flow

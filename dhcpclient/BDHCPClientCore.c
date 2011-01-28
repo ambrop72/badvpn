@@ -697,7 +697,7 @@ int BDHCPClientCore_GetDNS (BDHCPClientCore *o, uint32_t *out_dns_servers, size_
     ASSERT(o->state == STATE_FINISHED || o->state == STATE_RENEWING)
     DebugObject_Access(&o->d_obj);
     
-    int num_return = BMIN(o->acked.domain_name_servers_count, max_dns_servers);
+    int num_return = bmin_int(o->acked.domain_name_servers_count, max_dns_servers);
     
     memcpy(out_dns_servers, o->acked.domain_name_servers, num_return * sizeof(uint32_t));
     return num_return;

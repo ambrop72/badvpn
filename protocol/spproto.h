@@ -148,7 +148,7 @@ static int spproto_payload_mtu_for_carrier_mtu (struct spproto_security_params p
         return (carrier_mtu - SPPROTO_HEADER_LEN(params));
     } else {
         int block_size = BEncryption_cipher_block_size(params.encryption_mode);
-        return (BALIGN_DOWN_N(carrier_mtu, block_size) - block_size - SPPROTO_HEADER_LEN(params) - 1);
+        return (balign_down(carrier_mtu, block_size) - block_size - SPPROTO_HEADER_LEN(params) - 1);
     }
 }
 
@@ -178,7 +178,7 @@ static int spproto_carrier_mtu_for_payload_mtu (struct spproto_security_params p
             return -1;
         }
         
-        return (block_size + BALIGN_UP_N((SPPROTO_HEADER_LEN(params) + payload_mtu + 1), block_size));
+        return (block_size + balign_up((SPPROTO_HEADER_LEN(params) + payload_mtu + 1), block_size));
     }
 }
 

@@ -33,7 +33,7 @@ static void str0Params_Init (str0Params *o, int n)
     cur_size = (sizeof(int));
     cur_align = (__alignof__(int));
     cur_count = (n);
-    o->x_off = BALIGN_UP_N(o->len, cur_align);
+    o->x_off = balign_up(o->len, cur_align);
     o->x_size = cur_size;
     #ifndef NDEBUG
     o->x_count = cur_count;
@@ -100,7 +100,7 @@ static void str1Params_Init (str1Params *o, int nb, int nc, int m)
     cur_size = (sizeof(int));
     cur_align = (__alignof__(int));
     cur_count = (1);
-    o->a_off = BALIGN_UP_N(o->len, cur_align);
+    o->a_off = balign_up(o->len, cur_align);
     o->a_size = cur_size;
     #ifndef NDEBUG
     o->a_count = cur_count;
@@ -111,7 +111,7 @@ static void str1Params_Init (str1Params *o, int nb, int nc, int m)
     cur_size = (sizeof(char));
     cur_align = (__alignof__(char));
     cur_count = (nb);
-    o->b_off = BALIGN_UP_N(o->len, cur_align);
+    o->b_off = balign_up(o->len, cur_align);
     o->b_size = cur_size;
     #ifndef NDEBUG
     o->b_count = cur_count;
@@ -122,7 +122,7 @@ static void str1Params_Init (str1Params *o, int nb, int nc, int m)
     cur_size = (sizeof(double));
     cur_align = (__alignof__(double));
     cur_count = (nc);
-    o->c_off = BALIGN_UP_N(o->len, cur_align);
+    o->c_off = balign_up(o->len, cur_align);
     o->c_size = cur_size;
     #ifndef NDEBUG
     o->c_count = cur_count;
@@ -134,7 +134,7 @@ static void str1Params_Init (str1Params *o, int nb, int nc, int m)
     cur_size = o->d_params.len;
     cur_align = o->d_params.align;
     cur_count = (1);
-    o->d_off = BALIGN_UP_N(o->len, cur_align);
+    o->d_off = balign_up(o->len, cur_align);
     o->d_size = cur_size;
     #ifndef NDEBUG
     o->d_count = cur_count;

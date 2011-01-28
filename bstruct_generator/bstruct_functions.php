@@ -217,7 +217,7 @@ EOD;
 
 EOD;
 
-            $off = "BALIGN_UP_N(o->len, cur_align)";
+            $off = "balign_up(o->len, cur_align)";
             $len = "(cur_count * cur_size)";
 
             echo <<<EOD
