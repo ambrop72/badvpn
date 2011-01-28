@@ -838,6 +838,9 @@ void client_add (struct client_data *client)
 {
     ASSERT(clients_num < MAX_CLIENTS)
     
+    // set state init (for client_log)
+    client->initstatus = INITSTATUS_INIT;
+    
     if (options.ssl) {
         // initialize SSL
         
@@ -904,13 +907,13 @@ void client_add (struct client_data *client)
     BPending_Init(&client->publish_job, BReactor_PendingGroup(&ss), (BPending_handler)client_publish_job, client);
     LinkedList2Iterator_Init(&client->publish_it, &clients, 1, NULL);
     
+    // set state
+    client->initstatus = (options.ssl ? INITSTATUS_HANDSHAKE : INITSTATUS_WAITHELLO);
+    
     client_log(client, BLOG_INFO, "initialized");
     
     // start I/O
     if (options.ssl) {
-        // set client state
-        client->initstatus = INITSTATUS_HANDSHAKE;
-        
         // set read handler for driving handshake
         BPRFileDesc_AddEventHandler(&client->ssl_bprfd, PR_POLL_READ, (BPRFileDesc_handler)client_handshake_read_handler, client);
         
@@ -918,9 +921,6 @@ void client_add (struct client_data *client)
         client_try_handshake(client);
         return;
     } else {
-        // set client state
-        client->initstatus = INITSTATUS_WAITHELLO;
-        
         return;
     }
     
@@ -1053,7 +1053,11 @@ void client_log (struct client_data *client, int level, const char *fmt, ...)
     va_start(vl, fmt);
     char addr[BADDR_MAX_PRINT_LEN];
     BAddr_Print(&client->addr, addr);
-    BLog_Append("client %d (%s): ", (int)client->id, addr);
+    BLog_Append("client %d (%s)", (int)client->id, addr);
+    if (client->initstatus >= INITSTATUS_WAITHELLO && options.ssl) {
+        BLog_Append(" (%s)", client->common_name);
+    }
+    BLog_Append(": ");
     BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
     va_end(vl);
 }
@@ -1084,8 +1088,6 @@ void client_try_handshake (struct client_data *client)
         client_log(client, BLOG_NOTICE, "SSL_ForceHandshake failed (%d)", (int)error);
         goto fail0;
     }
-    
-    client_log(client, BLOG_INFO, "handshake complete");
     
     // remove read handler
     BPRFileDesc_RemoveEventHandler(&client->ssl_bprfd, PR_POLL_READ);
@@ -1136,6 +1138,8 @@ void client_try_handshake (struct client_data *client)
     
     // set client state
     client->initstatus = INITSTATUS_WAITHELLO;
+    
+    client_log(client, BLOG_INFO, "handshake complete");
     
     return;
     

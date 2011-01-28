@@ -55,6 +55,8 @@
 #define MAX_LISTEN_ADDRS 16
 
 
+// initializing
+#define INITSTATUS_INIT 0
 // performing SSL handshake
 #define INITSTATUS_HANDSHAKE 1
 // waiting for clienthello
