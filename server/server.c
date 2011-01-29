@@ -1013,11 +1013,6 @@ void client_dealloc (struct client_data *client)
         client_dealloc_io(client);
     }
     
-    // free common name
-    if (client->common_name) {
-        PORT_Free(client->common_name);
-    }
-    
     // free publishing
     LinkedList2Iterator_Free(&client->publish_it);
     BPending_Free(&client->publish_job);
@@ -1040,6 +1035,11 @@ void client_dealloc (struct client_data *client)
         
         // free SSL PRFD
         ASSERT_FORCE(PR_Close(client->ssl_prfd) == PR_SUCCESS)
+    }
+    
+    // free common name
+    if (client->common_name) {
+        PORT_Free(client->common_name);
     }
     
     // free socket
