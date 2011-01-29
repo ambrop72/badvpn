@@ -1280,16 +1280,49 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     // remember flags
     peer->flags = flags;
     
-    // remember certificate if using SSL
+    // set no common name
+    peer->common_name = NULL;
+    
     if (options.ssl) {
+        // remember certificate
         memcpy(peer->cert, cert, cert_len);
         peer->cert_len = cert_len;
+        
+        // copy the certificate and append it a good load of zero bytes,
+        // hopefully preventing the crappy CERT_DecodeCertFromPackage from crashing
+        // by reading past the of its input
+        uint8_t *certbuf = malloc(cert_len + 100);
+        if (!certbuf) {
+            peer_log(peer, BLOG_ERROR, "malloc failed");
+            goto fail1;
+        }
+        memcpy(certbuf, cert, cert_len);
+        memset(certbuf + cert_len, 0, 100);
+        
+        // decode certificate, so we can extract the common name
+        CERTCertificate *nsscert = CERT_DecodeCertFromPackage(certbuf, cert_len);
+        if (!nsscert) {
+            peer_log(peer, BLOG_ERROR, "CERT_DecodeCertFromPackage failed (%d)", PORT_GetError());
+            free(certbuf);
+            goto fail1;
+        }
+        
+        free(certbuf);
+        
+        // remember common name
+        if (!(peer->common_name = CERT_GetCommonName(&nsscert->subject))) {
+            peer_log(peer, BLOG_ERROR, "CERT_GetCommonName failed");
+            CERT_DestroyCertificate(nsscert);
+            goto fail1;
+        }
+        
+        CERT_DestroyCertificate(nsscert);
     }
     
     // init local flow
     if (!DataProtoLocalSource_Init(&peer->local_dpflow, &device.input_dpd, my_id, peer->id, options.send_buffer_size, -1, NULL, NULL)) {
         peer_log(peer, BLOG_ERROR, "DataProtoLocalSource_Init failed");
-        goto fail1;
+        goto fail1a;
     }
     
     // init local receive flow
@@ -1352,6 +1385,10 @@ fail5:
     DPRelaySource_Free(&peer->relay_source);
     PacketPassFairQueueFlow_Free(&peer->local_recv_qflow);
     DataProtoLocalSource_Free(&peer->local_dpflow);
+fail1a:
+    if (peer->common_name) {
+        PORT_Free(peer->common_name);
+    }
 fail1:
     free(peer);
 fail0:
@@ -1434,6 +1471,11 @@ void peer_dealloc (struct peer_data *peer)
     // free local flow
     DataProtoLocalSource_Free(&peer->local_dpflow);
     
+    // free common name
+    if (peer->common_name) {
+        PORT_Free(peer->common_name);
+    }
+    
     // free peer structure
     free(peer);
 }
@@ -1442,7 +1484,11 @@ void peer_log (struct peer_data *peer, int level, const char *fmt, ...)
 {
     va_list vl;
     va_start(vl, fmt);
-    BLog_Append("peer %d: ", (int)peer->id);
+    BLog_Append("peer %d", (int)peer->id);
+    if (peer->common_name) {
+        BLog_Append(" (%s)", peer->common_name);
+    }
+    BLog_Append(": ");
     BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
     va_end(vl);
 }

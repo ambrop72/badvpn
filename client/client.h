@@ -104,6 +104,7 @@ struct peer_data {
     // certificate reported by the server, defined only if using SSL
     uint8_t cert[SCID_NEWCLIENT_MAX_CERT_LEN];
     int cert_len;
+    char *common_name;
     
     // local flow
     DataProtoLocalSource local_dpflow;
