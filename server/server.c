@@ -1099,6 +1099,15 @@ void client_try_handshake (struct client_data *client)
         goto fail0;
     }
     
+    // store certificate
+    SECItem der = cert->derCert;
+    if (der.len > sizeof(client->cert)) {
+        client_log(client, BLOG_NOTICE, "client certificate too big");
+        goto fail1;
+    }
+    memcpy(client->cert, der.data, der.len);
+    client->cert_len = der.len;
+    
     PRArenaPool *arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
     if (!arena) {
         client_log(client, BLOG_ERROR, "PORT_NewArena failed");
@@ -1106,21 +1115,19 @@ void client_try_handshake (struct client_data *client)
     }
     
     // encode certificate
-    SECItem der;
-    der.len = 0;
-    der.data = NULL;
+    memset(&der, 0, sizeof(der));
     if (!SEC_ASN1EncodeItem(arena, &der, cert, SEC_ASN1_GET(CERT_CertificateTemplate))) {
         client_log(client, BLOG_ERROR, "SEC_ASN1EncodeItem failed");
         goto fail2;
     }
     
-    // store certificate
-    if (der.len > sizeof(client->cert)) {
+    // store re-encoded certificate (for compatibility with old clients)
+    if (der.len > sizeof(client->cert_old)) {
         client_log(client, BLOG_NOTICE, "client certificate too big");
         goto fail2;
     }
-    memcpy(client->cert, der.data, der.len);
-    client->cert_len = der.len;
+    memcpy(client->cert_old, der.data, der.len);
+    client->cert_old_len = der.len;
     
     // remember common name
     if (!(client->common_name = CERT_GetCommonName(&cert->subject))) {
@@ -1379,15 +1386,20 @@ int client_send_newclient (struct client_data *client, struct client_data *nc, i
         flags |= SCID_NEWCLIENT_FLAG_RELAY_CLIENT;
     }
     
+    uint8_t *cert_data = NULL;
+    int cert_len = 0;
+    if (options.ssl) {
+        cert_data = (client->version == SC_OLDVERSION ?  nc->cert_old : nc->cert);
+        cert_len = (client->version == SC_OLDVERSION ?  nc->cert_old_len : nc->cert_len);
+    }
+    
     struct sc_server_newclient *pack;
-    if (client_start_control_packet(client, (void **)&pack, sizeof(struct sc_server_newclient) + (options.ssl ? nc->cert_len : 0)) < 0) {
+    if (client_start_control_packet(client, (void **)&pack, sizeof(struct sc_server_newclient) + cert_len) < 0) {
         return -1;
     }
     pack->id = htol16(nc->id);
     pack->flags = htol16(flags);
-    if (options.ssl) {
-        memcpy(pack + 1, nc->cert, nc->cert_len);
-    }
+    memcpy(pack + 1, cert_data, cert_len);
     client_end_control_packet(client, SCID_NEWCLIENT);
     
     return 0;
@@ -1469,9 +1481,9 @@ void process_packet_hello (struct client_data *client, uint8_t *data, int data_l
     }
     
     struct sc_client_hello *msg = (struct sc_client_hello *)data;
-    uint16_t version = ltoh16(msg->version);
+    client->version = ltoh16(msg->version);
     
-    if (version != SC_VERSION) {
+    if (client->version != SC_VERSION && client->version != SC_OLDVERSION) {
         client_log(client, BLOG_NOTICE, "hello: unknown version");
         client_remove(client);
         return;

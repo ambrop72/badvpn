@@ -54,7 +54,8 @@
 
 #include <stdint.h>
 
-#define SC_VERSION 26
+#define SC_VERSION 27
+#define SC_OLDVERSION 26
 
 #define SC_KEEPALIVE_INTERVAL 10000
 

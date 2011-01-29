@@ -111,7 +111,12 @@ struct client_data {
     // client data if using SSL
     uint8_t cert[SCID_NEWCLIENT_MAX_CERT_LEN];
     int cert_len;
+    uint8_t cert_old[SCID_NEWCLIENT_MAX_CERT_LEN];
+    int cert_old_len;
     char *common_name;
+    
+    // client version
+    int version;
     
     // no data timer
     BTimer disconnect_timer;

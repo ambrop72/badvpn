@@ -481,36 +481,13 @@ int compare_certificate (StreamPeerIO *pio, CERTCertificate *cert)
 {
     ASSERT(pio->ssl)
     
-    int ret = 0;
-    
-    // alloc arena
-    PRArenaPool *arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-    if (!arena) {
-        BLog(BLOG_ERROR, "PORT_NewArena failed");
-        goto fail0;
-    }
-    
-    // encode server certificate
-    SECItem der;
-    der.len = 0;
-    der.data = NULL;
-    if (!SEC_ASN1EncodeItem(arena, &der, cert, SEC_ASN1_GET(CERT_CertificateTemplate))) {
-        BLog(BLOG_ERROR, "SEC_ASN1EncodeItem failed");
-        goto fail1;
-    }
-    
-    // byte compare
+    SECItem der = cert->derCert;
     if (der.len != pio->ssl_peer_cert_len || memcmp(der.data, pio->ssl_peer_cert, der.len)) {
         BLog(BLOG_NOTICE, "Client certificate doesn't match");
-        goto fail1;
+        return 0;
     }
     
-    ret = 1;
-    
-fail1:
-    PORT_FreeArena(arena, PR_FALSE);
-fail0:
-    return ret;
+    return 1;
 }
 
 void reset_state (StreamPeerIO *pio)
