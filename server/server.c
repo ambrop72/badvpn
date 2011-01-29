@@ -838,8 +838,13 @@ void client_add (struct client_data *client)
 {
     ASSERT(clients_num < MAX_CLIENTS)
     
-    // set state init (for client_log)
-    client->initstatus = INITSTATUS_INIT;
+    // assign ID
+    client->id = new_client_id();
+    
+    // set no common name
+    client->common_name = NULL;
+    
+    // now client_log() works
     
     if (options.ssl) {
         // initialize SSL
@@ -849,23 +854,24 @@ void client_add (struct client_data *client)
         
         // create SSL file descriptor from the socket's BSocketPRFileDesc
         if (!(client->ssl_prfd = SSL_ImportFD(model_prfd, &client->bottom_prfd))) {
+            client_log(client, BLOG_ERROR, "SSL_ImportFD failed");
             ASSERT_FORCE(PR_Close(&client->bottom_prfd) == PR_SUCCESS)
             goto fail0;
         }
         
         // set server mode
         if (SSL_ResetHandshake(client->ssl_prfd, PR_TRUE) != SECSuccess) {
-            BLog(BLOG_ERROR, "SSL_ResetHandshake failed");
+            client_log(client, BLOG_ERROR, "SSL_ResetHandshake failed");
             goto fail1;
         }
         
         // set require client certificate
         if (SSL_OptionSet(client->ssl_prfd, SSL_REQUEST_CERTIFICATE, PR_TRUE) != SECSuccess) {
-            BLog(BLOG_ERROR, "SSL_OptionSet(SSL_REQUEST_CERTIFICATE) failed");
+            client_log(client, BLOG_ERROR, "SSL_OptionSet(SSL_REQUEST_CERTIFICATE) failed");
             goto fail1;
         }
         if (SSL_OptionSet(client->ssl_prfd, SSL_REQUIRE_CERTIFICATE, PR_TRUE) != SECSuccess) {
-            BLog(BLOG_ERROR, "SSL_OptionSet(SSL_REQUIRE_CERTIFICATE) failed");
+            client_log(client, BLOG_ERROR, "SSL_OptionSet(SSL_REQUIRE_CERTIFICATE) failed");
             goto fail1;
         }
         
@@ -881,10 +887,6 @@ void client_add (struct client_data *client)
     // start disconnect timer
     BTimer_Init(&client->disconnect_timer, CLIENT_NO_DATA_TIME_LIMIT, (BTimer_handler)client_disconnect_timer_handler, client);
     BReactor_SetTimer(&ss, &client->disconnect_timer);
-    
-    // assign ID
-    // must be done before linking
-    client->id = new_client_id();
     
     // link in
     clients_num++;
@@ -1012,7 +1014,7 @@ void client_dealloc (struct client_data *client)
     }
     
     // free common name
-    if (client->initstatus >= INITSTATUS_WAITHELLO && options.ssl) {
+    if (client->common_name) {
         PORT_Free(client->common_name);
     }
     
@@ -1054,7 +1056,7 @@ void client_log (struct client_data *client, int level, const char *fmt, ...)
     char addr[BADDR_MAX_PRINT_LEN];
     BAddr_Print(&client->addr, addr);
     BLog_Append("client %d (%s)", (int)client->id, addr);
-    if (client->initstatus >= INITSTATUS_WAITHELLO && options.ssl) {
+    if (client->common_name) {
         BLog_Append(" (%s)", client->common_name);
     }
     BLog_Append(": ");
@@ -1099,6 +1101,12 @@ void client_try_handshake (struct client_data *client)
         goto fail0;
     }
     
+    // remember common name
+    if (!(client->common_name = CERT_GetCommonName(&cert->subject))) {
+        client_log(client, BLOG_NOTICE, "CERT_GetCommonName failed");
+        goto fail1;
+    }
+    
     // store certificate
     SECItem der = cert->derCert;
     if (der.len > sizeof(client->cert)) {
@@ -1129,15 +1137,9 @@ void client_try_handshake (struct client_data *client)
     memcpy(client->cert_old, der.data, der.len);
     client->cert_old_len = der.len;
     
-    // remember common name
-    if (!(client->common_name = CERT_GetCommonName(&cert->subject))) {
-        client_log(client, BLOG_NOTICE, "CERT_GetCommonName failed");
-        goto fail2;
-    }
-    
     // init I/O chains
     if (!client_init_io(client)) {
-        goto fail3;
+        goto fail2;
     }
     
     PORT_FreeArena(arena, PR_FALSE);
@@ -1151,8 +1153,6 @@ void client_try_handshake (struct client_data *client)
     return;
     
     // handle errors
-fail3:
-    PORT_Free(client->common_name);
 fail2:
     PORT_FreeArena(arena, PR_FALSE);
 fail1:
@@ -1805,13 +1805,8 @@ int clients_allowed (struct client_data *client1, struct client_data *client2)
     }
     
     // set values to compare against
-    if (!options.ssl) {
-        comm_predicate_p1name = "";
-        comm_predicate_p2name = "";
-    } else {
-        comm_predicate_p1name = client1->common_name;
-        comm_predicate_p2name = client2->common_name;
-    }
+    comm_predicate_p1name = (client1->common_name ? client1->common_name : "");
+    comm_predicate_p2name = (client2->common_name ? client2->common_name : "");
     BAddr_GetIPAddr(&client1->addr, &comm_predicate_p1addr);
     BAddr_GetIPAddr(&client2->addr, &comm_predicate_p2addr);
     
@@ -1871,13 +1866,8 @@ int relay_allowed (struct client_data *client, struct client_data *relay)
     }
     
     // set values to compare against
-    if (!options.ssl) {
-        relay_predicate_pname = "";
-        relay_predicate_rname = "";
-    } else {
-        relay_predicate_pname = client->common_name;
-        relay_predicate_rname = relay->common_name;
-    }
+    relay_predicate_pname = (client->common_name ? client->common_name : "");
+    relay_predicate_rname = (relay->common_name ? relay->common_name : "");
     BAddr_GetIPAddr(&client->addr, &relay_predicate_paddr);
     BAddr_GetIPAddr(&relay->addr, &relay_predicate_raddr);
     
