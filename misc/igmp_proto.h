@@ -40,11 +40,6 @@
 #define IGMP_RECORD_TYPE_CHANGE_TO_INCLUDE_MODE 3
 #define IGMP_RECORD_TYPE_CHANGE_TO_EXCLUDE_MODE 4
 
-#define GET_MRC_EXP(_mrc) (((_mrc)&0x70)>>4)
-#define GET_MRC_MANT(_mrc) (((_mrc)&0x0F)>>0)
-
-#define GET_MRC_MRT(_mrc) ((_mrc)<128?((uint16_t)(_mrc)):(((uint16_t)(GET_MRC_MANT(_mrc)|0x10))<<(GET_MRC_EXP(_mrc)+3)))
-
 struct igmp_source {
     uint32_t addr;
 } __attribute__((packed));

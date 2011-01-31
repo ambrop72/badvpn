@@ -1300,7 +1300,7 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
         memset(certbuf + cert_len, 0, 100);
         
         // decode certificate, so we can extract the common name
-        CERTCertificate *nsscert = CERT_DecodeCertFromPackage(certbuf, cert_len);
+        CERTCertificate *nsscert = CERT_DecodeCertFromPackage((char *)certbuf, cert_len);
         if (!nsscert) {
             peer_log(peer, BLOG_ERROR, "CERT_DecodeCertFromPackage failed (%d)", PORT_GetError());
             free(certbuf);

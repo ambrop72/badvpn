@@ -73,7 +73,7 @@ static uint16_t udp_checksum (uint8_t *udp, uint16_t len, uint32_t source_addr, 
     } else {
         t += udp_checksum_summer(udp, len - 1);
         
-        x = hton16((udp[len - 1] << 8));
+        x = hton16(((uint16_t)udp[len - 1]) << 8);
         t += udp_checksum_summer((uint8_t *)&x, sizeof(x));
     }
     
@@ -82,7 +82,7 @@ static uint16_t udp_checksum (uint8_t *udp, uint16_t len, uint32_t source_addr, 
     }
     
     if (t == 0) {
-        t = ~t;
+        t = UINT16_MAX;
     }
     
     return hton16(~t);
