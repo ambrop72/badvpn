@@ -27,7 +27,6 @@
 
 #include <misc/offset.h>
 #include <misc/debug.h>
-#include <misc/jenkins_hash.h>
 #include <misc/byteorder.h>
 #include <system/BLog.h>
 
