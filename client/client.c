@@ -1288,6 +1288,13 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
         memcpy(peer->cert, cert, cert_len);
         peer->cert_len = cert_len;
         
+        // make sure that CERT_DecodeCertFromPackage will interpretet the input as raw DER and not base64,
+        // in which case following workaroud wouldn't help
+        if (!(cert_len > 0 && (cert[0] & 0x1f) == 0x10)) {
+            peer_log(peer, BLOG_ERROR, "certificate does not look like DER");
+            goto fail1;
+        }
+        
         // copy the certificate and append it a good load of zero bytes,
         // hopefully preventing the crappy CERT_DecodeCertFromPackage from crashing
         // by reading past the of its input
