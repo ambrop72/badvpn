@@ -388,7 +388,7 @@ int msg1Parser_Init (msg1Parser *o, uint8_t *buf, int buf_len)
                 pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 if (!(left >= payload_len)) {
                     return 0;
                 }
@@ -522,7 +522,7 @@ int msg1Parser_Geta (msg1Parser *o, uint16_t *v)
                 o->a_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->a_start + o->a_pos;
                 o->a_pos += payload_len;
@@ -599,7 +599,7 @@ int msg1Parser_Getb (msg1Parser *o, uint32_t *v)
                 o->b_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->b_start + o->b_pos;
                 o->b_pos += payload_len;
@@ -676,7 +676,7 @@ int msg1Parser_Getc (msg1Parser *o, uint64_t *v)
                 o->c_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->c_start + o->c_pos;
                 o->c_pos += payload_len;
@@ -753,7 +753,7 @@ int msg1Parser_Getd (msg1Parser *o, uint16_t *v)
                 o->d_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->d_start + o->d_pos;
                 o->d_pos += payload_len;
@@ -830,7 +830,7 @@ int msg1Parser_Gete (msg1Parser *o, uint8_t *v)
                 o->e_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->e_start + o->e_pos;
                 o->e_pos += payload_len;
@@ -902,7 +902,7 @@ int msg1Parser_Getf (msg1Parser *o, uint8_t **data, int *data_len)
                 o->f_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->f_start + o->f_pos;
                 o->f_pos += payload_len;
@@ -980,7 +980,7 @@ int msg1Parser_Getg (msg1Parser *o, uint8_t **data)
                 o->g_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->g_start + o->g_pos;
                 o->g_pos += payload_len;

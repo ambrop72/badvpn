@@ -272,7 +272,7 @@ int addrParser_Init (addrParser *o, uint8_t *buf, int buf_len)
                 pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 if (!(left >= payload_len)) {
                     return 0;
                 }
@@ -410,7 +410,7 @@ int addrParser_Gettype (addrParser *o, uint8_t *v)
                 o->type_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->type_start + o->type_pos;
                 o->type_pos += payload_len;
@@ -482,7 +482,7 @@ int addrParser_Getip_port (addrParser *o, uint8_t **data)
                 o->ip_port_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->ip_port_start + o->ip_port_pos;
                 o->ip_port_pos += payload_len;
@@ -559,7 +559,7 @@ int addrParser_Getipv4_addr (addrParser *o, uint8_t **data)
                 o->ipv4_addr_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->ipv4_addr_start + o->ipv4_addr_pos;
                 o->ipv4_addr_pos += payload_len;
@@ -636,7 +636,7 @@ int addrParser_Getipv6_addr (addrParser *o, uint8_t **data)
                 o->ipv6_addr_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->ipv6_addr_start + o->ipv6_addr_pos;
                 o->ipv6_addr_pos += payload_len;

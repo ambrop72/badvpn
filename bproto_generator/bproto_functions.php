@@ -512,7 +512,7 @@ EOD;
                 pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 if (!(left >= payload_len)) {
                     return 0;
                 }
@@ -690,7 +690,7 @@ EOD;
                 o->{$entry["name"]}_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                int payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->{$entry["name"]}_start + o->{$entry["name"]}_pos;
                 o->{$entry["name"]}_pos += payload_len;
