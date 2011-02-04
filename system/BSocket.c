@@ -1198,6 +1198,11 @@ int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
         
         msg.Control.len = sum;
         
+        // WSASendMsg chokes on empty control block
+        if (msg.Control.len == 0) {
+            msg.Control.buf = NULL;
+        }
+        
         if (bs->WSASendMsg(bs->socket, &msg, 0, &bytes, NULL, NULL) != 0) {
             int error;
             switch ((error = WSAGetLastError())) {
