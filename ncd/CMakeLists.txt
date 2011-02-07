@@ -11,6 +11,7 @@ add_executable(badvpn-ncd
     modules/concat.c
     modules/if.c
     modules/strcmp.c
+    modules/logical.c
     modules/ip_in_network.c
     modules/run.c
     modules/net_backend_physical.c
