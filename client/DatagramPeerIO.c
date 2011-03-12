@@ -299,11 +299,14 @@ int DatagramPeerIO_Connect (DatagramPeerIO *o, BAddr addr)
     }
     
     // connect the socket
-    // Windows needs this or receive will fail
-    if (BSocket_Connect(&o->sock, &addr) < 0) {
+    // Windows needs this or receive will fail; however, FreeBSD will refuse to send
+    // if this is done
+    #ifdef BADVPN_USE_WINAPI
+    if (BSocket_Connect(&o->sock, &addr, 0) < 0) {
         BLog(BLOG_ERROR, "BSocket_Connect failed");
         goto fail2;
     }
+    #endif
     
     // init receiving
     init_receiving(o);

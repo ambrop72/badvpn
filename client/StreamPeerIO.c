@@ -646,7 +646,7 @@ int StreamPeerIO_Connect (StreamPeerIO *pio, BAddr addr, uint64_t password, CERT
     }
     
     // attempt connection
-    if (BSocket_Connect(&pio->connect.sock.sock, &addr) >= 0 || BSocket_GetError(&pio->connect.sock.sock) != BSOCKET_ERROR_IN_PROGRESS) {
+    if (BSocket_Connect(&pio->connect.sock.sock, &addr, 1) >= 0 || BSocket_GetError(&pio->connect.sock.sock) != BSOCKET_ERROR_IN_PROGRESS) {
         BLog(BLOG_NOTICE, "BSocket_Connect failed");
         goto fail1;
     }

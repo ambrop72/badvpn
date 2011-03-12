@@ -27,12 +27,18 @@
 #ifndef BADVPN_SYSTEM_BUNIXSIGNAL_H
 #define BADVPN_SYSTEM_BUNIXSIGNAL_H
 
+#if (defined(BADVPN_USE_SIGNALFD) + defined(BADVPN_USE_KEVENT)) != 1
+#error Unknown signal backend or too many signal backends
+#endif
+
 #include <unistd.h>
 #include <signal.h>
 
 #include <misc/debug.h>
 #include <system/BReactor.h>
 #include <system/DebugObject.h>
+
+struct BUnixSignal_s;
 
 /**
  * Handler function called when a signal is received.
@@ -42,16 +48,33 @@
  */
 typedef void (*BUnixSignal_handler) (void *user, int signo);
 
+#ifdef BADVPN_USE_KEVENT
+struct BUnixSignal_kevent_entry {
+    struct BUnixSignal_s *parent;
+    int signo;
+    BReactorKEvent kevent;
+};
+#endif
+
 /**
  * Object for catching unix signals.
  */
-typedef struct {
+typedef struct BUnixSignal_s {
     BReactor *reactor;
     sigset_t signals;
     BUnixSignal_handler handler;
     void *user;
+    
+    #ifdef BADVPN_USE_SIGNALFD
     int signalfd_fd;
     BFileDescriptor signalfd_bfd;
+    #endif
+    
+    #ifdef BADVPN_USE_KEVENT
+    struct BUnixSignal_kevent_entry *entries;
+    int num_entries;
+    #endif
+    
     DebugObject d_obj;
 } BUnixSignal;
 

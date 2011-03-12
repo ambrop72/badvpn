@@ -24,23 +24,29 @@
 #include <stdio.h>
 
 #ifdef BADVPN_USE_WINAPI
-#include <windows.h>
-#include <winioctl.h>
-#include <objbase.h>
-#include <wtypes.h>
-#include "wintap-common.h"
-#include <tuntap/tapwin32-funcs.h>
+    #include <windows.h>
+    #include <winioctl.h>
+    #include <objbase.h>
+    #include <wtypes.h>
+    #include "wintap-common.h"
+    #include <tuntap/tapwin32-funcs.h>
 #else
-#include <linux/if_tun.h>
-#include <net/if.h>
-#include <net/if_arp.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
+    #include <fcntl.h>
+    #include <unistd.h>
+    #include <errno.h>
+    #include <sys/ioctl.h>
+    #include <sys/types.h>
+    #include <sys/stat.h>
+    #include <sys/socket.h>
+    #include <net/if.h>
+    #include <net/if_arp.h>
+    #ifdef BADVPN_LINUX
+        #include <linux/if_tun.h>
+    #endif
+    #ifdef BADVPN_FREEBSD
+        #include <net/if_tun.h>
+        #include <net/if_tap.h>
+    #endif
 #endif
 
 #include <tuntap/BTap.h>
@@ -553,7 +559,11 @@ fail1:
 fail0:
     return 0;
     
-    #else
+    #endif
+    
+    #if defined(BADVPN_LINUX) || defined(BADVPN_FREEBSD)
+    
+    #ifdef BADVPN_LINUX
     
     // open device
     
@@ -582,6 +592,43 @@ fail0:
     }
     
     strcpy(o->devname, ifr.ifr_name);
+    
+    #endif
+    
+    #ifdef BADVPN_FREEBSD
+    
+    if (tun) {
+        DEBUG("TUN not supported on FreeBSD");
+        goto fail0;
+    }
+    
+    if (!devname) {
+        DEBUG("no device specified");
+        goto fail0;
+    }
+    
+    // open device
+    
+    char devnode[10 + IFNAMSIZ];
+    snprintf(devnode, sizeof(devnode), "/dev/%s", devname);
+    
+    if ((o->fd = open(devnode, O_RDWR)) < 0) {
+        DEBUG("error opening device");
+        goto fail0;
+    }
+    
+    // get name
+    
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof(ifr));
+    if (ioctl(o->fd, TAPGIFNAME, (void *)&ifr) < 0) {
+        DEBUG("error configuring device");
+        goto fail1;
+    }
+    
+    strcpy(o->devname, ifr.ifr_name);
+    
+    #endif
     
     // get MTU
     if (tun) {

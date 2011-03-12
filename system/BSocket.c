@@ -32,6 +32,9 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/socket.h>
+#endif
+
+#ifdef BADVPN_LINUX
 #include <netpacket/packet.h>
 #include <net/ethernet.h>
 #endif
@@ -49,6 +52,11 @@
 #define HANDLER_ACCEPT 2
 #define HANDLER_CONNECT 3
 #define HANDLER_ERROR 4
+
+#define CONNECT_STATUS_NONE 0
+#define CONNECT_STATUS_CONNECTING 1
+#define CONNECT_STATUS_DONE 2
+#define CONNECT_STATUS_DONE_IMMEDIATELY 3
 
 static int get_event_index (int event)
 {
@@ -102,6 +110,9 @@ static int set_pktinfo (int s)
     #ifdef BADVPN_USE_WINAPI
     DWORD opt = 1;
     int res = setsockopt(s, IPPROTO_IP, IP_PKTINFO, (char *)&opt, sizeof(opt));
+    #elif defined(BADVPN_FREEBSD)
+    int opt = 1;
+    int res = setsockopt(s, IPPROTO_IP, IP_RECVDSTADDR, &opt, sizeof(opt)); // IP_SENDSRCADDR is the same
     #else
     int opt = 1;
     int res = setsockopt(s, IPPROTO_IP, IP_PKTINFO, &opt, sizeof(opt));
@@ -185,7 +196,7 @@ struct sys_addr {
         struct sockaddr generic;
         struct sockaddr_in ipv4;
         struct sockaddr_in6 ipv6;
-        #ifndef BADVPN_USE_WINAPI
+        #ifdef BADVPN_LINUX
         struct sockaddr_ll packet;
         #endif
     } addr;
@@ -210,7 +221,7 @@ static void addr_socket_to_sys (struct sys_addr *out, BAddr *addr)
             memcpy(out->addr.ipv6.sin6_addr.s6_addr, addr->ipv6.ip, 16);
             out->addr.ipv6.sin6_scope_id = 0;
             break;
-        #ifndef BADVPN_USE_WINAPI
+        #ifdef BADVPN_LINUX
         case BADDR_TYPE_PACKET:
             ASSERT(addr->packet.header_type == BADDR_PACKET_HEADER_TYPE_ETHERNET)
             memset(&out->addr.packet, 0, sizeof(out->addr.packet));
@@ -271,6 +282,7 @@ static void dispatch_event (BSocket *bs)
     ASSERT(bs->current_event_index >= 0)
     ASSERT(bs->current_event_index < BSOCKET_NUM_EVENTS)
     ASSERT(((bs->ready_events)&~(bs->waitEvents)) == 0)
+    ASSERT(!BPending_IsSet(&bs->job))
     
     do {
         // get event
@@ -314,6 +326,7 @@ static void job_handler (BSocket *bs)
 static void dispatch_events (BSocket *bs, int events)
 {
     ASSERT((events&~(bs->waitEvents)) == 0)
+    ASSERT(!BPending_IsSet(&bs->job))
     
     // reset recv number
     bs->recv_num = 0;
@@ -329,6 +342,24 @@ static void dispatch_events (BSocket *bs, int events)
     bs->current_event_index = 0;
     
     dispatch_event(bs);
+    return;
+}
+
+static void connect_job_handler (BSocket *bs)
+{
+    ASSERT(bs->connecting_status == CONNECT_STATUS_DONE_IMMEDIATELY)
+    ASSERT((bs->waitEvents & BSOCKET_CONNECT))
+    DebugObject_Access(&bs->d_obj);
+    
+    // allow retrieving the result
+    bs->connecting_status = CONNECT_STATUS_DONE;
+    
+    if (bs->global_handler) {
+        bs->global_handler(bs->global_handler_user, BSOCKET_CONNECT);
+        return;
+    }
+    
+    bs->handlers[HANDLER_CONNECT](bs->handlers_user[HANDLER_CONNECT], BSOCKET_CONNECT);
     return;
 }
 
@@ -356,6 +387,7 @@ static long get_wsa_events (int sock_events)
 
 static void handle_handler (BSocket *bs)
 {
+    ASSERT(!BPending_IsSet(&bs->job))
     DebugObject_Access(&bs->d_obj);
     
     // enumerate network events and reset event
@@ -381,8 +413,8 @@ static void handle_handler (BSocket *bs)
         returned_events |= BSOCKET_CONNECT;
         
         // read connection attempt result
-        ASSERT(bs->connecting_status == 1)
-        bs->connecting_status = 2;
+        ASSERT(bs->connecting_status == CONNECT_STATUS_CONNECTING)
+        bs->connecting_status = CONNECT_STATUS_DONE;
         if (events.iErrorCode[FD_CONNECT_BIT] == 0) {
             bs->connecting_result = BSOCKET_ERROR_NONE;
         } else {
@@ -416,6 +448,7 @@ static int get_reactor_fd_events (int sock_events)
 
 static void file_descriptor_handler (BSocket *bs, int events)
 {
+    ASSERT(!BPending_IsSet(&bs->job))
     DebugObject_Access(&bs->d_obj);
     
     int returned_events = 0;
@@ -436,8 +469,8 @@ static void file_descriptor_handler (BSocket *bs, int events)
         returned_events |= BSOCKET_CONNECT;
         
         // read connection attempt result
-        ASSERT(bs->connecting_status == 1)
-        bs->connecting_status = 2;
+        ASSERT(bs->connecting_status == CONNECT_STATUS_CONNECTING)
+        bs->connecting_status = CONNECT_STATUS_DONE;
         int result;
         socklen_t result_len = sizeof(result);
         int res = getsockopt(bs->socket, SOL_SOCKET, SO_ERROR, &result, &result_len);
@@ -599,6 +632,8 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
         case BADDR_TYPE_UNIX:
             sys_domain = AF_UNIX;
             break;
+        #endif
+        #ifdef BADVPN_LINUX
         case BADDR_TYPE_PACKET:
             sys_domain = AF_PACKET;
             break;
@@ -651,13 +686,16 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
     bs->error = BSOCKET_ERROR_NONE;
     init_handlers(bs);
     bs->waitEvents = 0;
-    bs->connecting_status = 0;
+    bs->connecting_status = CONNECT_STATUS_NONE;
     bs->recv_max = BSOCKET_DEFAULT_RECV_MAX;
     bs->recv_num = 0;
     bs->ready_events = 0; // just initialize it so we can clear them safely from BSocket_DisableEvent
     
     // init job
     BPending_Init(&bs->job, BReactor_PendingGroup(bsys), (BPending_handler)job_handler, bs);
+    
+    // init connect job
+    BPending_Init(&bs->connect_job, BReactor_PendingGroup(bsys), (BPending_handler)connect_job_handler, bs);
     
     // initialize event backend
     if (!init_event_backend(bs)) {
@@ -670,6 +708,7 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
     return 0;
     
 fail2:
+    BPending_Free(&bs->connect_job);
     BPending_Free(&bs->job);
 fail1:
     close_socket(fd);
@@ -683,6 +722,9 @@ void BSocket_Free (BSocket *bs)
     
     // free event backend
     free_event_backend(bs);
+    
+    // free connect job
+    BPending_Free(&bs->connect_job);
     
     // free job
     BPending_Free(&bs->job);
@@ -823,6 +865,11 @@ void BSocket_EnableEvent (BSocket *bs, uint8_t event)
     
     // give new events to event backend
     update_event_backend(bs);
+    
+    // set connect job
+    if (bs->connecting_status == CONNECT_STATUS_DONE_IMMEDIATELY && event == BSOCKET_CONNECT) {
+        BPending_Set(&bs->connect_job);
+    }
 }
 
 void BSocket_DisableEvent (BSocket *bs, uint8_t event)
@@ -844,13 +891,19 @@ void BSocket_DisableEvent (BSocket *bs, uint8_t event)
     
     // give new events to event backend
     update_event_backend(bs);
+    
+    // unset connect job
+    if (!(bs->connecting_status == CONNECT_STATUS_DONE_IMMEDIATELY && (bs->waitEvents & BSOCKET_CONNECT))) {
+        BPending_Unset(&bs->connect_job);
+    }
 }
 
-int BSocket_Connect (BSocket *bs, BAddr *addr)
+int BSocket_Connect (BSocket *bs, BAddr *addr, int later)
 {
     ASSERT(addr)
     ASSERT(!BAddr_IsInvalid(addr))
-    ASSERT(bs->connecting_status == 0)
+    ASSERT(later == 0 || later == 1)
+    ASSERT(bs->connecting_status == CONNECT_STATUS_NONE)
     DebugObject_Access(&bs->d_obj);
     
     struct sys_addr sysaddr;
@@ -861,20 +914,35 @@ int BSocket_Connect (BSocket *bs, BAddr *addr)
         #ifdef BADVPN_USE_WINAPI
         switch ((error = WSAGetLastError())) {
             case WSAEWOULDBLOCK:
-                bs->connecting_status = 1;
+                bs->connecting_status = CONNECT_STATUS_CONNECTING;
                 bs->error = BSOCKET_ERROR_IN_PROGRESS;
                 return -1;
         }
         #else
         switch ((error = errno)) {
             case EINPROGRESS:
-                bs->connecting_status = 1;
+                bs->connecting_status = CONNECT_STATUS_CONNECTING;
                 bs->error = BSOCKET_ERROR_IN_PROGRESS;
                 return -1;
         }
         #endif
         
         bs->error = translate_error(error);
+        return -1;
+    }
+    
+    if (later) {
+        // set connect result
+        bs->connecting_status = CONNECT_STATUS_DONE_IMMEDIATELY;
+        bs->connecting_result = BSOCKET_ERROR_NONE;
+        
+        // set connect job
+        if ((bs->waitEvents & BSOCKET_CONNECT)) {
+            BPending_Set(&bs->connect_job);
+        }
+        
+        // return in progress error
+        bs->error = BSOCKET_ERROR_IN_PROGRESS;
         return -1;
     }
 
@@ -884,10 +952,10 @@ int BSocket_Connect (BSocket *bs, BAddr *addr)
 
 int BSocket_GetConnectResult (BSocket *bs)
 {
-    ASSERT(bs->connecting_status == 2)
+    ASSERT(bs->connecting_status == CONNECT_STATUS_DONE)
     DebugObject_Access(&bs->d_obj);
 
-    bs->connecting_status = 0;
+    bs->connecting_status = CONNECT_STATUS_NONE;
     
     return bs->connecting_result;
 }
@@ -1015,6 +1083,9 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
         
         // init job
         BPending_Init(&newsock->job, BReactor_PendingGroup(bs->bsys), (BPending_handler)job_handler, newsock);
+        
+        // init connect job
+        BPending_Init(&newsock->connect_job, BReactor_PendingGroup(bs->bsys), (BPending_handler)connect_job_handler, newsock);
     
         if (!init_event_backend(newsock)) {
             DEBUG("WARNING: init_event_backend failed");
@@ -1034,6 +1105,7 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
     return 0;
     
 fail1:
+    BPending_Free(&newsock->connect_job);
     BPending_Free(&newsock->job);
 fail0:
     close_socket(fd);
@@ -1223,7 +1295,11 @@ int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
     iov.iov_len = len;
     
     union {
+        #ifdef BADVPN_FREEBSD
+        char in[CMSG_SPACE(sizeof(struct in_addr))];
+        #else
         char in[CMSG_SPACE(sizeof(struct in_pktinfo))];
+        #endif
         char in6[CMSG_SPACE(sizeof(struct in6_pktinfo))];
     } cdata;
     
@@ -1244,6 +1320,15 @@ int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
         case BADDR_TYPE_NONE:
             break;
         case BADDR_TYPE_IPV4: {
+            #ifdef BADVPN_FREEBSD
+            memset(cmsg, 0, CMSG_SPACE(sizeof(struct in_addr)));
+            cmsg->cmsg_level = IPPROTO_IP;
+            cmsg->cmsg_type = IP_SENDSRCADDR;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(struct in_addr));
+            struct in_addr *addrinfo = (struct in_addr *)CMSG_DATA(cmsg);
+            addrinfo->s_addr = local_addr->ipv4;;
+            sum += CMSG_SPACE(sizeof(struct in_addr));
+            #else
             memset(cmsg, 0, CMSG_SPACE(sizeof(struct in_pktinfo)));
             cmsg->cmsg_level = IPPROTO_IP;
             cmsg->cmsg_type = IP_PKTINFO;
@@ -1251,6 +1336,7 @@ int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
             struct in_pktinfo *pktinfo = (struct in_pktinfo *)CMSG_DATA(cmsg);
             pktinfo->ipi_spec_dst.s_addr = local_addr->ipv4;
             sum += CMSG_SPACE(sizeof(struct in_pktinfo));
+            #endif
         } break;
         case BADDR_TYPE_IPV6: {
             memset(cmsg, 0, CMSG_SPACE(sizeof(struct in6_pktinfo)));
@@ -1266,6 +1352,11 @@ int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
     }
     
     msg.msg_controllen = sum;
+    
+    // FreeBSD chokes on empty control block
+    if (msg.msg_controllen == 0) {
+        msg.msg_control = NULL;
+    }
     
     int bytes = sendmsg(bs->socket, &msg, MSG_NOSIGNAL);
     if (bytes < 0) {
@@ -1367,7 +1458,11 @@ int BSocket_RecvFromTo (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
     iov.iov_len = len;
     
     union {
+        #ifdef BADVPN_FREEBSD
+        char in[CMSG_SPACE(sizeof(struct in_addr))];
+        #else
         char in[CMSG_SPACE(sizeof(struct in_pktinfo))];
+        #endif
         char in6[CMSG_SPACE(sizeof(struct in6_pktinfo))];
     } cdata;
     
@@ -1423,10 +1518,17 @@ int BSocket_RecvFromTo (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
     
     struct cmsghdr *cmsg;
     for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+        #ifdef BADVPN_FREEBSD
+        if (cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_RECVDSTADDR) {
+            struct in_addr *addrinfo = (struct in_addr *)CMSG_DATA(cmsg);
+            BIPAddr_InitIPv4(local_addr, addrinfo->s_addr);
+        }
+        #else
         if (cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_PKTINFO) {
             struct in_pktinfo *pktinfo = (struct in_pktinfo *)CMSG_DATA(cmsg);
             BIPAddr_InitIPv4(local_addr, pktinfo->ipi_addr.s_addr);
         }
+        #endif
         else if (cmsg->cmsg_level == IPPROTO_IPV6 && cmsg->cmsg_type == IPV6_PKTINFO) {
             struct in6_pktinfo *pktinfo = (struct in6_pktinfo *)CMSG_DATA(cmsg);
             BIPAddr_InitIPv6(local_addr, pktinfo->ipi6_addr.s6_addr);

@@ -121,6 +121,7 @@ typedef struct BSocket_t {
     int ready_events;
     int current_event_index;
     BPending job;
+    BPending connect_job;
     
     #ifdef BADVPN_USE_WINAPI
     WSAEVENT event;
@@ -266,6 +267,8 @@ void BSocket_DisableEvent (BSocket *bs, uint8_t event);
  *
  * @param bs the object
  * @param addr remote address. Must not be an invalid address.
+ * @param later if true, even if the connection succeeded right away, fail with BSOCKET_ERROR_IN_PROGRESS,
+ *              and report success in the handler. Must be 0 or 1.
  * @return 0 for immediate success,
  *         -1 for failure, where the error code can be:
  *             - BSOCKET_ERROR_IN_PROGRESS the socket is a stream socket and the connection attempt has started.
@@ -273,7 +276,7 @@ void BSocket_DisableEvent (BSocket *bs, uint8_t event);
  *                                         result of attempt with {@link BSocket_GetConnectResult}.
  *             - BSOCKET_ERROR_UNKNOWN unhandled error
  */
-int BSocket_Connect (BSocket *bs, BAddr *addr) WARN_UNUSED;
+int BSocket_Connect (BSocket *bs, BAddr *addr, int later) WARN_UNUSED;
 
 /**
  * Retreives the result of a connection attempt.

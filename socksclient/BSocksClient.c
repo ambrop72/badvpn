@@ -337,7 +337,7 @@ int BSocksClient_Init (BSocksClient *o, BAddr server_addr, BAddr dest_addr, BSoc
     }
     
     // connect socket
-    if (BSocket_Connect(&o->sock, &server_addr) >= 0 || BSocket_GetError(&o->sock) != BSOCKET_ERROR_IN_PROGRESS) {
+    if (BSocket_Connect(&o->sock, &server_addr, 1) >= 0 || BSocket_GetError(&o->sock) != BSOCKET_ERROR_IN_PROGRESS) {
         BLog(BLOG_NOTICE, "BSocket_Connect failed");
         goto fail1;
     }

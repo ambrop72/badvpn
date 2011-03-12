@@ -28,10 +28,22 @@
 #ifndef BADVPN_SYSTEM_BREACTOR_H
 #define BADVPN_SYSTEM_BREACTOR_H
 
+#if (defined(BADVPN_USE_WINAPI) + defined(BADVPN_USE_EPOLL) + defined(BADVPN_USE_KEVENT)) != 1
+#error Unknown event backend or too many event backends
+#endif
+
 #ifdef BADVPN_USE_WINAPI
 #include <windows.h>
-#else
+#endif
+
+#ifdef BADVPN_USE_EPOLL
 #include <sys/epoll.h>
+#endif
+
+#ifdef BADVPN_USE_KEVENT
+#include <sys/types.h>
+#include <sys/event.h>
+#include <sys/time.h>
 #endif
 
 #include <stdint.h>
@@ -159,7 +171,15 @@ typedef struct BFileDescriptor_t {
     void *user;
     int active;
     int waitEvents;
+    
+    #ifdef BADVPN_USE_EPOLL
     struct BFileDescriptor_t **epoll_returned_ptr;
+    #endif
+    
+    #ifdef BADVPN_USE_KEVENT
+    int kevent_tag;
+    int **kevent_returned_ptr;
+    #endif
 } BFileDescriptor;
 
 /**
@@ -185,8 +205,6 @@ void BFileDescriptor_Init (BFileDescriptor *bs, int fd, BFileDescriptor_handler 
  * and timers.
  */
 typedef struct {
-    DebugObject d_obj;
-    
     int exiting;
     int exit_code;
     
@@ -198,22 +216,33 @@ typedef struct {
     LinkedList1 timers_expired_list;
     
     #ifdef BADVPN_USE_WINAPI
-    
     int num_handles; // number of user handles
     int enabled_num; // number of user handles in the enabled array
     HANDLE enabled_handles[BSYSTEM_MAX_HANDLES]; // enabled user handles
     BHandle *enabled_objects[BSYSTEM_MAX_HANDLES]; // objects corresponding to enabled handles
     BHandle *returned_object;
+    #endif
     
-    #else
-    
+    #ifdef BADVPN_USE_EPOLL
     int efd; // epoll fd
     struct epoll_event epoll_results[BSYSTEM_MAX_RESULTS]; // epoll returned events buffer
     int epoll_results_num; // number of events in the array
     int epoll_results_pos; // number of events processed so far
+    #endif
     
+    #ifdef BADVPN_USE_KEVENT
+    int kqueue_fd;
+    struct kevent kevent_results[BSYSTEM_MAX_RESULTS];
+    int kevent_results_num;
+    int kevent_results_pos;
+    #endif
+    
+    DebugObject d_obj;
+    #ifndef BADVPN_USE_WINAPI
     DebugCounter d_fds_counter;
-    
+    #endif
+    #ifdef BADVPN_USE_KEVENT
+    DebugCounter d_kevent_ctr;
     #endif
 } BReactor;
 
@@ -417,6 +446,26 @@ void BReactor_RemoveFileDescriptor (BReactor *bsys, BFileDescriptor *bs);
  *               This overrides previosly monitored events.
  */
 void BReactor_SetFileDescriptorEvents (BReactor *bsys, BFileDescriptor *bs, int events);
+
+#endif
+
+#ifdef BADVPN_USE_KEVENT
+
+typedef void (*BReactorKEvent_handler) (void *user, u_int fflags, intptr_t data);
+
+typedef struct {
+    BReactor *reactor;
+    BReactorKEvent_handler handler;
+    void *user;
+    uintptr_t ident;
+    short filter;
+    int kevent_tag;
+    int **kevent_returned_ptr;
+    DebugObject d_obj;
+} BReactorKEvent;
+
+int BReactorKEvent_Init (BReactorKEvent *o, BReactor *reactor, BReactorKEvent_handler handler, void *user, uintptr_t ident, short filter, u_int fflags, intptr_t data);
+void BReactorKEvent_Free (BReactorKEvent *o);
 
 #endif
 

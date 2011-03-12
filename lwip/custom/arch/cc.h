@@ -58,8 +58,12 @@
 // for BYTE_ORDER
 #ifdef BADVPN_USE_WINAPI
     #include <sys/param.h>
-#else
+#endif
+#ifdef BADVPN_LINUX
     #include <endian.h>
+#endif
+#ifdef BADVPN_FREEBSD
+    #include <machine/endian.h>
 #endif
 
 #endif

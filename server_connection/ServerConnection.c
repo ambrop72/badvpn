@@ -499,7 +499,7 @@ int ServerConnection_Init (
     }
     
     // start connecting
-    int res = BSocket_Connect(&o->sock, &addr);
+    int res = BSocket_Connect(&o->sock, &addr, 1);
     if (res != -1 || BSocket_GetError(&o->sock) != BSOCKET_ERROR_IN_PROGRESS) {
         BLog(BLOG_ERROR, "BSocket_Connect failed (%d)", BSocket_GetError(&o->sock));
         goto fail1;

@@ -3,7 +3,7 @@ add_library(dhcpclientcore
 )
 target_link_libraries(dhcpclientcore system flow security)
 
-if (NOT WIN32)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_library(dhcpclient
         BDHCPClient.c
         DHCPIpUdpEncoder.c

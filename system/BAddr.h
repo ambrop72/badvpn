@@ -40,6 +40,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <netinet/in.h>
 #endif
 
 #include <misc/byteorder.h>
@@ -50,6 +51,8 @@
 #define BADDR_TYPE_IPV6 2
 #ifndef BADVPN_USE_WINAPI
     #define BADDR_TYPE_UNIX 3 // only a domain number for BSocket
+#endif
+#ifdef BADVPN_LINUX
     #define BADDR_TYPE_PACKET 4
 #endif
 
@@ -468,7 +471,7 @@ void BAddr_InitIPv6 (BAddr *addr, uint8_t *ip, uint16_t port)
     addr->ipv6.port = port;
 }
 
-#ifndef BADVPN_USE_WINAPI
+#ifdef BADVPN_LINUX
 
 void BAddr_InitPacket (BAddr *addr, uint16_t phys_proto, int interface_index, int header_type, int packet_type, uint8_t *phys_addr)
 {
@@ -493,7 +496,7 @@ void BAddr_Assert (BAddr *addr)
         case BADDR_TYPE_NONE:
         case BADDR_TYPE_IPV4:
         case BADDR_TYPE_IPV6:
-        #ifndef BADVPN_USE_WINAPI
+        #ifdef BADVPN_LINUX
         case BADDR_TYPE_PACKET:
         #endif
             return;
@@ -529,7 +532,7 @@ void BAddr_Print (BAddr *addr, char *out)
             BIPAddr_Print(&ipaddr, out);
             sprintf(out + strlen(out), ":%"PRIu16, ntoh16(addr->ipv6.port));
             break;
-        #ifndef BADVPN_USE_WINAPI
+        #ifdef BADVPN_LINUX
         case BADDR_TYPE_PACKET:
             ASSERT(addr->packet.header_type == BADDR_PACKET_HEADER_TYPE_ETHERNET)
             sprintf(out, "proto=%"PRIu16",ifindex=%d,htype=eth,ptype=%d,addr=%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8,
