@@ -5,6 +5,7 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 include(TestBigEndian)
 include(CheckIncludeFiles)
+include(CheckSymbolExists)
 
 find_package(OpenSSL REQUIRED)
 set(LIBCRYPTO_INCLUDE_DIRS "${OpenSSL_INCLUDE_DIRS}")
@@ -55,7 +56,13 @@ else ()
         endif ()
         add_definitions(-DBADVPN_USE_EPOLL)
     elseif (CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
-        add_definitions(-DBADVPN_FREEBSD -DBADVPN_USE_KEVENT)
+        add_definitions(-DBADVPN_FREEBSD)
+
+        check_symbol_exists(kqueue "sys/types.h;sys/event.h;sys/time.h" HAVE_KQUEUE)
+        if (NOT HAVE_KQUEUE)
+            message(FATAL_ERROR "kqueue is required")
+        endif ()
+        add_definitions(-DBADVPN_USE_KEVENT)
     endif ()
 
     if (NOT DEFINED BADVPN_WITHOUT_CRYPTODEV)
