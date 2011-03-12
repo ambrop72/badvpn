@@ -6,6 +6,7 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 include(TestBigEndian)
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
+include(CheckTypeSize)
 
 find_package(OpenSSL REQUIRED)
 set(LIBCRYPTO_INCLUDE_DIRS "${OpenSSL_INCLUDE_DIRS}")
@@ -32,6 +33,11 @@ link_directories(
 )
 
 test_big_endian(BIG_ENDIAN)
+
+check_type_size(int INT_SIZE)
+if (NOT (INT_SIZE GREATER "3"))
+    message(FATAL_ERROR "int must be at least 32 bits")
+endif ()
 
 add_definitions(-std=gnu99 -Werror=implicit-function-declaration -Wno-unused-value -Wno-parentheses -Wno-switch-enum -Wredundant-decls)
 
