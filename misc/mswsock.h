@@ -30,10 +30,6 @@
 #ifndef BADVPN_MISC_MSWSOCK_H
 #define BADVPN_MISC_MSWSOCK_H
 
-#if !defined(__GNUC__) || defined(BADVPN_USE_SYSTEM_MSWSOCK_H)
-#include <mswsock.h>
-#else
-
 #include <windows.h>
 #include <winsock2.h>
 
@@ -83,7 +79,5 @@ typedef INT (WINAPI *LPFN_WSARECVMSG)(SOCKET s, LPWSAMSG lpMsg, LPDWORD lpdwNumb
 
 typedef INT (WINAPI *LPFN_WSASENDMSG)(SOCKET s, LPWSAMSG lpMsg, DWORD dwFlags, LPDWORD lpNumberOfBytesSent,
     LPWSAOVERLAPPED lpOverlapped, LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine);
-
-#endif
 
 #endif

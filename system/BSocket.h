@@ -29,8 +29,12 @@
 #define BADVPN_SYSTEM_BSOCKET_H
 
 #ifdef BADVPN_USE_WINAPI
-#include <winsock2.h>
-#include <misc/mswsock.h>
+    #include <winsock2.h>
+    #ifndef BADVPN_USE_CUSTOM_MSWSOCK_H
+        #include <mswsock.h>
+    #else
+        #include <misc/mswsock.h>
+    #endif
 #endif
 
 #include <misc/debug.h>

@@ -37,7 +37,15 @@ add_definitions(-std=gnu99 -Werror=implicit-function-declaration -Wno-unused-val
 
 # platform-specific stuff
 if (WIN32)
-    add_definitions(-DBADVPN_USE_WINAPI -D_WIN32_WINNT=0x501 -DWIN32_LEAN_AND_MEAN)
+    add_definitions(-DBADVPN_USE_WINAPI -D_WIN32_WINNT=0x600 -DWIN32_LEAN_AND_MEAN)
+
+    set(CMAKE_REQUIRED_DEFINITIONS "-D_WIN32_WINNT=0x600")
+    check_symbol_exists(WSAID_WSARECVMSG "mswsock.h" HAVE_WSARECVMSG)
+    check_symbol_exists(WSAID_WSASENDMSG "mswsock.h" HAVE_WSASENDMSG)
+    set(CMAKE_REQUIRED_DEFINITIONS "")
+    if (NOT (HAVE_WSARECVMSG AND HAVE_WSASENDMSG))
+        add_definitions(-DBADVPN_USE_CUSTOM_MSWSOCK_H)
+    endif ()
 else ()
     link_libraries(rt)
 
