@@ -45,4 +45,5 @@
 #define BLOG_CHANNEL_BSocketPRFileDesc 44
 #define BLOG_CHANNEL_PacketProtoDecoder 45
 #define BLOG_CHANNEL_DPRelay 46
-#define BLOG_NUM_CHANNELS 47
+#define BLOG_CHANNEL_BThreadWork 47
+#define BLOG_NUM_CHANNELS 48
