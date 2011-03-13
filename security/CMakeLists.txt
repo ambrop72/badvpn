@@ -6,4 +6,4 @@ add_library(security
     OTPChecker.c
     OTPGenerator.c
 )
-target_link_libraries(security system ${LIBCRYPTO_LIBRARIES})
+target_link_libraries(security system threadwork ${LIBCRYPTO_LIBRARIES})

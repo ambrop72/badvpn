@@ -148,6 +148,9 @@ char server_name[256];
 // reactor
 BReactor ss;
 
+// thread work dispatcher
+BThreadWorkDispatcher twd;
+
 // client certificate if using SSL
 CERTCertificate *client_cert;
 
@@ -426,6 +429,12 @@ int main (int argc, char *argv[])
         goto fail2;
     }
     
+    // init thread work dispatcher
+    if (!BThreadWorkDispatcher_Init(&twd, &ss, -1)) {
+        BLog(BLOG_ERROR, "BThreadWorkDispatcher_Init failed");
+        goto fail2a;
+    }
+    
     if (options.ssl) {
         // init NSPR
         PR_Init(PR_USER_THREAD, PR_PRIORITY_NORMAL, 0);
@@ -602,6 +611,8 @@ fail3:
         ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
         PL_ArenaFinish();
     }
+    BThreadWorkDispatcher_Free(&twd);
+fail2a:
     BSignal_Finish();
 fail2:
     BReactor_Free(&ss);
@@ -1523,7 +1534,9 @@ int peer_init_link (struct peer_data *peer)
         if (!DatagramPeerIO_Init(
             &peer->pio.udp.pio, &ss, data_mtu, CLIENT_UDP_MTU, sp_params,
             options.fragmentation_latency, PEER_UDP_ASSEMBLER_NUM_FRAMES, &peer->recv_ppi,
-            options.otp_num_warn, (DatagramPeerIO_handler_otp_warning)peer_udp_pio_handler_seed_warning, peer
+            options.otp_num_warn,
+            (DatagramPeerIO_handler_otp_warning)peer_udp_pio_handler_seed_warning,
+            peer, &twd
         )) {
             peer_log(peer, BLOG_ERROR, "DatagramPeerIO_Init failed");
             goto fail1;

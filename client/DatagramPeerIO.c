@@ -147,7 +147,8 @@ int DatagramPeerIO_Init (
     PacketPassInterface *recv_userif,
     int otp_warning_count,
     DatagramPeerIO_handler_otp_warning handler_otp_warning,
-    void *user
+    void *user,
+    BThreadWorkDispatcher *twd
 )
 {
     ASSERT(payload_mtu >= 0)
@@ -219,7 +220,7 @@ int DatagramPeerIO_Init (
     FragmentProtoDisassembler_Init(&o->send_disassembler, o->reactor, o->payload_mtu, o->spproto_payload_mtu, -1, latency);
     
     // init encoder
-    if (!SPProtoEncoder_Init(&o->send_encoder, FragmentProtoDisassembler_GetOutput(&o->send_disassembler), o->sp_params, otp_warning_count, handler_otp_warning, user, BReactor_PendingGroup(o->reactor))) {
+    if (!SPProtoEncoder_Init(&o->send_encoder, FragmentProtoDisassembler_GetOutput(&o->send_disassembler), o->sp_params, otp_warning_count, handler_otp_warning, user, BReactor_PendingGroup(o->reactor), twd)) {
         BLog(BLOG_ERROR, "SPProtoEncoder_Init failed");
         goto fail3;
     }

@@ -30,16 +30,34 @@
 #include <misc/debug.h>
 #include <security/OTPCalculator.h>
 #include <system/DebugObject.h>
+#include <threadwork/BThreadWork.h>
+
+/**
+ * Handler called when OTP generation for a seed is finished.
+ * The OTP position is reset to zero before the handler is called.
+ * 
+ * @param user as in {@link OTPGenerator_Init}
+ */
+typedef void (*OTPGenerator_handler) (void *user);
 
 /**
  * Object which generates OTPs for use in sending packets.
  */
 typedef struct {
-    DebugObject d_obj;
     int num_otps;
+    int cipher;
+    BThreadWorkDispatcher *twd;
+    OTPGenerator_handler handler;
+    void *user;
     int position;
-    OTPCalculator calc;
-    otp_t *otps;
+    int cur_calc;
+    OTPCalculator calc[2];
+    otp_t *otps[2];
+    int tw_have;
+    BThreadWork tw;
+    uint8_t tw_key[BENCRYPTION_MAX_KEY_SIZE];
+    uint8_t tw_iv[BENCRYPTION_MAX_BLOCK_SIZE];
+    DebugObject d_obj;
 } OTPGenerator;
 
 /**
@@ -50,9 +68,13 @@ typedef struct {
  * @param num_otps number of OTPs to generate from a seed. Must be >=0.
  * @param cipher encryption cipher for calculating the OTPs. Must be valid
  *               according to {@link BEncryption_cipher_valid}.
+ * @param twd thread work dispatcher
+ * @param handler handler to call when generation of new OTPs is complete,
+ *                after {@link OTPGenerator_SetSeed} was called.
+ * @param user argument to handler
  * @return 1 on success, 0 on failure
  */
-int OTPGenerator_Init (OTPGenerator *g, int num_otps, int cipher) WARN_UNUSED;
+int OTPGenerator_Init (OTPGenerator *g, int num_otps, int cipher, BThreadWorkDispatcher *twd, OTPGenerator_handler handler, void *user) WARN_UNUSED;
 
 /**
  * Frees the generator.
@@ -62,8 +84,12 @@ int OTPGenerator_Init (OTPGenerator *g, int num_otps, int cipher) WARN_UNUSED;
 void OTPGenerator_Free (OTPGenerator *g);
 
 /**
- * Assigns a seed to use for generating OTPs.
- * Sets the number of used OTPs to 0.
+ * Starts generating OTPs for a seed.
+ * When generation is complete and the new OTPs may be used, the {@link OTPGenerator_handler}
+ * handler will be called.
+ * If OTPs are still being generated for a previous seed, it will be forgotten.
+ * This call by itself does not affect the OTP position; rather the position is set to zero
+ * before the handler is called.
  *
  * @param g the object
  * @param key encryption key

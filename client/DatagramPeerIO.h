@@ -135,6 +135,7 @@ typedef struct {
  *                          In this case, must be >0 and <=sp_params.otp_num.
  * @param handler_otp_warning OTP warning handler
  * @param user value to pass to handler
+ * @param twd thread work dispatcher
  * @return 1 on success, 0 on failure
  */
 int DatagramPeerIO_Init (
@@ -148,7 +149,8 @@ int DatagramPeerIO_Init (
     PacketPassInterface *recv_userif,
     int otp_warning_count,
     DatagramPeerIO_handler_otp_warning handler_otp_warning,
-    void *user
+    void *user,
+    BThreadWorkDispatcher *twd
 ) WARN_UNUSED;
 
 /**

@@ -166,7 +166,19 @@ static void handler_job_hander (SPProtoEncoder *o)
     return;
 }
 
-int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, int otp_warning_count, SPProtoEncoder_handler handler, void *user, BPendingGroup *pg)
+static void otpgenerator_handler (SPProtoEncoder *o)
+{
+    ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
+    DebugObject_Access(&o->d_obj);
+    
+    // remember seed ID
+    o->otpgen_seed_id = o->otpgen_pending_seed_id;
+    
+    // possibly continue I/O
+    maybe_encode(o);
+}
+
+int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, int otp_warning_count, SPProtoEncoder_handler handler, void *user, BPendingGroup *pg, BThreadWorkDispatcher *twd)
 {
     spproto_assert_security_params(sp_params);
     ASSERT(spproto_carrier_mtu_for_payload_mtu(sp_params, PacketRecvInterface_GetMTU(input)) >= 0)
@@ -196,7 +208,7 @@ int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct s
     
     // init otp generator
     if (SPPROTO_HAVE_OTP(o->sp_params)) {
-        if (!OTPGenerator_Init(&o->otpgen, o->sp_params.otp_num, o->sp_params.otp_mode)) {
+        if (!OTPGenerator_Init(&o->otpgen, o->sp_params.otp_num, o->sp_params.otp_mode, twd, (OTPGenerator_handler)otpgenerator_handler, o)) {
             goto fail0;
         }
     }
@@ -324,10 +336,7 @@ void SPProtoEncoder_SetOTPSeed (SPProtoEncoder *o, uint16_t seed_id, uint8_t *ke
     OTPGenerator_SetSeed(&o->otpgen, key, iv);
     
     // remember seed ID
-    o->otpgen_seed_id = seed_id;
-    
-    // possibly continue I/O
-    maybe_encode(o);
+    o->otpgen_pending_seed_id = seed_id;
 }
 
 void SPProtoEncoder_RemoveOTPSeed (SPProtoEncoder *o)

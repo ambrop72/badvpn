@@ -35,6 +35,7 @@
 #include <security/BEncryption.h>
 #include <security/OTPGenerator.h>
 #include <flow/PacketRecvInterface.h>
+#include <threadwork/BThreadWork.h>
 
 /**
  * Event context handler called when the remaining number of
@@ -61,6 +62,7 @@ typedef struct {
     int enc_key_size;
     OTPGenerator otpgen;
     uint16_t otpgen_seed_id;
+    uint16_t otpgen_pending_seed_id;
     int have_encryption_key;
     BEncryption encryptor;
     int input_mtu;
@@ -87,9 +89,10 @@ typedef struct {
  * @param handler OTP warning handler
  * @param user value to pass to handler
  * @param pg pending group
+ * @param twd thread work dispatcher
  * @return 1 on success, 0 on failure
  */
-int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, int otp_warning_count, SPProtoEncoder_handler handler, void *user, BPendingGroup *pg) WARN_UNUSED;
+int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, int otp_warning_count, SPProtoEncoder_handler handler, void *user, BPendingGroup *pg, BThreadWorkDispatcher *twd) WARN_UNUSED;
 
 /**
  * Frees the object.
