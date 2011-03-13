@@ -23,6 +23,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #include <misc/balign.h>
 #include <misc/debug.h>
@@ -52,12 +53,8 @@ typedef struct {
     int output_avail;
 } ChunkBuffer2;
 
-// calculates a buffer size needed to hold at least 'cnum' packets long at least 'clen'
-#define CHUNKBUFFER2_MAKE_NUMBLOCKS(_clen, _cnum) \
-    ( \
-        (1 + bdivide_up((_clen), sizeof(struct ChunkBuffer2_block))) * \
-        ((_cnum) + 1) \
-    )
+// calculates a buffer size needed to hold at least 'num' packets long at least 'chunk_len'
+static int ChunkBuffer2_calc_blocks (int chunk_len, int num);
 
 // initialize
 static void ChunkBuffer2_Init (ChunkBuffer2 *buf, struct ChunkBuffer2_block *buffer, int blocks, int mtu);
@@ -182,6 +179,28 @@ static void _ChunkBuffer2_update_output (ChunkBuffer2 *buf)
         buf->output_dest = NULL;
         buf->output_avail = -1;
     }
+}
+
+int ChunkBuffer2_calc_blocks (int chunk_len, int num)
+{
+    int chunk_data_blocks = bdivide_up(chunk_len, sizeof(struct ChunkBuffer2_block));
+    
+    if (chunk_data_blocks > INT_MAX - 1) {
+        return -1;
+    }
+    int chunk_blocks = 1 + chunk_data_blocks;
+    
+    if (num > INT_MAX - 1) {
+        return -1;
+    }
+    int num_chunks = num + 1;
+    
+    if (chunk_blocks > INT_MAX / num_chunks) {
+        return -1;
+    }
+    int blocks = chunk_blocks * num_chunks;
+    
+    return blocks;
 }
 
 void ChunkBuffer2_Init (ChunkBuffer2 *buf, struct ChunkBuffer2_block *buffer, int blocks, int mtu)

@@ -23,6 +23,7 @@
 #include <stdlib.h>
 
 #include <misc/debug.h>
+#include <misc/balloc.h>
 
 #include <flow/PacketBuffer.h>
 
@@ -92,8 +93,11 @@ int PacketBuffer_Init (PacketBuffer *buf, PacketRecvInterface *input, PacketPass
     PacketPassInterface_Sender_Init(buf->output, (PacketPassInterface_handler_done)output_handler_done, buf);
     
     // allocate buffer
-    int num_blocks = CHUNKBUFFER2_MAKE_NUMBLOCKS(buf->input_mtu, num_packets);
-    if (!(buf->buf_data = malloc(num_blocks * sizeof(struct ChunkBuffer2_block)))) {
+    int num_blocks = ChunkBuffer2_calc_blocks(buf->input_mtu, num_packets);
+    if (num_blocks < 0) {
+        goto fail0;
+    }
+    if (!(buf->buf_data = BAllocArray(num_blocks, sizeof(struct ChunkBuffer2_block)))) {
         goto fail0;
     }
     
@@ -116,5 +120,5 @@ void PacketBuffer_Free (PacketBuffer *buf)
     DebugObject_Free(&buf->d_obj);
     
     // free buffer
-    free(buf->buf_data);
+    BFree(buf->buf_data);
 }
