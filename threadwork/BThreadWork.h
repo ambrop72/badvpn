@@ -68,9 +68,11 @@ typedef struct {
     struct BThreadWork_s *running_work;
     LinkedList2 finished_list;
     pthread_mutex_t mutex;
-    sem_t new_sem;
+    pthread_cond_t new_cond;
     int pipe[2];
     BFileDescriptor bfd;
+    BPending more_job;
+    int cancel;
     pthread_t thread;
     #endif
     DebugObject d_obj;
