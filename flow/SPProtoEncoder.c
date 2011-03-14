@@ -32,10 +32,22 @@
 
 #include <flow/SPProtoEncoder.h>
 
+static int can_encode (SPProtoEncoder *o);
+static void encode_packet (SPProtoEncoder *o);
+static void encode_work_func (SPProtoEncoder *o);
+static void encode_work_handler (SPProtoEncoder *o);
+static void maybe_encode (SPProtoEncoder *o);
+static void output_handler_recv (SPProtoEncoder *o, uint8_t *data);
+static void input_handler_done (SPProtoEncoder *o, int data_len);
+static void handler_job_hander (SPProtoEncoder *o);
+static void otpgenerator_handler (SPProtoEncoder *o);
+static void maybe_stop_work (SPProtoEncoder *o);
+
 static int can_encode (SPProtoEncoder *o)
 {
     ASSERT(o->in_len >= 0)
     ASSERT(o->out_have)
+    ASSERT(!o->tw_have)
     
     return (
         (!SPPROTO_HAVE_OTP(o->sp_params) || OTPGenerator_GetPosition(&o->otpgen) < o->sp_params.otp_num) &&
@@ -47,7 +59,30 @@ static void encode_packet (SPProtoEncoder *o)
 {
     ASSERT(o->in_len >= 0)
     ASSERT(o->out_have)
+    ASSERT(!o->tw_have)
     ASSERT(can_encode(o))
+    
+    // generate OTP, remember seed ID
+    if (SPPROTO_HAVE_OTP(o->sp_params)) {
+        o->tw_seed_id = o->otpgen_seed_id;
+        o->tw_otp = OTPGenerator_GetOTP(&o->otpgen);
+    }
+    
+    // start work
+    BThreadWork_Init(&o->tw, o->twd, (BThreadWork_handler_done)encode_work_handler, o, (BThreadWork_work_func)encode_work_func, o);
+    o->tw_have = 1;
+    
+    // schedule OTP warning handler
+    if (SPPROTO_HAVE_OTP(o->sp_params) && OTPGenerator_GetPosition(&o->otpgen) == o->otp_warning_count) {
+        BPending_Set(&o->handler_job);
+    }
+}
+
+static void encode_work_func (SPProtoEncoder *o)
+{
+    ASSERT(o->in_len >= 0)
+    ASSERT(o->out_have)
+    ASSERT(!SPPROTO_HAVE_ENCRYPTION(o->sp_params) || o->have_encryption_key)
     
     ASSERT(o->in_len <= o->input_mtu)
     
@@ -63,8 +98,8 @@ static void encode_packet (SPProtoEncoder *o)
     // write OTP
     if (SPPROTO_HAVE_OTP(o->sp_params)) {
         struct spproto_otpdata *header_otpd = (struct spproto_otpdata *)(header + SPPROTO_HEADER_OTPDATA_OFF(o->sp_params));
-        header_otpd->seed_id = htol16(o->otpgen_seed_id);
-        header_otpd->otp = OTPGenerator_GetOTP(&o->otpgen);
+        header_otpd->seed_id = htol16(o->tw_seed_id);
+        header_otpd->otp = o->tw_otp;
     }
     
     // write hash
@@ -105,20 +140,29 @@ static void encode_packet (SPProtoEncoder *o)
         out_len = plaintext_len;
     }
     
+    // remember length
+    o->tw_out_len = out_len;
+}
+
+static void encode_work_handler (SPProtoEncoder *o)
+{
+    ASSERT(o->in_len >= 0)
+    ASSERT(o->out_have)
+    ASSERT(o->tw_have)
+    
+    // free work
+    BThreadWork_Free(&o->tw);
+    o->tw_have = 0;
+    
     // finish packet
     o->in_len = -1;
     o->out_have = 0;
-    PacketRecvInterface_Done(&o->output, out_len);
-    
-    // schedule OTP warning handler
-    if (SPPROTO_HAVE_OTP(o->sp_params) && OTPGenerator_GetPosition(&o->otpgen) == o->otp_warning_count) {
-        BPending_Set(&o->handler_job);
-    }
+    PacketRecvInterface_Done(&o->output, o->tw_out_len);
 }
 
 static void maybe_encode (SPProtoEncoder *o)
 {
-    if (o->in_len >= 0 && o->out_have && can_encode(o)) {
+    if (o->in_len >= 0 && o->out_have && !o->tw_have && can_encode(o)) {
         encode_packet(o);
     }
 }
@@ -127,6 +171,7 @@ static void output_handler_recv (SPProtoEncoder *o, uint8_t *data)
 {
     ASSERT(o->in_len == -1)
     ASSERT(!o->out_have)
+    ASSERT(!o->tw_have)
     DebugObject_Access(&o->d_obj);
     
     // remember output packet
@@ -146,6 +191,7 @@ static void input_handler_done (SPProtoEncoder *o, int data_len)
     ASSERT(data_len <= o->input_mtu)
     ASSERT(o->in_len == -1)
     ASSERT(o->out_have)
+    ASSERT(!o->tw_have)
     DebugObject_Access(&o->d_obj);
     
     // remember input packet
@@ -178,6 +224,15 @@ static void otpgenerator_handler (SPProtoEncoder *o)
     maybe_encode(o);
 }
 
+static void maybe_stop_work (SPProtoEncoder *o)
+{
+    // stop existing work
+    if (o->tw_have) {
+        BThreadWork_Free(&o->tw);
+        o->tw_have = 0;
+    }
+}
+
 int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, int otp_warning_count, SPProtoEncoder_handler handler, void *user, BPendingGroup *pg, BThreadWorkDispatcher *twd)
 {
     spproto_assert_security_params(sp_params);
@@ -194,6 +249,7 @@ int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct s
     o->otp_warning_count = otp_warning_count;
     o->handler = handler;
     o->user = user;
+    o->twd = twd;
     
     // calculate hash size
     if (SPPROTO_HAVE_HASH(o->sp_params)) {
@@ -208,7 +264,7 @@ int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct s
     
     // init otp generator
     if (SPPROTO_HAVE_OTP(o->sp_params)) {
-        if (!OTPGenerator_Init(&o->otpgen, o->sp_params.otp_num, o->sp_params.otp_mode, twd, (OTPGenerator_handler)otpgenerator_handler, o)) {
+        if (!OTPGenerator_Init(&o->otpgen, o->sp_params.otp_num, o->sp_params.otp_mode, o->twd, (OTPGenerator_handler)otpgenerator_handler, o)) {
             goto fail0;
         }
     }
@@ -247,6 +303,9 @@ int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct s
     // init handler job
     BPending_Init(&o->handler_job, pg, (BPending_handler)handler_job_hander, o);
     
+    // have no work
+    o->tw_have = 0;
+    
     DebugObject_Init(&o->d_obj);
     
     return 1;
@@ -263,6 +322,11 @@ fail0:
 void SPProtoEncoder_Free (SPProtoEncoder *o)
 {
     DebugObject_Free(&o->d_obj);
+    
+    // free work
+    if (o->tw_have) {
+        BThreadWork_Free(&o->tw);
+    }
     
     // free handler job
     BPending_Free(&o->handler_job);
@@ -298,6 +362,9 @@ void SPProtoEncoder_SetEncryptionKey (SPProtoEncoder *o, uint8_t *encryption_key
     ASSERT(SPPROTO_HAVE_ENCRYPTION(o->sp_params))
     DebugObject_Access(&o->d_obj);
     
+    // stop existing work
+    maybe_stop_work(o);
+    
     // free encryptor
     if (o->have_encryption_key) {
         BEncryption_Free(&o->encryptor);
@@ -317,6 +384,9 @@ void SPProtoEncoder_RemoveEncryptionKey (SPProtoEncoder *o)
 {
     ASSERT(SPPROTO_HAVE_ENCRYPTION(o->sp_params))
     DebugObject_Access(&o->d_obj);
+    
+    // stop existing work
+    maybe_stop_work(o);
     
     if (o->have_encryption_key) {
         // free encryptor

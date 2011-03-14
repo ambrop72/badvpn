@@ -56,6 +56,7 @@ typedef struct {
     struct spproto_security_params sp_params;
     int otp_warning_count;
     SPProtoEncoder_handler handler;
+    BThreadWorkDispatcher *twd;
     void *user;
     int hash_size;
     int enc_block_size;
@@ -73,6 +74,11 @@ typedef struct {
     uint8_t *out;
     uint8_t *buf;
     BPending handler_job;
+    int tw_have;
+    BThreadWork tw;
+    uint16_t tw_seed_id;
+    otp_t tw_otp;
+    int tw_out_len;
     DebugObject d_obj;
 } SPProtoEncoder;
 
