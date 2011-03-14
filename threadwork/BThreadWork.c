@@ -25,6 +25,7 @@
 #ifdef BADVPN_THREADWORK_USE_PTHREAD
     #include <unistd.h>
     #include <errno.h>
+    #include <fcntl.h>
 #endif
 
 #include <misc/offset.h>
@@ -166,6 +167,12 @@ int BThreadWorkDispatcher_Init (BThreadWorkDispatcher *o, BReactor *reactor, int
         if (pipe(o->pipe) < 0) {
             BLog(BLOG_ERROR, "pipe failed");
             goto fail2;
+        }
+        
+        // set read end non-blocking
+        if (fcntl(o->pipe[0], F_SETFL, O_NONBLOCK) < 0) {
+            BLog(BLOG_ERROR, "pipe failed");
+            goto fail3;
         }
         
         // init BFileDescriptor
