@@ -86,6 +86,7 @@ struct {
     #endif
     int loglevel;
     int loglevels[BLOG_NUM_CHANNELS];
+    int threads;
     int ssl;
     char *nssdb;
     char *client_cert_name;
@@ -433,7 +434,7 @@ int main (int argc, char *argv[])
     }
     
     // init thread work dispatcher
-    if (!BThreadWorkDispatcher_Init(&twd, &ss, -1)) {
+    if (!BThreadWorkDispatcher_Init(&twd, &ss, options.threads)) {
         BLog(BLOG_ERROR, "BThreadWorkDispatcher_Init failed");
         goto fail2a;
     }
@@ -652,6 +653,7 @@ void print_help (const char *name)
         #endif
         "        [--loglevel <0-5/none/error/warning/notice/info/debug>]\n"
         "        [--channel-loglevel <channel-name> <0-5/none/error/warning/notice/info/debug>] ...\n"
+        "        [--threads <integer>]\n"
         "        [--ssl --nssdb <string> --client-cert-name <string>]\n"
         "        [--server-name <string>]\n"
         "        --server-addr <addr>\n"
@@ -705,6 +707,7 @@ int parse_arguments (int argc, char *argv[])
     for (int i = 0; i < BLOG_NUM_CHANNELS; i++) {
         options.loglevels[i] = -1;
     }
+    options.threads = 0;
     options.ssl = 0;
     options.nssdb = NULL;
     options.client_cert_name = NULL;
@@ -803,6 +806,14 @@ int parse_arguments (int argc, char *argv[])
             }
             options.loglevels[channel] = loglevel;
             i += 2;
+        }
+        else if (!strcmp(arg, "--threads")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.threads = atoi(argv[i + 1]);
+            i++;
         }
         else if (!strcmp(arg, "--ssl")) {
             options.ssl = 1;

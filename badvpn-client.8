@@ -25,6 +25,8 @@ badvpn-client \- VPN node daemon for the BadVPN peer-to-peer VPN system
 .br
 .RB "[" --channel-loglevel " <channel-name> <0-5/none/error/warning/notice/info/debug>] ..."
 .br
+.RB "[" --threads " <integer>]"
+.br
 .RB "[" --ssl " " --nssdb " <string> " --client-cert-name " <string>]"
 .br
 .RB "[" --server-name " <string>]"
@@ -119,6 +121,12 @@ Set the default logging level.
 .TP
 .BR --channel-loglevel " <channel-name> <0-5/none/error/warning/notice/info/debug>"
 Set the logging level for a specific logging channel.
+.TP
+.BR --threads " <integer>"
+Hint for the number of additional threads to use for potentionally long computations (such as
+encryption and OTP generation). If zero (0) (default), additional threads will be disabled and all
+computations will be done in the event loop. If negative (<0), a guess will be made, possibly
+based on the number of CPUs. If positive (>0), the given number of threads will be used.
 .TP
 .BR --ssl
 Use TLS. Requires --nssdb and --server-cert-name.
