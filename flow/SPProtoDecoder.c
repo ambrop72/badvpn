@@ -167,7 +167,7 @@ static void output_handler_done (SPProtoDecoder *o)
     PacketPassInterface_Done(&o->input);
 }
 
-int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg)
+int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg, BThreadWorkDispatcher *twd, SPProtoDecoder_otp_handler otp_handler, void *user)
 {
     spproto_assert_security_params(sp_params);
     ASSERT(spproto_carrier_mtu_for_payload_mtu(sp_params, PacketPassInterface_GetMTU(output)) >= 0)
@@ -210,7 +210,7 @@ int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct 
     
     // init OTP checker
     if (SPPROTO_HAVE_OTP(o->sp_params)) {
-        if (!OTPChecker_Init(&o->otpchecker, o->sp_params.otp_num, o->sp_params.otp_mode, num_otp_seeds)) {
+        if (!OTPChecker_Init(&o->otpchecker, o->sp_params.otp_num, o->sp_params.otp_mode, num_otp_seeds, twd, otp_handler, user)) {
             goto fail1;
         }
     }

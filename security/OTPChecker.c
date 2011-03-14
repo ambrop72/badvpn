@@ -20,6 +20,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <string.h>
+
 #include <security/OTPChecker.h>
 
 static void OTPChecker_Table_Empty (OTPChecker *mc, oc_table *t);
@@ -107,7 +109,34 @@ int OTPChecker_Table_CheckOTP (OTPChecker *mc, oc_table *t, otp_t otp)
     return 0;
 }
 
-int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables)
+static void work_func (OTPChecker *mc)
+{
+    oc_table *table = oc_tables_tables_at(&mc->tables_params, mc->tables, mc->next_table);
+    OTPChecker_Table_Generate(mc, table, &mc->calc, mc->tw_key, mc->tw_iv);
+}
+
+static void work_done_handler (OTPChecker *mc)
+{
+    DebugObject_Access(&mc->d_obj);
+    
+    // free work
+    BThreadWork_Free(&mc->tw);
+    mc->tw_have = 0;
+    
+    // update next table number
+    mc->next_table = BMODADD(mc->next_table, 1, mc->num_tables);
+    
+    // update number of used tables if not all are used yet
+    if (mc->tables_used < mc->num_tables) {
+        mc->tables_used++;
+    }
+    
+    // call handler
+    mc->handler(mc->user);
+    return;
+}
+
+int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables, BThreadWorkDispatcher *twd, OTPChecker_handler handler, void *user)
 {
     ASSERT(num_otps > 0)
     ASSERT(BEncryption_cipher_valid(cipher))
@@ -115,7 +144,11 @@ int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables)
     
     // init arguments
     mc->num_otps = num_otps;
+    mc->cipher = cipher;
     mc->num_tables = num_tables;
+    mc->twd = twd;
+    mc->handler = handler;
+    mc->user = user;
     
     // set number of entries
     mc->num_entries = 2 * mc->num_otps;
@@ -140,9 +173,10 @@ int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables)
         OTPChecker_Table_Empty(mc, oc_tables_tables_at(&mc->tables_params, mc->tables, i));
     }
     
-    // init debug object
-    DebugObject_Init(&mc->d_obj);
+    // have no work
+    mc->tw_have = 0;
     
+    DebugObject_Init(&mc->d_obj);
     return 1;
     
 fail1:
@@ -153,8 +187,12 @@ fail0:
 
 void OTPChecker_Free (OTPChecker *mc)
 {
-    // free debug object
     DebugObject_Free(&mc->d_obj);
+    
+    // free work
+    if (mc->tw_have) {
+        BThreadWork_Free(&mc->tw);
+    }
     
     // free tables
     free(mc->tables);
@@ -167,31 +205,54 @@ void OTPChecker_AddSeed (OTPChecker *mc, uint16_t seed_id, uint8_t *key, uint8_t
 {
     ASSERT(mc->next_table >= 0)
     ASSERT(mc->next_table < mc->num_tables)
+    DebugObject_Access(&mc->d_obj);
     
-    // initialize next table
+    // free existing work
+    if (mc->tw_have) {
+        BThreadWork_Free(&mc->tw);
+    }
+    
+    // set table's seed ID
     oc_table *table = oc_tables_tables_at(&mc->tables_params, mc->tables, mc->next_table);
     *oc_table_id(&mc->tables_params.tables_params, table) = seed_id;
-    OTPChecker_Table_Generate(mc, table, &mc->calc, key, iv);
     
-    // update next table number
-    mc->next_table = BMODADD(mc->next_table, 1, mc->num_tables);
-    // update number of used tables if not all are used yet
-    if (mc->tables_used < mc->num_tables) {
-        mc->tables_used++;
-    }
+    // copy key and IV
+    memcpy(mc->tw_key, key, BEncryption_cipher_key_size(mc->cipher));
+    memcpy(mc->tw_iv, iv, BEncryption_cipher_block_size(mc->cipher));
+    
+    // start work
+    BThreadWork_Init(&mc->tw, mc->twd, (BThreadWork_handler_done)work_done_handler, mc, (BThreadWork_work_func)work_func, mc);
+    
+    // set have work
+    mc->tw_have = 1;
 }
 
 void OTPChecker_RemoveSeeds (OTPChecker *mc)
 {
+    DebugObject_Access(&mc->d_obj);
+    
+    // free existing work
+    if (mc->tw_have) {
+        BThreadWork_Free(&mc->tw);
+        mc->tw_have = 0;
+    }
+    
     mc->tables_used = 0;
     mc->next_table = 0;
 }
 
 int OTPChecker_CheckOTP (OTPChecker *mc, uint16_t seed_id, otp_t otp)
 {
+    DebugObject_Access(&mc->d_obj);
+    
     // try tables in reverse order
     for (int i = 1; i <= mc->tables_used; i++) {
         int table_index = BMODADD(mc->next_table, mc->num_tables - i, mc->num_tables);
+        if (table_index == mc->next_table && mc->tw_have) {
+            // ignore table that is being generated
+            continue;
+        }
+        
         oc_table *table = oc_tables_tables_at(&mc->tables_params, mc->tables, table_index);
         if (*oc_table_id(&mc->tables_params.tables_params, table) == seed_id) {
             return OTPChecker_Table_CheckOTP(mc, table, otp);

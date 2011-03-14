@@ -147,6 +147,7 @@ int DatagramPeerIO_Init (
     PacketPassInterface *recv_userif,
     int otp_warning_count,
     DatagramPeerIO_handler_otp_warning handler_otp_warning,
+    DatagramPeerIO_handler_otp_ready handler_otp_ready,
     void *user,
     BThreadWorkDispatcher *twd
 )
@@ -200,7 +201,7 @@ int DatagramPeerIO_Init (
     PacketPassNotifier_Init(&o->recv_notifier, FragmentProtoAssembler_GetInput(&o->recv_assembler), BReactor_PendingGroup(o->reactor));
     
     // init decoder
-    if (!SPProtoDecoder_Init(&o->recv_decoder, PacketPassNotifier_GetInput(&o->recv_notifier), o->sp_params, 2, BReactor_PendingGroup(o->reactor))) {
+    if (!SPProtoDecoder_Init(&o->recv_decoder, PacketPassNotifier_GetInput(&o->recv_notifier), o->sp_params, 2, BReactor_PendingGroup(o->reactor), twd, handler_otp_ready, user)) {
         BLog(BLOG_ERROR, "SPProtoDecoder_Init failed");
         goto fail1;
     }

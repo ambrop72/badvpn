@@ -279,6 +279,9 @@ static void peer_msg_youretry (struct peer_data *peer, uint8_t *data, int data_l
 // handler from DatagramPeerIO when we should generate a new OTP send seed
 static void peer_udp_pio_handler_seed_warning (struct peer_data *peer);
 
+// handler from DatagramPeerIO when a new OTP seed can be recognized once it was provided to it
+static void peer_udp_pio_handler_seed_ready (struct peer_data *peer);
+
 // handler from StreamPeerIO when an error occurs on the connection
 static void peer_tcp_pio_handler_error (struct peer_data *peer);
 
@@ -1536,6 +1539,7 @@ int peer_init_link (struct peer_data *peer)
             options.fragmentation_latency, PEER_UDP_ASSEMBLER_NUM_FRAMES, &peer->recv_ppi,
             options.otp_num_warn,
             (DatagramPeerIO_handler_otp_warning)peer_udp_pio_handler_seed_warning,
+            (DatagramPeerIO_handler_otp_ready)peer_udp_pio_handler_seed_ready,
             peer, &twd
         )) {
             peer_log(peer, BLOG_ERROR, "DatagramPeerIO_Init failed");
@@ -2073,9 +2077,8 @@ void peer_msg_seed (struct peer_data *peer, uint8_t *data, int data_len)
     // add receive seed
     DatagramPeerIO_AddOTPRecvSeed(&peer->pio.udp.pio, seed_id, key, iv);
     
-    // send confirmation
-    peer_send_confirmseed(peer, seed_id);
-    return;
+    // remember seed ID so we can confirm it from peer_udp_pio_handler_seed_ready
+    peer->pio.udp.pending_recvseed_id = seed_id;
 }
 
 void peer_msg_confirmseed (struct peer_data *peer, uint8_t *data, int data_len)
@@ -2153,6 +2156,17 @@ void peer_udp_pio_handler_seed_warning (struct peer_data *peer)
         peer_generate_and_send_seed(peer);
         return;
     }
+}
+
+void peer_udp_pio_handler_seed_ready (struct peer_data *peer)
+{
+    ASSERT(options.transport_mode == TRANSPORT_MODE_UDP)
+    ASSERT(SPPROTO_HAVE_OTP(sp_params))
+    ASSERT(peer->have_link)
+    
+    // send confirmation
+    peer_send_confirmseed(peer, peer->pio.udp.pending_recvseed_id);
+    return;
 }
 
 void peer_tcp_pio_handler_error (struct peer_data *peer)

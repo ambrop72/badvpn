@@ -34,6 +34,7 @@
 #include <misc/modadd.h>
 #include <security/OTPCalculator.h>
 #include <system/DebugObject.h>
+#include <threadwork/BThreadWork.h>
 
 struct OTPChecker_entry {
     otp_t otp;
@@ -43,11 +44,22 @@ struct OTPChecker_entry {
 #include <generated/bstruct_OTPChecker.h>
 
 /**
+ * Handler called when OTP generation for a seed is finished and new OTPs
+ * can be recognized.
+ * 
+ * @param user as in {@link OTPChecker_Init}
+ */
+typedef void (*OTPChecker_handler) (void *user);
+
+/**
  * Object that checks OTPs agains known seeds.
  */
 typedef struct {
-    DebugObject d_obj;
+    BThreadWorkDispatcher *twd;
+    OTPChecker_handler handler;
+    void *user;
     int num_otps;
+    int cipher;
     int num_entries;
     int num_tables;
     int tables_used;
@@ -55,6 +67,11 @@ typedef struct {
     OTPCalculator calc;
     oc_tablesParams tables_params;
     oc_tables *tables;
+    int tw_have;
+    BThreadWork tw;
+    uint8_t tw_key[BENCRYPTION_MAX_KEY_SIZE];
+    uint8_t tw_iv[BENCRYPTION_MAX_BLOCK_SIZE];
+    DebugObject d_obj;
 } OTPChecker;
 
 /**
@@ -65,9 +82,13 @@ typedef struct {
  * @param cipher encryption cipher for calculating the OTPs. Must be valid
  *               according to {@link BEncryption_cipher_valid}.
  * @param num_tables number of tables to keep, each for one seed. Must be >0.
+ * @param twd thread work dispatcher
+ * @param handler handler to call when generation of new OTPs is complete,
+ *                after {@link OTPChecker_AddSeed} was called.
+ * @param user argument to handler
  * @return 1 on success, 0 on failure
  */
-int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables) WARN_UNUSED;
+int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables, BThreadWorkDispatcher *twd, OTPChecker_handler handler, void *user) WARN_UNUSED;
 
 /**
  * Frees the checker.
@@ -77,7 +98,9 @@ int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables) W
 void OTPChecker_Free (OTPChecker *mc);
 
 /**
- * Adds a seed whose OTPs should be recognized.
+ * Starts generating OTPs to recognize for a seed.
+ * OTPs for this seed will not be recognized until the {@link OTPChecker_handler} handler is called.
+ * If OTPs are still being generated for a previous seed, it will be forgotten.
  *
  * @param mc the object
  * @param seed_id seed identifier

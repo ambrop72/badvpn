@@ -37,6 +37,13 @@
 #include <flow/PacketPassInterface.h>
 
 /**
+ * Handler called when OTP generation for a new seed is finished.
+ * 
+ * @param user as in {@link SPProtoDecoder_Init}
+ */
+typedef void (*SPProtoDecoder_otp_handler) (void *user);
+
+/**
  * Object which decodes packets according to SPProto.
  * Input is with {@link PacketPassInterface}.
  * Output is with {@link PacketPassInterface}.
@@ -68,9 +75,12 @@ typedef struct {
  * @param num_otp_seeds if using OTPs, how many OTP seeds to keep for checking
  *                      receiving packets. Must be >=2 if using OTPs.
  * @param pg pending group
+ * @param twd thread work dispatcher
+ * @param otp_handler handler called when OTP generation is finished
+ * @param user argument to handler
  * @return 1 on success, 0 on failure
  */
-int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg) WARN_UNUSED;
+int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg, BThreadWorkDispatcher *twd, SPProtoDecoder_otp_handler otp_handler, void *user) WARN_UNUSED;
 
 /**
  * Frees the object.
@@ -107,7 +117,10 @@ void SPProtoDecoder_SetEncryptionKey (SPProtoDecoder *o, uint8_t *encryption_key
 void SPProtoDecoder_RemoveEncryptionKey (SPProtoDecoder *o);
 
 /**
- * Adds a new OTP seed to check received packets against.
+ * Starts generating OTPs for a seed to check received packets against.
+ * OTPs for this seed will not be recognized until the {@link SPProtoDecoder_otp_handler} handler
+ * is called.
+ * If OTPs are still being generated for the previous seed, it will be forgotten.
  * OTPs must be enabled.
  *
  * @param o the object

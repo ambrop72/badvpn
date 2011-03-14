@@ -59,6 +59,13 @@
 typedef void (*DatagramPeerIO_handler_otp_warning) (void *user);
 
 /**
+ * Handler called when OTP generation for a new receive seed is finished.
+ * 
+ * @param user as in {@link DatagramPeerIO_Init}
+ */
+typedef void (*DatagramPeerIO_handler_otp_ready) (void *user);
+
+/**
  * Object for comminicating with a peer using a datagram socket.
  *
  * The user provides data for sending to the peer through {@link PacketPassInterface}.
@@ -134,6 +141,7 @@ typedef struct {
  * @param otp_warning_count If using OTPs, after how many encoded packets to call the handler.
  *                          In this case, must be >0 and <=sp_params.otp_num.
  * @param handler_otp_warning OTP warning handler
+ * @param handler_otp_ready handler called when OTP generation for a new receive seed is finished
  * @param user value to pass to handler
  * @param twd thread work dispatcher
  * @return 1 on success, 0 on failure
@@ -149,6 +157,7 @@ int DatagramPeerIO_Init (
     PacketPassInterface *recv_userif,
     int otp_warning_count,
     DatagramPeerIO_handler_otp_warning handler_otp_warning,
+    DatagramPeerIO_handler_otp_ready handler_otp_ready,
     void *user,
     BThreadWorkDispatcher *twd
 ) WARN_UNUSED;
