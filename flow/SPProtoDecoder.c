@@ -29,10 +29,15 @@
 
 #include <flow/SPProtoDecoder.h>
 
-static int decode_packet (SPProtoDecoder *o, uint8_t *in, int in_len, uint8_t **out, int *out_len)
+static void decode_work_func (SPProtoDecoder *o)
 {
-    ASSERT(in_len >= 0)
-    ASSERT(in_len <= o->input_mtu)
+    ASSERT(o->in_len >= 0)
+    ASSERT(o->in_len <= o->input_mtu)
+    
+    uint8_t *in = o->in;
+    int in_len = o->in_len;
+    
+    o->tw_out_len = -1;
     
     uint8_t *plaintext;
     int plaintext_len;
@@ -45,19 +50,19 @@ static int decode_packet (SPProtoDecoder *o, uint8_t *in, int in_len, uint8_t **
         // input must be a multiple of blocks size
         if (in_len % o->enc_block_size != 0) {
             DEBUG("packet size not a multiple of block size");
-            return 0;
+            return;
         }
         
         // input must have an IV block
         if (in_len < o->enc_block_size) {
             DEBUG("packet does not have an IV");
-            return 0;
+            return;
         }
         
         // check if we have encryption key
         if (!o->have_encryption_key) {
             DEBUG("have no encryption key");
-            return 0;
+            return;
         }
         
         // copy IV as BEncryption_Decrypt changes the IV
@@ -73,7 +78,7 @@ static int decode_packet (SPProtoDecoder *o, uint8_t *in, int in_len, uint8_t **
         // read padding
         if (ciphertext_len < o->enc_block_size) {
             DEBUG("packet does not have a padding block");
-            return 0;
+            return;
         }
         int i;
         for (i = ciphertext_len - 1; i >= ciphertext_len - o->enc_block_size; i--) {
@@ -82,12 +87,12 @@ static int decode_packet (SPProtoDecoder *o, uint8_t *in, int in_len, uint8_t **
             }
             if (plaintext[i] != 0) {
                 DEBUG("packet padding wrong (nonzero byte)");
-                return 0;
+                return;
             }
         }
         if (i < ciphertext_len - o->enc_block_size) {
             DEBUG("packet padding wrong (all zeroes)");
-            return 0;
+            return;
         }
         plaintext_len = i;
     }
@@ -95,24 +100,22 @@ static int decode_packet (SPProtoDecoder *o, uint8_t *in, int in_len, uint8_t **
     // check for header
     if (plaintext_len < SPPROTO_HEADER_LEN(o->sp_params)) {
         DEBUG("packet has no header");
-        return 0;
+        return;
     }
     uint8_t *header = plaintext;
     
     // check data length
     if (plaintext_len - SPPROTO_HEADER_LEN(o->sp_params) > o->output_mtu) {
         DEBUG("packet too long");
-        return 0;
+        return;
     }
     
     // check OTP
     if (SPPROTO_HAVE_OTP(o->sp_params)) {
+        // remember seed and OTP (can't check from here)
         struct spproto_otpdata *header_otpd = (struct spproto_otpdata *)(header + SPPROTO_HEADER_OTPDATA_OFF(o->sp_params));
-        uint16_t seed_id = ltoh16(header_otpd->seed_id);
-        if (!OTPChecker_CheckOTP(&o->otpchecker, seed_id, header_otpd->otp)) {
-            DEBUG("packet has wrong OTP");
-            return 0;
-        }
+        o->tw_out_seed_id = ltoh16(header_otpd->seed_id);
+        o->tw_out_otp = header_otpd->otp;
     }
     
     // check hash
@@ -131,40 +134,84 @@ static int decode_packet (SPProtoDecoder *o, uint8_t *in, int in_len, uint8_t **
         // compare hashes
         if (memcmp(hash, hash_calc, o->hash_size)) {
             DEBUG("packet has wrong hash");
-            return 0;
+            return;
         }
     }
     
     // return packet
-    *out = plaintext + SPPROTO_HEADER_LEN(o->sp_params);
-    *out_len = plaintext_len - SPPROTO_HEADER_LEN(o->sp_params);
-    return 1;
+    o->tw_out = plaintext + SPPROTO_HEADER_LEN(o->sp_params);
+    o->tw_out_len = plaintext_len - SPPROTO_HEADER_LEN(o->sp_params);
+}
+
+static void decode_work_handler (SPProtoDecoder *o)
+{
+    ASSERT(o->in_len >= 0)
+    ASSERT(o->tw_have)
+    DebugObject_Access(&o->d_obj);
+    
+    // free work
+    BThreadWork_Free(&o->tw);
+    o->tw_have = 0;
+    
+    // check OTP
+    if (SPPROTO_HAVE_OTP(o->sp_params) && o->tw_out_len >= 0) {
+        if (!OTPChecker_CheckOTP(&o->otpchecker, o->tw_out_seed_id, o->tw_out_otp)) {
+            DEBUG("packet has wrong OTP");
+            o->tw_out_len = -1;
+        }
+    }
+    
+    if (o->tw_out_len < 0) {
+        // cannot decode, finish input packet
+        PacketPassInterface_Done(&o->input);
+        o->in_len = -1;
+    } else {
+        // submit decoded packet to output
+        PacketPassInterface_Sender_Send(o->output, o->tw_out, o->tw_out_len);
+    }
 }
 
 static void input_handler_send (SPProtoDecoder *o, uint8_t *data, int data_len)
 {
     ASSERT(data_len >= 0)
     ASSERT(data_len <= o->input_mtu)
+    ASSERT(o->in_len == -1)
+    ASSERT(!o->tw_have)
     DebugObject_Access(&o->d_obj);
     
-    // attempt to decode packet
-    uint8_t *out;
-    int out_len;
-    if (!decode_packet(o, data, data_len, &out, &out_len)) {
-        // cannot decode, finish input packet
-        PacketPassInterface_Done(&o->input);
-    } else {
-        // submit decoded packet to output
-        PacketPassInterface_Sender_Send(o->output, out, out_len);
-    }
+    // remember input
+    o->in = data;
+    o->in_len = data_len;
+    
+    // start decoding
+    BThreadWork_Init(&o->tw, o->twd, (BThreadWork_handler_done)decode_work_handler, o, (BThreadWork_work_func)decode_work_func, o);
+    o->tw_have = 1;
 }
 
 static void output_handler_done (SPProtoDecoder *o)
 {
+    ASSERT(o->in_len >= 0)
+    ASSERT(!o->tw_have)
     DebugObject_Access(&o->d_obj);
     
     // finish input packet
     PacketPassInterface_Done(&o->input);
+    o->in_len = -1;
+}
+
+static void maybe_stop_work_and_ignore (SPProtoDecoder *o)
+{
+    ASSERT(!(o->tw_have) || o->in_len >= 0)
+    
+    if (o->tw_have) {
+        // free work
+        BThreadWork_Free(&o->tw);
+        o->tw_have = 0;
+        
+        // ignore packet, receive next one
+        PacketPassInterface_Done(&o->input);
+        o->in_len = -1;
+    }
 }
 
 int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg, BThreadWorkDispatcher *twd, SPProtoDecoder_otp_handler otp_handler, void *user)
@@ -176,6 +223,7 @@ int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct 
     // init arguments
     o->output = output;
     o->sp_params = sp_params;
+    o->twd = twd;
     
     // init output
     PacketPassInterface_Sender_Init(o->output, (PacketPassInterface_handler_done)output_handler_done, o);
@@ -210,7 +258,7 @@ int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct 
     
     // init OTP checker
     if (SPPROTO_HAVE_OTP(o->sp_params)) {
-        if (!OTPChecker_Init(&o->otpchecker, o->sp_params.otp_num, o->sp_params.otp_mode, num_otp_seeds, twd, otp_handler, user)) {
+        if (!OTPChecker_Init(&o->otpchecker, o->sp_params.otp_num, o->sp_params.otp_mode, num_otp_seeds, o->twd, otp_handler, user)) {
             goto fail1;
         }
     }
@@ -219,6 +267,12 @@ int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct 
     if (SPPROTO_HAVE_ENCRYPTION(o->sp_params)) { 
         o->have_encryption_key = 0;
     }
+    
+    // have no input packet
+    o->in_len = -1;
+    
+    // have no work
+    o->tw_have = 0;
     
     DebugObject_Init(&o->d_obj);
     
@@ -236,7 +290,12 @@ fail0:
 void SPProtoDecoder_Free (SPProtoDecoder *o)
 {
     DebugObject_Free(&o->d_obj);
-
+    
+    // free work
+    if (o->tw_have) {
+        BThreadWork_Free(&o->tw);
+    }
+    
     // free encryptor
     if (SPPROTO_HAVE_ENCRYPTION(o->sp_params) && o->have_encryption_key) {
         BEncryption_Free(&o->encryptor);
@@ -268,6 +327,9 @@ void SPProtoDecoder_SetEncryptionKey (SPProtoDecoder *o, uint8_t *encryption_key
     ASSERT(SPPROTO_HAVE_ENCRYPTION(o->sp_params))
     DebugObject_Access(&o->d_obj);
     
+    // stop existing work
+    maybe_stop_work_and_ignore(o);
+    
     // free encryptor
     if (o->have_encryption_key) {
         BEncryption_Free(&o->encryptor);
@@ -284,6 +346,9 @@ void SPProtoDecoder_RemoveEncryptionKey (SPProtoDecoder *o)
 {
     ASSERT(SPPROTO_HAVE_ENCRYPTION(o->sp_params))
     DebugObject_Access(&o->d_obj);
+    
+    // stop existing work
+    maybe_stop_work_and_ignore(o);
     
     if (o->have_encryption_key) {
         // free encryptor

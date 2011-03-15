@@ -50,8 +50,9 @@ typedef void (*SPProtoDecoder_otp_handler) (void *user);
  */
 typedef struct {
     PacketPassInterface *output;
-    int output_mtu;
     struct spproto_security_params sp_params;
+    BThreadWorkDispatcher *twd;
+    int output_mtu;
     int hash_size;
     int enc_block_size;
     int enc_key_size;
@@ -61,6 +62,14 @@ typedef struct {
     OTPChecker otpchecker;
     int have_encryption_key;
     BEncryption encryptor;
+    uint8_t *in;
+    int in_len;
+    int tw_have;
+    BThreadWork tw;
+    uint16_t tw_out_seed_id;
+    otp_t tw_out_otp;
+    uint8_t *tw_out;
+    int tw_out_len;
     DebugObject d_obj;
 } SPProtoDecoder;
 
