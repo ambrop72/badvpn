@@ -24,4 +24,7 @@
 
 #ifndef NDEBUG
 DebugCounter debugobject_counter = DEBUGCOUNTER_STATIC;
+#ifdef BADVPN_THREADWORK_USE_PTHREAD
+pthread_mutex_t debugobject_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 #endif

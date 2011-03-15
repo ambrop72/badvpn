@@ -29,6 +29,10 @@
 
 #include <stdint.h>
 
+#ifdef BADVPN_THREADWORK_USE_PTHREAD
+#include <pthread.h>
+#endif
+
 #include <misc/debug.h>
 #include <misc/debugcounter.h>
 
@@ -71,12 +75,26 @@ static void DebugObject_Access (DebugObject *obj);
 static void DebugObjectGlobal_Finish (void);
 
 extern DebugCounter debugobject_counter;
+#ifdef BADVPN_THREADWORK_USE_PTHREAD
+extern pthread_mutex_t debugobject_mutex;
+#endif
 
 void DebugObject_Init (DebugObject *obj)
 {
     #ifndef NDEBUG
+    
     obj->c = DEBUGOBJECT_VALID;
+    
+    #ifdef BADVPN_THREADWORK_USE_PTHREAD
+    ASSERT_FORCE(pthread_mutex_lock(&debugobject_mutex) == 0)
+    #endif
+    
     DebugCounter_Increment(&debugobject_counter);
+    
+    #ifdef BADVPN_THREADWORK_USE_PTHREAD
+    ASSERT_FORCE(pthread_mutex_unlock(&debugobject_mutex) == 0)
+    #endif
+    
     #endif
 }
 
@@ -85,8 +103,19 @@ void DebugObject_Free (DebugObject *obj)
     ASSERT(obj->c == DEBUGOBJECT_VALID)
     
     #ifndef NDEBUG
+    
     obj->c = 0;
+    
+    #ifdef BADVPN_THREADWORK_USE_PTHREAD
+    ASSERT_FORCE(pthread_mutex_lock(&debugobject_mutex) == 0)
+    #endif
+    
     DebugCounter_Decrement(&debugobject_counter);
+    
+    #ifdef BADVPN_THREADWORK_USE_PTHREAD
+    ASSERT_FORCE(pthread_mutex_unlock(&debugobject_mutex) == 0)
+    #endif
+    
     #endif
 }
 
