@@ -31,6 +31,7 @@ static void work_func (OTPGenerator *g)
 
 static void work_done_handler (OTPGenerator *g)
 {
+    ASSERT(g->tw_have)
     DebugObject_Access(&g->d_obj);
     
     // free work

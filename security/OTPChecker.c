@@ -117,6 +117,7 @@ static void work_func (OTPChecker *mc)
 
 static void work_done_handler (OTPChecker *mc)
 {
+    ASSERT(mc->tw_have)
     DebugObject_Access(&mc->d_obj);
     
     // free work
