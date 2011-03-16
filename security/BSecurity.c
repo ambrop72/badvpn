@@ -20,6 +20,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <stddef.h>
+
 #ifdef BADVPN_THREADWORK_USE_PTHREAD
     #include <pthread.h>
 #endif
@@ -98,6 +100,7 @@ int BSecurity_GlobalInit (int use_threads)
     bsecurity_use_threads = use_threads;
     
     #ifdef BADVPN_THREADWORK_USE_PTHREAD
+    // set callbacks
     if (use_threads) {
         CRYPTO_set_id_callback(id_callback);
         CRYPTO_set_locking_callback(locking_callback);
@@ -116,6 +119,32 @@ fail1:
 fail0:
     return 0;
     #endif
+}
+
+void BSecurity_GlobalFree (void)
+{
+    ASSERT(bsecurity_initialized)
+    
+    #ifdef BADVPN_THREADWORK_USE_PTHREAD
+    
+    if (bsecurity_use_threads) {
+        // remove callbacks
+        CRYPTO_set_locking_callback(NULL);
+        CRYPTO_set_id_callback(NULL);
+        
+        // free locks
+        while (bsecurity_num_locks > 0) {
+            ASSERT_FORCE(pthread_mutex_destroy(&bsecurity_locks[bsecurity_num_locks - 1]) == 0)
+            bsecurity_num_locks--;
+        }
+        
+        // free locks array
+        BFree(bsecurity_locks);
+    }
+    
+    #endif
+    
+    bsecurity_initialized = 0;
 }
 
 void BSecurity_GlobalAssert (int need_threads)

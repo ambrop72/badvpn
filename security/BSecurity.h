@@ -29,13 +29,19 @@
 
 /**
  * Initializes security functions.
- * May only be called once.
+ * Security must not be initialized.
  * 
  * @param use_threads whether the application may call security functions
  *                    from different threads. Must be 0 or 1.
  * @return 1 on success, 0 on failure
  */
 int BSecurity_GlobalInit (int use_threads);
+
+/**
+ * Deinitializes security functions.
+ * Security must be initialized.
+ */
+void BSecurity_GlobalFree (void);
 
 /**
  * Asserts that {@link BSecurity_GlobalInit} was done, and that it was

@@ -622,6 +622,7 @@ fail3:
         ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
         PL_ArenaFinish();
     }
+    BSecurity_GlobalFree();
 fail2b:
     BThreadWorkDispatcher_Free(&twd);
 fail2a:
