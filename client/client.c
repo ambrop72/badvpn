@@ -441,9 +441,11 @@ int main (int argc, char *argv[])
     }
     
     // init BSecurity
-    if (!BSecurity_GlobalInit(BThreadWorkDispatcher_UsingThreads(&twd))) {
-        BLog(BLOG_ERROR, "BSecurity_GlobalInit failed");
-        goto fail2b;
+    if (BThreadWorkDispatcher_UsingThreads(&twd)) {
+        if (!BSecurity_GlobalInitThreadSafe()) {
+            BLog(BLOG_ERROR, "BSecurity_GlobalInitThreadSafe failed");
+            goto fail2b;
+        }
     }
     
     if (options.ssl) {
@@ -622,7 +624,9 @@ fail3:
         ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
         PL_ArenaFinish();
     }
-    BSecurity_GlobalFree();
+    if (BThreadWorkDispatcher_UsingThreads(&twd)) {
+        BSecurity_GlobalFreeThreadSafe();
+    }
 fail2b:
     BThreadWorkDispatcher_Free(&twd);
 fail2a:

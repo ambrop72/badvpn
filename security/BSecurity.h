@@ -28,28 +28,26 @@
 #define BADVPN_SECURITY_BSECURITY_H
 
 /**
- * Initializes security functions.
- * Security must not be initialized.
+ * Initializes thread safety for security functions.
+ * Thread safety must not be initialized.
  * 
- * @param use_threads whether the application may call security functions
- *                    from different threads. Must be 0 or 1.
  * @return 1 on success, 0 on failure
  */
-int BSecurity_GlobalInit (int use_threads);
+int BSecurity_GlobalInitThreadSafe (void);
 
 /**
- * Deinitializes security functions.
- * Security must be initialized.
+ * Deinitializes thread safety for security functions.
+ * Thread safety must be initialized.
  */
-void BSecurity_GlobalFree (void);
+void BSecurity_GlobalFreeThreadSafe (void);
 
 /**
- * Asserts that {@link BSecurity_GlobalInit} was done, and that it was
- * done with use_threads=1 if need_threads=1.
+ * Asserts that {@link BSecurity_GlobalInitThreadSafe} was done,
+ * if thread_safe=1.
  * 
- * @param need_threads whether the application may call security functions
- *                     from different threads. Must be 0 or 1.
+ * @param thread_safe whether thread safety is to be asserted.
+ *                    Must be 0 or 1.
  */
-void BSecurity_GlobalAssert (int need_threads);
+void BSecurity_GlobalAssertThreadSafe (int thread_safe);
 
 #endif
