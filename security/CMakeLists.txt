@@ -1,4 +1,5 @@
 add_library(security
+    BSecurity.c
     BEncryption.c
     BHash.c
     BRandom.c
