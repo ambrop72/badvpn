@@ -62,8 +62,8 @@ typedef void (*BThreadWork_handler_done) (void *user);
 
 typedef struct {
     BReactor *reactor;
-    int num_threads;
     #ifdef BADVPN_THREADWORK_USE_PTHREAD
+    int num_threads;
     LinkedList2 pending_list;
     struct BThreadWork_s *running_work;
     LinkedList2 finished_list;
@@ -121,6 +121,14 @@ int BThreadWorkDispatcher_Init (BThreadWorkDispatcher *o, BReactor *reactor, int
  * @param o the object
  */
 void BThreadWorkDispatcher_Free (BThreadWorkDispatcher *o);
+
+/**
+ * Determines whether threads are being used for computations, or computations
+ * are done in the event loop.
+ * 
+ * @return 1 if threads are being used, 0 if not
+ */
+int BThreadWorkDispatcher_UsingThreads (BThreadWorkDispatcher *o);
 
 /**
  * Initializes the work.

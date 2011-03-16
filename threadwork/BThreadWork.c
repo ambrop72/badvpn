@@ -149,7 +149,9 @@ static void more_job_handler (BThreadWorkDispatcher *o)
 
 static void work_job_handler (BThreadWork *o)
 {
+    #ifdef BADVPN_THREADWORK_USE_PTHREAD
     ASSERT(o->d->num_threads == 0)
+    #endif
     DebugObject_Access(&o->d_obj);
     
     // do the work
@@ -172,8 +174,6 @@ int BThreadWorkDispatcher_Init (BThreadWorkDispatcher *o, BReactor *reactor, int
     } else {
         o->num_threads = num_threads_hint;
     }
-    #else
-    o->num_threads = 0;
     #endif
     
     #ifdef BADVPN_THREADWORK_USE_PTHREAD
@@ -302,6 +302,15 @@ void BThreadWorkDispatcher_Free (BThreadWorkDispatcher *o)
         ASSERT_FORCE(pthread_mutex_destroy(&o->mutex) == 0)
     }
     
+    #endif
+}
+
+int BThreadWorkDispatcher_UsingThreads (BThreadWorkDispatcher *o)
+{
+    #ifdef BADVPN_THREADWORK_USE_PTHREAD
+    return (o->num_threads > 0);
+    #else
+    return 0;
     #endif
 }
 
