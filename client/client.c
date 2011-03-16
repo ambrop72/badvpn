@@ -49,6 +49,7 @@
 #include <misc/loglevel.h>
 #include <misc/loggers_string.h>
 #include <structure/LinkedList2.h>
+#include <security/BSecurity.h>
 #include <security/BRandom.h>
 #include <nspr_support/DummyPRFileDesc.h>
 #include <nspr_support/BSocketPRFileDesc.h>
@@ -439,6 +440,12 @@ int main (int argc, char *argv[])
         goto fail2a;
     }
     
+    // init BSecurity
+    if (!BSecurity_GlobalInit(BThreadWorkDispatcher_UsingThreads(&twd))) {
+        BLog(BLOG_ERROR, "BSecurity_GlobalInit failed");
+        goto fail2b;
+    }
+    
     if (options.ssl) {
         // init NSPR
         PR_Init(PR_USER_THREAD, PR_PRIORITY_NORMAL, 0);
@@ -615,6 +622,7 @@ fail3:
         ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
         PL_ArenaFinish();
     }
+fail2b:
     BThreadWorkDispatcher_Free(&twd);
 fail2a:
     BSignal_Finish();
