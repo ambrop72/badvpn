@@ -43,7 +43,10 @@
 #define BTHREADWORK_STATE_FINISHED 3
 #define BTHREADWORK_STATE_FORGOTTEN 4
 
+#define BTHREADWORK_MAX_THREADS 8
+
 struct BThreadWork_s;
+struct BThreadWorkDispatcher_s;
 
 /**
  * Function called to do the work for a {@link BThreadWork}.
@@ -60,20 +63,27 @@ typedef void (*BThreadWork_work_func) (void *user);
  */
 typedef void (*BThreadWork_handler_done) (void *user);
 
-typedef struct {
+#ifdef BADVPN_THREADWORK_USE_PTHREAD
+struct BThreadWorkDispatcher_thread {
+    struct BThreadWorkDispatcher_s *d;
+    struct BThreadWork_s *running_work;
+    pthread_cond_t new_cond;
+    pthread_t thread;
+};
+#endif
+
+typedef struct BThreadWorkDispatcher_s {
     BReactor *reactor;
     #ifdef BADVPN_THREADWORK_USE_PTHREAD
-    int num_threads;
     LinkedList2 pending_list;
-    struct BThreadWork_s *running_work;
     LinkedList2 finished_list;
     pthread_mutex_t mutex;
-    pthread_cond_t new_cond;
     int pipe[2];
     BFileDescriptor bfd;
     BPending more_job;
     int cancel;
-    pthread_t thread;
+    int num_threads;
+    struct BThreadWorkDispatcher_thread threads[BTHREADWORK_MAX_THREADS];
     #endif
     DebugObject d_obj;
     DebugCounter d_ctr;
