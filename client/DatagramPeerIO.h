@@ -127,6 +127,8 @@ typedef struct {
  * Initializes the object.
  * The interface is initialized in default mode.
  * {@link BLog_Init} must have been done.
+ * {@link BSecurity_GlobalInitThreadSafe} must have been done if
+ * {@link BThreadWorkDispatcher_UsingThreads}(twd) = 1.
  *
  * @param o the object
  * @param reactor {@link BReactor} we live in

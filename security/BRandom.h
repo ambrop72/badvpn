@@ -31,6 +31,8 @@
 
 /**
  * Generates random data.
+ * {@link BSecurity_GlobalInitThreadSafe} must have been done if this is
+ * being called from a non-main thread.
  * 
  * @param buf buffer to write data into
  * @param len number of bytes to generate. Must be >=0.

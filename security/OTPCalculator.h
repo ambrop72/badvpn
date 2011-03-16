@@ -55,6 +55,8 @@ typedef struct {
 
 /**
  * Initializes the calculator.
+ * {@link BSecurity_GlobalInitThreadSafe} must have been done if this object
+ * will be used from a non-main thread.
  *
  * @param calc the object
  * @param num_otps number of OTPs to generate from a seed. Must be >=0.

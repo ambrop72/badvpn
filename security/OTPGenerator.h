@@ -63,6 +63,8 @@ typedef struct {
 /**
  * Initializes the generator.
  * The object is initialized with number of used OTPs = num_otps.
+ * {@link BSecurity_GlobalInitThreadSafe} must have been done if
+ * {@link BThreadWorkDispatcher_UsingThreads}(twd) = 1.
  *
  * @param g the object
  * @param num_otps number of OTPs to generate from a seed. Must be >=0.

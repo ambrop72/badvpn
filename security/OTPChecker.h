@@ -76,6 +76,8 @@ typedef struct {
 
 /**
  * Initializes the checker.
+ * {@link BSecurity_GlobalInitThreadSafe} must have been done if
+ * {@link BThreadWorkDispatcher_UsingThreads}(twd) = 1.
  *
  * @param mc the object
  * @param num_otps number of OTPs to generate from a seed. Must be >0.

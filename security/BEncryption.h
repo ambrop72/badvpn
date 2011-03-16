@@ -116,6 +116,8 @@ int BEncryption_cipher_key_size (int cipher);
 
 /**
  * Initializes the object.
+ * {@link BSecurity_GlobalInitThreadSafe} must have been done if this object
+ * will be used from a non-main thread.
  * 
  * @param enc the object
  * @param mode whether encryption or decryption is to be done, or both.

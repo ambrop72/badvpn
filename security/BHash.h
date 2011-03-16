@@ -58,6 +58,8 @@ int BHash_size (int type);
 
 /**
  * Calculates a hash.
+ * {@link BSecurity_GlobalInitThreadSafe} must have been done if this is
+ * being called from a non-main thread.
  * 
  * @param type hash type number. Must be valid.
  * @param data data to calculate the hash of

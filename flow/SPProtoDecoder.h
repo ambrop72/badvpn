@@ -75,6 +75,8 @@ typedef struct {
 
 /**
  * Initializes the object.
+ * {@link BSecurity_GlobalInitThreadSafe} must have been done if
+ * {@link BThreadWorkDispatcher_UsingThreads}(twd) = 1.
  *
  * @param o the object
  * @param output output interface. Its MTU must not be too large, i.e. this must hold:
