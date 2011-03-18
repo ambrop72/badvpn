@@ -47,9 +47,9 @@ static struct DPRelay_flow * create_flow (DPRelaySource *src, DPRelaySink *sink,
     flow->src = src;
     flow->sink = sink;
     
-    // init DataProtoLocalSource
-    if (!DataProtoLocalSource_Init(&flow->dpls, &src->router->device, src->source_id, sink->dest_id, num_packets, inactivity_time, (DataProtoLocalSource_handler_inactivity)flow_inactivity_handler, flow)) {
-        BLog(BLOG_ERROR, "relay flow %d->%d: DataProtoLocalSource_Init failed", (int)src->source_id, (int)sink->dest_id);
+    // init DataProtoFlow
+    if (!DataProtoFlow_Init(&flow->dpls, &src->router->device, src->source_id, sink->dest_id, num_packets, inactivity_time, (DataProtoFlow_handler_inactivity)flow_inactivity_handler, flow)) {
+        BLog(BLOG_ERROR, "relay flow %d->%d: DataProtoFlow_Init failed", (int)src->source_id, (int)sink->dest_id);
         goto fail1;
     }
     
@@ -61,7 +61,7 @@ static struct DPRelay_flow * create_flow (DPRelaySource *src, DPRelaySink *sink,
     
     // attach flow if needed
     if (sink->dest) {
-        DataProtoLocalSource_Attach(&flow->dpls, sink->dest);
+        DataProtoFlow_Attach(&flow->dpls, sink->dest);
     }
     
     BLog(BLOG_INFO, "relay flow %d->%d: created", (int)src->source_id, (int)sink->dest_id);
@@ -78,7 +78,7 @@ static void free_flow (struct DPRelay_flow *flow)
 {
     // detach flow if needed
     if (flow->sink->dest) {
-        DataProtoLocalSource_Detach(&flow->dpls);
+        DataProtoFlow_Detach(&flow->dpls);
     }
     
     // remove posible router reference
@@ -92,8 +92,8 @@ static void free_flow (struct DPRelay_flow *flow)
     // remove from source list
     LinkedList1_Remove(&flow->src->flows_list, &flow->src_list_node);
     
-    // free DataProtoLocalSource
-    DataProtoLocalSource_Free(&flow->dpls);
+    // free DataProtoFlow
+    DataProtoFlow_Free(&flow->dpls);
     
     // free structore
     free(flow);
@@ -130,7 +130,7 @@ static void source_device_handler (DPRelayRouter *o, const uint8_t *frame, int f
     }
     
     // route frame to current flow
-    DataProtoLocalSource_Route(&o->current_flow->dpls, 0);
+    DataProtoFlow_Route(&o->current_flow->dpls, 0);
     
     // set no current flow
     o->current_flow = NULL;
@@ -147,8 +147,8 @@ int DPRelayRouter_Init (DPRelayRouter *o, int frame_mtu, BReactor *reactor)
     // init BufferWriter
     BufferWriter_Init(&o->writer, frame_mtu, BReactor_PendingGroup(reactor));
     
-    // init DataProtoDevice
-    if (!DataProtoDevice_Init(&o->device, BufferWriter_GetOutput(&o->writer), (DataProtoDevice_handler)source_device_handler, o, reactor)) {
+    // init DataProtoSource
+    if (!DataProtoSource_Init(&o->device, BufferWriter_GetOutput(&o->writer), (DataProtoSource_handler)source_device_handler, o, reactor)) {
         goto fail1;
     }
     
@@ -171,8 +171,8 @@ void DPRelayRouter_Free (DPRelayRouter *o)
     DebugCounter_Free(&o->d_ctr);
     DebugObject_Free(&o->d_obj);
     
-    // free DataProtoDevice
-    DataProtoDevice_Free(&o->device);
+    // free DataProtoSource
+    DataProtoSource_Free(&o->device);
     
     // free BufferWriter
     BufferWriter_Free(&o->writer);
@@ -251,7 +251,7 @@ void DPRelaySource_PrepareFreeDestinations (DPRelaySource *o)
     while (node) {
         struct DPRelay_flow *flow = UPPER_OBJECT(node, struct DPRelay_flow, src_list_node);
         if (flow->sink->dest) {
-            DataProtoDest_PrepareFree(flow->sink->dest);
+            DataProtoSink_PrepareFree(flow->sink->dest);
         }
         node = LinkedList1Node_Next(node);
     }
@@ -284,7 +284,7 @@ void DPRelaySink_Free (DPRelaySink *o)
     }
 }
 
-void DPRelaySink_Attach (DPRelaySink *o, DataProtoDest *dest)
+void DPRelaySink_Attach (DPRelaySink *o, DataProtoSink *dest)
 {
     ASSERT(!o->dest)
     DebugObject_Access(&o->d_obj);
@@ -296,7 +296,7 @@ void DPRelaySink_Attach (DPRelaySink *o, DataProtoDest *dest)
     LinkedList1Node *node = LinkedList1_GetFirst(&o->flows_list);
     while (node) {
         struct DPRelay_flow *flow = UPPER_OBJECT(node, struct DPRelay_flow, sink_list_node);
-        DataProtoLocalSource_Attach(&flow->dpls, o->dest);
+        DataProtoFlow_Attach(&flow->dpls, o->dest);
         node = LinkedList1Node_Next(node);
     }
 }
@@ -313,7 +313,7 @@ void DPRelaySink_Detach (DPRelaySink *o)
     LinkedList1Node *node = LinkedList1_GetFirst(&o->flows_list);
     while (node) {
         struct DPRelay_flow *flow = UPPER_OBJECT(node, struct DPRelay_flow, sink_list_node);
-        DataProtoLocalSource_Detach(&flow->dpls);
+        DataProtoFlow_Detach(&flow->dpls);
         node = LinkedList1Node_Next(node);
     }
 }

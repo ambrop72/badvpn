@@ -42,9 +42,9 @@
 #include <flow/PacketPassConnector.h>
 #include <flow/PacketRouter.h>
 
-typedef void (*DataProtoDest_handler) (void *user, int up);
-typedef void (*DataProtoDevice_handler) (void *user, const uint8_t *frame, int frame_len);
-typedef void (*DataProtoLocalSource_handler_inactivity) (void *user);
+typedef void (*DataProtoSink_handler) (void *user, int up);
+typedef void (*DataProtoSource_handler) (void *user, const uint8_t *frame, int frame_len);
+typedef void (*DataProtoFlow_handler_inactivity) (void *user);
 
 /**
  * Frame destination.
@@ -63,21 +63,21 @@ typedef struct {
     BTimer receive_timer;
     int up;
     int up_report;
-    DataProtoDest_handler handler;
+    DataProtoSink_handler handler;
     void *user;
     BPending keepalive_job;
     BPending up_job;
     int freeing;
     DebugObject d_obj;
     DebugCounter d_ctr;
-} DataProtoDest;
+} DataProtoSink;
 
 /**
  * Object that receives frames from a device and routes
- * them to buffers in {@link DataProtoLocalSource} objects.
+ * them to buffers in {@link DataProtoFlow} objects.
  */
 typedef struct {
-    DataProtoDevice_handler handler;
+    DataProtoSource_handler handler;
     void *user;
     BReactor *reactor;
     int frame_mtu;
@@ -86,24 +86,24 @@ typedef struct {
     int current_recv_len;
     DebugObject d_obj;
     DebugCounter d_ctr;
-} DataProtoDevice;
+} DataProtoSource;
 
 /**
  * Local frame source.
  * Buffers frames received from the TAP device, addressed to a particular peer.
  */
 typedef struct {
-    DataProtoDevice *device;
+    DataProtoSource *device;
     peerid_t source_id;
     peerid_t dest_id;
     int inactivity_time;
     RouteBuffer rbuf;
     PacketPassInactivityMonitor monitor;
     PacketPassConnector connector;
-    DataProtoDest *dp;
+    DataProtoSink *dp;
     PacketPassFairQueueFlow dp_qflow;
     DebugObject d_obj;
-} DataProtoLocalSource;
+} DataProtoFlow;
 
 /**
  * Initializes the object.
@@ -119,7 +119,7 @@ typedef struct {
  * @param user value to pass to handler
  * @return 1 on success, 0 on failure
  */
-int DataProtoDest_Init (DataProtoDest *o, BReactor *reactor, PacketPassInterface *output, btime_t keepalive_time, btime_t tolerance_time, DataProtoDest_handler handler, void *user) WARN_UNUSED;
+int DataProtoSink_Init (DataProtoSink *o, BReactor *reactor, PacketPassInterface *output, btime_t keepalive_time, btime_t tolerance_time, DataProtoSink_handler handler, void *user) WARN_UNUSED;
 
 /**
  * Frees the object.
@@ -127,7 +127,7 @@ int DataProtoDest_Init (DataProtoDest *o, BReactor *reactor, PacketPassInterface
  * 
  * @param o the object
  */
-void DataProtoDest_Free (DataProtoDest *o);
+void DataProtoSink_Free (DataProtoSink *o);
 
 /**
  * Prepares for freeing the object by allowing freeing of local sources.
@@ -137,7 +137,7 @@ void DataProtoDest_Free (DataProtoDest *o);
  * 
  * @param o the object
  */
-void DataProtoDest_PrepareFree (DataProtoDest *o);
+void DataProtoSink_PrepareFree (DataProtoSink *o);
 
 /**
  * Notifies the object that a packet was received from the peer.
@@ -147,7 +147,7 @@ void DataProtoDest_PrepareFree (DataProtoDest *o);
  * @param peer_receiving whether the DATAPROTO_FLAGS_RECEIVING_KEEPALIVES flag was set in the packet.
  *                       Must be 0 or 1.
  */
-void DataProtoDest_Received (DataProtoDest *o, int peer_receiving);
+void DataProtoSink_Received (DataProtoSink *o, int peer_receiving);
 
 /**
  * Initiazes the object.
@@ -155,20 +155,20 @@ void DataProtoDest_Received (DataProtoDest *o, int peer_receiving);
  * @param o the object
  * @param input device input. Its input MTU must be <= INT_MAX - DATAPROTO_MAX_OVERHEAD.
  * @param handler handler called when a packet arrives to allow the user to route it to
- *                appropriate {@link DataProtoLocalSource} objects.
+ *                appropriate {@link DataProtoFlow} objects.
  * @param user value passed to handler
  * @param reactor reactor we live in
  * @return 1 on success, 0 on failure
  */
-int DataProtoDevice_Init (DataProtoDevice *o, PacketRecvInterface *input, DataProtoDevice_handler handler, void *user, BReactor *reactor) WARN_UNUSED;
+int DataProtoSource_Init (DataProtoSource *o, PacketRecvInterface *input, DataProtoSource_handler handler, void *user, BReactor *reactor) WARN_UNUSED;
 
 /**
  * Frees the object.
- * There must be no {@link DataProtoLocalSource} objects referring to this device.
+ * There must be no {@link DataProtoFlow} objects referring to this device.
  * 
  * @param o the object
  */
-void DataProtoDevice_Free (DataProtoDevice *o);
+void DataProtoSource_Free (DataProtoSource *o);
 
 /**
  * Initializes the object.
@@ -183,14 +183,14 @@ void DataProtoDevice_Free (DataProtoDevice *o);
  * @param inactivity_time milliseconds of output inactivity after which to call the
  *                        inactivity handler; <0 to disable. Note that the object is considered
  *                        active as long as its buffer is non-empty, even if is not attached to
- *                        a {@link DataProtoDest}.
+ *                        a {@link DataProtoSink}.
  * @param handler_inactivity inactivity handler, if inactivity_time >=0
  * @param user value to pass to handler
  * @return 1 on success, 0 on failure
  */
-int DataProtoLocalSource_Init (
-    DataProtoLocalSource *o, DataProtoDevice *device, peerid_t source_id, peerid_t dest_id, int num_packets,
-    int inactivity_time, DataProtoLocalSource_handler_inactivity handler_inactivity, void *user
+int DataProtoFlow_Init (
+    DataProtoFlow *o, DataProtoSource *device, peerid_t source_id, peerid_t dest_id, int num_packets,
+    int inactivity_time, DataProtoFlow_handler_inactivity handler_inactivity, void *user
 ) WARN_UNUSED;
 
 /**
@@ -199,11 +199,11 @@ int DataProtoLocalSource_Init (
  * 
  * @param o the object
  */
-void DataProtoLocalSource_Free (DataProtoLocalSource *o);
+void DataProtoFlow_Free (DataProtoFlow *o);
 
 /**
  * Routes a frame from the device to this object.
- * Must be called from within the job context of the {@link DataProtoDevice_handler} handler.
+ * Must be called from within the job context of the {@link DataProtoSource_handler} handler.
  * Must not be called after this has been called with more=0 for the current frame.
  * 
  * @param o the object
@@ -211,7 +211,7 @@ void DataProtoLocalSource_Free (DataProtoLocalSource *o);
  *             objects. If 0, must not be called again until the handler is
  *             called for the next frame. Must be 0 or 1.
  */
-void DataProtoLocalSource_Route (DataProtoLocalSource *o, int more);
+void DataProtoFlow_Route (DataProtoFlow *o, int more);
 
 /**
  * Attaches the object to a destination.
@@ -221,7 +221,7 @@ void DataProtoLocalSource_Route (DataProtoLocalSource *o, int more);
  * @param dp destination to attach to. This object's frame_mtu must be <=
  *           (output MTU of dp) - DATAPROTO_MAX_OVERHEAD.
  */
-void DataProtoLocalSource_Attach (DataProtoLocalSource *o, DataProtoDest *dp);
+void DataProtoFlow_Attach (DataProtoFlow *o, DataProtoSink *dp);
 
 /**
  * Detaches the object from a destination.
@@ -229,6 +229,6 @@ void DataProtoLocalSource_Attach (DataProtoLocalSource *o, DataProtoDest *dp);
  * 
  * @param o the object
  */
-void DataProtoLocalSource_Detach (DataProtoLocalSource *o);
+void DataProtoFlow_Detach (DataProtoFlow *o);
 
 #endif

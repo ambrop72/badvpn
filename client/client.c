@@ -324,7 +324,7 @@ static struct peer_data * find_peer_by_id (peerid_t id);
 // device error handler
 static void device_error_handler (void *unused);
 
-// DataProtoDevice handler for packets from the device
+// DataProtoSource handler for packets from the device
 static void device_input_dpd_handler (void *unused, const uint8_t *frame, int frame_len);
 
 // assign relays to clients waiting for them
@@ -516,8 +516,8 @@ int main (int argc, char *argv[])
     BLog(BLOG_INFO, "device MTU is %d", device.mtu);
     
     // init device input
-    if (!DataProtoDevice_Init(&device.input_dpd, BTap_GetOutput(&device.btap), device_input_dpd_handler, NULL, &ss)) {
-        BLog(BLOG_ERROR, "DataProtoDevice_Init failed");
+    if (!DataProtoSource_Init(&device.input_dpd, BTap_GetOutput(&device.btap), device_input_dpd_handler, NULL, &ss)) {
+        BLog(BLOG_ERROR, "DataProtoSource_Init failed");
         goto fail7;
     }
     
@@ -603,7 +603,7 @@ fail8a:
     FrameDecider_Free(&frame_decider);
 fail8:
     PacketPassFairQueue_Free(&device.output_queue);
-    DataProtoDevice_Free(&device.input_dpd);
+    DataProtoSource_Free(&device.input_dpd);
 fail7:
     BTap_Free(&device.btap);
 fail6:
@@ -1365,8 +1365,8 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     }
     
     // init local flow
-    if (!DataProtoLocalSource_Init(&peer->local_dpflow, &device.input_dpd, my_id, peer->id, options.send_buffer_size, -1, NULL, NULL)) {
-        peer_log(peer, BLOG_ERROR, "DataProtoLocalSource_Init failed");
+    if (!DataProtoFlow_Init(&peer->local_dpflow, &device.input_dpd, my_id, peer->id, options.send_buffer_size, -1, NULL, NULL)) {
+        peer_log(peer, BLOG_ERROR, "DataProtoFlow_Init failed");
         goto fail1a;
     }
     
@@ -1429,7 +1429,7 @@ fail5:
     DPRelaySink_Free(&peer->relay_sink);
     DPRelaySource_Free(&peer->relay_source);
     PacketPassFairQueueFlow_Free(&peer->local_recv_qflow);
-    DataProtoLocalSource_Free(&peer->local_dpflow);
+    DataProtoFlow_Free(&peer->local_dpflow);
 fail1a:
     if (peer->common_name) {
         PORT_Free(peer->common_name);
@@ -1514,7 +1514,7 @@ void peer_dealloc (struct peer_data *peer)
     PacketPassFairQueueFlow_Free(&peer->local_recv_qflow);
     
     // free local flow
-    DataProtoLocalSource_Free(&peer->local_dpflow);
+    DataProtoFlow_Free(&peer->local_dpflow);
     
     // free common name
     if (peer->common_name) {
@@ -1594,15 +1594,15 @@ int peer_init_link (struct peer_data *peer)
     }
     
     // init sending
-    if (!DataProtoDest_Init(&peer->send_dp, &ss, link_if, PEER_KEEPALIVE_INTERVAL, PEER_KEEPALIVE_RECEIVE_TIMER, (DataProtoDest_handler)peer_dataproto_handler, peer)) {
+    if (!DataProtoSink_Init(&peer->send_dp, &ss, link_if, PEER_KEEPALIVE_INTERVAL, PEER_KEEPALIVE_RECEIVE_TIMER, (DataProtoSink_handler)peer_dataproto_handler, peer)) {
         peer_log(peer, BLOG_ERROR, "DataProto_Init failed");
         goto fail2;
     }
     
-    // attach local flow to our DataProtoDest
-    DataProtoLocalSource_Attach(&peer->local_dpflow, &peer->send_dp);
+    // attach local flow to our DataProtoSink
+    DataProtoFlow_Attach(&peer->local_dpflow, &peer->send_dp);
     
-    // attach relay sink flows to our DataProtoDest
+    // attach relay sink flows to our DataProtoSink
     DPRelaySink_Attach(&peer->relay_sink, &peer->send_dp);
     
     peer->have_link = 1;
@@ -1629,16 +1629,16 @@ void peer_free_link (struct peer_data *peer)
     ASSERT(!peer->waiting_relay)
     
     // allow detaching DataProto flows
-    DataProtoDest_PrepareFree(&peer->send_dp);
+    DataProtoSink_PrepareFree(&peer->send_dp);
     
-    // detach relay sink flows from our DataProtoDest
+    // detach relay sink flows from our DataProtoSink
     DPRelaySink_Detach(&peer->relay_sink);
     
-    // detach local flow from our DataProtoDest
-    DataProtoLocalSource_Detach(&peer->local_dpflow);
+    // detach local flow from our DataProtoSink
+    DataProtoFlow_Detach(&peer->local_dpflow);
     
     // free sending
-    DataProtoDest_Free(&peer->send_dp);
+    DataProtoSink_Free(&peer->send_dp);
     
     // free transport-specific link objects
     if (options.transport_mode == TRANSPORT_MODE_UDP) {
@@ -1738,7 +1738,7 @@ void peer_dealloc_relay_provider (struct peer_data *peer)
     ASSERT(!peer->waiting_relay)
     
     // allow detaching DataProto flows from the relay peer
-    DataProtoDest_PrepareFree(&peer->send_dp);
+    DataProtoSink_PrepareFree(&peer->send_dp);
     
     // disconnect relay users
     LinkedList2Node *list_node;
@@ -1779,7 +1779,7 @@ void peer_install_relaying (struct peer_data *peer, struct peer_data *relay)
     LinkedList2_Append(&relay->relay_users, &peer->relaying_list_node);
     
     // attach local flow to relay
-    DataProtoLocalSource_Attach(&peer->local_dpflow, &relay->send_dp);
+    DataProtoFlow_Attach(&peer->local_dpflow, &relay->send_dp);
     
     peer->have_relaying = 1;
 }
@@ -1798,7 +1798,7 @@ void peer_free_relaying (struct peer_data *peer)
     peer_log(peer, BLOG_INFO, "uninstalling relaying through %d", (int)relay->id);
     
     // detach local flow from relay
-    DataProtoLocalSource_Detach(&peer->local_dpflow);
+    DataProtoFlow_Detach(&peer->local_dpflow);
     
     // remove from relay's users list
     LinkedList2_Remove(&relay->relay_users, &peer->relaying_list_node);
@@ -2327,7 +2327,7 @@ out:
     
     // inform DataProto of received packet
     if (dp_good) {
-        DataProtoDest_Received(&peer->send_dp, !!(flags & DATAPROTO_FLAGS_RECEIVING_KEEPALIVES));
+        DataProtoSink_Received(&peer->send_dp, !!(flags & DATAPROTO_FLAGS_RECEIVING_KEEPALIVES));
     }
 }
 
@@ -2726,7 +2726,7 @@ void device_input_dpd_handler (void *unused, const uint8_t *frame, int frame_len
     while (decider_peer) {
         FrameDeciderPeer *next = FrameDecider_NextDestination(&frame_decider);
         struct peer_data *peer = UPPER_OBJECT(decider_peer, struct peer_data, decider_peer);
-        DataProtoLocalSource_Route(&peer->local_dpflow, !!next);
+        DataProtoFlow_Route(&peer->local_dpflow, !!next);
         decider_peer = next;
     }
 }

@@ -88,7 +88,7 @@ struct device_data {
     int mtu;
     
     // input
-    DataProtoDevice input_dpd;
+    DataProtoSource input_dpd;
     
     // output
     PacketPassFairQueue output_queue;
@@ -107,7 +107,7 @@ struct peer_data {
     char *common_name;
     
     // local flow
-    DataProtoLocalSource local_dpflow;
+    DataProtoFlow local_dpflow;
     
     // local receive flow
     PacketPassInterface *local_recv_if;
@@ -123,7 +123,7 @@ struct peer_data {
     int have_link;
     
     // link sending
-    DataProtoDest send_dp;
+    DataProtoSink send_dp;
     
     // link receive interface
     PacketPassInterface recv_ppi;

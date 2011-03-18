@@ -33,15 +33,15 @@
 
 #include <generated/blog_channel_DataProto.h>
 
-static void monitor_handler (DataProtoDest *o);
-static void send_keepalive (DataProtoDest *o);
-static void refresh_up_job (DataProtoDest *o);
-static void receive_timer_handler (DataProtoDest *o);
-static void notifier_handler (DataProtoDest *o, uint8_t *data, int data_len);
-static void keepalive_job_handler (DataProtoDest *o);
-static void up_job_handler (DataProtoDest *o);
+static void monitor_handler (DataProtoSink *o);
+static void send_keepalive (DataProtoSink *o);
+static void refresh_up_job (DataProtoSink *o);
+static void receive_timer_handler (DataProtoSink *o);
+static void notifier_handler (DataProtoSink *o, uint8_t *data, int data_len);
+static void keepalive_job_handler (DataProtoSink *o);
+static void up_job_handler (DataProtoSink *o);
 
-void monitor_handler (DataProtoDest *o)
+void monitor_handler (DataProtoSink *o)
 {
     ASSERT(!o->freeing)
     DebugObject_Access(&o->d_obj);
@@ -49,14 +49,14 @@ void monitor_handler (DataProtoDest *o)
     send_keepalive(o);
 }
 
-void send_keepalive (DataProtoDest *o)
+void send_keepalive (DataProtoSink *o)
 {
     ASSERT(!o->freeing)
     
     PacketRecvBlocker_AllowBlockedPacket(&o->ka_blocker);
 }
 
-void refresh_up_job (DataProtoDest *o)
+void refresh_up_job (DataProtoSink *o)
 {
     if (o->up != o->up_report) {
         BPending_Set(&o->up_job);
@@ -65,7 +65,7 @@ void refresh_up_job (DataProtoDest *o)
     }
 }
 
-void receive_timer_handler (DataProtoDest *o)
+void receive_timer_handler (DataProtoSink *o)
 {
     DebugObject_Access(&o->d_obj);
     
@@ -75,7 +75,7 @@ void receive_timer_handler (DataProtoDest *o)
     refresh_up_job(o);
 }
 
-void notifier_handler (DataProtoDest *o, uint8_t *data, int data_len)
+void notifier_handler (DataProtoSink *o, uint8_t *data, int data_len)
 {
     ASSERT(data_len >= sizeof(struct dataproto_header))
     DebugObject_Access(&o->d_obj);
@@ -90,7 +90,7 @@ void notifier_handler (DataProtoDest *o, uint8_t *data, int data_len)
     }
 }
 
-void keepalive_job_handler (DataProtoDest *o)
+void keepalive_job_handler (DataProtoSink *o)
 {
     ASSERT(!o->freeing)
     DebugObject_Access(&o->d_obj);
@@ -98,7 +98,7 @@ void keepalive_job_handler (DataProtoDest *o)
     send_keepalive(o);
 }
 
-void up_job_handler (DataProtoDest *o)
+void up_job_handler (DataProtoSink *o)
 {
     ASSERT(o->up != o->up_report)
     ASSERT(!o->freeing)
@@ -110,7 +110,7 @@ void up_job_handler (DataProtoDest *o)
     return;
 }
 
-static void device_router_handler (DataProtoDevice *o, uint8_t *buf, int recv_len)
+static void device_router_handler (DataProtoSource *o, uint8_t *buf, int recv_len)
 {
     ASSERT(buf)
     ASSERT(recv_len >= 0)
@@ -126,7 +126,7 @@ static void device_router_handler (DataProtoDevice *o, uint8_t *buf, int recv_le
     return;
 }
 
-int DataProtoDest_Init (DataProtoDest *o, BReactor *reactor, PacketPassInterface *output, btime_t keepalive_time, btime_t tolerance_time, DataProtoDest_handler handler, void *user)
+int DataProtoSink_Init (DataProtoSink *o, BReactor *reactor, PacketPassInterface *output, btime_t keepalive_time, btime_t tolerance_time, DataProtoSink_handler handler, void *user)
 {
     ASSERT(PacketPassInterface_HasCancel(output))
     ASSERT(PacketPassInterface_GetMTU(output) >= DATAPROTO_MAX_OVERHEAD)
@@ -197,7 +197,7 @@ fail1:
     return 0;
 }
 
-void DataProtoDest_Free (DataProtoDest *o)
+void DataProtoSink_Free (DataProtoSink *o)
 {
     DebugCounter_Free(&o->d_ctr);
     DebugObject_Free(&o->d_obj);
@@ -236,7 +236,7 @@ void DataProtoDest_Free (DataProtoDest *o)
     BPending_Free(&o->keepalive_job);
 }
 
-void DataProtoDest_PrepareFree (DataProtoDest *o)
+void DataProtoSink_PrepareFree (DataProtoSink *o)
 {
     DebugObject_Access(&o->d_obj);
     
@@ -247,7 +247,7 @@ void DataProtoDest_PrepareFree (DataProtoDest *o)
     o->freeing = 1;
 }
 
-void DataProtoDest_Received (DataProtoDest *o, int peer_receiving)
+void DataProtoSink_Received (DataProtoSink *o, int peer_receiving)
 {
     ASSERT(peer_receiving == 0 || peer_receiving == 1)
     ASSERT(!o->freeing)
@@ -269,7 +269,7 @@ void DataProtoDest_Received (DataProtoDest *o, int peer_receiving)
     refresh_up_job(o);
 }
 
-int DataProtoDevice_Init (DataProtoDevice *o, PacketRecvInterface *input, DataProtoDevice_handler handler, void *user, BReactor *reactor)
+int DataProtoSource_Init (DataProtoSource *o, PacketRecvInterface *input, DataProtoSource_handler handler, void *user, BReactor *reactor)
 {
     ASSERT(PacketRecvInterface_GetMTU(input) <= INT_MAX - DATAPROTO_MAX_OVERHEAD)
     
@@ -295,7 +295,7 @@ fail1:
     return 0;
 }
 
-void DataProtoDevice_Free (DataProtoDevice *o)
+void DataProtoSource_Free (DataProtoSource *o)
 {
     DebugCounter_Free(&o->d_ctr);
     DebugObject_Free(&o->d_obj);
@@ -304,9 +304,9 @@ void DataProtoDevice_Free (DataProtoDevice *o)
     PacketRouter_Free(&o->router);
 }
 
-int DataProtoLocalSource_Init (
-    DataProtoLocalSource *o, DataProtoDevice *device, peerid_t source_id, peerid_t dest_id, int num_packets,
-    int inactivity_time, DataProtoLocalSource_handler_inactivity handler_inactivity, void *user
+int DataProtoFlow_Init (
+    DataProtoFlow *o, DataProtoSource *device, peerid_t source_id, peerid_t dest_id, int num_packets,
+    int inactivity_time, DataProtoFlow_handler_inactivity handler_inactivity, void *user
 )
 {
     ASSERT(num_packets > 0)
@@ -350,7 +350,7 @@ fail0:
     return 0;
 }
 
-void DataProtoLocalSource_Free (DataProtoLocalSource *o)
+void DataProtoFlow_Free (DataProtoFlow *o)
 {
     ASSERT(!o->dp)
     DebugCounter_Decrement(&o->device->d_ctr);
@@ -368,7 +368,7 @@ void DataProtoLocalSource_Free (DataProtoLocalSource *o)
     PacketPassConnector_Free(&o->connector);
 }
 
-void DataProtoLocalSource_Route (DataProtoLocalSource *o, int more)
+void DataProtoFlow_Route (DataProtoFlow *o, int more)
 {
     ASSERT(more == 0 || more == 1)
     PacketRouter_AssertRoute(&o->device->router);
@@ -397,7 +397,7 @@ void DataProtoLocalSource_Route (DataProtoLocalSource *o, int more)
     o->device->current_buf = (more ? next_buf : NULL);
 }
 
-void DataProtoLocalSource_Attach (DataProtoLocalSource *o, DataProtoDest *dp)
+void DataProtoFlow_Attach (DataProtoFlow *o, DataProtoSink *dp)
 {
     ASSERT(dp)
     ASSERT(!o->dp)
@@ -418,12 +418,12 @@ void DataProtoLocalSource_Attach (DataProtoLocalSource *o, DataProtoDest *dp)
     DebugCounter_Increment(&dp->d_ctr);
 }
 
-void DataProtoLocalSource_Detach (DataProtoLocalSource *o)
+void DataProtoFlow_Detach (DataProtoFlow *o)
 {
     ASSERT(o->dp)
     DebugObject_Access(&o->d_obj);
     
-    DataProtoDest *dp = o->dp;
+    DataProtoSink *dp = o->dp;
     
     // release flow if needed
     if (!o->dp->freeing && PacketPassFairQueueFlow_IsBusy(&o->dp_qflow)) {
