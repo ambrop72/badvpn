@@ -409,6 +409,11 @@ int init_io (StreamPeerIO *pio, sslsocket *sock)
 {
     ASSERT(!pio->sock)
     
+    // limit socket send buffer, else our scheduling is pointless
+    if (BSocket_SetSendBuffer(&sock->sock, STREAMPEERIO_SOCKET_SEND_BUFFER) < 0) {
+        BLog(BLOG_WARNING, "BSocket_SetSendBuffer failed");
+    }
+    
     // init receiving
     StreamRecvInterface *source_interface;
     if (pio->ssl) {

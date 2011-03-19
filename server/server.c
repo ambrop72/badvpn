@@ -1491,6 +1491,11 @@ void process_packet_hello (struct client_data *client, uint8_t *data, int data_l
     
     client_log(client, BLOG_INFO, "received hello");
     
+    // limit socket send buffer, else our scheduling is pointless
+    if (BSocket_SetSendBuffer(&client->sock, CLIENT_SOCKET_SEND_BUFFER) < 0) {
+        BLog(BLOG_WARNING, "BSocket_SetSendBuffer failed");
+    }
+    
     // set client state to complete
     client->initstatus = INITSTATUS_COMPLETE;
     

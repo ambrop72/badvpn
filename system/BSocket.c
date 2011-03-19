@@ -1642,3 +1642,17 @@ int BSocket_SockFd (BSocket *bs)
     
     return bs->socket;
 }
+
+int BSocket_SetSendBuffer (BSocket *bs, int buf_size)
+{
+    ASSERT(buf_size > 0)
+    DebugObject_Access(&bs->d_obj);
+    
+    if (setsockopt(bs->socket, SOL_SOCKET, SO_SNDBUF, (void *)&buf_size, sizeof(buf_size)) < 0) {
+        bs->error = translate_error(errno);
+        return -1;
+    }
+    
+    bs->error = BSOCKET_ERROR_NONE;
+    return 0;
+}

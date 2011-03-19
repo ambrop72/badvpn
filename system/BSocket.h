@@ -460,4 +460,13 @@ BReactor * BSocket_Reactor (BSocket *bs);
  */
 int BSocket_SockFd (BSocket *bs);
 
+/**
+ * Sets the socket's send buffer (SO_SNDBUF).
+ * 
+ * @param bs the object
+ * @param buf_size buffer size in bytes. Must be >0.
+ * @return 0 for success, -1 for failure
+ */
+int BSocket_SetSendBuffer (BSocket *bs, int buf_size);
+
 #endif
