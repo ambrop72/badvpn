@@ -63,8 +63,10 @@ static void timer_handler (PacketPassInactivityMonitor *o)
     BReactor_SetTimer(o->reactor, &o->timer);
     
     // call handler
-    o->handler(o->user);
-    return;
+    if (o->handler) {
+        o->handler(o->user);
+        return;
+    }
 }
 
 void PacketPassInactivityMonitor_Init (PacketPassInactivityMonitor *o, PacketPassInterface *output, BReactor *reactor, btime_t interval, PacketPassInactivityMonitor_handler handler, void *user)
@@ -107,4 +109,12 @@ PacketPassInterface * PacketPassInactivityMonitor_GetInput (PacketPassInactivity
     DebugObject_Access(&o->d_obj);
     
     return &o->input;
+}
+
+void PacketPassInactivityMonitor_SetHandler (PacketPassInactivityMonitor *o, PacketPassInactivityMonitor_handler handler, void *user)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    o->handler = handler;
+    o->user = user;
 }

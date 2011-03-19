@@ -76,7 +76,7 @@ typedef struct {
  * @param output output interface
  * @param reactor reactor we live in
  * @param interval timer value in milliseconds
- * @param handler handler function for reporting inactivity
+ * @param handler handler function for reporting inactivity, or NULL to disable
  * @param user value passed to handler functions
  */
 void PacketPassInactivityMonitor_Init (PacketPassInactivityMonitor *o, PacketPassInterface *output, BReactor *reactor, btime_t interval, PacketPassInactivityMonitor_handler handler, void *user);
@@ -97,5 +97,14 @@ void PacketPassInactivityMonitor_Free (PacketPassInactivityMonitor *o);
  * @return input interface
  */
 PacketPassInterface * PacketPassInactivityMonitor_GetInput (PacketPassInactivityMonitor *o);
+
+/**
+ * Sets or removes the inactivity handler.
+ *
+ * @param o the object
+ * @param handler handler function for reporting inactivity, or NULL to disable
+ * @param user value passed to handler functions
+ */
+void PacketPassInactivityMonitor_SetHandler (PacketPassInactivityMonitor *o, PacketPassInactivityMonitor_handler handler, void *user);
 
 #endif
