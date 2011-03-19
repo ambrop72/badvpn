@@ -131,7 +131,7 @@ void PacketPassPriorityQueueFlow_AssertFree (PacketPassPriorityQueueFlow *flow);
 
 /**
  * Determines if the flow is busy. If the flow is considered busy, it must not
- * be freed.
+ * be freed. At any given time, at most one flow will be indicated as busy.
  * Queue must not be in freeing state.
  * Must not be called from queue calls to output.
  *
@@ -157,6 +157,8 @@ void PacketPassPriorityQueueFlow_Release (PacketPassPriorityQueueFlow *flow);
 
 /**
  * Sets up a callback to be called when the flow is no longer busy.
+ * The handler will be called as soon as the flow is no longer busy, i.e. it is not
+ * possible that this flow is no longer busy before the handler is called.
  * The flow must be busy as indicated by {@link PacketPassPriorityQueueFlow_IsBusy}.
  * Queue must not be in freeing state.
  * Must not be called from queue calls to output.
