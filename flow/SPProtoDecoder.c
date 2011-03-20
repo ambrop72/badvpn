@@ -214,7 +214,7 @@ static void maybe_stop_work_and_ignore (SPProtoDecoder *o)
     }
 }
 
-int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg, BThreadWorkDispatcher *twd, SPProtoDecoder_otp_handler otp_handler, void *user)
+int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg, BThreadWorkDispatcher *twd)
 {
     spproto_assert_security_params(sp_params);
     ASSERT(spproto_carrier_mtu_for_payload_mtu(sp_params, PacketPassInterface_GetMTU(output)) >= 0)
@@ -258,7 +258,7 @@ int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct 
     
     // init OTP checker
     if (SPPROTO_HAVE_OTP(o->sp_params)) {
-        if (!OTPChecker_Init(&o->otpchecker, o->sp_params.otp_num, o->sp_params.otp_mode, num_otp_seeds, o->twd, otp_handler, user)) {
+        if (!OTPChecker_Init(&o->otpchecker, o->sp_params.otp_num, o->sp_params.otp_mode, num_otp_seeds, o->twd)) {
             goto fail1;
         }
     }
@@ -373,4 +373,13 @@ void SPProtoDecoder_RemoveOTPSeeds (SPProtoDecoder *o)
     DebugObject_Access(&o->d_obj);
     
     OTPChecker_RemoveSeeds(&o->otpchecker);
+}
+
+void SPProtoDecoder_SetHandlers (SPProtoDecoder *o, SPProtoDecoder_otp_handler otp_handler, void *user)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    if (SPPROTO_HAVE_OTP(o->sp_params)) {
+        OTPChecker_SetHandlers(&o->otpchecker, otp_handler, user);
+    }
 }

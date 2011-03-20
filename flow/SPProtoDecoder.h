@@ -87,11 +87,9 @@ typedef struct {
  *                      receiving packets. Must be >=2 if using OTPs.
  * @param pg pending group
  * @param twd thread work dispatcher
- * @param otp_handler handler called when OTP generation is finished
- * @param user argument to handler
  * @return 1 on success, 0 on failure
  */
-int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg, BThreadWorkDispatcher *twd, SPProtoDecoder_otp_handler otp_handler, void *user) WARN_UNUSED;
+int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg, BThreadWorkDispatcher *twd) WARN_UNUSED;
 
 /**
  * Frees the object.
@@ -148,5 +146,14 @@ void SPProtoDecoder_AddOTPSeed (SPProtoDecoder *o, uint16_t seed_id, uint8_t *ke
  * @param o the object
  */
 void SPProtoDecoder_RemoveOTPSeeds (SPProtoDecoder *o);
+
+/**
+ * Sets handlers.
+ *
+ * @param o the object
+ * @param otp_handler handler called when OTP generation is finished
+ * @param user argument to handler
+ */
+void SPProtoDecoder_SetHandlers (SPProtoDecoder *o, SPProtoDecoder_otp_handler otp_handler, void *user);
 
 #endif

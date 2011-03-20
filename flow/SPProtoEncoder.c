@@ -208,8 +208,10 @@ static void handler_job_hander (SPProtoEncoder *o)
     ASSERT(SPPROTO_HAVE_OTP(o->sp_params))
     DebugObject_Access(&o->d_obj);
     
-    o->handler(o->user);
-    return;
+    if (o->handler) {
+        o->handler(o->user);
+        return;
+    }
 }
 
 static void otpgenerator_handler (SPProtoEncoder *o)
@@ -233,23 +235,23 @@ static void maybe_stop_work (SPProtoEncoder *o)
     }
 }
 
-int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, int otp_warning_count, SPProtoEncoder_handler handler, void *user, BPendingGroup *pg, BThreadWorkDispatcher *twd)
+int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, int otp_warning_count, BPendingGroup *pg, BThreadWorkDispatcher *twd)
 {
     spproto_assert_security_params(sp_params);
     ASSERT(spproto_carrier_mtu_for_payload_mtu(sp_params, PacketRecvInterface_GetMTU(input)) >= 0)
     if (SPPROTO_HAVE_OTP(sp_params)) {
         ASSERT(otp_warning_count > 0)
         ASSERT(otp_warning_count <= sp_params.otp_num)
-        ASSERT(handler)
     }
     
     // init arguments
     o->input = input;
     o->sp_params = sp_params;
     o->otp_warning_count = otp_warning_count;
-    o->handler = handler;
-    o->user = user;
     o->twd = twd;
+    
+    // set no handlers
+    o->handler = NULL;
     
     // calculate hash size
     if (SPPROTO_HAVE_HASH(o->sp_params)) {
@@ -416,4 +418,12 @@ void SPProtoEncoder_RemoveOTPSeed (SPProtoEncoder *o)
     
     // reset OTP generator
     OTPGenerator_Reset(&o->otpgen);
+}
+
+void SPProtoEncoder_SetHandlers (SPProtoEncoder *o, SPProtoEncoder_handler handler, void *user)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    o->handler = handler;
+    o->user = user;
 }

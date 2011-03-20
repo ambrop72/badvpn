@@ -94,13 +94,11 @@ typedef struct {
  * @param sp_params SPProto security parameters
  * @param otp_warning_count If using OTPs, after how many encoded packets to call the handler.
  *                          In this case, must be >0 and <=sp_params.otp_num.
- * @param handler OTP warning handler
- * @param user value to pass to handler
  * @param pg pending group
  * @param twd thread work dispatcher
  * @return 1 on success, 0 on failure
  */
-int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, int otp_warning_count, SPProtoEncoder_handler handler, void *user, BPendingGroup *pg, BThreadWorkDispatcher *twd) WARN_UNUSED;
+int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct spproto_security_params sp_params, int otp_warning_count, BPendingGroup *pg, BThreadWorkDispatcher *twd) WARN_UNUSED;
 
 /**
  * Frees the object.
@@ -154,5 +152,14 @@ void SPProtoEncoder_SetOTPSeed (SPProtoEncoder *o, uint16_t seed_id, uint8_t *ke
  * @param o the object
  */
 void SPProtoEncoder_RemoveOTPSeed (SPProtoEncoder *o);
+
+/**
+ * Sets handlers.
+ *
+ * @param o the object
+ * @param handler OTP warning handler
+ * @param user value to pass to handler
+ */
+void SPProtoEncoder_SetHandlers (SPProtoEncoder *o, SPProtoEncoder_handler handler, void *user);
 
 #endif

@@ -133,11 +133,13 @@ static void work_done_handler (OTPChecker *mc)
     }
     
     // call handler
-    mc->handler(mc->user);
-    return;
+    if (mc->handler) {
+        mc->handler(mc->user);
+        return;
+    }
 }
 
-int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables, BThreadWorkDispatcher *twd, OTPChecker_handler handler, void *user)
+int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables, BThreadWorkDispatcher *twd)
 {
     ASSERT(num_otps > 0)
     ASSERT(BEncryption_cipher_valid(cipher))
@@ -148,8 +150,9 @@ int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables, B
     mc->cipher = cipher;
     mc->num_tables = num_tables;
     mc->twd = twd;
-    mc->handler = handler;
-    mc->user = user;
+    
+    // set no handlers
+    mc->handler = NULL;
     
     // set number of entries
     mc->num_entries = 2 * mc->num_otps;
@@ -261,4 +264,12 @@ int OTPChecker_CheckOTP (OTPChecker *mc, uint16_t seed_id, otp_t otp)
     }
     
     return 0;
+}
+
+void OTPChecker_SetHandlers (OTPChecker *mc, OTPChecker_handler handler, void *user)
+{
+    DebugObject_Access(&mc->d_obj);
+    
+    mc->handler = handler;
+    mc->user = user;
 }

@@ -85,12 +85,9 @@ typedef struct {
  *               according to {@link BEncryption_cipher_valid}.
  * @param num_tables number of tables to keep, each for one seed. Must be >0.
  * @param twd thread work dispatcher
- * @param handler handler to call when generation of new OTPs is complete,
- *                after {@link OTPChecker_AddSeed} was called.
- * @param user argument to handler
  * @return 1 on success, 0 on failure
  */
-int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables, BThreadWorkDispatcher *twd, OTPChecker_handler handler, void *user) WARN_UNUSED;
+int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables, BThreadWorkDispatcher *twd) WARN_UNUSED;
 
 /**
  * Frees the checker.
@@ -127,5 +124,15 @@ void OTPChecker_RemoveSeeds (OTPChecker *mc);
  * @return 1 if the OTP is valid, 0 if not
  */
 int OTPChecker_CheckOTP (OTPChecker *mc, uint16_t seed_id, otp_t otp);
+
+/**
+ * Sets handlers.
+ *
+ * @param mc the object
+ * @param handler handler to call when generation of new OTPs is complete,
+ *                after {@link OTPChecker_AddSeed} was called.
+ * @param user argument to handler
+ */
+void OTPChecker_SetHandlers (OTPChecker *mc, OTPChecker_handler handler, void *user);
 
 #endif

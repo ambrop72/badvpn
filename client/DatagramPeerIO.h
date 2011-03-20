@@ -142,9 +142,6 @@ typedef struct {
  * @param recv_userif interface to pass received packets to the user. Its MTU must be >=payload_mtu.
  * @param otp_warning_count If using OTPs, after how many encoded packets to call the handler.
  *                          In this case, must be >0 and <=sp_params.otp_num.
- * @param handler_otp_warning OTP warning handler
- * @param handler_otp_ready handler called when OTP generation for a new receive seed is finished
- * @param user value to pass to handler
  * @param twd thread work dispatcher
  * @return 1 on success, 0 on failure
  */
@@ -158,9 +155,6 @@ int DatagramPeerIO_Init (
     int num_frames,
     PacketPassInterface *recv_userif,
     int otp_warning_count,
-    DatagramPeerIO_handler_otp_warning handler_otp_warning,
-    DatagramPeerIO_handler_otp_ready handler_otp_ready,
-    void *user,
     BThreadWorkDispatcher *twd
 ) WARN_UNUSED;
 
@@ -257,5 +251,15 @@ void DatagramPeerIO_AddOTPRecvSeed (DatagramPeerIO *o, uint16_t seed_id, uint8_t
  * @param o the object
  */
 void DatagramPeerIO_RemoveOTPRecvSeeds (DatagramPeerIO *o);
+
+/**
+ * Sets handlers.
+ * 
+ * @param o the object
+ * @param handler_otp_warning OTP warning handler
+ * @param handler_otp_ready handler called when OTP generation for a new receive seed is finished
+ * @param user value to pass to handler
+ */
+void DatagramPeerIO_SetHandlers (DatagramPeerIO *o, DatagramPeerIO_handler_otp_warning handler_otp_warning, DatagramPeerIO_handler_otp_ready handler_otp_ready, void *user);
 
 #endif
