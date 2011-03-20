@@ -51,7 +51,7 @@
 #include <client/PasswordListener.h>
 #include <client/PasswordSender.h>
 
-#define STREAMPEERIO_SOCKET_SEND_BUFFER 1
+#define STREAMPEERIO_SOCKET_SEND_BUFFER 4096
 
 /**
  * Callback function invoked when an error occurs with the peer connection.

@@ -51,7 +51,7 @@
 // after how long of not hearing anything from the client we disconnect it
 #define CLIENT_NO_DATA_TIME_LIMIT 30000
 // SO_SNDBFUF socket option for clients
-#define CLIENT_SOCKET_SEND_BUFFER 1
+#define CLIENT_SOCKET_SEND_BUFFER 4096
 
 // maxiumum listen addresses
 #define MAX_LISTEN_ADDRS 16
