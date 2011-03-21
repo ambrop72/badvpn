@@ -53,7 +53,7 @@
 
 static void report_error (BTap *o);
 static void input_handler_send (BTap *o, uint8_t *data, int data_len);
-static void input_handler_cancel (BTap *o);
+static void input_handler_requestcancel (BTap *o);
 static void output_handler_recv (BTap *o, uint8_t *data);
 
 #ifdef BADVPN_USE_WINAPI
@@ -341,7 +341,7 @@ void input_handler_send (BTap *o, uint8_t *data, int data_len)
     PacketPassInterface_Done(&o->input);
 }
 
-void input_handler_cancel (BTap *o)
+void input_handler_requestcancel (BTap *o)
 {
     DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
@@ -377,6 +377,9 @@ void input_handler_cancel (BTap *o)
     BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->poll_events);
     
     #endif
+    
+    // finish input packet
+    PacketPassInterface_Done(&o->input);
     
     // set no input packet
     o->input_packet_len = -1;
@@ -681,7 +684,7 @@ fail0:
 success:
     // init input
     PacketPassInterface_Init(&o->input, o->frame_mtu, (PacketPassInterface_handler_send)input_handler_send, o, BReactor_PendingGroup(o->reactor));
-    PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_cancel)input_handler_cancel);
+    PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_requestcancel)input_handler_requestcancel);
     
     // init output
     PacketRecvInterface_Init(&o->output, o->frame_mtu, (PacketRecvInterface_handler_recv)output_handler_recv, o, BReactor_PendingGroup(o->reactor));

@@ -22,6 +22,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stddef.h>
 
 #include <misc/debug.h>
 #include <system/BReactor.h>
@@ -56,14 +57,11 @@ static void free_input (int i)
     PacketPassFairQueueFlow_Free(&flows[i]);
 }
 
-static void timer_handler (void *user)
+static void reset_input (void)
 {
-    printf("removing %d\n", current_cancel);
+    PacketPassFairQueueFlow_AssertFree(&flows[current_cancel]);
     
-    // release flow
-    if (PacketPassFairQueueFlow_IsBusy(&flows[current_cancel])) {
-        PacketPassFairQueueFlow_Release(&flows[current_cancel]);
-    }
+    printf("removing %d\n", current_cancel);
     
     // remove flow
     free_input(current_cancel);
@@ -76,6 +74,26 @@ static void timer_handler (void *user)
     
     // reset timer
     BReactor_SetTimer(&reactor, &timer);
+}
+
+static void flow_handler_busy (void *user)
+{
+    PacketPassFairQueueFlow_AssertFree(&flows[current_cancel]);
+    
+    reset_input();
+}
+
+static void timer_handler (void *user)
+{
+    // if flow is busy, request cancel and wait for it
+    if (PacketPassFairQueueFlow_IsBusy(&flows[current_cancel])) {
+        printf("cancelling %d\n", current_cancel);
+        PacketPassFairQueueFlow_RequestCancel(&flows[current_cancel]);
+        PacketPassFairQueueFlow_SetBusyHandler(&flows[current_cancel], flow_handler_busy, NULL);
+        return;
+    }
+    
+    reset_input();
 }
 
 int main ()

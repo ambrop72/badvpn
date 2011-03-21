@@ -46,6 +46,8 @@ typedef void (*DataProtoSink_handler) (void *user, int up);
 typedef void (*DataProtoSource_handler) (void *user, const uint8_t *frame, int frame_len);
 typedef void (*DataProtoFlow_handler_inactivity) (void *user);
 
+struct DataProtoFlow_buffer;
+
 /**
  * Frame destination.
  * Represents a peer as a destination for sending frames to.
@@ -67,7 +69,7 @@ typedef struct {
     void *user;
     BPending keepalive_job;
     BPending up_job;
-    int freeing;
+    struct DataProtoFlow_buffer *detaching_buffer;
     DebugObject d_obj;
     DebugCounter d_ctr;
 } DataProtoSink;
@@ -96,14 +98,20 @@ typedef struct {
     DataProtoSource *device;
     peerid_t source_id;
     peerid_t dest_id;
+    DataProtoSink *dp_desired;
+    struct DataProtoFlow_buffer *b;
+    DebugObject d_obj;
+} DataProtoFlow;
+
+struct DataProtoFlow_buffer {
+    DataProtoFlow *flow;
     int inactivity_time;
     RouteBuffer rbuf;
     PacketPassInactivityMonitor monitor;
     PacketPassConnector connector;
     DataProtoSink *dp;
     PacketPassFairQueueFlow dp_qflow;
-    DebugObject d_obj;
-} DataProtoFlow;
+};
 
 /**
  * Initializes the object.
@@ -128,16 +136,6 @@ int DataProtoSink_Init (DataProtoSink *o, BReactor *reactor, PacketPassInterface
  * @param o the object
  */
 void DataProtoSink_Free (DataProtoSink *o);
-
-/**
- * Prepares for freeing the object by allowing freeing of local sources.
- * The object enters freeing state.
- * The object must be freed before returning control to the reactor,
- * and before any further I/O (output or submitting frames).
- * 
- * @param o the object
- */
-void DataProtoSink_PrepareFree (DataProtoSink *o);
 
 /**
  * Notifies the object that a packet was received from the peer.

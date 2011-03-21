@@ -40,10 +40,15 @@ static void receive_timer_handler (DataProtoSink *o);
 static void notifier_handler (DataProtoSink *o, uint8_t *data, int data_len);
 static void keepalive_job_handler (DataProtoSink *o);
 static void up_job_handler (DataProtoSink *o);
+static void flow_buffer_free (struct DataProtoFlow_buffer *b);
+static void flow_buffer_attach (struct DataProtoFlow_buffer *b, DataProtoSink *dp);
+static void flow_buffer_detach (struct DataProtoFlow_buffer *b);
+static void flow_buffer_schedule_detach (struct DataProtoFlow_buffer *b);
+static void flow_buffer_finish_detach (struct DataProtoFlow_buffer *b);
+static void flow_buffer_qflow_handler_busy (struct DataProtoFlow_buffer *b);
 
 void monitor_handler (DataProtoSink *o)
 {
-    ASSERT(!o->freeing)
     DebugObject_Access(&o->d_obj);
     
     send_keepalive(o);
@@ -51,8 +56,6 @@ void monitor_handler (DataProtoSink *o)
 
 void send_keepalive (DataProtoSink *o)
 {
-    ASSERT(!o->freeing)
-    
     PacketRecvBlocker_AllowBlockedPacket(&o->ka_blocker);
 }
 
@@ -92,7 +95,6 @@ void notifier_handler (DataProtoSink *o, uint8_t *data, int data_len)
 
 void keepalive_job_handler (DataProtoSink *o)
 {
-    ASSERT(!o->freeing)
     DebugObject_Access(&o->d_obj);
     
     send_keepalive(o);
@@ -101,7 +103,6 @@ void keepalive_job_handler (DataProtoSink *o)
 void up_job_handler (DataProtoSink *o)
 {
     ASSERT(o->up != o->up_report)
-    ASSERT(!o->freeing)
     DebugObject_Access(&o->d_obj);
     
     o->up_report = o->up;
@@ -110,7 +111,7 @@ void up_job_handler (DataProtoSink *o)
     return;
 }
 
-static void device_router_handler (DataProtoSource *o, uint8_t *buf, int recv_len)
+void device_router_handler (DataProtoSource *o, uint8_t *buf, int recv_len)
 {
     ASSERT(buf)
     ASSERT(recv_len >= 0)
@@ -124,6 +125,102 @@ static void device_router_handler (DataProtoSource *o, uint8_t *buf, int recv_le
     // call handler
     o->handler(o->user, buf + DATAPROTO_MAX_OVERHEAD, recv_len);
     return;
+}
+
+void flow_buffer_free (struct DataProtoFlow_buffer *b)
+{
+    ASSERT(!b->dp)
+    
+    // free route buffer
+    RouteBuffer_Free(&b->rbuf);
+    
+    // free inactivity monitor
+    if (b->inactivity_time >= 0) {
+        PacketPassInactivityMonitor_Free(&b->monitor);
+    }
+    
+    // free connector
+    PacketPassConnector_Free(&b->connector);
+    
+    // free buffer structure
+    free(b);
+}
+
+void flow_buffer_attach (struct DataProtoFlow_buffer *b, DataProtoSink *dp)
+{
+    ASSERT(!b->dp)
+    
+    // init queue flow
+    PacketPassFairQueueFlow_Init(&b->dp_qflow, &dp->queue);
+    
+    // connect to queue flow
+    PacketPassConnector_ConnectOutput(&b->connector, PacketPassFairQueueFlow_GetInput(&b->dp_qflow));
+    
+    // set DataProto
+    b->dp = dp;
+}
+
+void flow_buffer_detach (struct DataProtoFlow_buffer *b)
+{
+    ASSERT(b->dp)
+    PacketPassFairQueueFlow_AssertFree(&b->dp_qflow);
+    
+    // disconnect from queue flow
+    PacketPassConnector_DisconnectOutput(&b->connector);
+    
+    // free queue flow
+    PacketPassFairQueueFlow_Free(&b->dp_qflow);
+    
+    // clear reference to this buffer in the sink
+    if (b->dp->detaching_buffer == b) {
+        b->dp->detaching_buffer = NULL;
+    }
+    
+    // set no DataProto
+    b->dp = NULL;
+}
+
+void flow_buffer_schedule_detach (struct DataProtoFlow_buffer *b)
+{
+    ASSERT(b->dp)
+    ASSERT(PacketPassFairQueueFlow_IsBusy(&b->dp_qflow))
+    ASSERT(!b->dp->detaching_buffer || b->dp->detaching_buffer == b)
+    
+    if (b->dp->detaching_buffer == b) {
+        return;
+    }
+    
+    // request cancel
+    PacketPassFairQueueFlow_RequestCancel(&b->dp_qflow);
+    
+    // set busy handler
+    PacketPassFairQueueFlow_SetBusyHandler(&b->dp_qflow, (PacketPassFairQueue_handler_busy)flow_buffer_qflow_handler_busy, b);
+    
+    // remember this buffer in the sink so it can handle us if it goes away
+    b->dp->detaching_buffer = b;
+}
+
+void flow_buffer_finish_detach (struct DataProtoFlow_buffer *b)
+{
+    ASSERT(b->dp)
+    ASSERT(b->dp->detaching_buffer == b)
+    PacketPassFairQueueFlow_AssertFree(&b->dp_qflow);
+    
+    // detach
+    flow_buffer_detach(b);
+    
+    if (!b->flow) {
+        // free
+        flow_buffer_free(b);
+    } else if (b->flow->dp_desired) {
+        // attach
+        flow_buffer_attach(b, b->flow->dp_desired);
+    }
+}
+
+void flow_buffer_qflow_handler_busy (struct DataProtoFlow_buffer *b)
+{
+    flow_buffer_finish_detach(b);
 }
 
 int DataProtoSink_Init (DataProtoSink *o, BReactor *reactor, PacketPassInterface *output, btime_t keepalive_time, btime_t tolerance_time, DataProtoSink_handler handler, void *user)
@@ -178,8 +275,8 @@ int DataProtoSink_Init (DataProtoSink *o, BReactor *reactor, PacketPassInterface
     o->up = 0;
     o->up_report = 0;
     
-    // set not freeing
-    o->freeing = 0;
+    // set no detaching buffer
+    o->detaching_buffer = NULL;
     
     DebugCounter_Init(&o->d_ctr);
     DebugObject_Init(&o->d_obj);
@@ -202,11 +299,17 @@ void DataProtoSink_Free (DataProtoSink *o)
     DebugCounter_Free(&o->d_ctr);
     DebugObject_Free(&o->d_obj);
     
-    // free handler job
-    BPending_Free(&o->up_job);
-    
     // allow freeing queue flows
     PacketPassFairQueue_PrepareFree(&o->queue);
+    
+    // release detaching buffer
+    if (o->detaching_buffer) {
+        ASSERT(!o->detaching_buffer->flow || o->detaching_buffer->flow->dp_desired != o)
+        flow_buffer_finish_detach(o->detaching_buffer);
+    }
+    
+    // free handler job
+    BPending_Free(&o->up_job);
     
     // free receive timer
     BReactor_RemoveTimer(o->reactor, &o->receive_timer);
@@ -236,21 +339,9 @@ void DataProtoSink_Free (DataProtoSink *o)
     BPending_Free(&o->keepalive_job);
 }
 
-void DataProtoSink_PrepareFree (DataProtoSink *o)
-{
-    DebugObject_Access(&o->d_obj);
-    
-    // allow freeing queue flows
-    PacketPassFairQueue_PrepareFree(&o->queue);
-    
-    // set freeing
-    o->freeing = 1;
-}
-
 void DataProtoSink_Received (DataProtoSink *o, int peer_receiving)
 {
     ASSERT(peer_receiving == 0 || peer_receiving == 1)
-    ASSERT(!o->freeing)
     DebugObject_Access(&o->d_obj);
     
     // reset receive timer
@@ -315,26 +406,42 @@ int DataProtoFlow_Init (
     o->device = device;
     o->source_id = source_id;
     o->dest_id = dest_id;
-    o->inactivity_time = inactivity_time;
+    
+    // set no desired sink
+    o->dp_desired = NULL;
+    
+    // allocate buffer structure
+    struct DataProtoFlow_buffer *b = malloc(sizeof(*b));
+    if (!b) {
+        BLog(BLOG_ERROR, "malloc failed");
+        goto fail0;
+    }
+    o->b = b;
+    
+    // set parent
+    b->flow = o;
+    
+    // remember inactivity time
+    b->inactivity_time = inactivity_time;
     
     // init connector
-    PacketPassConnector_Init(&o->connector, DATAPROTO_MAX_OVERHEAD + device->frame_mtu, BReactor_PendingGroup(device->reactor));
+    PacketPassConnector_Init(&b->connector, DATAPROTO_MAX_OVERHEAD + device->frame_mtu, BReactor_PendingGroup(device->reactor));
     
     // init inactivity monitor
-    PacketPassInterface *buf_out = PacketPassConnector_GetInput(&o->connector);
-    if (o->inactivity_time >= 0) {
-        PacketPassInactivityMonitor_Init(&o->monitor, buf_out, device->reactor, o->inactivity_time, handler_inactivity, user);
-        buf_out = PacketPassInactivityMonitor_GetInput(&o->monitor);
+    PacketPassInterface *buf_out = PacketPassConnector_GetInput(&b->connector);
+    if (b->inactivity_time >= 0) {
+        PacketPassInactivityMonitor_Init(&b->monitor, buf_out, device->reactor, b->inactivity_time, handler_inactivity, user);
+        buf_out = PacketPassInactivityMonitor_GetInput(&b->monitor);
     }
     
     // init route buffer
-    if (!RouteBuffer_Init(&o->rbuf, DATAPROTO_MAX_OVERHEAD + device->frame_mtu, buf_out, num_packets)) {
+    if (!RouteBuffer_Init(&b->rbuf, DATAPROTO_MAX_OVERHEAD + device->frame_mtu, buf_out, num_packets)) {
         BLog(BLOG_ERROR, "RouteBuffer_Init failed");
         goto fail1;
     }
     
     // set no DataProto
-    o->dp = NULL;
+    b->dp = NULL;
     
     DebugObject_Init(&o->d_obj);
     DebugCounter_Increment(&device->d_ctr);
@@ -342,38 +449,49 @@ int DataProtoFlow_Init (
     return 1;
     
 fail1:
-    if (o->inactivity_time >= 0) {
-        PacketPassInactivityMonitor_Free(&o->monitor);
+    if (b->inactivity_time >= 0) {
+        PacketPassInactivityMonitor_Free(&b->monitor);
     }
-    PacketPassConnector_Free(&o->connector);
+    PacketPassConnector_Free(&b->connector);
+    free(b);
 fail0:
     return 0;
 }
 
 void DataProtoFlow_Free (DataProtoFlow *o)
 {
-    ASSERT(!o->dp)
+    struct DataProtoFlow_buffer *b = o->b;
+    ASSERT(!o->dp_desired)
     DebugCounter_Decrement(&o->device->d_ctr);
     DebugObject_Free(&o->d_obj);
     
-    // free route buffer
-    RouteBuffer_Free(&o->rbuf);
-    
-    // free inactivity monitor
-    if (o->inactivity_time >= 0) {
-        PacketPassInactivityMonitor_Free(&o->monitor);
+    if (b->dp) {
+        if (PacketPassFairQueueFlow_IsBusy(&b->dp_qflow)) {
+            // schedule detach, free buffer after detach
+            flow_buffer_schedule_detach(b);
+            b->flow = NULL;
+            
+            // remove inactivity handler
+            if (b->inactivity_time >= 0) {
+                PacketPassInactivityMonitor_SetHandler(&b->monitor, NULL, NULL);
+            }
+        } else {
+            // detach and free buffer now
+            flow_buffer_detach(b);
+            flow_buffer_free(b);
+        }
+    } else {
+        // free buffer
+        flow_buffer_free(b);
     }
-    
-    // free connector
-    PacketPassConnector_Free(&o->connector);
 }
 
 void DataProtoFlow_Route (DataProtoFlow *o, int more)
 {
+    struct DataProtoFlow_buffer *b = o->b;
     ASSERT(more == 0 || more == 1)
     PacketRouter_AssertRoute(&o->device->router);
     ASSERT(o->device->current_buf)
-    ASSERT(!o->dp || !o->dp->freeing)
     DebugObject_Access(&o->d_obj);
     
     // write header
@@ -387,7 +505,7 @@ void DataProtoFlow_Route (DataProtoFlow *o, int more)
     // route
     uint8_t *next_buf;
     if (!PacketRouter_Route(
-        &o->device->router, DATAPROTO_MAX_OVERHEAD + o->device->current_recv_len, &o->rbuf,
+        &o->device->router, DATAPROTO_MAX_OVERHEAD + o->device->current_recv_len, &b->rbuf,
         &next_buf, DATAPROTO_MAX_OVERHEAD, (more ? o->device->current_recv_len : 0)
     )) {
         BLog(BLOG_NOTICE, "buffer full: %d->%d", (int)o->source_id, (int)o->dest_id);
@@ -399,45 +517,52 @@ void DataProtoFlow_Route (DataProtoFlow *o, int more)
 
 void DataProtoFlow_Attach (DataProtoFlow *o, DataProtoSink *dp)
 {
+    struct DataProtoFlow_buffer *b = o->b;
     ASSERT(dp)
-    ASSERT(!o->dp)
+    ASSERT(!o->dp_desired)
     ASSERT(o->device->frame_mtu <= dp->frame_mtu)
-    ASSERT(!dp->freeing)
     DebugObject_Access(&o->d_obj);
     DebugObject_Access(&dp->d_obj);
     
-    // set DataProto
-    o->dp = dp;
+    if (b->dp) {
+        if (PacketPassFairQueueFlow_IsBusy(&b->dp_qflow)) {
+            // schedule detach and reattach
+            flow_buffer_schedule_detach(b);
+        } else {
+            // detach and reattach now
+            flow_buffer_detach(b);
+            flow_buffer_attach(b, dp);
+        }
+    } else {
+        // attach
+        flow_buffer_attach(b, dp);
+    }
     
-    // init queue flow
-    PacketPassFairQueueFlow_Init(&o->dp_qflow, &dp->queue);
-    
-    // connect to queue flow
-    PacketPassConnector_ConnectOutput(&o->connector, PacketPassFairQueueFlow_GetInput(&o->dp_qflow));
+    // set desired sink
+    o->dp_desired = dp;
     
     DebugCounter_Increment(&dp->d_ctr);
 }
 
 void DataProtoFlow_Detach (DataProtoFlow *o)
 {
-    ASSERT(o->dp)
+    struct DataProtoFlow_buffer *b = o->b;
+    ASSERT(o->dp_desired)
+    ASSERT(b->dp)
     DebugObject_Access(&o->d_obj);
     
-    DataProtoSink *dp = o->dp;
+    DataProtoSink *dp = o->dp_desired;
     
-    // release flow if needed
-    if (!o->dp->freeing && PacketPassFairQueueFlow_IsBusy(&o->dp_qflow)) {
-        PacketPassFairQueueFlow_Release(&o->dp_qflow);
+    if (PacketPassFairQueueFlow_IsBusy(&b->dp_qflow)) {
+        // schedule detach
+        flow_buffer_schedule_detach(b);
+    } else {
+        // detach now
+        flow_buffer_detach(b);
     }
     
-    // disconnect from queue flow
-    PacketPassConnector_DisconnectOutput(&o->connector);
-    
-    // free queue flow
-    PacketPassFairQueueFlow_Free(&o->dp_qflow);
-    
-    // set no DataProto
-    o->dp = NULL;
+    // set no desired sink
+    o->dp_desired = NULL;
     
     DebugCounter_Decrement(&dp->d_ctr);
 }

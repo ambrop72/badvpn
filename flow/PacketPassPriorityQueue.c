@@ -228,7 +228,7 @@ int PacketPassPriorityQueueFlow_IsBusy (PacketPassPriorityQueueFlow *flow)
     return (flow == m->sending_flow);
 }
 
-void PacketPassPriorityQueueFlow_Release (PacketPassPriorityQueueFlow *flow)
+void PacketPassPriorityQueueFlow_RequestCancel (PacketPassPriorityQueueFlow *flow)
 {
     PacketPassPriorityQueue *m = flow->m;
     
@@ -238,14 +238,8 @@ void PacketPassPriorityQueueFlow_Release (PacketPassPriorityQueueFlow *flow)
     ASSERT(!BPending_IsSet(&m->schedule_job))
     DebugObject_Access(&flow->d_obj);
     
-    // set no sending flow
-    m->sending_flow = NULL;
-    
-    // schedule schedule
-    BPending_Set(&m->schedule_job);
-    
-    // cancel current packet
-    PacketPassInterface_Sender_Cancel(m->output);
+    // request cancel
+    PacketPassInterface_Sender_RequestCancel(m->output);
 }
 
 void PacketPassPriorityQueueFlow_SetBusyHandler (PacketPassPriorityQueueFlow *flow, PacketPassPriorityQueue_handler_busy handler, void *user)

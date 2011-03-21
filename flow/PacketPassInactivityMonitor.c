@@ -33,15 +33,12 @@ static void input_handler_send (PacketPassInactivityMonitor *o, uint8_t *data, i
     BReactor_RemoveTimer(o->reactor, &o->timer);
 }
 
-static void input_handler_cancel (PacketPassInactivityMonitor *o)
+static void input_handler_requestcancel (PacketPassInactivityMonitor *o)
 {
     DebugObject_Access(&o->d_obj);
     
-    // output no longer busy, restart timer
-    BReactor_SetTimer(o->reactor, &o->timer);
-    
-    // call cancel
-    PacketPassInterface_Sender_Cancel(o->output);
+    // request cancel
+    PacketPassInterface_Sender_RequestCancel(o->output);
 }
 
 static void output_handler_done (PacketPassInactivityMonitor *o)
@@ -80,7 +77,7 @@ void PacketPassInactivityMonitor_Init (PacketPassInactivityMonitor *o, PacketPas
     // init input
     PacketPassInterface_Init(&o->input, PacketPassInterface_GetMTU(o->output), (PacketPassInterface_handler_send)input_handler_send, o, BReactor_PendingGroup(o->reactor));
     if (PacketPassInterface_HasCancel(o->output)) {
-        PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_cancel)input_handler_cancel);
+        PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_requestcancel)input_handler_requestcancel);
     }
     
     // init output

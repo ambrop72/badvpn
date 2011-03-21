@@ -152,19 +152,14 @@ void PacketPassFairQueueFlow_AssertFree (PacketPassFairQueueFlow *flow);
 int PacketPassFairQueueFlow_IsBusy (PacketPassFairQueueFlow *flow);
 
 /**
- * Cancels the packet that is currently being sent to output in order
- * to allow freeing the flow.
+ * Requests the output to stop processing the current packet as soon as possible.
  * Cancel functionality must be enabled for the queue.
  * The flow must be busy as indicated by {@link PacketPassFairQueueFlow_IsBusy}.
  * Queue must not be in freeing state.
- * Must not be called from queue calls to output.
- * Will call Cancel on output. Will not invoke any input I/O.
- * After this, {@link PacketPassFairQueueFlow_IsBusy} will report the flow as not busy.
- * The flow's input's Done will never be called (the flow will become inoperable).
  * 
  * @param flow the object
  */
-void PacketPassFairQueueFlow_Release (PacketPassFairQueueFlow *flow);
+void PacketPassFairQueueFlow_RequestCancel (PacketPassFairQueueFlow *flow);
 
 /**
  * Sets up a callback to be called when the flow is no longer busy.

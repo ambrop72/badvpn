@@ -41,7 +41,7 @@
 
 typedef void (*PacketPassInterface_handler_send) (void *user, uint8_t *data, int data_len);
 
-typedef void (*PacketPassInterface_handler_cancel) (void *user);
+typedef void (*PacketPassInterface_handler_requestcancel) (void *user);
 
 typedef void (*PacketPassInterface_handler_done) (void *user);
 
@@ -49,7 +49,7 @@ typedef struct {
     // provider data
     int mtu;
     PacketPassInterface_handler_send handler_operation;
-    PacketPassInterface_handler_cancel handler_cancel;
+    PacketPassInterface_handler_requestcancel handler_requestcancel;
     void *user_provider;
     
     // user data
@@ -61,11 +61,15 @@ typedef struct {
     uint8_t *job_operation_data;
     int job_operation_len;
     
+    // requestcancel job
+    BPending job_requestcancel;
+    
     // done job
     BPending job_done;
     
     // state
     int state;
+    int cancel_requested;
     
     DebugObject d_obj;
 } PacketPassInterface;
@@ -74,7 +78,7 @@ static void PacketPassInterface_Init (PacketPassInterface *i, int mtu, PacketPas
 
 static void PacketPassInterface_Free (PacketPassInterface *i);
 
-static void PacketPassInterface_EnableCancel (PacketPassInterface *i, PacketPassInterface_handler_cancel handler_cancel);
+static void PacketPassInterface_EnableCancel (PacketPassInterface *i, PacketPassInterface_handler_requestcancel handler_requestcancel);
 
 static void PacketPassInterface_Done (PacketPassInterface *i);
 
@@ -84,11 +88,12 @@ static void PacketPassInterface_Sender_Init (PacketPassInterface *i, PacketPassI
 
 static void PacketPassInterface_Sender_Send (PacketPassInterface *i, uint8_t *data, int data_len);
 
-static void PacketPassInterface_Sender_Cancel (PacketPassInterface *i);
+static void PacketPassInterface_Sender_RequestCancel (PacketPassInterface *i);
 
 static int PacketPassInterface_HasCancel (PacketPassInterface *i);
 
 void _PacketPassInterface_job_operation (PacketPassInterface *i);
+void _PacketPassInterface_job_requestcancel (PacketPassInterface *i);
 void _PacketPassInterface_job_done (PacketPassInterface *i);
 
 void PacketPassInterface_Init (PacketPassInterface *i, int mtu, PacketPassInterface_handler_send handler_operation, void *user, BPendingGroup *pg)
@@ -98,7 +103,7 @@ void PacketPassInterface_Init (PacketPassInterface *i, int mtu, PacketPassInterf
     // init arguments
     i->mtu = mtu;
     i->handler_operation = handler_operation;
-    i->handler_cancel = NULL;
+    i->handler_requestcancel = NULL;
     i->user_provider = user;
     
     // set no user
@@ -106,6 +111,7 @@ void PacketPassInterface_Init (PacketPassInterface *i, int mtu, PacketPassInterf
     
     // init jobs
     BPending_Init(&i->job_operation, pg, (BPending_handler)_PacketPassInterface_job_operation, i);
+    BPending_Init(&i->job_requestcancel, pg, (BPending_handler)_PacketPassInterface_job_requestcancel, i);
     BPending_Init(&i->job_done, pg, (BPending_handler)_PacketPassInterface_job_done, i);
     
     // set state
@@ -120,22 +126,26 @@ void PacketPassInterface_Free (PacketPassInterface *i)
     
     // free jobs
     BPending_Free(&i->job_done);
+    BPending_Free(&i->job_requestcancel);
     BPending_Free(&i->job_operation);
 }
 
-void PacketPassInterface_EnableCancel (PacketPassInterface *i, PacketPassInterface_handler_cancel handler_cancel)
+void PacketPassInterface_EnableCancel (PacketPassInterface *i, PacketPassInterface_handler_requestcancel handler_requestcancel)
 {
-    ASSERT(!i->handler_cancel)
+    ASSERT(!i->handler_requestcancel)
     ASSERT(!i->handler_done)
-    ASSERT(handler_cancel)
+    ASSERT(handler_requestcancel)
     
-    i->handler_cancel = handler_cancel;
+    i->handler_requestcancel = handler_requestcancel;
 }
 
 void PacketPassInterface_Done (PacketPassInterface *i)
 {
     ASSERT(i->state == PPI_STATE_BUSY)
     DebugObject_Access(&i->d_obj);
+    
+    // unset requestcancel job
+    BPending_Unset(&i->job_requestcancel);
     
     // schedule done
     BPending_Set(&i->job_done);
@@ -177,26 +187,35 @@ void PacketPassInterface_Sender_Send (PacketPassInterface *i, uint8_t *data, int
     
     // set state
     i->state = PPI_STATE_OPERATION_PENDING;
+    i->cancel_requested = 0;
 }
 
-void PacketPassInterface_Sender_Cancel (PacketPassInterface *i)
+void PacketPassInterface_Sender_RequestCancel (PacketPassInterface *i)
 {
     ASSERT(i->state == PPI_STATE_OPERATION_PENDING || i->state == PPI_STATE_BUSY || i->state == PPI_STATE_DONE_PENDING)
-    ASSERT(i->handler_cancel)
+    ASSERT(i->handler_requestcancel)
     DebugObject_Access(&i->d_obj);
     
-    int prev_state = i->state;
-    
-    // unset jobs
-    BPending_Unset(&i->job_operation);
-    BPending_Unset(&i->job_done);
-    
-    // set state
-    i->state = PPI_STATE_NONE;
-    
-    if (prev_state == PPI_STATE_BUSY) {
-        i->handler_cancel(i->user_provider);
+    // ignore multiple cancel requests
+    if (i->cancel_requested) {
         return;
+    }
+    
+    // remember we requested cancel
+    i->cancel_requested = 1;
+    
+    if (i->state == PPI_STATE_OPERATION_PENDING) {
+        // unset operation job
+        BPending_Unset(&i->job_operation);
+        
+        // set done job
+        BPending_Set(&i->job_done);
+        
+        // set state
+        i->state = PPI_STATE_DONE_PENDING;
+    } else if (i->state == PPI_STATE_BUSY) {
+        // set requestcancel job
+        BPending_Set(&i->job_requestcancel);
     }
 }
 
@@ -204,7 +223,7 @@ int PacketPassInterface_HasCancel (PacketPassInterface *i)
 {
     DebugObject_Access(&i->d_obj);
     
-    return !!i->handler_cancel;
+    return !!i->handler_requestcancel;
 }
 
 #endif

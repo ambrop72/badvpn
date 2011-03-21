@@ -73,7 +73,6 @@ void DPRelayRouter_SubmitFrame (DPRelayRouter *o, DPRelaySource *src, DPRelaySin
 
 void DPRelaySource_Init (DPRelaySource *o, DPRelayRouter *router, peerid_t source_id, BReactor *reactor);
 void DPRelaySource_Free (DPRelaySource *o);
-void DPRelaySource_PrepareFreeDestinations (DPRelaySource *o);
 
 void DPRelaySink_Init (DPRelaySink *o, peerid_t dest_id);
 void DPRelaySink_Free (DPRelaySink *o);

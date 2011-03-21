@@ -7,6 +7,7 @@ add_executable(badvpn-client
     PasswordSender.c
     FrameDecider.c
     DPRelay.c
+    DPReceive.c
 )
 target_link_libraries(badvpn-client system flow tuntap server_conection security ${NSPR_LIBRARIES} ${NSS_LIBRARIES})
 

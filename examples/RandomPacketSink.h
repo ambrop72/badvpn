@@ -55,12 +55,13 @@ static void _RandomPacketSink_input_handler_send (RandomPacketSink *s, uint8_t *
     }
 }
 
-static void _RandomPacketSink_input_handler_cancel (RandomPacketSink *s)
+static void _RandomPacketSink_input_handler_requestcancel (RandomPacketSink *s)
 {
     DebugObject_Access(&s->d_obj);
     
     printf("sink: cancelled\n");
     BReactor_RemoveTimer(s->reactor, &s->timer);
+    PacketPassInterface_Done(&s->input);
 }
 
 static void _RandomPacketSink_timer_handler (RandomPacketSink *s)
@@ -77,7 +78,7 @@ static void RandomPacketSink_Init (RandomPacketSink *s, BReactor *reactor, int m
     
     // init input
     PacketPassInterface_Init(&s->input, mtu, (PacketPassInterface_handler_send)_RandomPacketSink_input_handler_send, s, BReactor_PendingGroup(reactor));
-    PacketPassInterface_EnableCancel(&s->input, (PacketPassInterface_handler_cancel)_RandomPacketSink_input_handler_cancel);
+    PacketPassInterface_EnableCancel(&s->input, (PacketPassInterface_handler_requestcancel)_RandomPacketSink_input_handler_requestcancel);
     
     // init timer
     BTimer_Init(&s->timer, ms, (BTimer_handler)_RandomPacketSink_timer_handler, s);

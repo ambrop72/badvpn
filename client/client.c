@@ -221,9 +221,6 @@ static int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len);
 // removes a peer
 static void peer_remove (struct peer_data *peer);
 
-// deallocates peer resources
-static void peer_dealloc (struct peer_data *peer);
-
 // passes a message to the logger, prepending it info about the peer
 static void peer_log (struct peer_data *peer, int level, const char *fmt, ...);
 
@@ -244,10 +241,6 @@ static void peer_enable_relay_provider (struct peer_data *peer);
 
 // unregisters the peer as a relay provider
 static void peer_disable_relay_provider (struct peer_data *peer);
-
-// deallocates peer relay provider resources. Inserts relay users to the
-// need relay list. Used while freeing a peer.
-static void peer_dealloc_relay_provider (struct peer_data *peer);
 
 // install relaying for a peer
 static void peer_install_relaying (struct peer_data *peer, struct peer_data *relay);
@@ -290,11 +283,6 @@ static void peer_tcp_pio_handler_error (struct peer_data *peer);
 // peer retry timer handler. The timer is used only on the master side,
 // wither when we detect an error, or the peer reports an error.
 static void peer_reset_timer_handler (struct peer_data *peer);
-
-// PacketPassInterface handler for receiving packets from the link 
-static void peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len);
-
-static void local_recv_qflow_output_handler_done (struct peer_data *peer);
 
 // start binding, according to the protocol
 static int peer_start_binding (struct peer_data *peer);
@@ -521,8 +509,11 @@ int main (int argc, char *argv[])
         goto fail7;
     }
     
-    // init device output
-    PacketPassFairQueue_Init(&device.output_queue, BTap_GetInput(&device.btap), BReactor_PendingGroup(&ss), 1, 1);
+    // init receive device
+    if (!DPReceiveDevice_Init(&device.output_dprd, BTap_GetInput(&device.btap), &ss, options.send_buffer_relay_size, PEER_RELAY_FLOW_INACTIVITY_TIME)) {
+        BLog(BLOG_ERROR, "DPReceiveDevice_Init failed");
+        goto fail7a;
+    }
     
     // calculate data MTU
     if (device.mtu > INT_MAX - DATAPROTO_MAX_OVERHEAD) {
@@ -566,34 +557,14 @@ int main (int argc, char *argv[])
     BLog(BLOG_NOTICE, "entering event loop");
     BReactor_Exec(&ss);
     
-    // allow freeing local receive flows
-    PacketPassFairQueue_PrepareFree(&device.output_queue);
+    // allow freeing receive receivers in peers' links
+    DPReceiveDevice_PrepareFree(&device.output_dprd);
     
     // free peers
     LinkedList2Node *node;
     while (node = LinkedList2_GetFirst(&peers)) {
         struct peer_data *peer = UPPER_OBJECT(node, struct peer_data, list_node);
-        
-        // free relaying
-        if (peer->have_relaying) {
-            struct peer_data *relay = peer->relaying_peer;
-            ASSERT(relay->is_relay)
-            ASSERT(relay->have_link)
-            
-            // free relay provider
-            peer_dealloc_relay_provider(relay);
-        }
-        
-        // free relay provider
-        if (peer->is_relay) {
-            peer_dealloc_relay_provider(peer);
-        }
-        
-        // free relay source
-        DPRelaySource_PrepareFreeDestinations(&peer->relay_source);
-        
-        // deallocate peer
-        peer_dealloc(peer);
+        peer_remove(peer);
     }
     
     ServerConnection_Free(&server);
@@ -602,7 +573,8 @@ fail9:
 fail8a:
     FrameDecider_Free(&frame_decider);
 fail8:
-    PacketPassFairQueue_Free(&device.output_queue);
+    DPReceiveDevice_Free(&device.output_dprd);
+fail7a:
     DataProtoSource_Free(&device.input_dpd);
 fail7:
     BTap_Free(&device.btap);
@@ -1367,19 +1339,17 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     // init local flow
     if (!DataProtoFlow_Init(&peer->local_dpflow, &device.input_dpd, my_id, peer->id, options.send_buffer_size, -1, NULL, NULL)) {
         peer_log(peer, BLOG_ERROR, "DataProtoFlow_Init failed");
-        goto fail1a;
+        goto fail2;
     }
     
-    // init local receive flow
-    PacketPassFairQueueFlow_Init(&peer->local_recv_qflow, &device.output_queue);
-    peer->local_recv_if = PacketPassFairQueueFlow_GetInput(&peer->local_recv_qflow);
-    PacketPassInterface_Sender_Init(peer->local_recv_if, (PacketPassInterface_handler_done)local_recv_qflow_output_handler_done, peer);
+    // init frame decider peer
+    if (!FrameDeciderPeer_Init(&peer->decider_peer, &frame_decider)) {
+        peer_log(peer, BLOG_ERROR, "FrameDeciderPeer_Init failed");
+        goto fail3;
+    }
     
-    // init relay source
-    DPRelaySource_Init(&peer->relay_source, &relay_router, peer->id, &ss);
-    
-    // init relay sink
-    DPRelaySink_Init(&peer->relay_sink, peer->id);
+    // init receive peer
+    DPReceivePeer_Init(&peer->receive_peer, &device.output_dprd, peer->id, &peer->decider_peer, !!(peer->flags & SCID_NEWCLIENT_FLAG_RELAY_CLIENT));
     
     // have no link
     peer->have_link = 0;
@@ -1392,11 +1362,6 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     
     // init retry timer
     BTimer_Init(&peer->reset_timer, PEER_RETRY_TIME, (BTimer_handler)peer_reset_timer_handler, peer);
-    
-    // init frame decider peer
-    if (!FrameDeciderPeer_Init(&peer->decider_peer, &frame_decider)) {
-        goto fail5;
-    }
     
     // is not relay server
     peer->is_relay = 0;
@@ -1425,12 +1390,9 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
         return 0;
     }
     
-fail5:
-    DPRelaySink_Free(&peer->relay_sink);
-    DPRelaySource_Free(&peer->relay_source);
-    PacketPassFairQueueFlow_Free(&peer->local_recv_qflow);
+fail3:
     DataProtoFlow_Free(&peer->local_dpflow);
-fail1a:
+fail2:
     if (peer->common_name) {
         PORT_Free(peer->common_name);
     }
@@ -1450,31 +1412,9 @@ void peer_remove (struct peer_data *peer)
     }
     
     // disable relay provider
-    // this inserts former relay users into the need relay list
     if (peer->is_relay) {
-        peer_dealloc_relay_provider(peer);
+        peer_disable_relay_provider(peer);
     }
-    
-    // release local receive flow
-    if (PacketPassFairQueueFlow_IsBusy(&peer->local_recv_qflow)) {
-        PacketPassFairQueueFlow_Release(&peer->local_recv_qflow);
-    }
-    
-    // deallocate peer
-    peer_dealloc(peer);
-    
-    // assign relays because former relay users are disconnected above
-    assign_relays();
-}
-
-void peer_dealloc (struct peer_data *peer)
-{
-    ASSERT(!peer->have_relaying)
-    ASSERT(!peer->is_relay)
-    PacketPassFairQueueFlow_AssertFree(&peer->local_recv_qflow);
-    
-    LinkedList2Iterator it;
-    LinkedList2Node *node;
     
     // remove from waiting relay list
     if (peer->waiting_relay) {
@@ -1485,6 +1425,11 @@ void peer_dealloc (struct peer_data *peer)
     if (peer->have_link) {
         peer_free_link(peer);
     }
+    
+    ASSERT(!peer->have_relaying)
+    ASSERT(!peer->is_relay)
+    ASSERT(!peer->waiting_relay)
+    ASSERT(!peer->have_link)
     
     // decrement number of peers
     num_peers--;
@@ -1498,20 +1443,14 @@ void peer_dealloc (struct peer_data *peer)
     // free jobs
     BPending_Free(&peer->job_send_seed_after_binding);
     
-    // free frame decider
-    FrameDeciderPeer_Free(&peer->decider_peer);
-    
     // free retry timer
     BReactor_RemoveTimer(&ss, &peer->reset_timer);
     
-    // free relay sink
-    DPRelaySink_Free(&peer->relay_sink);
+    // free receive peer
+    DPReceivePeer_Free(&peer->receive_peer);
     
-    // free relay source
-    DPRelaySource_Free(&peer->relay_source);
-    
-    // free local receive flow
-    PacketPassFairQueueFlow_Free(&peer->local_recv_qflow);
+    // free frame decider
+    FrameDeciderPeer_Free(&peer->decider_peer);
     
     // free local flow
     DataProtoFlow_Free(&peer->local_dpflow);
@@ -1551,8 +1490,9 @@ int peer_init_link (struct peer_data *peer)
     
     ASSERT(!peer->is_relay)
     
-    // init link receive interface
-    PacketPassInterface_Init(&peer->recv_ppi, data_mtu, (PacketPassInterface_handler_send)peer_recv_handler_send, peer,  BReactor_PendingGroup(&ss));
+    // init receive receiver
+    DPReceiveReceiver_Init(&peer->receive_receiver, &peer->receive_peer);
+    PacketPassInterface *recv_if = DPReceiveReceiver_GetInput(&peer->receive_receiver);
     
     // init transport-specific link objects
     PacketPassInterface *link_if;
@@ -1560,7 +1500,7 @@ int peer_init_link (struct peer_data *peer)
         // init DatagramPeerIO
         if (!DatagramPeerIO_Init(
             &peer->pio.udp.pio, &ss, data_mtu, CLIENT_UDP_MTU, sp_params,
-            options.fragmentation_latency, PEER_UDP_ASSEMBLER_NUM_FRAMES, &peer->recv_ppi,
+            options.fragmentation_latency, PEER_UDP_ASSEMBLER_NUM_FRAMES, recv_if,
             options.otp_num_warn, &twd
         )) {
             peer_log(peer, BLOG_ERROR, "DatagramPeerIO_Init failed");
@@ -1588,7 +1528,7 @@ int peer_init_link (struct peer_data *peer)
             &peer->pio.tcp.pio, &ss, options.peer_ssl,
             (options.peer_ssl ? peer->cert : NULL),
             (options.peer_ssl ? peer->cert_len : -1),
-            data_mtu, &peer->recv_ppi,
+            data_mtu, recv_if,
             (StreamPeerIO_handler_error)peer_tcp_pio_handler_error, peer
         )) {
             peer_log(peer, BLOG_ERROR, "StreamPeerIO_Init failed");
@@ -1607,8 +1547,8 @@ int peer_init_link (struct peer_data *peer)
     // attach local flow to our DataProtoSink
     DataProtoFlow_Attach(&peer->local_dpflow, &peer->send_dp);
     
-    // attach relay sink flows to our DataProtoSink
-    DPRelaySink_Attach(&peer->relay_sink, &peer->send_dp);
+    // attach receive peer to our DataProtoSink
+    DPReceivePeer_AttachSink(&peer->receive_peer, &peer->send_dp);
     
     peer->have_link = 1;
     
@@ -1621,7 +1561,7 @@ fail2:
         StreamPeerIO_Free(&peer->pio.tcp.pio);
     }
 fail1:
-    PacketPassInterface_Free(&peer->recv_ppi);
+    DPReceiveReceiver_Free(&peer->receive_receiver);
     return 0;
 }
 
@@ -1633,11 +1573,10 @@ void peer_free_link (struct peer_data *peer)
     ASSERT(!peer->have_relaying)
     ASSERT(!peer->waiting_relay)
     
-    // allow detaching DataProto flows
-    DataProtoSink_PrepareFree(&peer->send_dp);
+    ASSERT(!DPReceiveReceiver_IsBusy(&peer->receive_receiver)) // TODO
     
-    // detach relay sink flows from our DataProtoSink
-    DPRelaySink_Detach(&peer->relay_sink);
+    // detach receive peer from our DataProtoSink
+    DPReceivePeer_DetachSink(&peer->receive_peer);
     
     // detach local flow from our DataProtoSink
     DataProtoFlow_Detach(&peer->local_dpflow);
@@ -1647,15 +1586,13 @@ void peer_free_link (struct peer_data *peer)
     
     // free transport-specific link objects
     if (options.transport_mode == TRANSPORT_MODE_UDP) {
-        // free DatagramPeerIO
         DatagramPeerIO_Free(&peer->pio.udp.pio);
     } else {
-        // free StreamPeerIO
         StreamPeerIO_Free(&peer->pio.tcp.pio);
     }
     
-    // free common link objects
-    PacketPassInterface_Free(&peer->recv_ppi);
+    // free receive receiver
+    DPReceiveReceiver_Free(&peer->receive_receiver);
     
     peer->have_link = 0;
 }
@@ -1732,37 +1669,6 @@ void peer_disable_relay_provider (struct peer_data *peer)
     
     // assign relays
     assign_relays();
-}
-
-void peer_dealloc_relay_provider (struct peer_data *peer)
-{
-    ASSERT(peer->is_relay)
-    
-    ASSERT(peer->have_link)
-    ASSERT(!peer->have_relaying)
-    ASSERT(!peer->waiting_relay)
-    
-    // allow detaching DataProto flows from the relay peer
-    DataProtoSink_PrepareFree(&peer->send_dp);
-    
-    // disconnect relay users
-    LinkedList2Node *list_node;
-    while (list_node = LinkedList2_GetFirst(&peer->relay_users)) {
-        struct peer_data *relay_user = UPPER_OBJECT(list_node, struct peer_data, relaying_list_node);
-        ASSERT(relay_user->have_relaying)
-        ASSERT(relay_user->relaying_peer == peer)
-        
-        // disconnect relay user
-        peer_free_relaying(relay_user);
-        
-        // add it to need relay list
-        peer_register_need_relay(relay_user);
-    }
-    
-    // remove from relays list
-    LinkedList2_Remove(&relays, &peer->relay_list_node);
-    
-    peer->is_relay = 0;
 }
 
 void peer_install_relaying (struct peer_data *peer, struct peer_data *relay)
@@ -2220,127 +2126,6 @@ void peer_reset_timer_handler (struct peer_data *peer)
     return;
 }
 
-void peer_recv_handler_send (struct peer_data *peer, uint8_t *data, int data_len)
-{
-    ASSERT(peer->have_link)
-    ASSERT(data_len >= 0)
-    ASSERT(data_len <= data_mtu)
-    
-    uint8_t *orig_data = data;
-    int orig_data_len = data_len;
-    
-    int dp_good = 0;
-    struct peer_data *src_peer;
-    struct peer_data *relay_dest = NULL;
-    int local = 0;
-    
-    // check dataproto header
-    if (data_len < sizeof(struct dataproto_header)) {
-        peer_log(peer, BLOG_NOTICE, "receive: no dataproto header");
-        goto out;
-    }
-    struct dataproto_header *header = (struct dataproto_header *)data;
-    data += sizeof(struct dataproto_header);
-    data_len -= sizeof(struct dataproto_header);
-    uint8_t flags = header->flags;
-    peerid_t from_id = ltoh16(header->from_id);
-    int num_ids = ltoh16(header->num_peer_ids);
-    
-    // check destination IDs
-    if (num_ids > 1) {
-        peer_log(peer, BLOG_NOTICE, "receive: too many destination IDs");
-        goto out;
-    }
-    if (data_len < num_ids * sizeof(struct dataproto_peer_id)) {
-        peer_log(peer, BLOG_NOTICE, "receive: invalid length for destination IDs");
-        goto out;
-    }
-    struct dataproto_peer_id *ids = (struct dataproto_peer_id *)data;
-    data += num_ids * sizeof(struct dataproto_peer_id);
-    data_len -= num_ids * sizeof(struct dataproto_peer_id);
-    
-    // check remaining data
-    if (data_len > device.mtu) {
-        peer_log(peer, BLOG_NOTICE, "receive: frame too large");
-        goto out;
-    }
-    
-    dp_good = 1;
-    
-    if (num_ids == 0) {
-        goto out;
-    }
-    
-    // find source peer
-    if (!(src_peer = find_peer_by_id(from_id))) {
-        peer_log(peer, BLOG_NOTICE, "receive: source peer %d not known", (int)from_id);
-        goto out;
-    }
-    
-    // find destination
-    peerid_t id = ltoh16(ids[0].id);
-    if (id == my_id) {
-        // frame is for us
-        
-        // let the frame decider analyze the frame
-        FrameDeciderPeer_Analyze(&src_peer->decider_peer, data, data_len);
-        
-        local = 1;
-    } else {
-        // frame is for someone else
-        
-        // make sure the client is allowed to relay though us
-        if (!(peer->flags & SCID_NEWCLIENT_FLAG_RELAY_CLIENT)) {
-            peer_log(peer, BLOG_NOTICE, "relaying not allowed");
-            goto out;
-        }
-        
-        // provided source ID must be the peer sending the frame
-        if (src_peer != peer) {
-            peer_log(peer, BLOG_NOTICE, "relay source must be the sending peer");
-            goto out;
-        }
-        
-        // lookup destination peer
-        struct peer_data *dest_peer = find_peer_by_id(id);
-        if (!dest_peer) {
-            peer_log(peer, BLOG_NOTICE, "relay destination peer not known");
-            goto out;
-        }
-        
-        // destination cannot be source
-        if (dest_peer == src_peer) {
-            peer_log(peer, BLOG_NOTICE, "relay destination cannot be the source");
-            goto out;
-        }
-        
-        relay_dest = dest_peer;
-    }
-    
-out:
-    // pass packet to device, or accept immediately
-    if (local) {
-        PacketPassInterface_Sender_Send(peer->local_recv_if, data, data_len);
-    } else {
-        PacketPassInterface_Done(&peer->recv_ppi);
-    }
-    
-    // relay frame
-    if (relay_dest) {
-        DPRelayRouter_SubmitFrame(&relay_router, &src_peer->relay_source, &relay_dest->relay_sink, data, data_len, options.send_buffer_relay_size, PEER_RELAY_FLOW_INACTIVITY_TIME);
-    }
-    
-    // inform DataProto of received packet
-    if (dp_good) {
-        DataProtoSink_Received(&peer->send_dp, !!(flags & DATAPROTO_FLAGS_RECEIVING_KEEPALIVES));
-    }
-}
-
-void local_recv_qflow_output_handler_done (struct peer_data *peer)
-{
-    PacketPassInterface_Done(&peer->recv_ppi);
-}
-
 int peer_start_binding (struct peer_data *peer)
 {
     peer->binding = 1;
@@ -2682,8 +2467,6 @@ void peer_dataproto_handler (struct peer_data *peer, int up)
 {
     ASSERT(peer->have_link)
     
-    // peer_recv_handler_send relies on this not bringing everything down
-    
     if (up) {
         peer_log(peer, BLOG_INFO, "up");
         
@@ -2807,6 +2590,9 @@ void server_handler_ready (void *user, peerid_t param_my_id, uint32_t ext_ip)
             }
         }
     }
+    
+    // give receive device the ID
+    DPReceiveDevice_SetPeerID(&device.output_dprd, my_id);
     
     BLog(BLOG_INFO, "server: ready, my ID is %d", (int)my_id);
 }

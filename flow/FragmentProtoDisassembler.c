@@ -112,13 +112,16 @@ static void input_handler_send (FragmentProtoDisassembler *o, uint8_t *data, int
     write_chunks(o);
 }
 
-static void input_handler_cancel (FragmentProtoDisassembler *o)
+static void input_handler_requestcancel (FragmentProtoDisassembler *o)
 {
     ASSERT(o->in_len >= 0)
     ASSERT(!o->out)
     
     // set no input packet
     o->in_len = -1;
+    
+    // finish input
+    PacketPassInterface_Done(&o->input);
 }
 
 static void output_handler_recv (FragmentProtoDisassembler *o, uint8_t *data)
@@ -166,7 +169,7 @@ void FragmentProtoDisassembler_Init (FragmentProtoDisassembler *o, BReactor *rea
     
     // init input
     PacketPassInterface_Init(&o->input, input_mtu, (PacketPassInterface_handler_send)input_handler_send, o, BReactor_PendingGroup(reactor));
-    PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_cancel)input_handler_cancel);
+    PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_requestcancel)input_handler_requestcancel);
     
     // init output
     PacketRecvInterface_Init(&o->output, o->output_mtu, (PacketRecvInterface_handler_recv)output_handler_recv, o, BReactor_PendingGroup(reactor));

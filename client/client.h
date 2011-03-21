@@ -26,13 +26,11 @@
 #include <protocol/scproto.h>
 #include <structure/LinkedList2.h>
 #include <structure/BAVL.h>
-#include <flow/SinglePacketBuffer.h>
-#include <flow/PacketPassFairQueue.h>
 #include <tuntap/BTap.h>
 #include <client/DatagramPeerIO.h>
 #include <client/StreamPeerIO.h>
 #include <client/DataProto.h>
-#include <client/DPRelay.h>
+#include <client/DPReceive.h>
 #include <client/FrameDecider.h>
 
 // NOTE: all time values are in milliseconds
@@ -91,7 +89,7 @@ struct device_data {
     DataProtoSource input_dpd;
     
     // output
-    PacketPassFairQueue output_queue;
+    DPReceiveDevice output_dprd;
 };
 
 struct peer_data {
@@ -109,24 +107,17 @@ struct peer_data {
     // local flow
     DataProtoFlow local_dpflow;
     
-    // local receive flow
-    PacketPassInterface *local_recv_if;
-    PacketPassFairQueueFlow local_recv_qflow;
+    // frame decider peer
+    FrameDeciderPeer decider_peer;
     
-    // relay source
-    DPRelaySource relay_source;
-    
-    // relay sink
-    DPRelaySink relay_sink;
+    // receive peer
+    DPReceivePeer receive_peer;
     
     // flag if link objects are initialized
     int have_link;
     
-    // link sending
-    DataProtoSink send_dp;
-    
-    // link receive interface
-    PacketPassInterface recv_ppi;
+    // receive receiver
+    DPReceiveReceiver receive_receiver;
     
     // transport-specific link objects
     union {
@@ -144,6 +135,9 @@ struct peer_data {
         } tcp;
     } pio;
     
+    // link sending
+    DataProtoSink send_dp;
+    
     // flag if relaying is installed
     int have_relaying;
     
@@ -157,9 +151,6 @@ struct peer_data {
     
     // retry timer
     BTimer reset_timer;
-    
-    // frame decider peer
-    FrameDeciderPeer decider_peer;
     
     // relay server specific
     int is_relay;

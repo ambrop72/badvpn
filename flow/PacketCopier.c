@@ -49,11 +49,14 @@ static void input_handler_send (PacketCopier *o, uint8_t *data, int data_len)
     o->out_have = 0;
 }
 
-static void input_handler_cancel (PacketCopier *o)
+static void input_handler_requestcancel (PacketCopier *o)
 {
     ASSERT(o->in_len >= 0)
     ASSERT(!o->out_have)
     DebugObject_Access(&o->d_obj);
+    
+    // finish input packet
+    PacketPassInterface_Done(&o->input);
     
     o->in_len = -1;
 }
@@ -86,7 +89,7 @@ void PacketCopier_Init (PacketCopier *o, int mtu, BPendingGroup *pg)
     
     // init input
     PacketPassInterface_Init(&o->input, mtu, (PacketPassInterface_handler_send)input_handler_send, o, pg);
-    PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_cancel)input_handler_cancel);
+    PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_requestcancel)input_handler_requestcancel);
     
     // init output
     PacketRecvInterface_Init(&o->output, mtu, (PacketRecvInterface_handler_recv)output_handler_recv, o, pg);

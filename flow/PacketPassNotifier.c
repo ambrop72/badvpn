@@ -38,11 +38,11 @@ void input_handler_send (PacketPassNotifier *o, uint8_t *data, int data_len)
     }
 }
 
-void input_handler_cancel (PacketPassNotifier *o)
+void input_handler_requestcancel (PacketPassNotifier *o)
 {
     DebugObject_Access(&o->d_obj);
     
-    PacketPassInterface_Sender_Cancel(o->output);
+    PacketPassInterface_Sender_RequestCancel(o->output);
 }
 
 void output_handler_done (PacketPassNotifier *o)
@@ -60,7 +60,7 @@ void PacketPassNotifier_Init (PacketPassNotifier *o, PacketPassInterface *output
     // init input
     PacketPassInterface_Init(&o->input, PacketPassInterface_GetMTU(o->output), (PacketPassInterface_handler_send)input_handler_send, o, pg);
     if (PacketPassInterface_HasCancel(o->output)) {
-        PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_cancel)input_handler_cancel);
+        PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_requestcancel)input_handler_requestcancel);
     }
     
     // init output

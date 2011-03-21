@@ -43,11 +43,12 @@ static void _TimerPacketSink_input_handler_send (TimerPacketSink *s, uint8_t *da
     BReactor_SetTimer(s->reactor, &s->timer);
 }
 
-static void _TimerPacketSink_input_handler_cancel (TimerPacketSink *s)
+static void _TimerPacketSink_input_handler_requestcancel (TimerPacketSink *s)
 {
     printf("sink: cancelled\n");
     
     BReactor_RemoveTimer(s->reactor, &s->timer);
+    PacketPassInterface_Done(&s->input);
 }
 
 static void _TimerPacketSink_timer_handler (TimerPacketSink *s)
@@ -64,7 +65,7 @@ static void TimerPacketSink_Init (TimerPacketSink *s, BReactor *reactor, int mtu
     
     // init input
     PacketPassInterface_Init(&s->input, mtu, (PacketPassInterface_handler_send)_TimerPacketSink_input_handler_send, s, BReactor_PendingGroup(s->reactor));
-    PacketPassInterface_EnableCancel(&s->input, (PacketPassInterface_handler_cancel)_TimerPacketSink_input_handler_cancel);
+    PacketPassInterface_EnableCancel(&s->input, (PacketPassInterface_handler_requestcancel)_TimerPacketSink_input_handler_requestcancel);
     
     // init timer
     BTimer_Init(&s->timer, ms, (BTimer_handler)_TimerPacketSink_timer_handler, s);

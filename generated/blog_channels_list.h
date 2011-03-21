@@ -46,3 +46,4 @@
 {.name = "PacketProtoDecoder", .loglevel = 4},
 {.name = "DPRelay", .loglevel = 4},
 {.name = "BThreadWork", .loglevel = 4},
+{.name = "DPReceive", .loglevel = 4},

@@ -243,20 +243,6 @@ void DPRelaySource_Free (DPRelaySource *o)
     }
 }
 
-void DPRelaySource_PrepareFreeDestinations (DPRelaySource *o)
-{
-    DebugObject_Access(&o->d_obj);
-    
-    LinkedList1Node *node = LinkedList1_GetFirst(&o->flows_list);
-    while (node) {
-        struct DPRelay_flow *flow = UPPER_OBJECT(node, struct DPRelay_flow, src_list_node);
-        if (flow->sink->dest) {
-            DataProtoSink_PrepareFree(flow->sink->dest);
-        }
-        node = LinkedList1Node_Next(node);
-    }
-}
-
 void DPRelaySink_Init (DPRelaySink *o, peerid_t dest_id)
 {
     // init arguments
