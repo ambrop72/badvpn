@@ -72,7 +72,7 @@ else ()
             message(FATAL_ERROR "epoll is required")
         endif ()
         add_definitions(-DBADVPN_USE_EPOLL)
-    elseif (CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+    elseif (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
         add_definitions(-DBADVPN_FREEBSD)
 
         check_symbol_exists(kqueue "sys/types.h;sys/event.h;sys/time.h" HAVE_KQUEUE)
