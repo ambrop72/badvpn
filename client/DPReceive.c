@@ -116,7 +116,7 @@ static void receiver_recv_handler_send (DPReceiveReceiver *o, uint8_t *packet, i
             // pass frame to device
             local = 1;
         } else {
-            // TODO check permitted
+            // check if relaying is allowed
             if (!peer->is_relay_client) {
                 BLog(BLOG_WARNING, "relaying not allowed");
                 goto out;
@@ -235,9 +235,9 @@ fail0:
 
 void DPReceiveDevice_Free (DPReceiveDevice *o)
 {
+    DebugObject_Free(&o->d_obj);
     ASSERT(!o->forgotten_receiver)
     ASSERT(LinkedList2_IsEmpty(&o->peers_list))
-    DebugObject_Free(&o->d_obj);
     
     // free queue
     PacketPassFairQueue_Free(&o->queue);
@@ -273,8 +273,8 @@ void DPReceiveDevice_SetPeerID (DPReceiveDevice *o, peerid_t peer_id)
 
 void DPReceivePeer_Init (DPReceivePeer *o, DPReceiveDevice *device, peerid_t peer_id, FrameDeciderPeer *decider_peer, int is_relay_client)
 {
-    ASSERT(is_relay_client == 0 || is_relay_client == 1)
     DebugObject_Access(&device->d_obj);
+    ASSERT(is_relay_client == 0 || is_relay_client == 1)
     
     // init arguments
     o->device = device;
@@ -294,19 +294,18 @@ void DPReceivePeer_Init (DPReceivePeer *o, DPReceiveDevice *device, peerid_t pee
     // insert to peers list
     LinkedList2_Append(&device->peers_list, &o->list_node);
     
-    DebugObject_Init(&o->d_obj);
     DebugCounter_Init(&o->d_receivers_ctr);
+    DebugObject_Init(&o->d_obj);
 }
 
 void DPReceivePeer_Free (DPReceivePeer *o)
 {
-    DPReceiveDevice *device = o->device;
-    ASSERT(!o->dp_sink)
-    DebugCounter_Free(&o->d_receivers_ctr);
     DebugObject_Free(&o->d_obj);
+    DebugCounter_Free(&o->d_receivers_ctr);
+    ASSERT(!o->dp_sink)
     
     // remove from peers list
-    LinkedList2_Remove(&device->peers_list, &o->list_node);
+    LinkedList2_Remove(&o->device->peers_list, &o->list_node);
     
     // free relay sink
     DPRelaySink_Free(&o->relay_sink);
@@ -317,9 +316,9 @@ void DPReceivePeer_Free (DPReceivePeer *o)
 
 void DPReceivePeer_AttachSink (DPReceivePeer *o, DataProtoSink *dp_sink)
 {
-    ASSERT(dp_sink)
-    ASSERT(!o->dp_sink)
     DebugObject_Access(&o->d_obj);
+    ASSERT(!o->dp_sink)
+    ASSERT(dp_sink)
     
     // attach relay sink
     DPRelaySink_Attach(&o->relay_sink, dp_sink);
@@ -329,8 +328,8 @@ void DPReceivePeer_AttachSink (DPReceivePeer *o, DataProtoSink *dp_sink)
 
 void DPReceivePeer_DetachSink (DPReceivePeer *o)
 {
-    ASSERT(o->dp_sink)
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->dp_sink)
     
     // detach relay sink
     DPRelaySink_Detach(&o->relay_sink);
