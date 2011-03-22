@@ -53,7 +53,6 @@
 
 static void report_error (BTap *o);
 static void input_handler_send (BTap *o, uint8_t *data, int data_len);
-static void input_handler_requestcancel (BTap *o);
 static void output_handler_recv (BTap *o, uint8_t *data);
 
 #ifdef BADVPN_USE_WINAPI
@@ -167,30 +166,7 @@ static void read_handle_handler (BTap *o)
     DWORD dbytes;
     if (!GetOverlappedResult(o->device, &o->output_ol, &dbytes, FALSE)) {
         DWORD error = GetLastError();
-        
         DEBUG("GetOverlappedResult (output) failed (%u)", error);
-        
-        // handle accidental cancelation from input_handler_cancel
-        if (error == ERROR_OPERATION_ABORTED) {
-            DEBUG("retrying read");
-            
-            // reset event
-            ASSERT_FORCE(ResetEvent(o->output_event))
-            
-            // try receiving
-            int res;
-            if ((res = try_recv(o, o->output_packet, &bytes)) < 0) {
-                goto fatal_error;
-            }
-            if (!res) {
-                // keep waiting
-                return;
-            }
-            
-            goto done;
-        }
-        
-    fatal_error:
         
         // set no output packet (so that BTap_Free doesn't try getting the result again)
         o->output_packet = NULL;
@@ -339,50 +315,6 @@ void input_handler_send (BTap *o, uint8_t *data, int data_len)
     #endif
     
     PacketPassInterface_Done(&o->input);
-}
-
-void input_handler_requestcancel (BTap *o)
-{
-    DebugObject_Access(&o->d_obj);
-    DebugError_AssertNoError(&o->d_err);
-    ASSERT(o->input_packet_len >= 0)
-    
-    #ifdef BADVPN_USE_WINAPI
-    
-    // disable handle event
-    BReactor_DisableHandle(o->reactor, &o->input_bhandle);
-    
-    // cancel I/O on the device
-    // this also cancels reading, so handle the aborted error code in read_handle_handler
-    ASSERT_FORCE(CancelIo(o->device))
-    
-    // wait for it
-    DWORD bytes;
-    if (!GetOverlappedResult(o->device, &o->input_ol, &bytes, TRUE)) {
-        DWORD error = GetLastError();
-        if (error != ERROR_OPERATION_ABORTED) {
-            DEBUG("WARNING: GetOverlappedResult (input) failed (%u)", error);
-        }
-    } else if (bytes != o->input_packet_len) {
-        DEBUG("WARNING: written %d expected %d", (int)bytes, o->input_packet_len);
-    }
-    
-    // reset event
-    ASSERT_FORCE(ResetEvent(o->input_event))
-    
-    #else
-    
-    // update events
-    o->poll_events &= ~BREACTOR_WRITE;
-    BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->poll_events);
-    
-    #endif
-    
-    // finish input packet
-    PacketPassInterface_Done(&o->input);
-    
-    // set no input packet
-    o->input_packet_len = -1;
 }
 
 void output_handler_recv (BTap *o, uint8_t *data)
@@ -684,7 +616,6 @@ fail0:
 success:
     // init input
     PacketPassInterface_Init(&o->input, o->frame_mtu, (PacketPassInterface_handler_send)input_handler_send, o, BReactor_PendingGroup(o->reactor));
-    PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_requestcancel)input_handler_requestcancel);
     
     // init output
     PacketRecvInterface_Init(&o->output, o->frame_mtu, (PacketRecvInterface_handler_recv)output_handler_recv, o, BReactor_PendingGroup(o->reactor));

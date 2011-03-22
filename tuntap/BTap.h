@@ -134,7 +134,6 @@ PacketPassInterface * BTap_GetInput (BTap *o);
 /**
  * Returns a {@link PacketRecvInterface} for reading packets from the device.
  * The MTU of the interface will be {@link BTap_GetMTU}.
- * The interface will support cancel functionality.
  * 
  * @param o the object
  * @return output interface
