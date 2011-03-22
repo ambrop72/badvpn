@@ -83,14 +83,16 @@ void notifier_handler (DataProtoSink *o, uint8_t *data, int data_len)
     ASSERT(data_len >= sizeof(struct dataproto_header))
     DebugObject_Access(&o->d_obj);
     
-    // modify existing packet here
-    struct dataproto_header *header = (struct dataproto_header *)data;
-    header->flags = 0;
+    int flags = 0;
     
     // if we are receiving keepalives, set the flag
     if (BTimer_IsRunning(&o->receive_timer)) {
-        header->flags |= DATAPROTO_FLAGS_RECEIVING_KEEPALIVES;
+        flags |= DATAPROTO_FLAGS_RECEIVING_KEEPALIVES;
     }
+    
+    // modify existing packet here
+    struct dataproto_header *header = (struct dataproto_header *)data;
+    header->flags = htol8(flags);
 }
 
 void keepalive_job_handler (DataProtoSink *o)
@@ -220,6 +222,10 @@ void flow_buffer_finish_detach (struct DataProtoFlow_buffer *b)
 
 void flow_buffer_qflow_handler_busy (struct DataProtoFlow_buffer *b)
 {
+    ASSERT(b->dp)
+    ASSERT(b->dp->detaching_buffer == b)
+    PacketPassFairQueueFlow_AssertFree(&b->dp_qflow);
+    
     flow_buffer_finish_detach(b);
 }
 

@@ -39,7 +39,7 @@ struct DPRelay_flow;
 typedef struct {
     int frame_mtu;
     BufferWriter writer;
-    DataProtoSource device;
+    DataProtoSource dp_source;
     struct DPRelay_flow *current_flow;
     DebugObject d_obj;
     DebugCounter d_ctr;
@@ -54,15 +54,15 @@ typedef struct {
 
 typedef struct {
     peerid_t dest_id;
-    DataProtoSink *dest;
     LinkedList1 flows_list;
+    DataProtoSink *dp_sink;
     DebugObject d_obj;
 } DPRelaySink;
 
 struct DPRelay_flow {
     DPRelaySource *src;
     DPRelaySink *sink;
-    DataProtoFlow dpls;
+    DataProtoFlow dp_flow;
     LinkedList1Node src_list_node;
     LinkedList1Node sink_list_node;
 };
@@ -76,7 +76,7 @@ void DPRelaySource_Free (DPRelaySource *o);
 
 void DPRelaySink_Init (DPRelaySink *o, peerid_t dest_id);
 void DPRelaySink_Free (DPRelaySink *o);
-void DPRelaySink_Attach (DPRelaySink *o, DataProtoSink *dest);
+void DPRelaySink_Attach (DPRelaySink *o, DataProtoSink *dp_sink);
 void DPRelaySink_Detach (DPRelaySink *o);
 
 #endif
