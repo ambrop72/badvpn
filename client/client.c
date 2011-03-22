@@ -1838,7 +1838,7 @@ void peer_msg_youconnect (struct peer_data *peer, uint8_t *data, int data_len)
         ASSERT_EXECUTE(msg_youconnect_addrParser_Getaddr(&aparser, &addr_data, &addr_len))
         if (!addr_read(addr_data, addr_len, &addr)) {
             peer_log(peer, BLOG_WARNING, "msg_youconnect: failed to read address");
-            return;
+            continue;
         }
         
         peer_log(peer, BLOG_NOTICE, "msg_youconnect: using address in scope '%s'", name);
