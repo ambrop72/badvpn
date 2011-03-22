@@ -275,7 +275,7 @@ int ServerConnection_IsReady (ServerConnection *o);
  * @param len length of the message. Must be >=0 and <=SC_MAX_MSGLEN.
  * @return 1 on success, 0 on out of buffer
  */
-int ServerConnection_StartMessage (ServerConnection *o, void **data, peerid_t peer_id, int len) WARN_UNUSED;
+int ServerConnection_StartMessage (ServerConnection *o, uint8_t **data, peerid_t peer_id, int len) WARN_UNUSED;
 
 /**
  * Submits a written message for sending to a peer.

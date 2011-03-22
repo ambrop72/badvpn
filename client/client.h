@@ -25,7 +25,6 @@
 
 #include <protocol/scproto.h>
 #include <structure/LinkedList2.h>
-#include <tuntap/BTap.h>
 #include <client/DatagramPeerIO.h>
 #include <client/StreamPeerIO.h>
 #include <client/DataProto.h>
@@ -80,17 +79,6 @@
 // maximum scopes
 #define MAX_SCOPES 8
 
-struct device_data {
-    BTap btap;
-    int mtu;
-    
-    // input
-    DataProtoSource input_dpd;
-    
-    // output
-    DPReceiveDevice output_dprd;
-};
-
 struct peer_data {
     // peer identifier
     peerid_t id;
@@ -137,11 +125,8 @@ struct peer_data {
     // link sending
     DataProtoSink send_dp;
     
-    // flag if relaying is installed
-    int have_relaying;
-    
     // relaying objects
-    struct peer_data *relaying_peer; // peer through which we are relaying
+    struct peer_data *relaying_peer; // peer through which we are relaying, or NULL
     LinkedList2Node relaying_list_node; // node in relay peer's relay_users
     
     // waiting for relay data

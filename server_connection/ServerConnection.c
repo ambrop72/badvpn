@@ -583,7 +583,7 @@ int ServerConnection_IsReady (ServerConnection *o)
     return (o->state == STATE_COMPLETE);
 }
 
-int ServerConnection_StartMessage (ServerConnection *o, void **data, peerid_t peer_id, int len)
+int ServerConnection_StartMessage (ServerConnection *o, uint8_t **data, peerid_t peer_id, int len)
 {
     ASSERT(o->state == STATE_COMPLETE)
     ASSERT(o->output_local_packet_len == -1)

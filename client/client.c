@@ -58,6 +58,7 @@
 #include <system/BTime.h>
 #include <system/DebugObject.h>
 #include <server_connection/ServerConnection.h>
+#include <tuntap/BTap.h>
 
 #ifndef BADVPN_USE_WINAPI
 #include <system/BLog_syslog.h>
@@ -159,8 +160,15 @@ CERTCertificate *client_cert;
 // client private key if using SSL
 SECKEYPrivateKey *client_key;
 
-// device data
-struct device_data device;
+// device
+BTap device;
+int device_mtu;
+
+// DataProtoSource for device input (reading)
+DataProtoSource device_input_dpd;
+
+// DPReceiveDevice for device output (writing)
+DPReceiveDevice device_output_dprd;
 
 // data communication MTU
 int data_mtu;
@@ -178,17 +186,13 @@ LinkedList2 relays;
 // peers than need a relay
 LinkedList2 waiting_relay_peers;
 
-// object for queuing relay packets to relay flows
-DPRelayRouter relay_router;
-
 // server connection
 ServerConnection server;
 
 // my ID, defined only after server_ready
 peerid_t my_id;
 
-// cleans everything up that can be cleaned in order to return
-// from the event loop and exit
+// stops event processing, causing the program to exit
 static void terminate (void);
 
 // prints program name and version to standard output
@@ -325,19 +329,8 @@ static void server_handler_newclient (void *user, peerid_t peer_id, int flags, c
 static void server_handler_endclient (void *user, peerid_t peer_id);
 static void server_handler_message (void *user, peerid_t peer_id, uint8_t *data, int data_len);
 
-// process job handlers
+// job to generate and send OTP seed after binding
 static void peer_job_send_seed_after_binding (struct peer_data *peer);
-
-static int peerid_comparator (void *unused, peerid_t *v1, peerid_t *v2)
-{
-    if (*v1 < *v2) {
-        return -1;
-    }
-    if (*v1 > *v2) {
-        return 1;
-    }
-    return 0;
-}
 
 int main (int argc, char *argv[])
 {
@@ -490,34 +483,34 @@ int main (int argc, char *argv[])
     }
     
     // init device
-    if (!BTap_Init(&device.btap, &ss, options.tapdev, device_error_handler, NULL, 0)) {
+    if (!BTap_Init(&device, &ss, options.tapdev, device_error_handler, NULL, 0)) {
         BLog(BLOG_ERROR, "BTap_Init failed");
         goto fail6;
     }
     
     // remember device MTU
-    device.mtu = BTap_GetMTU(&device.btap);
+    device_mtu = BTap_GetMTU(&device);
     
-    BLog(BLOG_INFO, "device MTU is %d", device.mtu);
+    BLog(BLOG_INFO, "device MTU is %d", device_mtu);
     
     // init device input
-    if (!DataProtoSource_Init(&device.input_dpd, BTap_GetOutput(&device.btap), device_input_dpd_handler, NULL, &ss)) {
+    if (!DataProtoSource_Init(&device_input_dpd, BTap_GetOutput(&device), device_input_dpd_handler, NULL, &ss)) {
         BLog(BLOG_ERROR, "DataProtoSource_Init failed");
         goto fail7;
     }
     
-    // init receive device
-    if (!DPReceiveDevice_Init(&device.output_dprd, BTap_GetInput(&device.btap), &ss, options.send_buffer_relay_size, PEER_RELAY_FLOW_INACTIVITY_TIME)) {
+    // init device output
+    if (!DPReceiveDevice_Init(&device_output_dprd, BTap_GetInput(&device), &ss, options.send_buffer_relay_size, PEER_RELAY_FLOW_INACTIVITY_TIME)) {
         BLog(BLOG_ERROR, "DPReceiveDevice_Init failed");
         goto fail7a;
     }
     
     // calculate data MTU
-    if (device.mtu > INT_MAX - DATAPROTO_MAX_OVERHEAD) {
+    if (device_mtu > INT_MAX - DATAPROTO_MAX_OVERHEAD) {
         BLog(BLOG_ERROR, "Device MTU is too large");
         goto fail8;
     }
-    data_mtu = DATAPROTO_MAX_OVERHEAD + device.mtu;
+    data_mtu = DATAPROTO_MAX_OVERHEAD + device_mtu;
     
     // init peers list
     LinkedList2_Init(&peers);
@@ -531,12 +524,6 @@ int main (int argc, char *argv[])
     
     // init need relay list
     LinkedList2_Init(&waiting_relay_peers);
-    
-    // init DPRelayRouter
-    if (!DPRelayRouter_Init(&relay_router, device.mtu, &ss)) {
-        BLog(BLOG_ERROR, "DPRelayRouter_Init failed");
-        goto fail8a;
-    }
     
     // start connecting to server
     if (!ServerConnection_Init(
@@ -552,7 +539,7 @@ int main (int argc, char *argv[])
     BReactor_Exec(&ss);
     
     // allow freeing receive receivers in peers' links
-    DPReceiveDevice_PrepareFree(&device.output_dprd);
+    DPReceiveDevice_PrepareFree(&device_output_dprd);
     
     // free peers
     LinkedList2Node *node;
@@ -563,15 +550,13 @@ int main (int argc, char *argv[])
     
     ServerConnection_Free(&server);
 fail9:
-    DPRelayRouter_Free(&relay_router);
-fail8a:
     FrameDecider_Free(&frame_decider);
 fail8:
-    DPReceiveDevice_Free(&device.output_dprd);
+    DPReceiveDevice_Free(&device_output_dprd);
 fail7a:
-    DataProtoSource_Free(&device.input_dpd);
+    DataProtoSource_Free(&device_input_dpd);
 fail7:
-    BTap_Free(&device.btap);
+    BTap_Free(&device);
 fail6:
     if (options.transport_mode == TRANSPORT_MODE_TCP) {
         while (num_listeners-- > 0) {
@@ -1225,7 +1210,6 @@ void signal_handler (void *unused)
     BLog(BLOG_NOTICE, "termination requested");
     
     terminate();
-    return;
 }
 
 int server_start_msg (void **data, peerid_t peer_id, int type, int len)
@@ -1236,7 +1220,7 @@ int server_start_msg (void **data, peerid_t peer_id, int type, int len)
     ASSERT(!(len > 0) || data)
     
     uint8_t *packet;
-    if (!ServerConnection_StartMessage(&server, (void **)&packet, peer_id, msg_SIZEtype + msg_SIZEpayload(len))) {
+    if (!ServerConnection_StartMessage(&server, &packet, peer_id, msg_SIZEtype + msg_SIZEpayload(len))) {
         BLog(BLOG_ERROR, "out of server buffer, exiting");
         terminate();
         return -1;
@@ -1331,7 +1315,7 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     }
     
     // init local flow
-    if (!DataProtoFlow_Init(&peer->local_dpflow, &device.input_dpd, my_id, peer->id, options.send_buffer_size, -1, NULL, NULL)) {
+    if (!DataProtoFlow_Init(&peer->local_dpflow, &device_input_dpd, my_id, peer->id, options.send_buffer_size, -1, NULL, NULL)) {
         peer_log(peer, BLOG_ERROR, "DataProtoFlow_Init failed");
         goto fail2;
     }
@@ -1343,18 +1327,18 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     }
     
     // init receive peer
-    DPReceivePeer_Init(&peer->receive_peer, &device.output_dprd, peer->id, &peer->decider_peer, !!(peer->flags & SCID_NEWCLIENT_FLAG_RELAY_CLIENT));
+    DPReceivePeer_Init(&peer->receive_peer, &device_output_dprd, peer->id, &peer->decider_peer, !!(peer->flags & SCID_NEWCLIENT_FLAG_RELAY_CLIENT));
     
     // have no link
     peer->have_link = 0;
     
     // have no relaying
-    peer->have_relaying = 0;
+    peer->relaying_peer = NULL;
     
     // not waiting for relay
     peer->waiting_relay = 0;
     
-    // init retry timer
+    // init reset timer
     BTimer_Init(&peer->reset_timer, PEER_RETRY_TIME, (BTimer_handler)peer_reset_timer_handler, peer);
     
     // is not relay server
@@ -1363,13 +1347,11 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     // init binding
     peer->binding = 0;
     
-    // init jobs
+    // init send seed job
     BPending_Init(&peer->job_send_seed_after_binding, BReactor_PendingGroup(&ss), (BPending_handler)peer_job_send_seed_after_binding, peer);
     
-    // add to peers linked list
+    // add to peers list
     LinkedList2_Append(&peers, &peer->list_node);
-    
-    // increment number of peers
     num_peers++;
     
     peer_log(peer, BLOG_INFO, "initialized");
@@ -1397,41 +1379,33 @@ void peer_remove (struct peer_data *peer)
 {
     peer_log(peer, BLOG_INFO, "removing");
     
-    // uninstall relaying
-    if (peer->have_relaying) {
+    // cleanup
+    if (peer->have_link) {
+        if (peer->is_relay) {
+            peer_disable_relay_provider(peer);
+        }
+        peer_free_link(peer);
+    }
+    else if (peer->relaying_peer) {
         peer_free_relaying(peer);
     }
-    
-    // disable relay provider
-    if (peer->is_relay) {
-        peer_disable_relay_provider(peer);
-    }
-    
-    // remove from waiting relay list
-    if (peer->waiting_relay) {
+    else if (peer->waiting_relay) {
         peer_unregister_need_relay(peer);
     }
     
-    // free link
-    if (peer->have_link) {
-        peer_free_link(peer);
-    }
-    
-    ASSERT(!peer->have_relaying)
+    ASSERT(!peer->relaying_peer)
     ASSERT(!peer->is_relay)
     ASSERT(!peer->waiting_relay)
     ASSERT(!peer->have_link)
     
-    // decrement number of peers
+    // remove from peers list
+    LinkedList2_Remove(&peers, &peer->list_node);
     num_peers--;
     
-    // remove from peers linked list
-    LinkedList2_Remove(&peers, &peer->list_node);
-    
-    // free jobs
+    // free send seed job
     BPending_Free(&peer->job_send_seed_after_binding);
     
-    // free retry timer
+    // free reset timer
     BReactor_RemoveTimer(&ss, &peer->reset_timer);
     
     // free receive peer
@@ -1473,7 +1447,7 @@ int peer_am_master (struct peer_data *peer)
 int peer_init_link (struct peer_data *peer)
 {
     ASSERT(!peer->have_link)
-    ASSERT(!peer->have_relaying)
+    ASSERT(!peer->relaying_peer)
     ASSERT(!peer->waiting_relay)
     
     ASSERT(!peer->is_relay)
@@ -1558,7 +1532,7 @@ void peer_free_link (struct peer_data *peer)
     ASSERT(peer->have_link)
     ASSERT(!peer->is_relay)
     
-    ASSERT(!peer->have_relaying)
+    ASSERT(!peer->relaying_peer)
     ASSERT(!peer->waiting_relay)
     
     ASSERT(!DPReceiveReceiver_IsBusy(&peer->receive_receiver)) // TODO
@@ -1591,10 +1565,9 @@ int peer_new_link (struct peer_data *peer)
         if (peer->is_relay) {
             peer_disable_relay_provider(peer);
         }
-        
         peer_free_link(peer);
     }
-    else if (peer->have_relaying) {
+    else if (peer->relaying_peer) {
         peer_free_relaying(peer);
     }
     else if (peer->waiting_relay) {
@@ -1613,7 +1586,7 @@ void peer_enable_relay_provider (struct peer_data *peer)
     ASSERT(peer->have_link)
     ASSERT(!peer->is_relay)
     
-    ASSERT(!peer->have_relaying)
+    ASSERT(!peer->relaying_peer)
     ASSERT(!peer->waiting_relay)
     
     // add to relays list
@@ -1633,14 +1606,13 @@ void peer_disable_relay_provider (struct peer_data *peer)
     ASSERT(peer->is_relay)
     
     ASSERT(peer->have_link)
-    ASSERT(!peer->have_relaying)
+    ASSERT(!peer->relaying_peer)
     ASSERT(!peer->waiting_relay)
     
     // disconnect relay users
     LinkedList2Node *list_node;
     while (list_node = LinkedList2_GetFirst(&peer->relay_users)) {
         struct peer_data *relay_user = UPPER_OBJECT(list_node, struct peer_data, relaying_list_node);
-        ASSERT(relay_user->have_relaying)
         ASSERT(relay_user->relaying_peer == peer)
         
         // disconnect relay user
@@ -1661,7 +1633,7 @@ void peer_disable_relay_provider (struct peer_data *peer)
 
 void peer_install_relaying (struct peer_data *peer, struct peer_data *relay)
 {
-    ASSERT(!peer->have_relaying)
+    ASSERT(!peer->relaying_peer)
     ASSERT(!peer->have_link)
     ASSERT(!peer->waiting_relay)
     ASSERT(relay->is_relay)
@@ -1671,21 +1643,18 @@ void peer_install_relaying (struct peer_data *peer, struct peer_data *relay)
     
     peer_log(peer, BLOG_INFO, "installing relaying through %d", (int)relay->id);
     
-    // remember relaying peer
-    peer->relaying_peer = relay;
-    
     // add to relay's users list
     LinkedList2_Append(&relay->relay_users, &peer->relaying_list_node);
     
     // attach local flow to relay
     DataProtoFlow_Attach(&peer->local_dpflow, &relay->send_dp);
     
-    peer->have_relaying = 1;
+    peer->relaying_peer = relay;
 }
 
 void peer_free_relaying (struct peer_data *peer)
 {
-    ASSERT(peer->have_relaying)
+    ASSERT(peer->relaying_peer)
     
     ASSERT(!peer->have_link)
     ASSERT(!peer->waiting_relay)
@@ -1702,24 +1671,23 @@ void peer_free_relaying (struct peer_data *peer)
     // remove from relay's users list
     LinkedList2_Remove(&relay->relay_users, &peer->relaying_list_node);
     
-    peer->have_relaying = 0;
+    peer->relaying_peer = NULL;
 }
 
 void peer_need_relay (struct peer_data *peer)
 {
     ASSERT(!peer->is_relay)
     
-    if (peer->have_link) {
-        peer_free_link(peer);
-    }
-    
-    if (peer->have_relaying) {
-        peer_free_relaying(peer);
-    }
-    
     if (peer->waiting_relay) {
         // already waiting for relay, do nothing
         return;
+    }
+    
+    if (peer->have_link) {
+        peer_free_link(peer);
+    }
+    else if (peer->relaying_peer) {
+        peer_free_relaying(peer);
     }
     
     // register the peer as needing a relay
@@ -1733,7 +1701,7 @@ void peer_register_need_relay (struct peer_data *peer)
 {
     ASSERT(!peer->waiting_relay)
     ASSERT(!peer->have_link)
-    ASSERT(!peer->have_relaying)
+    ASSERT(!peer->relaying_peer)
     
     ASSERT(!peer->is_relay)
     
@@ -1748,7 +1716,7 @@ void peer_unregister_need_relay (struct peer_data *peer)
     ASSERT(peer->waiting_relay)
     
     ASSERT(!peer->have_link)
-    ASSERT(!peer->have_relaying)
+    ASSERT(!peer->relaying_peer)
     ASSERT(!peer->is_relay)
     
     // remove from need relay list
@@ -2518,7 +2486,7 @@ void assign_relays (void)
         struct peer_data *peer = UPPER_OBJECT(list_node, struct peer_data, waiting_relay_list_node);
         ASSERT(peer->waiting_relay)
         
-        ASSERT(!peer->have_relaying)
+        ASSERT(!peer->relaying_peer)
         ASSERT(!peer->have_link)
         
         // get a relay
@@ -2584,7 +2552,7 @@ void server_handler_ready (void *user, peerid_t param_my_id, uint32_t ext_ip)
     }
     
     // give receive device the ID
-    DPReceiveDevice_SetPeerID(&device.output_dprd, my_id);
+    DPReceiveDevice_SetPeerID(&device_output_dprd, my_id);
     
     BLog(BLOG_INFO, "server: ready, my ID is %d", (int)my_id);
 }
