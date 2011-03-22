@@ -25,7 +25,6 @@
 
 #include <protocol/scproto.h>
 #include <structure/LinkedList2.h>
-#include <structure/BAVL.h>
 #include <tuntap/BTap.h>
 #include <client/DatagramPeerIO.h>
 #include <client/StreamPeerIO.h>
@@ -166,6 +165,4 @@ struct peer_data {
     
     // peers linked list node
     LinkedList2Node list_node;
-    // peers-by-ID hash table node
-    BAVLNode tree_node;
 };

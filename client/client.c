@@ -169,9 +169,6 @@ int data_mtu;
 LinkedList2 peers;
 int num_peers;
 
-// peers by ID tree
-BAVL peers_tree;
-
 // frame decider
 FrameDecider frame_decider;
 
@@ -525,9 +522,6 @@ int main (int argc, char *argv[])
     // init peers list
     LinkedList2_Init(&peers);
     num_peers = 0;
-    
-    // init peers tree
-    BAVL_Init(&peers_tree, OFFSET_DIFF(struct peer_data, id, tree_node), (BAVL_comparator)peerid_comparator, NULL);
     
     // init frame decider
     FrameDecider_Init(&frame_decider, options.max_macs, options.max_groups, options.igmp_group_membership_interval, options.igmp_last_member_query_time, &ss);
@@ -1375,9 +1369,6 @@ int peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     // add to peers linked list
     LinkedList2_Append(&peers, &peer->list_node);
     
-    // add to peers tree
-    ASSERT_EXECUTE(BAVL_Insert(&peers_tree, &peer->tree_node, NULL))
-    
     // increment number of peers
     num_peers++;
     
@@ -1433,9 +1424,6 @@ void peer_remove (struct peer_data *peer)
     
     // decrement number of peers
     num_peers--;
-    
-    // remove from peers tree
-    BAVL_Remove(&peers_tree, &peer->tree_node);
     
     // remove from peers linked list
     LinkedList2_Remove(&peers, &peer->list_node);
@@ -2486,12 +2474,16 @@ void peer_dataproto_handler (struct peer_data *peer, int up)
 
 struct peer_data * find_peer_by_id (peerid_t id)
 {
-    BAVLNode *node;
-    if (!(node = BAVL_LookupExact(&peers_tree, &id))) {
-        return NULL;
+    LinkedList2Node *node = LinkedList2_GetFirst(&peers);
+    while (node) {
+        struct peer_data *peer = UPPER_OBJECT(node, struct peer_data, list_node);
+        if (peer->id == id) {
+            return peer;
+        }
+        node = LinkedList2Node_Next(node);
     }
     
-    return UPPER_OBJECT(node, struct peer_data, tree_node);
+    return NULL;
 }
 
 void device_error_handler (void *unused)
