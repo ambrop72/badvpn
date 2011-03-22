@@ -85,7 +85,7 @@ static void receiver_recv_handler_send (DPReceiveReceiver *o, uint8_t *packet, i
             BLog(BLOG_WARNING, "missing destination");
             goto out;
         }
-        to_id = ltoh16(*((peerid_t *)data));
+        to_id = ((struct dataproto_peer_id *)data)->id;
         data += sizeof(to_id);
         data_len -= sizeof(to_id);
     }
