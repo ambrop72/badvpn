@@ -107,4 +107,11 @@ PacketPassInterface * PacketPassInactivityMonitor_GetInput (PacketPassInactivity
  */
 void PacketPassInactivityMonitor_SetHandler (PacketPassInactivityMonitor *o, PacketPassInactivityMonitor_handler handler, void *user);
 
+/**
+ * Sets the timer to expire immediately in order to force an inactivity report.
+ * 
+ * @param o the object
+ */
+void PacketPassInactivityMonitor_Force (PacketPassInactivityMonitor *o);
+
 #endif

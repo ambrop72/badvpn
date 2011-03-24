@@ -115,3 +115,10 @@ void PacketPassInactivityMonitor_SetHandler (PacketPassInactivityMonitor *o, Pac
     o->handler = handler;
     o->user = user;
 }
+
+void PacketPassInactivityMonitor_Force (PacketPassInactivityMonitor *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    BReactor_SetTimerAfter(o->reactor, &o->timer, 0);
+}
