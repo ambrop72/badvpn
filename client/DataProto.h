@@ -67,7 +67,6 @@ typedef struct {
     int up_report;
     DataProtoSink_handler handler;
     void *user;
-    BPending keepalive_job;
     BPending up_job;
     struct DataProtoFlow_buffer *detaching_buffer;
     DebugObject d_obj;

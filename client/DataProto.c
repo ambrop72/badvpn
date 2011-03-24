@@ -38,7 +38,6 @@ static void send_keepalive (DataProtoSink *o);
 static void refresh_up_job (DataProtoSink *o);
 static void receive_timer_handler (DataProtoSink *o);
 static void notifier_handler (DataProtoSink *o, uint8_t *data, int data_len);
-static void keepalive_job_handler (DataProtoSink *o);
 static void up_job_handler (DataProtoSink *o);
 static void flow_buffer_free (struct DataProtoFlow_buffer *b);
 static void flow_buffer_attach (struct DataProtoFlow_buffer *b, DataProtoSink *dp);
@@ -93,13 +92,6 @@ void notifier_handler (DataProtoSink *o, uint8_t *data, int data_len)
     // modify existing packet here
     struct dataproto_header *header = (struct dataproto_header *)data;
     header->flags = htol8(flags);
-}
-
-void keepalive_job_handler (DataProtoSink *o)
-{
-    DebugObject_Access(&o->d_obj);
-    
-    send_keepalive(o);
 }
 
 void up_job_handler (DataProtoSink *o)
@@ -242,16 +234,13 @@ int DataProtoSink_Init (DataProtoSink *o, BReactor *reactor, PacketPassInterface
     // set frame MTU
     o->frame_mtu = PacketPassInterface_GetMTU(output) - DATAPROTO_MAX_OVERHEAD;
     
-    // schedule keep-alive (needs to be before the buffer)
-    BPending_Init(&o->keepalive_job, BReactor_PendingGroup(o->reactor), (BPending_handler)keepalive_job_handler, o);
-    BPending_Set(&o->keepalive_job);
-    
     // init notifier
     PacketPassNotifier_Init(&o->notifier, output, BReactor_PendingGroup(o->reactor));
     PacketPassNotifier_SetHandler(&o->notifier, (PacketPassNotifier_handler_notify)notifier_handler, o);
     
     // init monitor
     PacketPassInactivityMonitor_Init(&o->monitor, PacketPassNotifier_GetInput(&o->notifier), o->reactor, keepalive_time, (PacketPassInactivityMonitor_handler)monitor_handler, o);
+    PacketPassInactivityMonitor_Force(&o->monitor);
     
     // init queue
     PacketPassFairQueue_Init(&o->queue, PacketPassInactivityMonitor_GetInput(&o->monitor), BReactor_PendingGroup(o->reactor), 1, 1);
@@ -296,7 +285,6 @@ fail1:
     PacketPassFairQueue_Free(&o->queue);
     PacketPassInactivityMonitor_Free(&o->monitor);
     PacketPassNotifier_Free(&o->notifier);
-    BPending_Free(&o->keepalive_job);
     return 0;
 }
 
@@ -340,9 +328,6 @@ void DataProtoSink_Free (DataProtoSink *o)
     
     // free notifier
     PacketPassNotifier_Free(&o->notifier);
-    
-    // free keepalive job
-    BPending_Free(&o->keepalive_job);
 }
 
 void DataProtoSink_Received (DataProtoSink *o, int peer_receiving)
