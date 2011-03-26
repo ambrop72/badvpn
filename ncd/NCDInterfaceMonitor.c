@@ -33,6 +33,7 @@
 #include <asm/types.h>
 
 #include <misc/debug.h>
+#include <misc/nonblocking.h>
 
 #include <ncd/NCDInterfaceMonitor.h>
 
@@ -148,6 +149,12 @@ int NCDInterfaceMonitor_Init (NCDInterfaceMonitor *o, BReactor *reactor, NCDInte
     if ((o->netlink_fd = socket(AF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE)) < 0) {
         DEBUG("socket failed");
         goto fail0;
+    }
+    
+    // set fd non-blocking
+    if (!badvpn_set_nonblocking(o->netlink_fd)) {
+        DEBUG("badvpn_set_nonblocking failed");
+        goto fail1;
     }
     
     // bind netlink fd
