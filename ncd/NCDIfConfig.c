@@ -82,7 +82,6 @@ int NCDIfConfig_query (const char *ifname)
     memset(&ifr, 0, sizeof(ifr));
     snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s", ifname);
     if (ioctl(s, SIOCGIFFLAGS, &ifr)) {
-        BLog(BLOG_ERROR, "ioctl(SIOCGIFFLAGS) failed");
         goto fail1;
     }
     
