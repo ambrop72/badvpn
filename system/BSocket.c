@@ -32,6 +32,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/socket.h>
+#include <signal.h>
 #endif
 
 #ifdef BADVPN_LINUX
@@ -57,6 +58,8 @@
 #define CONNECT_STATUS_CONNECTING 1
 #define CONNECT_STATUS_DONE 2
 #define CONNECT_STATUS_DONE_IMMEDIATELY 3
+
+int bsocket_initialized = 0;
 
 static int get_event_index (int event)
 {
@@ -590,6 +593,8 @@ static void setup_winsock_exts (int socket, int type, BSocket *bs)
 
 int BSocket_GlobalInit (void)
 {
+    ASSERT(!bsocket_initialized)
+    
     #ifdef BADVPN_USE_WINAPI
     
     WORD requested = MAKEWORD(2, 2);
@@ -601,18 +606,30 @@ int BSocket_GlobalInit (void)
         goto fail1;
     }
     
-    return 0;
-    
-fail1:
-    WSACleanup();
-fail0:
-    return -1;
-    
     #else
     
-    return 0;
+    struct sigaction act;
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = SIG_IGN;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = 0;
+    if (sigaction(SIGPIPE, &act, NULL) < 0) {
+        DEBUG("sigaction failed");
+        goto fail0;
+    }
     
     #endif
+    
+    bsocket_initialized = 1;
+    
+    return 0;
+    
+    #ifdef BADVPN_USE_WINAPI
+fail1:
+    WSACleanup();
+    #endif
+fail0:
+    return -1;
 }
 
 int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
@@ -716,6 +733,53 @@ fail0:
     return -1;
 }
 
+#ifndef BADVPN_USE_WINAPI
+
+int BSocket_InitPipe (BSocket *bs, BReactor *bsys, int fd)
+{
+    // set socket nonblocking
+    if (set_nonblocking(fd) != 0) {
+        DEBUG("set_nonblocking failed");
+        goto fail0;
+    }
+    
+    bs->bsys = bsys;
+    bs->type = BSOCKET_TYPE_STREAM;
+    bs->domain = BADDR_TYPE_UNIXPIPE;
+    bs->socket = fd;
+    bs->error = BSOCKET_ERROR_NONE;
+    init_handlers(bs);
+    bs->waitEvents = 0;
+    bs->connecting_status = CONNECT_STATUS_NONE;
+    bs->recv_max = BSOCKET_DEFAULT_RECV_MAX;
+    bs->recv_num = 0;
+    bs->ready_events = 0; // just initialize it so we can clear them safely from BSocket_DisableEvent
+    
+    // init job
+    BPending_Init(&bs->job, BReactor_PendingGroup(bsys), (BPending_handler)job_handler, bs);
+    
+    // init connect job
+    BPending_Init(&bs->connect_job, BReactor_PendingGroup(bsys), (BPending_handler)connect_job_handler, bs);
+    
+    // initialize event backend
+    if (!init_event_backend(bs)) {
+        DEBUG("WARNING: init_event_backend failed");
+        goto fail1;
+    }
+    
+    DebugObject_Init(&bs->d_obj);
+    
+    return 0;
+    
+fail1:
+    BPending_Free(&bs->connect_job);
+    BPending_Free(&bs->job);
+fail0:
+    return -1;
+}
+
+#endif
+
 void BSocket_Free (BSocket *bs)
 {
     DebugObject_Free(&bs->d_obj);
@@ -730,7 +794,13 @@ void BSocket_Free (BSocket *bs)
     BPending_Free(&bs->job);
     
     // close socket
-    close_socket(bs->socket);
+    #ifndef BADVPN_USE_WINAPI
+    if (bs->domain != BADDR_TYPE_UNIXPIPE) {
+    #endif
+        close_socket(bs->socket);
+    #ifndef BADVPN_USE_WINAPI
+    }
+    #endif
 }
 
 void BSocket_SetRecvMax (BSocket *bs, int max)
@@ -1119,13 +1189,16 @@ int BSocket_Send (BSocket *bs, uint8_t *data, int len)
     ASSERT(bs->type == BSOCKET_TYPE_STREAM)
     DebugObject_Access(&bs->d_obj);
     
-    #ifdef BADVPN_USE_WINAPI
-    int flags = 0;
-    #else
-    int flags = MSG_NOSIGNAL;
+    int bytes;
+    #ifndef BADVPN_USE_WINAPI
+    if (bs->domain == BADDR_TYPE_UNIXPIPE) {
+        bytes = write(bs->socket, data, len);
+    } else {
     #endif
-    
-    int bytes = send(bs->socket, data, len, flags);
+        bytes = send(bs->socket, data, len, 0);
+    #ifndef BADVPN_USE_WINAPI
+    }
+    #endif
     if (bytes < 0) {
         int error;
         #ifdef BADVPN_USE_WINAPI
@@ -1164,7 +1237,16 @@ int BSocket_Recv (BSocket *bs, uint8_t *data, int len)
         return -1;
     }
     
-    int bytes = recv(bs->socket, data, len, 0);
+    int bytes;
+    #ifndef BADVPN_USE_WINAPI
+    if (bs->domain == BADDR_TYPE_UNIXPIPE) {
+        bytes = read(bs->socket, data, len);
+    } else {
+    #endif
+        bytes = recv(bs->socket, data, len, 0);
+    #ifndef BADVPN_USE_WINAPI
+    }
+    #endif
     if (bytes < 0) {
         int error;
         #ifdef BADVPN_USE_WINAPI
@@ -1358,7 +1440,7 @@ int BSocket_SendToFrom (BSocket *bs, uint8_t *data, int len, BAddr *addr, BIPAdd
         msg.msg_control = NULL;
     }
     
-    int bytes = sendmsg(bs->socket, &msg, MSG_NOSIGNAL);
+    int bytes = sendmsg(bs->socket, &msg, 0);
     if (bytes < 0) {
         int error;
         switch ((error = errno)) {

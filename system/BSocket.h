@@ -140,6 +140,9 @@ typedef struct BSocket_t {
 /**
  * Initializes global socket data.
  * This must be called once in program before sockets are used.
+ * Must not be called again after success.
+ * 
+ * On unix-like systems, this sets the signal disposition for SIGPIPE to SIG_IGN.
  *
  * @return 0 for success, -1 for failure
  */
@@ -147,6 +150,7 @@ int BSocket_GlobalInit (void) WARN_UNUSED;
 
 /**
  * Initializes a socket.
+ * {@link BSocket_GlobalInit} must have been done.
  *
  * @param bs the object
  * @param bsys {@link BReactor} to operate in
@@ -157,6 +161,22 @@ int BSocket_GlobalInit (void) WARN_UNUSED;
  *         -1 for failure
  */
 int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type) WARN_UNUSED;
+
+#ifndef BADVPN_USE_WINAPI
+
+/**
+ * Initializes a socket object backed by a pipe.
+ * The resulting socket has type BSOCKET_TYPE_STREAM.
+ * 
+ * @param bs the object
+ * @param bsys {@link BReactor} to operate in
+ * @param fd pipe file descriptor. Will be set to non-blocking mode. Will NOT be closed when
+ *           the socket is freed.
+ * @return 0 for success, -1 for failure
+ */
+int BSocket_InitPipe (BSocket *bs, BReactor *bsys, int fd);
+
+#endif
 
 /**
  * Frees a socket.
