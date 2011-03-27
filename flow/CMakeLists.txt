@@ -34,5 +34,6 @@ add_library(flow
     FlowError.c
     RouteBuffer.c
     PacketRouter.c
+    LineBuffer.c
 )
 target_link_libraries(flow system security)
