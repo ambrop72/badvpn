@@ -154,10 +154,9 @@ int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out)
 
 void NCDModuleInst_Backend_Event (NCDModuleInst *n, int event)
 {
-    ASSERT(event == NCDMODULE_EVENT_UP || event == NCDMODULE_EVENT_DOWN || event == NCDMODULE_EVENT_DYING)
+    ASSERT(event == NCDMODULE_EVENT_UP || event == NCDMODULE_EVENT_DOWN)
     ASSERT(!(event == NCDMODULE_EVENT_UP) || n->state == STATE_DOWN)
     ASSERT(!(event == NCDMODULE_EVENT_DOWN) || n->state == STATE_UP)
-    ASSERT(!(event == NCDMODULE_EVENT_DYING) || (n->state == STATE_DOWN || n->state == STATE_UP))
     ASSERT(!BPending_IsSet(&n->event_job))
     ASSERT(!BPending_IsSet(&n->toevent_job))
     
@@ -167,9 +166,6 @@ void NCDModuleInst_Backend_Event (NCDModuleInst *n, int event)
             break;
         case NCDMODULE_EVENT_DOWN:
             n->state = STATE_DOWN;
-            break;
-        case NCDMODULE_EVENT_DYING:
-            n->state = STATE_DYING;
             break;
         default:
             ASSERT(0);

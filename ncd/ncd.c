@@ -1073,20 +1073,6 @@ void process_statement_instance_handler_event (struct process_statement *ps, int
                 p->ap = ps->i + 1;
             }
         } break;
-        
-        case NCDMODULE_EVENT_DYING: {
-            ASSERT(ps->state == SSTATE_CHILD || ps->state == SSTATE_ADULT)
-            
-            process_statement_log(ps, BLOG_INFO, "dying");
-            
-            // set state DYING
-            ps->state = SSTATE_DYING;
-            
-            // update AP
-            if (p->ap > ps->i) {
-                p->ap = ps->i;
-            }
-        } break;
     }
     
     process_work(p);
