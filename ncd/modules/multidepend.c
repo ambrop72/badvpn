@@ -119,19 +119,17 @@ static void depend_update (struct depend *o)
         return;
     }
     
-    if (bp) {
-        // insert to provide's list
-        LinkedList2_Append(&bp->depends, &o->provide_node);
-        
-        // set not collapsing
-        o->provide_collapsing = 0;
-        
-        // set provide
-        o->provide = bp;
-        
-        // signal up
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
-    }
+    // insert to provide's list
+    LinkedList2_Append(&bp->depends, &o->provide_node);
+    
+    // set not collapsing
+    o->provide_collapsing = 0;
+    
+    // set provide
+    o->provide = bp;
+    
+    // signal up
+    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
 }
 
 static int func_globalinit (struct NCDModuleInitParams params)
