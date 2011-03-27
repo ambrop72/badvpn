@@ -19,6 +19,7 @@ add_executable(badvpn-ncd
     modules/net_backend_physical.c
     modules/net_backend_waitdevice.c
     modules/net_backend_badvpn.c
+    modules/net_backend_wpa_supplicant.c
     modules/net_backend_rfkill.c
     modules/net_dns.c
     modules/net_iptables.c
