@@ -84,16 +84,6 @@ void process_buffer (NCDInterfaceMonitor *o)
         }
         struct ifinfomsg *im = (void *)pl;
         
-        int report_flags = 0;
-        
-        if (o->buf_nh->nlmsg_type == RTM_NEWLINK) {
-            report_flags |= NCDIFCONFIG_FLAG_EXISTS;
-            
-            if ((im->ifi_flags&IFF_RUNNING)) {
-                report_flags |= NCDIFCONFIG_FLAG_RUNNING;
-            }
-        }
-        
         // parse attributes to get interface name
         
         char *ifname = NULL;
@@ -117,7 +107,7 @@ void process_buffer (NCDInterfaceMonitor *o)
         BPending_Set(&o->more_job);
         
         // dispatch event
-        o->handler(o->user, ifname, report_flags);
+        o->handler(o->user, ifname, NCDIfConfig_query(ifname));
         return;
     }
     
