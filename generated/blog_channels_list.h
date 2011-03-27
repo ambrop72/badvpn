@@ -6,6 +6,7 @@
 {.name = "ncd_var", .loglevel = 4},
 {.name = "ncd_list", .loglevel = 4},
 {.name = "ncd_depend", .loglevel = 4},
+{.name = "ncd_multidepend", .loglevel = 4},
 {.name = "ncd_concat", .loglevel = 4},
 {.name = "ncd_concatlist", .loglevel = 4},
 {.name = "ncd_if", .loglevel = 4},
