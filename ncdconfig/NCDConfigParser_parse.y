@@ -52,7 +52,7 @@ struct parser_out {
 %destructor statement_names { NCDConfig_free_strings($$); }
 %destructor statement_args { NCDConfig_free_arguments($$); }
 
-%stack_size 1000
+%stack_size 0
 
 %syntax_error {
     parser_out->syntax_error = 1;

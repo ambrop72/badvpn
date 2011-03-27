@@ -82,7 +82,7 @@ typedef union {
   struct NCDConfig_arguments * yy34;
 } YYMINORTYPE;
 #ifndef YYSTACKDEPTH
-#define YYSTACKDEPTH 1000
+#define YYSTACKDEPTH 0
 #endif
 #define ParseARG_SDECL struct parser_out *parser_out;
 #define ParseARG_PDECL ,struct parser_out *parser_out
