@@ -16,6 +16,7 @@ ncd_run 4
 ncd_net_backend_physical 4
 ncd_net_backend_waitdevice 4
 ncd_net_backend_badvpn 4
+ncd_net_backend_rfkill 4
 ncd_net_dns 4
 ncd_net_iptables 4
 ncd_net_ipv4_addr 4

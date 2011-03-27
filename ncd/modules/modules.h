@@ -40,6 +40,7 @@ extern const struct NCDModuleGroup ncdmodule_run;
 extern const struct NCDModuleGroup ncdmodule_net_backend_physical;
 extern const struct NCDModuleGroup ncdmodule_net_backend_waitdevice;
 extern const struct NCDModuleGroup ncdmodule_net_backend_badvpn;
+extern const struct NCDModuleGroup ncdmodule_net_backend_rfkill;
 extern const struct NCDModuleGroup ncdmodule_net_dns;
 extern const struct NCDModuleGroup ncdmodule_net_iptables;
 extern const struct NCDModuleGroup ncdmodule_net_ipv4_addr;
@@ -60,6 +61,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_net_backend_physical,
     &ncdmodule_net_backend_waitdevice,
     &ncdmodule_net_backend_badvpn,
+    &ncdmodule_net_backend_rfkill,
     &ncdmodule_net_dns,
     &ncdmodule_net_iptables,
     &ncdmodule_net_ipv4_addr,

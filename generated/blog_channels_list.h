@@ -16,6 +16,7 @@
 {.name = "ncd_net_backend_physical", .loglevel = 4},
 {.name = "ncd_net_backend_waitdevice", .loglevel = 4},
 {.name = "ncd_net_backend_badvpn", .loglevel = 4},
+{.name = "ncd_net_backend_rfkill", .loglevel = 4},
 {.name = "ncd_net_dns", .loglevel = 4},
 {.name = "ncd_net_iptables", .loglevel = 4},
 {.name = "ncd_net_ipv4_addr", .loglevel = 4},
