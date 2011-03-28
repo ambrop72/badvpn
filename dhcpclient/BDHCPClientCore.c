@@ -32,7 +32,7 @@
 
 #include <generated/blog_channel_BDHCPClientCore.h>
 
-#define RESET_TIMEOUT 10000
+#define RESET_TIMEOUT 4000
 #define REQUEST_TIMEOUT 3000
 #define RENEW_REQUEST_TIMEOUT 20000
 #define MAX_REQUESTS 4
