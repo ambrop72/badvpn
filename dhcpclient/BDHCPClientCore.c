@@ -489,9 +489,9 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
     }
 }
 
-static void start_process (BDHCPClientCore *o)
+static void start_process (BDHCPClientCore *o, int force_new_xid)
 {
-    if (o->xid_reuse_counter == XID_REUSE_MAX) {
+    if (force_new_xid || o->xid_reuse_counter == XID_REUSE_MAX) {
         // generate xid
         BRandom_randomize((uint8_t *)&o->xid, sizeof(o->xid));
         
@@ -519,7 +519,7 @@ static void reset_timer_handler (BDHCPClientCore *o)
     
     BLog(BLOG_INFO, "reset timer");
     
-    start_process(o);
+    start_process(o, 0);
 }
 
 static void request_timer_handler (BDHCPClientCore *o)
@@ -533,7 +533,7 @@ static void request_timer_handler (BDHCPClientCore *o)
     if (o->request_count == MAX_REQUESTS) {
         BLog(BLOG_INFO, "request timer, aborting");
         
-        start_process(o);
+        start_process(o, 0);
         return;
     }
     
@@ -594,7 +594,7 @@ static void lease_timer_handler (BDHCPClientCore *o)
     BReactor_RemoveTimer(o->reactor, &o->renew_request_timer);
     
     // start again now
-    start_process(o);
+    start_process(o, 1);
     
     // report to user
     report_down(o);
@@ -643,11 +643,8 @@ int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, Pack
     // start receving
     PacketRecvInterface_Receiver_Recv(o->recv_if, (uint8_t *)o->recv_buf);
     
-    // start with a new xid
-    o->xid_reuse_counter = XID_REUSE_MAX;
-    
     // start
-    start_process(o);
+    start_process(o, 1);
     
     DebugObject_Init(&o->d_obj);
     
