@@ -37,6 +37,7 @@
 #define RENEW_REQUEST_TIMEOUT 20000
 #define MAX_REQUESTS 4
 #define RENEW_TIMEOUT(lease) ((btime_t)500 * (lease))
+#define XID_REUSE_MAX 8
 
 #define LEASE_TIMEOUT(lease) ((btime_t)1000 * (lease) - RENEW_TIMEOUT(lease))
 
@@ -490,8 +491,16 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
 
 static void start_process (BDHCPClientCore *o)
 {
-    // generate xid
-    BRandom_randomize((uint8_t *)&o->xid, sizeof(o->xid));
+    if (o->xid_reuse_counter == XID_REUSE_MAX) {
+        // generate xid
+        BRandom_randomize((uint8_t *)&o->xid, sizeof(o->xid));
+        
+        // reset counter
+        o->xid_reuse_counter = 0;
+    }
+    
+    // increment counter
+    o->xid_reuse_counter++;
     
     // send discover
     send_message(o, DHCP_MESSAGE_TYPE_DISCOVER, o->xid, 0, 0, 0, 0);
@@ -633,6 +642,9 @@ int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, Pack
     
     // start receving
     PacketRecvInterface_Receiver_Recv(o->recv_if, (uint8_t *)o->recv_buf);
+    
+    // start with a new xid
+    o->xid_reuse_counter = XID_REUSE_MAX;
     
     // start
     start_process(o);

@@ -61,6 +61,7 @@ typedef struct {
     int state;
     int request_count;
     uint32_t xid;
+    int xid_reuse_counter;
     struct {
         uint32_t yiaddr;
         uint32_t dhcp_server_identifier;
