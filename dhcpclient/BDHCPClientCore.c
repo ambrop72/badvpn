@@ -519,7 +519,7 @@ static void reset_timer_handler (BDHCPClientCore *o)
     
     BLog(BLOG_INFO, "reset timer");
     
-    start_process(o, 0);
+    start_process(o, (o->state == STATE_RESETTING));
 }
 
 static void request_timer_handler (BDHCPClientCore *o)
