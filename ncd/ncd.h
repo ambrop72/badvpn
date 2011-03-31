@@ -24,4 +24,4 @@
 #define PROGRAM_NAME "ncd"
 
 // how long to wait after an error before retrying
-#define RETRY_TIME 5000
+#define DEFAULT_RETRY_TIME 5000

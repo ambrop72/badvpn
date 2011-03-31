@@ -15,13 +15,15 @@ add_executable(badvpn-ncd
     modules/if.c
     modules/strcmp.c
     modules/logical.c
+    modules/sleep.c
     modules/ip_in_network.c
     modules/run.c
-    modules/net_backend_physical.c
     modules/net_backend_waitdevice.c
+    modules/net_backend_waitlink.c
     modules/net_backend_badvpn.c
     modules/net_backend_wpa_supplicant.c
     modules/net_backend_rfkill.c
+    modules/net_up.c
     modules/net_dns.c
     modules/net_iptables.c
     modules/net_ipv4_addr.c

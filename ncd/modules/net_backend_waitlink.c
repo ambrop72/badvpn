@@ -1,5 +1,5 @@
 /**
- * @file concat.c
+ * @file net_backend_waitlink.c
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -21,26 +21,45 @@
  * 
  * @section DESCRIPTION
  * 
- * String concatenation module.
+ * Module which waits for the link on a network interface.
  * 
- * Synopsis: concat(string elem1, ..., string elemN)
- * Variables:
- *   string (empty) - elem1, ..., elemN concatenated
+ * Synopsis: net.backend.waitlink(string ifname)
  */
 
 #include <stdlib.h>
+#include <string.h>
 
-#include <misc/expstring.h>
 #include <ncd/NCDModule.h>
+#include <ncd/NCDIfConfig.h>
+#include <ncd/NCDInterfaceMonitor.h>
 
-#include <generated/blog_channel_ncd_concat.h>
+#include <generated/blog_channel_ncd_net_backend_waitlink.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct instance {
     NCDModuleInst *i;
-    char *string;
+    const char *ifname;
+    NCDInterfaceMonitor monitor;
+    int up;
 };
+
+static void monitor_handler (struct instance *o, const char *ifname, int if_flags)
+{
+    if (strcmp(ifname, o->ifname)) {
+        return;
+    }
+    
+    int was_up = o->up;
+    o->up = !!(if_flags & NCDIFCONFIG_FLAG_RUNNING);
+    
+    if (o->up && !was_up) {
+        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    }
+    else if (!o->up && was_up) {
+        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+    }
+}
 
 static void func_new (NCDModuleInst *i)
 {
@@ -55,39 +74,34 @@ static void func_new (NCDModuleInst *i)
     // init arguments
     o->i = i;
     
-    // init string
-    ExpString s;
-    if (!ExpString_Init(&s)) {
-        ModuleLog(i, BLOG_ERROR, "ExpString_Init failed");
+    // check arguments
+    NCDValue *arg;
+    if (!NCDValue_ListRead(i->args, 1, &arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
+        goto fail1;
+    }
+    if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong type");
+        goto fail1;
+    }
+    o->ifname = NCDValue_StringValue(arg);
+    
+    // init monitor
+    if (!NCDInterfaceMonitor_Init(&o->monitor, o->i->reactor, (NCDInterfaceMonitor_handler)monitor_handler, o)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDInterfaceMonitor_Init failed");
         goto fail1;
     }
     
-    // append arguments
-    NCDValue *arg = NCDValue_ListFirst(o->i->args);
-    while (arg) {
-        if (NCDValue_Type(arg) != NCDVALUE_STRING) {
-            ModuleLog(i, BLOG_ERROR, "wrong type");
-            goto fail2;
-        }
-        
-        if (!ExpString_Append(&s, NCDValue_StringValue(arg))) {
-            ModuleLog(i, BLOG_ERROR, "ExpString_Append failed");
-            goto fail2;
-        }
-        
-        arg = NCDValue_ListNext(o->i->args, arg);
+    // query initial state
+    o->up = !!(NCDIfConfig_query(o->ifname) & NCDIFCONFIG_FLAG_RUNNING);
+    
+    // signal up if needed
+    if (o->up) {
+        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
     }
-    
-    // set string
-    o->string = ExpString_Get(&s);
-    
-    // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
     
     return;
     
-fail2:
-    ExpString_Free(&s);
 fail1:
     free(o);
 fail0:
@@ -100,8 +114,8 @@ static void func_die (void *vo)
     struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
-    // free string
-    free(o->string);
+    // free monitor
+    NCDInterfaceMonitor_Free(&o->monitor);
     
     // free instance
     free(o);
@@ -109,33 +123,16 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
-{
-    struct instance *o = vo;
-    
-    if (!strcmp(name, "")) {
-        if (!NCDValue_InitString(out, o->string)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-            return 0;
-        }
-        
-        return 1;
-    }
-    
-    return 0;
-}
-
 static const struct NCDModule modules[] = {
     {
-        .type = "concat",
+        .type = "net.backend.waitlink",
         .func_new = func_new,
-        .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_die = func_die
     }, {
         .type = NULL
     }
 };
 
-const struct NCDModuleGroup ncdmodule_concat = {
+const struct NCDModuleGroup ncdmodule_net_backend_waitlink = {
     .modules = modules
 };

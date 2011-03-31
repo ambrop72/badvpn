@@ -47,23 +47,29 @@
 struct instance {
     NCDModuleInst *i;
     BDHCPClient dhcp;
+    int up;
 };
 
 static void dhcp_handler (struct instance *o, int event)
 {
     switch (event) {
-        case BDHCPCLIENT_EVENT_UP:
+        case BDHCPCLIENT_EVENT_UP: {
+            ASSERT(!o->up)
+            o->up = 1;
             NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
-            break;
-        case BDHCPCLIENT_EVENT_DOWN:
+        } break;
+        
+        case BDHCPCLIENT_EVENT_DOWN: {
+            ASSERT(o->up)
+            o->up = 0;
             NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
-            break;
-        default:
-            ASSERT(0);
+        } break;
+        
+        default: ASSERT(0);
     }
 }
 
-static void * func_new (NCDModuleInst *i)
+static void func_new (NCDModuleInst *i)
 {
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
@@ -71,6 +77,7 @@ static void * func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
+    NCDModuleInst_Backend_SetUser(i, o);
     
     // init arguments
     o->i = i;
@@ -93,28 +100,36 @@ static void * func_new (NCDModuleInst *i)
         goto fail1;
     }
     
-    return o;
+    // set not up
+    o->up = 0;
+    
+    return;
     
 fail1:
     free(o);
 fail0:
-    return NULL;
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void func_free (void *vo)
+static void func_die (void *vo)
 {
     struct instance *o = vo;
+    NCDModuleInst *i = o->i;
     
     // free DHCP
     BDHCPClient_Free(&o->dhcp);
     
     // free instance
     free(o);
+    
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValue *out)
 {
     struct instance *o = vo;
+    ASSERT(o->up)
     
     if (!strcmp(name, "addr")) {
         uint32_t addr;
@@ -207,7 +222,7 @@ static const struct NCDModule modules[] = {
     {
         .type = "net.ipv4.dhcp",
         .func_new = func_new,
-        .func_free = func_free,
+        .func_die = func_die,
         .func_getvar = func_getvar
     }, {
         .type = NULL

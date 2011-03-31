@@ -1,5 +1,5 @@
 /**
- * @file net_backend_waitdevice.c
+ * @file sleep.c
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -21,43 +21,43 @@
  * 
  * @section DESCRIPTION
  * 
- * Module which waits for the presence of a network interface.
+ * Module which sleeps a given number of milliseconds on inititalization and
+ * deinitialization.
  * 
- * Synopsis: net.backend.waitdevice(string ifname)
+ * Synopsis: sleep(string ms_start, string ms_stop)
  */
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <inttypes.h>
 
 #include <ncd/NCDModule.h>
-#include <ncd/NCDIfConfig.h>
-#include <ncd/NCDInterfaceMonitor.h>
 
-#include <generated/blog_channel_ncd_net_backend_waitdevice.h>
+#include <generated/blog_channel_ncd_sleep.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct instance {
     NCDModuleInst *i;
-    const char *ifname;
-    NCDInterfaceMonitor monitor;
-    int up;
+    btime_t ms_start;
+    btime_t ms_stop;
+    BTimer timer;
+    int dying;
 };
 
-static void monitor_handler (struct instance *o, const char *ifname, int if_flags)
+static void instance_free (struct instance *o);
+
+static void timer_handler (void *vo)
 {
-    if (strcmp(ifname, o->ifname)) {
-        return;
-    }
+    struct instance *o = vo;
     
-    int was_up = o->up;
-    o->up = !!(if_flags & NCDIFCONFIG_FLAG_EXISTS);
-    
-    if (o->up && !was_up) {
+    if (!o->dying) {
+        // signal up
         NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
-    }
-    else if (!o->up && was_up) {
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+    } else {
+        // die
+        instance_free(o);
     }
 }
 
@@ -75,30 +75,33 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    NCDValue *arg;
-    if (!NCDValue_ListRead(i->args, 1, &arg)) {
+    NCDValue *ms_start_arg;
+    NCDValue *ms_stop_arg;
+    if (!NCDValue_ListRead(i->args, 2, &ms_start_arg, &ms_stop_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+    if (NCDValue_Type(ms_start_arg) != NCDVALUE_STRING || NCDValue_Type(ms_stop_arg) != NCDVALUE_STRING) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->ifname = NCDValue_StringValue(arg);
-    
-    // init monitor
-    if (!NCDInterfaceMonitor_Init(&o->monitor, o->i->reactor, (NCDInterfaceMonitor_handler)monitor_handler, o)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDInterfaceMonitor_Init failed");
+    if (sscanf(NCDValue_StringValue(ms_start_arg), "%"SCNi64, &o->ms_start) != 1) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong time");
+        goto fail1;
+    }
+    if (sscanf(NCDValue_StringValue(ms_stop_arg), "%"SCNi64, &o->ms_stop) != 1) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong time");
         goto fail1;
     }
     
-    // query initial state
-    o->up = !!(NCDIfConfig_query(o->ifname) & NCDIFCONFIG_FLAG_EXISTS);
+    // init timer
+    BTimer_Init(&o->timer, 0, timer_handler, o);
     
-    // signal up if needed
-    if (o->up) {
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
-    }
+    // set not dying
+    o->dying = 0;
+    
+    // set timer
+    BReactor_SetTimerAfter(o->i->reactor, &o->timer, o->ms_start);
     
     return;
     
@@ -109,13 +112,12 @@ fail0:
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void func_die (void *vo)
+void instance_free (struct instance *o)
 {
-    struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
-    // free monitor
-    NCDInterfaceMonitor_Free(&o->monitor);
+    // free timer
+    BReactor_RemoveTimer(o->i->reactor, &o->timer);
     
     // free instance
     free(o);
@@ -123,9 +125,20 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
+static void func_die (void *vo)
+{
+    struct instance *o = vo;
+    
+    // set dying
+    o->dying = 1;
+    
+    // set timer
+    BReactor_SetTimerAfter(o->i->reactor, &o->timer, o->ms_stop);
+}
+
 static const struct NCDModule modules[] = {
     {
-        .type = "net.backend.waitdevice",
+        .type = "sleep",
         .func_new = func_new,
         .func_die = func_die
     }, {
@@ -133,6 +146,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-const struct NCDModuleGroup ncdmodule_net_backend_waitdevice = {
+const struct NCDModuleGroup ncdmodule_sleep = {
     .modules = modules
 };

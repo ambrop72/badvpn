@@ -50,7 +50,7 @@ struct instance {
     int value;
 };
 
-static void * func_new (NCDModuleInst *i, int not, int or)
+static void func_new (NCDModuleInst *i, int not, int or)
 {
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
@@ -58,10 +58,12 @@ static void * func_new (NCDModuleInst *i, int not, int or)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
+    NCDModuleInst_Backend_SetUser(i, o);
     
     // init arguments
     o->i = i;
     
+    // compute value from arguments
     if (not) {
         NCDValue *arg;
         if (!NCDValue_ListRead(o->i->args, 1, &arg)) {
@@ -93,37 +95,42 @@ static void * func_new (NCDModuleInst *i, int not, int or)
         }
     }
     
+    // signal up
     NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
     
-    return o;
+    return;
     
 fail1:
     free(o);
 fail0:
-    return NULL;
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void * func_new_not (NCDModuleInst *i)
+static void func_new_not (NCDModuleInst *i)
 {
-    return func_new(i, 1, 0);
+    func_new(i, 1, 0);
 }
 
-static void * func_new_or (NCDModuleInst *i)
+static void func_new_or (NCDModuleInst *i)
 {
-    return func_new(i, 0, 1);
+    func_new(i, 0, 1);
 }
 
-static void * func_new_and (NCDModuleInst *i)
+static void func_new_and (NCDModuleInst *i)
 {
-    return func_new(i, 0, 0);
+    func_new(i, 0, 0);
 }
 
-static void func_free (void *vo)
+static void func_die (void *vo)
 {
     struct instance *o = vo;
+    NCDModuleInst *i = o->i;
     
     // free instance
     free(o);
+    
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValue *out)
@@ -148,17 +155,17 @@ static const struct NCDModule modules[] = {
     {
         .type = "not",
         .func_new = func_new_not,
-        .func_free = func_free,
+        .func_die = func_die,
         .func_getvar = func_getvar
     }, {
         .type = "or",
         .func_new = func_new_or,
-        .func_free = func_free,
+        .func_die = func_die,
         .func_getvar = func_getvar
     }, {
         .type = "and",
         .func_new = func_new_and,
-        .func_free = func_free,
+        .func_die = func_die,
         .func_getvar = func_getvar
     }, {
         .type = NULL

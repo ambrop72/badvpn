@@ -20,8 +20,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <stdlib.h>
-#include <string.h>
+#include <misc/debug.h>
 
 #include <ncd/modules/command_template.h>
 
@@ -34,6 +33,7 @@
 
 static int start_process (command_template_instance *o, int remove);
 static void process_handler (command_template_instance *o, int normally, uint8_t normally_exit_status);
+static void free_template (command_template_instance *o, int is_error);
 
 int start_process (command_template_instance *o, int remove)
 {
@@ -71,7 +71,7 @@ static void lock_handler (command_template_instance *o)
     
     // start process
     if (!start_process(o, remove)) {
-        NCDModuleInst_Backend_Died(o->i, 1);
+        free_template(o, 1);
         return;
     }
     
@@ -99,7 +99,7 @@ void process_handler (command_template_instance *o, int normally, uint8_t normal
     if (!normally || normally_exit_status != 0) {
         NCDModuleInst_Backend_Log(o->i, o->blog_channel, BLOG_ERROR, "command failed");
         
-        NCDModuleInst_Backend_Died(o->i, 1);
+        free_template(o, 1);
         return;
     }
     
@@ -121,17 +121,19 @@ void process_handler (command_template_instance *o, int normally, uint8_t normal
         
         case STATE_DELETING: {
             // finish
-            NCDModuleInst_Backend_Died(o->i, 0);
+            free_template(o, 0);
             return;
         } break;
     }
 }
 
-int command_template_new (command_template_instance *o, NCDModuleInst *i, command_template_build_cmdline build_cmdline, int blog_channel, BEventLock *elock)
+void command_template_new (command_template_instance *o, NCDModuleInst *i, command_template_build_cmdline build_cmdline, command_template_free_func free_func, void *user, int blog_channel, BEventLock *elock)
 {
     // init arguments
     o->i = i;
     o->build_cmdline = build_cmdline;
+    o->free_func = free_func;
+    o->user = user;
     o->blog_channel = blog_channel;
     
     // init lock job
@@ -145,23 +147,17 @@ int command_template_new (command_template_instance *o, NCDModuleInst *i, comman
     
     // set state
     o->state = STATE_ADDING_LOCK;
-    
-    return 1;
 }
 
-void command_template_free (command_template_instance *o)
+void free_template (command_template_instance *o, int is_error)
 {
-    // free process
-    if (o->have_process) {
-        // kill process
-        BProcess_Kill(&o->process);
-        
-        // free process
-        BProcess_Free(&o->process);
-    }
+    ASSERT(!o->have_process)
     
     // free lock job
     BEventLockJob_Free(&o->elock_job);
+    
+    // call free function
+    o->free_func(o->user, is_error);
 }
 
 void command_template_die (command_template_instance *o)
@@ -170,7 +166,9 @@ void command_template_die (command_template_instance *o)
     
     switch (o->state) {
         case STATE_ADDING_LOCK: {
-            NCDModuleInst_Backend_Died(o->i, 0);
+            ASSERT(!o->have_process)
+            
+            free_template(o, 0);
             return;
         } break;
         

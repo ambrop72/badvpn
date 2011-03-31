@@ -26,7 +26,6 @@
  * Synopsis: net.dns(list(string) servers, string priority)
  */
 
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -180,7 +179,7 @@ static int func_globalinit (struct NCDModuleInitParams params)
     return 1;
 }
 
-static void * func_new (NCDModuleInst *i)
+static void func_new (NCDModuleInst *i)
 {
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
@@ -188,6 +187,7 @@ static void * func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
+    NCDModuleInst_Backend_SetUser(i, o);
     
     // init arguments
     o->i = i;
@@ -240,9 +240,10 @@ static void * func_new (NCDModuleInst *i)
         goto fail2;
     }
     
+    // signal up
     NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
     
-    return o;
+    return;
     
 fail2:
     LinkedList2_Remove(&instances, &o->instances_node);
@@ -250,12 +251,14 @@ fail1:
     remove_ipv4_dns_entries(o);
     free(o);
 fail0:
-    return NULL;
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void func_free (void *vo)
+static void func_die (void *vo)
 {
     struct instance *o = vo;
+    NCDModuleInst *i = o->i;
     
     // remove from instances
     LinkedList2_Remove(&instances, &o->instances_node);
@@ -268,13 +271,15 @@ static void func_free (void *vo)
     
     // free instance
     free(o);
+    
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
 static const struct NCDModule modules[] = {
     {
         .type = "net.dns",
         .func_new = func_new,
-        .func_free = func_free
+        .func_die = func_die
     }, {
         .type = NULL
     }

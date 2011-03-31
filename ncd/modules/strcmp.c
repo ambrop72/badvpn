@@ -33,7 +33,7 @@
 
 #include <ncd/NCDModule.h>
 
-#include <generated/blog_channel_ncd_var.h>
+#include <generated/blog_channel_ncd_strcmp.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
@@ -43,7 +43,7 @@ struct instance {
     NCDValue *arg2;
 };
 
-static void * func_new (NCDModuleInst *i)
+static void func_new (NCDModuleInst *i)
 {
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
@@ -51,6 +51,7 @@ static void * func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
+    NCDModuleInst_Backend_SetUser(i, o);
     
     // init arguments
     o->i = i;
@@ -65,22 +66,27 @@ static void * func_new (NCDModuleInst *i)
         goto fail1;
     }
     
+    // signal up
     NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
     
-    return o;
+    return;
     
 fail1:
     free(o);
 fail0:
-    return NULL;
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void func_free (void *vo)
+static void func_die (void *vo)
 {
     struct instance *o = vo;
+    NCDModuleInst *i = o->i;
     
     // free instance
     free(o);
+    
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValue *out)
@@ -105,7 +111,7 @@ static const struct NCDModule modules[] = {
     {
         .type = "strcmp",
         .func_new = func_new,
-        .func_free = func_free,
+        .func_die = func_die,
         .func_getvar = func_getvar
     }, {
         .type = NULL

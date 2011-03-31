@@ -54,6 +54,7 @@ struct instance {
 static void try_process (struct instance *o);
 static void process_handler (struct instance *o, int normally, uint8_t normally_exit_status);
 static void timer_handler (struct instance *o);
+static void instance_free (struct instance *o);
 
 void try_process (struct instance *o)
 {
@@ -72,19 +73,13 @@ void try_process (struct instance *o)
         goto fail1;
     }
     
-    // iterate arguments
+    // append arguments
     NCDValue *arg = NCDValue_ListFirst(o->args);
     while (arg) {
-        if (NCDValue_Type(arg) != NCDVALUE_STRING) {
-            ModuleLog(o->i, BLOG_ERROR, "wrong type");
-            goto fail1;
-        }
-        
         // append argument
         if (!CmdLine_Append(&c, NCDValue_StringValue(arg))) {
             goto fail1;
         }
-        
         arg = NCDValue_ListNext(o->args, arg);
     }
     
@@ -127,7 +122,7 @@ void process_handler (struct instance *o, int normally, uint8_t normally_exit_st
     o->started = 0;
     
     if (o->dying) {
-        NCDModuleInst_Backend_Died(o->i, 0);
+        instance_free(o);
         return;
     }
     
@@ -141,10 +136,11 @@ void timer_handler (struct instance *o)
     
     ModuleLog(o->i, BLOG_INFO, "retrying");
     
+    // try starting process again
     try_process(o);
 }
 
-static void * func_new (NCDModuleInst *i)
+static void func_new (NCDModuleInst *i)
 {
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
@@ -152,6 +148,7 @@ static void * func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
+    NCDModuleInst_Backend_SetUser(i, o);
     
     // init arguments
     o->i = i;
@@ -175,6 +172,16 @@ static void * func_new (NCDModuleInst *i)
     o->exec = NCDValue_StringValue(exec_arg);
     o->args = args_arg;
     
+    // check arguments
+    NCDValue *arg = NCDValue_ListFirst(o->args);
+    while (arg) {
+        if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+            ModuleLog(o->i, BLOG_ERROR, "wrong type");
+            goto fail1;
+        }
+        arg = NCDValue_ListNext(o->args, arg);
+    }
+    
     // create TAP device
     if (!NCDIfConfig_make_tuntap(o->ifname, o->user, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to create TAP device");
@@ -193,11 +200,13 @@ static void * func_new (NCDModuleInst *i)
     // init timer
     BTimer_Init(&o->timer, RETRY_TIME, (BTimer_handler)timer_handler, o);
     
-    try_process(o);
-    
+    // signal up
     NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
     
-    return o;
+    // try starting process
+    try_process(o);
+    
+    return;
     
 fail2:
     if (!NCDIfConfig_remove_tuntap(o->ifname, 0)) {
@@ -206,23 +215,22 @@ fail2:
 fail1:
     free(o);
 fail0:
-    return NULL;
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void func_free (void *vo)
+void instance_free (struct instance *o)
 {
-    struct instance *o = vo;
-    
-    if (o->started) {
-        // kill process
-        BProcess_Kill(&o->process);
-        
-        // free process
-        BProcess_Free(&o->process);
-    }
+    ASSERT(!o->started)
+    NCDModuleInst *i = o->i;
     
     // free timer
     BReactor_RemoveTimer(o->i->reactor, &o->timer);
+    
+    // set device down
+    if (!NCDIfConfig_set_down(o->ifname)) {
+        ModuleLog(o->i, BLOG_ERROR, "failed to set device down");
+    }
     
     // free TAP device
     if (!NCDIfConfig_remove_tuntap(o->ifname, 0)) {
@@ -231,6 +239,8 @@ static void func_free (void *vo)
     
     // free instance
     free(o);
+    
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
 static void func_die (void *vo)
@@ -238,25 +248,22 @@ static void func_die (void *vo)
     struct instance *o = vo;
     ASSERT(!o->dying)
     
-    if (o->started) {
-        // request termination
-        BProcess_Terminate(&o->process);
-        
-        // remember dying
-        o->dying = 1;
-        
+    if (!o->started) {
+        instance_free(o);
         return;
     }
     
-    NCDModuleInst_Backend_Died(o->i, 0);
-    return;
+    // request termination
+    BProcess_Terminate(&o->process);
+    
+    // remember dying
+    o->dying = 1;
 }
 
 static const struct NCDModule modules[] = {
     {
         .type = "net.backend.badvpn",
         .func_new = func_new,
-        .func_free = func_free,
         .func_die = func_die
     }, {
         .type = NULL

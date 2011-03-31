@@ -35,10 +35,13 @@
 #include <generated/blog_channel_ncd_net_iptables.h>
 
 typedef int (*command_template_build_cmdline) (NCDModuleInst *i, int remove, char **exec, CmdLine *cl);
+typedef void (*command_template_free_func) (void *user, int is_error);
 
 typedef struct {
     NCDModuleInst *i;
     command_template_build_cmdline build_cmdline;
+    command_template_free_func free_func;
+    void *user;
     int blog_channel;
     BEventLockJob elock_job;
     int state;
@@ -46,8 +49,7 @@ typedef struct {
     BProcess process;
 } command_template_instance;
 
-int command_template_new (command_template_instance *o, NCDModuleInst *i, command_template_build_cmdline build_cmdline, int blog_channel, BEventLock *elock);
-void command_template_free (command_template_instance *o);
+void command_template_new (command_template_instance *o, NCDModuleInst *i, command_template_build_cmdline build_cmdline, command_template_free_func free_func, void *user, int blog_channel, BEventLock *elock);
 void command_template_die (command_template_instance *o);
 
 #endif

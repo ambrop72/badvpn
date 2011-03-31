@@ -1,5 +1,5 @@
 /**
- * @file list.c
+ * @file net_up.c
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -21,24 +21,25 @@
  * 
  * @section DESCRIPTION
  * 
- * List construction module.
+ * Network interface up and down module.
  * 
- * Synopsis: list(elem1, ..., elemN)
- * Variables:
- *   (empty) - list containing elem1, ..., elemN
+ * Synopsis: net.up(string ifname)
+ * Description: Sets a network interface up on initialization and down on
+ *   deinitialization.
  */
 
 #include <stdlib.h>
-#include <string.h>
 
 #include <ncd/NCDModule.h>
+#include <ncd/NCDIfConfig.h>
 
-#include <generated/blog_channel_ncd_list.h>
+#include <generated/blog_channel_ncd_net_up.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct instance {
     NCDModuleInst *i;
+    const char *ifname;
 };
 
 static void func_new (NCDModuleInst *i)
@@ -54,11 +55,31 @@ static void func_new (NCDModuleInst *i)
     // init arguments
     o->i = i;
     
+    // read arguments
+    NCDValue *ifname_arg;
+    if (!NCDValue_ListRead(o->i->args, 1, &ifname_arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
+        goto fail1;
+    }
+    if (NCDValue_Type(ifname_arg) != NCDVALUE_STRING) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong type");
+        goto fail1;
+    }
+    o->ifname = NCDValue_StringValue(ifname_arg);
+    
+    // set interface up
+    if (!NCDIfConfig_set_up(o->ifname)) {
+        ModuleLog(o->i, BLOG_ERROR, "failed to set interface up");
+        goto fail1;
+    }
+    
     // signal up
     NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
     
     return;
     
+fail1:
+    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
@@ -69,39 +90,27 @@ static void func_die (void *vo)
     struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
+    // set interface down
+    if (!NCDIfConfig_set_down(o->ifname)) {
+        ModuleLog(o->i, BLOG_ERROR, "failed to set interface down");
+    }
+    
     // free instance
     free(o);
     
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
-{
-    struct instance *o = vo;
-    
-    if (!strcmp(name, "")) {
-        if (!NCDValue_InitCopy(out, o->i->args)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-            return 0;
-        }
-        
-        return 1;
-    }
-    
-    return 0;
-}
-
 static const struct NCDModule modules[] = {
     {
-        .type = "list",
+        .type = "net.up",
         .func_new = func_new,
-        .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_die = func_die
     }, {
         .type = NULL
     }
 };
 
-const struct NCDModuleGroup ncdmodule_list = {
+const struct NCDModuleGroup ncdmodule_net_up = {
     .modules = modules
 };

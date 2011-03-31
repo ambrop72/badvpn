@@ -23,24 +23,21 @@
 #ifndef BADVPN_NCD_NCDMODULE_H
 #define BADVPN_NCD_NCDMODULE_H
 
-#include <stdarg.h>
-
-#include <misc/debugerror.h>
+#include <misc/debug.h>
 #include <system/BReactor.h>
 #include <system/BPending.h>
 #include <system/BLog.h>
 #include <process/BProcess.h>
-#include <ncdconfig/NCDConfig.h>
 #include <ncd/NCDValue.h>
 
 #define NCDMODULE_EVENT_UP 1
 #define NCDMODULE_EVENT_DOWN 2
+#define NCDMODULE_EVENT_DEAD 3
 
 #define NCDMODULE_TOEVENT_DIE 101
 #define NCDMODULE_TOEVENT_CLEAN 102
 
 typedef void (*NCDModule_handler_event) (void *user, int event);
-typedef void (*NCDModule_handler_died) (void *user, int is_error);
 typedef int (*NCDModule_handler_getvar) (void *user, const char *modname, const char *varname, NCDValue *out);
 
 struct NCDModule;
@@ -51,40 +48,39 @@ struct NCDModuleInitParams {
 };
 
 typedef struct {
-    const char *name;
     const struct NCDModule *m;
     NCDValue *args;
     const char *logprefix;
     BReactor *reactor;
     BProcessManager *manager;
     NCDModule_handler_event handler_event;
-    NCDModule_handler_died handler_died;
     NCDModule_handler_getvar handler_getvar;
     void *user;
-    BPending event_job;
-    int event_job_event;
-    BPending toevent_job;
-    int toevent_job_event;
+    BPending init_job;
+    BPending uninit_job;
+    BPending die_job;
+    BPending clean_job;
     int state;
     void *inst_user;
+    int is_error;
     DebugObject d_obj;
-    DebugError d_err;
 } NCDModuleInst;
 
-int NCDModuleInst_Init (NCDModuleInst *n, const char *name, const struct NCDModule *m, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
-                        NCDModule_handler_event handler_event, NCDModule_handler_died handler_died, NCDModule_handler_getvar handler_getvar, void *user);
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
+                         NCDModule_handler_event handler_event, NCDModule_handler_getvar handler_getvar, void *user);
 void NCDModuleInst_Free (NCDModuleInst *n);
 void NCDModuleInst_Event (NCDModuleInst *n, int event);
-int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out);
+int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out) WARN_UNUSED;
+int NCDModuleInst_HaveError (NCDModuleInst *n);
+void NCDModuleInst_Backend_SetUser (NCDModuleInst *n, void *user);
 void NCDModuleInst_Backend_Event (NCDModuleInst *n, int event);
-void NCDModuleInst_Backend_Died (NCDModuleInst *n, int is_error);
-int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *modname, const char *varname, NCDValue *out);
+int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *modname, const char *varname, NCDValue *out) WARN_UNUSED;
 void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const char *fmt, ...);
+void NCDModuleInst_Backend_SetError (NCDModuleInst *n);
 
 typedef int (*NCDModule_func_globalinit) (const struct NCDModuleInitParams params);
 typedef void (*NCDModule_func_globalfree) (void);
-typedef void * (*NCDModule_func_new) (NCDModuleInst *params);
-typedef void (*NCDModule_func_free) (void *o);
+typedef void (*NCDModule_func_new) (NCDModuleInst *params);
 typedef void (*NCDModule_func_die) (void *o);
 typedef int (*NCDModule_func_getvar) (void *o, const char *name, NCDValue *out);
 typedef void (*NCDModule_func_clean) (void *o);
@@ -92,7 +88,6 @@ typedef void (*NCDModule_func_clean) (void *o);
 struct NCDModule {
     const char *type;
     NCDModule_func_new func_new;
-    NCDModule_func_free func_free;
     NCDModule_func_die func_die;
     NCDModule_func_getvar func_getvar;
     NCDModule_func_clean func_clean;

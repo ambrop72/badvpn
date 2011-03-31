@@ -73,6 +73,7 @@ static void free_pipe (struct instance *o);
 static void process_handler (struct instance *o, int normally, uint8_t normally_exit_status);
 static void process_pipe_handler_error (struct instance *o, int component, int code);
 static void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len);
+static void instance_free (struct instance *o);
 
 int build_cmdline (struct instance *o, CmdLine *c)
 {
@@ -176,13 +177,12 @@ void process_handler (struct instance *o, int normally, uint8_t normally_exit_st
 {
     ModuleLog(o->i, (o->dying ? BLOG_INFO : BLOG_ERROR), "process terminated");
     
-    int was_dying = o->dying;
-    
-    // set dying so free doesn't attempt kill
-    o->dying = 1;
+    if (!o->dying) {
+        NCDModuleInst_Backend_SetError(o->i);
+    }
     
     // die
-    NCDModuleInst_Backend_Died(o->i, !was_dying);
+    instance_free(o);
     return;
 }
 
@@ -236,7 +236,7 @@ void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len)
     }
 }
 
-static void * func_new (NCDModuleInst *i)
+static void func_new (NCDModuleInst *i)
 {
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
@@ -244,6 +244,7 @@ static void * func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
+    NCDModuleInst_Backend_SetUser(i, o);
     
     // init arguments
     o->i = i;
@@ -306,7 +307,7 @@ static void * func_new (NCDModuleInst *i)
     CmdLine_Free(&c);
     ASSERT_FORCE(close(pipefds[1]) == 0)
     
-    return o;
+    return;
     
 fail4:
     CmdLine_Free(&c);
@@ -318,17 +319,13 @@ fail2:
 fail1:
     free(o);
 fail0:
-    return NULL;
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void func_free (void *vo)
+void instance_free (struct instance *o)
 {
-    struct instance *o = vo;
-    
-    if (!o->dying) {
-        // kill process
-        BProcess_Kill(&o->process);
-    }
+    NCDModuleInst *i = o->i;
     
     // free process
     BProcess_Free(&o->process);
@@ -343,6 +340,8 @@ static void func_free (void *vo)
     
     // free instance
     free(o);
+    
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
 static void func_die (void *vo)
@@ -361,7 +360,6 @@ static const struct NCDModule modules[] = {
     {
         .type = "net.backend.wpa_supplicant",
         .func_new = func_new,
-        .func_free = func_free,
         .func_die = func_die
     }, {
         .type = NULL

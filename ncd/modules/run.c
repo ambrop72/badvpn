@@ -42,7 +42,10 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
+static void template_free_func (void *vo, int is_error);
+
 struct instance {
+    NCDModuleInst *i;
     BEventLock lock;
     command_template_instance cti;
 };
@@ -120,38 +123,45 @@ fail0:
     return 0;
 }
 
-static void * func_new (NCDModuleInst *i)
+static void func_new (NCDModuleInst *i)
 {
+    // allocate instance
     struct instance *o = malloc(sizeof(*o));
     if (!o) {
         BLog(BLOG_ERROR, "malloc failed");
         goto fail0;
     }
+    NCDModuleInst_Backend_SetUser(i, o);
     
+    // init arguments
+    o->i = i;
+    
+    // init dummy event lock
     BEventLock_Init(&o->lock, BReactor_PendingGroup(i->reactor));
     
-    if (!command_template_new(&o->cti, i, build_cmdline, BLOG_CURRENT_CHANNEL, &o->lock)) {
-        goto fail1;
-    }
+    command_template_new(&o->cti, i, build_cmdline, template_free_func, o, BLOG_CURRENT_CHANNEL, &o->lock);
+    return;
     
-    return o;
-    
-fail1:
-    BEventLock_Free(&o->lock);
-    free(o);
 fail0:
-    return NULL;
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void func_free (void *vo)
+void template_free_func (void *vo, int is_error)
 {
     struct instance *o = vo;
+    NCDModuleInst *i = o->i;
     
-    command_template_free(&o->cti);
-    
+    // free dummy event lock
     BEventLock_Free(&o->lock);
     
+    // free instance
     free(o);
+    
+    if (is_error) {
+        NCDModuleInst_Backend_SetError(i);
+    }
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
 static void func_die (void *vo)
@@ -165,7 +175,6 @@ static const struct NCDModule modules[] = {
     {
         .type = "run",
         .func_new = func_new,
-        .func_free = func_free,
         .func_die = func_die
     }, {
         .type = NULL

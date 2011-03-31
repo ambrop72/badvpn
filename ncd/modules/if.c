@@ -45,7 +45,7 @@ struct instance {
     NCDModuleInst *i;
 };
 
-static void * new_templ (NCDModuleInst *i, int not)
+static void new_templ (NCDModuleInst *i, int not)
 {
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
@@ -53,6 +53,7 @@ static void * new_templ (NCDModuleInst *i, int not)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
+    NCDModuleInst_Backend_SetUser(i, o);
     
     // init arguments
     o->i = i;
@@ -68,46 +69,53 @@ static void * new_templ (NCDModuleInst *i, int not)
         goto fail1;
     }
     
+    // compute logical value of argument
     int c = !strcmp(NCDValue_StringValue(arg), "true");
+    
+    // signal up if needed
     if ((not && !c) || (!not && c)) {
         NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
     }
     
-    return o;
+    return;
     
 fail1:
     free(o);
 fail0:
-    return NULL;
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void * func_new (NCDModuleInst *i)
+static void func_new (NCDModuleInst *i)
 {
-    return new_templ(i, 0);
+    new_templ(i, 0);
 }
 
-static void * func_new_not (NCDModuleInst *i)
+static void func_new_not (NCDModuleInst *i)
 {
-    return new_templ(i, 1);
+    new_templ(i, 1);
 }
 
-static void func_free (void *vo)
+static void func_die (void *vo)
 {
     struct instance *o = vo;
+    NCDModuleInst *i = o->i;
     
     // free instance
     free(o);
+    
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
 static const struct NCDModule modules[] = {
     {
         .type = "if",
         .func_new = func_new,
-        .func_free = func_free
+        .func_die = func_die
     }, {
         .type = "ifnot",
         .func_new = func_new_not,
-        .func_free = func_free
+        .func_die = func_die
     }, {
         .type = NULL
     }

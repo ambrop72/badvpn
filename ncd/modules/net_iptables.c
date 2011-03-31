@@ -40,9 +40,12 @@
 
 #define IPTABLES_PATH "/sbin/iptables"
 
+static void template_free_func (void *vo, int is_error);
+
 BEventLock iptables_lock;
 
 struct instance {
+    NCDModuleInst *i;
     command_template_instance cti;
 };
 
@@ -183,43 +186,49 @@ static void func_globalfree (void)
     BEventLock_Free(&iptables_lock);
 }
 
-static void * func_new (NCDModuleInst *i, command_template_build_cmdline build_cmdline)
+static void func_new (NCDModuleInst *i, command_template_build_cmdline build_cmdline)
 {
+    // allocate instance
     struct instance *o = malloc(sizeof(*o));
     if (!o) {
         BLog(BLOG_ERROR, "malloc failed");
         goto fail0;
     }
+    NCDModuleInst_Backend_SetUser(i, o);
     
-    if (!command_template_new(&o->cti, i, build_cmdline, BLOG_CURRENT_CHANNEL, &iptables_lock)) {
-        goto fail1;
-    }
+    // init arguments
+    o->i = i;
     
-    return o;
+    command_template_new(&o->cti, i, build_cmdline, template_free_func, o, BLOG_CURRENT_CHANNEL, &iptables_lock);
+    return;
     
-fail1:
-    free(o);
 fail0:
-    return NULL;
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void * append_func_new (NCDModuleInst *i)
-{
-    return func_new(i, build_append_cmdline);
-}
-
-static void * policy_func_new (NCDModuleInst *i)
-{
-    return func_new(i, build_policy_cmdline);
-}
-
-static void func_free (void *vo)
+void template_free_func (void *vo, int is_error)
 {
     struct instance *o = vo;
+    NCDModuleInst *i = o->i;
     
-    command_template_free(&o->cti);
-    
+    // free instance
     free(o);
+    
+    if (is_error) {
+        NCDModuleInst_Backend_SetError(i);
+    }
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+}
+
+static void append_func_new (NCDModuleInst *i)
+{
+    func_new(i, build_append_cmdline);
+}
+
+static void policy_func_new (NCDModuleInst *i)
+{
+    func_new(i, build_policy_cmdline);
 }
 
 static void func_die (void *vo)
@@ -233,12 +242,10 @@ static const struct NCDModule modules[] = {
     {
         .type = "net.iptables.append",
         .func_new = append_func_new,
-        .func_free = func_free,
         .func_die = func_die
     }, {
         .type = "net.iptables.policy",
         .func_new = policy_func_new,
-        .func_free = func_free,
         .func_die = func_die
     }, {
         .type = NULL

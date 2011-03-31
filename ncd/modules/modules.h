@@ -36,13 +36,15 @@ extern const struct NCDModuleGroup ncdmodule_concatlist;
 extern const struct NCDModuleGroup ncdmodule_if;
 extern const struct NCDModuleGroup ncdmodule_strcmp;
 extern const struct NCDModuleGroup ncdmodule_logical;
+extern const struct NCDModuleGroup ncdmodule_sleep;
 extern const struct NCDModuleGroup ncdmodule_ip_in_network;
 extern const struct NCDModuleGroup ncdmodule_run;
-extern const struct NCDModuleGroup ncdmodule_net_backend_physical;
 extern const struct NCDModuleGroup ncdmodule_net_backend_waitdevice;
+extern const struct NCDModuleGroup ncdmodule_net_backend_waitlink;
 extern const struct NCDModuleGroup ncdmodule_net_backend_badvpn;
 extern const struct NCDModuleGroup ncdmodule_net_backend_wpa_supplicant;
 extern const struct NCDModuleGroup ncdmodule_net_backend_rfkill;
+extern const struct NCDModuleGroup ncdmodule_net_up;
 extern const struct NCDModuleGroup ncdmodule_net_dns;
 extern const struct NCDModuleGroup ncdmodule_net_iptables;
 extern const struct NCDModuleGroup ncdmodule_net_ipv4_addr;
@@ -59,13 +61,15 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_if,
     &ncdmodule_strcmp,
     &ncdmodule_logical,
+    &ncdmodule_sleep,
     &ncdmodule_ip_in_network,
     &ncdmodule_run,
-    &ncdmodule_net_backend_physical,
     &ncdmodule_net_backend_waitdevice,
+    &ncdmodule_net_backend_waitlink,
     &ncdmodule_net_backend_badvpn,
     &ncdmodule_net_backend_wpa_supplicant,
     &ncdmodule_net_backend_rfkill,
+    &ncdmodule_net_up,
     &ncdmodule_net_dns,
     &ncdmodule_net_iptables,
     &ncdmodule_net_ipv4_addr,

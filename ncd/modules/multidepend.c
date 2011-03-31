@@ -38,8 +38,10 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 
 #include <misc/offset.h>
+#include <misc/debug.h>
 #include <structure/LinkedList2.h>
 #include <ncd/NCDModule.h>
 
@@ -106,30 +108,32 @@ static void depend_update (struct depend *o)
     
     // find best provide
     struct provide *bp = depend_find_best_provide(o);
+    ASSERT(!bp || !bp->dying)
     
     // has anything changed?
     if (bp == o->provide) {
         return;
     }
     
-    // if we have an existing provide, start collpsing
     if (o->provide) {
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+        // set collapsing
         o->provide_collapsing = 1;
-        return;
+        
+        // signal down
+        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+    } else {
+        // insert to provide's list
+        LinkedList2_Append(&bp->depends, &o->provide_node);
+        
+        // set not collapsing
+        o->provide_collapsing = 0;
+        
+        // set provide
+        o->provide = bp;
+        
+        // signal up
+        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
     }
-    
-    // insert to provide's list
-    LinkedList2_Append(&bp->depends, &o->provide_node);
-    
-    // set not collapsing
-    o->provide_collapsing = 0;
-    
-    // set provide
-    o->provide = bp;
-    
-    // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
 }
 
 static int func_globalinit (struct NCDModuleInitParams params)
@@ -143,7 +147,7 @@ static int func_globalinit (struct NCDModuleInitParams params)
     return 1;
 }
 
-static void * provide_func_new (NCDModuleInst *i)
+static void provide_func_new (NCDModuleInst *i)
 {
     // allocate instance
     struct provide *o = malloc(sizeof(*o));
@@ -151,6 +155,7 @@ static void * provide_func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
+    NCDModuleInst_Backend_SetUser(i, o);
     
     // init arguments
     o->i = i;
@@ -182,6 +187,11 @@ static void * provide_func_new (NCDModuleInst *i)
     // set not dying
     o->dying = 0;
     
+    // signal up.
+    // This comes above the loop which follows, so that effects on related depend statements are
+    // computed before this process advances, avoiding problems like failed variable resolutions.
+    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    
     // update depends
     LinkedList2Iterator it;
     LinkedList2Iterator_InitForward(&it, &depends);
@@ -191,27 +201,27 @@ static void * provide_func_new (NCDModuleInst *i)
         depend_update(d);
     }
     
-    // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
-    
-    return o;
+    return;
     
 fail1:
     free(o);
 fail0:
-    return NULL;
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void provide_func_free (void *vo)
+static void provide_free (struct provide *o)
 {
-    struct provide *o = vo;
     ASSERT(LinkedList2_IsEmpty(&o->depends))
+    NCDModuleInst *i = o->i;
     
     // remove from provides list
     LinkedList2_Remove(&provides, &o->provides_node);
     
     // free instance
     free(o);
+    
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
 static void provide_func_die (void *vo)
@@ -221,7 +231,7 @@ static void provide_func_die (void *vo)
     
     // if we have no depends, die immediately
     if (LinkedList2_IsEmpty(&o->depends)) {
-        NCDModuleInst_Backend_Died(o->i, 0);
+        provide_free(o);
         return;
     }
     
@@ -235,11 +245,13 @@ static void provide_func_die (void *vo)
     while (n = LinkedList2Iterator_Next(&it)) {
         struct depend *d = UPPER_OBJECT(n, struct depend, provide_node);
         ASSERT(d->provide == o)
+        
+        // update depend to make sure it is collapsing
         depend_update(d);
     }
 }
 
-static void * depend_func_new (NCDModuleInst *i)
+static void depend_func_new (NCDModuleInst *i)
 {
     // allocate instance
     struct depend *o = malloc(sizeof(*o));
@@ -247,6 +259,7 @@ static void * depend_func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
+    NCDModuleInst_Backend_SetUser(i, o);
     
     // init arguments
     o->i = i;
@@ -282,17 +295,18 @@ static void * depend_func_new (NCDModuleInst *i)
     // update
     depend_update(o);
     
-    return o;
+    return;
     
 fail1:
     free(o);
 fail0:
-    return NULL;
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void depend_func_free (void *vo)
+static void depend_free (struct depend *o)
 {
-    struct depend *o = vo;
+    NCDModuleInst *i = o->i;
     
     if (o->provide) {
         // remove from provide's list
@@ -300,7 +314,7 @@ static void depend_func_free (void *vo)
         
         // if provide is dying and is empty, let it die
         if (o->provide->dying && LinkedList2_IsEmpty(&o->provide->depends)) {
-            NCDModuleInst_Backend_Died(o->provide->i, 0);
+            provide_free(o->provide);
         }
     }
     
@@ -309,6 +323,15 @@ static void depend_func_free (void *vo)
     
     // free instance
     free(o);
+    
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+}
+
+static void depend_func_die (void *vo)
+{
+    struct depend *o = vo;
+    
+    depend_free(o);
 }
 
 static void depend_func_clean (void *vo)
@@ -324,7 +347,7 @@ static void depend_func_clean (void *vo)
     
     // if provide is dying and is empty, let it die
     if (o->provide->dying && LinkedList2_IsEmpty(&o->provide->depends)) {
-        NCDModuleInst_Backend_Died(o->provide->i, 0);
+        provide_free(o->provide);
     }
     
     // set no provide
@@ -339,6 +362,7 @@ static int depend_func_getvar (void *vo, const char *name_orig, NCDValue *out)
     struct depend *o = vo;
     ASSERT(o->provide)
     ASSERT(!o->provide_collapsing)
+    ASSERT(!o->provide->dying)
     
     int ret = 0;
     
@@ -372,12 +396,11 @@ static const struct NCDModule modules[] = {
     {
         .type = "multiprovide",
         .func_new = provide_func_new,
-        .func_free = provide_func_free,
         .func_die = provide_func_die
     }, {
         .type = "multidepend",
         .func_new = depend_func_new,
-        .func_free = depend_func_free,
+        .func_die = depend_func_die,
         .func_clean = depend_func_clean,
         .func_getvar = depend_func_getvar
     }, {
