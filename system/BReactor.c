@@ -720,22 +720,7 @@ void BReactor_SetTimer (BReactor *bsys, BTimer *bt)
 
 void BReactor_SetTimerAfter (BReactor *bsys, BTimer *bt, btime_t after)
 {
-    btime_t now = btime_gettime();
-    
-    // handle overflow
-    int overflows = add_int64_overflows(now, after);
-    btime_t absTime;
-    if (overflows != 0) {
-        if (overflows > 0) {
-            absTime = INT64_MAX;
-        } else {
-            absTime = INT64_MIN;
-        }
-    } else {
-        absTime = now + after;
-    }
-    
-    BReactor_SetTimerAbsolute(bsys, bt, absTime);
+    BReactor_SetTimerAbsolute(bsys, bt, btime_add(btime_gettime(), after));
 }
 
 void BReactor_SetTimerAbsolute (BReactor *bsys, BTimer *bt, btime_t time)

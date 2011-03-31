@@ -36,6 +36,7 @@
 #include <stdint.h>
 
 #include <misc/debug.h>
+#include <misc/overflow.h>
 
 typedef int64_t btime_t;
 
@@ -88,6 +89,24 @@ static btime_t btime_gettime ()
     return (((int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec/1000000) - btime_global.start_time);
     
     #endif
+}
+
+static btime_t btime_add (btime_t t1, btime_t t2)
+{
+    // handle overflow
+    int overflows = add_int64_overflows(t1, t2);
+    btime_t sum;
+    if (overflows != 0) {
+        if (overflows > 0) {
+            sum = INT64_MAX;
+        } else {
+            sum = INT64_MIN;
+        }
+    } else {
+        sum = t1 + t2;
+    }
+    
+    return sum;
 }
 
 #endif
