@@ -72,6 +72,12 @@ else ()
             message(FATAL_ERROR "epoll is required")
         endif ()
         add_definitions(-DBADVPN_USE_EPOLL)
+
+        check_include_files(linux/rfkill.h HAVE_LINUX_RFKILL_H)
+        if (HAVE_LINUX_RFKILL_H)
+            add_definitions(-DBADVPN_USE_LINUX_RFKILL)
+            set(BADVPN_USE_LINUX_RFKILL 1)
+        endif ()
     elseif (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
         add_definitions(-DBADVPN_FREEBSD)
 
