@@ -34,7 +34,6 @@
 #include <unistd.h>
 #endif
 
-#include <misc/overflow.h>
 #include <misc/debug.h>
 #include <misc/offset.h>
 #include <system/BLog.h>
