@@ -80,7 +80,10 @@
 # the ncd/modules/ folder.
 #
 
-# Network card using DHCP
+#
+# Network card using DHCP.
+#
+
 process lan {
     # Make the interface name a variable so we can refer to it.
     # The NCD language has no notion of assigning a variable. Instead variables are
@@ -88,13 +91,22 @@ process lan {
     # The built-in var() statement can be used to make an alias.
     var("eth0") dev;
 
-    # Wait for the network card appear and for the cable to be plugged in.
-    net.backend.physical(dev);
+    # Wait for the network card to appear, set it up and wait for the cable to be
+    # plugged it.
+    net.backend.waitdevice(dev);
+    net.up(dev);
+    net.backend.waitlink(dev);
 
     # Start DHCP.
     net.ipv4.dhcp(dev) dhcp;
+    
+    # DHCP has obtained an address.
+    # Because net.ipv4.dhcp does no checks of the IP address, as a safety measure, do not proceed
+    # if the address is local.
+    ip_in_network(dhcp.addr, "127.0.0.0", "8") test_local;
+    ifnot(test_local);
 
-    # Once DHCP obtains an IP address, assign it to the interface.
+    # Assign the obtained address to the interface.
     net.ipv4.addr(dev, dhcp.addr, dhcp.prefix);
 
     # Add a default route.
@@ -108,13 +120,19 @@ process lan {
     net.dns(dhcp.dns_servers, "20");
 }
 
-# Network card with static configuration
+#
+# Network card with static configuration.
+#
+
 process lan2 {
     # Make the interface name a variable so we can refer to it.
     var("eth1") dev;
 
-    # Wait for the network card appear and for the cable to be plugged in.
-    net.backend.physical(dev);
+    # Wait for the network card to appear, set it up and wait for the cable to be
+    # plugged it.
+    net.backend.waitdevice(dev);
+    net.up(dev);
+    net.backend.waitlink(dev);
 
     # Assign an IP address.
     # "24" is prefix length, i.e. subnet mask 255.255.255.0
@@ -125,7 +143,7 @@ process lan2 {
 
     # Build a list of DNS servers.
     # The NCD language does not support "expressions" - statement arguments must be
-    # constants or variables referring to preceding statements.
+    # constant strings or variables referring to preceding statements.
     # A list can be constructed using the built-in list() statement.
     list("192.168.62.5", "192.168.62.6") dns_servers;
 
@@ -134,8 +152,27 @@ process lan2 {
 }
 
 #
-# A BadVPN VPN interface for access to the virtual
-# network (only).
+# Wireless network interface using wpa_supplicant.
+#
+
+process WLAN {
+    # Set device.
+    var("wlan0") dev;
+
+    # Wait for device and rfkill switch.
+    net.backend.waitdevice(dev);
+    net.backend.rfkill("wlan", dev);
+
+    # Start wpa_supplicant on this interface, using configuration in /etc/wpa_supplicant/all.conf .
+    # (wpa_supplicant is started via the stdbuf command to avoid problems with buffering of its output)
+    list("-o", "L", "/usr/sbin/wpa_supplicant") args;
+    net.backend.wpa_supplicant(dev, "/etc/wpa_supplicant/all.conf", "/usr/bin/stdbuf", args);
+
+    # Wireless connection successful, here comes network config (DHCP/static/whatever) ...
+}
+
+#
+# A BadVPN VPN interface for access to the virtual network (only).
 #
 
 process lan {
@@ -171,7 +208,7 @@ process vpn {
     concat(landep.ipaddr, ":", port) local_addr_arg;
 
     # Construct the Internet address (assuming we are behind a NAT).
-    # Need to know the NAT's external address here. But we could implement a statement that queried it somehow.
+    # Need to know the NAT's external address here. But we could queried it somehow.
     # That is if we have preconfigured the NAT router to forward ports. But we could implement a statement
     # that obtains the mappings dynamically with UPnP!
     concat("1.2.3.4", ":", port) internet_addr_arg;
@@ -201,7 +238,7 @@ process vpn {
 #
 # BadVPN, but configured differently based on what network we're in.
 # The network is identified based on the IP address we were assigned by DHCP.
-# The different configuration should provide appropriate addresses to the VPN client.
+# The different configuration provide specific arguents to badvpn-client.
 #
 
 process lan {
@@ -217,21 +254,20 @@ process lan {
 }
 
 process vpn {
-    # Need the local interface to be working in order start VPN.
-    depend("LAN") landep;
+    ...
 
-    # Choose the name of the network interface.
-    var("tap3") dev;
+    # Construct common arguments here ...
+    list( ... ) common_args;
 
-    # Choose appropriate configuration.
+    # Choose appropriate configuration by waking up the configuration processes
+    # and waiting for one to complete.
     provide("VPN_CONF_START");
     depend("VPN_CONF_END") config;
 
-    # Start the BadVPN backend.
-    net.backend.badvpn(dev, "badvpn", "/usr/bin/badvpn-client-26", config.args);
+    # Concatenate common and configuration-specific arguments.
+    concatlist(common_args, config.args) args;
 
-    # Assign an IP address to the VPN interface.
-    net.ipv4.addr(dev, "10.0.0.1", "24");
+    ...
 }
 
 process vpn_config_lan1 {
@@ -272,4 +308,76 @@ process vpn_config_inet {
     ) args;
 
     provide("VPN_CONF_END");
+}
+
+#
+# Two wired network interfaces (eth0, eth1), both of which may be used for Internet access.
+# When both are working, give priority to eth1 (e.g. if eth0 is up, but later eth1 also comes
+# up, the configuration will be changed to use eth1 for Internet access).
+#
+
+process eth0 {
+    # Set device.
+    var("eth0") dev;
+
+    # Wait for device.
+    net.backend.waitdevice(dev);
+    net.up(dev);
+    net.backend.waitlink(dev);
+
+    # DHCP configuration.
+    net.ipv4.dhcp(dev) dhcp;
+    ip_in_network(dhcp.addr, "127.0.0.0", "8") test_local;
+    ifnot(test_local);
+    var(dhcp.addr) addr;
+    var(dhcp.prefix) addr_prefix;
+    var(dhcp.gateway) gateway;
+    var(dhcp.dns_servers) dns_servers;
+
+    # Assign IP address.
+    net.ipv4.addr(dev, addr, addr_prefix);
+
+    # Go on configuring the network.
+    multiprovide("NET-eth0");
+}
+
+process eth1 {
+    # Set device.
+    var("eth1") dev;
+
+    # Wait for device.
+    net.backend.waitdevice(dev);
+    net.up(dev);
+    net.backend.waitlink(dev);
+
+    # Static configuration.
+    var("192.168.111.116") addr;
+    var("24") addr_prefix;
+    var("192.168.111.1") gateway;
+    list("192.168.111.14", "193.2.1.66") dns_servers;
+
+    # Assign IP address.
+    net.ipv4.addr(dev, addr, addr_prefix);
+
+    # Go on configuring the network.
+    multiprovide("NET-eth1");
+}
+
+process NETCONF {
+    # Wait for some network connection. Prefer eth1 by putting it in front of eth0.
+    list("NET-eth1", "NET-eth0") pnames;
+    multidepend(pnames) ifdep;
+
+    # Alias device values.
+    var(ifdep.dev) dev;
+    var(ifdep.addr) addr;
+    var(ifdep.addr_prefix) addr_prefix;
+    var(ifdep.gateway) gateway;
+    var(ifdep.dns_servers) dns_servers;
+
+    # Add default route.
+    net.ipv4.route("0.0.0.0", "0", gateway, "20", dev);
+
+    # Configure DNS servers.
+    net.dns(dns_servers, "20");
 }
