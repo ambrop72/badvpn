@@ -101,6 +101,9 @@ static void func_new_ln (NCDModuleInst *i)
     }
     printf("\n");
     
+    // signal up
+    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    
     return;
     
 fail1:
