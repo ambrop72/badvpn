@@ -87,6 +87,9 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
         else if (l = data_begins_with(str, left, ",")) {
             token = NCD_TOKEN_COMMA;
         }
+        else if (l = data_begins_with(str, left, "->")) {
+            token = NCD_TOKEN_ARROW;
+        }
         else if (is_name_first_char(*str)) {
             l = 1;
             while (l < left) {

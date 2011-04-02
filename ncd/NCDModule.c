@@ -88,11 +88,12 @@ static void clean_job_handler (NCDModuleInst *n)
     }
 }
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
                          NCDModule_handler_event handler_event, NCDModule_handler_getvar handler_getvar, void *user)
 {
     // init arguments
     n->m = m;
+    n->method_object = method_object;
     n->args = args;
     n->logprefix = logprefix;
     n->reactor = reactor;

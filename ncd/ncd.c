@@ -31,6 +31,7 @@
 #include <misc/offset.h>
 #include <misc/read_file.h>
 #include <misc/balloc.h>
+#include <misc/concat_strings.h>
 #include <structure/LinkedList2.h>
 #include <system/BLog.h>
 #include <system/BReactor.h>
@@ -58,7 +59,8 @@
 #define SSTATE_FORGOTTEN 4
 
 struct statement {
-    const struct NCDModule *module;
+    char *object_name;
+    char *method_name;
     struct argument_elem *first_arg;
     char *name;
 };
@@ -92,6 +94,7 @@ struct process_statement {
     size_t i;
     struct statement s;
     int state;
+    char *type;
     int have_error;
     btime_t error_until;
     NCDModuleInst inst;
@@ -147,6 +150,7 @@ static void process_schedule_work (struct process *p);
 static void process_work_job_handler (struct process *p);
 static void process_advance_job_handler (struct process *p);
 static void process_wait_timer_handler (struct process *p);
+static struct process_statement * process_find_statement (struct process *p, size_t pos, const char *name);
 static int process_resolve_variable (struct process *p, size_t pos, const char *modname, const char *varname, NCDValue *out);
 static void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...);
 static void process_statement_set_error (struct process_statement *ps);
@@ -520,22 +524,21 @@ const struct NCDModule * find_module (const char *name)
 
 int statement_init (struct statement *s, struct NCDConfig_statements *conf)
 {
-    // find module
-    char *module_name = NCDConfig_concat_strings(conf->names);
-    if (!module_name) {
-        BLog(BLOG_ERROR, "NCDConfig_concat_strings failed");
-        goto fail0;
+    // set object name
+    if (!conf->objname) {
+        s->object_name = NULL;
+    } else {
+        if (!(s->object_name = strdup(conf->objname))) {
+            BLog(BLOG_ERROR, "strdup failed");
+            goto fail0;
+        }
     }
-    const struct NCDModule *m = find_module(module_name);
-    if (!m) {
-        BLog(BLOG_ERROR, "no module for statement %s", module_name);
-        free(module_name);
-        goto fail0;
-    }
-    free(module_name);
     
-    // set module
-    s->module = m;
+    // set method name
+    if (!(s->method_name = NCDConfig_concat_strings(conf->names))) {
+        BLog(BLOG_ERROR, "NCDConfig_concat_strings failed");
+        goto fail1;
+    }
     
     // init arguments
     s->first_arg = NULL;
@@ -587,7 +590,7 @@ int statement_init (struct statement *s, struct NCDConfig_statements *conf)
     loop_fail1:
         free(e);
     loop_fail0:
-        goto fail1;
+        goto fail2;
     }
     
     // init name
@@ -602,8 +605,11 @@ int statement_init (struct statement *s, struct NCDConfig_statements *conf)
     
     return 1;
     
-fail1:
+fail2:
     statement_free_args(s);
+    free(s->method_name);
+fail1:
+    free(s->object_name);
 fail0:
     return 0;
 }
@@ -615,6 +621,12 @@ void statement_free (struct statement *s)
     
     // free arguments
     statement_free_args(s);
+    
+    // free method name
+    free(s->method_name);
+    
+    // free object name
+    free(s->object_name);
 }
 
 void statement_free_args (struct statement *s)
@@ -923,6 +935,42 @@ void process_advance_job_handler (struct process *p)
     
     process_statement_log(ps, BLOG_INFO, "initializing");
     
+    NCDModuleInst *method_object = NULL;
+    
+    // construct type
+    if (!ps->s.object_name) {
+        // this is a function_call(); type is "function_call"
+        if (!(ps->type = strdup(ps->s.method_name))) {
+            process_statement_log(ps, BLOG_ERROR, "strdup failed");
+            goto fail0;
+        }
+    } else {
+        // this is an object->method_call(); type is "typeof(object)::method_call"
+        
+        // find referred-to statement
+        struct process_statement *obj_ps = process_find_statement(p, p->ap, ps->s.object_name);
+        if (!obj_ps) {
+            process_statement_log(ps, BLOG_ERROR, "failed to find object for method call: %s", ps->s.object_name);
+            goto fail0;
+        }
+        ASSERT(obj_ps->state == SSTATE_ADULT)
+        
+        // build type string
+        if (!(ps->type = concat_strings(3, obj_ps->type, "::", ps->s.method_name))) {
+            process_statement_log(ps, BLOG_ERROR, "concat_strings failed");
+            goto fail0;
+        }
+        
+        method_object = &obj_ps->inst;
+    }
+    
+    // find module to instantiate
+    const struct NCDModule *module = find_module(ps->type);
+    if (!module) {
+        process_statement_log(ps, BLOG_ERROR, "failed to find module: %s", ps->type);
+        goto fail1;
+    }
+    
     // init arguments list
     NCDValue_InitList(&ps->inst_args);
     
@@ -934,12 +982,12 @@ void process_advance_job_handler (struct process *p)
         if (arg->is_var) {
             if (!process_resolve_variable(p, p->ap, arg->var.modname, arg->var.varname, &v)) {
                 process_statement_log(ps, BLOG_ERROR, "failed to resolve variable");
-                goto fail1;
+                goto fail2;
             }
         } else {
             if (!NCDValue_InitCopy(&v, &arg->val)) {
                 process_statement_log(ps, BLOG_ERROR, "NCDValue_InitCopy failed");
-                goto fail1;
+                goto fail2;
             }
         }
         
@@ -947,7 +995,7 @@ void process_advance_job_handler (struct process *p)
         if (!NCDValue_ListAppend(&ps->inst_args, v)) {
             process_statement_log(ps, BLOG_ERROR, "NCDValue_ListAppend failed");
             NCDValue_Free(&v);
-            goto fail1;
+            goto fail2;
         }
         
         arg = arg->next_arg;
@@ -958,7 +1006,7 @@ void process_advance_job_handler (struct process *p)
     
     // initialize module instance
     NCDModuleInst_Init(
-        &ps->inst, ps->s.module, &ps->inst_args, ps->logprefix, &ss, &manager,
+        &ps->inst, module, method_object, &ps->inst_args, ps->logprefix, &ss, &manager,
         (NCDModule_handler_event)process_statement_instance_handler_event,
         (NCDModule_handler_getvar)process_statement_instance_handler_getvar,
         ps
@@ -976,9 +1024,11 @@ void process_advance_job_handler (struct process *p)
     process_assert_pointers(p);
     return;
     
-fail1:
+fail2:
     NCDValue_Free(&ps->inst_args);
-    
+fail1:
+    free(ps->type);
+fail0:
     // mark error
     process_statement_set_error(ps);
     
@@ -1006,6 +1056,22 @@ void process_wait_timer_handler (struct process *p)
     BPending_Set(&p->work_job);
 }
 
+struct process_statement * process_find_statement (struct process *p, size_t pos, const char *name)
+{
+    process_assert_pointers(p);
+    ASSERT(pos >= 0)
+    ASSERT(pos <= process_rap(p))
+    
+    for (size_t i = pos; i > 0; i--) {
+        struct process_statement *ps = &p->statements[i - 1];
+        if (ps->s.name && !strcmp(ps->s.name, name)) {
+            return ps;
+        }
+    }
+    
+    return NULL;
+}
+
 int process_resolve_variable (struct process *p, size_t pos, const char *modname, const char *varname, NCDValue *out)
 {
     process_assert_pointers(p);
@@ -1015,14 +1081,7 @@ int process_resolve_variable (struct process *p, size_t pos, const char *modname
     ASSERT(varname)
     
     // find referred-to statement
-    struct process_statement *rps = NULL;
-    for (size_t i = pos; i > 0; i--) {
-        struct process_statement *ps = &p->statements[i - 1];
-        if (ps->s.name && !strcmp(ps->s.name, modname)) {
-            rps = ps;
-            break;
-        }
-    }
+    struct process_statement *rps = process_find_statement(p, pos, modname);
     if (!rps) {
         process_log(p, BLOG_ERROR, "unknown statement name in variable: %s.%s", modname, varname);
         return 0;
@@ -1103,6 +1162,9 @@ void process_statement_instance_handler_event (struct process_statement *ps, int
             
             // free instance arguments
             NCDValue_Free(&ps->inst_args);
+            
+            // free type
+            free(ps->type);
             
             // set state FORGOTTEN
             ps->state = SSTATE_FORGOTTEN;

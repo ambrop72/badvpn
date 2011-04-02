@@ -5,6 +5,7 @@
 #define ROUND_OPEN                      5
 #define ROUND_CLOSE                     6
 #define SEMICOLON                       7
-#define DOT                             8
-#define STRING                          9
-#define COMMA                          10
+#define ARROW                           8
+#define DOT                             9
+#define STRING                         10
+#define COMMA                          11

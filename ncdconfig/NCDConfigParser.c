@@ -84,6 +84,10 @@ static int tokenizer_output (void *user, int token, char *value, size_t position
             Parse(state->parser, COMMA, NULL, &state->out);
         } break;
         
+        case NCD_TOKEN_ARROW: {
+            Parse(state->parser, ARROW, NULL, &state->out);
+        } break;
+        
         case NCD_TOKEN_PROCESS: {
             Parse(state->parser, PROCESS, NULL, &state->out);
         } break;

@@ -47,8 +47,9 @@ struct NCDModuleInitParams {
     BProcessManager *manager;
 };
 
-typedef struct {
+typedef struct NCDModuleInst_s {
     const struct NCDModule *m;
+    struct NCDModuleInst_s *method_object;
     NCDValue *args;
     const char *logprefix;
     BReactor *reactor;
@@ -66,7 +67,7 @@ typedef struct {
     DebugObject d_obj;
 } NCDModuleInst;
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
                          NCDModule_handler_event handler_event, NCDModule_handler_getvar handler_getvar, void *user);
 void NCDModuleInst_Free (NCDModuleInst *n);
 void NCDModuleInst_Event (NCDModuleInst *n, int event);
