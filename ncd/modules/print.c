@@ -64,6 +64,9 @@ static void func_new (NCDModuleInst *i)
         arg = NCDValue_ListNext(o->i->args, arg);
     }
     
+    // signal up
+    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    
     return;
     
 fail1:
