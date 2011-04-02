@@ -45,12 +45,16 @@ struct parser_out {
 %type interfaces {struct NCDConfig_interfaces *}
 %type statements {struct NCDConfig_statements *}
 %type statement_names {struct NCDConfig_strings *}
+%type statement_args_maybe {struct NCDConfig_arguments *}
 %type statement_args {struct NCDConfig_arguments *}
+%type name_maybe {char *}
 
 %destructor interfaces { NCDConfig_free_interfaces($$); }
 %destructor statements { NCDConfig_free_statements($$); }
 %destructor statement_names { NCDConfig_free_strings($$); }
+%destructor statement_args_maybe { NCDConfig_free_arguments($$); }
 %destructor statement_args { NCDConfig_free_arguments($$); }
+%destructor name_maybe { free($$); }
 
 %stack_size 0
 
@@ -87,56 +91,14 @@ interfaces(R) ::= PROCESS NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE interface
     }
 }
 
-statements(R) ::= statement_names(A) ROUND_OPEN ROUND_CLOSE SEMICOLON. {
-    R = NCDConfig_make_statements(A, NULL, NULL, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
-}
-
-statements(R) ::= statement_names(A) ROUND_OPEN statement_args(B) ROUND_CLOSE SEMICOLON. {
-    R = NCDConfig_make_statements(A, B, NULL, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
-}
-
-statements(R) ::= statement_names(A) ROUND_OPEN ROUND_CLOSE SEMICOLON statements(N). {
-    R = NCDConfig_make_statements(A, NULL, NULL, N);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
-}
-
-statements(R) ::= statement_names(A) ROUND_OPEN statement_args(B) ROUND_CLOSE SEMICOLON statements(N). {
-    R = NCDConfig_make_statements(A, B, NULL, N);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
-}
-
-statements(R) ::= statement_names(A) ROUND_OPEN ROUND_CLOSE NAME(C) SEMICOLON. {
-    R = NCDConfig_make_statements(A, NULL, C, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
-}
-
-statements(R) ::= statement_names(A) ROUND_OPEN statement_args(B) ROUND_CLOSE NAME(C) SEMICOLON. {
+statements(R) ::= statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
     R = NCDConfig_make_statements(A, B, C, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
-statements(R) ::= statement_names(A) ROUND_OPEN ROUND_CLOSE NAME(C) SEMICOLON statements(N). {
-    R = NCDConfig_make_statements(A, NULL, C, N);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
-}
-
-statements(R) ::= statement_names(A) ROUND_OPEN statement_args(B) ROUND_CLOSE NAME(C) SEMICOLON statements(N). {
+statements(R) ::= statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON statements(N). {
     R = NCDConfig_make_statements(A, B, C, N);
     if (!R) {
         parser_out->out_of_memory = 1;
@@ -157,30 +119,46 @@ statement_names(R) ::= NAME(A) DOT statement_names(N). {
     }
 }
 
+statement_args_maybe(R) ::= . {
+    R = NULL;
+}
+
+statement_args_maybe(R) ::= statement_args(A). {
+    R = A;
+}
+
 statement_args(R) ::= STRING(A). {
-    R = NCDConfig_make_arguments_string(A, 0, NULL);
+    R = NCDConfig_make_arguments_string(A, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
 statement_args(R) ::= statement_names(A). {
-    R = NCDConfig_make_arguments_var(A, 0, NULL);
+    R = NCDConfig_make_arguments_var(A, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
 statement_args(R) ::= STRING(A) COMMA statement_args(N). {
-    R = NCDConfig_make_arguments_string(A, 1, N);
+    R = NCDConfig_make_arguments_string(A, N);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
 statement_args(R) ::= statement_names(A) COMMA statement_args(N). {
-    R = NCDConfig_make_arguments_var(A, 1, N);
+    R = NCDConfig_make_arguments_var(A, N);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
+}
+
+name_maybe(R) ::= . {
+    R = NULL;
+}
+
+name_maybe(R) ::= NAME(A). {
+    R = A;
 }

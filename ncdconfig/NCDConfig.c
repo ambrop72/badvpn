@@ -135,12 +135,8 @@ fail:
     return NULL;
 }
 
-struct NCDConfig_arguments * NCDConfig_make_arguments_string (char *str, int need_next, struct NCDConfig_arguments *next)
+struct NCDConfig_arguments * NCDConfig_make_arguments_string (char *str, struct NCDConfig_arguments *next)
 {
-    if (!str || (need_next && !next)) {
-        goto fail;
-    }
-    
     struct NCDConfig_arguments *v = malloc(sizeof(*v));
     if (!v) {
         goto fail;
@@ -158,12 +154,8 @@ fail:
     return NULL;
 }
 
-struct NCDConfig_arguments * NCDConfig_make_arguments_var (struct NCDConfig_strings *var, int need_next, struct NCDConfig_arguments *next)
+struct NCDConfig_arguments * NCDConfig_make_arguments_var (struct NCDConfig_strings *var, struct NCDConfig_arguments *next)
 {
-    if (!var || (need_next && !next)) {
-        goto fail;
-    }
-    
     struct NCDConfig_arguments *v = malloc(sizeof(*v));
     if (!v) {
         goto fail;

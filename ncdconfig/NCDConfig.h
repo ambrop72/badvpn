@@ -64,8 +64,8 @@ void NCDConfig_free_arguments (struct NCDConfig_arguments *v);
 void NCDConfig_free_strings (struct NCDConfig_strings *v);
 struct NCDConfig_interfaces * NCDConfig_make_interfaces (char *name, struct NCDConfig_statements *statements, int have_next, struct NCDConfig_interfaces *next);
 struct NCDConfig_statements * NCDConfig_make_statements (struct NCDConfig_strings *names, struct NCDConfig_arguments *args, char *name, struct NCDConfig_statements *next);
-struct NCDConfig_arguments * NCDConfig_make_arguments_string (char *str, int have_next, struct NCDConfig_arguments *next);
-struct NCDConfig_arguments * NCDConfig_make_arguments_var (struct NCDConfig_strings *var, int have_next, struct NCDConfig_arguments *next);
+struct NCDConfig_arguments * NCDConfig_make_arguments_string (char *str, struct NCDConfig_arguments *next);
+struct NCDConfig_arguments * NCDConfig_make_arguments_var (struct NCDConfig_strings *var, struct NCDConfig_arguments *next);
 struct NCDConfig_strings * NCDConfig_make_strings (char *value, int have_next, struct NCDConfig_strings *next);
 
 int NCDConfig_statement_name_is (struct NCDConfig_statements *st, const char *needle);
