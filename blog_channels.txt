@@ -14,6 +14,7 @@ ncd_if 4
 ncd_strcmp 4
 ncd_logical 4
 ncd_sleep 4
+ncd_print 4
 ncd_ip_in_network 4
 ncd_run 4
 ncd_net_backend_waitdevice 4

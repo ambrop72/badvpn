@@ -14,6 +14,7 @@
 {.name = "ncd_strcmp", .loglevel = 4},
 {.name = "ncd_logical", .loglevel = 4},
 {.name = "ncd_sleep", .loglevel = 4},
+{.name = "ncd_print", .loglevel = 4},
 {.name = "ncd_ip_in_network", .loglevel = 4},
 {.name = "ncd_run", .loglevel = 4},
 {.name = "ncd_net_backend_waitdevice", .loglevel = 4},

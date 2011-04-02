@@ -38,6 +38,7 @@ extern const struct NCDModuleGroup ncdmodule_if;
 extern const struct NCDModuleGroup ncdmodule_strcmp;
 extern const struct NCDModuleGroup ncdmodule_logical;
 extern const struct NCDModuleGroup ncdmodule_sleep;
+extern const struct NCDModuleGroup ncdmodule_print;
 extern const struct NCDModuleGroup ncdmodule_ip_in_network;
 extern const struct NCDModuleGroup ncdmodule_run;
 extern const struct NCDModuleGroup ncdmodule_net_backend_waitdevice;
@@ -66,6 +67,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_strcmp,
     &ncdmodule_logical,
     &ncdmodule_sleep,
+    &ncdmodule_print,
     &ncdmodule_ip_in_network,
     &ncdmodule_run,
     &ncdmodule_net_backend_waitdevice,
