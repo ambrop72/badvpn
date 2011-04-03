@@ -66,8 +66,8 @@ struct depend {
     int provide_collapsing;
 };
 
-LinkedList2 provides;
-LinkedList2 depends;
+static LinkedList2 provides;
+static LinkedList2 depends;
 
 static struct provide * find_provide (const char *name)
 {

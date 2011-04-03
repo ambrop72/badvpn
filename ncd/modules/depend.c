@@ -57,8 +57,8 @@ struct depend {
     LinkedList2Node node;
 };
 
-LinkedList2 provides;
-LinkedList2 free_depends;
+static LinkedList2 provides;
+static LinkedList2 free_depends;
 
 static struct provide * find_provide (const char *name)
 {
