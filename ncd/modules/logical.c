@@ -27,13 +27,13 @@
  * Variables:
  *   string (empty) - "true" if val does not equal "true", "false" otherwise
  * 
- * Synopsis: or(string val1, string val2)
+ * Synopsis: or([string val1, ...])
  * Variables:
- *   string (empty) - "true" if val1 or val2 equal "true", "false" otherwise
+ *   string (empty) - "true" if at least one of the values equals "true", "false" otherwise
  * 
- * Synopsis: and(string val1, string val2)
+ * Synopsis: and([string val1, ...])
  * Variables:
- *   string (empty) - "true" if val1 and val2 equal "true", "false" otherwise
+ *   string (empty) - "true" if all of the values equal "true", "false" otherwise
  */
 
 #include <stdlib.h>
@@ -77,21 +77,23 @@ static void func_new (NCDModuleInst *i, int not, int or)
         
         o->value = !!strcmp(NCDValue_StringValue(arg), "true");
     } else {
-        NCDValue *arg1;
-        NCDValue *arg2;
-        if (!NCDValue_ListRead(o->i->args, 2, &arg1, &arg2)) {
-            ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-            goto fail1;
-        }
-        if (NCDValue_Type(arg1) != NCDVALUE_STRING || NCDValue_Type(arg2) != NCDVALUE_STRING) {
-            ModuleLog(o->i, BLOG_ERROR, "wrong type");
-            goto fail1;
-        }
+        o->value = (or ? 0 : 1);
         
-        if (or) {
-            o->value = (!strcmp(NCDValue_StringValue(arg1), "true") || !strcmp(NCDValue_StringValue(arg2), "true"));
-        } else {
-            o->value = (!strcmp(NCDValue_StringValue(arg1), "true") && !strcmp(NCDValue_StringValue(arg2), "true"));
+        NCDValue *arg = NCDValue_ListFirst(o->i->args);
+        while (arg) {
+            if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+                ModuleLog(o->i, BLOG_ERROR, "wrong type");
+                goto fail1;
+            }
+            
+            int this_value = !strcmp(NCDValue_StringValue(arg), "true");
+            if (or) {
+                o->value = o->value || this_value;
+            } else {
+                o->value = o->value && this_value;
+            }
+            
+            arg = NCDValue_ListNext(o->i->args, arg);
         }
     }
     
