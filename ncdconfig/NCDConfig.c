@@ -47,7 +47,7 @@ void NCDConfig_free_statements (struct NCDConfig_statements *v)
         return;
     }
     
-    free(v->objname);
+    NCDConfig_free_strings(v->objname);
     NCDConfig_free_strings(v->names);
     NCDConfig_free_arguments(v->args);
     free(v->name);
@@ -114,7 +114,7 @@ fail:
     return NULL;
 }
 
-struct NCDConfig_statements * NCDConfig_make_statements (char *objname, struct NCDConfig_strings *names, struct NCDConfig_arguments *args, char *name, struct NCDConfig_statements *next)
+struct NCDConfig_statements * NCDConfig_make_statements (struct NCDConfig_strings *objname, struct NCDConfig_strings *names, struct NCDConfig_arguments *args, char *name, struct NCDConfig_statements *next)
 {
     struct NCDConfig_statements *v = malloc(sizeof(*v));
     if (!v) {

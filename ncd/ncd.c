@@ -152,11 +152,12 @@ static void process_advance_job_handler (struct process *p);
 static void process_wait_timer_handler (struct process *p);
 static struct process_statement * process_find_statement (struct process *p, size_t pos, const char *name);
 static int process_resolve_variable (struct process *p, size_t pos, const char *modname, const char *varname, NCDValue *out);
+static struct process_statement * process_resolve_object (struct process *p, size_t pos, const char *objname);
 static void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...);
 static void process_statement_set_error (struct process_statement *ps);
 static void process_statement_instance_handler_event (struct process_statement *ps, int event);
 static int process_statement_instance_handler_getvar (struct process_statement *ps, const char *modname, const char *varname, NCDValue *out);
-static void free_job_handler (void *unused);
+static NCDModuleInst * process_statement_instance_handler_getobj (struct process_statement *ps, const char *objname);
 
 int main (int argc, char **argv)
 {
@@ -524,24 +525,34 @@ const struct NCDModule * find_module (const char *name)
 
 int statement_init (struct statement *s, struct NCDConfig_statements *conf)
 {
+    s->object_name = NULL;
+    s->method_name = NULL;
+    s->name = NULL;
+    s->first_arg = NULL;
+    
     // set object name
-    if (!conf->objname) {
-        s->object_name = NULL;
-    } else {
-        if (!(s->object_name = strdup(conf->objname))) {
-            BLog(BLOG_ERROR, "strdup failed");
-            goto fail0;
+    if (conf->objname) {
+        if (!(s->object_name = NCDConfig_concat_strings(conf->objname))) {
+            BLog(BLOG_ERROR, "NCDConfig_concat_strings failed");
+            goto fail;
         }
     }
     
     // set method name
     if (!(s->method_name = NCDConfig_concat_strings(conf->names))) {
         BLog(BLOG_ERROR, "NCDConfig_concat_strings failed");
-        goto fail1;
+        goto fail;
+    }
+    
+    // init name
+    if (conf->name) {
+        if (!(s->name = strdup(conf->name))) {
+            BLog(BLOG_ERROR, "strdup failed");
+            goto fail;
+        }
     }
     
     // init arguments
-    s->first_arg = NULL;
     struct argument_elem **prevptr = &s->first_arg;
     struct NCDConfig_arguments *arg = conf->args;
     while (arg) {
@@ -590,42 +601,27 @@ int statement_init (struct statement *s, struct NCDConfig_statements *conf)
     loop_fail1:
         free(e);
     loop_fail0:
-        goto fail2;
-    }
-    
-    // init name
-    if (!conf->name) {
-        s->name = NULL;
-    } else {
-        if (!(s->name = strdup(conf->name))) {
-            BLog(BLOG_ERROR, "strdup failed");
-            goto fail1;
-        }
+        goto fail;
     }
     
     return 1;
     
-fail2:
+fail:
     statement_free_args(s);
+    free(s->name);
     free(s->method_name);
-fail1:
     free(s->object_name);
-fail0:
     return 0;
 }
 
 void statement_free (struct statement *s)
 {
-    // free name
-    free(s->name);
-    
     // free arguments
     statement_free_args(s);
     
-    // free method name
+    // free names
+    free(s->name);
     free(s->method_name);
-    
-    // free object name
     free(s->object_name);
 }
 
@@ -945,12 +941,12 @@ void process_advance_job_handler (struct process *p)
             goto fail0;
         }
     } else {
-        // this is an object->method_call(); type is "typeof(object)::method_call"
+        // this is a some.object.somewhere->method_call(); type is "typeof(some.object.somewhere)::method_call"
         
-        // find referred-to statement
-        struct process_statement *obj_ps = process_find_statement(p, p->ap, ps->s.object_name);
+        // resolve object
+        struct process_statement *obj_ps = process_resolve_object(p, p->ap, ps->s.object_name);
         if (!obj_ps) {
-            process_statement_log(ps, BLOG_ERROR, "failed to find object for method call: %s", ps->s.object_name);
+            process_statement_log(ps, BLOG_ERROR, "failed to resolve object %s for method call", ps->s.object_name);
             goto fail0;
         }
         ASSERT(obj_ps->state == SSTATE_ADULT)
@@ -1009,6 +1005,7 @@ void process_advance_job_handler (struct process *p)
         &ps->inst, module, method_object, &ps->inst_args, ps->logprefix, &ss, &manager,
         (NCDModule_handler_event)process_statement_instance_handler_event,
         (NCDModule_handler_getvar)process_statement_instance_handler_getvar,
+        (NCDModule_handler_getobj)process_statement_instance_handler_getobj,
         ps
     );
     
@@ -1095,6 +1092,59 @@ int process_resolve_variable (struct process *p, size_t pos, const char *modname
     }
     
     return 1;
+}
+
+struct process_statement * process_resolve_object (struct process *p, size_t pos, const char *objname)
+{
+    process_assert_pointers(p);
+    ASSERT(pos >= 0)
+    ASSERT(pos <= process_rap(p))
+    ASSERT(objname)
+    
+    struct process_statement *res_ps = NULL;
+    
+    // copy name
+    char *name = strdup(objname);
+    if (!name) {
+        process_log(p, BLOG_ERROR, "strdup failed");
+        goto fail0;
+    }
+    
+    // split name into first name and the rest
+    const char *objname_first = name;
+    const char *objname_rest = NULL;
+    char *dot = strstr(name, ".");
+    if (dot) {
+        *dot = '\0';
+        objname_rest = dot + 1;
+    }
+    
+    // find referred-to statement of the first name
+    struct process_statement *first_ps = process_find_statement(p, pos, objname_first);
+    if (!first_ps) {
+        process_log(p, BLOG_ERROR, "failed to find first object for %s", objname);
+        goto fail1;
+    }
+    ASSERT(first_ps->state == SSTATE_ADULT)
+    
+    if (!objname_rest) {
+        // this is the target
+        res_ps = first_ps;
+    } else {
+        // query this statement
+        NCDModuleInst *inst = NCDModuleInst_GetObj(&first_ps->inst, objname_rest);
+        if (!inst) {
+            process_log(p, BLOG_ERROR, "object failed to provide contained object for %s", objname);
+            goto fail1;
+        }
+        res_ps = UPPER_OBJECT(inst, struct process_statement, inst);
+        ASSERT(res_ps->state == SSTATE_ADULT)
+    }
+    
+fail1:
+    free(name);
+fail0:
+    return res_ps;
 }
 
 void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...)
@@ -1197,4 +1247,21 @@ int process_statement_instance_handler_getvar (struct process_statement *ps, con
     }
     
     return process_resolve_variable(ps->p, ps->i, modname, varname, out);
+}
+
+NCDModuleInst * process_statement_instance_handler_getobj (struct process_statement *ps, const char *objname)
+{
+    ASSERT(ps->state != SSTATE_FORGOTTEN)
+    
+    if (ps->i > process_rap(ps->p)) {
+        process_statement_log(ps, BLOG_ERROR, "tried to resolve object %s but it's dirty", objname);
+        return 0;
+    }
+    
+    struct process_statement *rps = process_resolve_object(ps->p, ps->i, objname);
+    if (!rps) {
+        return NULL;
+    }
+    
+    return &rps->inst;
 }

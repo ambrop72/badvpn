@@ -350,6 +350,15 @@ fail0:
     return ret;
 }
 
+static NCDModuleInst * depend_func_getobj (void *vo, const char *objname)
+{
+    struct depend *o = vo;
+    ASSERT(o->p)
+    ASSERT(!o->p->dying)
+    
+    return NCDModuleInst_Backend_GetObj(o->p->i, objname);
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "provide",
@@ -360,7 +369,8 @@ static const struct NCDModule modules[] = {
         .func_new = depend_func_new,
         .func_die = depend_func_die,
         .func_clean = depend_func_clean,
-        .func_getvar = depend_func_getvar
+        .func_getvar = depend_func_getvar,
+        .func_getobj = depend_func_getobj
     }, {
         .type = NULL
     }

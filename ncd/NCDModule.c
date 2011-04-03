@@ -89,7 +89,7 @@ static void clean_job_handler (NCDModuleInst *n)
 }
 
 void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
-                         NCDModule_handler_event handler_event, NCDModule_handler_getvar handler_getvar, void *user)
+                         NCDModule_handler_event handler_event, NCDModule_handler_getvar handler_getvar, NCDModule_handler_getobj handler_getobj, void *user)
 {
     // init arguments
     n->m = m;
@@ -100,6 +100,7 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleI
     n->manager = manager;
     n->handler_event = handler_event;
     n->handler_getvar = handler_getvar;
+    n->handler_getobj = handler_getobj;
     n->user = user;
     
     // init jobs
@@ -187,12 +188,26 @@ int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out)
 {
     DebugObject_Access(&n->d_obj);
     ASSERT(n->state == STATE_UP)
+    ASSERT(name)
     
     if (!n->m->func_getvar) {
         return 0;
     }
     
     return n->m->func_getvar(n->inst_user, name, out);
+}
+
+NCDModuleInst * NCDModuleInst_GetObj (NCDModuleInst *n, const char *objname)
+{
+    DebugObject_Access(&n->d_obj);
+    ASSERT(n->state == STATE_UP)
+    ASSERT(objname)
+    
+    if (!n->m->func_getobj) {
+        return NULL;
+    }
+    
+    return n->m->func_getobj(n->inst_user, objname);
 }
 
 int NCDModuleInst_HaveError (NCDModuleInst *n)
@@ -294,6 +309,17 @@ int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *modname, const c
     ASSERT(res == 0 || res == 1)
     
     return res;
+}
+
+NCDModuleInst * NCDModuleInst_Backend_GetObj (NCDModuleInst *n, const char *objname)
+{
+    DebugObject_Access(&n->d_obj);
+    ASSERT(n->state == STATE_DOWN_PCLEAN || n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
+           n->state == STATE_UP || n->state == STATE_DOWN_DIE || n->state == STATE_UP_DIE ||
+           n->state == STATE_DYING)
+    ASSERT(objname)
+    
+    return n->handler_getobj(n->user, objname);
 }
 
 void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const char *fmt, ...)

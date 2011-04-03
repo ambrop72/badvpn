@@ -37,8 +37,11 @@
 #define NCDMODULE_TOEVENT_DIE 101
 #define NCDMODULE_TOEVENT_CLEAN 102
 
+struct NCDModuleInst_s;
+
 typedef void (*NCDModule_handler_event) (void *user, int event);
 typedef int (*NCDModule_handler_getvar) (void *user, const char *modname, const char *varname, NCDValue *out);
+typedef struct NCDModuleInst_s * (*NCDModule_handler_getobj) (void *user, const char *objname);
 
 struct NCDModule;
 
@@ -56,6 +59,7 @@ typedef struct NCDModuleInst_s {
     BProcessManager *manager;
     NCDModule_handler_event handler_event;
     NCDModule_handler_getvar handler_getvar;
+    NCDModule_handler_getobj handler_getobj;
     void *user;
     BPending init_job;
     BPending uninit_job;
@@ -68,14 +72,16 @@ typedef struct NCDModuleInst_s {
 } NCDModuleInst;
 
 void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
-                         NCDModule_handler_event handler_event, NCDModule_handler_getvar handler_getvar, void *user);
+                         NCDModule_handler_event handler_event, NCDModule_handler_getvar handler_getvar, NCDModule_handler_getobj handler_getobj, void *user);
 void NCDModuleInst_Free (NCDModuleInst *n);
 void NCDModuleInst_Event (NCDModuleInst *n, int event);
 int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out) WARN_UNUSED;
+NCDModuleInst * NCDModuleInst_GetObj (NCDModuleInst *n, const char *objname) WARN_UNUSED;
 int NCDModuleInst_HaveError (NCDModuleInst *n);
 void NCDModuleInst_Backend_SetUser (NCDModuleInst *n, void *user);
 void NCDModuleInst_Backend_Event (NCDModuleInst *n, int event);
 int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *modname, const char *varname, NCDValue *out) WARN_UNUSED;
+NCDModuleInst * NCDModuleInst_Backend_GetObj (NCDModuleInst *n, const char *objname) WARN_UNUSED;
 void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const char *fmt, ...);
 void NCDModuleInst_Backend_SetError (NCDModuleInst *n);
 
@@ -84,6 +90,7 @@ typedef void (*NCDModule_func_globalfree) (void);
 typedef void (*NCDModule_func_new) (NCDModuleInst *params);
 typedef void (*NCDModule_func_die) (void *o);
 typedef int (*NCDModule_func_getvar) (void *o, const char *name, NCDValue *out);
+typedef NCDModuleInst * (*NCDModule_func_getobj) (void *o, const char *objname);
 typedef void (*NCDModule_func_clean) (void *o);
 
 struct NCDModule {
@@ -91,6 +98,7 @@ struct NCDModule {
     NCDModule_func_new func_new;
     NCDModule_func_die func_die;
     NCDModule_func_getvar func_getvar;
+    NCDModule_func_getobj func_getobj;
     NCDModule_func_clean func_clean;
 };
 

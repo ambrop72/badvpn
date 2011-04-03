@@ -105,14 +105,14 @@ statements(R) ::= statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CL
     }
 }
 
-statements(R) ::= NAME(M) ARROW statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
+statements(R) ::= statement_names(M) ARROW statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
     R = NCDConfig_make_statements(M, A, B, C, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
-statements(R) ::= NAME(M) ARROW statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON statements(N). {
+statements(R) ::= statement_names(M) ARROW statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON statements(N). {
     R = NCDConfig_make_statements(M, A, B, C, N);
     if (!R) {
         parser_out->out_of_memory = 1;

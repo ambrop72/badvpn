@@ -89,7 +89,7 @@ typedef union {
 #define ParseARG_PDECL ,struct parser_out *parser_out
 #define ParseARG_FETCH struct parser_out *parser_out = yypParser->parser_out
 #define ParseARG_STORE yypParser->parser_out = parser_out
-#define YYNSTATE 35
+#define YYNSTATE 34
 #define YYNRULE 17
 #define YY_NO_ACTION      (YYNSTATE+YYNRULE+2)
 #define YY_ACCEPT_ACTION  (YYNSTATE+YYNRULE+1)
@@ -160,37 +160,37 @@ static const YYMINORTYPE yyzerominor = { 0 };
 **  yy_default[]       Default action for each state.
 */
 static const YYACTIONTYPE yy_action[] = {
- /*     0 */    26,   19,   32,   26,   22,   32,   14,   24,   15,   26,
- /*    10 */    27,   34,   53,   30,   26,   25,   33,   17,   18,   13,
- /*    20 */    28,   18,   29,   18,   10,   12,   24,   20,   21,   31,
- /*    30 */    23,   35,   16,    8,    9,    5,   12,    3,    1,   54,
- /*    40 */     2,    6,   11,   54,   54,   54,    7,   54,    4,
+ /*     0 */    22,   18,   30,   22,   24,   30,   14,   20,   15,   22,
+ /*    10 */    26,   32,   52,   29,   22,   21,   31,   17,   13,   20,
+ /*    20 */    27,   13,   33,   13,    1,   34,   16,   11,   19,   28,
+ /*    30 */    23,   25,    5,    9,    8,    6,   53,    3,    2,   53,
+ /*    40 */    10,   12,   53,    4,   53,    7,
 };
 static const YYCODETYPE yy_lookahead[] = {
  /*     0 */    15,   16,   17,   15,   16,   17,   13,    2,    1,   15,
  /*    10 */    13,   17,   19,    2,   15,   10,   17,   14,   15,    2,
- /*    20 */    14,   15,   14,   15,    8,    9,    2,   18,   15,   15,
- /*    30 */    18,    0,    2,    4,    6,    3,    9,   11,    5,   20,
- /*    40 */     5,    7,    6,   20,   20,   20,    7,   20,   11,
+ /*    20 */    14,   15,   14,   15,    5,    0,    2,    8,   18,   15,
+ /*    30 */    15,   18,    3,    6,    4,    7,   20,   11,    5,   20,
+ /*    40 */     9,    6,   20,   11,   20,    7,
 };
 #define YY_SHIFT_USE_DFLT (-1)
-#define YY_SHIFT_MAX 26
+#define YY_SHIFT_MAX 25
 static const signed char yy_shift_ofst[] = {
  /*     0 */     7,    5,    5,    5,    5,   17,   17,   17,    7,   11,
- /*    10 */    24,   11,   24,   16,   31,   30,   32,   29,   33,   28,
- /*    20 */    34,   35,   36,   39,   27,   26,   37,
+ /*    10 */    17,   17,   11,   19,   25,   24,   29,   30,   27,   28,
+ /*    20 */    31,   26,   32,   33,   35,   38,
 };
 #define YY_REDUCE_USE_DFLT (-16)
 #define YY_REDUCE_MAX 12
 static const signed char yy_reduce_ofst[] = {
- /*     0 */    -7,  -15,  -12,   -6,   -1,    3,    6,    8,   -3,    9,
- /*    10 */    13,   12,   14,
+ /*     0 */    -7,  -15,  -12,   -6,   -1,    3,    6,    8,   -3,   10,
+ /*    10 */    14,   15,   13,
 };
 static const YYACTIONTYPE yy_default[] = {
- /*     0 */    52,   44,   44,   52,   52,   52,   38,   40,   36,   50,
- /*    10 */    52,   50,   52,   42,   52,   52,   52,   52,   52,   52,
- /*    20 */    52,   52,   52,   52,   42,   46,   47,   37,   39,   41,
- /*    30 */    51,   43,   45,   49,   48,
+ /*     0 */    51,   43,   43,   51,   51,   51,   37,   39,   35,   49,
+ /*    10 */    51,   51,   49,   51,   51,   51,   51,   51,   51,   51,
+ /*    20 */    41,   45,   46,   51,   51,   51,   36,   38,   42,   50,
+ /*    30 */    44,   48,   47,   40,
 };
 #define YY_SZ_ACTTAB (int)(sizeof(yy_action)/sizeof(yy_action[0]))
 
@@ -301,8 +301,8 @@ static const char *const yyRuleName[] = {
  /*   2 */ "interfaces ::= PROCESS NAME CURLY_OPEN statements CURLY_CLOSE interfaces",
  /*   3 */ "statements ::= statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON",
  /*   4 */ "statements ::= statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON statements",
- /*   5 */ "statements ::= NAME ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON",
- /*   6 */ "statements ::= NAME ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON statements",
+ /*   5 */ "statements ::= statement_names ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON",
+ /*   6 */ "statements ::= statement_names ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON statements",
  /*   7 */ "statement_names ::= NAME",
  /*   8 */ "statement_names ::= NAME DOT statement_names",
  /*   9 */ "statement_args_maybe ::=",
@@ -811,10 +811,10 @@ static void yy_reduce(
 }
 #line 813 "NCDConfigParser_parse.c"
         break;
-      case 5: /* statements ::= NAME ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON */
+      case 5: /* statements ::= statement_names ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON */
 #line 108 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy30 = NCDConfig_make_statements(yymsp[-7].minor.yy0, yymsp[-5].minor.yy4, yymsp[-3].minor.yy24, yymsp[-1].minor.yy33, NULL);
+    yygotominor.yy30 = NCDConfig_make_statements(yymsp[-7].minor.yy4, yymsp[-5].minor.yy4, yymsp[-3].minor.yy24, yymsp[-1].minor.yy33, NULL);
     if (!yygotominor.yy30) {
         parser_out->out_of_memory = 1;
     }
@@ -825,10 +825,10 @@ static void yy_reduce(
 }
 #line 827 "NCDConfigParser_parse.c"
         break;
-      case 6: /* statements ::= NAME ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON statements */
+      case 6: /* statements ::= statement_names ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON statements */
 #line 115 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy30 = NCDConfig_make_statements(yymsp[-8].minor.yy0, yymsp[-6].minor.yy4, yymsp[-4].minor.yy24, yymsp[-2].minor.yy33, yymsp[0].minor.yy30);
+    yygotominor.yy30 = NCDConfig_make_statements(yymsp[-8].minor.yy4, yymsp[-6].minor.yy4, yymsp[-4].minor.yy24, yymsp[-2].minor.yy33, yymsp[0].minor.yy30);
     if (!yygotominor.yy30) {
         parser_out->out_of_memory = 1;
     }

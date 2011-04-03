@@ -392,6 +392,16 @@ fail0:
     return ret;
 }
 
+static NCDModuleInst * depend_func_getobj (void *vo, const char *objname)
+{
+    struct depend *o = vo;
+    ASSERT(o->provide)
+    ASSERT(!o->provide_collapsing)
+    ASSERT(!o->provide->dying)
+    
+    return NCDModuleInst_Backend_GetObj(o->provide->i, objname);
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "multiprovide",
@@ -402,7 +412,8 @@ static const struct NCDModule modules[] = {
         .func_new = depend_func_new,
         .func_die = depend_func_die,
         .func_clean = depend_func_clean,
-        .func_getvar = depend_func_getvar
+        .func_getvar = depend_func_getvar,
+        .func_getobj = depend_func_getobj
     }, {
         .type = NULL
     }
