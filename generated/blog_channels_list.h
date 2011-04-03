@@ -28,6 +28,7 @@
 {.name = "ncd_net_ipv4_addr", .loglevel = 4},
 {.name = "ncd_net_ipv4_dhcp", .loglevel = 4},
 {.name = "ncd_net_ipv4_route", .loglevel = 4},
+{.name = "ncd_sys_evdev", .loglevel = 4},
 {.name = "StreamPeerIO", .loglevel = 4},
 {.name = "DatagramPeerIO", .loglevel = 4},
 {.name = "BReactor", .loglevel = 3},

@@ -28,6 +28,7 @@ ncd_net_iptables 4
 ncd_net_ipv4_addr 4
 ncd_net_ipv4_dhcp 4
 ncd_net_ipv4_route 4
+ncd_sys_evdev 4
 StreamPeerIO 4
 DatagramPeerIO 4
 BReactor 3

@@ -78,6 +78,12 @@ else ()
             add_definitions(-DBADVPN_USE_LINUX_RFKILL)
             set(BADVPN_USE_LINUX_RFKILL 1)
         endif ()
+
+        check_include_files(linux/input.h HAVE_LINUX_INPUT_H)
+        if (HAVE_LINUX_INPUT_H)
+            add_definitions(-DBADVPN_USE_LINUX_INPUT)
+            set(BADVPN_USE_LINUX_INPUT 1)
+        endif ()
     elseif (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
         add_definitions(-DBADVPN_FREEBSD)
 

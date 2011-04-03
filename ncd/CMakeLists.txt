@@ -1,8 +1,17 @@
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
 set(NCD_ADDITIONAL_SOURCES)
+
 if (BADVPN_USE_LINUX_RFKILL)
     list(APPEND NCD_ADDITIONAL_SOURCES
         NCDRfkillMonitor.c
         modules/net_backend_rfkill.c
+    )
+endif ()
+
+if (BADVPN_USE_LINUX_INPUT)
+    list(APPEND NCD_ADDITIONAL_SOURCES
+        modules/sys_evdev.c
     )
 endif ()
 
@@ -40,6 +49,31 @@ add_executable(badvpn-ncd
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(badvpn-ncd system dhcpclient ncdconfig process)
+
+if (BADVPN_USE_LINUX_INPUT)
+    execute_process(COMMAND ${CMAKE_C_COMPILER} ${CMAKE_C_FLAGS} -E ${CMAKE_CURRENT_SOURCE_DIR}/include_linux_input.h
+                    RESULT_VARIABLE LINUX_INPUT_PREPROCESS_RESULT
+                    OUTPUT_VARIABLE LINUX_INPUT_PREPROCESS_OUTPUT)
+    if (NOT LINUX_INPUT_PREPROCESS_RESULT EQUAL 0)
+        message(FATAL_ERROR "failed to preprocess linux/input.h include")
+    endif ()
+
+    string(REGEX MATCH "\"(/[^\"]+/linux/input.h)\"" LINUX_INPUT_MATCH ${LINUX_INPUT_PREPROCESS_OUTPUT})
+    if (NOT LINUX_INPUT_MATCH)
+        message(FATAL_ERROR "failed to match preprocessor output for path of linux/input.h")
+    endif ()
+    set(LINUX_INPUT_H_PATH ${CMAKE_MATCH_1})
+
+    message(STATUS "Generating linux_input_names.h from ${LINUX_INPUT_H_PATH}")
+
+    execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/parse_linux_input.sh 
+                            ${LINUX_INPUT_H_PATH}
+                            ${CMAKE_CURRENT_BINARY_DIR}/linux_input_names.h
+                    RESULT_VARIABLE LINUX_INPUT_PARSE_RESULT)
+    if (NOT LINUX_INPUT_PARSE_RESULT EQUAL 0)
+        message(FATAL_ERROR "failed to generate linux_input_names.h")
+    endif ()
+endif ()
 
 install(
     TARGETS badvpn-ncd
