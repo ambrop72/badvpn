@@ -1,10 +1,14 @@
 State 0:
           input ::= * interfaces
-          interfaces ::= * PROCESS NAME CURLY_OPEN statements CURLY_CLOSE
-          interfaces ::= * PROCESS NAME CURLY_OPEN statements CURLY_CLOSE interfaces
+          interfaces ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE
+          interfaces ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE interfaces
+          process_or_template ::= * PROCESS
+          process_or_template ::= * TEMPLATE
 
-                       PROCESS shift  15
+                       PROCESS shift  27
+                      TEMPLATE shift  28
                     interfaces shift  14
+           process_or_template shift  15
                          input accept
 
 State 1:
@@ -23,7 +27,7 @@ State 1:
                         STRING shift  21
                statement_names shift  22
           statement_args_maybe shift  18
-                statement_args shift  30
+                statement_args shift  32
                      {default} reduce 9
 
 State 2:
@@ -42,10 +46,24 @@ State 2:
                         STRING shift  21
                statement_names shift  22
           statement_args_maybe shift  24
-                statement_args shift  30
+                statement_args shift  32
                      {default} reduce 9
 
 State 3:
+          interfaces ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE
+      (1) interfaces ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE *
+          interfaces ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE interfaces
+          interfaces ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE * interfaces
+          process_or_template ::= * PROCESS
+          process_or_template ::= * TEMPLATE
+
+                       PROCESS shift  27
+                      TEMPLATE shift  28
+                    interfaces shift  26
+           process_or_template shift  15
+                     {default} reduce 1
+
+State 4:
           statement_names ::= * NAME
           statement_names ::= * NAME DOT statement_names
           statement_args ::= * STRING
@@ -57,9 +75,9 @@ State 3:
                           NAME shift  20
                         STRING shift  21
                statement_names shift  22
-                statement_args shift  32
+                statement_args shift  34
 
-State 4:
+State 5:
           statement_names ::= * NAME
           statement_names ::= * NAME DOT statement_names
           statement_args ::= * STRING
@@ -71,11 +89,11 @@ State 4:
                           NAME shift  20
                         STRING shift  21
                statement_names shift  22
-                statement_args shift  31
+                statement_args shift  33
 
-State 5:
-          interfaces ::= PROCESS NAME CURLY_OPEN * statements CURLY_CLOSE
-          interfaces ::= PROCESS NAME CURLY_OPEN * statements CURLY_CLOSE interfaces
+State 6:
+          interfaces ::= process_or_template NAME CURLY_OPEN * statements CURLY_CLOSE
+          interfaces ::= process_or_template NAME CURLY_OPEN * statements CURLY_CLOSE interfaces
           statements ::= * statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
           statements ::= * statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON statements
           statements ::= * statement_names ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
@@ -87,7 +105,7 @@ State 5:
                     statements shift  17
                statement_names shift  13
 
-State 6:
+State 7:
           statements ::= * statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
       (3) statements ::= statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON *
           statements ::= * statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON statements
@@ -98,11 +116,11 @@ State 6:
           statement_names ::= * NAME DOT statement_names
 
                           NAME shift  20
-                    statements shift  27
+                    statements shift  29
                statement_names shift  13
                      {default} reduce 3
 
-State 7:
+State 8:
           statements ::= * statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
           statements ::= * statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON statements
           statements ::= * statement_names ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
@@ -113,19 +131,9 @@ State 7:
           statement_names ::= * NAME DOT statement_names
 
                           NAME shift  20
-                    statements shift  33
+                    statements shift  35
                statement_names shift  13
                      {default} reduce 5
-
-State 8:
-          interfaces ::= * PROCESS NAME CURLY_OPEN statements CURLY_CLOSE
-      (1) interfaces ::= PROCESS NAME CURLY_OPEN statements CURLY_CLOSE *
-          interfaces ::= * PROCESS NAME CURLY_OPEN statements CURLY_CLOSE interfaces
-          interfaces ::= PROCESS NAME CURLY_OPEN statements CURLY_CLOSE * interfaces
-
-                       PROCESS shift  15
-                    interfaces shift  26
-                     {default} reduce 1
 
 State 9:
           statements ::= statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE * name_maybe SEMICOLON
@@ -133,7 +141,7 @@ State 9:
      (15) name_maybe ::= *
           name_maybe ::= * NAME
 
-                          NAME shift  29
+                          NAME shift  31
                     name_maybe shift  19
                      {default} reduce 15
 
@@ -143,7 +151,7 @@ State 10:
           statement_names ::= NAME DOT * statement_names
 
                           NAME shift  20
-               statement_names shift  28
+               statement_names shift  30
 
 State 11:
           statements ::= statement_names ARROW * statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
@@ -160,7 +168,7 @@ State 12:
      (15) name_maybe ::= *
           name_maybe ::= * NAME
 
-                          NAME shift  29
+                          NAME shift  31
                     name_maybe shift  25
                      {default} reduce 15
 
@@ -179,22 +187,22 @@ State 14:
                              $ reduce 0
 
 State 15:
-          interfaces ::= PROCESS * NAME CURLY_OPEN statements CURLY_CLOSE
-          interfaces ::= PROCESS * NAME CURLY_OPEN statements CURLY_CLOSE interfaces
+          interfaces ::= process_or_template * NAME CURLY_OPEN statements CURLY_CLOSE
+          interfaces ::= process_or_template * NAME CURLY_OPEN statements CURLY_CLOSE interfaces
 
                           NAME shift  16
 
 State 16:
-          interfaces ::= PROCESS NAME * CURLY_OPEN statements CURLY_CLOSE
-          interfaces ::= PROCESS NAME * CURLY_OPEN statements CURLY_CLOSE interfaces
+          interfaces ::= process_or_template NAME * CURLY_OPEN statements CURLY_CLOSE
+          interfaces ::= process_or_template NAME * CURLY_OPEN statements CURLY_CLOSE interfaces
 
-                    CURLY_OPEN shift  5
+                    CURLY_OPEN shift  6
 
 State 17:
-          interfaces ::= PROCESS NAME CURLY_OPEN statements * CURLY_CLOSE
-          interfaces ::= PROCESS NAME CURLY_OPEN statements * CURLY_CLOSE interfaces
+          interfaces ::= process_or_template NAME CURLY_OPEN statements * CURLY_CLOSE
+          interfaces ::= process_or_template NAME CURLY_OPEN statements * CURLY_CLOSE interfaces
 
-                   CURLY_CLOSE shift  8
+                   CURLY_CLOSE shift  3
 
 State 18:
           statements ::= statement_names ROUND_OPEN statement_args_maybe * ROUND_CLOSE name_maybe SEMICOLON
@@ -206,7 +214,7 @@ State 19:
           statements ::= statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe * SEMICOLON
           statements ::= statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe * SEMICOLON statements
 
-                     SEMICOLON shift  6
+                     SEMICOLON shift  7
 
 State 20:
       (7) statement_names ::= NAME *
@@ -219,14 +227,14 @@ State 21:
      (11) statement_args ::= STRING *
           statement_args ::= STRING * COMMA statement_args
 
-                         COMMA shift  3
+                         COMMA shift  4
                      {default} reduce 11
 
 State 22:
      (12) statement_args ::= statement_names *
           statement_args ::= statement_names * COMMA statement_args
 
-                         COMMA shift  4
+                         COMMA shift  5
                      {default} reduce 12
 
 State 23:
@@ -245,44 +253,54 @@ State 25:
           statements ::= statement_names ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe * SEMICOLON
           statements ::= statement_names ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe * SEMICOLON statements
 
-                     SEMICOLON shift  7
+                     SEMICOLON shift  8
 
 State 26:
-      (2) interfaces ::= PROCESS NAME CURLY_OPEN statements CURLY_CLOSE interfaces *
+      (2) interfaces ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE interfaces *
 
                      {default} reduce 2
 
 State 27:
+     (17) process_or_template ::= PROCESS *
+
+                     {default} reduce 17
+
+State 28:
+     (18) process_or_template ::= TEMPLATE *
+
+                     {default} reduce 18
+
+State 29:
       (4) statements ::= statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON statements *
 
                      {default} reduce 4
 
-State 28:
+State 30:
       (8) statement_names ::= NAME DOT statement_names *
 
                      {default} reduce 8
 
-State 29:
+State 31:
      (16) name_maybe ::= NAME *
 
                      {default} reduce 16
 
-State 30:
+State 32:
      (10) statement_args_maybe ::= statement_args *
 
                      {default} reduce 10
 
-State 31:
+State 33:
      (14) statement_args ::= statement_names COMMA statement_args *
 
                      {default} reduce 14
 
-State 32:
+State 34:
      (13) statement_args ::= STRING COMMA statement_args *
 
                      {default} reduce 13
 
-State 33:
+State 35:
       (6) statements ::= statement_names ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON statements *
 
                      {default} reduce 6
@@ -290,22 +308,24 @@ State 33:
 ----------------------------------------------------
 Symbols:
     0: $:
-    1: PROCESS
-    2: NAME
-    3: CURLY_OPEN
-    4: CURLY_CLOSE
-    5: ROUND_OPEN
-    6: ROUND_CLOSE
-    7: SEMICOLON
-    8: ARROW
-    9: DOT
-   10: STRING
-   11: COMMA
-   12: error:
-   13: interfaces: PROCESS
-   14: statements: NAME
-   15: statement_names: NAME
-   16: statement_args_maybe: <lambda> NAME STRING
-   17: statement_args: NAME STRING
-   18: name_maybe: <lambda> NAME
-   19: input: PROCESS
+    1: NAME
+    2: CURLY_OPEN
+    3: CURLY_CLOSE
+    4: ROUND_OPEN
+    5: ROUND_CLOSE
+    6: SEMICOLON
+    7: ARROW
+    8: DOT
+    9: STRING
+   10: COMMA
+   11: PROCESS
+   12: TEMPLATE
+   13: error:
+   14: interfaces: PROCESS TEMPLATE
+   15: statements: NAME
+   16: statement_names: NAME
+   17: statement_args_maybe: <lambda> NAME STRING
+   18: statement_args: NAME STRING
+   19: name_maybe: <lambda> NAME
+   20: process_or_template: PROCESS TEMPLATE
+   21: input: PROCESS TEMPLATE

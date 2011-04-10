@@ -42,6 +42,7 @@ extern const struct NCDModuleGroup ncdmodule_print;
 extern const struct NCDModuleGroup ncdmodule_blocker;
 extern const struct NCDModuleGroup ncdmodule_ip_in_network;
 extern const struct NCDModuleGroup ncdmodule_run;
+extern const struct NCDModuleGroup ncdmodule_synchronous_process;
 extern const struct NCDModuleGroup ncdmodule_net_backend_waitdevice;
 extern const struct NCDModuleGroup ncdmodule_net_backend_waitlink;
 extern const struct NCDModuleGroup ncdmodule_net_backend_badvpn;
@@ -75,6 +76,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_blocker,
     &ncdmodule_ip_in_network,
     &ncdmodule_run,
+    &ncdmodule_synchronous_process,
     &ncdmodule_net_backend_waitdevice,
     &ncdmodule_net_backend_waitlink,
     &ncdmodule_net_backend_badvpn,

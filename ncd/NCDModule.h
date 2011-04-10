@@ -38,10 +38,15 @@
 #define NCDMODULE_TOEVENT_CLEAN 102
 
 struct NCDModuleInst_s;
+struct NCDModuleProcess_s;
 
 typedef void (*NCDModule_handler_event) (void *user, int event);
 typedef int (*NCDModule_handler_getvar) (void *user, const char *modname, const char *varname, NCDValue *out);
 typedef struct NCDModuleInst_s * (*NCDModule_handler_getobj) (void *user, const char *objname);
+typedef int (*NCDModule_handler_initprocess) (void *user, struct NCDModuleProcess_s *p, const char *template_name, NCDValue args);
+
+typedef void (*NCDModuleProcess_handler_dead) (void *user);
+typedef void (*NCDModuleProcess_interp_handler_die) (void *user);
 
 struct NCDModule;
 
@@ -57,10 +62,11 @@ typedef struct NCDModuleInst_s {
     const char *logprefix;
     BReactor *reactor;
     BProcessManager *manager;
+    void *user;
     NCDModule_handler_event handler_event;
     NCDModule_handler_getvar handler_getvar;
     NCDModule_handler_getobj handler_getobj;
-    void *user;
+    NCDModule_handler_initprocess handler_initprocess;
     BPending init_job;
     BPending uninit_job;
     BPending die_job;
@@ -71,8 +77,23 @@ typedef struct NCDModuleInst_s {
     DebugObject d_obj;
 } NCDModuleInst;
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
-                         NCDModule_handler_event handler_event, NCDModule_handler_getvar handler_getvar, NCDModule_handler_getobj handler_getobj, void *user);
+typedef struct NCDModuleProcess_s {
+    NCDModuleInst *n;
+    void *user;
+    NCDModuleProcess_handler_dead handler_dead;
+    void *interp_user;
+    NCDModuleProcess_interp_handler_die interp_handler_die;
+    BPending die_job;
+    BPending dead_job;
+    int state;
+    DebugObject d_obj;
+} NCDModuleProcess;
+
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager, void *user,
+                         NCDModule_handler_event handler_event,
+                         NCDModule_handler_getvar handler_getvar,
+                         NCDModule_handler_getobj handler_getobj,
+                         NCDModule_handler_initprocess handler_initprocess);
 void NCDModuleInst_Free (NCDModuleInst *n);
 void NCDModuleInst_Event (NCDModuleInst *n, int event);
 int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out) WARN_UNUSED;
@@ -84,6 +105,12 @@ int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *modname, const c
 NCDModuleInst * NCDModuleInst_Backend_GetObj (NCDModuleInst *n, const char *objname) WARN_UNUSED;
 void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const char *fmt, ...);
 void NCDModuleInst_Backend_SetError (NCDModuleInst *n);
+
+int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValue args, void *user, NCDModuleProcess_handler_dead handler_dead);
+void NCDModuleProcess_Free (NCDModuleProcess *o);
+void NCDModuleProcess_Die (NCDModuleProcess *o);
+void NCDModuleProcess_Interp_SetHandlers (NCDModuleProcess *o, void *interp_user, NCDModuleProcess_interp_handler_die interp_handler_die);
+void NCDModuleProcess_Interp_Dead (NCDModuleProcess *o);
 
 typedef int (*NCDModule_func_globalinit) (const struct NCDModuleInitParams params);
 typedef void (*NCDModule_func_globalfree) (void);

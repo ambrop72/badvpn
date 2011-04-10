@@ -48,6 +48,7 @@ struct parser_out {
 %type statement_args_maybe {struct NCDConfig_arguments *}
 %type statement_args {struct NCDConfig_arguments *}
 %type name_maybe {char *}
+%type process_or_template {int}
 
 %destructor interfaces { NCDConfig_free_interfaces($$); }
 %destructor statements { NCDConfig_free_statements($$); }
@@ -77,15 +78,15 @@ input ::= interfaces(A). {
     }
 }
 
-interfaces(R) ::= PROCESS NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE. {
-    R = NCDConfig_make_interfaces(A, B, 0, NULL);
+interfaces(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE. {
+    R = NCDConfig_make_interfaces(T, A, B, 0, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
-interfaces(R) ::= PROCESS NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE interfaces(N). {
-    R = NCDConfig_make_interfaces(A, B, 1, N);
+interfaces(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE interfaces(N). {
+    R = NCDConfig_make_interfaces(T, A, B, 1, N);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
@@ -175,4 +176,12 @@ name_maybe(R) ::= . {
 
 name_maybe(R) ::= NAME(A). {
     R = A;
+}
+
+process_or_template(R) ::= PROCESS. {
+    R = 0;
+}
+
+process_or_template(R) ::= TEMPLATE. {
+    R = 1;
 }

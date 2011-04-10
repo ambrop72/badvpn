@@ -36,6 +36,7 @@
 #define NCD_TOKEN_NAME 9
 #define NCD_TOKEN_STRING 10
 #define NCD_TOKEN_ARROW 11
+#define NCD_TOKEN_TEMPLATE 12
 
 #define NCD_MAX_SIZE 128
 

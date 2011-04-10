@@ -90,7 +90,7 @@ void NCDConfig_free_strings (struct NCDConfig_strings *v)
     free(v);
 }
 
-struct NCDConfig_interfaces * NCDConfig_make_interfaces (char *name, struct NCDConfig_statements *statements, int need_next, struct NCDConfig_interfaces *next)
+struct NCDConfig_interfaces * NCDConfig_make_interfaces (int is_template, char *name, struct NCDConfig_statements *statements, int need_next, struct NCDConfig_interfaces *next)
 {
     if (!name || !statements || (need_next && !next)) {
         goto fail;
@@ -101,6 +101,7 @@ struct NCDConfig_interfaces * NCDConfig_make_interfaces (char *name, struct NCDC
         goto fail;
     }
     
+    v->is_template = is_template;
     v->name = name;
     v->statements = statements;
     v->next = next;

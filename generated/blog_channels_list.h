@@ -18,6 +18,7 @@
 {.name = "ncd_blocker", .loglevel = 4},
 {.name = "ncd_ip_in_network", .loglevel = 4},
 {.name = "ncd_run", .loglevel = 4},
+{.name = "ncd_synchronous_process", .loglevel = 4},
 {.name = "ncd_net_backend_waitdevice", .loglevel = 4},
 {.name = "ncd_net_backend_waitlink", .loglevel = 4},
 {.name = "ncd_net_backend_badvpn", .loglevel = 4},

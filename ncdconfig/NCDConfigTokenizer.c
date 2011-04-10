@@ -112,6 +112,9 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
             if (!strcmp(dec, "process")) {
                 token = NCD_TOKEN_PROCESS;
             }
+            else if (!strcmp(dec, "template")) {
+                token = NCD_TOKEN_TEMPLATE;
+            }
             else {
                 token = NCD_TOKEN_NAME;
                 token_val = dec;

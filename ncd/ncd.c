@@ -32,6 +32,8 @@
 #include <misc/read_file.h>
 #include <misc/balloc.h>
 #include <misc/concat_strings.h>
+#include <misc/string_begins_with.h>
+#include <misc/parse_number.h>
 #include <structure/LinkedList2.h>
 #include <system/BLog.h>
 #include <system/BReactor.h>
@@ -78,9 +80,12 @@ struct argument_elem {
 };
 
 struct process {
+    NCDModuleProcess *module_process;
+    NCDValue args;
     char *name;
     size_t num_statements;
     struct process_statement *statements;
+    int terminating;
     size_t ap;
     size_t fp;
     BTimer wait_timer;
@@ -140,8 +145,9 @@ static const struct NCDModule * find_module (const char *name);
 static int statement_init (struct statement *s, struct NCDConfig_statements *conf);
 static void statement_free (struct statement *s);
 static void statement_free_args (struct statement *s);
-static int process_new (struct NCDConfig_interfaces *conf);
+static int process_new (struct NCDConfig_interfaces *conf, NCDModuleProcess *module_process, NCDValue args);
 static void process_free (struct process *p);
+static void process_start_teminating (struct process *p);
 static void process_free_statements (struct process *p);
 static size_t process_rap (struct process *p);
 static void process_assert_pointers (struct process *p);
@@ -158,6 +164,8 @@ static void process_statement_set_error (struct process_statement *ps);
 static void process_statement_instance_handler_event (struct process_statement *ps, int event);
 static int process_statement_instance_handler_getvar (struct process_statement *ps, const char *modname, const char *varname, NCDValue *out);
 static NCDModuleInst * process_statement_instance_handler_getobj (struct process_statement *ps, const char *objname);
+static int process_statement_instance_handler_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name, NCDValue args);
+static void process_moduleprocess_handler_die (struct process *p);
 
 int main (int argc, char **argv)
 {
@@ -281,7 +289,13 @@ int main (int argc, char **argv)
     // init processes
     struct NCDConfig_interfaces *conf = config_ast;
     while (conf) {
-        process_new(conf);
+        if (!conf->is_template) {
+            NCDValue args;
+            NCDValue_InitList(&args);
+            if (!process_new(conf, NULL, args)) {
+                NCDValue_Free(&args);
+            }
+        }
         conf = conf->next;
     }
     
@@ -289,12 +303,8 @@ int main (int argc, char **argv)
     BLog(BLOG_NOTICE, "entering event loop");
     BReactor_Exec(&ss);
     
-    // free processes
-    LinkedList2Node *n;
-    while (n = LinkedList2_GetFirst(&processes)) {
-        struct process *p = UPPER_OBJECT(n, struct process, list_node);
-        process_free(p);
-    }
+    ASSERT(LinkedList2_IsEmpty(&processes))
+    
 fail5:
     // free modules
     while (num_inited_modules > 0) {
@@ -500,13 +510,13 @@ void signal_handler (void *unused)
         return;
     }
     
-    // schedule work for all processes
+    // start terminating all processes
     LinkedList2Iterator it;
     LinkedList2Iterator_InitForward(&it, &processes);
     LinkedList2Node *n;
     while (n = LinkedList2Iterator_Next(&it)) {
         struct process *p = UPPER_OBJECT(n, struct process, list_node);
-        process_schedule_work(p);
+        process_start_teminating(p);
     }
 }
 
@@ -641,14 +651,27 @@ void statement_free_args (struct statement *s)
     }
 }
 
-int process_new (struct NCDConfig_interfaces *conf)
+int process_new (struct NCDConfig_interfaces *conf, NCDModuleProcess *module_process, NCDValue args)
 {
+    ASSERT(NCDValue_Type(&args) == NCDVALUE_LIST)
+    
     // allocate strucure
     struct process *p = malloc(sizeof(*p));
     if (!p) {
         BLog(BLOG_ERROR, "malloc failed");
         goto fail0;
     }
+    
+    // set module process
+    p->module_process = module_process;
+    
+    // set module process handlers
+    if (p->module_process) {
+        NCDModuleProcess_Interp_SetHandlers(p->module_process, p, (NCDModuleProcess_interp_handler_die)process_moduleprocess_handler_die);
+    }
+    
+    // set arguments
+    p->args = args;
     
     // init name
     if (!(p->name = strdup(conf->name))) {
@@ -695,6 +718,9 @@ int process_new (struct NCDConfig_interfaces *conf)
         st = st->next;
     }
     
+    // set not terminating
+    p->terminating = 0;
+    
     // set AP=0
     p->ap = 0;
     
@@ -734,6 +760,11 @@ void process_free (struct process *p)
     ASSERT(p->ap == 0)
     ASSERT(p->fp == 0)
     
+    // inform module process that the process is dead
+    if (p->module_process) {
+        NCDModuleProcess_Interp_Dead(p->module_process);
+    }
+    
     // remove from processes list
     LinkedList2_Remove(&processes, &p->list_node);
     
@@ -752,8 +783,24 @@ void process_free (struct process *p)
     // free name
     free(p->name);
     
+    // free arguments
+    NCDValue_Free(&p->args);
+    
     // free strucure
     free(p);
+}
+
+void process_start_teminating (struct process *p)
+{
+    if (p->terminating) {
+        return;
+    }
+    
+    // set terminating
+    p->terminating = 1;
+    
+    // schedule work
+    process_schedule_work(p);
 }
 
 size_t process_rap (struct process *p)
@@ -829,13 +876,13 @@ void process_work_job_handler (struct process *p)
     ASSERT(!BTimer_IsRunning(&p->wait_timer))
     ASSERT(!BPending_IsSet(&p->advance_job))
     
-    if (terminating) {
+    if (p->terminating) {
         if (p->fp == 0) {
             // finished retreating
             process_free(p);
             
-            // if there are no more processes, exit program
-            if (LinkedList2_IsEmpty(&processes)) {
+            // if program is terminating amd there are no more processes, exit program
+            if (terminating && LinkedList2_IsEmpty(&processes)) {
                 BReactor_Quit(&ss, 1);
             }
         } else {
@@ -924,7 +971,7 @@ void process_advance_job_handler (struct process *p)
     ASSERT(!p->statements[p->ap].have_error)
     ASSERT(!BPending_IsSet(&p->work_job))
     ASSERT(!BTimer_IsRunning(&p->wait_timer))
-    ASSERT(!terminating)
+    ASSERT(!p->terminating)
     
     struct process_statement *ps = &p->statements[p->ap];
     ASSERT(ps->state == SSTATE_FORGOTTEN)
@@ -1002,11 +1049,11 @@ void process_advance_job_handler (struct process *p)
     
     // initialize module instance
     NCDModuleInst_Init(
-        &ps->inst, module, method_object, &ps->inst_args, ps->logprefix, &ss, &manager,
+        &ps->inst, module, method_object, &ps->inst_args, ps->logprefix, &ss, &manager, ps,
         (NCDModule_handler_event)process_statement_instance_handler_event,
         (NCDModule_handler_getvar)process_statement_instance_handler_getvar,
         (NCDModule_handler_getobj)process_statement_instance_handler_getobj,
-        ps
+        (NCDModule_handler_initprocess)process_statement_instance_handler_initprocess
     );
     
     // set statement state CHILD
@@ -1042,7 +1089,7 @@ void process_wait_timer_handler (struct process *p)
     ASSERT(p->statements[p->ap].have_error)
     ASSERT(!BPending_IsSet(&p->work_job))
     ASSERT(!BPending_IsSet(&p->advance_job))
-    ASSERT(!terminating)
+    ASSERT(!p->terminating)
     
     process_log(p, BLOG_INFO, "retrying");
     
@@ -1080,6 +1127,28 @@ int process_resolve_variable (struct process *p, size_t pos, const char *modname
     // find referred-to statement
     struct process_statement *rps = process_find_statement(p, pos, modname);
     if (!rps) {
+        // handle _args
+        if (!strcmp(modname, "_args") && !strcmp(varname, "")) {
+            if (!NCDValue_InitCopy(out, &p->args)) {
+                process_log(p, BLOG_ERROR, "NCDValue_InitCopy failed");
+                return 0;
+            }
+            
+            return 1;
+        }
+        
+        // handle _argN
+        size_t len;
+        uintmax_t n;
+        if ((len = string_begins_with(modname, "_arg")) && parse_unsigned_integer(modname + len, &n) && n < NCDValue_ListCount(&p->args) && !strcmp(varname, "")) {
+            if (!NCDValue_InitCopy(out, NCDValue_ListGet(&p->args, n))) {
+                process_log(p, BLOG_ERROR, "NCDValue_InitCopy failed");
+                return 0;
+            }
+            
+            return 1;
+        }
+        
         process_log(p, BLOG_ERROR, "unknown statement name in variable: %s.%s", modname, varname);
         return 0;
     }
@@ -1264,4 +1333,41 @@ NCDModuleInst * process_statement_instance_handler_getobj (struct process_statem
     }
     
     return &rps->inst;
+}
+
+int process_statement_instance_handler_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name, NCDValue args)
+{
+    ASSERT(ps->state != SSTATE_FORGOTTEN)
+    ASSERT(NCDValue_Type(&args) == NCDVALUE_LIST)
+    
+    // find template
+    struct NCDConfig_interfaces *conf = config_ast;
+    while (conf) {
+        if (conf->is_template && !strcmp(conf->name, template_name)) {
+            break;
+        }
+        conf = conf->next;
+    }
+    
+    if (!conf) {
+        process_statement_log(ps, BLOG_ERROR, "no template named %s", template_name);
+        return 0;
+    }
+    
+    // create process
+    if (!process_new(conf, mp, args)) {
+        process_statement_log(ps, BLOG_ERROR, "failed to create process from template %s", template_name);
+        return 0;
+    }
+    
+    process_statement_log(ps, BLOG_INFO, "created process from template %s", template_name);
+    
+    return 1;
+}
+
+void process_moduleprocess_handler_die (struct process *p)
+{
+    process_log(p, BLOG_INFO, "process termination requested");
+    
+    process_start_teminating(p);
 }

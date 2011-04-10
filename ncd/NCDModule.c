@@ -36,6 +36,14 @@
 #define STATE_DYING 10
 #define STATE_UNDEAD 11
 
+#define PROCESS_STATE_INIT 1
+#define PROCESS_STATE_NORMAL 2
+#define PROCESS_STATE_DIE_PENDING 3
+#define PROCESS_STATE_DIE 4
+#define PROCESS_STATE_DEAD_PENDING 5
+#define PROCESS_STATE_DEAD 6
+#define PROCESS_STATE_ZOMBIE 7
+
 static void frontend_event (NCDModuleInst *n, int event)
 {
     n->handler_event(n->user, event);
@@ -88,8 +96,35 @@ static void clean_job_handler (NCDModuleInst *n)
     }
 }
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager,
-                         NCDModule_handler_event handler_event, NCDModule_handler_getvar handler_getvar, NCDModule_handler_getobj handler_getobj, void *user)
+static void process_die_job_handler (NCDModuleProcess *o)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->state == PROCESS_STATE_DIE_PENDING)
+    
+    // set state
+    o->state = PROCESS_STATE_DIE;
+    
+    o->interp_handler_die(o->interp_user);
+    return;
+}
+
+static void process_dead_job_handler (NCDModuleProcess *o)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->state == PROCESS_STATE_DEAD_PENDING)
+    
+    // set state
+    o->state = PROCESS_STATE_DEAD;
+    
+    o->handler_dead(o->user);
+    return;
+}
+
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager, void *user,
+                         NCDModule_handler_event handler_event,
+                         NCDModule_handler_getvar handler_getvar,
+                         NCDModule_handler_getobj handler_getobj,
+                         NCDModule_handler_initprocess handler_initprocess)
 {
     // init arguments
     n->m = m;
@@ -98,10 +133,11 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleI
     n->logprefix = logprefix;
     n->reactor = reactor;
     n->manager = manager;
+    n->user = user;
     n->handler_event = handler_event;
     n->handler_getvar = handler_getvar;
     n->handler_getobj = handler_getobj;
-    n->user = user;
+    n->handler_initprocess = handler_initprocess;
     
     // init jobs
     BPending_Init(&n->init_job, BReactor_PendingGroup(n->reactor), (BPending_handler)init_job_handler, n);
@@ -342,4 +378,106 @@ void NCDModuleInst_Backend_SetError (NCDModuleInst *n)
     ASSERT(!n->is_error)
     
     n->is_error = 1;
+}
+
+int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValue args, void *user, NCDModuleProcess_handler_dead handler_dead)
+{
+    DebugObject_Access(&n->d_obj);
+    ASSERT(n->state == STATE_DOWN_PCLEAN || n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
+           n->state == STATE_UP || n->state == STATE_DOWN_DIE || n->state == STATE_UP_DIE ||
+           n->state == STATE_DYING)
+    ASSERT(NCDValue_Type(&args) == NCDVALUE_LIST)
+    
+    // init arguments
+    o->n = n;
+    o->user = user;
+    o->handler_dead = handler_dead;
+    
+    // clear interpreter data
+    o->interp_user = NULL;
+    o->interp_handler_die = NULL;
+    
+    // init jobs
+    BPending_Init(&o->die_job, BReactor_PendingGroup(n->reactor), (BPending_handler)process_die_job_handler, o);
+    BPending_Init(&o->dead_job, BReactor_PendingGroup(n->reactor), (BPending_handler)process_dead_job_handler, o);
+    
+    // set state
+    o->state = PROCESS_STATE_INIT;
+    
+    // init interpreter part
+    if (!(n->handler_initprocess(n->user, o, template_name, args))) {
+        goto fail0;
+    }
+    
+    // set state
+    o->state = PROCESS_STATE_NORMAL;
+    
+    DebugObject_Init(&o->d_obj);
+    return 1;
+    
+fail0:
+    BPending_Free(&o->dead_job);
+    BPending_Free(&o->die_job);
+    return 0;
+}
+
+void NCDModuleProcess_Free (NCDModuleProcess *o)
+{
+    DebugObject_Free(&o->d_obj);
+    ASSERT(o->state == PROCESS_STATE_DEAD)
+    
+    // free jobs
+    BPending_Free(&o->dead_job);
+    BPending_Free(&o->die_job);
+}
+
+void NCDModuleProcess_Die (NCDModuleProcess *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    switch (o->state) {
+        case PROCESS_STATE_ZOMBIE: {
+            BPending_Set(&o->dead_job);
+            
+            o->state = PROCESS_STATE_DEAD_PENDING;
+        } break;
+        
+        case PROCESS_STATE_NORMAL: {
+            BPending_Set(&o->die_job);
+        
+            o->state = PROCESS_STATE_DIE_PENDING;
+        } break;
+        
+        default: ASSERT(0);
+    }
+}
+
+void NCDModuleProcess_Interp_SetHandlers (NCDModuleProcess *o, void *interp_user, NCDModuleProcess_interp_handler_die interp_handler_die)
+{
+    o->interp_user = interp_user;
+    o->interp_handler_die = interp_handler_die;
+}
+
+void NCDModuleProcess_Interp_Dead (NCDModuleProcess *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    switch (o->state) {
+        case PROCESS_STATE_NORMAL: {
+            o->state = PROCESS_STATE_ZOMBIE;
+        } break;
+        
+        case PROCESS_STATE_DIE_PENDING: {
+            BPending_Unset(&o->die_job);
+            BPending_Set(&o->dead_job);
+            o->state = PROCESS_STATE_DEAD_PENDING;
+        } break;
+        
+        case PROCESS_STATE_DIE: {
+            BPending_Set(&o->dead_job);
+            o->state = PROCESS_STATE_DEAD_PENDING;
+        } break;
+        
+        default: ASSERT(0);
+    }
 }
