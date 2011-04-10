@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <inttypes.h>
 
 #include <misc/debug.h>
 #include <misc/offset.h>
@@ -140,6 +141,7 @@ char * NCDValue_StringValue (NCDValue *o)
 void NCDValue_InitList (NCDValue *o)
 {
     LinkedList2_Init(&o->list);
+    o->list_count = 0;
     
     o->type = NCDVALUE_LIST;
 }
@@ -150,23 +152,32 @@ int NCDValue_ListAppend (NCDValue *o, NCDValue v)
     value_assert(&v);
     ASSERT(o->type == NCDVALUE_LIST)
     
+    if (o->list_count == SIZE_MAX) {
+        return 0;
+    }
+    
     NCDListElement *e = malloc(sizeof(*e));
     if (!e) {
         return 0;
     }
     
     LinkedList2_Append(&o->list, &e->list_node);
+    o->list_count++;
     e->v = v;
     
     return 1;
 }
 
-void NCDValue_ListAppendList (NCDValue *o, NCDValue l)
+int NCDValue_ListAppendList (NCDValue *o, NCDValue l)
 {
     value_assert(o);
     value_assert(&l);
     ASSERT(o->type == NCDVALUE_LIST)
     ASSERT(l.type == NCDVALUE_LIST)
+    
+    if (l.list_count > SIZE_MAX - o->list_count) {
+        return 0;
+    }
     
     LinkedList2Node *n;
     while (n = LinkedList2_GetFirst(&l.list)) {
@@ -174,6 +185,10 @@ void NCDValue_ListAppendList (NCDValue *o, NCDValue l)
         LinkedList2_Remove(&l.list, &e->list_node);
         LinkedList2_Append(&o->list, &e->list_node);
     }
+    
+    o->list_count += l.list_count;
+    
+    return 1;
 }
 
 size_t NCDValue_ListCount (NCDValue *o)
@@ -181,16 +196,7 @@ size_t NCDValue_ListCount (NCDValue *o)
     value_assert(o);
     ASSERT(o->type == NCDVALUE_LIST)
     
-    size_t c = 0;
-    
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &o->list);
-    LinkedList2Node *n;
-    while (n = LinkedList2Iterator_Next(&it)) {
-        c++;
-    }
-    
-    return c;
+    return o->list_count;
 }
 
 NCDValue * NCDValue_ListFirst (NCDValue *o)

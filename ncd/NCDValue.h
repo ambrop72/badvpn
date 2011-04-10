@@ -25,6 +25,7 @@
 
 #include <stddef.h>
 
+#include <misc/debug.h>
 #include <structure/LinkedList2.h>
 
 #define NCDVALUE_STRING 1
@@ -34,7 +35,10 @@ typedef struct {
     int type;
     union {
         char *string;
-        LinkedList2 list;
+        struct {
+            LinkedList2 list;
+            size_t list_count;
+        };
     };
 } NCDValue;
 
@@ -43,20 +47,20 @@ typedef struct {
     NCDValue v;
 } NCDListElement;
 
-int NCDValue_InitCopy (NCDValue *o, NCDValue *v);
+int NCDValue_InitCopy (NCDValue *o, NCDValue *v) WARN_UNUSED;
 void NCDValue_Free (NCDValue *o);
 int NCDValue_Type (NCDValue *o);
 
-int NCDValue_InitString (NCDValue *o, const char *str);
+int NCDValue_InitString (NCDValue *o, const char *str) WARN_UNUSED;
 char * NCDValue_StringValue (NCDValue *o);
 
 void NCDValue_InitList (NCDValue *o);
-int NCDValue_ListAppend (NCDValue *o, NCDValue v);
-void NCDValue_ListAppendList (NCDValue *o, NCDValue l);
+int NCDValue_ListAppend (NCDValue *o, NCDValue v) WARN_UNUSED;
+int NCDValue_ListAppendList (NCDValue *o, NCDValue l) WARN_UNUSED;
 size_t NCDValue_ListCount (NCDValue *o);
 NCDValue * NCDValue_ListFirst (NCDValue *o);
 NCDValue * NCDValue_ListNext (NCDValue *o, NCDValue *ev);
-int NCDValue_ListRead (NCDValue *o, int num, ...);
-int NCDValue_ListReadHead (NCDValue *o, int num, ...);
+int NCDValue_ListRead (NCDValue *o, int num, ...) WARN_UNUSED;
+int NCDValue_ListReadHead (NCDValue *o, int num, ...) WARN_UNUSED;
 
 #endif

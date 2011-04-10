@@ -67,7 +67,7 @@ struct appendv_instance {
 
 struct length_instance {
     NCDModuleInst *i;
-    uint64_t length;
+    size_t length;
 };
 
 struct get_instance {
@@ -227,7 +227,11 @@ static void appendv_func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
         goto fail1;
     }
-    NCDValue_ListAppendList(&mo->list, l);
+    if (!NCDValue_ListAppendList(&mo->list, l)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDValue_ListAppendList failed");
+        NCDValue_Free(&l);
+        goto fail1;
+    }
     
     // signal up
     NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
@@ -274,17 +278,8 @@ static void length_func_new (NCDModuleInst *i)
     // get method object
     struct instance *mo = i->method_object->inst_user;
     
-    // count elements
-    o->length = 0;
-    NCDValue *e = NCDValue_ListFirst(&mo->list);
-    while (e) {
-        if (o->length == UINT64_MAX) {
-            ModuleLog(o->i, BLOG_ERROR, "too many elements");
-            goto fail1;
-        }
-        o->length++;
-        e = NCDValue_ListNext(&mo->list, e);
-    }
+    // remember length
+    o->length = NCDValue_ListCount(&mo->list);
     
     // signal up
     NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
@@ -314,8 +309,8 @@ static int length_func_getvar (void *vo, const char *name, NCDValue *out)
     struct length_instance *o = vo;
     
     if (!strcmp(name, "")) {
-        char str[30];
-        snprintf(str, sizeof(str), "%"PRIu64, o->length);
+        char str[50];
+        snprintf(str, sizeof(str), "%"PRIuMAX, (uintmax_t)o->length);
         
         if (!NCDValue_InitString(out, str)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
@@ -351,8 +346,8 @@ static void get_func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    uint64_t index;
-    if (sscanf(NCDValue_StringValue(index_arg), "%"SCNu64, &index) != 1) {
+    uintmax_t index;
+    if (sscanf(NCDValue_StringValue(index_arg), "%"SCNuMAX, &index) != 1) {
         ModuleLog(o->i, BLOG_ERROR, "wrong value");
         goto fail1;
     }
@@ -360,8 +355,14 @@ static void get_func_new (NCDModuleInst *i)
     // get method object
     struct instance *mo = i->method_object->inst_user;
     
+    // check index
+    if (index >= NCDValue_ListCount(&mo->list)) {
+        ModuleLog(o->i, BLOG_ERROR, "no element at index %"PRIuMAX, index);
+        goto fail1;
+    }
+    
     // find requested element
-    uint64_t pos = 0;
+    uintmax_t pos = 0;
     NCDValue *e = NCDValue_ListFirst(&mo->list);
     while (e) {
         if (pos == index) {
@@ -370,11 +371,7 @@ static void get_func_new (NCDModuleInst *i)
         pos++;
         e = NCDValue_ListNext(&mo->list, e);
     }
-    
-    if (!e) {
-        ModuleLog(o->i, BLOG_ERROR, "no element at index %"PRIu64, index);
-        goto fail1;
-    }
+    ASSERT(e)
     
     // copy value
     if (!NCDValue_InitCopy(&o->value, e)) {
