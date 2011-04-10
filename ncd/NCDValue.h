@@ -52,6 +52,7 @@ char * NCDValue_StringValue (NCDValue *o);
 
 void NCDValue_InitList (NCDValue *o);
 int NCDValue_ListAppend (NCDValue *o, NCDValue v);
+void NCDValue_ListAppendList (NCDValue *o, NCDValue l);
 size_t NCDValue_ListCount (NCDValue *o);
 NCDValue * NCDValue_ListFirst (NCDValue *o);
 NCDValue * NCDValue_ListNext (NCDValue *o, NCDValue *ev);

@@ -161,6 +161,21 @@ int NCDValue_ListAppend (NCDValue *o, NCDValue v)
     return 1;
 }
 
+void NCDValue_ListAppendList (NCDValue *o, NCDValue l)
+{
+    value_assert(o);
+    value_assert(&l);
+    ASSERT(o->type == NCDVALUE_LIST)
+    ASSERT(l.type == NCDVALUE_LIST)
+    
+    LinkedList2Node *n;
+    while (n = LinkedList2_GetFirst(&l.list)) {
+        NCDListElement *e = UPPER_OBJECT(n, NCDListElement, list_node);
+        LinkedList2_Remove(&l.list, &e->list_node);
+        LinkedList2_Append(&o->list, &e->list_node);
+    }
+}
+
 size_t NCDValue_ListCount (NCDValue *o)
 {
     value_assert(o);
