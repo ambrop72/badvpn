@@ -361,20 +361,8 @@ static void get_func_new (NCDModuleInst *i)
         goto fail1;
     }
     
-    // find requested element
-    uintmax_t pos = 0;
-    NCDValue *e = NCDValue_ListFirst(&mo->list);
-    while (e) {
-        if (pos == index) {
-            break;
-        }
-        pos++;
-        e = NCDValue_ListNext(&mo->list, e);
-    }
-    ASSERT(e)
-    
     // copy value
-    if (!NCDValue_InitCopy(&o->value, e)) {
+    if (!NCDValue_InitCopy(&o->value, NCDValue_ListGet(&mo->list, index))) {
         ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
         goto fail1;
     }

@@ -292,3 +292,22 @@ int NCDValue_ListReadHead (NCDValue *o, int num, ...)
     
     return 1;
 }
+
+NCDValue * NCDValue_ListGet (NCDValue *o, size_t pos)
+{
+    value_assert(o);
+    ASSERT(o->type == NCDVALUE_LIST)
+    ASSERT(pos < o->list_count)
+    
+    NCDValue *e = NCDValue_ListFirst(o);
+    while (e) {
+        if (pos == 0) {
+            break;
+        }
+        pos--;
+        e = NCDValue_ListNext(o, e);
+    }
+    ASSERT(e)
+    
+    return e;
+}

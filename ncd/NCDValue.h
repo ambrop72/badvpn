@@ -62,5 +62,6 @@ NCDValue * NCDValue_ListFirst (NCDValue *o);
 NCDValue * NCDValue_ListNext (NCDValue *o, NCDValue *ev);
 int NCDValue_ListRead (NCDValue *o, int num, ...) WARN_UNUSED;
 int NCDValue_ListReadHead (NCDValue *o, int num, ...) WARN_UNUSED;
+NCDValue * NCDValue_ListGet (NCDValue *o, size_t pos);
 
 #endif
