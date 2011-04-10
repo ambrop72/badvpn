@@ -29,6 +29,9 @@
  * 
  * Synopsis: list::append(arg)
  * 
+ * Synopsis: list::appendv(list arg)
+ * Description: Appends the elements of arg to the list.
+ * 
  * Synopsis: list::length()
  * Variables:
  *   (empty) - number of elements in list at the time of initialization
@@ -55,6 +58,10 @@ struct instance {
 };
 
 struct append_instance {
+    NCDModuleInst *i;
+};
+
+struct appendv_instance {
     NCDModuleInst *i;
 };
 
@@ -179,6 +186,64 @@ fail0:
 static void append_func_die (void *vo)
 {
     struct append_instance *o = vo;
+    NCDModuleInst *i = o->i;
+    
+    // free instance
+    free(o);
+    
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+}
+
+static void appendv_func_new (NCDModuleInst *i)
+{
+    // allocate instance
+    struct appendv_instance *o = malloc(sizeof(*o));
+    if (!o) {
+        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        goto fail0;
+    }
+    NCDModuleInst_Backend_SetUser(i, o);
+    
+    // init arguments
+    o->i = i;
+    
+    // check arguments
+    NCDValue *arg;
+    if (!NCDValue_ListRead(o->i->args, 1, &arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
+        goto fail1;
+    }
+    if (NCDValue_Type(arg) != NCDVALUE_LIST) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong type");
+        goto fail1;
+    }
+    
+    // get method object
+    struct instance *mo = i->method_object->inst_user;
+    
+    // append
+    NCDValue l;
+    if (!NCDValue_InitCopy(&l, arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
+        goto fail1;
+    }
+    NCDValue_ListAppendList(&mo->list, l);
+    
+    // signal up
+    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    
+    return;
+    
+fail1:
+    free(o);
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+}
+
+static void appendv_func_die (void *vo)
+{
+    struct appendv_instance *o = vo;
     NCDModuleInst *i = o->i;
     
     // free instance
@@ -369,6 +434,10 @@ static const struct NCDModule modules[] = {
         .type = "list::append",
         .func_new = append_func_new,
         .func_die = append_func_die
+    }, {
+        .type = "list::appendv",
+        .func_new = appendv_func_new,
+        .func_die = appendv_func_die
     }, {
         .type = "list::length",
         .func_new = length_func_new,
