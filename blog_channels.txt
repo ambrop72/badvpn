@@ -12,6 +12,7 @@ ncd_concatv 4
 ncd_concatlist 4
 ncd_if 4
 ncd_strcmp 4
+ncd_regex_match 4
 ncd_logical 4
 ncd_sleep 4
 ncd_print 4

@@ -36,6 +36,7 @@ extern const struct NCDModuleGroup ncdmodule_concatv;
 extern const struct NCDModuleGroup ncdmodule_concatlist;
 extern const struct NCDModuleGroup ncdmodule_if;
 extern const struct NCDModuleGroup ncdmodule_strcmp;
+extern const struct NCDModuleGroup ncdmodule_regex_match;
 extern const struct NCDModuleGroup ncdmodule_logical;
 extern const struct NCDModuleGroup ncdmodule_sleep;
 extern const struct NCDModuleGroup ncdmodule_print;
@@ -71,6 +72,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_concatlist,
     &ncdmodule_if,
     &ncdmodule_strcmp,
+    &ncdmodule_regex_match,
     &ncdmodule_logical,
     &ncdmodule_sleep,
     &ncdmodule_print,

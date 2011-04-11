@@ -12,6 +12,7 @@
 {.name = "ncd_concatlist", .loglevel = 4},
 {.name = "ncd_if", .loglevel = 4},
 {.name = "ncd_strcmp", .loglevel = 4},
+{.name = "ncd_regex_match", .loglevel = 4},
 {.name = "ncd_logical", .loglevel = 4},
 {.name = "ncd_sleep", .loglevel = 4},
 {.name = "ncd_print", .loglevel = 4},
