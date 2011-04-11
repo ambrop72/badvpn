@@ -67,12 +67,12 @@ struct process {
     char *name;
     BTimer retry_timer;
     LinkedList2Node processes_list_node;
-    int state;
     int have_params;
     char *params_template_name;
     NCDValue params_args;
     int have_module_process;
     NCDModuleProcess module_process;
+    int state;
 };
 
 struct startstop_instance {
@@ -241,12 +241,16 @@ void process_stop (struct process *p)
 {
     switch (p->state) {
         case PROCESS_STATE_RETRYING: {
+            ASSERT(!p->have_module_process)
+            
             // free process
             process_free(p);
             return;
         } break;
         
         case PROCESS_STATE_RUNNING: {
+            ASSERT(p->have_module_process)
+            
             // request process to die
             NCDModuleProcess_Die(&p->module_process);
             
@@ -255,6 +259,8 @@ void process_stop (struct process *p)
         } break;
         
         case PROCESS_STATE_RESTARTING: {
+            ASSERT(p->have_params)
+            
             // free params
             NCDValue_Free(&p->params_args);
             free(p->params_template_name);
@@ -467,10 +473,12 @@ static void start_func_new (NCDModuleInst *i)
         } else {
             if (p) {
                 if (!process_restart(p, template_name, args_arg)) {
+                    ModuleLog(o->i, BLOG_ERROR, "failed to restart process %s", name);
                     goto fail1;
                 }
             } else {
                 if (!process_new(mo, name, template_name, args_arg)) {
+                    ModuleLog(o->i, BLOG_ERROR, "failed to create process %s", name);
                     goto fail1;
                 }
             }
