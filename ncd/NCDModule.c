@@ -332,16 +332,15 @@ void NCDModuleInst_Backend_Event (NCDModuleInst *n, int event)
     }
 }
 
-int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *modname, const char *varname, NCDValue *out)
+int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *varname, NCDValue *out)
 {
     DebugObject_Access(&n->d_obj);
     ASSERT(n->state == STATE_DOWN_PCLEAN || n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
            n->state == STATE_UP || n->state == STATE_DOWN_DIE || n->state == STATE_UP_DIE ||
            n->state == STATE_DYING)
-    ASSERT(modname)
     ASSERT(varname)
     
-    int res = n->handler_getvar(n->user, modname, varname, out);
+    int res = n->handler_getvar(n->user, varname, out);
     ASSERT(res == 0 || res == 1)
     
     return res;

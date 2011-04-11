@@ -70,10 +70,7 @@ struct statement {
 struct argument_elem {
     int is_var;
     union {
-        struct {
-            char *modname;
-            char *varname;
-        } var;
+        char *var;
         NCDValue val;
     };
     struct argument_elem *next_arg;
@@ -157,12 +154,13 @@ static void process_work_job_handler (struct process *p);
 static void process_advance_job_handler (struct process *p);
 static void process_wait_timer_handler (struct process *p);
 static struct process_statement * process_find_statement (struct process *p, size_t pos, const char *name);
-static int process_resolve_variable (struct process *p, size_t pos, const char *modname, const char *varname, NCDValue *out);
+static int process_resolve_name (struct process *p, size_t pos, const char *name, struct process_statement **first_ps, const char **rest);
+static int process_resolve_variable (struct process *p, size_t pos, const char *varname, NCDValue *out);
 static struct process_statement * process_resolve_object (struct process *p, size_t pos, const char *objname);
 static void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...);
 static void process_statement_set_error (struct process_statement *ps);
 static void process_statement_instance_handler_event (struct process_statement *ps, int event);
-static int process_statement_instance_handler_getvar (struct process_statement *ps, const char *modname, const char *varname, NCDValue *out);
+static int process_statement_instance_handler_getvar (struct process_statement *ps, const char *varname, NCDValue *out);
 static NCDModuleInst * process_statement_instance_handler_getobj (struct process_statement *ps, const char *objname);
 static int process_statement_instance_handler_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name, NCDValue args);
 static void process_moduleprocess_handler_die (struct process *p);
@@ -583,14 +581,8 @@ int statement_init (struct statement *s, struct NCDConfig_statements *conf)
             } break;
             
             case NCDCONFIG_ARG_VAR: {
-                if (!(e->var.modname = strdup(arg->var->value))) {
-                    BLog(BLOG_ERROR, "strdup failed");
-                    goto loop_fail1;
-                }
-                
-                if (!(e->var.varname = (arg->var->next ? NCDConfig_concat_strings(arg->var->next) : strdup("")))) {
-                    BLog(BLOG_ERROR, "NCDConfig_concat_strings/strdup failed");
-                    free(e->var.modname);
+                if (!(e->var = NCDConfig_concat_strings(arg->var))) {
+                    BLog(BLOG_ERROR, "NCDConfig_concat_strings failed");
                     goto loop_fail1;
                 }
                 
@@ -640,8 +632,7 @@ void statement_free_args (struct statement *s)
     struct argument_elem *e = s->first_arg;
     while (e) {
         if (e->is_var) {
-            free(e->var.modname);
-            free(e->var.varname);
+            free(e->var);
         } else {
             NCDValue_Free(&e->val);
         }
@@ -1023,7 +1014,7 @@ void process_advance_job_handler (struct process *p)
         // resolve argument
         NCDValue v;
         if (arg->is_var) {
-            if (!process_resolve_variable(p, p->ap, arg->var.modname, arg->var.varname, &v)) {
+            if (!process_resolve_variable(p, p->ap, arg->var, &v)) {
                 process_statement_log(ps, BLOG_ERROR, "failed to resolve variable");
                 goto fail2;
             }
@@ -1116,19 +1107,53 @@ struct process_statement * process_find_statement (struct process *p, size_t pos
     return NULL;
 }
 
-int process_resolve_variable (struct process *p, size_t pos, const char *modname, const char *varname, NCDValue *out)
+int process_resolve_name (struct process *p, size_t pos, const char *name, struct process_statement **first_ps, const char **rest)
 {
     process_assert_pointers(p);
     ASSERT(pos >= 0)
     ASSERT(pos <= process_rap(p))
-    ASSERT(modname)
+    ASSERT(name)
+    
+    char *dot = strstr(name, ".");
+    if (!dot) {
+        *first_ps = process_find_statement(p, pos, name);
+        *rest = NULL;
+    } else {
+        // copy modname and terminate
+        char *modname = malloc((dot - name) + 1);
+        if (!modname) {
+            process_log(p, BLOG_ERROR, "malloc failed");
+            return 0;
+        }
+        memcpy(modname, name, dot - name);
+        modname[dot - name] = '\0';
+        
+        *first_ps = process_find_statement(p, pos, modname);
+        *rest = dot + 1;
+        
+        free(modname);
+    }
+    
+    return 1;
+}
+
+int process_resolve_variable (struct process *p, size_t pos, const char *varname, NCDValue *out)
+{
+    process_assert_pointers(p);
+    ASSERT(pos >= 0)
+    ASSERT(pos <= process_rap(p))
     ASSERT(varname)
     
-    // find referred-to statement
-    struct process_statement *rps = process_find_statement(p, pos, modname);
+    // find referred statement and remaining name
+    struct process_statement *rps;
+    const char *rest;
+    if (!process_resolve_name(p, pos, varname, &rps, &rest)) {
+        return 0;
+    }
+    
     if (!rps) {
         // handle _args
-        if (!strcmp(modname, "_args") && !strcmp(varname, "")) {
+        if (!strcmp(varname, "_args")) {
             if (!NCDValue_InitCopy(out, &p->args)) {
                 process_log(p, BLOG_ERROR, "NCDValue_InitCopy failed");
                 return 0;
@@ -1140,7 +1165,7 @@ int process_resolve_variable (struct process *p, size_t pos, const char *modname
         // handle _argN
         size_t len;
         uintmax_t n;
-        if ((len = string_begins_with(modname, "_arg")) && parse_unsigned_integer(modname + len, &n) && n < NCDValue_ListCount(&p->args) && !strcmp(varname, "")) {
+        if ((len = string_begins_with(varname, "_arg")) && parse_unsigned_integer(varname + len, &n) && n < NCDValue_ListCount(&p->args)) {
             if (!NCDValue_InitCopy(out, NCDValue_ListGet(&p->args, n))) {
                 process_log(p, BLOG_ERROR, "NCDValue_InitCopy failed");
                 return 0;
@@ -1149,14 +1174,15 @@ int process_resolve_variable (struct process *p, size_t pos, const char *modname
             return 1;
         }
         
-        process_log(p, BLOG_ERROR, "unknown statement name in variable: %s.%s", modname, varname);
+        process_log(p, BLOG_ERROR, "unknown statement name in variable: %s", varname);
         return 0;
     }
+    
     ASSERT(rps->state == SSTATE_ADULT)
     
-    // resolve variable
-    if (!NCDModuleInst_GetVar(&rps->inst, varname, out)) {
-        process_log(p, BLOG_ERROR, "failed to resolve variable: %s.%s", modname, varname);
+    // resolve variable in referred statement
+    if (!NCDModuleInst_GetVar(&rps->inst, (rest ? rest : ""), out)) {
+        process_log(p, BLOG_ERROR, "referred module failed to resolve variable: %s", varname);
         return 0;
     }
     
@@ -1170,49 +1196,34 @@ struct process_statement * process_resolve_object (struct process *p, size_t pos
     ASSERT(pos <= process_rap(p))
     ASSERT(objname)
     
-    struct process_statement *res_ps = NULL;
-    
-    // copy name
-    char *name = strdup(objname);
-    if (!name) {
-        process_log(p, BLOG_ERROR, "strdup failed");
-        goto fail0;
+    // find referred statement and remaining name
+    struct process_statement *rps;
+    const char *rest;
+    if (!process_resolve_name(p, pos, objname, &rps, &rest)) {
+        return NULL;
     }
     
-    // split name into first name and the rest
-    const char *objname_first = name;
-    const char *objname_rest = NULL;
-    char *dot = strstr(name, ".");
-    if (dot) {
-        *dot = '\0';
-        objname_rest = dot + 1;
+    if (!rps) {
+        process_log(p, BLOG_ERROR, "unknown statement name in object: %s", objname);
+        return NULL;
     }
     
-    // find referred-to statement of the first name
-    struct process_statement *first_ps = process_find_statement(p, pos, objname_first);
-    if (!first_ps) {
-        process_log(p, BLOG_ERROR, "failed to find first object for %s", objname);
-        goto fail1;
-    }
-    ASSERT(first_ps->state == SSTATE_ADULT)
+    ASSERT(rps->state == SSTATE_ADULT)
     
-    if (!objname_rest) {
+    if (!rest) {
         // this is the target
-        res_ps = first_ps;
-    } else {
-        // query this statement
-        NCDModuleInst *inst = NCDModuleInst_GetObj(&first_ps->inst, objname_rest);
-        if (!inst) {
-            process_log(p, BLOG_ERROR, "object failed to provide contained object for %s", objname);
-            goto fail1;
-        }
-        res_ps = UPPER_OBJECT(inst, struct process_statement, inst);
-        ASSERT(res_ps->state == SSTATE_ADULT)
+        return rps;
     }
     
-fail1:
-    free(name);
-fail0:
+    // resolve object in referred statement
+    NCDModuleInst *inst = NCDModuleInst_GetObj(&rps->inst, rest);
+    if (!inst) {
+        process_log(p, BLOG_ERROR, "referred module failed to resolve object: %s", objname);
+        return NULL;
+    }
+    struct process_statement *res_ps = UPPER_OBJECT(inst, struct process_statement, inst);
+    ASSERT(res_ps->state == SSTATE_ADULT)
+    
     return res_ps;
 }
 
@@ -1306,16 +1317,16 @@ void process_statement_instance_handler_event (struct process_statement *ps, int
     }
 }
 
-int process_statement_instance_handler_getvar (struct process_statement *ps, const char *modname, const char *varname, NCDValue *out)
+int process_statement_instance_handler_getvar (struct process_statement *ps, const char *varname, NCDValue *out)
 {
     ASSERT(ps->state != SSTATE_FORGOTTEN)
     
     if (ps->i > process_rap(ps->p)) {
-        process_statement_log(ps, BLOG_ERROR, "tried to resolve variable %s.%s but it's dirty", modname, varname);
+        process_statement_log(ps, BLOG_ERROR, "tried to resolve variable %s but it's dirty", varname);
         return 0;
     }
     
-    return process_resolve_variable(ps->p, ps->i, modname, varname, out);
+    return process_resolve_variable(ps->p, ps->i, varname, out);
 }
 
 NCDModuleInst * process_statement_instance_handler_getobj (struct process_statement *ps, const char *objname)

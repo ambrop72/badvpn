@@ -316,38 +316,13 @@ static void depend_func_clean (void *vo)
     }
 }
 
-static int depend_func_getvar (void *vo, const char *name_orig, NCDValue *out)
+static int depend_func_getvar (void *vo, const char *varname, NCDValue *out)
 {
     struct depend *o = vo;
     ASSERT(o->p)
     ASSERT(!o->p->dying)
     
-    int ret = 0;
-    
-    char *name = strdup(name_orig);
-    if (!name) {
-        ModuleLog(o->i, BLOG_ERROR, "strdup failed");
-        goto fail0;
-    }
-    
-    const char *modname;
-    const char *varname;
-    
-    char *dot = strstr(name, ".");
-    if (!dot) {
-        modname = name;
-        varname = "";
-    } else {
-        *dot = '\0';
-        modname = name;
-        varname = dot + 1;
-    }
-    
-    ret = NCDModuleInst_Backend_GetVar(o->p->i, modname, varname, out);
-    
-    free(name);
-fail0:
-    return ret;
+    return NCDModuleInst_Backend_GetVar(o->p->i, varname, out);
 }
 
 static NCDModuleInst * depend_func_getobj (void *vo, const char *objname)
