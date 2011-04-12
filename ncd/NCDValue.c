@@ -311,3 +311,20 @@ NCDValue * NCDValue_ListGet (NCDValue *o, size_t pos)
     
     return e;
 }
+
+NCDValue NCDValue_ListShift (NCDValue *o)
+{
+    value_assert(o);
+    ASSERT(o->type == NCDVALUE_LIST)
+    ASSERT(o->list_count > 0)
+    
+    NCDListElement *e = UPPER_OBJECT(LinkedList2_GetFirst(&o->list), NCDListElement, list_node);
+    
+    NCDValue v = e->v;
+    
+    LinkedList2_Remove(&o->list, &e->list_node);
+    o->list_count--;
+    free(e);
+    
+    return v;
+}
