@@ -313,11 +313,13 @@ static void nextevent_func_new (NCDModuleInst *i)
     struct instance *mo = i->method_object->inst_user;
     ASSERT(mo->processing)
     
+    // signal up.
+    // Do it before finishing the event so our process does not advance any further if
+    // we would be killed the event provider going down.
+    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    
     // wait for next event
     device_nextevent(mo);
-    
-    // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
     
     return;
     
