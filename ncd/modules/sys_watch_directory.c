@@ -252,34 +252,34 @@ static void func_new (NCDModuleInst *i)
     }
     o->dir = NCDValue_StringValue(dir_arg);
     
-    // open directory
-    if (!(o->dir_handle = opendir(o->dir))) {
-        ModuleLog(o->i, BLOG_ERROR, "opendir failed");
-        goto fail1;
-    }
-    
     // open inotify
     if ((o->inotify_fd = inotify_init()) < 0) {
         ModuleLog(o->i, BLOG_ERROR, "inotify_init failed");
-        goto fail2;
+        goto fail1;
     }
     
     // add watch
     if (inotify_add_watch(o->inotify_fd, o->dir, IN_CREATE | IN_DELETE | IN_MODIFY | IN_MOVED_FROM | IN_MOVED_TO) < 0) {
         ModuleLog(o->i, BLOG_ERROR, "inotify_add_watch failed");
-        goto fail3;
+        goto fail2;
     }
     
     // set non-blocking
     if (!badvpn_set_nonblocking(o->inotify_fd)) {
         ModuleLog(o->i, BLOG_ERROR, "badvpn_set_nonblocking failed");
-        goto fail3;
+        goto fail2;
     }
     
     // init BFileDescriptor
     BFileDescriptor_Init(&o->bfd, o->inotify_fd, (BFileDescriptor_handler)inotify_fd_handler, o);
     if (!BReactor_AddFileDescriptor(o->i->reactor, &o->bfd)) {
         ModuleLog(o->i, BLOG_ERROR, "BReactor_AddFileDescriptor failed");
+        goto fail2;
+    }
+    
+    // open directory
+    if (!(o->dir_handle = opendir(o->dir))) {
+        ModuleLog(o->i, BLOG_ERROR, "opendir failed");
         goto fail3;
     }
     
@@ -291,11 +291,10 @@ static void func_new (NCDModuleInst *i)
     return;
     
 fail3:
-    ASSERT_FORCE(close(o->inotify_fd) == 0)
+    // free BFileDescriptor
+    BReactor_RemoveFileDescriptor(o->i->reactor, &o->bfd);
 fail2:
-    if (closedir(o->dir_handle) < 0) {
-        ModuleLog(o->i, BLOG_ERROR, "closedir failed");
-    }
+    ASSERT_FORCE(close(o->inotify_fd) == 0)
 fail1:
     free(o);
 fail0:
@@ -307,18 +306,18 @@ void instance_free (struct instance *o, int is_error)
 {
     NCDModuleInst *i = o->i;
     
-    // free BFileDescriptor
-    BReactor_RemoveFileDescriptor(o->i->reactor, &o->bfd);
-    
-    // close inotify
-    ASSERT_FORCE(close(o->inotify_fd) == 0)
-    
     // close directory
     if (o->dir_handle) {
         if (closedir(o->dir_handle) < 0) {
             ModuleLog(o->i, BLOG_ERROR, "closedir failed");
         }
     }
+    
+    // free BFileDescriptor
+    BReactor_RemoveFileDescriptor(o->i->reactor, &o->bfd);
+    
+    // close inotify
+    ASSERT_FORCE(close(o->inotify_fd) == 0)
     
     // free instance
     free(o);
