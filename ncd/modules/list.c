@@ -39,6 +39,8 @@
  * Synopsis: list::get(string index)
  * Variables:
  *   (empty) - element of list at position index (starting from zero) at the time of initialization
+ * 
+ * Synopsis: list::shift()
  */
 
 #include <stdlib.h>
@@ -73,6 +75,10 @@ struct length_instance {
 struct get_instance {
     NCDModuleInst *i;
     NCDValue value;
+};
+
+struct shift_instance {
+    NCDModuleInst *i;
 };
 
 static void func_new (NCDModuleInst *i)
@@ -409,6 +415,59 @@ static int get_func_getvar (void *vo, const char *name, NCDValue *out)
     return 0;
 }
 
+static void shift_func_new (NCDModuleInst *i)
+{
+    // allocate instance
+    struct shift_instance *o = malloc(sizeof(*o));
+    if (!o) {
+        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        goto fail0;
+    }
+    NCDModuleInst_Backend_SetUser(i, o);
+    
+    // init arguments
+    o->i = i;
+    
+    // check arguments
+    if (!NCDValue_ListRead(o->i->args, 0)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
+        goto fail1;
+    }
+    
+    // get method object
+    struct instance *mo = i->method_object->inst_user;
+    
+    // shift
+    if (!NCDValue_ListFirst(&mo->list)) {
+        ModuleLog(o->i, BLOG_ERROR, "list has no elements");
+        goto fail1;
+    }
+    NCDValue v = NCDValue_ListShift(&mo->list);
+    NCDValue_Free(&v);
+    
+    // signal up
+    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    
+    return;
+    
+fail1:
+    free(o);
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+}
+
+static void shift_func_die (void *vo)
+{
+    struct shift_instance *o = vo;
+    NCDModuleInst *i = o->i;
+    
+    // free instance
+    free(o);
+    
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "list",
@@ -433,6 +492,10 @@ static const struct NCDModule modules[] = {
         .func_new = get_func_new,
         .func_die = get_func_die,
         .func_getvar = get_func_getvar
+    }, {
+        .type = "list::shift",
+        .func_new = shift_func_new,
+        .func_die = shift_func_die
     }, {
         .type = NULL
     }
