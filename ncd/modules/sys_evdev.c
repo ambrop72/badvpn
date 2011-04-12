@@ -71,7 +71,7 @@ struct nextevent_instance {
     NCDModuleInst *i;
 };
 
-static void instance_free (struct instance *o);
+static void instance_free (struct instance *o, int is_error);
 
 #define MAKE_LOOKUP_FUNC(_name_) \
 static const char * evdev_##_name_##_to_str (uint16_t type) \
@@ -100,12 +100,12 @@ static void device_handler (struct instance *o, int events)
     int res = read(o->evdev_fd, &o->event, sizeof(o->event));
     if (res < 0) {
         ModuleLog(o->i, BLOG_ERROR, "read failed");
-        instance_free(o);
+        instance_free(o, 1);
         return;
     }
     if (res != sizeof(o->event)) {
         ModuleLog(o->i, BLOG_ERROR, "read wrong");
-        instance_free(o);
+        instance_free(o, 1);
         return;
     }
     
@@ -191,7 +191,7 @@ fail0:
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-void instance_free (struct instance *o)
+void instance_free (struct instance *o, int is_error)
 {
     NCDModuleInst *i = o->i;
     
@@ -207,13 +207,16 @@ void instance_free (struct instance *o)
     // free instance
     free(o);
     
+    if (is_error) {
+        NCDModuleInst_Backend_SetError(i);
+    }
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    instance_free(o);
+    instance_free(o, 0);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValue *out)
