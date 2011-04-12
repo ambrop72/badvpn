@@ -26,6 +26,7 @@
  * Synopsis: sys.watch_directory(string dir)
  * Description: reports directory entry events. Transitions up when an event is detected, and
  *   goes down waiting for the next event when sys.watch_directory::nextevent() is called.
+ *   The directory is first scanned and "added" events are reported for all files.
  * Variables:
  *   string event_type - what happened with the file: "added", "removed" or "changed"
  *   string filename - name of the file in the directory the event refers to
@@ -39,6 +40,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/inotify.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <errno.h>
 
 #include <misc/nonblocking.h>
 #include <misc/concat_strings.h>
@@ -49,64 +53,149 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-#define MAX_EVENTS 128
+#define MAX_INOTIFY_EVENTS 128
 
 struct instance {
     NCDModuleInst *i;
     char *dir;
+    DIR *dir_handle;
     int inotify_fd;
     BFileDescriptor bfd;
-    int processing;
-    struct inotify_event events[MAX_EVENTS];
+    struct inotify_event events[MAX_INOTIFY_EVENTS];
     int events_count;
     int events_index;
+    int processing;
+    const char *processing_file;
+    const char *processing_type;
 };
 
 struct nextevent_instance {
     NCDModuleInst *i;
 };
 
-static void assert_event (struct instance *o)
+static void instance_free (struct instance *o, int is_error);
+
+static void next_dir_event (struct instance *o)
+{
+    ASSERT(!o->processing)
+    ASSERT(o->dir_handle)
+    
+    struct dirent *entry;
+    
+    do {
+        // get next entry
+        errno = 0;
+        if (!(entry = readdir(o->dir_handle))) {
+            if (errno != 0) {
+                ModuleLog(o->i, BLOG_ERROR, "readdir failed");
+                instance_free(o, 1);
+                return;
+            }
+            
+            // close directory
+            if (closedir(o->dir_handle) < 0) {
+                ModuleLog(o->i, BLOG_ERROR, "closedir failed");
+                o->dir_handle = NULL;
+                instance_free(o, 1);
+                return;
+            }
+            
+            // set no dir handle
+            o->dir_handle = NULL;
+            
+            // start receiving inotify events
+            BReactor_SetFileDescriptorEvents(o->i->reactor, &o->bfd, BREACTOR_READ);
+            return;
+        }
+    } while (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."));
+    
+    // set event
+    o->processing_file = entry->d_name;
+    o->processing_type = "added";
+    o->processing = 1;
+    
+    // signal up
+    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+}
+
+static void assert_inotify_event (struct instance *o)
 {
     ASSERT(o->events_index < o->events_count)
     ASSERT(o->events[o->events_index].len % sizeof(o->events[0]) == 0)
     ASSERT(o->events[o->events_index].len / sizeof(o->events[0]) <= o->events_count - (o->events_index + 1))
 }
 
-static int check_event (struct instance *o)
+static const char * translate_inotify_event (struct instance *o)
 {
-    assert_event(o);
+    assert_inotify_event(o);
     
-    return (
-        strlen(o->events[o->events_index].name) > 0 &&
-        (o->events[o->events_index].mask & (IN_CREATE | IN_DELETE | IN_MODIFY | IN_MOVED_FROM | IN_MOVED_TO))
-    );
+    struct inotify_event *event = &o->events[o->events_index];
+    
+    if (strlen(event->name) > 0) {
+        if ((event->mask & (IN_CREATE | IN_MOVED_TO))) {
+            return "added";
+        }
+        if ((event->mask & (IN_DELETE | IN_MOVED_FROM))) {
+            return "removed";
+        }
+        if ((event->mask & IN_MODIFY)) {
+            return "changed";
+        }
+    }
+    
+    return NULL;
 }
 
-static void next_event (struct instance *o)
+static void skip_inotify_event (struct instance *o)
 {
-    assert_event(o);
+    assert_inotify_event(o);
     
     o->events_index += 1 + o->events[o->events_index].len / sizeof(o->events[0]);
 }
 
-static void skip_bad_events (struct instance *o)
+static void next_inotify_event (struct instance *o)
 {
-    while (o->events_index < o->events_count && !check_event(o)) {
+    ASSERT(!o->processing)
+    ASSERT(!o->dir_handle)
+    
+    // skip any bad events
+    while (o->events_index < o->events_count && !translate_inotify_event(o)) {
         ModuleLog(o->i, BLOG_ERROR, "unknown inotify event");
-        next_event(o);
+        skip_inotify_event(o);
     }
+    
+    if (o->events_index == o->events_count) {
+        // wait for more events
+        BReactor_SetFileDescriptorEvents(o->i->reactor, &o->bfd, BREACTOR_READ);
+        return;
+    }
+    
+    // set event
+    o->processing_file = o->events[o->events_index].name;
+    o->processing_type = translate_inotify_event(o);
+    o->processing = 1;
+    
+    // consume this event
+    skip_inotify_event(o);
+    
+    // signal up
+    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
 }
 
 static void inotify_fd_handler (struct instance *o, int events)
 {
     ASSERT(!o->processing)
+    ASSERT(!o->dir_handle)
     
     int res = read(o->inotify_fd, o->events, sizeof(o->events));
     if (res < 0) {
         ModuleLog(o->i, BLOG_ERROR, "read failed");
+        instance_free(o, 1);
         return;
     }
+    
+    // stop waiting for inotify events
+    BReactor_SetFileDescriptorEvents(o->i->reactor, &o->bfd, 0);
     
     ASSERT(res <= sizeof(o->events))
     ASSERT(res % sizeof(o->events[0]) == 0)
@@ -115,49 +204,27 @@ static void inotify_fd_handler (struct instance *o, int events)
     o->events_count = res / sizeof(o->events[0]);
     o->events_index = 0;
     
-    // skip bad events
-    skip_bad_events(o);
-    
-    if (o->events_index == o->events_count) {
-        // keep reading
-        return;
-    }
-    
-    // stop reading
-    BReactor_SetFileDescriptorEvents(o->i->reactor, &o->bfd, 0);
-    
-    // set processing
-    o->processing = 1;
-    
-    // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    // process inotify events
+    next_inotify_event(o);
 }
 
-static void inotify_nextevent (struct instance *o)
+static void next_event (struct instance *o)
 {
     ASSERT(o->processing)
-    assert_event(o);
     
-    // update index, skip bad events
-    next_event(o);
-    skip_bad_events(o);
+    // set not processing
+    o->processing = 0;
     
-    if (o->events_index == o->events_count) {
-        // start reading
-        BReactor_SetFileDescriptorEvents(o->i->reactor, &o->bfd, BREACTOR_READ);
-        
-        // set not processing
-        o->processing = 0;
-        
-        // signal down
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
-        
+    // signal down
+    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+    
+    if (o->dir_handle) {
+        next_dir_event(o);
+        return;
+    } else {
+        next_inotify_event(o);
         return;
     }
-    
-    // signal down and up to process the next event
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
 }
 
 static void func_new (NCDModuleInst *i)
@@ -185,39 +252,50 @@ static void func_new (NCDModuleInst *i)
     }
     o->dir = NCDValue_StringValue(dir_arg);
     
+    // open directory
+    if (!(o->dir_handle = opendir(o->dir))) {
+        ModuleLog(o->i, BLOG_ERROR, "opendir failed");
+        goto fail1;
+    }
+    
     // open inotify
     if ((o->inotify_fd = inotify_init()) < 0) {
         ModuleLog(o->i, BLOG_ERROR, "inotify_init failed");
-        goto fail1;
+        goto fail2;
     }
     
     // add watch
     if (inotify_add_watch(o->inotify_fd, o->dir, IN_CREATE | IN_DELETE | IN_MODIFY | IN_MOVED_FROM | IN_MOVED_TO) < 0) {
         ModuleLog(o->i, BLOG_ERROR, "inotify_add_watch failed");
-        goto fail2;
+        goto fail3;
     }
     
     // set non-blocking
     if (!badvpn_set_nonblocking(o->inotify_fd)) {
         ModuleLog(o->i, BLOG_ERROR, "badvpn_set_nonblocking failed");
-        goto fail2;
+        goto fail3;
     }
     
     // init BFileDescriptor
     BFileDescriptor_Init(&o->bfd, o->inotify_fd, (BFileDescriptor_handler)inotify_fd_handler, o);
     if (!BReactor_AddFileDescriptor(o->i->reactor, &o->bfd)) {
         ModuleLog(o->i, BLOG_ERROR, "BReactor_AddFileDescriptor failed");
-        goto fail2;
+        goto fail3;
     }
-    BReactor_SetFileDescriptorEvents(o->i->reactor, &o->bfd, BREACTOR_READ);
     
     // set not processing
     o->processing = 0;
     
+    // read first directory entry
+    next_dir_event(o);
     return;
     
-fail2:
+fail3:
     ASSERT_FORCE(close(o->inotify_fd) == 0)
+fail2:
+    if (closedir(o->dir_handle) < 0) {
+        ModuleLog(o->i, BLOG_ERROR, "closedir failed");
+    }
 fail1:
     free(o);
 fail0:
@@ -225,9 +303,8 @@ fail0:
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void func_die (void *vo)
+void instance_free (struct instance *o, int is_error)
 {
-    struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
     // free BFileDescriptor
@@ -236,37 +313,35 @@ static void func_die (void *vo)
     // close inotify
     ASSERT_FORCE(close(o->inotify_fd) == 0)
     
+    // close directory
+    if (o->dir_handle) {
+        if (closedir(o->dir_handle) < 0) {
+            ModuleLog(o->i, BLOG_ERROR, "closedir failed");
+        }
+    }
+    
     // free instance
     free(o);
     
+    if (is_error) {
+        NCDModuleInst_Backend_SetError(i);
+    }
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+}
+
+static void func_die (void *vo)
+{
+    struct instance *o = vo;
+    instance_free(o, 0);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValue *out)
 {
     struct instance *o = vo;
     ASSERT(o->processing)
-    assert_event(o);
-    ASSERT(check_event(o))
-    
-    struct inotify_event *event = &o->events[o->events_index];
     
     if (!strcmp(name, "event_type")) {
-        const char *str;
-        
-        if ((event->mask & (IN_CREATE | IN_MOVED_TO))) {
-            str = "added";
-        }
-        else if ((event->mask & (IN_DELETE | IN_MOVED_FROM))) {
-            str = "removed";
-        }
-        else if ((event->mask & IN_MODIFY)) {
-            str = "changed";
-        } else {
-            ASSERT(0);
-        }
-        
-        if (!NCDValue_InitString(out, str)) {
+        if (!NCDValue_InitString(out, o->processing_type)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
             return 0;
         }
@@ -275,7 +350,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     }
     
     if (!strcmp(name, "filename")) {
-        if (!NCDValue_InitString(out, event->name)) {
+        if (!NCDValue_InitString(out, o->processing_file)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
             return 0;
         }
@@ -284,7 +359,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     }
     
     if (!strcmp(name, "filepath")) {
-        char *str = concat_strings(3, o->dir, "/", event->name);
+        char *str = concat_strings(3, o->dir, "/", o->processing_file);
         if (!str) {
             ModuleLog(o->i, BLOG_ERROR, "concat_strings failed");
             return 0;
@@ -333,7 +408,7 @@ static void nextevent_func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
     
     // wait for next event
-    inotify_nextevent(mo);
+    next_event(mo);
     
     return;
     
