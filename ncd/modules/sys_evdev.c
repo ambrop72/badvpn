@@ -71,6 +71,8 @@ struct nextevent_instance {
     NCDModuleInst *i;
 };
 
+static void instance_free (struct instance *o);
+
 #define MAKE_LOOKUP_FUNC(_name_) \
 static const char * evdev_##_name_##_to_str (uint16_t type) \
 { \
@@ -98,10 +100,12 @@ static void device_handler (struct instance *o, int events)
     int res = read(o->evdev_fd, &o->event, sizeof(o->event));
     if (res < 0) {
         ModuleLog(o->i, BLOG_ERROR, "read failed");
+        instance_free(o);
         return;
     }
     if (res != sizeof(o->event)) {
         ModuleLog(o->i, BLOG_ERROR, "read wrong");
+        instance_free(o);
         return;
     }
     
@@ -187,21 +191,29 @@ fail0:
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void func_die (void *vo)
+void instance_free (struct instance *o)
 {
-    struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
     // free BFileDescriptor
     BReactor_RemoveFileDescriptor(o->i->reactor, &o->bfd);
     
-    // close device
-    ASSERT_FORCE(close(o->evdev_fd) == 0)
+    // close device.
+    // Ignore close error which happens if the device is removed.
+    if (close(o->evdev_fd) < 0) {
+        ModuleLog(o->i, BLOG_ERROR, "close failed");
+    }
     
     // free instance
     free(o);
     
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+}
+
+static void func_die (void *vo)
+{
+    struct instance *o = vo;
+    instance_free(o);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValue *out)
