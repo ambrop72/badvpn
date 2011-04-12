@@ -61,6 +61,9 @@ extern const struct NCDModuleGroup ncdmodule_net_ipv4_dhcp;
 #ifdef BADVPN_USE_LINUX_INPUT
 extern const struct NCDModuleGroup ncdmodule_sys_evdev;
 #endif
+#ifdef BADVPN_USE_INOTIFY
+extern const struct NCDModuleGroup ncdmodule_sys_watch_directory;
+#endif
 
 static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_var,
@@ -96,6 +99,9 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_net_ipv4_dhcp,
 #ifdef BADVPN_USE_LINUX_INPUT
     &ncdmodule_sys_evdev,
+#endif
+#ifdef BADVPN_USE_INOTIFY
+    &ncdmodule_sys_watch_directory,
 #endif
     NULL
 };

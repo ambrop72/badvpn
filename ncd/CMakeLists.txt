@@ -15,6 +15,12 @@ if (BADVPN_USE_LINUX_INPUT)
     )
 endif ()
 
+if (BADVPN_USE_INOTIFY)
+    list(APPEND NCD_ADDITIONAL_SOURCES
+        modules/sys_watch_directory.c
+    )
+endif ()
+
 add_executable(badvpn-ncd
     ncd.c
     NCDValue.c

@@ -84,6 +84,12 @@ else ()
             add_definitions(-DBADVPN_USE_LINUX_INPUT)
             set(BADVPN_USE_LINUX_INPUT 1)
         endif ()
+
+        check_include_files(sys/inotify.h HAVE_SYS_INOTIFY_H)
+        if (HAVE_SYS_INOTIFY_H)
+            add_definitions(-DBADVPN_USE_INOTIFY)
+            set(BADVPN_USE_INOTIFY 1)
+        endif ()
     elseif (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
         add_definitions(-DBADVPN_FREEBSD)
 
