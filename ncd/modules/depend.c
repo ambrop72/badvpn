@@ -24,8 +24,25 @@
  * Dependencies module.
  * 
  * Synopsis: provide(string name)
+ * Description: Provides a resource. On initialization, transitions any depend()-s
+ *   waiting for this resource to UP state. On deinitialization, transitions
+ *   depend()-s using this resource to DOWN state, and waits for all of them to
+ *   receive the clean signal (i.e. wait for all of the statements following them in
+ *   their processes to terminate). Initialization fails if a provide() already
+ *   exists for this resource (including if it is being deinitialized).
+ * 
+ * Synopsis: provide_event(string name)
+ * Description: Like provide(), but if another provide() already exists for this
+ *   resource, initialization does not fail, and the request is queued to the active
+ *   provide() for this resource. When the active provide() with disappears that has
+ *   queued provide()-s, one of them is promoted to be the active provide() for this
+ *   resource, and the remaining queue is transferred to it.
+ *   (mentions of provide() in this text also apply to provide_event())
  * 
  * Synopsis: depend(string name)
+ * Description: Depends on a resource. Is in UP state when a provide()
+ *   for this resource is available, and in DOWN state when it is not (either
+ *   it does not exist or is being terminated).
  * Variables: Provides variables available from the corresponding provide,
  *     ("modname.varname" or "modname").
  */
@@ -36,6 +53,7 @@
 #include <misc/offset.h>
 #include <misc/debug.h>
 #include <structure/LinkedList2.h>
+#include <structure/LinkedList3.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_depend.h>
@@ -45,9 +63,18 @@
 struct provide {
     NCDModuleInst *i;
     char *name;
-    LinkedList2Node provides_node;
-    LinkedList2 depends;
-    int dying;
+    int is_queued;
+    union {
+        struct {
+            LinkedList3Node queued_node; // node in list which begins with provide.queued_provides_firstnode
+        };
+        struct {
+            LinkedList2Node provides_node; // node in provides
+            LinkedList2 depends;
+            LinkedList3Node queued_provides_firstnode;
+            int dying;
+        };
+    };
 };
 
 struct depend {
@@ -67,6 +94,8 @@ static struct provide * find_provide (const char *name)
     LinkedList2Node *n;
     while (n = LinkedList2Iterator_Next(&it)) {
         struct provide *p = UPPER_OBJECT(n, struct provide, provides_node);
+        ASSERT(!p->is_queued)
+        
         if (!strcmp(p->name, name)) {
             LinkedList2Iterator_Free(&it);
             return p;
@@ -76,47 +105,12 @@ static struct provide * find_provide (const char *name)
     return NULL;
 }
 
-static int func_globalinit (struct NCDModuleInitParams params)
+static void provide_promote (struct provide *o)
 {
-    // init provides list
-    LinkedList2_Init(&provides);
+    ASSERT(!find_provide(o->name))
     
-    // init free depends list
-    LinkedList2_Init(&free_depends);
-    
-    return 1;
-}
-
-static void provide_func_new (NCDModuleInst *i)
-{
-    // allocate instance
-    struct provide *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
-    o->i = i;
-    
-    // read arguments
-    NCDValue *name_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &name_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
-    }
-    if (NCDValue_Type(name_arg) != NCDVALUE_STRING) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
-    }
-    o->name = NCDValue_StringValue(name_arg);
-    
-    // check for existing provide with this name
-    if (find_provide(o->name)) {
-        ModuleLog(o->i, BLOG_ERROR, "a provide with this name already exists");
-        goto fail1;
-    }
+    // set not queued
+    o->is_queued = 0;
     
     // insert to provides list
     LinkedList2_Append(&provides, &o->provides_node);
@@ -126,11 +120,6 @@ static void provide_func_new (NCDModuleInst *i)
     
     // set not dying
     o->dying = 0;
-    
-    // signal up.
-    // This comes above the loop which follows, so that effects on related depend statements are
-    // computed before this process advances, avoiding problems like failed variable resolutions.
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
     
     // attach free depends with this name
     LinkedList2Iterator it;
@@ -156,6 +145,71 @@ static void provide_func_new (NCDModuleInst *i)
         // signal up
         NCDModuleInst_Backend_Event(d->i, NCDMODULE_EVENT_UP);
     }
+}
+
+static int func_globalinit (struct NCDModuleInitParams params)
+{
+    // init provides list
+    LinkedList2_Init(&provides);
+    
+    // init free depends list
+    LinkedList2_Init(&free_depends);
+    
+    return 1;
+}
+
+static void provide_func_new_templ (NCDModuleInst *i, int event)
+{
+    // allocate instance
+    struct provide *o = malloc(sizeof(*o));
+    if (!o) {
+        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        goto fail0;
+    }
+    NCDModuleInst_Backend_SetUser(i, o);
+    
+    // init arguments
+    o->i = i;
+    
+    // read arguments
+    NCDValue *name_arg;
+    if (!NCDValue_ListRead(o->i->args, 1, &name_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail1;
+    }
+    if (NCDValue_Type(name_arg) != NCDVALUE_STRING) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong type");
+        goto fail1;
+    }
+    o->name = NCDValue_StringValue(name_arg);
+    
+    // signal up.
+    // This comes above provide_promote(), so that effects on related depend statements are
+    // computed before this process advances, avoiding problems like failed variable resolutions.
+    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    
+    // check for existing provide with this name
+    struct provide *ep = find_provide(o->name);
+    if (ep) {
+        ASSERT(!ep->is_queued)
+        
+        if (!event) {
+            ModuleLog(o->i, BLOG_ERROR, "a provide with this name already exists");
+            goto fail1;
+        }
+        
+        // set queued
+        o->is_queued = 1;
+        
+        // insert to existing provide's queued provides list
+        LinkedList3Node_InitAfter(&o->queued_node, &ep->queued_provides_firstnode);
+    } else {
+        // init first node for queued provides list
+        LinkedList3Node_InitLonely(&o->queued_provides_firstnode);
+        
+        // promote provide
+        provide_promote(o);
+    }
     
     return;
     
@@ -166,13 +220,43 @@ fail0:
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
+static void provide_func_new (NCDModuleInst *i)
+{
+    provide_func_new_templ(i, 0);
+}
+
+static void provide_event_func_new (NCDModuleInst *i)
+{
+    provide_func_new_templ(i, 1);
+}
+
 static void provide_free (struct provide *o)
 {
-    ASSERT(LinkedList2_IsEmpty(&o->depends))
+    ASSERT(o->is_queued || LinkedList2_IsEmpty(&o->depends))
     NCDModuleInst *i = o->i;
     
-    // remove from provides list
-    LinkedList2_Remove(&provides, &o->provides_node);
+    if (o->is_queued) {
+        // remove from existing provide's queued provides list
+        LinkedList3Node_Free(&o->queued_node);
+    } else {
+        // remove from provides list
+        LinkedList2_Remove(&provides, &o->provides_node);
+        
+        // if we have provides queued, promote the first one
+        if (LinkedList3Node_Next(&o->queued_provides_firstnode)) {
+            // get first queued provide
+            struct provide *qp = UPPER_OBJECT(LinkedList3Node_Next(&o->queued_provides_firstnode), struct provide, queued_node);
+            ASSERT(qp->is_queued)
+            
+            // make it the head of the queued provides list
+            LinkedList3Node_Free(&qp->queued_node);
+            LinkedList3Node_InitAfter(&qp->queued_provides_firstnode, &o->queued_provides_firstnode);
+            LinkedList3Node_Free(&o->queued_provides_firstnode);
+            
+            // promote provide
+            provide_promote(qp);
+        }
+    }
     
     // free instance
     free(o);
@@ -183,10 +267,10 @@ static void provide_free (struct provide *o)
 static void provide_func_die (void *vo)
 {
     struct provide *o = vo;
-    ASSERT(!o->dying)
+    ASSERT(o->is_queued || !o->dying)
     
-    // if we have no depends, die immediately
-    if (LinkedList2_IsEmpty(&o->depends)) {
+    // if we are queued or have no depends, die immediately
+    if (o->is_queued || LinkedList2_IsEmpty(&o->depends)) {
         provide_free(o);
         return;
     }
@@ -234,6 +318,7 @@ static void depend_func_new (NCDModuleInst *i)
     
     // find a provide with our name
     struct provide *p = find_provide(o->name);
+    ASSERT(!p || !p->is_queued)
     
     if (p && !p->dying) {
         // insert to provide's list
@@ -264,6 +349,7 @@ fail0:
 static void depend_free (struct depend *o)
 {
     NCDModuleInst *i = o->i;
+    ASSERT(!o->p || !o->p->is_queued)
     
     if (o->p) {
         // remove from provide's list
@@ -294,6 +380,7 @@ static void depend_func_die (void *vo)
 static void depend_func_clean (void *vo)
 {
     struct depend *o = vo;
+    ASSERT(!o->p || !o->p->is_queued)
     
     if (!(o->p && o->p->dying)) {
         return;
@@ -320,6 +407,7 @@ static int depend_func_getvar (void *vo, const char *varname, NCDValue *out)
 {
     struct depend *o = vo;
     ASSERT(o->p)
+    ASSERT(!o->p->is_queued)
     ASSERT(!o->p->dying)
     
     return NCDModuleInst_Backend_GetVar(o->p->i, varname, out);
@@ -329,6 +417,7 @@ static NCDModuleInst * depend_func_getobj (void *vo, const char *objname)
 {
     struct depend *o = vo;
     ASSERT(o->p)
+    ASSERT(!o->p->is_queued)
     ASSERT(!o->p->dying)
     
     return NCDModuleInst_Backend_GetObj(o->p->i, objname);
@@ -338,6 +427,10 @@ static const struct NCDModule modules[] = {
     {
         .type = "provide",
         .func_new = provide_func_new,
+        .func_die = provide_func_die
+    }, {
+        .type = "provide_event",
+        .func_new = provide_event_func_new,
         .func_die = provide_func_die
     }, {
         .type = "depend",
