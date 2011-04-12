@@ -44,6 +44,7 @@ typedef void (*NCDModule_handler_event) (void *user, int event);
 typedef int (*NCDModule_handler_getvar) (void *user, const char *varname, NCDValue *out);
 typedef struct NCDModuleInst_s * (*NCDModule_handler_getobj) (void *user, const char *objname);
 typedef int (*NCDModule_handler_initprocess) (void *user, struct NCDModuleProcess_s *p, const char *template_name, NCDValue args);
+typedef void (*NCDModule_handler_log) (void *user);
 
 typedef void (*NCDModuleProcess_handler_dead) (void *user);
 typedef void (*NCDModuleProcess_interp_handler_die) (void *user);
@@ -59,7 +60,6 @@ typedef struct NCDModuleInst_s {
     const struct NCDModule *m;
     struct NCDModuleInst_s *method_object;
     NCDValue *args;
-    const char *logprefix;
     BReactor *reactor;
     BProcessManager *manager;
     void *user;
@@ -67,6 +67,7 @@ typedef struct NCDModuleInst_s {
     NCDModule_handler_getvar handler_getvar;
     NCDModule_handler_getobj handler_getobj;
     NCDModule_handler_initprocess handler_initprocess;
+    NCDModule_handler_log handler_log;
     BPending init_job;
     BPending uninit_job;
     BPending die_job;
@@ -89,11 +90,12 @@ typedef struct NCDModuleProcess_s {
     DebugObject d_obj;
 } NCDModuleProcess;
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager, void *user,
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, BReactor *reactor, BProcessManager *manager, void *user,
                          NCDModule_handler_event handler_event,
                          NCDModule_handler_getvar handler_getvar,
                          NCDModule_handler_getobj handler_getobj,
-                         NCDModule_handler_initprocess handler_initprocess);
+                         NCDModule_handler_initprocess handler_initprocess,
+                         NCDModule_handler_log handler_log);
 void NCDModuleInst_Free (NCDModuleInst *n);
 void NCDModuleInst_Event (NCDModuleInst *n, int event);
 int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out) WARN_UNUSED;

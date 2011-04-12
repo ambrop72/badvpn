@@ -101,7 +101,6 @@ struct process_statement {
     btime_t error_until;
     NCDModuleInst inst;
     NCDValue inst_args;
-    char logprefix[50];
 };
 
 // command-line options
@@ -163,6 +162,7 @@ static void process_statement_instance_handler_event (struct process_statement *
 static int process_statement_instance_handler_getvar (struct process_statement *ps, const char *varname, NCDValue *out);
 static NCDModuleInst * process_statement_instance_handler_getobj (struct process_statement *ps, const char *objname);
 static int process_statement_instance_handler_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name, NCDValue args);
+static void process_statement_instance_handler_log (struct process_statement *ps);
 static void process_moduleprocess_handler_die (struct process *p);
 
 int main (int argc, char **argv)
@@ -1035,16 +1035,14 @@ void process_advance_job_handler (struct process *p)
         arg = arg->next_arg;
     }
     
-    // generate log prefix
-    snprintf(ps->logprefix, sizeof(ps->logprefix), "process %s: statement %zu: module: ", p->name, ps->i);
-    
     // initialize module instance
     NCDModuleInst_Init(
-        &ps->inst, module, method_object, &ps->inst_args, ps->logprefix, &ss, &manager, ps,
+        &ps->inst, module, method_object, &ps->inst_args, &ss, &manager, ps,
         (NCDModule_handler_event)process_statement_instance_handler_event,
         (NCDModule_handler_getvar)process_statement_instance_handler_getvar,
         (NCDModule_handler_getobj)process_statement_instance_handler_getobj,
-        (NCDModule_handler_initprocess)process_statement_instance_handler_initprocess
+        (NCDModule_handler_initprocess)process_statement_instance_handler_initprocess,
+        (NCDModule_handler_log)process_statement_instance_handler_log
     );
     
     // set statement state CHILD
@@ -1374,6 +1372,13 @@ int process_statement_instance_handler_initprocess (struct process_statement *ps
     process_statement_log(ps, BLOG_INFO, "created process from template %s", template_name);
     
     return 1;
+}
+
+void process_statement_instance_handler_log (struct process_statement *ps)
+{
+    ASSERT(ps->state != SSTATE_FORGOTTEN)
+    
+    BLog_Append("process %s: statement %zu: module: ", ps->p->name, ps->i);
 }
 
 void process_moduleprocess_handler_die (struct process *p)

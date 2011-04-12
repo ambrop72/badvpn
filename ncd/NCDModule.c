@@ -120,17 +120,17 @@ static void process_dead_job_handler (NCDModuleProcess *o)
     return;
 }
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, const char *logprefix, BReactor *reactor, BProcessManager *manager, void *user,
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, BReactor *reactor, BProcessManager *manager, void *user,
                          NCDModule_handler_event handler_event,
                          NCDModule_handler_getvar handler_getvar,
                          NCDModule_handler_getobj handler_getobj,
-                         NCDModule_handler_initprocess handler_initprocess)
+                         NCDModule_handler_initprocess handler_initprocess,
+                         NCDModule_handler_log handler_log)
 {
     // init arguments
     n->m = m;
     n->method_object = method_object;
     n->args = args;
-    n->logprefix = logprefix;
     n->reactor = reactor;
     n->manager = manager;
     n->user = user;
@@ -138,6 +138,7 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleI
     n->handler_getvar = handler_getvar;
     n->handler_getobj = handler_getobj;
     n->handler_initprocess = handler_initprocess;
+    n->handler_log = handler_log;
     
     // init jobs
     BPending_Init(&n->init_job, BReactor_PendingGroup(n->reactor), (BPending_handler)init_job_handler, n);
@@ -361,9 +362,11 @@ void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const 
 {
     DebugObject_Access(&n->d_obj);
     
+    // call log handler to append log prefix
+    n->handler_log(n->user);
+    
     va_list vl;
     va_start(vl, fmt);
-    BLog_Append("%s", n->logprefix);
     BLog_LogToChannelVarArg(channel, level, fmt, vl);
     va_end(vl);
 }
