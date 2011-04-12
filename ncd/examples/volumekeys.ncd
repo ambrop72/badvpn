@@ -100,7 +100,7 @@ template volumekeys_input_device {
     evdev->nextevent();
 }
 
-process event_mute {
+process volumekeys_event_mute {
     # Wait for event.
     depend("volumekeys_input_event") dep;
     if(dep.dispatch_mute);
@@ -114,7 +114,7 @@ process event_mute {
     dep.evdev->nextevent();
 }
 
-process event_vup {
+process volumekeys_event_vup {
     # Wait for event.
     depend("volumekeys_input_event") dep;
     if(dep.dispatch_vup);
@@ -128,7 +128,7 @@ process event_vup {
     dep.evdev->nextevent();
 }
 
-process event_vdown {
+process volumekeys_event_vdown {
     # Wait for event.
     depend("volumekeys_input_event") dep;
     if(dep.dispatch_vdown);
