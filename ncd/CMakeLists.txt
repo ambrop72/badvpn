@@ -62,7 +62,8 @@ add_executable(badvpn-ncd
 target_link_libraries(badvpn-ncd system dhcpclient ncdconfig process)
 
 if (BADVPN_USE_LINUX_INPUT)
-    execute_process(COMMAND ${CMAKE_C_COMPILER} ${CMAKE_C_FLAGS} -E ${CMAKE_CURRENT_SOURCE_DIR}/include_linux_input.h
+    string(REPLACE " " ";" FLAGS_LIST ${CMAKE_C_FLAGS})
+    execute_process(COMMAND ${CMAKE_C_COMPILER} ${FLAGS_LIST} -E ${CMAKE_CURRENT_SOURCE_DIR}/include_linux_input.h
                     RESULT_VARIABLE LINUX_INPUT_PREPROCESS_RESULT
                     OUTPUT_VARIABLE LINUX_INPUT_PREPROCESS_OUTPUT)
     if (NOT LINUX_INPUT_PREPROCESS_RESULT EQUAL 0)
