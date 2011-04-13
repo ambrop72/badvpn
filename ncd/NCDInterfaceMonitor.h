@@ -49,5 +49,7 @@ typedef struct {
 
 int NCDInterfaceMonitor_Init (NCDInterfaceMonitor *o, BReactor *reactor, NCDInterfaceMonitor_handler handler, void *user) WARN_UNUSED;
 void NCDInterfaceMonitor_Free (NCDInterfaceMonitor *o);
+void NCDInterfaceMonitor_Pause (NCDInterfaceMonitor *o);
+void NCDInterfaceMonitor_Continue (NCDInterfaceMonitor *o);
 
 #endif

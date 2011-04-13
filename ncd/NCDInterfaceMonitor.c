@@ -53,6 +53,9 @@ void netlink_fd_handler (NCDInterfaceMonitor *o, int events)
         return;
     }
     
+    // stop receiving fd events
+    BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, 0);
+    
     // set buffer
     o->buf_nh = (struct nlmsghdr *)o->buf;
     o->buf_left = len;
@@ -103,6 +106,9 @@ void process_buffer (NCDInterfaceMonitor *o)
             continue;
         }
         
+        // finish this message
+        o->buf_nh = NLMSG_NEXT(o->buf_nh, o->buf_left);
+        
         // schedule more job
         BPending_Set(&o->more_job);
         
@@ -113,15 +119,15 @@ void process_buffer (NCDInterfaceMonitor *o)
     
     // set no buffer
     o->buf_left = -1;
+    
+    // continue receiving fd events
+    BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, BREACTOR_READ);
 }
 
 void more_job_handler (NCDInterfaceMonitor *o)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(o->buf_left >= 0)
-    
-    // finish this message
-    o->buf_nh = NLMSG_NEXT(o->buf_nh, o->buf_left);
     
     // process buffer
     process_buffer(o);
@@ -193,4 +199,26 @@ void NCDInterfaceMonitor_Free (NCDInterfaceMonitor *o)
     
     // close netlink fd
     close(o->netlink_fd);
+}
+
+void NCDInterfaceMonitor_Pause (NCDInterfaceMonitor *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    if (o->buf_left >= 0) {
+        BPending_Unset(&o->more_job);
+    } else {
+        BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, 0);
+    }
+}
+
+void NCDInterfaceMonitor_Continue (NCDInterfaceMonitor *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    if (o->buf_left >= 0) {
+        BPending_Set(&o->more_job);
+    } else {
+        BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, BREACTOR_READ);
+    }
 }
