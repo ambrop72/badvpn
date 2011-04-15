@@ -347,6 +347,7 @@ void BProcess_Free (BProcess *o)
 int BProcess_Terminate (BProcess *o)
 {
     DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
     
     ASSERT(o->pid > 0)
     
@@ -361,6 +362,7 @@ int BProcess_Terminate (BProcess *o)
 int BProcess_Kill (BProcess *o)
 {
     DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
     
     ASSERT(o->pid > 0)
     
