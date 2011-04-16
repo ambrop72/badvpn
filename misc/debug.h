@@ -115,7 +115,7 @@
 #endif
 
 #ifdef __GNUC__
-    #define WARN_UNUSED __attribute((warn_unused_result))
+    #define WARN_UNUSED __attribute__((warn_unused_result))
 #else
     #define WARN_UNUSED
 #endif
