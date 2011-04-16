@@ -142,6 +142,42 @@ static BAVLNode * BAVL_Lookup (BAVL *o, void *val);
  */
 static BAVLNode * BAVL_LookupExact (BAVL *o, void *val);
 
+/**
+ * Returns the smallest node in the tree, or NULL if the tree is empty.
+ * 
+ * @param o the tree
+ * @return smallest node or NULL
+ */
+static BAVLNode * BAVL_GetFirst (BAVL *o);
+
+/**
+ * Returns the greatest node in the tree, or NULL if the tree is empty.
+ * 
+ * @param o the tree
+ * @return greatest node or NULL
+ */
+static BAVLNode * BAVL_GetLast (BAVL *o);
+
+/**
+ * Returns the node that follows the given node, or NULL if it's the
+ * last node.
+ * 
+ * @param o the tree
+ * @param n node
+ * @return next node, or NULL
+ */
+static BAVLNode * BAVL_GetNext (BAVL *o, BAVLNode *n);
+
+/**
+ * Returns the node that precedes the given node, or NULL if it's the
+ * first node.
+ * 
+ * @param o the tree
+ * @param n node
+ * @return previous node, or NULL
+ */
+static BAVLNode * BAVL_GetPrev (BAVL *o, BAVLNode *n);
+
 #define BAVL_MAX(_a, _b) ((_a) > (_b) ? (_a) : (_b))
 #define BAVL_OPTNEG(_a, _neg) ((_neg) ? -(_a) : (_a))
 
@@ -592,6 +628,76 @@ BAVLNode * BAVL_LookupExact (BAVL *o, void *val)
         
         c = c->link[side];
     }
+}
+
+BAVLNode * BAVL_GetFirst (BAVL *o)
+{
+    ASSERT(!o->in_handler)
+    
+    if (!o->root) {
+        return NULL;
+    }
+    
+    BAVLNode *n = o->root;
+    while (n->link[0]) {
+        n = n->link[0];
+    }
+    
+    return n;
+}
+
+BAVLNode * BAVL_GetLast (BAVL *o)
+{
+    ASSERT(!o->in_handler)
+    
+    if (!o->root) {
+        return NULL;
+    }
+    
+    BAVLNode *n = o->root;
+    while (n->link[1]) {
+        n = n->link[1];
+    }
+    
+    return n;
+}
+
+BAVLNode * BAVL_GetNext (BAVL *o, BAVLNode *n)
+{
+    ASSERT(!o->in_handler)
+    
+    if (n->link[1]) {
+        n = n->link[1];
+        while (n->link[0]) {
+            n = n->link[0];
+        }
+    } else {
+        while (n->parent && n == n->parent->link[1]) {
+            n = n->parent;
+        }
+        n = n->parent;
+    }
+    
+    return n;
+}
+
+BAVLNode * BAVL_GetPrev (BAVL *o, BAVLNode *n)
+{
+    ASSERT(!o->in_handler)
+    
+    if (n->link[0]) {
+        n = n->link[0];
+        while (n->link[1]) {
+            n = n->link[1];
+        }
+    } else {
+        while (n->parent && n == n->parent->link[0]) {
+            n = n->parent;
+        }
+        n = n->parent;
+    }
+    
+    return n;
 }
 
 #endif
