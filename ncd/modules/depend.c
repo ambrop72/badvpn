@@ -34,7 +34,7 @@
  * Synopsis: provide_event(string name)
  * Description: Like provide(), but if another provide() already exists for this
  *   resource, initialization does not fail, and the request is queued to the active
- *   provide() for this resource. When the active provide() with disappears that has
+ *   provide() for this resource. When an active provide() disappears that has
  *   queued provide()-s, one of them is promoted to be the active provide() for this
  *   resource, and the remaining queue is transferred to it.
  *   (mentions of provide() in this text also apply to provide_event())
