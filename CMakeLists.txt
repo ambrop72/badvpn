@@ -144,6 +144,7 @@ add_subdirectory(stringmap)
 if (NOT WIN32)
     add_subdirectory(ipc)
     add_subdirectory(process)
+    add_subdirectory(inputprocess)
 endif ()
 
 # example programs
