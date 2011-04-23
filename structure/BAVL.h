@@ -60,9 +60,6 @@ typedef struct {
     BAVL_comparator comparator;
     void *user;
     struct BAVLNode *root;
-    #ifndef NDEBUG
-    int in_handler;
-    #endif
 } BAVL;
 
 /**
@@ -115,7 +112,7 @@ static void BAVL_Remove (BAVL *o, BAVLNode *node);
  * @param o the tree
  * @return 1 if empty, 0 if not
  */
-static int BAVL_IsEmpty (BAVL *o);
+static int BAVL_IsEmpty (const BAVL *o);
 
 /**
  * Looks for a value in the tree.
@@ -129,7 +126,7 @@ static int BAVL_IsEmpty (BAVL *o);
  *           - the smallest node greater than the given value.
  *         NULL if the tree is empty.
  */
-static BAVLNode * BAVL_Lookup (BAVL *o, void *val);
+static BAVLNode * BAVL_Lookup (const BAVL *o, void *val);
 
 /**
  * Looks for a value in the tree.
@@ -140,7 +137,7 @@ static BAVLNode * BAVL_Lookup (BAVL *o, void *val);
  * @return If a node is in the thee with an equal value, that node.
  *         Else NULL.
  */
-static BAVLNode * BAVL_LookupExact (BAVL *o, void *val);
+static BAVLNode * BAVL_LookupExact (const BAVL *o, void *val);
 
 /**
  * Returns the smallest node in the tree, or NULL if the tree is empty.
@@ -148,7 +145,7 @@ static BAVLNode * BAVL_LookupExact (BAVL *o, void *val);
  * @param o the tree
  * @return smallest node or NULL
  */
-static BAVLNode * BAVL_GetFirst (BAVL *o);
+static BAVLNode * BAVL_GetFirst (const BAVL *o);
 
 /**
  * Returns the greatest node in the tree, or NULL if the tree is empty.
@@ -156,7 +153,7 @@ static BAVLNode * BAVL_GetFirst (BAVL *o);
  * @param o the tree
  * @return greatest node or NULL
  */
-static BAVLNode * BAVL_GetLast (BAVL *o);
+static BAVLNode * BAVL_GetLast (const BAVL *o);
 
 /**
  * Returns the node that follows the given node, or NULL if it's the
@@ -166,7 +163,7 @@ static BAVLNode * BAVL_GetLast (BAVL *o);
  * @param n node
  * @return next node, or NULL
  */
-static BAVLNode * BAVL_GetNext (BAVL *o, BAVLNode *n);
+static BAVLNode * BAVL_GetNext (const BAVL *o, BAVLNode *n);
 
 /**
  * Returns the node that precedes the given node, or NULL if it's the
@@ -176,27 +173,19 @@ static BAVLNode * BAVL_GetNext (BAVL *o, BAVLNode *n);
  * @param n node
  * @return previous node, or NULL
  */
-static BAVLNode * BAVL_GetPrev (BAVL *o, BAVLNode *n);
+static BAVLNode * BAVL_GetPrev (const BAVL *o, BAVLNode *n);
 
 #define BAVL_MAX(_a, _b) ((_a) > (_b) ? (_a) : (_b))
 #define BAVL_OPTNEG(_a, _neg) ((_neg) ? -(_a) : (_a))
 
-static void * _BAVL_node_value (BAVL *o, BAVLNode *n)
+static void * _BAVL_node_value (const BAVL *o, BAVLNode *n)
 {
     return ((uint8_t *)n + o->offset);
 }
 
-static int _BAVL_compare_values (BAVL *o, void *v1, void *v2)
+static int _BAVL_compare_values (const BAVL *o, void *v1, void *v2)
 {
-    #ifndef NDEBUG
-    o->in_handler = 1;
-    #endif
-    
     int res = o->comparator(o->user, v1, v2);
-    
-    #ifndef NDEBUG
-    o->in_handler = 0;
-    #endif
     
     ASSERT(res == -1 || res == 0 || res == 1)
     
@@ -461,17 +450,11 @@ void BAVL_Init (BAVL *o, int offset, BAVL_comparator comparator, void *user)
     o->user = user;
     o->root = NULL;
     
-    #ifndef NDEBUG
-    o->in_handler = 0;
-    #endif
-    
     BAVL_ASSERT(o)
 }
 
 int BAVL_Insert (BAVL *o, BAVLNode *node, BAVLNode **ref)
 {
-    ASSERT(!o->in_handler)
-    
     // insert to root?
     if (!o->root) {
         o->root = node;
@@ -533,8 +516,6 @@ int BAVL_Insert (BAVL *o, BAVLNode *node, BAVLNode **ref)
 
 void BAVL_Remove (BAVL *o, BAVLNode *node)
 {
-    ASSERT(!o->in_handler)
-    
     // if we have both subtrees, swap the node and the largest node
     // in the left subtree, so we have at most one subtree
     if (node->link[0] && node->link[1]) {
@@ -565,17 +546,13 @@ void BAVL_Remove (BAVL *o, BAVLNode *node)
     BAVL_ASSERT(o)
 }
 
-int BAVL_IsEmpty (BAVL *o)
+int BAVL_IsEmpty (const BAVL *o)
 {
-    ASSERT(!o->in_handler)
-    
     return (!o->root);
 }
 
-BAVLNode * BAVL_Lookup (BAVL *o, void *val)
+BAVLNode * BAVL_Lookup (const BAVL *o, void *val)
 {
-    ASSERT(!o->in_handler)
-    
     if (!o->root) {
         return NULL;
     }
@@ -601,10 +578,8 @@ BAVLNode * BAVL_Lookup (BAVL *o, void *val)
     }
 }
 
-BAVLNode * BAVL_LookupExact (BAVL *o, void *val)
+BAVLNode * BAVL_LookupExact (const BAVL *o, void *val)
 {
-    ASSERT(!o->in_handler)
-    
     if (!o->root) {
         return NULL;
     }
@@ -630,10 +605,8 @@ BAVLNode * BAVL_LookupExact (BAVL *o, void *val)
     }
 }
 
-BAVLNode * BAVL_GetFirst (BAVL *o)
+BAVLNode * BAVL_GetFirst (const BAVL *o)
 {
-    ASSERT(!o->in_handler)
-    
     if (!o->root) {
         return NULL;
     }
@@ -646,10 +619,8 @@ BAVLNode * BAVL_GetFirst (BAVL *o)
     return n;
 }
 
-BAVLNode * BAVL_GetLast (BAVL *o)
+BAVLNode * BAVL_GetLast (const BAVL *o)
 {
-    ASSERT(!o->in_handler)
-    
     if (!o->root) {
         return NULL;
     }
@@ -662,10 +633,8 @@ BAVLNode * BAVL_GetLast (BAVL *o)
     return n;
 }
 
-BAVLNode * BAVL_GetNext (BAVL *o, BAVLNode *n)
+BAVLNode * BAVL_GetNext (const BAVL *o, BAVLNode *n)
 {
-    ASSERT(!o->in_handler)
-    
     if (n->link[1]) {
         n = n->link[1];
         while (n->link[0]) {
@@ -681,10 +650,8 @@ BAVLNode * BAVL_GetNext (BAVL *o, BAVLNode *n)
     return n;
 }
 
-BAVLNode * BAVL_GetPrev (BAVL *o, BAVLNode *n)
+BAVLNode * BAVL_GetPrev (const BAVL *o, BAVLNode *n)
 {
-    ASSERT(!o->in_handler)
-    
     if (n->link[0]) {
         n = n->link[0];
         while (n->link[1]) {
