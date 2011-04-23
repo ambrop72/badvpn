@@ -39,11 +39,12 @@ typedef struct {
 } BStringMap;
 
 void BStringMap_Init (BStringMap *o);
+int BStringMap_InitCopy (BStringMap *o, const BStringMap *src) WARN_UNUSED;
 void BStringMap_Free (BStringMap *o);
-const char * BStringMap_Get (BStringMap *o, const char *key);
+const char * BStringMap_Get (const BStringMap *o, const char *key);
 int BStringMap_Set (BStringMap *o, const char *key, const char *value) WARN_UNUSED;
 void BStringMap_Unset (BStringMap *o, const char *key);
-const char * BStringMap_First (BStringMap *o);
-const char * BStringMap_Next (BStringMap *o, const char *key);
+const char * BStringMap_First (const BStringMap *o);
+const char * BStringMap_Next (const BStringMap *o, const char *key);
 
 #endif

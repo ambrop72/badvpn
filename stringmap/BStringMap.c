@@ -55,6 +55,25 @@ void BStringMap_Init (BStringMap *o)
     DebugObject_Init(&o->d_obj);
 }
 
+int BStringMap_InitCopy (BStringMap *o, const BStringMap *src)
+{
+    BStringMap_Init(o);
+    
+    const char *key = BStringMap_First(src);
+    while (key) {
+        if (!BStringMap_Set(o, key, BStringMap_Get(src, key))) {
+            goto fail1;
+        }
+        key = BStringMap_Next(src, key);
+    }
+    
+    return 1;
+    
+fail1:
+    BStringMap_Free(o);
+    return 0;
+}
+
 void BStringMap_Free (BStringMap *o)
 {
     DebugObject_Free(&o->d_obj);
@@ -67,7 +86,7 @@ void BStringMap_Free (BStringMap *o)
     }
 }
 
-const char * BStringMap_Get (BStringMap *o, const char *key)
+const char * BStringMap_Get (const BStringMap *o, const char *key)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(key)
@@ -143,7 +162,7 @@ void BStringMap_Unset (BStringMap *o, const char *key)
     free_entry(o, e);
 }
 
-const char * BStringMap_First (BStringMap *o)
+const char * BStringMap_First (const BStringMap *o)
 {
     DebugObject_Access(&o->d_obj);
     
@@ -157,7 +176,7 @@ const char * BStringMap_First (BStringMap *o)
     return e->key;
 }
 
-const char * BStringMap_Next (BStringMap *o, const char *key)
+const char * BStringMap_Next (const BStringMap *o, const char *key)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(key)
