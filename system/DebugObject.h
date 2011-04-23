@@ -66,7 +66,7 @@ static void DebugObject_Free (DebugObject *obj);
  * 
  * @param obj the object
  */
-static void DebugObject_Access (DebugObject *obj);
+static void DebugObject_Access (const DebugObject *obj);
 
 /**
  * Does nothing.
@@ -119,7 +119,7 @@ void DebugObject_Free (DebugObject *obj)
     #endif
 }
 
-void DebugObject_Access (DebugObject *obj)
+void DebugObject_Access (const DebugObject *obj)
 {
     ASSERT(obj->c == DEBUGOBJECT_VALID)
 }
