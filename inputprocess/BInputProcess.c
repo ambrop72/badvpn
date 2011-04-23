@@ -30,7 +30,7 @@
 
 static int init_pipe (BInputProcess *o, int pipe_fd);
 static void free_pipe (BInputProcess *o);
-static void process_pipe_handler_error (BInputProcess *o, int component, int code);
+static void pipe_source_handler_error (BInputProcess *o, int component, int code);
 static void process_handler (BInputProcess *o, int normally, uint8_t normally_exit_status);
 
 int init_pipe (BInputProcess *o, int pipe_fd)
@@ -42,7 +42,7 @@ int init_pipe (BInputProcess *o, int pipe_fd)
     }
     
     // init domain
-    FlowErrorDomain_Init(&o->pipe_domain, (FlowErrorDomain_handler)process_pipe_handler_error, o);
+    FlowErrorDomain_Init(&o->pipe_domain, (FlowErrorDomain_handler)pipe_source_handler_error, o);
     
     // init source
     StreamSocketSource_Init(&o->pipe_source, FlowErrorReporter_Create(&o->pipe_domain, 0), &o->pipe_sock, BReactor_PendingGroup(o->reactor));
@@ -62,13 +62,13 @@ void free_pipe (BInputProcess *o)
     BSocket_Free(&o->pipe_sock);
 }
 
-void process_pipe_handler_error (BInputProcess *o, int component, int code)
+void pipe_source_handler_error (BInputProcess *o, int component, int code)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(o->pipe_fd >= 0)
     
     if (code == STREAMSOCKETSOURCE_ERROR_CLOSED) {
-        BLog(BLOG_INFO, "pipe eof");
+        BLog(BLOG_INFO, "pipe closed");
     } else {
         BLog(BLOG_ERROR, "pipe error");
     }
@@ -90,8 +90,17 @@ void process_pipe_handler_error (BInputProcess *o, int component, int code)
 void process_handler (BInputProcess *o, int normally, uint8_t normally_exit_status)
 {
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->have_process)
     
-    DEBUGERROR(&o->d_err, o->handler_terminated(o->user, normally, normally_exit_status));
+    // free process
+    BProcess_Free(&o->process);
+    
+    // set not have process
+    o->have_process = 0;
+    
+    // call terminated handler
+    o->handler_terminated(o->user, normally, normally_exit_status);
+    return;
 }
 
 int BInputProcess_Init (BInputProcess *o, const char *file, char *const argv[], const char *username, BReactor *reactor, BProcessManager *manager, void *user,
@@ -124,10 +133,15 @@ int BInputProcess_Init (BInputProcess *o, const char *file, char *const argv[], 
         goto fail2;
     }
     
+    // set have process
+    o->have_process = 1;
+    
     // remember pipe read end
     o->pipe_fd = pipefds[0];
     
-    DebugError_Init(&o->d_err, BReactor_PendingGroup(o->reactor));
+    // close pipe write end
+    ASSERT_FORCE(close(pipefds[1]) == 0)
+    
     DebugObject_Init(&o->d_obj);
     return 1;
     
@@ -143,10 +157,11 @@ fail0:
 void BInputProcess_Free (BInputProcess *o)
 {
     DebugObject_Free(&o->d_obj);
-    DebugError_Free(&o->d_err);
     
     // free process
-    BProcess_Free(&o->process);
+    if (o->have_process) {
+        BProcess_Free(&o->process);
+    }
     
     if (o->pipe_fd >= 0) {
         // free pipe reading
@@ -160,7 +175,7 @@ void BInputProcess_Free (BInputProcess *o)
 int BInputProcess_Terminate (BInputProcess *o)
 {
     DebugObject_Access(&o->d_obj);
-    DebugError_AssertNoError(&o->d_err);
+    ASSERT(o->have_process)
     
     return BProcess_Terminate(&o->process);
 }
@@ -168,7 +183,7 @@ int BInputProcess_Terminate (BInputProcess *o)
 int BInputProcess_Kill (BInputProcess *o)
 {
     DebugObject_Access(&o->d_obj);
-    DebugError_AssertNoError(&o->d_err);
+    ASSERT(o->have_process)
     
     return BProcess_Kill(&o->process);
 }

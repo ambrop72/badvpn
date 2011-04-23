@@ -24,7 +24,6 @@
 #define BADVPN_INPUTPROCESS_BINPUTPROCESS_H
 
 #include <misc/debug.h>
-#include <misc/debugerror.h>
 #include <system/DebugObject.h>
 #include <system/BSocket.h>
 #include <process/BProcess.h>
@@ -38,13 +37,13 @@ typedef struct {
     void *user;
     BInputProcess_handler_terminated handler_terminated;
     BInputProcess_handler_closed handler_closed;
+    int have_process;
     BProcess process;
     int pipe_fd;
     BSocket pipe_sock;
     FlowErrorDomain pipe_domain;
     StreamSocketSource pipe_source;
     DebugObject d_obj;
-    DebugError d_err;
 } BInputProcess;
 
 int BInputProcess_Init (BInputProcess *o, const char *file, char *const argv[], const char *username, BReactor *reactor, BProcessManager *manager, void *user,
