@@ -28,7 +28,7 @@
 #ifndef BADVPN_SYSTEM_BREACTOR_H
 #define BADVPN_SYSTEM_BREACTOR_H
 
-#if (defined(BADVPN_USE_WINAPI) + defined(BADVPN_USE_EPOLL) + defined(BADVPN_USE_KEVENT)) != 1
+#if (defined(BADVPN_USE_WINAPI) + defined(BADVPN_USE_EPOLL) + defined(BADVPN_USE_KEVENT) + defined(BADVPN_USE_POLL)) != 1
 #error Unknown event backend or too many event backends
 #endif
 
@@ -44,6 +44,10 @@
 #include <sys/types.h>
 #include <sys/event.h>
 #include <sys/time.h>
+#endif
+
+#ifdef BADVPN_USE_POLL
+#include <poll.h>
 #endif
 
 #include <stdint.h>
@@ -180,6 +184,11 @@ typedef struct BFileDescriptor_t {
     int kevent_tag;
     int **kevent_returned_ptr;
     #endif
+    
+    #ifdef BADVPN_USE_POLL
+    LinkedList1Node poll_enabled_fds_list_node;
+    int poll_returned_index;
+    #endif
 } BFileDescriptor;
 
 /**
@@ -199,6 +208,7 @@ void BFileDescriptor_Init (BFileDescriptor *bs, int fd, BFileDescriptor_handler 
 
 #define BSYSTEM_MAX_RESULTS 64
 #define BSYSTEM_MAX_HANDLES 64
+#define BSYSTEM_MAX_POLL_FDS 4096
 
 /**
  * Event loop that supports file desciptor (Linux) or HANDLE (Windows) events
@@ -235,6 +245,15 @@ typedef struct {
     struct kevent kevent_results[BSYSTEM_MAX_RESULTS];
     int kevent_results_num;
     int kevent_results_pos;
+    #endif
+    
+    #ifdef BADVPN_USE_POLL
+    LinkedList1 poll_enabled_fds_list;
+    int poll_num_enabled_fds;
+    int poll_results_num;
+    int poll_results_pos;
+    struct pollfd *poll_results_pollfds;
+    BFileDescriptor **poll_results_bfds;
     #endif
     
     DebugObject d_obj;
