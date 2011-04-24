@@ -129,8 +129,12 @@ static int set_pktinfo6 (int s)
     DWORD opt = 1;
     int res = setsockopt(s, IPPROTO_IPV6, IPV6_PKTINFO, (char *)&opt, sizeof(opt));
     #else
+    # ifdef IPV6_RECVPKTINFO
     int opt = 1;
     int res = setsockopt(s, IPPROTO_IPV6, IPV6_RECVPKTINFO, &opt, sizeof(opt));
+    # else
+    int res = 0; // assume it succeeded
+    # endif
     #endif
     return res;
 }
@@ -690,7 +694,6 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
     // set pktinfo if needed
     if (!setup_pktinfo(fd, type, domain)) {
         DEBUG("setup_pktinfo failed");
-        goto fail1;
     }
     
     // setup winsock exts
@@ -1133,7 +1136,6 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
         // set pktinfo if needed
         if (!setup_pktinfo(fd, bs->type, bs->domain)) {
             DEBUG("setup_pktinfo failed");
-            goto fail0;
         }
         
         // setup winsock exts
