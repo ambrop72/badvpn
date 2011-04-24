@@ -104,8 +104,6 @@ struct tcp_client {
     int socks_up;
     int socks_closed;
     StreamPassInterface *socks_send_if;
-    int socks_send_prev_buf_used;
-    BPending socks_send_finished_job;
     StreamRecvInterface *socks_recv_if;
     uint8_t socks_recv_buf[CLIENT_SOCKS_RECV_BUF_SIZE];
     int socks_recv_buf_used;
@@ -184,7 +182,6 @@ static err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, 
 static void client_socks_handler (struct tcp_client *client, int event);
 static void client_send_to_socks (struct tcp_client *client);
 static void client_socks_send_handler_done (struct tcp_client *client, int data_len);
-static void client_socks_send_finished_job_handler (struct tcp_client *client);
 static void client_socks_recv_initiate (struct tcp_client *client);
 static void client_socks_recv_handler_done (struct tcp_client *client, int data_len);
 static int client_socks_recv_send_out (struct tcp_client *client);
@@ -937,9 +934,6 @@ void client_free_socks (struct tcp_client *client)
     
     // stop sending to SOCKS
     if (client->socks_up) {
-        // remove send finished job
-        BPending_Free(&client->socks_send_finished_job);
-        
         // stop receiving from client
         if (!client->client_closed) {
             tcp_recv(client->pcb, NULL);
@@ -985,11 +979,6 @@ void client_murder (struct tcp_client *client)
     
     // free SOCKS
     if (!client->socks_closed) {
-        if (client->socks_up) {
-            // remove send finished job
-            BPending_Free(&client->socks_send_finished_job);
-        }
-        
         // free SOCKS
         BSocksClient_Free(&client->socks_client);
         
@@ -1098,8 +1087,6 @@ void client_socks_handler (struct tcp_client *client, int event)
             // init sending
             client->socks_send_if = BSocksClient_GetSendInterface(&client->socks_client);
             StreamPassInterface_Sender_Init(client->socks_send_if, (StreamPassInterface_handler_done)client_socks_send_handler_done, client);
-            client->socks_send_prev_buf_used = -1;
-            BPending_Init(&client->socks_send_finished_job, BReactor_PendingGroup(&ss), (BPending_handler)client_socks_send_finished_job_handler, client);
             
             // init receiving
             client->socks_recv_if = BSocksClient_GetRecvInterface(&client->socks_client);
@@ -1140,13 +1127,6 @@ void client_send_to_socks (struct tcp_client *client)
     ASSERT(!client->socks_closed)
     ASSERT(client->socks_up)
     ASSERT(client->buf_used > 0)
-    ASSERT(client->socks_send_prev_buf_used == -1)
-    
-    // remember amount of data in buffer
-    client->socks_send_prev_buf_used = client->buf_used;
-    
-    // schedule finished job
-    BPending_Set(&client->socks_send_finished_job);
     
     // schedule sending
     StreamPassInterface_Sender_Send(client->socks_send_if, client->buf, client->buf_used);
@@ -1157,7 +1137,6 @@ void client_socks_send_handler_done (struct tcp_client *client, int data_len)
     ASSERT(!client->socks_closed)
     ASSERT(client->socks_up)
     ASSERT(client->buf_used > 0)
-    ASSERT(client->socks_send_prev_buf_used > 0)
     ASSERT(data_len > 0)
     ASSERT(data_len <= client->buf_used)
     
@@ -1165,35 +1144,20 @@ void client_socks_send_handler_done (struct tcp_client *client, int data_len)
     memmove(client->buf, client->buf + data_len, client->buf_used - data_len);
     client->buf_used -= data_len;
     
-    // send any further data
+    if (!client->client_closed) {
+        // confirm sent data
+        tcp_recved(client->pcb, data_len);
+    }
+    
     if (client->buf_used > 0) {
+        // send any further data
         StreamPassInterface_Sender_Send(client->socks_send_if, client->buf, client->buf_used);
     }
-}
-
-void client_socks_send_finished_job_handler (struct tcp_client *client)
-{
-    ASSERT(!client->socks_closed)
-    ASSERT(client->socks_up)
-    ASSERT(client->socks_send_prev_buf_used > 0)
-    ASSERT(client->buf_used <= client->socks_send_prev_buf_used)
-    
-    // calculate how much data was sent
-    int sent = client->socks_send_prev_buf_used - client->buf_used;
-    
-    // unset remembered amount of data in buffer
-    client->socks_send_prev_buf_used = -1;
-    
-    if (client->client_closed) {
+    else if (client->client_closed) {
         // client was closed we've sent everything we had buffered; we're done with it
         client_log(client, BLOG_INFO, "removing after client went down");
         
         client_free_socks(client);
-    } else {
-        // confirm sent data
-        if (sent > 0) {
-            tcp_recved(client->pcb, sent);
-        }
     }
 }
 
