@@ -25,12 +25,14 @@
 #include <limits.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <string.h>
 
 #ifdef BADVPN_USE_SIGNALFD
 #include <sys/signalfd.h>
 #endif
 
 #include <misc/balloc.h>
+#include <misc/nonblocking.h>
 #include <system/BLog.h>
 
 #include <system/BUnixSignal.h>
@@ -92,6 +94,63 @@ static void kevent_handler (struct BUnixSignal_kevent_entry *entry, u_int fflags
 
 #endif
 
+#ifdef BADVPN_USE_SELFPIPE
+
+struct BUnixSignal_selfpipe_entry *bunixsignal_selfpipe_entries[BUNIXSIGNAL_MAX_SIGNALS];
+
+static void free_selfpipe_entry (struct BUnixSignal_selfpipe_entry *entry)
+{
+    BUnixSignal *o = entry->parent;
+    
+    // uninstall signal handler
+    struct sigaction act;
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = SIG_DFL;
+    sigemptyset(&act.sa_mask);
+    ASSERT_FORCE(sigaction(entry->signo, &act, NULL) == 0)
+    
+    // free BFileDescriptor
+    BReactor_RemoveFileDescriptor(o->reactor, &entry->pipe_read_bfd);
+    
+    // close pipe
+    ASSERT_FORCE(close(entry->pipefds[0]) == 0)
+    ASSERT_FORCE(close(entry->pipefds[1]) == 0)
+}
+
+static void pipe_read_fd_handler (struct BUnixSignal_selfpipe_entry *entry, int events)
+{
+    BUnixSignal *o = entry->parent;
+    DebugObject_Access(&o->d_obj);
+    
+    // read a byte
+    uint8_t b;
+    if (read(entry->pipefds[0], &b, sizeof(b)) < 0) {
+        int error = errno;
+        if (error == EAGAIN || error == EWOULDBLOCK) {
+            return;
+        }
+        BLog(BLOG_ERROR, "read failed (%d)", error);
+        return;
+    }
+    
+    // call handler
+    o->handler(o->user, entry->signo);
+    return;
+}
+
+static void signal_handler (int signo)
+{
+    ASSERT(signo >= 0)
+    ASSERT(signo < BUNIXSIGNAL_MAX_SIGNALS)
+    
+    struct BUnixSignal_selfpipe_entry *entry = bunixsignal_selfpipe_entries[signo];
+    
+    uint8_t b = 0;
+    write(entry->pipefds[1], &b, sizeof(b));
+}
+
+#endif
+
 int BUnixSignal_Init (BUnixSignal *o, BReactor *reactor, sigset_t signals, BUnixSignal_handler handler, void *user)
 {
     // init arguments
@@ -121,6 +180,12 @@ int BUnixSignal_Init (BUnixSignal *o, BReactor *reactor, sigset_t signals, BUnix
         goto fail1;
     }
     BReactor_SetFileDescriptorEvents(o->reactor, &o->signalfd_bfd, BREACTOR_READ);
+    
+    // block signals
+    if (sigprocmask(SIG_BLOCK, &o->signals, 0) < 0) {
+        BLog(BLOG_ERROR, "sigprocmask block failed");
+        goto fail2;
+    }
     
     #endif
     
@@ -157,13 +222,89 @@ int BUnixSignal_Init (BUnixSignal *o, BReactor *reactor, sigset_t signals, BUnix
         o->num_entries++;
     }
     
-    #endif
-    
     // block signals
     if (sigprocmask(SIG_BLOCK, &o->signals, 0) < 0) {
         BLog(BLOG_ERROR, "sigprocmask block failed");
         goto fail2;
     }
+    
+    #endif
+    
+    #ifdef BADVPN_USE_SELFPIPE
+    
+    // count signals
+    int num_signals = 0;
+    for (int i = 1; i < BUNIXSIGNAL_MAX_SIGNALS; i++) {
+        if (!sigismember(&o->signals, i)) {
+            continue;
+        }
+        num_signals++;
+    }
+    
+    // allocate array
+    if (!(o->entries = BAllocArray(num_signals, sizeof(o->entries[0])))) {
+        BLog(BLOG_ERROR, "BAllocArray failed");
+        goto fail0;
+    }
+    
+    // init entries
+    o->num_entries = 0;
+    for (int i = 1; i < BUNIXSIGNAL_MAX_SIGNALS; i++) {
+        if (!sigismember(&o->signals, i)) {
+            continue;
+        }
+        
+        struct BUnixSignal_selfpipe_entry *entry = &o->entries[o->num_entries];
+        entry->parent = o;
+        entry->signo = i;
+        
+        // init pipe
+        if (pipe(entry->pipefds) < 0) {
+            BLog(BLOG_ERROR, "pipe failed");
+            goto loop_fail0;
+        }
+        
+        // set pipe ends non-blocking
+        if (!badvpn_set_nonblocking(entry->pipefds[0]) || !badvpn_set_nonblocking(entry->pipefds[1])) {
+            BLog(BLOG_ERROR, "set nonblocking failed");
+            goto loop_fail1;
+        }
+        
+        // init read end BFileDescriptor
+        BFileDescriptor_Init(&entry->pipe_read_bfd, entry->pipefds[0], (BFileDescriptor_handler)pipe_read_fd_handler, entry);
+        if (!BReactor_AddFileDescriptor(o->reactor, &entry->pipe_read_bfd)) {
+            BLog(BLOG_ERROR, "BReactor_AddFileDescriptor failed");
+            goto loop_fail1;
+        }
+        BReactor_SetFileDescriptorEvents(o->reactor, &entry->pipe_read_bfd, BREACTOR_READ);
+        
+        // set global entry pointer
+        bunixsignal_selfpipe_entries[entry->signo] = entry;
+        
+        // install signal handler
+        struct sigaction act;
+        memset(&act, 0, sizeof(act));
+        act.sa_handler = signal_handler;
+        sigemptyset(&act.sa_mask);
+        if (sigaction(entry->signo, &act, NULL) < 0) {
+            BLog(BLOG_ERROR, "sigaction failed");
+            goto loop_fail2;
+        }
+        
+        o->num_entries++;
+        
+        continue;
+        
+    loop_fail2:
+        BReactor_RemoveFileDescriptor(o->reactor, &entry->pipe_read_bfd);
+    loop_fail1:
+        ASSERT_FORCE(close(entry->pipefds[0]) == 0)
+        ASSERT_FORCE(close(entry->pipefds[1]) == 0)
+    loop_fail0:
+        goto fail2;
+    }
+    
+    #endif
     
     DebugObject_Init(&o->d_obj);
     
@@ -185,6 +326,15 @@ fail2:
     BFree(o->entries);
     #endif
     
+    #ifdef BADVPN_USE_SELFPIPE
+fail2:
+    while (o->num_entries > 0) {
+        free_selfpipe_entry(&o->entries[o->num_entries - 1]);
+        o->num_entries--;
+    }
+    BFree(o->entries);
+    #endif
+    
 fail0:
     return 0;
 }
@@ -194,12 +344,12 @@ void BUnixSignal_Free (BUnixSignal *o, int unblock)
     ASSERT(unblock == 0 || unblock == 1)
     DebugObject_Free(&o->d_obj);
     
+    #ifdef BADVPN_USE_SIGNALFD
+    
     if (unblock) {
         // unblock signals
         ASSERT_FORCE(sigprocmask(SIG_UNBLOCK, &o->signals, 0) == 0)
     }
-    
-    #ifdef BADVPN_USE_SIGNALFD
     
     // free signalfd BFileDescriptor
     BReactor_RemoveFileDescriptor(o->reactor, &o->signalfd_bfd);
@@ -211,9 +361,34 @@ void BUnixSignal_Free (BUnixSignal *o, int unblock)
     
     #ifdef BADVPN_USE_KEVENT
     
+    if (unblock) {
+        // unblock signals
+        ASSERT_FORCE(sigprocmask(SIG_UNBLOCK, &o->signals, 0) == 0)
+    }
+    
     // free kevents
     while (o->num_entries > 0) {
         BReactorKEvent_Free(&o->entries[o->num_entries - 1].kevent);
+        o->num_entries--;
+    }
+    
+    // free array
+    BFree(o->entries);
+    
+    #endif
+    
+    #ifdef BADVPN_USE_SELFPIPE
+    
+    if (!unblock) {
+        // block signals
+        if (sigprocmask(SIG_BLOCK, &o->signals, 0) < 0) {
+            BLog(BLOG_ERROR, "sigprocmask block failed");
+        }
+    }
+    
+    // free entries
+    while (o->num_entries > 0) {
+        free_selfpipe_entry(&o->entries[o->num_entries - 1]);
         o->num_entries--;
     }
     

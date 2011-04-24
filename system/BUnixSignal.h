@@ -27,7 +27,7 @@
 #ifndef BADVPN_SYSTEM_BUNIXSIGNAL_H
 #define BADVPN_SYSTEM_BUNIXSIGNAL_H
 
-#if (defined(BADVPN_USE_SIGNALFD) + defined(BADVPN_USE_KEVENT)) != 1
+#if (defined(BADVPN_USE_SIGNALFD) + defined(BADVPN_USE_KEVENT) + defined(BADVPN_USE_SELFPIPE)) != 1
 #error Unknown signal backend or too many signal backends
 #endif
 
@@ -56,6 +56,15 @@ struct BUnixSignal_kevent_entry {
 };
 #endif
 
+#ifdef BADVPN_USE_SELFPIPE
+struct BUnixSignal_selfpipe_entry {
+    struct BUnixSignal_s *parent;
+    int signo;
+    int pipefds[2];
+    BFileDescriptor pipe_read_bfd;
+};
+#endif
+
 /**
  * Object for catching unix signals.
  */
@@ -72,6 +81,11 @@ typedef struct BUnixSignal_s {
     
     #ifdef BADVPN_USE_KEVENT
     struct BUnixSignal_kevent_entry *entries;
+    int num_entries;
+    #endif
+    
+    #ifdef BADVPN_USE_SELFPIPE
+    struct BUnixSignal_selfpipe_entry *entries;
     int num_entries;
     #endif
     
