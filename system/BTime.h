@@ -31,6 +31,7 @@
 #include <windows.h>
 #else
 #include <time.h>
+#include <sys/time.h>
 #endif
 
 #include <stdint.h>
@@ -48,6 +49,7 @@ struct _BTime_global {
     LARGE_INTEGER start_time;
     #else
     btime_t start_time;
+    int use_gettimeofday;
     #endif
 };
 
@@ -58,11 +60,25 @@ static void BTime_Init (void)
     ASSERT(!btime_global.initialized)
     
     #ifdef BADVPN_USE_WINAPI
+    
     ASSERT_FORCE(QueryPerformanceCounter(&btime_global.start_time))
+    
     #else
+    
     struct timespec ts;
-    ASSERT_FORCE(clock_gettime(CLOCK_MONOTONIC, &ts) == 0)
-    btime_global.start_time = (int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec/1000000;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) < 0) {
+        DEBUG("WARNING: CLOCK_MONOTONIC is not available. Timers will be confused by clock changes.");
+        
+        struct timeval tv;
+        ASSERT_FORCE(gettimeofday(&tv, NULL) == 0)
+        
+        btime_global.start_time = (int64_t)tv.tv_sec * 1000 + (int64_t)tv.tv_usec/1000;
+        btime_global.use_gettimeofday = 1;
+    } else {
+        btime_global.start_time = (int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec/1000000;
+        btime_global.use_gettimeofday = 0;
+    }
+    
     #endif
     
     #ifndef NDEBUG
@@ -84,9 +100,15 @@ static btime_t btime_gettime ()
     
     #else
     
-    struct timespec ts;
-    ASSERT_FORCE(clock_gettime(CLOCK_MONOTONIC, &ts) == 0)
-    return (((int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec/1000000) - btime_global.start_time);
+    if (btime_global.use_gettimeofday) {
+        struct timeval tv;
+        ASSERT_FORCE(gettimeofday(&tv, NULL) == 0)
+        return ((int64_t)tv.tv_sec * 1000 + (int64_t)tv.tv_usec/1000);
+    } else {
+        struct timespec ts;
+        ASSERT_FORCE(clock_gettime(CLOCK_MONOTONIC, &ts) == 0)
+        return (((int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec/1000000) - btime_global.start_time);
+    }
     
     #endif
 }
