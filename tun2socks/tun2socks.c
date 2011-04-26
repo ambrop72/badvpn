@@ -638,6 +638,9 @@ void lwip_init_job_hadler (void *unused)
     // set netif pretend TCP
     netif_set_pretend_tcp(&netif, 1);
     
+    // set netif default
+    netif_set_default(&netif);
+    
     // init listener
     struct tcp_pcb *l = tcp_new();
     if (!l) {
