@@ -63,4 +63,8 @@
 #define BLOG_CHANNEL_BThreadWork 62
 #define BLOG_CHANNEL_DPReceive 63
 #define BLOG_CHANNEL_BInputProcess 64
-#define BLOG_NUM_CHANNELS 65
+#define BLOG_CHANNEL_NCDUdevMonitorParser 65
+#define BLOG_CHANNEL_NCDUdevMonitor 66
+#define BLOG_CHANNEL_NCDUdevCache 67
+#define BLOG_CHANNEL_NCDUdevManager 68
+#define BLOG_NUM_CHANNELS 69

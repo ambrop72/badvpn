@@ -63,3 +63,7 @@
 {.name = "BThreadWork", .loglevel = 4},
 {.name = "DPReceive", .loglevel = 4},
 {.name = "BInputProcess", .loglevel = 4},
+{.name = "NCDUdevMonitorParser", .loglevel = 4},
+{.name = "NCDUdevMonitor", .loglevel = 4},
+{.name = "NCDUdevCache", .loglevel = 4},
+{.name = "NCDUdevManager", .loglevel = 4},

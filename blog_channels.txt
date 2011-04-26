@@ -63,3 +63,7 @@ DPRelay 4
 BThreadWork 4
 DPReceive 4
 BInputProcess 4
+NCDUdevMonitorParser 4
+NCDUdevMonitor 4
+NCDUdevCache 4
+NCDUdevManager 4

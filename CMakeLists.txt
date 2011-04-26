@@ -147,6 +147,7 @@ if (NOT WIN32)
     add_subdirectory(ipc)
     add_subdirectory(process)
     add_subdirectory(inputprocess)
+    add_subdirectory(udevmonitor)
 endif ()
 
 # example programs
