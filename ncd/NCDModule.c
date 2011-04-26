@@ -120,7 +120,7 @@ static void process_dead_job_handler (NCDModuleProcess *o)
     return;
 }
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, BReactor *reactor, BProcessManager *manager, void *user,
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, BReactor *reactor, BProcessManager *manager, NCDUdevManager *umanager, void *user,
                          NCDModule_handler_event handler_event,
                          NCDModule_handler_getvar handler_getvar,
                          NCDModule_handler_getobj handler_getobj,
@@ -133,6 +133,7 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleI
     n->args = args;
     n->reactor = reactor;
     n->manager = manager;
+    n->umanager = umanager;
     n->user = user;
     n->handler_event = handler_event;
     n->handler_getvar = handler_getvar;

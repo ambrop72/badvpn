@@ -28,6 +28,7 @@
 #include <system/BPending.h>
 #include <system/BLog.h>
 #include <process/BProcess.h>
+#include <udevmonitor/NCDUdevManager.h>
 #include <ncd/NCDValue.h>
 
 #define NCDMODULE_EVENT_UP 1
@@ -54,6 +55,7 @@ struct NCDModule;
 struct NCDModuleInitParams {
     BReactor *reactor;
     BProcessManager *manager;
+    NCDUdevManager *umanager;
 };
 
 typedef struct NCDModuleInst_s {
@@ -62,6 +64,7 @@ typedef struct NCDModuleInst_s {
     NCDValue *args;
     BReactor *reactor;
     BProcessManager *manager;
+    NCDUdevManager *umanager;
     void *user;
     NCDModule_handler_event handler_event;
     NCDModule_handler_getvar handler_getvar;
@@ -90,7 +93,7 @@ typedef struct NCDModuleProcess_s {
     DebugObject d_obj;
 } NCDModuleProcess;
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, BReactor *reactor, BProcessManager *manager, void *user,
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, BReactor *reactor, BProcessManager *manager, NCDUdevManager *umanager, void *user,
                          NCDModule_handler_event handler_event,
                          NCDModule_handler_getvar handler_getvar,
                          NCDModule_handler_getobj handler_getobj,

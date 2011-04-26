@@ -40,6 +40,7 @@
 #include <system/BSignal.h>
 #include <system/BSocket.h>
 #include <process/BProcess.h>
+#include <udevmonitor/NCDUdevManager.h>
 #include <ncdconfig/NCDConfigParser.h>
 #include <ncd/NCDModule.h>
 #include <ncd/modules/modules.h>
@@ -126,6 +127,9 @@ int terminating;
 
 // process manager
 BProcessManager manager;
+
+// udev manager
+NCDUdevManager umanager;
 
 // config AST
 struct NCDConfig_interfaces *config_ast;
@@ -242,6 +246,9 @@ int main (int argc, char **argv)
         goto fail1a;
     }
     
+    // init udev manager
+    NCDUdevManager_Init(&umanager, &ss, &manager);
+    
     // setup signal handler
     if (!BSignal_Init(&ss, signal_handler, NULL)) {
         BLog(BLOG_ERROR, "BSignal_Init failed");
@@ -270,6 +277,7 @@ int main (int argc, char **argv)
     struct NCDModuleInitParams params;
     params.reactor = &ss;
     params.manager = &manager;
+    params.umanager = &umanager;
     
     // init modules
     size_t num_inited_modules = 0;
@@ -318,6 +326,9 @@ fail3:
     // remove signal handler
     BSignal_Finish();
 fail2:
+    // free udev manager
+    NCDUdevManager_Free(&umanager);
+    
     // free process manager
     BProcessManager_Free(&manager);
 fail1a:
@@ -1037,7 +1048,7 @@ void process_advance_job_handler (struct process *p)
     
     // initialize module instance
     NCDModuleInst_Init(
-        &ps->inst, module, method_object, &ps->inst_args, &ss, &manager, ps,
+        &ps->inst, module, method_object, &ps->inst_args, &ss, &manager, &umanager, ps,
         (NCDModule_handler_event)process_statement_instance_handler_event,
         (NCDModule_handler_getvar)process_statement_instance_handler_getvar,
         (NCDModule_handler_getobj)process_statement_instance_handler_getobj,
