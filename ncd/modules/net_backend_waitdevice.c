@@ -24,14 +24,16 @@
  * Module which waits for the presence of a network interface.
  * 
  * Synopsis: net.backend.waitdevice(string ifname)
+ * Description: statement is UP when a network interface named ifname
+ *   exists, and DOWN when it does not.
  */
 
 #include <stdlib.h>
 #include <string.h>
 
+#include <misc/parse_number.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDIfConfig.h>
-#include <ncd/NCDInterfaceMonitor.h>
 
 #include <generated/blog_channel_ncd_net_backend_waitdevice.h>
 
@@ -40,24 +42,65 @@
 struct instance {
     NCDModuleInst *i;
     const char *ifname;
-    NCDInterfaceMonitor monitor;
-    int up;
+    NCDUdevClient client;
+    char *devpath;
+    uintmax_t ifindex;
 };
 
-static void monitor_handler (struct instance *o, const char *ifname, int if_flags)
+static void client_handler (struct instance *o, char *devpath, int have_map, BStringMap map)
 {
-    if (strcmp(ifname, o->ifname)) {
-        return;
-    }
-    
-    int was_up = o->up;
-    o->up = !!(if_flags & NCDIFCONFIG_FLAG_EXISTS);
-    
-    if (o->up && !was_up) {
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
-    }
-    else if (!o->up && was_up) {
+    if (o->devpath && !strcmp(devpath, o->devpath) && !NCDUdevManager_Query(o->i->umanager, o->devpath)) {
+        // free devpath
+        free(o->devpath);
+        
+        // set no devpath
+        o->devpath = NULL;
+        
+        // signal down
         NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+    } else {
+        const BStringMap *cache_map = NCDUdevManager_Query(o->i->umanager, devpath);
+        if (!cache_map) {
+            goto out;
+        }
+        
+        const char *subsystem = BStringMap_Get(cache_map, "SUBSYSTEM");
+        const char *interface = BStringMap_Get(cache_map, "INTERFACE");
+        const char *ifindex_str = BStringMap_Get(cache_map, "IFINDEX");
+        
+        uintmax_t ifindex;
+        if (!(subsystem && !strcmp(subsystem, "net") && interface && !strcmp(interface, o->ifname) && ifindex_str && parse_unsigned_integer(ifindex_str, &ifindex))) {
+            goto out;
+        }
+        
+        if (o->devpath && (strcmp(o->devpath, devpath) || o->ifindex != ifindex)) {
+            // free devpath
+            free(o->devpath);
+            
+            // set no devpath
+            o->devpath = NULL;
+            
+            // signal down
+            NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+        }
+        
+        if (!o->devpath) {
+            // grab devpath
+            o->devpath = devpath;
+            devpath = NULL;
+            
+            // remember ifindex
+            o->ifindex = ifindex;
+            
+            // signal up
+            NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+        }
+    }
+    
+out:
+    free(devpath);
+    if (have_map) {
+        BStringMap_Free(&map);
     }
 }
 
@@ -86,19 +129,11 @@ static void func_new (NCDModuleInst *i)
     }
     o->ifname = NCDValue_StringValue(arg);
     
-    // init monitor
-    if (!NCDInterfaceMonitor_Init(&o->monitor, o->i->reactor, (NCDInterfaceMonitor_handler)monitor_handler, o)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDInterfaceMonitor_Init failed");
-        goto fail1;
-    }
+    // init client
+    NCDUdevClient_Init(&o->client, o->i->umanager, o, (NCDUdevClient_handler)client_handler);
     
-    // query initial state
-    o->up = !!(NCDIfConfig_query(o->ifname) & NCDIFCONFIG_FLAG_EXISTS);
-    
-    // signal up if needed
-    if (o->up) {
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
-    }
+    // set no devpath
+    o->devpath = NULL;
     
     return;
     
@@ -114,8 +149,13 @@ static void func_die (void *vo)
     struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
-    // free monitor
-    NCDInterfaceMonitor_Free(&o->monitor);
+    // free devpath
+    if (o->devpath) {
+        free(o->devpath);
+    }
+    
+    // free client
+    NCDUdevClient_Free(&o->client);
     
     // free instance
     free(o);
