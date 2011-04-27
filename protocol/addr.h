@@ -35,8 +35,11 @@
 
 #include <misc/debug.h>
 #include <system/BAddr.h>
+#include <system/BLog.h>
 
 #include <generated/bproto_addr.h>
+
+#include <generated/blog_channel_addr.h>
 
 #define ADDR_TYPE_IPV4 1
 #define ADDR_TYPE_IPV6 2
@@ -145,7 +148,7 @@ int addr_read (uint8_t *data, int data_len, BAddr *out_addr)
     
     addrParser parser;
     if (!addrParser_Init(&parser, data, data_len)) {
-        DEBUG("failed to parse addr");
+        BLog(BLOG_ERROR, "failed to parse addr");
         return 0;
     }
     
@@ -156,12 +159,12 @@ int addr_read (uint8_t *data, int data_len, BAddr *out_addr)
         case ADDR_TYPE_IPV4: {
             uint8_t *port_data;
             if (!addrParser_Getip_port(&parser, &port_data)) {
-                DEBUG("port missing for IPv4 address");
+                BLog(BLOG_ERROR, "port missing for IPv4 address");
                 return 0;
             }
             uint8_t *addr_data;
             if (!addrParser_Getipv4_addr(&parser, &addr_data)) {
-                DEBUG("address missing for IPv4 address");
+                BLog(BLOG_ERROR, "address missing for IPv4 address");
                 return 0;
             }
             uint16_t port;
@@ -173,12 +176,12 @@ int addr_read (uint8_t *data, int data_len, BAddr *out_addr)
         case ADDR_TYPE_IPV6: {
             uint8_t *port_data;
             if (!addrParser_Getip_port(&parser, &port_data)) {
-                DEBUG("port missing for IPv6 address");
+                BLog(BLOG_ERROR, "port missing for IPv6 address");
                 return 0;
             }
             uint8_t *addr_data;
             if (!addrParser_Getipv6_addr(&parser, &addr_data)) {
-                DEBUG("address missing for IPv6 address");
+                BLog(BLOG_ERROR, "address missing for IPv6 address");
                 return 0;
             }
             uint16_t port;
@@ -186,7 +189,7 @@ int addr_read (uint8_t *data, int data_len, BAddr *out_addr)
             BAddr_InitIPv6(out_addr, addr_data, port);
         } break;
         default:
-            DEBUG("unknown address type %d", (int)type);
+            BLog(BLOG_ERROR, "unknown address type %d", (int)type);
             return 0;
     }
     

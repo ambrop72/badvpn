@@ -25,10 +25,12 @@
 
 #include <inttypes.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <errno.h>
 
 #include <misc/debug.h>
 #include <misc/byteorder.h>
+#include <system/BLog.h>
 
 #define u8_t uint8_t
 #define s8_t int8_t
@@ -40,8 +42,8 @@
 
 #define PACK_STRUCT_STRUCT __attribute__((packed))
 
-#define LWIP_PLATFORM_DIAG(x) DEBUG x
-#define LWIP_PLATFORM_ASSERT(x) ({ DEBUG("lwip assertion failure: %s", (x)); abort(); })
+#define LWIP_PLATFORM_DIAG(x) { BLog_Append x; BLog_Finish(BLOG_CHANNEL_lwip, BLOG_INFO); }
+#define LWIP_PLATFORM_ASSERT(x) { fprintf(stderr, "%s: lwip assertion failure: %s\n", __FUNCTION__, (x)); abort(); }
 
 #define U16_F PRIu16
 #define S16_F PRId16

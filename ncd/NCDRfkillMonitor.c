@@ -27,8 +27,11 @@
 
 #include <misc/debug.h>
 #include <misc/nonblocking.h>
+#include <system/BLog.h>
 
 #include <ncd/NCDRfkillMonitor.h>
+
+#include <generated/blog_channel_NCDRfkillMonitor.h>
 
 #define RFKILL_DEVICE_NODE "/dev/rfkill"
 
@@ -42,11 +45,11 @@ void rfkill_fd_handler (NCDRfkillMonitor *o, int events)
     struct rfkill_event event;
     int len = read(o->rfkill_fd, &event, sizeof(event));
     if (len < 0) {
-        DEBUG("read failed");
+        BLog(BLOG_ERROR, "read failed");
         return;
     }
     if (len != sizeof(event)) {
-        DEBUG("read returned wrong length");
+        BLog(BLOG_ERROR, "read returned wrong length");
         return;
     }
     
@@ -64,20 +67,20 @@ int NCDRfkillMonitor_Init (NCDRfkillMonitor *o, BReactor *reactor, NCDRfkillMoni
     
     // open rfkill
     if ((o->rfkill_fd = open(RFKILL_DEVICE_NODE, O_RDONLY)) < 0) {
-        DEBUG("open failed");
+        BLog(BLOG_ERROR, "open failed");
         goto fail0;
     }
     
     // set fd non-blocking
     if (!badvpn_set_nonblocking(o->rfkill_fd)) {
-        DEBUG("badvpn_set_nonblocking failed");
+        BLog(BLOG_ERROR, "badvpn_set_nonblocking failed");
         goto fail1;
     }
     
     // init BFileDescriptor
     BFileDescriptor_Init(&o->bfd, o->rfkill_fd, (BFileDescriptor_handler)rfkill_fd_handler, o);
     if (!BReactor_AddFileDescriptor(o->reactor, &o->bfd)) {
-        DEBUG("BReactor_AddFileDescriptor failed");
+        BLog(BLOG_ERROR, "BReactor_AddFileDescriptor failed");
         goto fail1;
     }
     BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, BREACTOR_READ);

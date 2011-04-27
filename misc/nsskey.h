@@ -34,7 +34,9 @@
 #include <keyhi.h>
 #include <pk11func.h>
 
-#include <misc/debug.h>
+#include <system/BLog.h>
+
+#include <generated/blog_channel_nsskey.h>
 
 /**
  * Opens a NSS certificate and its private key.
@@ -61,7 +63,7 @@ static SECKEYPrivateKey * find_nss_private_key (char *name)
     for (slot_entry = slot_list->head; !key && slot_entry; slot_entry = slot_entry->next) {
         SECKEYPrivateKeyList *key_list = PK11_ListPrivKeysInSlot(slot_entry->slot, name, NULL);
         if (!key_list) {
-            DEBUG("PK11_ListPrivKeysInSlot failed");
+            BLog(BLOG_ERROR, "PK11_ListPrivKeysInSlot failed");
             continue;
         }
         
@@ -90,13 +92,13 @@ int open_nss_cert_and_key (char *name, CERTCertificate **out_cert, SECKEYPrivate
     CERTCertificate *cert;
     cert = CERT_FindCertByNicknameOrEmailAddr(CERT_GetDefaultCertDB(), name);
     if (!cert) {
-        DEBUG("CERT_FindCertByName failed (%d)", (int)PR_GetError());
+        BLog(BLOG_ERROR, "CERT_FindCertByName failed (%d)", (int)PR_GetError());
         return 0;
     }
     
     SECKEYPrivateKey *key = find_nss_private_key(name);
     if (!key) {
-        DEBUG("Failed to find private key");
+        BLog(BLOG_ERROR, "Failed to find private key");
         CERT_DestroyCertificate(cert);
         return 0;
     }

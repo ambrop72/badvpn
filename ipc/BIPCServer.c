@@ -20,7 +20,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <system/BLog.h>
+
 #include <ipc/BIPCServer.h>
+
+#include <generated/blog_channel_BIPCServer.h>
 
 static void listener_handler (BIPCServer *o)
 {
@@ -38,19 +42,19 @@ int BIPCServer_Init (BIPCServer *o, const char *path, BIPCServer_handler handler
     
     // init socket
     if (BSocket_Init(&o->sock, reactor, BADDR_TYPE_UNIX, BSOCKET_TYPE_STREAM) < 0) {
-        DEBUG("BSocket_Init failed");
+        BLog(BLOG_ERROR, "BSocket_Init failed");
         goto fail0;
     }
     
     // bind socket
     if (BSocket_BindUnix(&o->sock, path) < 0) {
-        DEBUG("BSocket_BindUnix failed (%d)", BSocket_GetError(&o->sock));
+        BLog(BLOG_ERROR, "BSocket_BindUnix failed (%d)", BSocket_GetError(&o->sock));
         goto fail1;
     }
     
     // listen socket
     if (BSocket_Listen(&o->sock, -1) < 0) {
-        DEBUG("BSocket_Listen failed (%d)", BSocket_GetError(&o->sock));
+        BLog(BLOG_ERROR, "BSocket_Listen failed (%d)", BSocket_GetError(&o->sock));
         goto fail1;
     }
     

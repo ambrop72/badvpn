@@ -38,6 +38,9 @@
 
 #include <misc/debug.h>
 #include <misc/overflow.h>
+#include <system/BLog.h>
+
+#include <generated/blog_channel_BTime.h>
 
 typedef int64_t btime_t;
 
@@ -67,7 +70,7 @@ static void BTime_Init (void)
     
     struct timespec ts;
     if (clock_gettime(CLOCK_MONOTONIC, &ts) < 0) {
-        DEBUG("WARNING: CLOCK_MONOTONIC is not available. Timers will be confused by clock changes.");
+        BLog(BLOG_WARNING, "CLOCK_MONOTONIC is not available. Timers will be confused by clock changes.");
         
         struct timeval tv;
         ASSERT_FORCE(gettimeofday(&tv, NULL) == 0)

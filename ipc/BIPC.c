@@ -20,7 +20,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <system/BLog.h>
+
 #include <ipc/BIPC.h>
+
+#include <generated/blog_channel_BIPC.h>
 
 #define COMPONENT_SOURCE 1
 #define COMPONENT_SINK 2
@@ -93,13 +97,13 @@ int BIPC_InitConnect (BIPC *o, const char *path, int send_mtu, PacketPassInterfa
     
     // init socket
     if (BSocket_Init(&o->sock, reactor, BADDR_TYPE_UNIX, BSOCKET_TYPE_STREAM) < 0) {
-        DEBUG("BSocket_Init failed");
+        BLog(BLOG_ERROR, "BSocket_Init failed");
         goto fail0;
     }
     
     // connect socket
     if (BSocket_ConnectUnix(&o->sock, path) < 0) {
-        DEBUG("BSocket_ConnectUnix failed (%d)", BSocket_GetError(&o->sock));
+        BLog(BLOG_ERROR, "BSocket_ConnectUnix failed (%d)", BSocket_GetError(&o->sock));
         goto fail1;
     }
     
@@ -132,7 +136,7 @@ int BIPC_InitAccept (BIPC *o, BIPCServer *server, int send_mtu, PacketPassInterf
     
     // accept socket
     if (!Listener_Accept(&server->listener, &o->sock, NULL)) {
-        DEBUG("Listener_Accept failed");
+        BLog(BLOG_ERROR, "Listener_Accept failed");
         goto fail0;
     }
     

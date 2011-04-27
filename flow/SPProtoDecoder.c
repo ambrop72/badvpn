@@ -26,8 +26,11 @@
 #include <misc/balign.h>
 #include <misc/byteorder.h>
 #include <security/BHash.h>
+#include <system/BLog.h>
 
 #include <flow/SPProtoDecoder.h>
+
+#include <generated/blog_channel_SPProtoDecoder.h>
 
 static void decode_work_func (SPProtoDecoder *o)
 {
@@ -49,19 +52,19 @@ static void decode_work_func (SPProtoDecoder *o)
     } else {
         // input must be a multiple of blocks size
         if (in_len % o->enc_block_size != 0) {
-            DEBUG("packet size not a multiple of block size");
+            BLog(BLOG_WARNING, "packet size not a multiple of block size");
             return;
         }
         
         // input must have an IV block
         if (in_len < o->enc_block_size) {
-            DEBUG("packet does not have an IV");
+            BLog(BLOG_WARNING, "packet does not have an IV");
             return;
         }
         
         // check if we have encryption key
         if (!o->have_encryption_key) {
-            DEBUG("have no encryption key");
+            BLog(BLOG_WARNING, "have no encryption key");
             return;
         }
         
@@ -77,7 +80,7 @@ static void decode_work_func (SPProtoDecoder *o)
         
         // read padding
         if (ciphertext_len < o->enc_block_size) {
-            DEBUG("packet does not have a padding block");
+            BLog(BLOG_WARNING, "packet does not have a padding block");
             return;
         }
         int i;
@@ -86,12 +89,12 @@ static void decode_work_func (SPProtoDecoder *o)
                 break;
             }
             if (plaintext[i] != 0) {
-                DEBUG("packet padding wrong (nonzero byte)");
+                BLog(BLOG_WARNING, "packet padding wrong (nonzero byte)");
                 return;
             }
         }
         if (i < ciphertext_len - o->enc_block_size) {
-            DEBUG("packet padding wrong (all zeroes)");
+            BLog(BLOG_WARNING, "packet padding wrong (all zeroes)");
             return;
         }
         plaintext_len = i;
@@ -99,14 +102,14 @@ static void decode_work_func (SPProtoDecoder *o)
     
     // check for header
     if (plaintext_len < SPPROTO_HEADER_LEN(o->sp_params)) {
-        DEBUG("packet has no header");
+        BLog(BLOG_WARNING, "packet has no header");
         return;
     }
     uint8_t *header = plaintext;
     
     // check data length
     if (plaintext_len - SPPROTO_HEADER_LEN(o->sp_params) > o->output_mtu) {
-        DEBUG("packet too long");
+        BLog(BLOG_WARNING, "packet too long");
         return;
     }
     
@@ -133,7 +136,7 @@ static void decode_work_func (SPProtoDecoder *o)
         memcpy(header_hash, hash, o->hash_size);
         // compare hashes
         if (memcmp(hash, hash_calc, o->hash_size)) {
-            DEBUG("packet has wrong hash");
+            BLog(BLOG_WARNING, "packet has wrong hash");
             return;
         }
     }
@@ -156,7 +159,7 @@ static void decode_work_handler (SPProtoDecoder *o)
     // check OTP
     if (SPPROTO_HAVE_OTP(o->sp_params) && o->tw_out_len >= 0) {
         if (!OTPChecker_CheckOTP(&o->otpchecker, o->tw_out_seed_id, o->tw_out_otp)) {
-            DEBUG("packet has wrong OTP");
+            BLog(BLOG_WARNING, "packet has wrong OTP");
             o->tw_out_len = -1;
         }
     }

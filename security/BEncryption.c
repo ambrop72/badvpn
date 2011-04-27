@@ -20,7 +20,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <system/BLog.h>
+
 #include <security/BEncryption.h>
+
+#include <generated/blog_channel_BEncryption.h>
 
 int BEncryption_cipher_valid (int cipher)
 {
@@ -78,12 +82,12 @@ void BEncryption_Init (BEncryption *enc, int mode, int cipher, uint8_t *key)
     }
     
     if ((enc->cryptodev.fd = open("/dev/crypto", O_RDWR, 0)) < 0) {
-        DEBUG("failed to open /dev/crypto");
+        BLog(BLOG_ERROR, "failed to open /dev/crypto");
         goto fail1;
     }
     
     if (ioctl(enc->cryptodev.fd, CRIOGET, &enc->cryptodev.cfd)) {
-        DEBUG("failed ioctl(CRIOGET)");
+        BLog(BLOG_ERROR, "failed ioctl(CRIOGET)");
         goto fail2;
     }
     
@@ -93,7 +97,7 @@ void BEncryption_Init (BEncryption *enc, int mode, int cipher, uint8_t *key)
     sess.keylen = BEncryption_cipher_key_size(enc->cipher);
     sess.key = key;
     if (ioctl(enc->cryptodev.cfd, CIOCGSESSION, &sess)) {
-        DEBUG("failed ioctl(CIOCGSESSION)");
+        BLog(BLOG_ERROR, "failed ioctl(CIOCGSESSION)");
         goto fail3;
     }
     

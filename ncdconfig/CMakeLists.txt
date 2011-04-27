@@ -3,3 +3,4 @@ add_library(ncdconfig
     NCDConfigTokenizer.c
     NCDConfigParser.c
 )
+target_link_libraries(ncdconfig system)

@@ -748,7 +748,7 @@ err_t netif_output_func (struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr)
     
     uint8_t *out;
     if (!BufferWriter_StartPacket(&device_write_writer, &out)) {
-        DEBUG("netif func output: BufferWriter_StartPacket failed");
+        BLog(BLOG_ERROR, "netif func output: BufferWriter_StartPacket failed");
         return ERR_OK;
     }
     

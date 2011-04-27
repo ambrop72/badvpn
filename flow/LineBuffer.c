@@ -23,7 +23,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <system/BLog.h>
+
 #include <flow/LineBuffer.h>
+
+#include <generated/blog_channel_LineBuffer.h>
 
 static void input_handler_done (LineBuffer *o, int data_len)
 {
@@ -43,6 +47,10 @@ static void input_handler_done (LineBuffer *o, int data_len)
     }
     
     if (i < o->buf_used || o->buf_used == o->buf_size) {
+        if (i == o->buf_used) {
+            BLog(BLOG_WARNING, "line too long");
+        }
+        
         // pass to output
         o->buf_consumed = (i < o->buf_used ? i + 1 : i);
         PacketPassInterface_Sender_Send(o->output, o->buf, o->buf_consumed);
@@ -102,7 +110,7 @@ int LineBuffer_Init (LineBuffer *o, StreamRecvInterface *input, PacketPassInterf
     
     // allocate buffer
     if (!(o->buf = malloc(o->buf_size))) {
-        DEBUG("malloc failed");
+        BLog(BLOG_ERROR, "malloc failed");
         goto fail0;
     }
     

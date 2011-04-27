@@ -34,8 +34,11 @@
 
 #include <misc/debug.h>
 #include <misc/nonblocking.h>
+#include <system/BLog.h>
 
 #include <ncd/NCDInterfaceMonitor.h>
+
+#include <generated/blog_channel_NCDInterfaceMonitor.h>
 
 static void netlink_fd_handler (NCDInterfaceMonitor *o, int events);
 static void process_buffer (NCDInterfaceMonitor *o);
@@ -49,7 +52,7 @@ void netlink_fd_handler (NCDInterfaceMonitor *o, int events)
     // read from netlink fd
     int len = read(o->netlink_fd, o->buf, sizeof(o->buf));
     if (len < 0) {
-        DEBUG("read failed");
+        BLog(BLOG_ERROR, "read failed");
         return;
     }
     
@@ -82,7 +85,7 @@ void process_buffer (NCDInterfaceMonitor *o)
         int pl_len = NLMSG_PAYLOAD(o->buf_nh, 0);
         
         if (pl_len < sizeof(struct ifinfomsg)) {
-            DEBUG("missing infomsg");
+            BLog(BLOG_ERROR, "missing infomsg");
             continue;
         }
         struct ifinfomsg *im = (void *)pl;
@@ -143,13 +146,13 @@ int NCDInterfaceMonitor_Init (NCDInterfaceMonitor *o, BReactor *reactor, NCDInte
     
     // init netlink fd
     if ((o->netlink_fd = socket(AF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE)) < 0) {
-        DEBUG("socket failed");
+        BLog(BLOG_ERROR, "socket failed");
         goto fail0;
     }
     
     // set fd non-blocking
     if (!badvpn_set_nonblocking(o->netlink_fd)) {
-        DEBUG("badvpn_set_nonblocking failed");
+        BLog(BLOG_ERROR, "badvpn_set_nonblocking failed");
         goto fail1;
     }
     
@@ -159,14 +162,14 @@ int NCDInterfaceMonitor_Init (NCDInterfaceMonitor *o, BReactor *reactor, NCDInte
     sa.nl_family = AF_NETLINK;
     sa.nl_groups = RTMGRP_LINK;
     if (bind(o->netlink_fd, (void *)&sa, sizeof(sa)) < 0) {
-        DEBUG("bind failed");
+        BLog(BLOG_ERROR, "bind failed");
         goto fail1;
     }
     
     // init BFileDescriptor
     BFileDescriptor_Init(&o->bfd, o->netlink_fd, (BFileDescriptor_handler)netlink_fd_handler, o);
     if (!BReactor_AddFileDescriptor(o->reactor, &o->bfd)) {
-        DEBUG("BReactor_AddFileDescriptor failed");
+        BLog(BLOG_ERROR, "BReactor_AddFileDescriptor failed");
         goto fail1;
     }
     BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, BREACTOR_READ);

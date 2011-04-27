@@ -25,9 +25,12 @@
 #include <string.h>
 
 #include <misc/debug.h>
+#include <system/BLog.h>
 #include <ncdconfig/NCDConfigTokenizer.h>
 
 #include <ncdconfig/NCDConfigParser.h>
+
+#include <generated/blog_channel_NCDConfigParser.h>
 
 #include "../generated/NCDConfigParser_parse.c"
 #include "../generated/NCDConfigParser_parse.h"
@@ -46,7 +49,7 @@ static int tokenizer_output (void *user, int token, char *value, size_t position
     ASSERT(!state->error)
     
     if (token == NCD_ERROR) {
-        DEBUG("tokenizer error at %zu", position);
+        BLog(BLOG_ERROR, "tokenizer error at %zu", position);
         state->error = 1;
         return 0;
     }
@@ -122,13 +125,13 @@ static int tokenizer_output (void *user, int token, char *value, size_t position
     
     // if we got syntax error, stop parsing
     if (state->out.syntax_error) {
-        DEBUG("syntax error at %zu", position);
+        BLog(BLOG_ERROR, "syntax error at %zu", position);
         state->error = 1;
         return 0;
     }
     
     if (state->out.out_of_memory) {
-        DEBUG("out of memory at %zu", position);
+        BLog(BLOG_ERROR, "out of memory at %zu", position);
         state->error = 1;
         return 0;
     }
@@ -146,7 +149,7 @@ int NCDConfigParser_Parse (char *config, size_t config_len, struct NCDConfig_int
     state.error = 0;
     
     if (!(state.parser = ParseAlloc(malloc))) {
-        DEBUG("ParseAlloc failed");
+        BLog(BLOG_ERROR, "ParseAlloc failed");
         return 0;
     }
     

@@ -49,7 +49,11 @@
     #endif
 #endif
 
+#include <system/BLog.h>
+
 #include <tuntap/BTap.h>
+
+#include <generated/blog_channel_BTap.h>
 
 static void report_error (BTap *o);
 static void input_handler_send (BTap *o, uint8_t *data, int data_len);
@@ -70,17 +74,17 @@ static int try_send (BTap *o, uint8_t *data, int data_len)
             // write pending
             return 0;
         }
-        DEBUG("WARNING: WriteFile failed (%u)", error);
+        BLog(BLOG_WARNING, "WriteFile failed (%u)", error);
         return 1;
     }
     
     // read result
     DWORD bytes;
     if (!GetOverlappedResult(o->device, &o->input_ol, &bytes, FALSE)) {
-        DEBUG("WARNING: GetOverlappedResult failed (%u)", GetLastError());
+        BLog(BLOG_WARNING, "GetOverlappedResult failed (%u)", GetLastError());
     }
     else if (bytes != data_len) {
-        DEBUG("WARNING: written %d expected %d", (int)bytes, data_len);
+        BLog(BLOG_WARNING, "written %d expected %d", (int)bytes, data_len);
     }
     
     // reset event
@@ -103,7 +107,7 @@ static int try_recv (BTap *o, uint8_t *data, int *data_len)
             return 0;
         }
         
-        DEBUG("ReadFile failed (%u)", error);
+        BLog(BLOG_ERROR, "ReadFile failed (%u)", error);
         
         // fatal error
         return -1;
@@ -112,7 +116,7 @@ static int try_recv (BTap *o, uint8_t *data, int *data_len)
     // read result
     DWORD bytes;
     if (!GetOverlappedResult(o->device, &o->output_ol, &bytes, FALSE)) {
-        DEBUG("GetOverlappedResult (output) failed (%u)", GetLastError());
+        BLog(BLOG_ERROR, "GetOverlappedResult (output) failed (%u)", GetLastError());
         
         // fatal error
         return -1;
@@ -139,9 +143,9 @@ static void write_handle_handler (BTap *o)
     // read result
     DWORD bytes;
     if (!GetOverlappedResult(o->device, &o->input_ol, &bytes, FALSE)) {
-        DEBUG("WARNING: GetOverlappedResult (input) failed (%u)", GetLastError());
+        BLog(BLOG_WARNING, "GetOverlappedResult (input) failed (%u)", GetLastError());
     } else if (bytes != o->input_packet_len) {
-        DEBUG("WARNING: written %d expected %d", (int)bytes, o->input_packet_len);
+        BLog(BLOG_WARNING, "written %d expected %d", (int)bytes, o->input_packet_len);
     }
     
     // set no input packet
@@ -166,7 +170,7 @@ static void read_handle_handler (BTap *o)
     DWORD dbytes;
     if (!GetOverlappedResult(o->device, &o->output_ol, &dbytes, FALSE)) {
         DWORD error = GetLastError();
-        DEBUG("GetOverlappedResult (output) failed (%u)", error);
+        BLog(BLOG_ERROR, "GetOverlappedResult (output) failed (%u)", error);
         
         // set no output packet (so that BTap_Free doesn't try getting the result again)
         o->output_packet = NULL;
@@ -202,7 +206,7 @@ static void fd_handler (BTap *o, int events)
     DebugObject_Access(&o->d_obj);
     
     if (events&BREACTOR_ERROR) {
-        DEBUG("WARNING: device fd reports error?");
+        BLog(BLOG_WARNING, "device fd reports error?");
     }
     
     if (events&BREACTOR_WRITE) do {
@@ -218,7 +222,7 @@ static void fd_handler (BTap *o, int events)
             // the packet was accepeted
         } else {
             if (bytes != o->input_packet_len) {
-                DEBUG("WARNING: written %d expected %d", bytes, o->input_packet_len);
+                BLog(BLOG_WARNING, "written %d expected %d", bytes, o->input_packet_len);
             }
         }
         
@@ -308,7 +312,7 @@ void input_handler_send (BTap *o, uint8_t *data, int data_len)
         // the packet was accepeted
     } else {
         if (bytes != data_len) {
-            DEBUG("WARNING: written %d expected %d", bytes, data_len);
+            BLog(BLOG_WARNING, "written %d expected %d", bytes, data_len);
         }
     }
     
@@ -380,7 +384,7 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     // parse device specification
     
     if (!devname) {
-        DEBUG("no device specification provided");
+        BLog(BLOG_ERROR, "no device specification provided");
         return 0;
     }
     
@@ -392,12 +396,12 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     
     if (tun) {
         if (!tapwin32_parse_tun_spec(devname, device_component_id, device_name, tun_addrs)) {
-            DEBUG("failed to parse TUN device specification");
+            BLog(BLOG_ERROR, "failed to parse TUN device specification");
             return 0;
         }
     } else {
         if (!tapwin32_parse_tap_spec(devname, device_component_id, device_name)) {
-            DEBUG("failed to parse TAP device specification");
+            BLog(BLOG_ERROR, "failed to parse TAP device specification");
             return 0;
         }
     }
@@ -406,20 +410,20 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     
     char device_path[TAPWIN32_MAX_REG_SIZE];
     
-    DEBUG("Looking for TAP-Win32 with component ID %s, name %s", device_component_id, device_name);
+    BLog(BLOG_INFO, "Looking for TAP-Win32 with component ID %s, name %s", device_component_id, device_name);
     
     if (!tapwin32_find_device(device_component_id, device_name, &device_path)) {
-        DEBUG("Could not find device");
+        BLog(BLOG_ERROR, "Could not find device");
         goto fail0;
     }
     
     // open device
     
-    DEBUG("Opening device %s", device_path);
+    BLog(BLOG_INFO, "Opening device %s", device_path);
     
     o->device = CreateFile(device_path, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_SYSTEM|FILE_FLAG_OVERLAPPED, 0);
     if (o->device == INVALID_HANDLE_VALUE) {
-        DEBUG("CreateFile failed");
+        BLog(BLOG_ERROR, "CreateFile failed");
         goto fail0;
     }
     
@@ -429,7 +433,7 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     
     if (tun) {
         if (!DeviceIoControl(o->device, TAP_IOCTL_CONFIG_TUN, tun_addrs, sizeof(tun_addrs), tun_addrs, sizeof(tun_addrs), &len, NULL)) {
-            DEBUG("DeviceIoControl(TAP_IOCTL_CONFIG_TUN) failed");
+            BLog(BLOG_ERROR, "DeviceIoControl(TAP_IOCTL_CONFIG_TUN) failed");
             goto fail1;
         }
     }
@@ -442,7 +446,7 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
         ULONG umtu;
         
         if (!DeviceIoControl(o->device, TAP_IOCTL_GET_MTU, NULL, 0, &umtu, sizeof(umtu), &len, NULL)) {
-            DEBUG("DeviceIoControl(TAP_IOCTL_GET_MTU) failed");
+            BLog(BLOG_ERROR, "DeviceIoControl(TAP_IOCTL_GET_MTU) failed");
             goto fail1;
         }
         
@@ -453,21 +457,21 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     
     ULONG upstatus = TRUE;
     if (!DeviceIoControl(o->device, TAP_IOCTL_SET_MEDIA_STATUS, &upstatus, sizeof(upstatus), &upstatus, sizeof(upstatus), &len, NULL)) {
-        DEBUG("DeviceIoControl(TAP_IOCTL_SET_MEDIA_STATUS) failed");
+        BLog(BLOG_ERROR, "DeviceIoControl(TAP_IOCTL_SET_MEDIA_STATUS) failed");
         goto fail1;
     }
     
-    DEBUG("Device opened");
+    BLog(BLOG_INFO, "Device opened");
     
     // init input/output
     
     if (!(o->input_event = CreateEvent(NULL, TRUE, FALSE, NULL))) {
-        DEBUG("CreateEvent failed");
+        BLog(BLOG_ERROR, "CreateEvent failed");
         goto fail1;
     }
     
     if (!(o->output_event = CreateEvent(NULL, TRUE, FALSE, NULL))) {
-        DEBUG("CreateEvent failed");
+        BLog(BLOG_ERROR, "CreateEvent failed");
         goto fail2;
     }
     
@@ -475,9 +479,11 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     BHandle_Init(&o->output_bhandle, o->output_event, (BHandle_handler)read_handle_handler, o);
     
     if (!BReactor_AddHandle(o->reactor, &o->input_bhandle)) {
+        BLog(BLOG_ERROR, "BReactor_AddHandle failed");
         goto fail3;
     }
     if (!BReactor_AddHandle(o->reactor, &o->output_bhandle)) {
+        BLog(BLOG_ERROR, "BReactor_AddHandle failed");
         goto fail4;
     }
     
@@ -503,7 +509,7 @@ fail0:
     // open device
     
     if ((o->fd = open("/dev/net/tun", O_RDWR)) < 0) {
-        DEBUG("error opening device");
+        BLog(BLOG_ERROR, "error opening device");
         goto fail0;
     }
     
@@ -522,7 +528,7 @@ fail0:
     }
     
     if (ioctl(o->fd, TUNSETIFF, (void *)&ifr) < 0) {
-        DEBUG("error configuring device");
+        BLog(BLOG_ERROR, "error configuring device");
         goto fail1;
     }
     
@@ -533,12 +539,12 @@ fail0:
     #ifdef BADVPN_FREEBSD
     
     if (tun) {
-        DEBUG("TUN not supported on FreeBSD");
+        BLog(BLOG_ERROR, "TUN not supported on FreeBSD");
         goto fail0;
     }
     
     if (!devname) {
-        DEBUG("no device specified");
+        BLog(BLOG_ERROR, "no device specified");
         goto fail0;
     }
     
@@ -548,7 +554,7 @@ fail0:
     snprintf(devnode, sizeof(devnode), "/dev/%s", devname);
     
     if ((o->fd = open(devnode, O_RDWR)) < 0) {
-        DEBUG("error opening device");
+        BLog(BLOG_ERROR, "error opening device");
         goto fail0;
     }
     
@@ -557,7 +563,7 @@ fail0:
     struct ifreq ifr;
     memset(&ifr, 0, sizeof(ifr));
     if (ioctl(o->fd, TAPGIFNAME, (void *)&ifr) < 0) {
-        DEBUG("error configuring device");
+        BLog(BLOG_ERROR, "error configuring device");
         goto fail1;
     }
     
@@ -572,7 +578,7 @@ fail0:
         // open dummy socket for ioctls
         int sock = socket(AF_INET, SOCK_DGRAM, 0);
         if (sock < 0) {
-            DEBUG("socket failed");
+            BLog(BLOG_ERROR, "socket failed");
             goto fail1;
         }
         
@@ -580,7 +586,7 @@ fail0:
         strcpy(ifr.ifr_name, o->devname);
         
         if (ioctl(sock, SIOCGIFMTU, (void *)&ifr) < 0) {
-            DEBUG("error getting MTU");
+            BLog(BLOG_ERROR, "error getting MTU");
             close(sock);
             goto fail1;
         }
@@ -592,14 +598,14 @@ fail0:
     
     // set non-blocking
     if (fcntl(o->fd, F_SETFL, O_NONBLOCK) < 0) {
-        DEBUG("cannot set non-blocking");
+        BLog(BLOG_ERROR, "cannot set non-blocking");
         goto fail1;
     }
     
     // init file descriptor object
     BFileDescriptor_Init(&o->bfd, o->fd, (BFileDescriptor_handler)fd_handler, o);
     if (!BReactor_AddFileDescriptor(o->reactor, &o->bfd)) {
-        DEBUG("BReactor_AddFileDescriptor failed");
+        BLog(BLOG_ERROR, "BReactor_AddFileDescriptor failed");
         goto fail1;
     }
     o->poll_events = 0;
@@ -653,7 +659,7 @@ void BTap_Free (BTap *o)
         if (!GetOverlappedResult(o->device, &o->input_ol, &bytes, TRUE)) {
             error = GetLastError();
             if (error != ERROR_OPERATION_ABORTED) {
-                DEBUG("WARNING: GetOverlappedResult (input) failed (%u)", error);
+                BLog(BLOG_WARNING, "GetOverlappedResult (input) failed (%u)", error);
             }
         }
     }
@@ -661,7 +667,7 @@ void BTap_Free (BTap *o)
         if (!GetOverlappedResult(o->device, &o->output_ol, &bytes, TRUE)) {
             error = GetLastError();
             if (error != ERROR_OPERATION_ABORTED) {
-                DEBUG("WARNING: GetOverlappedResult (output) failed (%u)", error);
+                BLog(BLOG_WARNING, "GetOverlappedResult (output) failed (%u)", error);
             }
         }
     }

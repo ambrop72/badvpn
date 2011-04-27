@@ -45,8 +45,11 @@
 #include <stddef.h>
 
 #include <misc/debug.h>
+#include <system/BLog.h>
 
 #include <system/BSocket.h>
+
+#include <generated/blog_channel_BSocket.h>
 
 #define HANDLER_READ 0
 #define HANDLER_WRITE 1
@@ -618,7 +621,7 @@ int BSocket_GlobalInit (void)
     sigemptyset(&act.sa_mask);
     act.sa_flags = 0;
     if (sigaction(SIGPIPE, &act, NULL) < 0) {
-        DEBUG("sigaction failed");
+        BLog(BLOG_ERROR, "sigaction failed");
         goto fail0;
     }
     
@@ -681,19 +684,19 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
     // create socket
     int fd = socket(sys_domain, sys_type, 0);
     if (fd < 0) {
-        DEBUG("socket() failed");
+        BLog(BLOG_ERROR, "socket() failed");
         goto fail0;
     }
 
     // set socket nonblocking
     if (set_nonblocking(fd) != 0) {
-        DEBUG("set_nonblocking failed");
+        BLog(BLOG_ERROR, "set_nonblocking failed");
         goto fail1;
     }
     
     // set pktinfo if needed
     if (!setup_pktinfo(fd, type, domain)) {
-        DEBUG("setup_pktinfo failed");
+        BLog(BLOG_ERROR, "setup_pktinfo failed");
     }
     
     // setup winsock exts
@@ -719,7 +722,7 @@ int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
     
     // initialize event backend
     if (!init_event_backend(bs)) {
-        DEBUG("WARNING: init_event_backend failed");
+        BLog(BLOG_ERROR, "init_event_backend failed");
         goto fail2;
     }
     
@@ -742,7 +745,7 @@ int BSocket_InitPipe (BSocket *bs, BReactor *bsys, int fd)
 {
     // set socket nonblocking
     if (set_nonblocking(fd) != 0) {
-        DEBUG("set_nonblocking failed");
+        BLog(BLOG_ERROR, "set_nonblocking failed");
         goto fail0;
     }
     
@@ -766,7 +769,7 @@ int BSocket_InitPipe (BSocket *bs, BReactor *bsys, int fd)
     
     // initialize event backend
     if (!init_event_backend(bs)) {
-        DEBUG("WARNING: init_event_backend failed");
+        BLog(BLOG_ERROR, "init_event_backend failed");
         goto fail1;
     }
     
@@ -1049,7 +1052,7 @@ int BSocket_Bind (BSocket *bs, BAddr *addr)
         int optval = 1;
         #endif
         if (setsockopt(bs->socket, SOL_SOCKET, SO_REUSEADDR, (void *)&optval, sizeof(optval)) < 0) {
-            DEBUG("WARNING: setsockopt failed");
+            BLog(BLOG_ERROR, "setsockopt failed");
         }
     }
     
@@ -1129,13 +1132,13 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
     } else {
         // set nonblocking
         if (set_nonblocking(fd) != 0) {
-            DEBUG("WARNING: set_nonblocking failed");
+            BLog(BLOG_ERROR, "set_nonblocking failed");
             goto fail0;
         }
         
         // set pktinfo if needed
         if (!setup_pktinfo(fd, bs->type, bs->domain)) {
-            DEBUG("setup_pktinfo failed");
+            BLog(BLOG_ERROR, "setup_pktinfo failed");
         }
         
         // setup winsock exts
@@ -1160,7 +1163,7 @@ int BSocket_Accept (BSocket *bs, BSocket *newsock, BAddr *addr)
         BPending_Init(&newsock->connect_job, BReactor_PendingGroup(bs->bsys), (BPending_handler)connect_job_handler, newsock);
     
         if (!init_event_backend(newsock)) {
-            DEBUG("WARNING: init_event_backend failed");
+            BLog(BLOG_ERROR, "init_event_backend failed");
             goto fail1;
         }
         
@@ -1651,14 +1654,14 @@ static int create_unix_sysaddr (struct sockaddr_un *addr, size_t *addr_len, cons
     size_t path_len = strlen(path);
     
     if (path_len == 0) {
-        DEBUG("path empty");
+        BLog(BLOG_ERROR, "path empty");
         return 0;
     }
     
     addr->sun_family = AF_UNIX;
     
     if (path_len >= sizeof(addr->sun_path)) {
-        DEBUG("path too long");
+        BLog(BLOG_ERROR, "path too long");
         return 0;
     }
     

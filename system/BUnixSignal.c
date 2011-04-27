@@ -169,7 +169,7 @@ int BUnixSignal_Init (BUnixSignal *o, BReactor *reactor, sigset_t signals, BUnix
     
     // set non-blocking
     if (fcntl(o->signalfd_fd, F_SETFL, O_NONBLOCK) < 0) {
-        DEBUG("cannot set non-blocking");
+        BLog(BLOG_ERROR, "cannot set non-blocking");
         goto fail1;
     }
     

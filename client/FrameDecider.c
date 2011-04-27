@@ -558,13 +558,13 @@ int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d)
     
     // allocate MAC entries
     if (!(o->mac_entries = BAllocArray(d->max_peer_macs, sizeof(struct _FrameDecider_mac_entry)))) {
-        DEBUG("failed to allocate MAC entries");
+        BLog(BLOG_ERROR, "failed to allocate MAC entries");
         goto fail0;
     }
     
     // allocate group entries
     if (!(o->group_entries = BAllocArray(d->max_peer_groups, sizeof(struct _FrameDecider_group_entry)))) {
-        DEBUG("failed to allocate group entries");
+        BLog(BLOG_ERROR, "failed to allocate group entries");
         goto fail1;
     }
     

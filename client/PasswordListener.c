@@ -31,10 +31,13 @@
 #include <misc/debug.h>
 #include <misc/offset.h>
 #include <misc/byteorder.h>
+#include <system/BLog.h>
 #include <nspr_support/DummyPRFileDesc.h>
 #include <nspr_support/BSocketPRFileDesc.h>
 
 #include <client/PasswordListener.h>
+
+#include <generated/blog_channel_PasswordListener.h>
 
 static int password_comparator (void *user, uint64_t *p1, uint64_t *p2);
 static void cleanup_client (PasswordListener *l, struct PasswordListenerClient *client);
@@ -81,17 +84,17 @@ void listener_handler (PasswordListener *l)
     }
     
     if (!(client->sock = malloc(sizeof(sslsocket)))) {
-        DEBUG("cannot allocate sslsocket");
+        BLog(BLOG_ERROR, "cannot allocate sslsocket");
         goto fail0;
     }
     
     // accept a client
     if (!Listener_Accept(&l->listener, &client->sock->sock, NULL)) {
-        DEBUG("Listener_Accept failed");
+        BLog(BLOG_ERROR, "Listener_Accept failed");
         goto fail1;
     }
     
-    DEBUG("Connection accepted");
+    BLog(BLOG_INFO, "Connection accepted");
     
     if (l->ssl) {
         // create BSocket NSPR file descriptor
@@ -105,17 +108,17 @@ void listener_handler (PasswordListener *l)
         
         // set server mode
         if (SSL_ResetHandshake(client->sock->ssl_prfd, PR_TRUE) != SECSuccess) {
-            DEBUG("SSL_ResetHandshake failed");
+            BLog(BLOG_ERROR, "SSL_ResetHandshake failed");
             goto fail3;
         }
         
         // set require client certificate
         if (SSL_OptionSet(client->sock->ssl_prfd, SSL_REQUEST_CERTIFICATE, PR_TRUE) != SECSuccess) {
-            DEBUG("SSL_OptionSet(SSL_REQUEST_CERTIFICATE) failed");
+            BLog(BLOG_ERROR, "SSL_OptionSet(SSL_REQUEST_CERTIFICATE) failed");
             goto fail3;
         }
         if (SSL_OptionSet(client->sock->ssl_prfd, SSL_REQUIRE_CERTIFICATE, PR_TRUE) != SECSuccess) {
-            DEBUG("SSL_OptionSet(SSL_REQUIRE_CERTIFICATE) failed");
+            BLog(BLOG_ERROR, "SSL_OptionSet(SSL_REQUIRE_CERTIFICATE) failed");
             goto fail3;
         }
         
@@ -170,11 +173,11 @@ void client_try_read (struct PasswordListenerClient *client)
                     BPRFileDesc_EnableEvent(&client->sock->ssl_bprfd, PR_POLL_READ);
                     return;
                 }
-                DEBUG("PR_Read failed (%d)", (int)error);
+                BLog(BLOG_ERROR, "PR_Read failed (%d)", (int)error);
                 goto free_client;
             }
             if (recvd == 0) {
-                DEBUG("Connection terminated");
+                BLog(BLOG_INFO, "Connection terminated");
                 goto free_client;
             }
             client->recv_buffer_pos += recvd;
@@ -192,11 +195,11 @@ void client_try_read (struct PasswordListenerClient *client)
                     BSocket_EnableEvent(&client->sock->sock, BSOCKET_READ);
                     return;
                 }
-                DEBUG("BSocket_Recv failed (%d)", error);
+                BLog(BLOG_ERROR, "BSocket_Recv failed (%d)", error);
                 goto free_client;
             }
             if (recvd == 0) {
-                DEBUG("Connection terminated");
+                BLog(BLOG_INFO, "Connection terminated");
                 goto free_client;
             }
             client->recv_buffer_pos += recvd;
@@ -207,12 +210,12 @@ void client_try_read (struct PasswordListenerClient *client)
     uint64_t received_pass = ltoh64(client->recv_buffer);
     BAVLNode *pw_tree_node = BAVL_LookupExact(&l->passwords, &received_pass);
     if (!pw_tree_node) {
-        DEBUG("WARNING: unknown password");
+        BLog(BLOG_WARNING, "unknown password");
         goto free_client;
     }
     PasswordListener_pwentry *pw_entry = UPPER_OBJECT(pw_tree_node, PasswordListener_pwentry, tree_node);
     
-    DEBUG("Password recognized");
+    BLog(BLOG_INFO, "Password recognized");
     
     // remove password entry
     BAVL_Remove(&l->passwords, &pw_entry->tree_node);
@@ -275,14 +278,14 @@ int PasswordListener_Init (PasswordListener *l, BReactor *bsys, BAddr listen_add
         // initialize model SSL fd
         DummyPRFileDesc_Create(&l->model_dprfd);
         if (!(l->model_prfd = SSL_ImportFD(NULL, &l->model_dprfd))) {
-            DEBUG("SSL_ImportFD failed");
+            BLog(BLOG_ERROR, "SSL_ImportFD failed");
             ASSERT_FORCE(PR_Close(&l->model_dprfd) == PR_SUCCESS)
             goto fail1;
         }
         
         // set server certificate
         if (SSL_ConfigSecureServer(l->model_prfd, cert, key, NSS_FindCertKEAType(cert)) != SECSuccess) {
-            DEBUG("SSL_ConfigSecureServer failed");
+            BLog(BLOG_ERROR, "SSL_ConfigSecureServer failed");
             goto fail2;
         }
     }
@@ -302,7 +305,7 @@ int PasswordListener_Init (PasswordListener *l, BReactor *bsys, BAddr listen_add
     
     // initialize listener
     if (!Listener_Init(&l->listener, l->bsys, listen_addr, (Listener_handler)listener_handler, l)) {
-        DEBUG("Listener_Init failed");
+        BLog(BLOG_ERROR, "Listener_Init failed");
         goto fail2;
     }
     
