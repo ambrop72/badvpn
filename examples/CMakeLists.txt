@@ -36,6 +36,9 @@ if (NOT WIN32)
 
     add_executable(bprocess_example bprocess_example.c)
     target_link_libraries(bprocess_example system process)
+
+    add_executable(stdin_input stdin_input.c)
+    target_link_libraries(stdin_input system flow)
 endif ()
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
