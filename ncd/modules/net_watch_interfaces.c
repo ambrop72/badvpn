@@ -55,6 +55,7 @@ struct device {
     char *ifname;
     char *devpath;
     uintmax_t ifindex;
+    BStringMap removed_map;
     LinkedList1Node devices_list_node;
 };
 
@@ -99,10 +100,15 @@ struct device * find_device_by_devpath (struct instance *o, const char *devpath)
     return NULL;
 }
 
-static void free_device (struct instance *o, struct device *device)
+static void free_device (struct instance *o, struct device *device, int have_removed_map)
 {
     // remove from devices list
     LinkedList1_Remove(&o->devices_list, &device->devices_list_node);
+    
+    // free removed map
+    if (have_removed_map) {
+        BStringMap_Free(&device->removed_map);
+    }
     
     // free devpath
     free(device->devpath);
@@ -114,7 +120,7 @@ static void free_device (struct instance *o, struct device *device)
     free(device);
 }
 
-static int queue_event (struct instance *o, int added, const char *ifname)
+static int make_event_map (struct instance *o, int added, const char *ifname, BStringMap *out_map)
 {
     // init map
     BStringMap map;
@@ -132,24 +138,24 @@ static int queue_event (struct instance *o, int added, const char *ifname)
         goto fail1;
     }
     
+    *out_map = map;
+    return 1;
+    
+fail1:
+    BStringMap_Free(&map);
+    return 0;
+}
+
+static void queue_event (struct instance *o, BStringMap map)
+{
     // pass event to template
     int was_empty;
-    if (!event_template_queue(&o->templ, map, &was_empty)) {
-        ModuleLog(o->i, BLOG_ERROR, "event_template_queue failed");
-        goto fail1;
-    }
+    event_template_queue(&o->templ, map, &was_empty);
     
     // if event queue was empty, stop receiving udev events
     if (was_empty) {
         NCDUdevClient_Pause(&o->client);
     }
-    
-    return 1;
-    
-fail1:
-    BStringMap_Free(&map);
-    ModuleLog(o->i, BLOG_ERROR, "failed to queue event");
-    return 0;
 }
 
 static void add_device (struct instance *o, const char *ifname, const char *devpath, uintmax_t ifindex)
@@ -179,18 +185,30 @@ static void add_device (struct instance *o, const char *ifname, const char *devp
     // set ifindex
     device->ifindex = ifindex;
     
+    // init removed map
+    if (!make_event_map(o, 0, ifname, &device->removed_map)) {
+        ModuleLog(o->i, BLOG_ERROR, "make_event_map failed");
+        goto fail3;
+    }
+    
+    // init added map
+    BStringMap added_map;
+    if (!make_event_map(o, 1, ifname, &added_map)) {
+        ModuleLog(o->i, BLOG_ERROR, "make_event_map failed");
+        goto fail4;
+    }
+    
     // insert to devices list
     LinkedList1_Append(&o->devices_list, &device->devices_list_node);
     
     // queue event
-    if (!queue_event(o, 1, device->ifname)) {
-        goto fail3;
-    }
+    queue_event(o, added_map);
     
     return;
     
+fail4:
+    BStringMap_Free(&device->removed_map);
 fail3:
-    LinkedList1_Remove(&o->devices_list, &device->devices_list_node);
     free(device->devpath);
 fail2:
     free(device->ifname);
@@ -200,19 +218,10 @@ fail0:
     ModuleLog(o->i, BLOG_ERROR, "failed to add device %s", ifname);
 }
 
-static int remove_device (struct instance *o, struct device *device)
+static void remove_device (struct instance *o, struct device *device)
 {
-    if (!queue_event(o, 0, device->ifname)) {
-        goto fail0;
-    }
-    
-    free_device(o, device);
-    
-    return 1;
-    
-fail0:
-    ModuleLog(o->i, BLOG_ERROR, "failed to remove device %s", device->ifname);
-    return 0;
+    queue_event(o, device->removed_map);
+    free_device(o, device, 0);
 }
 
 static void next_event (struct instance *o)
@@ -221,7 +230,7 @@ static void next_event (struct instance *o)
     
     // order template to finish the current event
     int is_empty;
-    event_template_next(&o->templ, &is_empty);
+    event_template_dequeue(&o->templ, &is_empty);
     
     // if template has no events, continue udev events
     if (is_empty) {
@@ -256,18 +265,14 @@ static void client_handler (struct instance *o, char *devpath, int have_map, BSt
     }
     
     if (ex_device && (strcmp(ex_device->ifname, interface) || ex_device->ifindex != ifindex)) {
-        if (!remove_device(o, ex_device)) {
-            goto out;
-        }
+        remove_device(o, ex_device);
         ex_device = NULL;
     }
     
     if (!ex_device) {
         struct device *ex_ifname_device = find_device_by_ifname(o, interface);
         if (ex_ifname_device) {
-            if (!remove_device(o, ex_ifname_device)) {
-                goto out;
-            }
+            remove_device(o, ex_ifname_device);
         }
         
         add_device(o, interface, devpath, ifindex);
@@ -305,7 +310,7 @@ static void func_new (NCDModuleInst *i)
     // init devices list
     LinkedList1_Init(&o->devices_list);
     
-    event_template_new(&o->templ, o->i, BLOG_CURRENT_CHANNEL, o, (event_template_func_free)templ_func_free);
+    event_template_new(&o->templ, o->i, BLOG_CURRENT_CHANNEL, 3, o, (event_template_func_free)templ_func_free);
     return;
     
 fail1:
@@ -323,7 +328,7 @@ static void templ_func_free (struct instance *o)
     LinkedList1Node *list_node;
     while (list_node = LinkedList1_GetFirst(&o->devices_list)) {
         struct device *device = UPPER_OBJECT(list_node, struct device, devices_list_node);
-        free_device(o, device);
+        free_device(o, device, 1);
     }
     
     // free client

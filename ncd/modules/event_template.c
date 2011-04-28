@@ -24,6 +24,7 @@
 
 #include <misc/offset.h>
 #include <misc/debug.h>
+#include <misc/balloc.h>
 
 #include <ncd/modules/event_template.h>
 
@@ -37,36 +38,55 @@ static void enable_event (event_template *o)
     // get event
     struct event_template_event *e = UPPER_OBJECT(LinkedList1_GetFirst(&o->events_list), struct event_template_event, events_list_node);
     
-    // set enabled map
+    // remove from events list
+    LinkedList1_Remove(&o->events_list, &e->events_list_node);
+    
+    // grab enabled map
     o->enabled_map = e->map;
+    
+    // append to free list
+    LinkedList1_Append(&o->free_list, &e->events_list_node);
     
     // set enabled
     o->enabled = 1;
     
     // signal up
     NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
-    
-    // remove from events list
-    LinkedList1_Remove(&o->events_list, &e->events_list_node);
-    
-    // free structure
-    free(e);
 }
 
-void event_template_new (event_template *o, NCDModuleInst *i, int blog_channel, void *user,
+void event_template_new (event_template *o, NCDModuleInst *i, int blog_channel, int maxevents, void *user,
                          event_template_func_free func_free)
 {
+    ASSERT(maxevents > 0)
+    
     // init arguments
     o->i = i;
     o->blog_channel = blog_channel;
     o->user = user;
     o->func_free = func_free;
     
-    // init events list
+    // allocate events array
+    if (!(o->events = BAllocArray(maxevents, sizeof(o->events[0])))) {
+        TemplateLog(o, BLOG_ERROR, "BAllocArray failed");
+        goto fail0;
+    }
+    
+    // init events lists
     LinkedList1_Init(&o->events_list);
+    LinkedList1_Init(&o->free_list);
+    for (int i = 0; i < maxevents; i++) {
+        LinkedList1_Append(&o->free_list, &o->events[i].events_list_node);
+    }
     
     // set not enabled
     o->enabled = 0;
+    
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(o->i);
+    o->func_free(o->user);
+    return;
 }
 
 void event_template_die (event_template *o)
@@ -76,20 +96,16 @@ void event_template_die (event_template *o)
         BStringMap_Free(&o->enabled_map);
     }
     
-    // free events
+    // free event maps
     LinkedList1Node *list_node;
     while (list_node = LinkedList1_GetFirst(&o->events_list)) {
         struct event_template_event *e = UPPER_OBJECT(list_node, struct event_template_event, events_list_node);
-        
-        // remove from events list
         LinkedList1_Remove(&o->events_list, &e->events_list_node);
-        
-        // free map
         BStringMap_Free(&e->map);
-        
-        // free structure
-        free(e);
     }
+    
+    // free events array
+    BFree(o->events);
     
     o->func_free(o->user);
     return;
@@ -113,14 +129,15 @@ int event_template_getvar (event_template *o, const char *name, NCDValue *out)
     return 1;
 }
 
-int event_template_queue (event_template *o, BStringMap map, int *out_was_empty)
+void event_template_queue (event_template *o, BStringMap map, int *out_was_empty)
 {
-    // allocate structure
-    struct event_template_event *e = malloc(sizeof(*e));
-    if (!e) {
-        TemplateLog(o, BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
+    ASSERT(!LinkedList1_IsEmpty(&o->free_list))
+    
+    // get event
+    struct event_template_event *e = UPPER_OBJECT(LinkedList1_GetFirst(&o->free_list), struct event_template_event, events_list_node);
+    
+    // remove from free list
+    LinkedList1_Remove(&o->free_list, &e->events_list_node);
     
     // set map
     e->map = map;
@@ -135,14 +152,9 @@ int event_template_queue (event_template *o, BStringMap map, int *out_was_empty)
     } else {
         *out_was_empty = 0;
     }
-    
-    return 1;
-    
-fail0:
-    return 0;
 }
 
-void event_template_next (event_template *o, int *out_is_empty)
+void event_template_dequeue (event_template *o, int *out_is_empty)
 {
     ASSERT(o->enabled)
     

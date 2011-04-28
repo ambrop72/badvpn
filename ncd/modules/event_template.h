@@ -36,7 +36,9 @@ typedef struct {
     int blog_channel;
     void *user;
     event_template_func_free func_free;
+    struct event_template_event *events;
     LinkedList1 events_list;
+    LinkedList1 free_list;
     int enabled;
     BStringMap enabled_map;
 } event_template;
@@ -46,12 +48,12 @@ struct event_template_event {
     LinkedList1Node events_list_node;
 };
 
-void event_template_new (event_template *o, NCDModuleInst *i, int blog_channel, void *user,
+void event_template_new (event_template *o, NCDModuleInst *i, int blog_channel, int maxevents, void *user,
                          event_template_func_free func_free);
 void event_template_die (event_template *o);
 int event_template_getvar (event_template *o, const char *name, NCDValue *out);
-int event_template_queue (event_template *o, BStringMap map, int *out_was_empty);
-void event_template_next (event_template *o, int *out_is_empty);
+void event_template_queue (event_template *o, BStringMap map, int *out_was_empty);
+void event_template_dequeue (event_template *o, int *out_is_empty);
 void event_template_assert_enabled (event_template *o);
 
 #endif
