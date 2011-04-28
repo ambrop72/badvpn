@@ -27,8 +27,6 @@
 #include <stringmap/BStringMap.h>
 #include <ncd/NCDModule.h>
 
-#include <generated/blog_channel_ncd_net_iptables.h>
-
 typedef void (*event_template_func_free) (void *user);
 
 typedef struct {

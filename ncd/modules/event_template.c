@@ -97,11 +97,11 @@ void event_template_die (event_template *o)
     }
     
     // free event maps
-    LinkedList1Node *list_node;
-    while (list_node = LinkedList1_GetFirst(&o->events_list)) {
+    LinkedList1Node *list_node = LinkedList1_GetFirst(&o->events_list);
+    while (list_node) {
         struct event_template_event *e = UPPER_OBJECT(list_node, struct event_template_event, events_list_node);
-        LinkedList1_Remove(&o->events_list, &e->events_list_node);
         BStringMap_Free(&e->map);
+        list_node = LinkedList1Node_Next(list_node);
     }
     
     // free events array
@@ -167,8 +167,8 @@ void event_template_dequeue (event_template *o, int *out_is_empty)
     // signal down
     NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
     
+    // enable if there are more events
     if (!LinkedList1_IsEmpty(&o->events_list)) {
-        // events are queued, enable
         enable_event(o);
         *out_is_empty = 0;
     } else {
