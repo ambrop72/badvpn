@@ -1,5 +1,5 @@
 /**
- * @file command_template.h
+ * @file command_template.c
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
