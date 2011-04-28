@@ -40,6 +40,9 @@ if (NOT WIN32)
     add_executable(ncdudevmonitor_test ncdudevmonitor_test.c)
     target_link_libraries(ncdudevmonitor_test udevmonitor)
 
+    add_executable(ncdudevmanager_test ncdudevmanager_test.c)
+    target_link_libraries(ncdudevmanager_test udevmonitor)
+
     add_executable(stdin_input stdin_input.c)
     target_link_libraries(stdin_input system flow)
 endif ()
