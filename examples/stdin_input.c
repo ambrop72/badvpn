@@ -51,7 +51,7 @@ static void signal_handler (void *user, int signo)
     BReactor_Quit(&reactor, 1);
 }
 
-static void source_error_handle (void *user, int component, int code)
+static void source_error_handler (void *user, int component, int code)
 {
     if (code == 0) {
         fprintf(stderr, "pipe closed\n");
@@ -102,7 +102,7 @@ int main ()
     }
     
     // init error handler
-    FlowErrorDomain_Init(&errdomain, source_error_handle, NULL);
+    FlowErrorDomain_Init(&errdomain, source_error_handler, NULL);
     
     // init source (object for reading from a stream BSocket using StreamRecvInterface)
     StreamSocketSource_Init(&source, FlowErrorReporter_Create(&errdomain, 0), &pipe_bsock, BReactor_PendingGroup(&reactor));
