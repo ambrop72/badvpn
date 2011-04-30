@@ -21,9 +21,14 @@
  * 
  * @section DESCRIPTION
  * 
- * Physical network interface module.
+ * DHCP client module.
  * 
  * Synopsis: net.ipv4.dhcp(string ifname)
+ * Description:
+ *   Runs a DHCP client on a network interface. When an address is obtained,
+ *   transitions up (but does not assign anything). If the lease times out,
+ *   transitions down.
+ *   The interface must already be up.
  * Variables:
  *   string addr - assigned IP address ("A.B.C.D")
  *   string prefix - address prefix length ("N")
