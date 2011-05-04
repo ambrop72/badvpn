@@ -459,7 +459,7 @@ tcp_bind_to_netif(struct tcp_pcb *pcb, const char ifname[3])
     /* Check if the interface is already in use */
     for (int i = 0; i < NUM_TCP_PCB_LISTS; i++) {
         for(struct tcp_pcb *cpcb = *tcp_pcb_lists[i]; cpcb != NULL; cpcb = cpcb->next) {
-            if (cpcb->bound_to_netif && !memcmp(cpcb->local_netif, ifname, sizeof(ifname))) {
+            if (cpcb->bound_to_netif && !memcmp(cpcb->local_netif, ifname, sizeof(cpcb->local_netif))) {
                 return ERR_USE;
             }
         }
