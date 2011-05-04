@@ -470,7 +470,7 @@ tcp_bind_to_netif(struct tcp_pcb *pcb, const char ifname[3])
     pcb->local_port = 0;
     memcpy(pcb->local_netif, ifname, sizeof(pcb->local_netif));
     TCP_REG(&tcp_bound_pcbs, pcb);
-    LWIP_DEBUGF(TCP_DEBUG, ("tcp_bind_if: bind to interface %c%c%c", ifname[0], ifname[1], ifname[2]));
+    LWIP_DEBUGF(TCP_DEBUG, ("tcp_bind_if: bind to interface %c%c%c\n", ifname[0], ifname[1], ifname[2]));
     return ERR_OK;
 }
 
