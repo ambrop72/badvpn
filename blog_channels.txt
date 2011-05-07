@@ -84,3 +84,4 @@ NCDInterfaceMonitor 4
 NCDRfkillMonitor 4
 udpgw 4
 UdpGwClient 4
+SocksUdpGwClient 4

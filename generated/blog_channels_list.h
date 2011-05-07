@@ -84,3 +84,4 @@
 {.name = "NCDRfkillMonitor", .loglevel = 4},
 {.name = "udpgw", .loglevel = 4},
 {.name = "UdpGwClient", .loglevel = 4},
+{.name = "SocksUdpGwClient", .loglevel = 4},

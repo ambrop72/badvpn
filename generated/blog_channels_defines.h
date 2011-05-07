@@ -84,4 +84,5 @@
 #define BLOG_CHANNEL_NCDRfkillMonitor 83
 #define BLOG_CHANNEL_udpgw 84
 #define BLOG_CHANNEL_UdpGwClient 85
-#define BLOG_NUM_CHANNELS 86
+#define BLOG_CHANNEL_SocksUdpGwClient 86
+#define BLOG_NUM_CHANNELS 87
