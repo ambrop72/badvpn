@@ -82,3 +82,4 @@ addr 4
 PasswordListener 4
 NCDInterfaceMonitor 4
 NCDRfkillMonitor 4
+udpgw 4

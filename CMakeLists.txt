@@ -168,6 +168,9 @@ add_subdirectory(flooder)
 # tun2socks
 add_subdirectory(tun2socks)
 
+# udpgw
+add_subdirectory(udpgw)
+
 # ncd
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_subdirectory(ncd)

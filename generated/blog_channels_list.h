@@ -82,3 +82,4 @@
 {.name = "PasswordListener", .loglevel = 4},
 {.name = "NCDInterfaceMonitor", .loglevel = 4},
 {.name = "NCDRfkillMonitor", .loglevel = 4},
+{.name = "udpgw", .loglevel = 4},

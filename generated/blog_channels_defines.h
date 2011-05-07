@@ -82,4 +82,5 @@
 #define BLOG_CHANNEL_PasswordListener 81
 #define BLOG_CHANNEL_NCDInterfaceMonitor 82
 #define BLOG_CHANNEL_NCDRfkillMonitor 83
-#define BLOG_NUM_CHANNELS 84
+#define BLOG_CHANNEL_udpgw 84
+#define BLOG_NUM_CHANNELS 85
