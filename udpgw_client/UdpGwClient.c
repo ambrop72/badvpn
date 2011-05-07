@@ -1,0 +1,561 @@
+/**
+ * @file UdpGwClient.c
+ * @author Ambroz Bizjak <ambrop7@gmail.com>
+ * 
+ * @section LICENSE
+ * 
+ * This file is part of BadVPN.
+ * 
+ * BadVPN is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2
+ * as published by the Free Software Foundation.
+ * 
+ * BadVPN is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+#include <stdlib.h>
+#include <string.h>
+
+#include <misc/offset.h>
+#include <misc/byteorder.h>
+#include <system/BLog.h>
+
+#include <udpgw_client/UdpGwClient.h>
+
+#include <generated/blog_channel_UdpGwClient.h>
+
+static int uint16_comparator (void *unused, uint16_t *v1, uint16_t *v2);
+static int compare_addresses (BAddr v1, BAddr v2);
+static int conaddr_comparator (void *unused, struct UdpGwClient_conaddr *v1, struct UdpGwClient_conaddr *v2);
+static void free_server (UdpGwClient *o);
+static void server_error_handler (UdpGwClient *o, int component, int code);
+static void recv_interface_handler_send (UdpGwClient *o, uint8_t *data, int data_len);
+static void send_monitor_handler (UdpGwClient *o);
+static void keepalive_if_handler_done (UdpGwClient *o);
+static struct UdpGwClient_connection * find_connection_by_conaddr (UdpGwClient *o, struct UdpGwClient_conaddr conaddr);
+static struct UdpGwClient_connection * find_connection_by_conid (UdpGwClient *o, uint16_t conid);
+static uint16_t find_unused_conid (UdpGwClient *o);
+static void connection_init (UdpGwClient *o, struct UdpGwClient_conaddr conaddr, const uint8_t *data, int data_len);
+static void connection_free (struct UdpGwClient_connection *con);
+static void connection_first_job_handler (struct UdpGwClient_connection *con);
+static void connection_send (struct UdpGwClient_connection *con, uint8_t flags, const uint8_t *data, int data_len);
+static struct UdpGwClient_connection * reuse_connection (UdpGwClient *o, struct UdpGwClient_conaddr conaddr);
+
+static int uint16_comparator (void *unused, uint16_t *v1, uint16_t *v2)
+{
+    if (*v1 < *v2) {
+        return -1;
+    }
+    if (*v1 > *v2) {
+        return 1;
+    }
+    return 0;
+}
+
+static int compare_addresses (BAddr v1, BAddr v2)
+{
+    ASSERT(v1.type == BADDR_TYPE_IPV4)
+    ASSERT(v2.type == BADDR_TYPE_IPV4)
+    
+    if (v1.ipv4.port < v2.ipv4.port) {
+        return -1;
+    }
+    if (v1.ipv4.port > v2.ipv4.port) {
+        return 1;
+    }
+    if (v1.ipv4.ip < v2.ipv4.ip) {
+        return -1;
+    }
+    if (v1.ipv4.ip > v2.ipv4.ip) {
+        return 1;
+    }
+    return 0;
+}
+
+static int conaddr_comparator (void *unused, struct UdpGwClient_conaddr *v1, struct UdpGwClient_conaddr *v2)
+{
+    ASSERT(v1->local_addr.type == BADDR_TYPE_IPV4)
+    ASSERT(v1->remote_addr.type == BADDR_TYPE_IPV4)
+    ASSERT(v2->local_addr.type == BADDR_TYPE_IPV4)
+    ASSERT(v2->remote_addr.type == BADDR_TYPE_IPV4)
+    
+    int r = compare_addresses(v1->remote_addr, v2->remote_addr);
+    if (r) {
+        return r;
+    }
+    return compare_addresses(v1->local_addr, v2->local_addr);
+}
+
+static void free_server (UdpGwClient *o)
+{
+    // disconnect send connector
+    PacketPassConnector_DisconnectOutput(&o->send_connector);
+    
+    // free send sender
+    PacketStreamSender_Free(&o->send_sender);
+    
+    // free receive decoder
+    PacketProtoDecoder_Free(&o->recv_decoder);
+    
+    // free receive interface
+    PacketPassInterface_Free(&o->recv_if);
+}
+
+static void server_error_handler (UdpGwClient *o, int component, int code)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->have_server)
+    
+    BLog(BLOG_ERROR, "decoder error");
+    
+    // report error
+    o->handler_servererror(o->user);
+    return;
+}
+
+static void recv_interface_handler_send (UdpGwClient *o, uint8_t *data, int data_len)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->have_server)
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= o->udpgw_mtu)
+    
+    // accept packet
+    PacketPassInterface_Done(&o->recv_if);
+    
+    // check header
+    if (data_len < sizeof(struct udpgw_header)) {
+        BLog(BLOG_ERROR, "missing header");
+        return;
+    }
+    struct udpgw_header *header = (struct udpgw_header *)data;
+    data += sizeof(*header);
+    data_len -= sizeof(*header);
+    uint8_t flags = ltoh8(header->flags);
+    uint16_t conid = ltoh16(header->conid);
+    
+    // check remaining data
+    if (data_len > o->udp_mtu) {
+        BLog(BLOG_ERROR, "too much data");
+        return;
+    }
+    
+    // find connection
+    struct UdpGwClient_connection *con = find_connection_by_conid(o, conid);
+    if (!con) {
+        BLog(BLOG_ERROR, "unknown conid");
+        return;
+    }
+    
+    // check remote address
+    if (con->conaddr.remote_addr.ipv4.port != header->addr_port || con->conaddr.remote_addr.ipv4.ip != header->addr_ip) {
+        BLog(BLOG_ERROR, "wrong remote address");
+        return;
+    }
+    
+    // move connection to front of the list
+    LinkedList1_Remove(&o->connections_list, &con->connections_list_node);
+    LinkedList1_Append(&o->connections_list, &con->connections_list_node);
+    
+    // pass packet to user
+    o->handler_received(o->user, con->conaddr.local_addr, con->conaddr.remote_addr, data, data_len);
+    return;
+}
+
+static void send_monitor_handler (UdpGwClient *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    if (o->keepalive_sending) {
+        return;
+    }
+    
+    BLog(BLOG_INFO, "keepalive");
+    
+    // send keepalive
+    PacketPassInterface_Sender_Send(o->keepalive_if, (uint8_t *)&o->keepalive_packet, sizeof(o->keepalive_packet));
+    
+    // set sending keep-alive
+    o->keepalive_sending = 1;
+}
+
+static void keepalive_if_handler_done (UdpGwClient *o)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->keepalive_sending)
+    
+    // set not sending keepalive
+    o->keepalive_sending = 0;
+}
+
+static struct UdpGwClient_connection * find_connection_by_conaddr (UdpGwClient *o, struct UdpGwClient_conaddr conaddr)
+{
+    BAVLNode *tree_node = BAVL_LookupExact(&o->connections_tree_by_conaddr, &conaddr);
+    if (!tree_node) {
+        return NULL;
+    }
+    
+    return UPPER_OBJECT(tree_node, struct UdpGwClient_connection, connections_tree_by_conaddr_node);
+}
+
+static struct UdpGwClient_connection * find_connection_by_conid (UdpGwClient *o, uint16_t conid)
+{
+    BAVLNode *tree_node = BAVL_LookupExact(&o->connections_tree_by_conid, &conid);
+    if (!tree_node) {
+        return NULL;
+    }
+    
+    return UPPER_OBJECT(tree_node, struct UdpGwClient_connection, connections_tree_by_conid_node);
+}
+
+static uint16_t find_unused_conid (UdpGwClient *o)
+{
+    ASSERT(o->num_connections < o->max_connections)
+    
+    while (1) {
+        if (!find_connection_by_conid(o, o->next_conid)) {
+            return o->next_conid;
+        }
+        
+        if (o->next_conid == o->max_connections - 1) {
+            o->next_conid = 0;
+        } else {
+            o->next_conid++;
+        }
+    }
+}
+
+static void connection_init (UdpGwClient *o, struct UdpGwClient_conaddr conaddr, const uint8_t *data, int data_len)
+{
+    ASSERT(o->num_connections < o->max_connections)
+    ASSERT(!find_connection_by_conaddr(o, conaddr))
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= o->udp_mtu)
+    
+    // allocate structure
+    struct UdpGwClient_connection *con = malloc(sizeof(*con));
+    if (!con) {
+        BLog(BLOG_ERROR, "malloc failed");
+        goto fail0;
+    }
+    
+    // init arguments
+    con->client = o;
+    con->conaddr = conaddr;
+    con->first_data = data;
+    con->first_data_len = data_len;
+    
+    // allocate conid
+    con->conid = find_unused_conid(o);
+    
+    // init first job
+    BPending_Init(&con->first_job, BReactor_PendingGroup(o->reactor), (BPending_handler)connection_first_job_handler, con);
+    BPending_Set(&con->first_job);
+    
+    // init queue flow
+    PacketPassFairQueueFlow_Init(&con->send_qflow, &o->send_queue);
+    
+    // init PacketProtoFlow
+    if (!PacketProtoFlow_Init(&con->send_ppflow, o->udpgw_mtu, o->send_buffer_size, PacketPassFairQueueFlow_GetInput(&con->send_qflow), BReactor_PendingGroup(o->reactor))) {
+        BLog(BLOG_ERROR, "PacketProtoFlow_Init failed");
+        goto fail1;
+    }
+    con->send_if = PacketProtoFlow_GetInput(&con->send_ppflow);
+    
+    // insert to connections tree by conaddr
+    ASSERT_EXECUTE(BAVL_Insert(&o->connections_tree_by_conaddr, &con->connections_tree_by_conaddr_node, NULL))
+    
+    // insert to connections tree by conid
+    ASSERT_EXECUTE(BAVL_Insert(&o->connections_tree_by_conid, &con->connections_tree_by_conid_node, NULL))
+    
+    // insert to connections list
+    LinkedList1_Append(&o->connections_list, &con->connections_list_node);
+    
+    // increment number of connections
+    o->num_connections++;
+    
+    return;
+    
+fail1:
+    PacketPassFairQueueFlow_Free(&con->send_qflow);
+    BPending_Free(&con->first_job);
+    free(con);
+fail0:
+    return;
+}
+
+static void connection_free (struct UdpGwClient_connection *con)
+{
+    UdpGwClient *o = con->client;
+    PacketPassFairQueueFlow_AssertFree(&con->send_qflow);
+    
+    // decrement number of connections
+    o->num_connections--;
+    
+    // remove from connections list
+    LinkedList1_Remove(&o->connections_list, &con->connections_list_node);
+    
+    // remove from connections tree by conid
+    BAVL_Remove(&o->connections_tree_by_conid, &con->connections_tree_by_conid_node);
+    
+    // remove from connections tree by conaddr
+    BAVL_Remove(&o->connections_tree_by_conaddr, &con->connections_tree_by_conaddr_node);
+    
+    // free PacketProtoFlow
+    PacketProtoFlow_Free(&con->send_ppflow);
+    
+    // free queue flow
+    PacketPassFairQueueFlow_Free(&con->send_qflow);
+    
+    // free first job
+    BPending_Free(&con->first_job);
+    
+    // free structure
+    free(con);
+}
+
+static void connection_first_job_handler (struct UdpGwClient_connection *con)
+{
+    connection_send(con, UDPGW_CLIENT_FLAG_REBIND, con->first_data, con->first_data_len);
+}
+
+static void connection_send (struct UdpGwClient_connection *con, uint8_t flags, const uint8_t *data, int data_len)
+{
+    UdpGwClient *o = con->client;
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= o->udp_mtu)
+    
+    // get buffer location
+    uint8_t *out;
+    if (!BufferWriter_StartPacket(con->send_if, &out)) {
+        BLog(BLOG_ERROR, "out of buffer");
+        return;
+    }
+    
+    // write header
+    struct udpgw_header *header = (struct udpgw_header *)out;
+    header->flags = ltoh8(flags);
+    header->conid = ltoh16(con->conid);
+    header->addr_ip = con->conaddr.remote_addr.ipv4.ip;
+    header->addr_port = con->conaddr.remote_addr.ipv4.port;
+    
+    // write packet to buffer
+    memcpy(out + sizeof(*header), data, data_len);
+    
+    // submit packet to buffer
+    BufferWriter_EndPacket(con->send_if, sizeof(*header) + data_len);
+}
+
+static struct UdpGwClient_connection * reuse_connection (UdpGwClient *o, struct UdpGwClient_conaddr conaddr)
+{
+    ASSERT(!find_connection_by_conaddr(o, conaddr))
+    ASSERT(o->num_connections > 0)
+    
+    // get least recently used connection
+    struct UdpGwClient_connection *con = UPPER_OBJECT(LinkedList1_GetFirst(&o->connections_list), struct UdpGwClient_connection, connections_list_node);
+    
+    // remove from connections tree by conaddr
+    BAVL_Remove(&o->connections_tree_by_conaddr, &con->connections_tree_by_conaddr_node);
+    
+    // set new conaddr
+    con->conaddr = conaddr;
+    
+    // insert to connections tree by conaddr
+    ASSERT_EXECUTE(BAVL_Insert(&o->connections_tree_by_conaddr, &con->connections_tree_by_conaddr_node, NULL))
+    
+    return con;
+}
+
+void UdpGwClient_Init (UdpGwClient *o, int udp_mtu, int max_connections, int send_buffer_size, btime_t keepalive_time, BReactor *reactor, void *user,
+                       UdpGwClient_handler_servererror handler_servererror,
+                       UdpGwClient_handler_received handler_received)
+{
+    ASSERT(udp_mtu >= 0)
+    ASSERT(udpgw_compute_mtu(udp_mtu) >= 0)
+    ASSERT(udpgw_compute_mtu(udp_mtu) <= PACKETPROTO_MAXPAYLOAD)
+    ASSERT(max_connections > 0)
+    ASSERT(send_buffer_size > 0)
+    
+    // init arguments
+    o->udp_mtu = udp_mtu;
+    o->max_connections = max_connections;
+    o->send_buffer_size = send_buffer_size;
+    o->keepalive_time = keepalive_time;
+    o->reactor = reactor;
+    o->user = user;
+    o->handler_servererror = handler_servererror;
+    o->handler_received = handler_received;
+    
+    // limit max connections to number of conid's
+    if (o->max_connections > UINT16_MAX + 1) {
+        o->max_connections = UINT16_MAX + 1;
+    }
+    
+    // compute MTUs
+    o->udpgw_mtu = udpgw_compute_mtu(o->udp_mtu);
+    o->pp_mtu = o->udpgw_mtu + sizeof(struct packetproto_header);
+    
+    // init connections tree by conaddr
+    BAVL_Init(&o->connections_tree_by_conaddr, OFFSET_DIFF(struct UdpGwClient_connection, conaddr, connections_tree_by_conaddr_node), (BAVL_comparator)conaddr_comparator, NULL);
+    
+    // init connections tree by conid
+    BAVL_Init(&o->connections_tree_by_conid, OFFSET_DIFF(struct UdpGwClient_connection, conid, connections_tree_by_conid_node), (BAVL_comparator)uint16_comparator, NULL);
+    
+    // init connections list
+    LinkedList1_Init(&o->connections_list);
+    
+    // set zero connections
+    o->num_connections = 0;
+    
+    // set next conid
+    o->next_conid = 0;
+    
+    // init send connector
+    PacketPassConnector_Init(&o->send_connector, o->pp_mtu, BReactor_PendingGroup(o->reactor));
+    
+    // init send monitor
+    PacketPassInactivityMonitor_Init(&o->send_monitor, PacketPassConnector_GetInput(&o->send_connector), o->reactor, o->keepalive_time, (PacketPassInactivityMonitor_handler)send_monitor_handler, o);
+    
+    // init send queue
+    PacketPassFairQueue_Init(&o->send_queue, PacketPassInactivityMonitor_GetInput(&o->send_monitor), BReactor_PendingGroup(o->reactor), 0, 1);
+    
+    // construct keepalive packet
+    o->keepalive_packet.pp.len = sizeof(o->keepalive_packet.udpgw);
+    memset(&o->keepalive_packet.udpgw, 0, sizeof(o->keepalive_packet.udpgw));
+    o->keepalive_packet.udpgw.flags = UDPGW_CLIENT_FLAG_KEEPALIVE;
+    
+    // init keepalive queue flow
+    PacketPassFairQueueFlow_Init(&o->keepalive_qflow, &o->send_queue);
+    o->keepalive_if = PacketPassFairQueueFlow_GetInput(&o->keepalive_qflow);
+    
+    // init keepalive output
+    PacketPassInterface_Sender_Init(o->keepalive_if, (PacketPassInterface_handler_done)keepalive_if_handler_done, o);
+    
+    // set not sending keepalive
+    o->keepalive_sending = 0;
+    
+    // set have no server
+    o->have_server = 0;
+    
+    DebugObject_Init(&o->d_obj);
+}
+
+void UdpGwClient_Free (UdpGwClient *o)
+{
+    DebugObject_Free(&o->d_obj);
+    
+    // allow freeing send queue flows
+    PacketPassFairQueue_PrepareFree(&o->send_queue);
+    
+    // free connections
+    while (!LinkedList1_IsEmpty(&o->connections_list)) {
+        struct UdpGwClient_connection *con = UPPER_OBJECT(LinkedList1_GetFirst(&o->connections_list), struct UdpGwClient_connection, connections_list_node);
+        connection_free(con);
+    }
+    
+    // free server
+    if (o->have_server) {
+        free_server(o);
+    }
+    
+    // free keepalive queue flow
+    PacketPassFairQueueFlow_Free(&o->keepalive_qflow);
+    
+    // free send queue
+    PacketPassFairQueue_Free(&o->send_queue);
+    
+    // free send
+    PacketPassInactivityMonitor_Free(&o->send_monitor);
+    
+    // free send connector
+    PacketPassConnector_Free(&o->send_connector);
+}
+
+void UdpGwClient_SubmitPacket (UdpGwClient *o, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(local_addr.type == BADDR_TYPE_IPV4)
+    ASSERT(remote_addr.type == BADDR_TYPE_IPV4)
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= o->udp_mtu)
+    
+    // build conaddr
+    struct UdpGwClient_conaddr conaddr;
+    conaddr.local_addr = local_addr;
+    conaddr.remote_addr = remote_addr;
+    
+    // lookup connection
+    struct UdpGwClient_connection *con = find_connection_by_conaddr(o, conaddr);
+    
+    uint8_t flags = 0;
+    
+    // if no connection and can't create a new one, reuse the least recently used une
+    if (!con && o->num_connections == o->max_connections) {
+        con = reuse_connection(o, conaddr);
+        flags |= UDPGW_CLIENT_FLAG_REBIND;
+    }
+    
+    if (!con) {
+        // create new connection
+        connection_init(o, conaddr, data, data_len);
+    } else {
+        // move connection to front of the list
+        LinkedList1_Remove(&o->connections_list, &con->connections_list_node);
+        LinkedList1_Append(&o->connections_list, &con->connections_list_node);
+        
+        // send packet to existing connection
+        connection_send(con, flags, data, data_len);
+    }
+}
+
+int UdpGwClient_ConnectServer (UdpGwClient *o, StreamPassInterface *send_if, StreamRecvInterface *recv_if)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(!o->have_server)
+    
+    // init error domain
+    FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)server_error_handler, o);
+    
+    // init receive interface
+    PacketPassInterface_Init(&o->recv_if, o->udpgw_mtu, (PacketPassInterface_handler_send)recv_interface_handler_send, o, BReactor_PendingGroup(o->reactor));
+    
+    // init receive decoder
+    if (!PacketProtoDecoder_Init(&o->recv_decoder, FlowErrorReporter_Create(&o->domain, 0), recv_if, &o->recv_if, BReactor_PendingGroup(o->reactor))) {
+        BLog(BLOG_ERROR, "PacketProtoDecoder_Init failed");
+        goto fail1;
+    }
+    
+    // init send sender
+    PacketStreamSender_Init(&o->send_sender, send_if, o->pp_mtu, BReactor_PendingGroup(o->reactor));
+    
+    // connect send connector
+    PacketPassConnector_ConnectOutput(&o->send_connector, PacketStreamSender_GetInput(&o->send_sender));
+    
+    // set have server
+    o->have_server = 1;
+    
+    return 1;
+    
+fail1:
+    PacketPassInterface_Free(&o->recv_if);
+    return 0;
+}
+
+void UdpGwClient_DisconnectServer (UdpGwClient *o)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->have_server)
+    
+    // free server
+    free_server(o);
+    
+    // set have no server
+    o->have_server = 0;
+}
