@@ -31,6 +31,9 @@
 #include <misc/minmax.h>
 #include <misc/offset.h>
 #include <misc/dead.h>
+#include <misc/ipv4_proto.h>
+#include <misc/udp_proto.h>
+#include <misc/byteorder.h>
 #include <structure/LinkedList2.h>
 #include <system/BLog.h>
 #include <system/BReactor.h>
@@ -46,6 +49,7 @@
 #include <lwip/tcp_impl.h>
 #include <lwip/netif.h>
 #include <lwip/tcp.h>
+#include <tun2socks/SocksUdpGwClient.h>
 
 #ifndef BADVPN_USE_WINAPI
 #include <system/BLog_syslog.h>
@@ -87,6 +91,9 @@ struct {
     char *netif_ipaddr;
     char *netif_netmask;
     char *socks_server_addr;
+    char *udpgw_remote_server_addr;
+    int udpgw_max_connections;
+    int udpgw_connection_buffer_size;
 } options;
 
 // TCP client
@@ -121,6 +128,9 @@ BIPAddr netif_netmask;
 // SOCKS server address
 BAddr socks_server_addr;
 
+// remote udpgw server addr, if provided
+BAddr udpgw_remote_server_addr;
+
 // reactor
 BReactor ss;
 
@@ -137,6 +147,10 @@ PacketBuffer device_write_buffer;
 // device reading
 SinglePacketBuffer device_read_buffer;
 PacketPassInterface device_read_interface;
+
+// udpgw client
+SocksUdpGwClient udpgw_client;
+int udp_mtu;
 
 // TCP timer
 BTimer tcp_timer;
@@ -167,6 +181,7 @@ static void lwip_init_job_hadler (void *unused);
 static void tcp_timer_handler (void *unused);
 static void device_error_handler (void *unused);
 static void device_read_handler_send (void *unused, uint8_t *data, int data_len);
+static int process_device_udp_packet (uint8_t *data, int data_len);
 static err_t netif_init_func (struct netif *netif);
 static err_t netif_output_func (struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr);
 static void client_log (struct tcp_client *client, int level, const char *fmt, ...);
@@ -186,6 +201,7 @@ static void client_socks_recv_initiate (struct tcp_client *client);
 static void client_socks_recv_handler_done (struct tcp_client *client, int data_len);
 static int client_socks_recv_send_out (struct tcp_client *client);
 static err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len);
+static void udpgw_client_handler_received (void *unused, BAddr local_addr, BAddr remote_addr, const char *data, int data_len);
 
 int main (int argc, char **argv)
 {
@@ -288,6 +304,20 @@ int main (int argc, char **argv)
         goto fail4;
     }
     
+    if (options.udpgw_remote_server_addr) {
+        // compute UDP mtu
+        udp_mtu = BTap_GetMTU(&device) - (int)(sizeof(struct ipv4_header) + sizeof(struct udp_header));
+        int udpgw_mtu = udpgw_compute_mtu(udp_mtu);
+        if (udpgw_mtu < 0 || udpgw_mtu > PACKETPROTO_MAXPAYLOAD) {
+            BLog(BLOG_ERROR, "bad device MTU for UDP");
+            goto fail4a;
+        }
+        
+        // init udpgw client
+        SocksUdpGwClient_Init(&udpgw_client, udp_mtu, DEFAULT_UDPGW_MAX_CONNECTIONS, options.udpgw_connection_buffer_size, UDPGW_KEEPALIVE_TIME,
+                              socks_server_addr, udpgw_remote_server_addr, UDPGW_RECONNECT_TIME, &ss, NULL, udpgw_client_handler_received);
+    }
+    
     // init lwip init job
     BPending_Init(&lwip_init_job, BReactor_PendingGroup(&ss), lwip_init_job_hadler, NULL);
     BPending_Set(&lwip_init_job);
@@ -342,6 +372,10 @@ int main (int argc, char **argv)
 fail5:
     BufferWriter_Free(&device_write_writer);
     BPending_Free(&lwip_init_job);
+    if (options.udpgw_remote_server_addr) {
+        SocksUdpGwClient_Free(&udpgw_client);
+    }
+fail4a:
     SinglePacketBuffer_Free(&device_read_buffer);
 fail4:
     PacketPassInterface_Free(&device_read_interface);
@@ -392,6 +426,9 @@ void print_help (const char *name)
         "        --netif-ipaddr <ipaddr>\n"
         "        --netif-netmask <ipnetmask>\n"
         "        --socks-server-addr <addr>\n"
+        "        [--udpgw-remote-server-addr <addr>]\n"
+        "        [--udpgw-max-connections <number>]\n"
+        "        [--udpgw-connection-buffer-size <number>]\n"
         "Address format is a.b.c.d:port (IPv4) or [addr]:port (IPv6).\n",
         name
     );
@@ -423,6 +460,9 @@ int parse_arguments (int argc, char *argv[])
     options.netif_ipaddr = NULL;
     options.netif_netmask = NULL;
     options.socks_server_addr = NULL;
+    options.udpgw_remote_server_addr = NULL;
+    options.udpgw_max_connections = DEFAULT_UDPGW_MAX_CONNECTIONS;
+    options.udpgw_connection_buffer_size = DEFAULT_UDPGW_CONNECTION_BUFFER_SIZE;
     
     int i;
     for (i = 1; i < argc; i++) {
@@ -532,6 +572,36 @@ int parse_arguments (int argc, char *argv[])
             options.socks_server_addr = argv[i + 1];
             i++;
         }
+        else if (!strcmp(arg, "--udpgw-remote-server-addr")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.udpgw_remote_server_addr = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--udpgw-max-connections")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            if ((options.udpgw_max_connections = atoi(argv[i + 1])) <= 0) {
+                fprintf(stderr, "%s: wrong argument\n", arg);
+                return 0;
+            }
+            i++;
+        }
+        else if (!strcmp(arg, "--udpgw-connection-buffer-size")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            if ((options.udpgw_connection_buffer_size = atoi(argv[i + 1])) <= 0) {
+                fprintf(stderr, "%s: wrong argument\n", arg);
+                return 0;
+            }
+            i++;
+        }
         else {
             fprintf(stderr, "unknown option: %s\n", arg);
             return 0;
@@ -588,6 +658,14 @@ int process_arguments (void)
         return 0;
     }
     
+    // resolve remote udpgw server address
+    if (options.udpgw_remote_server_addr) {
+        if (!BAddr_Parse2(&udpgw_remote_server_addr, options.udpgw_remote_server_addr, NULL, 0, 0)) {
+            BLog(BLOG_ERROR, "remote udpgw server addr: BAddr_Parse2 failed");
+            return 0;
+        }
+    }
+    
     return 1;
 }
 
@@ -606,6 +684,7 @@ void lwip_init_job_hadler (void *unused)
     ASSERT(netif_ipaddr.type == BADDR_TYPE_IPV4)
     ASSERT(netif_netmask.type == BADDR_TYPE_IPV4)
     ASSERT(!have_netif)
+    ASSERT(!listener)
     
     BLog(BLOG_DEBUG, "lwip init");
     
@@ -656,15 +735,13 @@ void lwip_init_job_hadler (void *unused)
     }
     
     // listen listener
-    struct tcp_pcb *l2 = tcp_listen(l);
-    if (!l2) {
+    if (!(listener = tcp_listen(l))) {
         BLog(BLOG_ERROR, "tcp_listen failed");
         tcp_close(l);
         goto fail;
     }
-    listener = l2;
     
-    // setup accept handler
+    // setup listener accept handler
     tcp_accept(listener, listener_accept_func);
     
     return;
@@ -708,6 +785,11 @@ void device_read_handler_send (void *unused, uint8_t *data, int data_len)
     // accept packet
     PacketPassInterface_Done(&device_read_interface);
     
+    // process UDP directly
+    if (process_device_udp_packet(data, data_len)) {
+        return;
+    }
+    
     // obtain pbuf
     struct pbuf *p = pbuf_alloc(PBUF_RAW, data_len, PBUF_POOL);
     if (!p) {
@@ -723,6 +805,75 @@ void device_read_handler_send (void *unused, uint8_t *data, int data_len)
         BLog(BLOG_WARNING, "device read: input failed");
         pbuf_free(p);
     }
+}
+
+int process_device_udp_packet (uint8_t *data, int data_len)
+{
+    // do nothing if we don't have udpgw
+    if (!options.udpgw_remote_server_addr) {
+        goto fail;
+    }
+    
+    // ignore non-UDP packets
+    if (data_len < sizeof(struct ipv4_header) || ((struct ipv4_header *)data)->protocol != IPV4_PROTOCOL_UDP) {
+        goto fail;
+    }
+    
+    // parse IPv4 header
+    struct ipv4_header *ipv4_header;
+    if (!ipv4_check(data, data_len, &ipv4_header, &data, &data_len)) {
+        goto fail;
+    }
+    
+    // parse UDP header
+    if (data_len < sizeof(struct udp_header)) {
+        goto fail;
+    }
+    struct udp_header *udp_header = (struct udp_header *)data;
+    data += sizeof(*udp_header);
+    data_len -= sizeof(*udp_header);
+    
+    // verify UDP payload
+    int udp_length = ntoh16(udp_header->length);
+    if (udp_length < sizeof(*udp_header)) {
+        goto fail;
+    }
+    if (udp_length > sizeof(*udp_header) + data_len) {
+        goto fail;
+    }
+    
+    // ignore stray data
+    data_len = udp_length - sizeof(*udp_header);
+    
+    // check payload length
+    if (data_len > udp_mtu) {
+        goto fail;
+    }
+    
+    // verify UDP checksum
+    uint16_t checksum_in_packet = udp_header->checksum;
+    udp_header->checksum = 0;
+    uint16_t checksum_computed = udp_checksum((uint8_t *)udp_header, udp_length, ipv4_header->source_address, ipv4_header->destination_address);
+    udp_header->checksum = checksum_in_packet;
+    if (checksum_in_packet != checksum_computed) {
+        goto fail;
+    }
+    
+    BLog(BLOG_INFO, "UDP: from device %d bytes", data_len);
+    
+    // construct addresses
+    BAddr local_addr;
+    BAddr_InitIPv4(&local_addr, ipv4_header->source_address, udp_header->source_port);
+    BAddr remote_addr;
+    BAddr_InitIPv4(&remote_addr, ipv4_header->destination_address, udp_header->dest_port);
+    
+    // submit packet to udpgw
+    SocksUdpGwClient_SubmitPacket(&udpgw_client, local_addr, remote_addr, data, data_len);
+    
+    return 1;
+    
+fail:
+    return 0;
 }
 
 err_t netif_init_func (struct netif *netif)
@@ -1319,4 +1470,54 @@ err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
     }
     
     return ERR_OK;
+}
+
+void udpgw_client_handler_received (void *unused, BAddr local_addr, BAddr remote_addr, const char *data, int data_len)
+{
+    ASSERT(options.udpgw_remote_server_addr)
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= udp_mtu)
+    
+    BLog(BLOG_INFO, "UDP: from udpgw %d bytes", data_len);
+    
+    // obtain buffer location
+    uint8_t *out;
+    if (!BufferWriter_StartPacket(&device_write_writer, &out)) {
+        BLog(BLOG_ERROR, "UDP: out of device buffer");
+        return;
+    }
+    
+    // write IP header
+    struct ipv4_header *iph = (struct ipv4_header *)out;
+    iph->version4_ihl4 = IPV4_MAKE_VERSION_IHL(sizeof(*iph));
+    iph->ds = hton8(0);
+    iph->total_length = hton16(sizeof(*iph) + sizeof(struct udp_header) + data_len);
+    iph->identification = hton16(0);
+    iph->flags3_fragmentoffset13 = hton16(0);
+    iph->ttl = hton8(64);
+    iph->protocol = hton8(IPV4_PROTOCOL_UDP);
+    iph->checksum = hton16(0);
+    iph->source_address = remote_addr.ipv4.ip;
+    iph->destination_address = local_addr.ipv4.ip;
+    
+    // compute and write IP header checksum
+    uint32_t checksum = ipv4_checksum((uint8_t *)iph, sizeof(*iph));
+    iph->checksum = checksum;
+    
+    // write UDP header
+    struct udp_header *udph = (struct udp_header *)(out + sizeof(*iph));
+    udph->source_port = remote_addr.ipv4.port;
+    udph->dest_port = local_addr.ipv4.port;
+    udph->length = hton16(sizeof(*udph) + data_len);
+    udph->checksum = hton16(0);
+    
+    // write data
+    memcpy(out + sizeof(*iph) + sizeof(struct udp_header), data, data_len);
+    
+    // compute checksum
+    checksum = udp_checksum((uint8_t *)udph, sizeof(*udph) + data_len, iph->source_address, iph->destination_address);
+    udph->checksum = checksum;
+    
+    // submit packet
+    BufferWriter_EndPacket(&device_write_writer, sizeof(*iph) + sizeof(*udph) + data_len);
 }
