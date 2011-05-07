@@ -31,10 +31,10 @@
 #define CLIENT_SOCKS_RECV_BUF_SIZE 8192
 
 // maximum number of udpgw connections
-#define DEFAULT_UDPGW_MAX_CONNECTIONS 512
+#define DEFAULT_UDPGW_MAX_CONNECTIONS 256
 
 // udpgw per-connection send buffer size, in number of packets
-#define DEFAULT_UDPGW_CONNECTION_BUFFER_SIZE 4
+#define DEFAULT_UDPGW_CONNECTION_BUFFER_SIZE 8
 
 // udpgw reconnect time after connection fails
 #define UDPGW_RECONNECT_TIME 5000
