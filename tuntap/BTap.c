@@ -440,16 +440,16 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     
     // get MTU
     
+    ULONG umtu;
+    
+    if (!DeviceIoControl(o->device, TAP_IOCTL_GET_MTU, NULL, 0, &umtu, sizeof(umtu), &len, NULL)) {
+        BLog(BLOG_ERROR, "DeviceIoControl(TAP_IOCTL_GET_MTU) failed");
+        goto fail1;
+    }
+    
     if (tun) {
-        o->frame_mtu = 65535;
+        o->frame_mtu = umtu;
     } else {
-        ULONG umtu;
-        
-        if (!DeviceIoControl(o->device, TAP_IOCTL_GET_MTU, NULL, 0, &umtu, sizeof(umtu), &len, NULL)) {
-            BLog(BLOG_ERROR, "DeviceIoControl(TAP_IOCTL_GET_MTU) failed");
-            goto fail1;
-        }
-        
         o->frame_mtu = umtu + BTAP_ETHERNET_HEADER_LENGTH;
     }
     
@@ -573,8 +573,6 @@ fail0:
     
     // get MTU
     if (tun) {
-        o->frame_mtu = 65535;
-    } else {
         // open dummy socket for ioctls
         int sock = socket(AF_INET, SOCK_DGRAM, 0);
         if (sock < 0) {
@@ -591,7 +589,11 @@ fail0:
             goto fail1;
         }
         
-        o->frame_mtu = ifr.ifr_mtu + BTAP_ETHERNET_HEADER_LENGTH;
+        if (tun) {
+            o->frame_mtu = ifr.ifr_mtu;
+        } else {
+            o->frame_mtu = ifr.ifr_mtu + BTAP_ETHERNET_HEADER_LENGTH;
+        }
         
         close(sock);
     }
