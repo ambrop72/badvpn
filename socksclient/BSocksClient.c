@@ -319,6 +319,7 @@ void send_handler_done (BSocksClient *o)
 
 int BSocksClient_Init (BSocksClient *o, BAddr server_addr, BAddr dest_addr, BSocksClient_handler handler, void *user, BReactor *reactor)
 {
+    ASSERT(!BAddr_IsInvalid(&server_addr))
     ASSERT(dest_addr.type == BADDR_TYPE_IPV4 || dest_addr.type == BADDR_TYPE_IPV6)
     
     // init arguments
