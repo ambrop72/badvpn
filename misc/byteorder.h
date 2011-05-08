@@ -32,6 +32,10 @@
 #ifndef BADVPN_MISC_BYTEORDER_H
 #define BADVPN_MISC_BYTEORDER_H
 
+#if (defined(BADVPN_LITTLE_ENDIAN) + defined(BADVPN_BIG_ENDIAN)) != 1
+#error Unknown byte order or too many byte orders
+#endif
+
 #include <stdint.h>
 
 static uint16_t badvpn_reverse16 (uint16_t x)
