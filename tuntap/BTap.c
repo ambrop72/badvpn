@@ -572,31 +572,30 @@ fail0:
     #endif
     
     // get MTU
-    if (tun) {
-        // open dummy socket for ioctls
-        int sock = socket(AF_INET, SOCK_DGRAM, 0);
-        if (sock < 0) {
-            BLog(BLOG_ERROR, "socket failed");
-            goto fail1;
-        }
-        
-        memset(&ifr, 0, sizeof(ifr));
-        strcpy(ifr.ifr_name, o->devname);
-        
-        if (ioctl(sock, SIOCGIFMTU, (void *)&ifr) < 0) {
-            BLog(BLOG_ERROR, "error getting MTU");
-            close(sock);
-            goto fail1;
-        }
-        
-        if (tun) {
-            o->frame_mtu = ifr.ifr_mtu;
-        } else {
-            o->frame_mtu = ifr.ifr_mtu + BTAP_ETHERNET_HEADER_LENGTH;
-        }
-        
-        close(sock);
+    
+    // open dummy socket for ioctls
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        BLog(BLOG_ERROR, "socket failed");
+        goto fail1;
     }
+    
+    memset(&ifr, 0, sizeof(ifr));
+    strcpy(ifr.ifr_name, o->devname);
+    
+    if (ioctl(sock, SIOCGIFMTU, (void *)&ifr) < 0) {
+        BLog(BLOG_ERROR, "error getting MTU");
+        close(sock);
+        goto fail1;
+    }
+    
+    if (tun) {
+        o->frame_mtu = ifr.ifr_mtu;
+    } else {
+        o->frame_mtu = ifr.ifr_mtu + BTAP_ETHERNET_HEADER_LENGTH;
+    }
+    
+    close(sock);
     
     // set non-blocking
     if (fcntl(o->fd, F_SETFL, O_NONBLOCK) < 0) {
