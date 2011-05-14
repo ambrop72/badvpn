@@ -28,12 +28,6 @@ add_executable(ncd_parser_test ncd_parser_test.c)
 target_link_libraries(ncd_parser_test ncdconfig)
 
 if (NOT WIN32)
-    add_executable(ipc_server ipc_server.c)
-    target_link_libraries(ipc_server ipc)
-
-    add_executable(ipc_client ipc_client.c)
-    target_link_libraries(ipc_client ipc)
-
     add_executable(bprocess_example bprocess_example.c)
     target_link_libraries(bprocess_example system process)
 

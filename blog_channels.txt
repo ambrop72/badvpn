@@ -75,8 +75,6 @@ LineBuffer 4
 BTap 4
 lwip 4
 NCDConfigParser 4
-BIPC 4
-BIPCServer 4
 nsskey 4
 addr 4
 PasswordListener 4
