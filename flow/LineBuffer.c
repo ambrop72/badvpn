@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <flow/LineBuffer.h>
 

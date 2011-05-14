@@ -31,8 +31,8 @@
 
 #include <misc/debugcounter.h>
 #include <structure/BHeap.h>
-#include <system/DebugObject.h>
-#include <system/BPending.h>
+#include <base/DebugObject.h>
+#include <base/BPending.h>
 #include <flow/PacketPassInterface.h>
 
 typedef void (*PacketPassPriorityQueue_handler_busy) (void *user);

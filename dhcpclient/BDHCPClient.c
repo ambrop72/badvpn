@@ -34,7 +34,7 @@
 #include <misc/ethernet_proto.h>
 #include <misc/ipv4_proto.h>
 #include <misc/udp_proto.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <dhcpclient/BDHCPClient.h>
 

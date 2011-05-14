@@ -24,7 +24,7 @@
 
 #include <misc/debug.h>
 #include <system/BTime.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 #include <system/BReactor.h>
 #include <system/BUnixSignal.h>
 #include <process/BProcess.h>

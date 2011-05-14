@@ -27,7 +27,7 @@
 
 #include <security/BRandom.h>
 #include <system/BReactor.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <flow/PacketPassInterface.h>
 
 typedef struct {

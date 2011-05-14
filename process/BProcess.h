@@ -29,9 +29,9 @@
 #include <misc/debug.h>
 #include <misc/debugerror.h>
 #include <structure/LinkedList2.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BUnixSignal.h>
-#include <system/BPending.h>
+#include <base/BPending.h>
 
 typedef struct {
     BReactor *reactor;

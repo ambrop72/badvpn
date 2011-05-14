@@ -40,7 +40,7 @@
 
 #include <misc/debug.h>
 #include <misc/debugerror.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BReactor.h>
 #include <flow/PacketRecvInterface.h>
 #include <flow/PacketPassInterface.h>

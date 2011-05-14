@@ -30,8 +30,8 @@
 #include <system/BReactor.c>
 #include <system/BSocket.h>
 #include <system/BUnixSignal.h>
-#include <system/DebugObject.h>
-#include <flow/StreamSocketSource.h>
+#include <base/DebugObject.h>
+#include <flowextra/StreamSocketSource.h>
 
 #define BUF_SIZE 64
 

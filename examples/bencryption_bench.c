@@ -28,7 +28,7 @@
 
 #include <security/BRandom.h>
 #include <security/BEncryption.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 
 static void usage (char *name)
 {

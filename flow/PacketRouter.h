@@ -28,8 +28,8 @@
 #ifndef BADVPN_FLOW_PACKETROUTER_H
 #define BADVPN_FLOW_PACKETROUTER_H
 
-#include <system/DebugObject.h>
-#include <system/BPending.h>
+#include <base/DebugObject.h>
+#include <base/BPending.h>
 #include <flow/PacketRecvInterface.h>
 #include <flow/RouteBuffer.h>
 

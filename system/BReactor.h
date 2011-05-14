@@ -54,11 +54,11 @@
 
 #include <misc/debug.h>
 #include <misc/debugcounter.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <structure/LinkedList1.h>
 #include <structure/BHeap.h>
 #include <system/BTime.h>
-#include <system/BPending.h>
+#include <base/BPending.h>
 
 struct BTimer_t;
 

@@ -27,6 +27,7 @@ add_executable(badvpn-ncd
     NCDModule.c
     NCDIfConfig.c
     NCDInterfaceMonitor.c
+    BEventLock.c
     modules/command_template.c
     modules/event_template.c
     modules/var.c
@@ -60,7 +61,7 @@ add_executable(badvpn-ncd
     modules/net_watch_interfaces.c
     ${NCD_ADDITIONAL_SOURCES}
 )
-target_link_libraries(badvpn-ncd system dhcpclient ncdconfig process udevmonitor)
+target_link_libraries(badvpn-ncd system flow flowextra dhcpclient ncdconfig process udevmonitor)
 
 if (BADVPN_USE_LINUX_INPUT)
     string(REPLACE " " ";" FLAGS_LIST "${CMAKE_C_FLAGS}")

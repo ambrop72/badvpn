@@ -27,9 +27,9 @@
 #include <linux/netlink.h>
 
 #include <misc/debug.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BReactor.h>
-#include <system/BPending.h>
+#include <base/BPending.h>
 #include <ncd/NCDIfConfig.h>
 
 typedef void (*NCDInterfaceMonitor_handler) (void *user, const char *ifname, int if_flags);

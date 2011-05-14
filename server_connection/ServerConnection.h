@@ -43,21 +43,21 @@
 #include <misc/debugerror.h>
 #include <protocol/scproto.h>
 #include <protocol/msgproto.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BSocket.h>
 #include <flow/FlowError.h>
-#include <flow/SCKeepaliveSource.h>
 #include <flow/PacketProtoEncoder.h>
-#include <flow/KeepaliveIO.h>
 #include <flow/PacketStreamSender.h>
-#include <flow/StreamSocketSink.h>
-#include <flow/StreamSocketSource.h>
 #include <flow/PacketProtoDecoder.h>
 #include <flow/PacketPassPriorityQueue.h>
 #include <flow/PacketProtoFlow.h>
+#include <flowextra/StreamSocketSink.h>
+#include <flowextra/StreamSocketSource.h>
+#include <flowextra/KeepaliveIO.h>
 #include <nspr_support/BPRFileDesc.h>
 #include <nspr_support/PRStreamSink.h>
 #include <nspr_support/PRStreamSource.h>
+#include <server_connection/SCKeepaliveSource.h>
 
 /**
  * Handler function invoked when an error occurs.

@@ -40,8 +40,8 @@
 #include <misc/debug.h>
 #include <system/BAddr.h>
 #include <system/BReactor.h>
-#include <system/DebugObject.h>
-#include <system/BPending.h>
+#include <base/DebugObject.h>
+#include <base/BPending.h>
 
 // errors
 #define BSOCKET_ERROR_NONE 0

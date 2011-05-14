@@ -29,8 +29,8 @@
 #ifndef BADVPN_NSPRSUPPORT_BPRFILEDESC_H
 #define BADVPN_NSPRSUPPORT_BPRFILEDESC_H
 
-#include <system/BPending.h>
-#include <system/DebugObject.h>
+#include <base/BPending.h>
+#include <base/DebugObject.h>
 #include <nspr_support/BSocketPRFileDesc.h>
 
 #define BPRFILEDESC_BOTTOM_BSOCKET 1

@@ -34,7 +34,7 @@
 #include <keyhi.h>
 #include <pk11func.h>
 
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <generated/blog_channel_nsskey.h>
 

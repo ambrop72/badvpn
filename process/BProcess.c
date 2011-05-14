@@ -33,7 +33,7 @@
 #include <errno.h>
 
 #include <misc/offset.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <process/BProcess.h>
 

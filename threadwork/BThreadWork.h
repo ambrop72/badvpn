@@ -35,7 +35,7 @@
 
 #include <misc/debug.h>
 #include <structure/LinkedList2.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BReactor.h>
 
 #define BTHREADWORK_STATE_PENDING 1

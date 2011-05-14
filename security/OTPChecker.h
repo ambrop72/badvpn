@@ -33,7 +33,7 @@
 #include <misc/debug.h>
 #include <misc/modadd.h>
 #include <security/OTPCalculator.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <threadwork/BThreadWork.h>
 
 struct OTPChecker_entry {

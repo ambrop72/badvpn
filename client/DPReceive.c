@@ -26,7 +26,7 @@
 #include <protocol/dataproto.h>
 #include <misc/byteorder.h>
 #include <misc/offset.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <client/DPReceive.h>
 

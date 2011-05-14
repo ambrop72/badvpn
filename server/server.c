@@ -58,10 +58,10 @@
 #include <misc/loglevel.h>
 #include <misc/loggers_string.h>
 #include <predicate/BPredicate.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 #include <system/BSignal.h>
 #include <system/BTime.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BAddr.h>
 #include <system/Listener.h>
 #include <security/BRandom.h>

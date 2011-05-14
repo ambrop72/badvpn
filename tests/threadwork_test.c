@@ -2,8 +2,8 @@
 #include <stdio.h>
 
 #include <misc/debug.h>
-#include <system/BLog.h>
-#include <system/DebugObject.h>
+#include <base/BLog.h>
+#include <base/DebugObject.h>
 #include <threadwork/BThreadWork.h>
 
 BReactor reactor;

@@ -49,7 +49,7 @@
     #endif
 #endif
 
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <tuntap/BTap.h>
 

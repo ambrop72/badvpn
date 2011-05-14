@@ -25,7 +25,7 @@
 
 #include <misc/debug.h>
 #include <structure/BAVL.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 
 struct BStringMap_entry {
     char *key;

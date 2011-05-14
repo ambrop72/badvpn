@@ -21,7 +21,7 @@
  */
 
 #include <misc/byteorder.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <socksclient/BSocksClient.h>
 

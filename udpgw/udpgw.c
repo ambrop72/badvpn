@@ -36,21 +36,20 @@
 #include <misc/bsize.h>
 #include <structure/LinkedList1.h>
 #include <structure/BAVL.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 #include <system/BReactor.h>
 #include <system/BSocket.h>
 #include <system/BSignal.h>
 #include <system/Listener.h>
-#include <flow/StreamSocketSource.h>
 #include <flow/PacketProtoDecoder.h>
-#include <flow/DatagramSocketSink.h>
 #include <flow/PacketPassFairQueue.h>
 #include <flow/PacketStreamSender.h>
-#include <flow/StreamSocketSink.h>
 #include <flow/PacketProtoFlow.h>
-#include <flow/DatagramSocketSink.h>
-#include <flow/DatagramSocketSource.h>
 #include <flow/SinglePacketBuffer.h>
+#include <flowextra/StreamSocketSource.h>
+#include <flowextra/StreamSocketSink.h>
+#include <flowextra/DatagramSocketSource.h>
+#include <flowextra/DatagramSocketSink.h>
 
 #ifndef BADVPN_USE_WINAPI
 #include <system/BLog_syslog.h>

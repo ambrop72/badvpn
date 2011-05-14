@@ -53,10 +53,10 @@
 #include <security/BRandom.h>
 #include <nspr_support/DummyPRFileDesc.h>
 #include <nspr_support/BSocketPRFileDesc.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 #include <system/BSignal.h>
 #include <system/BTime.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <server_connection/ServerConnection.h>
 #include <tuntap/BTap.h>
 

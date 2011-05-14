@@ -34,7 +34,7 @@
 #include <misc/debug.h>
 #include <security/BRandom.h>
 #include <security/BEncryption.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 
 /**
  * Type for an OTP.

@@ -35,7 +35,7 @@
 #include <misc/udp_proto.h>
 #include <misc/byteorder.h>
 #include <structure/LinkedList2.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 #include <system/BReactor.h>
 #include <system/BSocket.h>
 #include <system/BSignal.h>

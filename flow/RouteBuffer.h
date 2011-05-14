@@ -29,7 +29,7 @@
 
 #include <misc/debug.h>
 #include <structure/LinkedList1.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <flow/PacketPassInterface.h>
 
 struct RouteBuffer_packet {

@@ -31,7 +31,7 @@
 #include <misc/debug.h>
 #include <misc/offset.h>
 #include <misc/byteorder.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 #include <nspr_support/DummyPRFileDesc.h>
 #include <nspr_support/BSocketPRFileDesc.h>
 

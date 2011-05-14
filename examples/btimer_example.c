@@ -25,7 +25,7 @@
 #include <time.h>
 
 #include <system/BReactor.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 #include <system/BTime.h>
 
 // gives average firing rate 100kHz

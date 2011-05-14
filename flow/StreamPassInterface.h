@@ -36,8 +36,8 @@
 #include <stddef.h>
 
 #include <misc/debug.h>
-#include <system/DebugObject.h>
-#include <system/BPending.h>
+#include <base/DebugObject.h>
+#include <base/BPending.h>
 
 #define SPI_STATE_NONE 1
 #define SPI_STATE_OPERATION_PENDING 2

@@ -31,7 +31,7 @@
 #include <stdint.h>
 
 #include <misc/debug.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <flow/PacketRecvInterface.h>
 
 /**

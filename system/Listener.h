@@ -27,7 +27,7 @@
 #ifndef BADVPN_SYSTEM_LISTENER_H
 #define BADVPN_SYSTEM_LISTENER_H
 
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BSocket.h>
 
 /**

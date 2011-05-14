@@ -38,7 +38,7 @@ if (NOT WIN32)
     target_link_libraries(ncdudevmanager_test udevmonitor)
 
     add_executable(stdin_input stdin_input.c)
-    target_link_libraries(stdin_input system flow)
+    target_link_libraries(stdin_input system flow flowextra)
 endif ()
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")

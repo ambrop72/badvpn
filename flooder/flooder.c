@@ -32,7 +32,7 @@
 #include <misc/nsskey.h>
 #include <misc/byteorder.h>
 #include <misc/loggers_string.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 #include <system/BReactor.h>
 #include <system/BSignal.h>
 #include <flow/SinglePacketBuffer.h>

@@ -36,7 +36,7 @@
 #include <keyhi.h>
 
 #include <misc/debug.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/Listener.h>
 #include <misc/sslsocket.h>
 #include <structure/LinkedList2.h>

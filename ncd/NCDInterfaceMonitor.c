@@ -34,7 +34,7 @@
 
 #include <misc/debug.h>
 #include <misc/nonblocking.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <ncd/NCDInterfaceMonitor.h>
 

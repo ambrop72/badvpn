@@ -8,8 +8,13 @@ add_executable(badvpn-client
     FrameDecider.c
     DPRelay.c
     DPReceive.c
+    FragmentProtoDisassembler.c
+    FragmentProtoAssembler.c
+    SPProtoEncoder.c
+    SPProtoDecoder.c
+    DataProtoKeepaliveSource.c
 )
-target_link_libraries(badvpn-client system flow tuntap server_conection security ${NSPR_LIBRARIES} ${NSS_LIBRARIES})
+target_link_libraries(badvpn-client system flow flowextra tuntap server_conection security ${NSPR_LIBRARIES} ${NSS_LIBRARIES})
 
 install(
     TARGETS badvpn-client

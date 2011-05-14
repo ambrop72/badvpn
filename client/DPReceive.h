@@ -31,7 +31,7 @@
 #include <misc/debugcounter.h>
 #include <misc/debug.h>
 #include <structure/LinkedList2.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <flow/PacketPassFairQueue.h>
 #include <client/DataProto.h>
 #include <client/DPRelay.h>

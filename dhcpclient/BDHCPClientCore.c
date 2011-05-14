@@ -26,7 +26,7 @@
 #include <misc/byteorder.h>
 #include <misc/minmax.h>
 #include <security/BRandom.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <dhcpclient/BDHCPClientCore.h>
 

@@ -72,7 +72,7 @@
 
 #include <misc/debug.h>
 #include <structure/BAVL.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 
 #define PREDICATE_TYPE_BOOL 1
 #define PREDICATE_TYPE_STRING 2

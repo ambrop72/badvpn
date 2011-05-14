@@ -25,7 +25,7 @@
 
 #include <misc/offset.h>
 #include <misc/byteorder.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <udpgw_client/UdpGwClient.h>
 

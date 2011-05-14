@@ -31,16 +31,16 @@
 
 #include <misc/debugcounter.h>
 #include <misc/debug.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BReactor.h>
 #include <flow/PacketPassFairQueue.h>
-#include <flow/PacketPassInactivityMonitor.h>
 #include <flow/PacketPassNotifier.h>
-#include <flow/DataProtoKeepaliveSource.h>
 #include <flow/PacketRecvBlocker.h>
 #include <flow/SinglePacketBuffer.h>
 #include <flow/PacketPassConnector.h>
 #include <flow/PacketRouter.h>
+#include <flowextra/PacketPassInactivityMonitor.h>
+#include <client/DataProtoKeepaliveSource.h>
 
 typedef void (*DataProtoSink_handler) (void *user, int up);
 typedef void (*DataProtoSource_handler) (void *user, const uint8_t *frame, int frame_len);

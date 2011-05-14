@@ -28,7 +28,7 @@
 #include <misc/offset.h>
 #include <misc/debug.h>
 #include <misc/byteorder.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <client/StreamPeerIO.h>
 

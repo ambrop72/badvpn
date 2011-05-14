@@ -25,8 +25,8 @@
 
 #include <misc/debug.h>
 #include <system/BReactor.h>
-#include <system/BPending.h>
-#include <system/BLog.h>
+#include <base/BPending.h>
+#include <base/BLog.h>
 #include <process/BProcess.h>
 #include <udevmonitor/NCDUdevManager.h>
 #include <ncd/NCDValue.h>

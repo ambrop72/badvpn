@@ -1,7 +1,7 @@
 add_executable(badvpn-udpgw
     udpgw.c
 )
-target_link_libraries(badvpn-udpgw system flow)
+target_link_libraries(badvpn-udpgw system flow flowextra)
 
 install(
     TARGETS badvpn-udpgw

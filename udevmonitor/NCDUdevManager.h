@@ -25,7 +25,7 @@
 
 #include <misc/debug.h>
 #include <structure/LinkedList1.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <udevmonitor/NCDUdevMonitor.h>
 #include <udevmonitor/NCDUdevCache.h>
 #include <stringmap/BStringMap.h>

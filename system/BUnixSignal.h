@@ -36,7 +36,7 @@
 
 #include <misc/debug.h>
 #include <system/BReactor.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 
 struct BUnixSignal_s;
 

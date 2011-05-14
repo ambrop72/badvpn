@@ -26,7 +26,7 @@
 #include <misc/debug.h>
 #include <misc/byteorder.h>
 #include <misc/minmax.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <flow/PacketProtoDecoder.h>
 

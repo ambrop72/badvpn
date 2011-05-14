@@ -32,22 +32,22 @@
 #include <misc/debug.h>
 #include <protocol/spproto.h>
 #include <protocol/fragmentproto.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BReactor.h>
 #include <system/BAddr.h>
 #include <system/BSocket.h>
 #include <system/BTime.h>
 #include <flow/PacketPassInterface.h>
-#include <flow/DatagramSocketSink.h>
 #include <flow/PacketPassConnector.h>
 #include <flow/SinglePacketBuffer.h>
-#include <flow/SPProtoEncoder.h>
-#include <flow/FragmentProtoDisassembler.h>
-#include <flow/DatagramSocketSource.h>
 #include <flow/PacketRecvConnector.h>
-#include <flow/SPProtoDecoder.h>
-#include <flow/FragmentProtoAssembler.h>
 #include <flow/PacketPassNotifier.h>
+#include <flowextra/DatagramSocketSource.h>
+#include <flowextra/DatagramSocketSink.h>
+#include <client/FragmentProtoDisassembler.h>
+#include <client/FragmentProtoAssembler.h>
+#include <client/SPProtoEncoder.h>
+#include <client/SPProtoDecoder.h>
 
 /**
  * Handler function invoked when the number of used OTPs has reached

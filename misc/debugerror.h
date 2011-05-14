@@ -29,7 +29,7 @@
 #define BADVPN_MISC_DEBUGERROR_H
 
 #include <misc/debug.h>
-#include <system/BPending.h>
+#include <base/BPending.h>
 
 #ifndef NDEBUG
     #define DEBUGERROR(de, call) \

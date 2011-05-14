@@ -26,7 +26,7 @@
 
 #include <misc/debug.h>
 #include <system/BReactor.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 #include <system/BTime.h>
 #include <flow/PacketPassFairQueue.h>
 #include <examples/FastPacketSource.h>

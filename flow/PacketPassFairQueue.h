@@ -32,8 +32,8 @@
 #include <misc/debugcounter.h>
 #include <structure/BHeap.h>
 #include <structure/LinkedList2.h>
-#include <system/DebugObject.h>
-#include <system/BPending.h>
+#include <base/DebugObject.h>
+#include <base/BPending.h>
 #include <flow/PacketPassInterface.h>
 
 // reduce this to test time overflow handling

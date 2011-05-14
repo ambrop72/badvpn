@@ -27,15 +27,15 @@
 #ifndef BADVPN_DHCPCLIENT_BDHCPCLIENT_H
 #define BADVPN_DHCPCLIENT_BDHCPCLIENT_H
 
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BSocket.h>
 #include <flow/PacketCopier.h>
 #include <flow/SinglePacketBuffer.h>
-#include <flow/DatagramSocketSink.h>
-#include <flow/DatagramSocketSource.h>
 #include <dhcpclient/BDHCPClientCore.h>
 #include <dhcpclient/DHCPIpUdpDecoder.h>
 #include <dhcpclient/DHCPIpUdpEncoder.h>
+#include <flowextra/DatagramSocketSink.h>
+#include <flowextra/DatagramSocketSource.h>
 
 #define BDHCPCLIENT_EVENT_UP 1
 #define BDHCPCLIENT_EVENT_DOWN 2

@@ -29,15 +29,15 @@
 #include <misc/debug.h>
 #include <structure/BAVL.h>
 #include <structure/LinkedList1.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BAddr.h>
-#include <system/BPending.h>
+#include <base/BPending.h>
 #include <flow/PacketPassFairQueue.h>
 #include <flow/PacketStreamSender.h>
 #include <flow/PacketProtoFlow.h>
 #include <flow/PacketProtoDecoder.h>
 #include <flow/PacketPassConnector.h>
-#include <flow/PacketPassInactivityMonitor.h>
+#include <flowextra/PacketPassInactivityMonitor.h>
 
 typedef void (*UdpGwClient_handler_servererror) (void *user);
 typedef void (*UdpGwClient_handler_received) (void *user, BAddr local_addr, BAddr remote_addr, const char *data, int data_len);

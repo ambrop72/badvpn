@@ -33,19 +33,19 @@
 #include <keyhi.h>
 
 #include <misc/debug.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BReactor.h>
 #include <system/BSocket.h>
 #include <structure/LinkedList2.h>
-#include <flow/StreamSocketSource.h>
 #include <flow/PacketProtoDecoder.h>
-#include <flow/StreamSocketSink.h>
 #include <flow/PacketStreamSender.h>
 #include <flow/SinglePacketBuffer.h>
 #include <flow/PacketProtoEncoder.h>
 #include <flow/PacketCopier.h>
 #include <flow/PacketPassConnector.h>
 #include <flow/StreamRecvConnector.h>
+#include <flowextra/StreamSocketSource.h>
+#include <flowextra/StreamSocketSink.h>
 #include <nspr_support/PRStreamSink.h>
 #include <nspr_support/PRStreamSource.h>
 #include <client/PasswordListener.h>

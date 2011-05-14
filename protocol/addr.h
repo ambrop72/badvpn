@@ -35,7 +35,7 @@
 
 #include <misc/debug.h>
 #include <system/BAddr.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <generated/bproto_addr.h>
 

@@ -130,8 +130,10 @@ install(
 )
 
 # internal libraries
+add_subdirectory(base)
 add_subdirectory(system)
 add_subdirectory(flow)
+add_subdirectory(flowextra)
 add_subdirectory(tuntap)
 add_subdirectory(predicate)
 add_subdirectory(nspr_support)

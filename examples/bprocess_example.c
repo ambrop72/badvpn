@@ -24,8 +24,8 @@
 #include <unistd.h>
 
 #include <misc/debug.h>
-#include <system/DebugObject.h>
-#include <system/BLog.h>
+#include <base/DebugObject.h>
+#include <base/BLog.h>
 #include <system/BReactor.h>
 #include <system/BSignal.h>
 #include <system/BTime.h>

@@ -38,7 +38,7 @@
 
 #include <misc/debug.h>
 #include <misc/overflow.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <generated/blog_channel_BTime.h>
 

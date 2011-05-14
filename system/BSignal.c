@@ -28,7 +28,7 @@
 #endif
 
 #include <misc/debug.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <system/BSignal.h>
 

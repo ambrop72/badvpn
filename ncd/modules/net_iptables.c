@@ -30,7 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <system/BEventLock.h>
+#include <ncd/BEventLock.h>
 
 #include <ncd/modules/command_template.h>
 

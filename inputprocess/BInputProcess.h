@@ -24,10 +24,10 @@
 #define BADVPN_INPUTPROCESS_BINPUTPROCESS_H
 
 #include <misc/debug.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BSocket.h>
 #include <process/BProcess.h>
-#include <flow/StreamSocketSource.h>
+#include <flowextra/StreamSocketSource.h>
 
 typedef void (*BInputProcess_handler_terminated) (void *user, int normally, uint8_t normally_exit_status);
 typedef void (*BInputProcess_handler_closed) (void *user, int is_error);

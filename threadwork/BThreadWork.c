@@ -29,7 +29,7 @@
 #endif
 
 #include <misc/offset.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <generated/blog_channel_BThreadWork.h>
 

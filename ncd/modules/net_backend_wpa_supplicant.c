@@ -38,8 +38,8 @@
 #include <misc/cmdline.h>
 #include <misc/string_begins_with.h>
 #include <system/BSocket.h>
-#include <flow/StreamSocketSource.h>
 #include <flow/LineBuffer.h>
+#include <flowextra/StreamSocketSource.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_net_backend_wpa_supplicant.h>

@@ -32,7 +32,7 @@
 
 #include <misc/dhcp_proto.h>
 #include <system/BReactor.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <flow/PacketPassInterface.h>
 #include <flow/PacketRecvInterface.h>
 

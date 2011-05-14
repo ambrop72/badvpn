@@ -15,12 +15,8 @@ add_library(system
     BReactor.c
     BSignal.c
     BSocket.c
-    BLog.c
     BTime.c
-    DebugObject.c
-    BPending.c
     Listener.c
-    BEventLock.c
     ${BSYSTEM_ADDITIONAL_SOURCES}
 )
-target_link_libraries(system ${BSYSTEM_ADDITIONAL_LIBS})
+target_link_libraries(system base ${BSYSTEM_ADDITIONAL_LIBS})

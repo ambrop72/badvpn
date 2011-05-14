@@ -33,7 +33,7 @@
 #include <structure/BAVL.h>
 #include <structure/LinkedList2.h>
 #include <structure/LinkedList3.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BReactor.h>
 
 struct _FrameDeciderPeer;

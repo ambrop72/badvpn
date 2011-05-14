@@ -21,7 +21,7 @@
  */
 
 #include <misc/debug.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <tun2socks/SocksUdpGwClient.h>
 

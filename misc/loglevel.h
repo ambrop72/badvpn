@@ -29,7 +29,7 @@
 
 #include <string.h>
 
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 /**
  * Parses the log level string.

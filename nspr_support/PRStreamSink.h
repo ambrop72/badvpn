@@ -30,7 +30,7 @@
 #include <stdint.h>
 
 #include <misc/debugerror.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <flow/StreamPassInterface.h>
 #include <flow/FlowError.h>
 #include <nspr_support/BPRFileDesc.h>

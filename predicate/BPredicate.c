@@ -29,7 +29,7 @@
 #include <predicate/BPredicate_internal.h>
 #include <predicate/BPredicate_parser.h>
 #include <predicate/LexMemoryBufferInput.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <predicate/BPredicate.h>
 

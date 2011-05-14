@@ -24,7 +24,7 @@
 #include <string.h>
 
 #include <predicate/BPredicate.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 static int func_hello (void *user, void **args)
 {

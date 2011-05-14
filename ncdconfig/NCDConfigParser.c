@@ -25,7 +25,7 @@
 #include <string.h>
 
 #include <misc/debug.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 #include <ncdconfig/NCDConfigTokenizer.h>
 
 #include <ncdconfig/NCDConfigParser.h>

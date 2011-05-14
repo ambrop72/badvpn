@@ -30,7 +30,7 @@
 
 #include <misc/debug.h>
 
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <flow/BufferWriter.h>
 #include <flow/PacketProtoEncoder.h>
 #include <flow/PacketBuffer.h>

@@ -23,7 +23,7 @@
 #ifndef BADVPN_TUN2SOCKS_SOCKSUDPGWCLIENT_H
 #define BADVPN_TUN2SOCKS_SOCKSUDPGWCLIENT_H
 
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BReactor.h>
 #include <udpgw_client/UdpGwClient.h>
 #include <socksclient/BSocksClient.h>

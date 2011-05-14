@@ -26,7 +26,7 @@
 #include <misc/debug.h>
 #include <structure/BAVL.h>
 #include <structure/LinkedList1.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <stringmap/BStringMap.h>
 
 struct NCDUdevCache_device {

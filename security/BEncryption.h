@@ -45,7 +45,7 @@
 #include <openssl/aes.h>
 
 #include <misc/debug.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 
 #define BENCRYPTION_MODE_ENCRYPT 1
 #define BENCRYPTION_MODE_DECRYPT 2

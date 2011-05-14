@@ -27,7 +27,7 @@
 #include <regex.h>
 
 #include <misc/debug.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <flow/StreamRecvInterface.h>
 
 typedef void (*NCDUdevMonitorParser_handler) (void *user);

@@ -1,7 +1,6 @@
 add_library(flow
     PacketPassFairQueue.c
     PacketPassPriorityQueue.c
-    PacketPassInactivityMonitor.c
     PacketPassConnector.c
     PacketRecvConnector.c
     StreamRecvConnector.c
@@ -11,19 +10,8 @@ add_library(flow
     SinglePacketBuffer.c
     PacketCopier.c
     PacketStreamSender.c
-    KeepaliveIO.c
-    SCKeepaliveSource.c
-    StreamSocketSource.c
-    StreamSocketSink.c
-    DatagramSocketSource.c
-    DatagramSocketSink.c
     PacketProtoEncoder.c
     PacketProtoDecoder.c
-    FragmentProtoDisassembler.c
-    SPProtoEncoder.c
-    SPProtoDecoder.c
-    FragmentProtoAssembler.c
-    DataProtoKeepaliveSource.c
     PacketProtoFlow.c
     SinglePacketSender.c
     BufferWriter.c
@@ -36,4 +24,4 @@ add_library(flow
     PacketRouter.c
     LineBuffer.c
 )
-target_link_libraries(flow system security)
+target_link_libraries(flow base)

@@ -30,7 +30,7 @@
 #include <protocol/dataproto.h>
 #include <misc/debug.h>
 #include <structure/LinkedList1.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <flow/BufferWriter.h>
 #include <client/DataProto.h>
 

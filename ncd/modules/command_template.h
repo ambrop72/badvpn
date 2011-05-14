@@ -29,7 +29,7 @@
 #define BADVPN_NCD_MODULES_COMMAND_TEMPLATE_H
 
 #include <misc/cmdline.h>
-#include <system/BEventLock.h>
+#include <ncd/BEventLock.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_net_iptables.h>

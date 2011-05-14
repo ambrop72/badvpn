@@ -31,10 +31,10 @@
 
 #include <misc/debugerror.h>
 #include <system/BSocket.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <flow/SinglePacketSender.h>
 #include <flow/PacketStreamSender.h>
-#include <flow/StreamSocketSink.h>
+#include <flowextra/StreamSocketSink.h>
 #include <nspr_support/BPRFileDesc.h>
 #include <nspr_support/PRStreamSink.h>
 

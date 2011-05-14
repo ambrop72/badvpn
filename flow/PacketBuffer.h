@@ -30,7 +30,7 @@
 #include <stdint.h>
 
 #include <misc/debug.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <structure/ChunkBuffer2.h>
 #include <flow/PacketRecvInterface.h>
 #include <flow/PacketPassInterface.h>

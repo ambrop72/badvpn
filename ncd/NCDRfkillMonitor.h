@@ -26,7 +26,7 @@
 #include <linux/rfkill.h>
 
 #include <misc/debug.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BReactor.h>
 
 typedef void (*NCDRfkillMonitor_handler) (void *user, struct rfkill_event event);

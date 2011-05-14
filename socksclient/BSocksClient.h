@@ -32,11 +32,11 @@
 #include <misc/debug.h>
 #include <misc/debugerror.h>
 #include <misc/socks_proto.h>
-#include <system/DebugObject.h>
+#include <base/DebugObject.h>
 #include <system/BSocket.h>
-#include <flow/StreamSocketSink.h>
-#include <flow/StreamSocketSource.h>
 #include <flow/PacketStreamSender.h>
+#include <flowextra/StreamSocketSink.h>
+#include <flowextra/StreamSocketSource.h>
 
 #define BSOCKSCLIENT_EVENT_ERROR 1
 #define BSOCKSCLIENT_EVENT_UP 2

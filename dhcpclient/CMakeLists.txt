@@ -1,7 +1,7 @@
 add_library(dhcpclientcore
     BDHCPClientCore.c
 )
-target_link_libraries(dhcpclientcore system flow security)
+target_link_libraries(dhcpclientcore system flow flowextra security)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_library(dhcpclient

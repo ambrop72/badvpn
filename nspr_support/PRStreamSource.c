@@ -25,7 +25,7 @@
 #include <prerror.h>
 
 #include <misc/debug.h>
-#include <system/BLog.h>
+#include <base/BLog.h>
 
 #include <nspr_support/PRStreamSource.h>
 
