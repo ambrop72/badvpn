@@ -20,18 +20,6 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-/*
- NOTE:
- This program works with I/O inside the BPending job environment.
- A consequence of this is that in response to an input, we can't
- directly do any output, but instead have to schedule outputs.
- Because all the buffers used (e.g. client control buffers and peer flows)
- are based on flow components, it is impossible to directly write two or more
- packets to a buffer.
- To, for instance, send two packets to a buffer, we have to first schedule
- writing the second packet (using BPending), then send the first one.
-*/
-
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,10 +46,10 @@
 #include <misc/loglevel.h>
 #include <misc/loggers_string.h>
 #include <predicate/BPredicate.h>
+#include <base/DebugObject.h>
 #include <base/BLog.h>
 #include <system/BSignal.h>
 #include <system/BTime.h>
-#include <base/DebugObject.h>
 #include <system/BAddr.h>
 #include <system/Listener.h>
 #include <security/BRandom.h>
@@ -165,10 +153,6 @@ LinkedList2 clients;
 // clients tree (by ID)
 BAVL clients_tree;
 
-// cleans everything up that can be cleaned in order to return
-// from the event loop and exit
-static void terminate (void);
-
 // prints help text to standard output
 static void print_help (const char *name);
 
@@ -184,21 +168,23 @@ static int process_arguments (void);
 // handler for program termination request
 static void signal_handler (void *unused);
 
-// listener socket handler, accepts new clients
+// listener handler, accepts new clients
 static void listener_handler (Listener *listener);
 
-// adds a client. The client structure must have the sock and addr members
-// already initialized.
-static void client_add (struct client_data *client);
+// frees resources used by a client
+static void client_dealloc (struct client_data *client);
+
+// initializes the I/O porition of the client
+static int client_init_io (struct client_data *client);
+
+// deallocates the I/O portion of the client. Must have no outgoing flows.
+static void client_dealloc_io (struct client_data *client);
 
 // removes a client
 static void client_remove (struct client_data *client);
 
-// job for notifying clients when a client is removed
+// job to finish removal after clients are informed
 static void client_dying_job (struct client_data *client);
-
-// frees resources used by a client
-static void client_dealloc (struct client_data *client);
 
 // passes a message to the logger, prepending about the client
 static void client_log (struct client_data *client, int level, const char *fmt, ...);
@@ -211,12 +197,6 @@ static void client_try_handshake (struct client_data *client);
 
 // event handler for driving client SSL handshake
 static void client_handshake_read_handler (struct client_data *client, PRInt16 event);
-
-// initializes the I/O porition of the client
-static int client_init_io (struct client_data *client);
-
-// deallocates the I/O portion of the client. Must have no outgoing flows.
-static void client_dealloc_io (struct client_data *client);
 
 // handler for client I/O errors. Removes the client.
 static void client_error_handler (struct client_data *client, int component, int code);
@@ -577,14 +557,6 @@ fail0:
     return 1;
 }
 
-void terminate (void)
-{
-    BLog(BLOG_NOTICE, "tearing down");
-    
-    // exit event loop
-    BReactor_Quit(&ss, 0);
-}
-
 void print_help (const char *name)
 {
     printf(
@@ -800,8 +772,8 @@ void signal_handler (void *unused)
 {
     BLog(BLOG_NOTICE, "termination requested");
     
-    terminate();
-    return;
+    // exit event loop
+    BReactor_Quit(&ss, 0);
 }
 
 void listener_handler (Listener *listener)
@@ -818,24 +790,16 @@ void listener_handler (Listener *listener)
         goto fail0;
     }
     
-    // accept it
+    // accept connection
     if (!Listener_Accept(listener, &client->sock, &client->addr)) {
         BLog(BLOG_NOTICE, "Listener_Accept failed");
         goto fail1;
     }
     
-    client_add(client);
-    return;
-    
-fail1:
-    free(client);
-fail0:
-    ;
-}
-
-void client_add (struct client_data *client)
-{
-    ASSERT(clients_num < MAX_CLIENTS)
+    // limit socket send buffer, else our scheduling is pointless
+    if (BSocket_SetSendBuffer(&client->sock, CLIENT_SOCKET_SEND_BUFFER) < 0) {
+        BLog(BLOG_WARNING, "BSocket_SetSendBuffer failed");
+    }
     
     // assign ID
     client->id = new_client_id();
@@ -846,8 +810,6 @@ void client_add (struct client_data *client)
     // now client_log() works
     
     if (options.ssl) {
-        // initialize SSL
-        
         // create BSocket NSPR file descriptor
         BSocketPRFileDesc_Create(&client->bottom_prfd, &client->sock);
         
@@ -855,23 +817,23 @@ void client_add (struct client_data *client)
         if (!(client->ssl_prfd = SSL_ImportFD(model_prfd, &client->bottom_prfd))) {
             client_log(client, BLOG_ERROR, "SSL_ImportFD failed");
             ASSERT_FORCE(PR_Close(&client->bottom_prfd) == PR_SUCCESS)
-            goto fail0;
+            goto fail2;
         }
         
         // set server mode
         if (SSL_ResetHandshake(client->ssl_prfd, PR_TRUE) != SECSuccess) {
             client_log(client, BLOG_ERROR, "SSL_ResetHandshake failed");
-            goto fail1;
+            goto fail3;
         }
         
         // set require client certificate
         if (SSL_OptionSet(client->ssl_prfd, SSL_REQUEST_CERTIFICATE, PR_TRUE) != SECSuccess) {
             client_log(client, BLOG_ERROR, "SSL_OptionSet(SSL_REQUEST_CERTIFICATE) failed");
-            goto fail1;
+            goto fail3;
         }
         if (SSL_OptionSet(client->ssl_prfd, SSL_REQUIRE_CERTIFICATE, PR_TRUE) != SECSuccess) {
             client_log(client, BLOG_ERROR, "SSL_OptionSet(SSL_REQUIRE_CERTIFICATE) failed");
-            goto fail1;
+            goto fail3;
         }
         
         // initialize BPRFileDesc on SSL file descriptor
@@ -879,7 +841,7 @@ void client_add (struct client_data *client)
     } else {
         // initialize I/O
         if (!client_init_io(client)) {
-            goto fail0;
+            goto fail2;
         }
     }
     
@@ -921,71 +883,15 @@ void client_add (struct client_data *client)
         return;
     }
     
-    // cleanup on errors
-fail1:
     if (options.ssl) {
+fail3:
         ASSERT_FORCE(PR_Close(client->ssl_prfd) == PR_SUCCESS)
     }
-fail0:
+fail2:
     BSocket_Free(&client->sock);
+fail1:
     free(client);
-}
-
-void client_remove (struct client_data *client)
-{
-    ASSERT(!client->dying)
-    
-    client_log(client, BLOG_NOTICE, "removing");
-    
-    // set dying to prevent sending this client anything
-    client->dying = 1;
-    
-    // free I/O (including incoming flows)
-    if (client->initstatus >= INITSTATUS_WAITHELLO) {
-        client_dealloc_io(client);
-    }
-    
-    // remove outgoing knows
-    LinkedList2Node *node;
-    while (node = LinkedList2_GetFirst(&client->know_out_list)) {
-        struct peer_know *k = UPPER_OBJECT(node, struct peer_know, from_node);
-        remove_know(k);
-    }
-    
-    // remove outgoing flows
-    while (node = LinkedList2_GetFirst(&client->peer_out_flows_list)) {
-        struct peer_flow *flow = UPPER_OBJECT(node, struct peer_flow, src_list_node);
-        ASSERT(flow->src_client == client)
-        ASSERT(flow->dest_client->initstatus == INITSTATUS_COMPLETE && !flow->dest_client->dying)
-        
-        if (PacketPassFairQueueFlow_IsBusy(&flow->qflow)) {
-            client_log(client, BLOG_DEBUG, "removing flow later");
-            peer_flow_disconnect(flow);
-            PacketPassFairQueueFlow_SetBusyHandler(&flow->qflow, (PacketPassFairQueue_handler_busy)peer_flow_handler_canremove, flow);
-        } else {
-            client_log(client, BLOG_DEBUG, "removing flow now");
-            peer_flow_dealloc(flow);
-        }
-    }
-    
-    // schedule job to finish removal after clients are informed
-    BPending_Set(&client->dying_job);
-    
-    // inform other clients that 'client' is no more
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &client->know_in_list);
-    while (node = LinkedList2Iterator_Next(&it)) {
-        struct peer_know *k = UPPER_OBJECT(node, struct peer_know, to_node);
-        uninform_know(k);
-    }
-}
-
-void client_dying_job (struct client_data *client)
-{
-    ASSERT(client->dying)
-    ASSERT(LinkedList2_IsEmpty(&client->know_in_list))
-    
-    client_dealloc(client);
+fail0:
     return;
 }
 
@@ -1013,10 +919,7 @@ void client_dealloc (struct client_data *client)
     
     // free SSL
     if (options.ssl) {
-        // free BPRFileDesc
         BPRFileDesc_Free(&client->ssl_bprfd);
-        
-        // free SSL PRFD
         ASSERT_FORCE(PR_Close(client->ssl_prfd) == PR_SUCCESS)
     }
     
@@ -1030,132 +933,6 @@ void client_dealloc (struct client_data *client)
     
     // free memory
     free(client);
-}
-
-void client_log (struct client_data *client, int level, const char *fmt, ...)
-{
-    va_list vl;
-    va_start(vl, fmt);
-    char addr[BADDR_MAX_PRINT_LEN];
-    BAddr_Print(&client->addr, addr);
-    BLog_Append("client %d (%s)", (int)client->id, addr);
-    if (client->common_name) {
-        BLog_Append(" (%s)", client->common_name);
-    }
-    BLog_Append(": ");
-    BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
-    va_end(vl);
-}
-
-void client_disconnect_timer_handler (struct client_data *client)
-{
-    ASSERT(!client->dying)
-    
-    client_log(client, BLOG_NOTICE, "timed out");
-    
-    client_remove(client);
-    return;
-}
-
-void client_try_handshake (struct client_data *client)
-{
-    ASSERT(client->initstatus == INITSTATUS_HANDSHAKE)
-    ASSERT(!client->dying)
-    
-    // attempt handshake
-    if (SSL_ForceHandshake(client->ssl_prfd) != SECSuccess) {
-        PRErrorCode error = PR_GetError();
-        if (error == PR_WOULD_BLOCK_ERROR) {
-            // try again on read event
-            BPRFileDesc_EnableEvent(&client->ssl_bprfd, PR_POLL_READ);
-            return;
-        }
-        client_log(client, BLOG_NOTICE, "SSL_ForceHandshake failed (%d)", (int)error);
-        goto fail0;
-    }
-    
-    // remove read handler
-    BPRFileDesc_RemoveEventHandler(&client->ssl_bprfd, PR_POLL_READ);
-    
-    // get client certificate
-    CERTCertificate *cert = SSL_PeerCertificate(client->ssl_prfd);
-    if (!cert) {
-        client_log(client, BLOG_ERROR, "SSL_PeerCertificate failed");
-        goto fail0;
-    }
-    
-    // remember common name
-    if (!(client->common_name = CERT_GetCommonName(&cert->subject))) {
-        client_log(client, BLOG_NOTICE, "CERT_GetCommonName failed");
-        goto fail1;
-    }
-    
-    // store certificate
-    SECItem der = cert->derCert;
-    if (der.len > sizeof(client->cert)) {
-        client_log(client, BLOG_NOTICE, "client certificate too big");
-        goto fail1;
-    }
-    memcpy(client->cert, der.data, der.len);
-    client->cert_len = der.len;
-    
-    PRArenaPool *arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-    if (!arena) {
-        client_log(client, BLOG_ERROR, "PORT_NewArena failed");
-        goto fail1;
-    }
-    
-    // encode certificate
-    memset(&der, 0, sizeof(der));
-    if (!SEC_ASN1EncodeItem(arena, &der, cert, SEC_ASN1_GET(CERT_CertificateTemplate))) {
-        client_log(client, BLOG_ERROR, "SEC_ASN1EncodeItem failed");
-        goto fail2;
-    }
-    
-    // store re-encoded certificate (for compatibility with old clients)
-    if (der.len > sizeof(client->cert_old)) {
-        client_log(client, BLOG_NOTICE, "client certificate too big");
-        goto fail2;
-    }
-    memcpy(client->cert_old, der.data, der.len);
-    client->cert_old_len = der.len;
-    
-    // init I/O chains
-    if (!client_init_io(client)) {
-        goto fail2;
-    }
-    
-    PORT_FreeArena(arena, PR_FALSE);
-    CERT_DestroyCertificate(cert);
-    
-    // set client state
-    client->initstatus = INITSTATUS_WAITHELLO;
-    
-    client_log(client, BLOG_INFO, "handshake complete");
-    
-    return;
-    
-    // handle errors
-fail2:
-    PORT_FreeArena(arena, PR_FALSE);
-fail1:
-    CERT_DestroyCertificate(cert);
-fail0:
-    client_remove(client);
-}
-
-void client_handshake_read_handler (struct client_data *client, PRInt16 event)
-{
-    ASSERT(client->initstatus == INITSTATUS_HANDSHAKE)
-    ASSERT(!client->dying)
-    ASSERT(event == PR_POLL_READ)
-    
-    // restart no data timer
-    BReactor_SetTimer(&ss, &client->disconnect_timer);
-    
-    // continue handshake
-    client_try_handshake(client);
-    return;
 }
 
 int client_init_io (struct client_data *client)
@@ -1179,8 +956,7 @@ int client_init_io (struct client_data *client)
     PacketPassInterface_Init(&client->input_interface, SC_MAX_ENC, (PacketPassInterface_handler_send)client_input_handler_send, client, BReactor_PendingGroup(&ss));
     
     // init decoder
-    if (!PacketProtoDecoder_Init(
-        &client->input_decoder, FlowErrorReporter_Create(&client->domain, COMPONENT_DECODER),
+    if (!PacketProtoDecoder_Init(&client->input_decoder, FlowErrorReporter_Create(&client->domain, COMPONENT_DECODER),
         source_interface, &client->input_interface, BReactor_PendingGroup(&ss)
     )) {
         client_log(client, BLOG_ERROR, "PacketProtoDecoder_Init failed");
@@ -1300,6 +1076,191 @@ void client_dealloc_io (struct client_data *client)
     }
 }
 
+void client_remove (struct client_data *client)
+{
+    ASSERT(!client->dying)
+    
+    client_log(client, BLOG_INFO, "removing");
+    
+    // set dying to prevent sending this client anything
+    client->dying = 1;
+    
+    // free I/O now, removing incoming flows
+    if (client->initstatus >= INITSTATUS_WAITHELLO) {
+        client_dealloc_io(client);
+    }
+    
+    // remove outgoing knows
+    LinkedList2Node *node;
+    while (node = LinkedList2_GetFirst(&client->know_out_list)) {
+        struct peer_know *k = UPPER_OBJECT(node, struct peer_know, from_node);
+        remove_know(k);
+    }
+    
+    // remove outgoing flows
+    while (node = LinkedList2_GetFirst(&client->peer_out_flows_list)) {
+        struct peer_flow *flow = UPPER_OBJECT(node, struct peer_flow, src_list_node);
+        ASSERT(flow->src_client == client)
+        ASSERT(flow->dest_client->initstatus == INITSTATUS_COMPLETE)
+        ASSERT(!flow->dest_client->dying)
+        
+        if (PacketPassFairQueueFlow_IsBusy(&flow->qflow)) {
+            client_log(client, BLOG_DEBUG, "removing flow to %d later", (int)flow->dest_client->id);
+            peer_flow_disconnect(flow);
+            PacketPassFairQueueFlow_SetBusyHandler(&flow->qflow, (PacketPassFairQueue_handler_busy)peer_flow_handler_canremove, flow);
+        } else {
+            client_log(client, BLOG_DEBUG, "removing flow to %d now", (int)flow->dest_client->id);
+            peer_flow_dealloc(flow);
+        }
+    }
+    
+    // schedule job to finish removal after clients are informed
+    BPending_Set(&client->dying_job);
+    
+    // inform other clients that 'client' is no more
+    LinkedList2Iterator it;
+    LinkedList2Iterator_InitForward(&it, &client->know_in_list);
+    while (node = LinkedList2Iterator_Next(&it)) {
+        struct peer_know *k = UPPER_OBJECT(node, struct peer_know, to_node);
+        uninform_know(k);
+    }
+}
+
+void client_dying_job (struct client_data *client)
+{
+    ASSERT(client->dying)
+    ASSERT(LinkedList2_IsEmpty(&client->know_in_list))
+    
+    client_dealloc(client);
+    return;
+}
+
+void client_log (struct client_data *client, int level, const char *fmt, ...)
+{
+    va_list vl;
+    va_start(vl, fmt);
+    char addr[BADDR_MAX_PRINT_LEN];
+    BAddr_Print(&client->addr, addr);
+    BLog_Append("client %d (%s)", (int)client->id, addr);
+    if (client->common_name) {
+        BLog_Append(" (%s)", client->common_name);
+    }
+    BLog_Append(": ");
+    BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
+    va_end(vl);
+}
+
+void client_disconnect_timer_handler (struct client_data *client)
+{
+    ASSERT(!client->dying)
+    
+    client_log(client, BLOG_INFO, "timed out");
+    
+    client_remove(client);
+    return;
+}
+
+void client_try_handshake (struct client_data *client)
+{
+    ASSERT(client->initstatus == INITSTATUS_HANDSHAKE)
+    ASSERT(!client->dying)
+    
+    // attempt handshake
+    if (SSL_ForceHandshake(client->ssl_prfd) != SECSuccess) {
+        PRErrorCode error = PR_GetError();
+        if (error == PR_WOULD_BLOCK_ERROR) {
+            // try again on read event
+            BPRFileDesc_EnableEvent(&client->ssl_bprfd, PR_POLL_READ);
+            return;
+        }
+        client_log(client, BLOG_NOTICE, "SSL_ForceHandshake failed (%d)", (int)error);
+        goto fail0;
+    }
+    
+    // remove read handler
+    BPRFileDesc_RemoveEventHandler(&client->ssl_bprfd, PR_POLL_READ);
+    
+    // get client certificate
+    CERTCertificate *cert = SSL_PeerCertificate(client->ssl_prfd);
+    if (!cert) {
+        client_log(client, BLOG_ERROR, "SSL_PeerCertificate failed");
+        goto fail0;
+    }
+    
+    // remember common name
+    if (!(client->common_name = CERT_GetCommonName(&cert->subject))) {
+        client_log(client, BLOG_NOTICE, "CERT_GetCommonName failed");
+        goto fail1;
+    }
+    
+    // store certificate
+    SECItem der = cert->derCert;
+    if (der.len > sizeof(client->cert)) {
+        client_log(client, BLOG_NOTICE, "client certificate too big");
+        goto fail1;
+    }
+    memcpy(client->cert, der.data, der.len);
+    client->cert_len = der.len;
+    
+    PRArenaPool *arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
+    if (!arena) {
+        client_log(client, BLOG_ERROR, "PORT_NewArena failed");
+        goto fail1;
+    }
+    
+    // encode certificate
+    memset(&der, 0, sizeof(der));
+    if (!SEC_ASN1EncodeItem(arena, &der, cert, SEC_ASN1_GET(CERT_CertificateTemplate))) {
+        client_log(client, BLOG_ERROR, "SEC_ASN1EncodeItem failed");
+        goto fail2;
+    }
+    
+    // store re-encoded certificate (for compatibility with old clients)
+    if (der.len > sizeof(client->cert_old)) {
+        client_log(client, BLOG_NOTICE, "client certificate too big");
+        goto fail2;
+    }
+    memcpy(client->cert_old, der.data, der.len);
+    client->cert_old_len = der.len;
+    
+    // init I/O chains
+    if (!client_init_io(client)) {
+        goto fail2;
+    }
+    
+    PORT_FreeArena(arena, PR_FALSE);
+    CERT_DestroyCertificate(cert);
+    
+    // set client state
+    client->initstatus = INITSTATUS_WAITHELLO;
+    
+    client_log(client, BLOG_INFO, "handshake complete");
+    
+    return;
+    
+    // handle errors
+fail2:
+    PORT_FreeArena(arena, PR_FALSE);
+fail1:
+    CERT_DestroyCertificate(cert);
+fail0:
+    client_remove(client);
+}
+
+void client_handshake_read_handler (struct client_data *client, PRInt16 event)
+{
+    ASSERT(client->initstatus == INITSTATUS_HANDSHAKE)
+    ASSERT(!client->dying)
+    ASSERT(event == PR_POLL_READ)
+    
+    // restart no data timer
+    BReactor_SetTimer(&ss, &client->disconnect_timer);
+    
+    // continue handshake
+    client_try_handshake(client);
+    return;
+}
+
 void client_error_handler (struct client_data *client, int component, int code)
 {
     ASSERT(INITSTATUS_HASLINK(client->initstatus))
@@ -1323,7 +1284,7 @@ int client_start_control_packet (struct client_data *client, void **data, int le
     // obtain location for writing the packet
     if (!BufferWriter_StartPacket(client->output_control_input, &client->output_control_packet)) {
         // out of buffer, kill client
-        client_log(client, BLOG_NOTICE, "out of control buffer, removing");
+        client_log(client, BLOG_INFO, "out of control buffer, removing");
         client_remove(client);
         return -1;
     }
@@ -1410,26 +1371,25 @@ void client_input_handler_send (struct client_data *client, uint8_t *data, int d
     ASSERT(INITSTATUS_HASLINK(client->initstatus))
     ASSERT(!client->dying)
     
+    // accept packet
+    PacketPassInterface_Done(&client->input_interface);
+    
+    // restart disconnect timer
+    BReactor_SetTimer(&ss, &client->disconnect_timer);
+    
+    // parse header
     if (data_len < sizeof(struct sc_header)) {
         client_log(client, BLOG_NOTICE, "packet too short");
         client_remove(client);
         return;
     }
-    
     struct sc_header *header = (struct sc_header *)data;
+    data += sizeof(*header);
+    data_len -= sizeof(*header);
     uint8_t type = ltoh8(header->type);
     
-    uint8_t *sc_data = data + sizeof(struct sc_header);
-    int sc_data_len = data_len - sizeof(struct sc_header);
-    
-    ASSERT(sc_data_len >= 0)
-    ASSERT(sc_data_len <= SC_MAX_PAYLOAD)
-    
-    // restart no data timer
-    BReactor_SetTimer(&ss, &client->disconnect_timer);
-    
-    // accept packet
-    PacketPassInterface_Done(&client->input_interface);
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= SC_MAX_PAYLOAD)
     
     // perform action based on packet type
     switch (type) {
@@ -1437,13 +1397,13 @@ void client_input_handler_send (struct client_data *client, uint8_t *data, int d
             client_log(client, BLOG_DEBUG, "received keep-alive");
             return;
         case SCID_CLIENTHELLO:
-            process_packet_hello(client, sc_data, sc_data_len);
+            process_packet_hello(client, data, data_len);
             return;
         case SCID_OUTMSG:
-            process_packet_outmsg(client, sc_data, sc_data_len);
+            process_packet_outmsg(client, data, data_len);
             return;
         default:
-            client_log(client, BLOG_NOTICE, "unknown packet type %d, removing", (int)header->type);
+            client_log(client, BLOG_NOTICE, "unknown packet type %d, removing", (int)type);
             client_remove(client);
             return;
     }
@@ -1473,11 +1433,6 @@ void process_packet_hello (struct client_data *client, uint8_t *data, int data_l
     }
     
     client_log(client, BLOG_INFO, "received hello");
-    
-    // limit socket send buffer, else our scheduling is pointless
-    if (BSocket_SetSendBuffer(&client->sock, CLIENT_SOCKET_SEND_BUFFER) < 0) {
-        BLog(BLOG_WARNING, "BSocket_SetSendBuffer failed");
-    }
     
     // set client state to complete
     client->initstatus = INITSTATUS_COMPLETE;
@@ -1523,7 +1478,7 @@ void process_packet_hello (struct client_data *client, uint8_t *data, int data_l
     }
     pack->flags = htol16(0);
     pack->id = htol16(client->id);
-    pack->clientAddr = (client->addr.type == BADDR_TYPE_IPV4 ? client->addr.ipv4.ip : htol32(0));
+    pack->clientAddr = (client->addr.type == BADDR_TYPE_IPV4 ? client->addr.ipv4.ip : hton32(0));
     client_end_control_packet(client, SCID_SERVERHELLO);
     
     return;
