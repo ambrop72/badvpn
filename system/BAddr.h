@@ -191,8 +191,9 @@ static uint16_t BAddr_GetPort (BAddr *addr);
  * Returns the IP address in the address.
  *
  * @param addr the object
- *             Must be an IPv4 or IPv6 address.
- * @param ipaddr IP address will be returned here
+ * @param ipaddr IP address will be returned here. If \a addr is not
+ *               an IPv4 or IPv6 address, an invalid address will be
+ *               returned.
  */
 static void BAddr_GetIPAddr (BAddr *addr, BIPAddr *ipaddr);
 
@@ -383,7 +384,6 @@ uint16_t BAddr_GetPort (BAddr *addr)
 void BAddr_GetIPAddr (BAddr *addr, BIPAddr *ipaddr)
 {
     BAddr_Assert(addr);
-    ASSERT(addr->type == BADDR_TYPE_IPV4 || addr->type == BADDR_TYPE_IPV6)
     
     switch (addr->type) {
         case BADDR_TYPE_IPV4:
@@ -393,7 +393,7 @@ void BAddr_GetIPAddr (BAddr *addr, BIPAddr *ipaddr)
             BIPAddr_InitIPv6(ipaddr, addr->ipv6.ip);
             return;
         default:
-            ASSERT(0);
+            BIPAddr_InitInvalid(ipaddr);
     }
 }
 
