@@ -239,9 +239,6 @@ static void client_input_handler_send (struct client_data *client, uint8_t *data
 // processes hello packets from clients
 static void process_packet_hello (struct client_data *client, uint8_t *data, int data_len);
 
-// job for notifying clients when a client is initialized
-static void client_publish_job (struct client_data *client);
-
 // processes outmsg packets from clients
 static void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_len);
 
@@ -303,9 +300,11 @@ static int relay_predicate_func_raddr_cb (void *user, void **args);
 // comparator for peerid_t used in AVL tree
 static int peerid_comparator (void *unused, peerid_t *p1, peerid_t *p2);
 
-void create_know (struct peer_know *k, struct client_data *from, struct client_data *to);
-
-void remove_know (struct peer_know *k);
+static int create_know (struct client_data *from, struct client_data *to, int relay_server, int relay_client);
+static void remove_know (struct peer_know *k);
+static void know_inform_job_handler (struct peer_know *k);
+static void uninform_know (struct peer_know *k);
+static void know_uninform_job_handler (struct peer_know *k);
 
 int main (int argc, char *argv[])
 {
@@ -905,10 +904,6 @@ void client_add (struct client_data *client)
     client->dying = 0;
     BPending_Init(&client->dying_job, BReactor_PendingGroup(&ss), (BPending_handler)client_dying_job, client);
     
-    // init publishing
-    BPending_Init(&client->publish_job, BReactor_PendingGroup(&ss), (BPending_handler)client_publish_job, client);
-    LinkedList2Iterator_Init(&client->publish_it, &clients, 1, NULL);
-    
     // set state
     client->initstatus = (options.ssl ? INITSTATUS_HANDSHAKE : INITSTATUS_WAITHELLO);
     
@@ -973,33 +968,25 @@ void client_remove (struct client_data *client)
         }
     }
     
-    // schedule job for notifying other clients
+    // schedule job to finish removal after clients are informed
     BPending_Set(&client->dying_job);
+    
+    // inform other clients that 'client' is no more
+    LinkedList2Iterator it;
+    LinkedList2Iterator_InitForward(&it, &client->know_in_list);
+    while (node = LinkedList2Iterator_Next(&it)) {
+        struct peer_know *k = UPPER_OBJECT(node, struct peer_know, to_node);
+        uninform_know(k);
+    }
 }
 
-static void client_dying_job (struct client_data *client)
+void client_dying_job (struct client_data *client)
 {
     ASSERT(client->dying)
+    ASSERT(LinkedList2_IsEmpty(&client->know_in_list))
     
-    LinkedList2Node *node = LinkedList2_GetFirst(&client->know_in_list);
-    if (!node) {
-        // notified all clients, deallocate client
-        client_dealloc(client);
-        return;
-    }
-    
-    // schedule next
-    BPending_Set(&client->dying_job);
-    
-    struct peer_know *k = UPPER_OBJECT(node, struct peer_know, to_node);
-    struct client_data *client2 = k->from;
-    
-    ASSERT(client2->initstatus == INITSTATUS_COMPLETE)
-    ASSERT(!client2->dying)
-    
-    remove_know(k);
-    
-    client_send_endclient(client2, client->id);
+    client_dealloc(client);
+    return;
 }
 
 void client_dealloc (struct client_data *client)
@@ -1012,10 +999,6 @@ void client_dealloc (struct client_data *client)
     if (client->initstatus >= INITSTATUS_WAITHELLO && !client->dying) {
         client_dealloc_io(client);
     }
-    
-    // free publishing
-    LinkedList2Iterator_Free(&client->publish_it);
-    BPending_Free(&client->publish_job);
     
     // free dying
     BPending_Free(&client->dying_job);
@@ -1499,10 +1482,39 @@ void process_packet_hello (struct client_data *client, uint8_t *data, int data_l
     // set client state to complete
     client->initstatus = INITSTATUS_COMPLETE;
     
-    // schedule publishing the client
-    LinkedList2Iterator_Free(&client->publish_it);
-    LinkedList2Iterator_InitForward(&client->publish_it, &clients);
-    BPending_Set(&client->publish_job);
+    // publish client
+    for (LinkedList2Node *list_node = LinkedList2_GetFirst(&clients); list_node; list_node = LinkedList2Node_Next(list_node)) {
+        struct client_data *client2 = UPPER_OBJECT(list_node, struct client_data, list_node);
+        if (client2 == client || client2->initstatus != INITSTATUS_COMPLETE || client2->dying || !clients_allowed(client, client2)) {
+            continue;
+        }
+        
+        // determine relay relations
+        int relay_to = relay_allowed(client, client2);
+        int relay_from = relay_allowed(client2, client);
+        
+        if (!create_know(client, client2, relay_to, relay_from)) {
+            client_log(client, BLOG_ERROR, "failed to allocate know to %d", (int)client2->id);
+            goto fail;
+        }
+        
+        if (!create_know(client2, client, relay_from, relay_to)) {
+            client_log(client, BLOG_ERROR, "failed to allocate know from %d", (int)client2->id);
+            goto fail;
+        }
+        
+        // create flow from client to client2
+        if (!peer_flow_create(client, client2)) {
+            client_log(client, BLOG_ERROR, "failed to allocate flow to %d", (int)client2->id);
+            goto fail;
+        }
+        
+        // create flow from client2 to client
+        if (!peer_flow_create(client2, client)) {
+            client_log(client, BLOG_ERROR, "failed to allocate flow from %d", (int)client2->id);
+            goto fail;
+        }
+    }
     
     // send hello
     struct sc_server_hello *pack;
@@ -1513,84 +1525,11 @@ void process_packet_hello (struct client_data *client, uint8_t *data, int data_l
     pack->id = htol16(client->id);
     pack->clientAddr = (client->addr.type == BADDR_TYPE_IPV4 ? client->addr.ipv4.ip : htol32(0));
     client_end_control_packet(client, SCID_SERVERHELLO);
-}
-
-void client_publish_job (struct client_data *client)
-{
-    ASSERT(client->initstatus == INITSTATUS_COMPLETE)
-    ASSERT(!client->dying)
-    
-    // get a client
-    struct client_data *client2;
-    while (1) {
-        LinkedList2Node *node = LinkedList2Iterator_Next(&client->publish_it);
-        if (!node) {
-            return;
-        }
-        client2 = UPPER_OBJECT(node, struct client_data, list_node);
-        
-        if (
-            client2 != client && client2->initstatus == INITSTATUS_COMPLETE && !client2->dying &&
-            clients_allowed(client, client2)
-        ) {
-            break;
-        }
-    }
-    
-    // schedule next
-    BPending_Set(&client->publish_job);
-    
-    // determine relay relations
-    int relay_to = relay_allowed(client, client2);
-    int relay_from = relay_allowed(client2, client);
-    
-    // tell client about client2
-    
-    struct peer_know *k_to = malloc(sizeof(*k_to));
-    if (!k_to) {
-        client_log(client, BLOG_ERROR, "failed to allocate know to %d", (int)client2->id);
-        goto stop_publishing;
-    }
-    
-    if (client_send_newclient(client, client2, relay_to, relay_from) < 0) {
-        free(k_to);
-        return;
-    }
-    
-    create_know(k_to, client, client2);
-    
-    // tell client2 about client
-    
-    struct peer_know *k_from = malloc(sizeof(*k_from));
-    if (!k_from) {
-        client_log(client, BLOG_ERROR, "failed to allocate know from %d", (int)client2->id);
-        goto stop_publishing;
-    }
-    
-    if (client_send_newclient(client2, client, relay_from, relay_to) < 0) {
-        free(k_from);
-        return;
-    }
-    
-    create_know(k_from, client2, client);
-    
-    // create flow from client to client2
-    if (!peer_flow_create(client, client2)) {
-        client_log(client, BLOG_ERROR, "failed to allocate flow to %d", (int)client2->id);
-        goto stop_publishing;
-    }
-    
-    // create flow from client2 to client
-    if (!peer_flow_create(client2, client)) {
-        client_log(client, BLOG_ERROR, "failed to allocate flow from %d", (int)client2->id);
-        goto stop_publishing;
-    }
     
     return;
     
-stop_publishing:
-    // on out of memory, stop publishing client
-    BPending_Unset(&client->publish_job);
+fail:
+    client_remove(client);
 }
 
 void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_len)
@@ -1936,17 +1875,91 @@ int peerid_comparator (void *unused, peerid_t *p1, peerid_t *p2)
     return 0;
 }
 
-void create_know (struct peer_know *k, struct client_data *from, struct client_data *to)
+int create_know (struct client_data *from, struct client_data *to, int relay_server, int relay_client)
 {
+    ASSERT(from->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!from->dying)
+    ASSERT(to->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!to->dying)
+    
+    // allocate structure
+    struct peer_know *k = malloc(sizeof(*k));
+    if (!k) {
+        return 0;
+    }
+    
+    // init arguments
     k->from = from;
     k->to = to;
+    k->relay_server = relay_server;
+    k->relay_client = relay_client;
+    
+    // append to lists
     LinkedList2_Append(&from->know_out_list, &k->from_node);
     LinkedList2_Append(&to->know_in_list, &k->to_node);
+    
+    // init and set inform job to inform client 'from' about client 'to'
+    BPending_Init(&k->inform_job, BReactor_PendingGroup(&ss), (BPending_handler)know_inform_job_handler, k);
+    BPending_Set(&k->inform_job);
+    
+    // init uninform job
+    BPending_Init(&k->uninform_job, BReactor_PendingGroup(&ss), (BPending_handler)know_uninform_job_handler, k);
+    
+    return 1;
 }
 
 void remove_know (struct peer_know *k)
 {
+    // free uninform job
+    BPending_Free(&k->uninform_job);
+    
+    // free inform job
+    BPending_Free(&k->inform_job);
+    
+    // remove from lists
     LinkedList2_Remove(&k->to->know_in_list, &k->to_node);
     LinkedList2_Remove(&k->from->know_out_list, &k->from_node);
+    
+    // free structure
     free(k);
+}
+
+void know_inform_job_handler (struct peer_know *k)
+{
+    ASSERT(!k->from->dying)
+    ASSERT(!k->to->dying)
+    
+    client_send_newclient(k->from, k->to, k->relay_server, k->relay_client);
+    return;
+}
+
+void uninform_know (struct peer_know *k)
+{
+    ASSERT(!k->from->dying)
+    ASSERT(k->to->dying)
+    ASSERT(!BPending_IsSet(&k->uninform_job))
+    
+    // if 'from' has not been informed about 'to' yet, remove know, otherwise
+    // schedule informing 'from' that 'to' is no more
+    if (BPending_IsSet(&k->inform_job)) {
+        remove_know(k);
+    } else {
+        BPending_Set(&k->uninform_job);
+    }
+}
+
+void know_uninform_job_handler (struct peer_know *k)
+{
+    ASSERT(!k->from->dying)
+    ASSERT(k->to->dying)
+    ASSERT(!BPending_IsSet(&k->inform_job))
+    
+    struct client_data *from = k->from;
+    struct client_data *to = k->to;
+    
+    // remove know
+    remove_know(k);
+    
+    // uninform
+    client_send_endclient(from, to->id);
 }

@@ -91,8 +91,12 @@ struct peer_flow {
 struct peer_know {
     struct client_data *from;
     struct client_data *to;
+    int relay_server;
+    int relay_client;
     LinkedList2Node from_node;
     LinkedList2Node to_node;
+    BPending inform_job;
+    BPending uninform_job;
 };
 
 struct client_data {
@@ -140,10 +144,6 @@ struct client_data {
     // whether it's being removed
     int dying;
     BPending dying_job;
-    
-    // publish job
-    BPending publish_job;
-    LinkedList2Iterator publish_it;
     
     // error domain
     FlowErrorDomain domain;
