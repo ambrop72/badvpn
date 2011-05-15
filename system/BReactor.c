@@ -491,6 +491,15 @@ static void wait_for_events (BReactor *bsys)
             }
         }
     }
+    
+    // reset limit objects
+    LinkedList1Node *list_node;
+    while (list_node = LinkedList1_GetFirst(&bsys->active_limits_list)) {
+        BReactorLimit *limit = UPPER_OBJECT(list_node, BReactorLimit, active_limits_list_node);
+        ASSERT(limit->count > 0)
+        limit->count = 0;
+        LinkedList1_Remove(&bsys->active_limits_list, &limit->active_limits_list_node);
+    }
 }
 
 #ifdef BADVPN_USE_WINAPI
@@ -535,6 +544,7 @@ int BReactor_Init (BReactor *bsys)
 {
     BLog(BLOG_DEBUG, "Reactor initializing");
     
+    // set not exiting
     bsys->exiting = 0;
     
     // init jobs
@@ -543,6 +553,9 @@ int BReactor_Init (BReactor *bsys)
     // init timers
     BHeap_Init(&bsys->timers_heap, OFFSET_DIFF(BTimer, absTime, heap_node), (BHeap_comparator)timer_comparator, NULL);
     LinkedList1_Init(&bsys->timers_expired_list);
+    
+    // init limits
+    LinkedList1_Init(&bsys->active_limits_list);
     
     #ifdef BADVPN_USE_WINAPI
     
@@ -611,6 +624,7 @@ int BReactor_Init (BReactor *bsys)
     #ifdef BADVPN_USE_KEVENT
     DebugCounter_Init(&bsys->d_kevent_ctr);
     #endif
+    DebugCounter_Init(&bsys->d_limits_ctr);
     
     return 1;
     
@@ -630,6 +644,7 @@ void BReactor_Free (BReactor *bsys)
     ASSERT(!BPendingGroup_HasJobs(&bsys->pending_jobs))
     ASSERT(!BHeap_GetFirst(&bsys->timers_heap))
     ASSERT(LinkedList1_IsEmpty(&bsys->timers_expired_list))
+    ASSERT(LinkedList1_IsEmpty(&bsys->active_limits_list))
     #ifdef BADVPN_USE_WINAPI
     ASSERT(bsys->num_handles == 0)
     #endif
@@ -640,6 +655,7 @@ void BReactor_Free (BReactor *bsys)
     #ifdef BADVPN_USE_KEVENT
     DebugCounter_Free(&bsys->d_kevent_ctr);
     #endif
+    DebugCounter_Free(&bsys->d_limits_ctr);
     #ifdef BADVPN_USE_POLL
     ASSERT(bsys->poll_num_enabled_fds == 0)
     ASSERT(LinkedList1_IsEmpty(&bsys->poll_enabled_fds_list))
@@ -1179,6 +1195,64 @@ void BReactor_SetFileDescriptorEvents (BReactor *bsys, BFileDescriptor *bs, int 
 }
 
 #endif
+
+void BReactorLimit_Init (BReactorLimit *o, BReactor *reactor, int limit)
+{
+    DebugObject_Access(&reactor->d_obj);
+    ASSERT(limit > 0)
+    
+    // init arguments
+    o->reactor = reactor;
+    o->limit = limit;
+    
+    // set count zero
+    o->count = 0;
+    
+    DebugCounter_Increment(&reactor->d_limits_ctr);
+    DebugObject_Init(&o->d_obj);
+}
+
+void BReactorLimit_Free (BReactorLimit *o)
+{
+    BReactor *reactor = o->reactor;
+    DebugObject_Free(&o->d_obj);
+    DebugCounter_Decrement(&reactor->d_limits_ctr);
+    
+    // remove from active limits list
+    if (o->count > 0) {
+        LinkedList1_Remove(&reactor->active_limits_list, &o->active_limits_list_node);
+    }
+}
+
+int BReactorLimit_Increment (BReactorLimit *o)
+{
+    BReactor *reactor = o->reactor;
+    DebugObject_Access(&o->d_obj);
+    
+    // check count against limit
+    if (o->count >= o->limit) {
+        return 0;
+    }
+    
+    // increment count
+    o->count++;
+    
+    // if limit was zero, add to active limits list
+    if (o->count == 1) {
+        LinkedList1_Append(&reactor->active_limits_list, &o->active_limits_list_node);
+    }
+    
+    return 1;
+}
+
+void BReactorLimit_SetLimit (BReactorLimit *o, int limit)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(limit > 0)
+    
+    // set limit
+    o->limit = limit;
+}
 
 #ifdef BADVPN_USE_KEVENT
 

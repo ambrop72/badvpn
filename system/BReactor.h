@@ -225,6 +225,9 @@ typedef struct {
     BHeap timers_heap;
     LinkedList1 timers_expired_list;
     
+    // limits
+    LinkedList1 active_limits_list;
+    
     #ifdef BADVPN_USE_WINAPI
     int num_handles; // number of user handles
     int enabled_num; // number of user handles in the enabled array
@@ -263,6 +266,7 @@ typedef struct {
     #ifdef BADVPN_USE_KEVENT
     DebugCounter d_kevent_ctr;
     #endif
+    DebugCounter d_limits_ctr;
 } BReactor;
 
 /**
@@ -281,8 +285,10 @@ int BReactor_Init (BReactor *bsys) WARN_UNUSED;
  * There must be no {@link BPending} objects using the pending group
  * returned by {@link BReactor_PendingGroup}.
  * There must be no running timers in this reactor.
+ * There must be no limit objects in this reactor.
  * There must be no file descriptors or handles registered
  * with this reactor.
+ * There must be no {@link BReactorKEvent} objects in this reactor.
  *
  * @param bsys the object
  */
@@ -467,6 +473,53 @@ void BReactor_RemoveFileDescriptor (BReactor *bsys, BFileDescriptor *bs);
 void BReactor_SetFileDescriptorEvents (BReactor *bsys, BFileDescriptor *bs, int events);
 
 #endif
+
+typedef struct {
+    BReactor *reactor;
+    int limit;
+    int count;
+    LinkedList1Node active_limits_list_node;
+    DebugObject d_obj;
+} BReactorLimit;
+
+/**
+ * Initializes a limit object.
+ * A limit object consists of a counter integer, which is initialized to
+ * zero, is incremented by {@link BReactorLimit_Increment} up to \a limit,
+ * and is reset to zero every time the event loop performs a wait.
+ * If the event loop has processed all detected events, and before performing
+ * a wait, it determines that timers have expired, the counter will not be reset.
+ * 
+ * @param o the object
+ * @param reactor reactor the object is tied to
+ * @param limit maximum counter value. Must be >0.
+ */
+void BReactorLimit_Init (BReactorLimit *o, BReactor *reactor, int limit);
+
+/**
+ * Frees a limit object.
+ * 
+ * @param o the object
+ */
+void BReactorLimit_Free (BReactorLimit *o);
+
+/**
+ * Attempts to increment the counter of a limit object.
+ * 
+ * @param o the object
+ * @return 1 if the counter was lesser than the limit and was incremented,
+ *         0 if the counter was greater or equal to the limit and could not be
+ *           incremented
+ */
+int BReactorLimit_Increment (BReactorLimit *o);
+
+/**
+ * Sets the limit of a limit object.
+ * 
+ * @param o the object
+ * @param limit new limit. Must be >0.
+ */
+void BReactorLimit_SetLimit (BReactorLimit *o, int limit);
 
 #ifdef BADVPN_USE_KEVENT
 
