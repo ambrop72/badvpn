@@ -639,9 +639,10 @@ fail0:
     return -1;
 }
 
+// NOTE: if you change something here, you might also have to change BSocket_Accept
 int BSocket_Init (BSocket *bs, BReactor *bsys, int domain, int type)
 {
-    // NOTE: if you change something here, you might also have to change BSocket_Accept
+    ASSERT(bsocket_initialized)
     
     // translate domain
     int sys_domain;
