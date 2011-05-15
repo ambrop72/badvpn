@@ -119,13 +119,7 @@ void connect_handler (ServerConnection *o, int event)
         source_interface = StreamSocketSource_GetOutput(&o->input_source.plain);
     }
     PacketPassInterface_Init(&o->input_interface, SC_MAX_ENC, (PacketPassInterface_handler_send)input_handler_send, o, BReactor_PendingGroup(o->reactor));
-    if (!PacketProtoDecoder_Init(
-        &o->input_decoder,
-        FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_DECODER),
-        source_interface,
-        &o->input_interface,
-        BReactor_PendingGroup(o->reactor)
-    )) {
+    if (!PacketProtoDecoder_Init(&o->input_decoder, FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_DECODER), source_interface, &o->input_interface,BReactor_PendingGroup(o->reactor))) {
         BLog(BLOG_ERROR, "PacketProtoDecoder_Init failed");
         goto fail2;
     }
@@ -277,36 +271,36 @@ void input_handler_send (ServerConnection *o, uint8_t *data, int data_len)
     ASSERT(data_len <= SC_MAX_ENC)
     DebugObject_Access(&o->d_obj);
     
+    // accept packet
+    PacketPassInterface_Done(&o->input_interface);
+    
+    // parse header
     if (data_len < sizeof(struct sc_header)) {
         BLog(BLOG_ERROR, "packet too short (no sc header)");
         report_error(o);
         return;
     }
-    
     struct sc_header *header = (struct sc_header *)data;
-    
-    uint8_t *sc_data = data + sizeof(struct sc_header);
-    int sc_data_len = data_len - sizeof(struct sc_header);
-    
-    // finish packet
-    PacketPassInterface_Done(&o->input_interface);
+    data += sizeof(*header);
+    data_len -= sizeof(*header);
+    uint8_t type = ltoh8(header->type);
     
     // call appropriate handler based on packet type
-    switch (header->type) {
+    switch (type) {
         case SCID_SERVERHELLO:
-            packet_hello(o, sc_data, sc_data_len);
+            packet_hello(o, data, data_len);
             return;
         case SCID_NEWCLIENT:
-            packet_newclient(o, sc_data, sc_data_len);
+            packet_newclient(o, data, data_len);
             return;
         case SCID_ENDCLIENT:
-            packet_endclient(o, sc_data, sc_data_len);
+            packet_endclient(o, data, data_len);
             return;
         case SCID_INMSG:
-            packet_inmsg(o, sc_data, sc_data_len);
+            packet_inmsg(o, data, data_len);
             return;
         default:
-            BLog(BLOG_ERROR, "unknown packet type %d", (int)header->type);
+            BLog(BLOG_ERROR, "unknown packet type %d", (int)type);
             report_error(o);
             return;
     }
@@ -325,14 +319,14 @@ void packet_hello (ServerConnection *o, uint8_t *data, int data_len)
         report_error(o);
         return;
     }
-    
     struct sc_server_hello *msg = (struct sc_server_hello *)data;
+    peerid_t id = ltoh16(msg->id);
     
     // change state
     o->state = STATE_COMPLETE;
     
     // report
-    o->handler_ready(o->user, ltoh16(msg->id), msg->clientAddr);
+    o->handler_ready(o->user, id, msg->clientAddr);
     return;
 }
 
@@ -445,7 +439,7 @@ void end_packet (ServerConnection *o, uint8_t type)
     
     // write header
     struct sc_header *header = (struct sc_header *)o->output_local_packet;
-    header->type = type;
+    header->type = htol8(type);
     
     // finish writing packet
     BufferWriter_EndPacket(o->output_local_if, sizeof(struct sc_header) + o->output_local_packet_len);
@@ -471,6 +465,7 @@ int ServerConnection_Init (
     ServerConnection_handler_message handler_message
 )
 {
+    ASSERT(addr.type == BADDR_TYPE_IPV4 || addr.type == BADDR_TYPE_IPV6)
     ASSERT(keepalive_interval > 0)
     ASSERT(buffer_size > 0)
     ASSERT(have_ssl == 0 || have_ssl == 1)
@@ -512,9 +507,8 @@ int ServerConnection_Init (
     // set state
     o->state = STATE_CONNECTING;
     
-    DebugObject_Init(&o->d_obj);
     DebugError_Init(&o->d_err, BReactor_PendingGroup(o->reactor));
-    
+    DebugObject_Init(&o->d_obj);
     return 1;
     
 fail1:
@@ -525,8 +519,8 @@ fail0:
 
 void ServerConnection_Free (ServerConnection *o)
 {
-    DebugError_Free(&o->d_err);
     DebugObject_Free(&o->d_obj);
+    DebugError_Free(&o->d_err);
     
     if (o->state > STATE_CONNECTING) {
         // allow freeing queue flows

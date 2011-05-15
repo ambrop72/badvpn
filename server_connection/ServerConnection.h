@@ -197,8 +197,8 @@ typedef struct {
     // job to start client I/O
     BPending start_job;
     
-    DebugObject d_obj;
     DebugError d_err;
+    DebugObject d_obj;
 } ServerConnection;
 
 /**
@@ -210,7 +210,7 @@ typedef struct {
  *
  * @param o the object
  * @param reactor {@link BReactor} we live in
- * @param addr address to connect to
+ * @param addr address to connect to. Must be IPv4 or IPv6.
  * @param keepalive_interval keep-alive sending interval. Must be >0.
  * @param buffer_size minimum size of send buffer in number of packets. Must be >0.
  * @param have_ssl whether to use SSL for connecting to the server. Must be 1 or 0.
