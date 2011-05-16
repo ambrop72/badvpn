@@ -354,9 +354,8 @@ int BSocksClient_Init (BSocksClient *o, BAddr server_addr, BAddr dest_addr, BSoc
     // set state
     o->state = STATE_CONNECTING;
     
-    DebugObject_Init(&o->d_obj);
     DebugError_Init(&o->d_err, BReactor_PendingGroup(o->reactor));
-    
+    DebugObject_Init(&o->d_obj);
     return 1;
     
 fail1:
@@ -367,8 +366,8 @@ fail0:
 
 void BSocksClient_Free (BSocksClient *o)
 {
-    DebugError_Free(&o->d_err);
     DebugObject_Free(&o->d_obj);
+    DebugError_Free(&o->d_err);
     
     if (o->state == STATE_UP) {
         // free up I/O
