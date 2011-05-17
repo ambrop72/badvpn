@@ -21,7 +21,7 @@
  * 
  * @section DESCRIPTION
  * 
- * Network address abstractions used by {@link BSocket}.
+ * Network address abstractions.
  */
 
 #ifndef BADVPN_SYSTEM_BADDR_H
