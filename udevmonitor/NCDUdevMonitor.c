@@ -111,7 +111,7 @@ int NCDUdevMonitor_Init (NCDUdevMonitor *o, BReactor *reactor, BProcessManager *
     const char **argv = (is_info_mode ? argv_info : argv_monitor);
     
     // init process
-    if (!BInputProcess_Init(&o->process, STDBUF_EXEC, (char **)argv, NULL, reactor, manager, o,
+    if (!BInputProcess_Init(&o->process, reactor, manager, o,
                             (BInputProcess_handler_terminated)process_handler_terminated,
                             (BInputProcess_handler_closed)process_handler_closed
     )) {
@@ -132,6 +132,12 @@ int NCDUdevMonitor_Init (NCDUdevMonitor *o, BReactor *reactor, BProcessManager *
         goto fail1;
     }
     
+    // start process
+    if (!BInputProcess_Start(&o->process, STDBUF_EXEC, (char **)argv, NULL)) {
+        BLog(BLOG_ERROR, "BInputProcess_Start failed");
+        goto fail2;
+    }
+    
     // set process running, input running
     o->process_running = 1;
     o->input_running = 1;
@@ -140,9 +146,10 @@ int NCDUdevMonitor_Init (NCDUdevMonitor *o, BReactor *reactor, BProcessManager *
     DebugObject_Init(&o->d_obj);
     return 1;
     
+fail2:
+    NCDUdevMonitorParser_Free(&o->parser);
 fail1:
     StreamRecvConnector_Free(&o->connector);
-    BInputProcess_Kill(&o->process);
     BInputProcess_Free(&o->process);
 fail0:
     return 0;

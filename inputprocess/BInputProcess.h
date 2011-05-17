@@ -34,9 +34,12 @@ typedef void (*BInputProcess_handler_closed) (void *user, int is_error);
 
 typedef struct {
     BReactor *reactor;
+    BProcessManager *manager;
     void *user;
     BInputProcess_handler_terminated handler_terminated;
     BInputProcess_handler_closed handler_closed;
+    int pipe_write_fd;
+    int started;
     int have_process;
     BProcess process;
     int pipe_fd;
@@ -46,10 +49,11 @@ typedef struct {
     DebugObject d_obj;
 } BInputProcess;
 
-int BInputProcess_Init (BInputProcess *o, const char *file, char *const argv[], const char *username, BReactor *reactor, BProcessManager *manager, void *user,
+int BInputProcess_Init (BInputProcess *o, BReactor *reactor, BProcessManager *manager, void *user,
                         BInputProcess_handler_terminated handler_terminated,
                         BInputProcess_handler_closed handler_closed) WARN_UNUSED;
 void BInputProcess_Free (BInputProcess *o);
+int BInputProcess_Start (BInputProcess *o, const char *file, char *const argv[], const char *username);
 int BInputProcess_Terminate (BInputProcess *o);
 int BInputProcess_Kill (BInputProcess *o);
 StreamRecvInterface * BInputProcess_GetInput (BInputProcess *o);

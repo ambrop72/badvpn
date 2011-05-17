@@ -90,6 +90,7 @@ void pipe_source_handler_error (BInputProcess *o, int component, int code)
 void process_handler (BInputProcess *o, int normally, uint8_t normally_exit_status)
 {
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->started)
     ASSERT(o->have_process)
     
     // free process
@@ -103,12 +104,13 @@ void process_handler (BInputProcess *o, int normally, uint8_t normally_exit_stat
     return;
 }
 
-int BInputProcess_Init (BInputProcess *o, const char *file, char *const argv[], const char *username, BReactor *reactor, BProcessManager *manager, void *user,
+int BInputProcess_Init (BInputProcess *o, BReactor *reactor, BProcessManager *manager, void *user,
                         BInputProcess_handler_terminated handler_terminated,
                         BInputProcess_handler_closed handler_closed)
 {
     // init arguments
     o->reactor = reactor;
+    o->manager = manager;
     o->user = user;
     o->handler_terminated = handler_terminated;
     o->handler_closed = handler_closed;
@@ -125,22 +127,12 @@ int BInputProcess_Init (BInputProcess *o, const char *file, char *const argv[], 
         goto fail1;
     }
     
-    // start process
-    int fds[] = { pipefds[1], -1 };
-    int fds_map[] = { 1 };
-    if (!BProcess_InitWithFds(&o->process, manager, (BProcess_handler)process_handler, o, file, argv, username, fds, fds_map)) {
-        BLog(BLOG_ERROR, "BProcess_Init failed");
-        goto fail2;
-    }
-    
-    // set have process
-    o->have_process = 1;
-    
-    // remember pipe read end
+    // remember pipe fds
     o->pipe_fd = pipefds[0];
+    o->pipe_write_fd = pipefds[1];
     
-    // close pipe write end
-    ASSERT_FORCE(close(pipefds[1]) == 0)
+    // set not started
+    o->started = 0;
     
     DebugObject_Init(&o->d_obj);
     return 1;
@@ -158,9 +150,14 @@ void BInputProcess_Free (BInputProcess *o)
 {
     DebugObject_Free(&o->d_obj);
     
-    // free process
-    if (o->have_process) {
-        BProcess_Free(&o->process);
+    if (!o->started) {
+        // close pipe write end
+        ASSERT_FORCE(close(o->pipe_write_fd) == 0)
+    } else {
+        // free process
+        if (o->have_process) {
+            BProcess_Free(&o->process);
+        }
     }
     
     if (o->pipe_fd >= 0) {
@@ -172,9 +169,38 @@ void BInputProcess_Free (BInputProcess *o)
     }
 }
 
+int BInputProcess_Start (BInputProcess *o, const char *file, char *const argv[], const char *username)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(!o->started)
+    
+    // start process
+    int fds[] = { o->pipe_write_fd, -1 };
+    int fds_map[] = { 1 };
+    if (!BProcess_InitWithFds(&o->process, o->manager, (BProcess_handler)process_handler, o, file, argv, username, fds, fds_map)) {
+        BLog(BLOG_ERROR, "BProcess_Init failed");
+        goto fail0;
+    }
+    
+    // close pipe write end
+    ASSERT_FORCE(close(o->pipe_write_fd) == 0)
+    
+    // set started
+    o->started = 1;
+    
+    // set have process
+    o->have_process = 1;
+    
+    return 1;
+    
+fail0:
+    return 0;
+}
+
 int BInputProcess_Terminate (BInputProcess *o)
 {
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->started)
     ASSERT(o->have_process)
     
     return BProcess_Terminate(&o->process);
@@ -183,6 +209,7 @@ int BInputProcess_Terminate (BInputProcess *o)
 int BInputProcess_Kill (BInputProcess *o)
 {
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->started)
     ASSERT(o->have_process)
     
     return BProcess_Kill(&o->process);
