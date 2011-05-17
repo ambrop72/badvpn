@@ -32,14 +32,11 @@
  */
 
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 
 #include <misc/cmdline.h>
 #include <misc/string_begins_with.h>
-#include <system/BSocket.h>
 #include <flow/LineBuffer.h>
-#include <flowextra/StreamSocketSource.h>
+#include <inputprocess/BInputProcess.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_net_backend_wpa_supplicant.h>
@@ -58,20 +55,15 @@ struct instance {
     NCDValue *args;
     int dying;
     int up;
-    BProcess process;
-    int pipe_fd;
-    BSocket pipe_sock;
-    FlowErrorDomain pipe_domain;
-    StreamSocketSource pipe_source;
+    BInputProcess process;
+    int have_pipe;
     LineBuffer pipe_buffer;
     PacketPassInterface pipe_input;
 };
 
 static int build_cmdline (struct instance *o, CmdLine *c);
-static int init_pipe (struct instance *o, int pipe_fd);
-static void free_pipe (struct instance *o);
-static void process_handler (struct instance *o, int normally, uint8_t normally_exit_status);
-static void process_pipe_handler_error (struct instance *o, int component, int code);
+static void process_handler_terminated (struct instance *o, int normally, uint8_t normally_exit_status);
+static void process_handler_closed (struct instance *o, int is_error);
 static void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len);
 static void instance_free (struct instance *o);
 
@@ -125,55 +117,7 @@ fail0:
     return 0;
 }
 
-int init_pipe (struct instance *o, int pipe_fd)
-{
-    // init socket
-    if (BSocket_InitPipe(&o->pipe_sock, o->i->reactor, pipe_fd) < 0) {
-        ModuleLog(o->i, BLOG_ERROR, "BSocket_InitPipe failed");
-        goto fail0;
-    }
-    
-    // init domain
-    FlowErrorDomain_Init(&o->pipe_domain, (FlowErrorDomain_handler)process_pipe_handler_error, o);
-    
-    // init source
-    StreamSocketSource_Init(&o->pipe_source, FlowErrorReporter_Create(&o->pipe_domain, 0), &o->pipe_sock, BReactor_PendingGroup(o->i->reactor));
-    
-    // init input interface
-    PacketPassInterface_Init(&o->pipe_input, MAX_LINE_LEN, (PacketPassInterface_handler_send)process_pipe_handler_send, o, BReactor_PendingGroup(o->i->reactor));
-    
-    // init buffer
-    if (!LineBuffer_Init(&o->pipe_buffer, StreamSocketSource_GetOutput(&o->pipe_source), &o->pipe_input, MAX_LINE_LEN, '\n')) {
-        ModuleLog(o->i, BLOG_ERROR, "LineBuffer_Init failed");
-        goto fail1;
-    }
-    
-    return 1;
-    
-fail1:
-    PacketPassInterface_Free(&o->pipe_input);
-    StreamSocketSource_Free(&o->pipe_source);
-    BSocket_Free(&o->pipe_sock);
-fail0:
-    return 0;
-}
-
-void free_pipe (struct instance *o)
-{
-    // free buffer
-    LineBuffer_Free(&o->pipe_buffer);
-    
-    // free input interface
-    PacketPassInterface_Free(&o->pipe_input);
-    
-    // free source
-    StreamSocketSource_Free(&o->pipe_source);
-    
-    // free socket
-    BSocket_Free(&o->pipe_sock);
-}
-
-void process_handler (struct instance *o, int normally, uint8_t normally_exit_status)
+void process_handler_terminated (struct instance *o, int normally, uint8_t normally_exit_status)
 {
     ModuleLog(o->i, (o->dying ? BLOG_INFO : BLOG_ERROR), "process terminated");
     
@@ -186,29 +130,29 @@ void process_handler (struct instance *o, int normally, uint8_t normally_exit_st
     return;
 }
 
-void process_pipe_handler_error (struct instance *o, int component, int code)
+void process_handler_closed (struct instance *o, int is_error)
 {
-    ASSERT(o->pipe_fd >= 0)
+    ASSERT(o->have_pipe)
     
-    if (code == STREAMSOCKETSOURCE_ERROR_CLOSED) {
+    if (is_error) {
         ModuleLog(o->i, BLOG_INFO, "pipe eof");
     } else {
         ModuleLog(o->i, BLOG_ERROR, "pipe error");
     }
     
-    // free pipe reading
-    free_pipe(o);
+    // free buffer
+    LineBuffer_Free(&o->pipe_buffer);
     
-    // close pipe read end
-    ASSERT_FORCE(close(o->pipe_fd) == 0)
+    // free input interface
+    PacketPassInterface_Free(&o->pipe_input);
     
-    // forget pipe
-    o->pipe_fd = -1;
+    // set have no pipe
+    o->have_pipe = 0;
 }
 
 void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len)
 {
-    ASSERT(o->pipe_fd >= 0)
+    ASSERT(o->have_pipe)
     ASSERT(data_len > 0)
     
     // accept packet
@@ -274,48 +218,51 @@ static void func_new (NCDModuleInst *i)
     // set not up
     o->up = 0;
     
-    // create pipe
-    int pipefds[2];
-    if (pipe(pipefds) < 0) {
-        ModuleLog(o->i, BLOG_ERROR, "pipe failed");
-        goto fail1;
-    }
-    
-    // init pipe reading
-    if (!init_pipe(o, pipefds[0])) {
-        goto fail2;
-    }
-    
     // build process cmdline
     CmdLine c;
     if (!build_cmdline(o, &c)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to build cmdline");
+        goto fail1;
+    }
+    
+    // init process
+    if (!BInputProcess_Init(&o->process, o->i->reactor, o->i->manager, o,
+                            (BInputProcess_handler_terminated)process_handler_terminated,
+                            (BInputProcess_handler_closed)process_handler_closed
+    )) {
+        ModuleLog(o->i, BLOG_ERROR, "BInputProcess_Init failed");
+        goto fail2;
+    }
+    
+    // init input interface
+    PacketPassInterface_Init(&o->pipe_input, MAX_LINE_LEN, (PacketPassInterface_handler_send)process_pipe_handler_send, o, BReactor_PendingGroup(o->i->reactor));
+    
+    // init buffer
+    if (!LineBuffer_Init(&o->pipe_buffer, BInputProcess_GetInput(&o->process), &o->pipe_input, MAX_LINE_LEN, '\n')) {
+        ModuleLog(o->i, BLOG_ERROR, "LineBuffer_Init failed");
         goto fail3;
     }
     
+    // set have pipe
+    o->have_pipe = 1;
+    
     // start process
-    int fds[] = { pipefds[1], -1 };
-    int fds_map[] = { 1 };
-    if (!BProcess_InitWithFds(&o->process, o->i->manager, (BProcess_handler)process_handler, o, ((char **)c.arr.v)[0], (char **)c.arr.v, NULL, fds, fds_map)) {
-        ModuleLog(o->i, BLOG_ERROR, "BProcess_Init failed");
+    if (!BInputProcess_Start(&o->process, ((char **)c.arr.v)[0], (char **)c.arr.v, NULL)) {
+        ModuleLog(o->i, BLOG_ERROR, "BInputProcess_Start failed");
         goto fail4;
     }
     
-    // remember pipe read end
-    o->pipe_fd = pipefds[0];
-    
     CmdLine_Free(&c);
-    ASSERT_FORCE(close(pipefds[1]) == 0)
     
     return;
     
 fail4:
-    CmdLine_Free(&c);
+    LineBuffer_Free(&o->pipe_buffer);
 fail3:
-    free_pipe(o);
+    PacketPassInterface_Free(&o->pipe_input);
+    BInputProcess_Free(&o->process);
 fail2:
-    ASSERT_FORCE(close(pipefds[0]) == 0)
-    ASSERT_FORCE(close(pipefds[1]) == 0)
+    CmdLine_Free(&c);
 fail1:
     free(o);
 fail0:
@@ -327,16 +274,16 @@ void instance_free (struct instance *o)
 {
     NCDModuleInst *i = o->i;
     
-    // free process
-    BProcess_Free(&o->process);
-    
-    if (o->pipe_fd >= 0) {
-        // free pipe reading
-        free_pipe(o);
+    if (o->have_pipe) {
+        // free buffer
+        LineBuffer_Free(&o->pipe_buffer);
         
-        // close pipe read end
-        ASSERT_FORCE(close(o->pipe_fd) == 0)
+        // free input interface
+        PacketPassInterface_Free(&o->pipe_input);
     }
+    
+    // free process
+    BInputProcess_Free(&o->process);
     
     // free instance
     free(o);
@@ -350,7 +297,7 @@ static void func_die (void *vo)
     ASSERT(!o->dying)
     
     // request termination
-    BProcess_Terminate(&o->process);
+    BInputProcess_Terminate(&o->process);
     
     // remember dying
     o->dying = 1;
