@@ -25,4 +25,4 @@ add_library(system
     BNetwork.c
     ${BSYSTEM_ADDITIONAL_SOURCES}
 )
-target_link_libraries(system base ${BSYSTEM_ADDITIONAL_LIBS})
+target_link_libraries(system base flow ${BSYSTEM_ADDITIONAL_LIBS})
