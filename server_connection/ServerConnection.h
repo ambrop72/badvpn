@@ -44,19 +44,15 @@
 #include <protocol/scproto.h>
 #include <protocol/msgproto.h>
 #include <base/DebugObject.h>
-#include <system/BSocket.h>
+#include <system/BConnection.h>
 #include <flow/FlowError.h>
 #include <flow/PacketProtoEncoder.h>
 #include <flow/PacketStreamSender.h>
 #include <flow/PacketProtoDecoder.h>
 #include <flow/PacketPassPriorityQueue.h>
 #include <flow/PacketProtoFlow.h>
-#include <flowextra/StreamSocketSink.h>
-#include <flowextra/StreamSocketSource.h>
 #include <flowextra/KeepaliveIO.h>
-#include <nspr_support/BPRFileDesc.h>
-#include <nspr_support/PRStreamSink.h>
-#include <nspr_support/PRStreamSource.h>
+#include <nspr_support/BSSLConnection.h>
 #include <server_connection/SCKeepaliveSource.h>
 
 /**
@@ -145,7 +141,8 @@ typedef struct {
     ServerConnection_handler_message handler_message;
     
     // socket
-    BSocket sock;
+    BConnector connector;
+    BConnection con;
     
     // state
     int state;
@@ -158,16 +155,10 @@ typedef struct {
     // SSL file descriptor, defined only if using SSL
     PRFileDesc bottom_prfd;
     PRFileDesc *ssl_prfd;
-    BPRFileDesc ssl_bprfd;
-    
-    // I/O error domain
-    FlowErrorDomain ioerrdomain;
+    BSSLConnection sslcon;
     
     // input
-    union {
-        StreamSocketSource plain;
-        PRStreamSource ssl;
-    } input_source;
+    FlowErrorDomain input_decoder_domain;
     PacketProtoDecoder input_decoder;
     PacketPassInterface input_interface;
     
@@ -179,10 +170,6 @@ typedef struct {
     PacketPassPriorityQueue output_queue;
     KeepaliveIO output_keepaliveio;
     PacketStreamSender output_sender;
-    union {
-        StreamSocketSink plain;
-        PRStreamSink ssl;
-    } output_sink;
     
     // output local flow
     int output_local_packet_len;
@@ -205,8 +192,8 @@ typedef struct {
  * Initializes the object.
  * The object is initialized in not ready state.
  * {@link BLog_Init} must have been done.
- * {@link BSocket_GlobalInit} must have been done.
- * {@link BSocketPRFileDesc_GlobalInit} must have been done if using SSL.
+ * {@link BNetwork_GlobalInit} must have been done.
+ * {@link BSSLConnection_GlobalInit} must have been done if using SSL.
  *
  * @param o the object
  * @param reactor {@link BReactor} we live in

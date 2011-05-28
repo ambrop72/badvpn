@@ -37,9 +37,9 @@
 #include <structure/LinkedList2.h>
 #include <base/BLog.h>
 #include <system/BReactor.h>
-#include <system/BSocket.h>
 #include <system/BSignal.h>
 #include <system/BAddr.h>
+#include <system/BNetwork.h>
 #include <flow/PacketBuffer.h>
 #include <flow/BufferWriter.h>
 #include <flow/SinglePacketBuffer.h>
@@ -256,9 +256,9 @@ int main (int argc, char **argv)
     
     BLog(BLOG_NOTICE, "initializing "GLOBAL_PRODUCT_NAME" "PROGRAM_NAME" "GLOBAL_VERSION);
     
-    // initialize sockets
-    if (BSocket_GlobalInit() < 0) {
-        BLog(BLOG_ERROR, "BSocket_GlobalInit failed");
+    // initialize network
+    if (!BNetwork_GlobalInit()) {
+        BLog(BLOG_ERROR, "BNetwork_GlobalInit failed");
         goto fail1;
     }
     

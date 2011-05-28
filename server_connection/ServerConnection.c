@@ -33,15 +33,13 @@
 #define STATE_WAITINIT 2
 #define STATE_COMPLETE 3
 
-#define COMPONENT_SOURCE 1
-#define COMPONENT_SINK 2
-#define COMPONENT_DECODER 3
-
 static void report_error (ServerConnection *o);
-static void connect_handler (ServerConnection *o, int event);
+static void connector_handler (ServerConnection *o, int is_error);
 static void pending_handler (ServerConnection *o);
 static SECStatus client_auth_data_callback (ServerConnection *o, PRFileDesc *fd, CERTDistNames *caNames, CERTCertificate **pRetCert, SECKEYPrivateKey **pRetKey);
-static void error_handler (ServerConnection *o, int component, int code);
+static void connection_handler (ServerConnection *o, int event);
+static void sslcon_handler (ServerConnection *o, int event);
+static void decoder_handler (ServerConnection *o, int component, int code);
 static void input_handler_send (ServerConnection *o, uint8_t *data, int data_len);
 static void packet_hello (ServerConnection *o, uint8_t *data, int data_len);
 static void packet_newclient (ServerConnection *o, uint8_t *data, int data_len);
@@ -55,33 +53,44 @@ void report_error (ServerConnection *o)
     DEBUGERROR(&o->d_err, o->handler_error(o->user))
 }
 
-void connect_handler (ServerConnection *o, int event)
+void connector_handler (ServerConnection *o, int is_error)
 {
-    ASSERT(o->state == STATE_CONNECTING)
-    ASSERT(event == BSOCKET_CONNECT)
     DebugObject_Access(&o->d_obj);
-    
-    // remove connect event handler
-    BSocket_RemoveEventHandler(&o->sock, BSOCKET_CONNECT);
+    ASSERT(o->state == STATE_CONNECTING)
     
     // check connection attempt result
-    int res = BSocket_GetConnectResult(&o->sock);
-    if (res != 0) {
-        BLog(BLOG_ERROR, "connection failed (BSocket error %d)", res);
+    if (is_error) {
+        BLog(BLOG_ERROR, "connection failed");
         goto fail0;
     }
     
     BLog(BLOG_NOTICE, "connected");
     
+    // init connection
+    if (!BConnection_Init(&o->con, BCONNECTION_SOURCE_CONNECTOR(&o->connector), o->reactor, o, (BConnection_handler)connection_handler)) {
+        BLog(BLOG_ERROR, "BConnection_Init failed");
+        goto fail0;
+    }
+    
+    // init connection interfaces
+    BConnection_SendAsync_Init(&o->con);
+    BConnection_RecvAsync_Init(&o->con);
+    
+    StreamPassInterface *send_iface = BConnection_SendAsync_GetIf(&o->con);
+    StreamRecvInterface *recv_iface = BConnection_RecvAsync_GetIf(&o->con);
+    
     if (o->have_ssl) {
-        // create BSocket NSPR file descriptor
-        BSocketPRFileDesc_Create(&o->bottom_prfd, &o->sock);
+        // create bottom NSPR file descriptor
+        if (!BSSLConnection_MakeBackend(&o->bottom_prfd, send_iface, recv_iface)) {
+            BLog(BLOG_ERROR, "BSSLConnection_MakeBackend failed");
+            goto fail0a;
+        }
         
-        // create SSL file descriptor from the socket's BSocketPRFileDesc
+        // create SSL file descriptor from the bottom NSPR file descriptor
         if (!(o->ssl_prfd = SSL_ImportFD(NULL, &o->bottom_prfd))) {
             BLog(BLOG_ERROR, "SSL_ImportFD failed");
             ASSERT_FORCE(PR_Close(&o->bottom_prfd) == PR_SUCCESS)
-            goto fail0;
+            goto fail0a;
         }
         
         // set client mode
@@ -102,24 +111,17 @@ void connect_handler (ServerConnection *o, int event)
             goto fail1;
         }
         
-        // init BPRFileDesc
-        BPRFileDesc_Init(&o->ssl_bprfd, o->ssl_prfd);
+        // init BSSLConnection
+        BSSLConnection_Init(&o->sslcon, o->ssl_prfd, 0, o->reactor, o, (BSSLConnection_handler)sslcon_handler);
+        
+        send_iface = BSSLConnection_GetSendIf(&o->sslcon);
+        recv_iface = BSSLConnection_GetRecvIf(&o->sslcon);
     }
-    
-    // init error domain
-    FlowErrorDomain_Init(&o->ioerrdomain, (FlowErrorDomain_handler)error_handler, o);
     
     // init input chain
-    StreamRecvInterface *source_interface;
-    if (o->have_ssl) {
-        PRStreamSource_Init(&o->input_source.ssl, FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_SOURCE), &o->ssl_bprfd, BReactor_PendingGroup(o->reactor));
-        source_interface = PRStreamSource_GetOutput(&o->input_source.ssl);
-    } else {
-        StreamSocketSource_Init(&o->input_source.plain, FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_SOURCE), &o->sock, BReactor_PendingGroup(o->reactor));
-        source_interface = StreamSocketSource_GetOutput(&o->input_source.plain);
-    }
     PacketPassInterface_Init(&o->input_interface, SC_MAX_ENC, (PacketPassInterface_handler_send)input_handler_send, o, BReactor_PendingGroup(o->reactor));
-    if (!PacketProtoDecoder_Init(&o->input_decoder, FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_DECODER), source_interface, &o->input_interface,BReactor_PendingGroup(o->reactor))) {
+    FlowErrorDomain_Init(&o->input_decoder_domain, (FlowErrorDomain_handler)decoder_handler, o);
+    if (!PacketProtoDecoder_Init(&o->input_decoder, FlowErrorReporter_Create(&o->input_decoder_domain, 0), recv_iface, &o->input_interface, BReactor_PendingGroup(o->reactor))) {
         BLog(BLOG_ERROR, "PacketProtoDecoder_Init failed");
         goto fail2;
     }
@@ -136,18 +138,8 @@ void connect_handler (ServerConnection *o, int event)
     
     // init output common
     
-    // init sink
-    StreamPassInterface *sink_interface;
-    if (o->have_ssl) {
-        PRStreamSink_Init(&o->output_sink.ssl, FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_SINK), &o->ssl_bprfd, BReactor_PendingGroup(o->reactor));
-        sink_interface = PRStreamSink_GetInput(&o->output_sink.ssl);
-    } else {
-        StreamSocketSink_Init(&o->output_sink.plain, FlowErrorReporter_Create(&o->ioerrdomain, COMPONENT_SINK), &o->sock, BReactor_PendingGroup(o->reactor));
-        sink_interface = StreamSocketSink_GetInput(&o->output_sink.plain);
-    }
-    
     // init sender
-    PacketStreamSender_Init(&o->output_sender, sink_interface, PACKETPROTO_ENCLEN(SC_MAX_ENC), BReactor_PendingGroup(o->reactor));
+    PacketStreamSender_Init(&o->output_sender, send_iface, PACKETPROTO_ENCLEN(SC_MAX_ENC), BReactor_PendingGroup(o->reactor));
     
     // init keepalives
     if (!KeepaliveIO_Init(&o->output_keepaliveio, o->reactor, PacketStreamSender_GetInput(&o->output_sender), PacketProtoEncoder_GetOutput(&o->output_ka_encoder), o->keepalive_interval)) {
@@ -183,36 +175,25 @@ void connect_handler (ServerConnection *o, int event)
     
 fail4:
     PacketPassPriorityQueueFlow_Free(&o->output_local_qflow);
-    // free output common
     PacketPassPriorityQueue_Free(&o->output_queue);
     KeepaliveIO_Free(&o->output_keepaliveio);
 fail3:
     PacketStreamSender_Free(&o->output_sender);
-    if (o->have_ssl) {
-        PRStreamSink_Free(&o->output_sink.ssl);
-    } else {
-        StreamSocketSink_Free(&o->output_sink.plain);
-    }
-    // free output keep-alive branch
     PacketProtoEncoder_Free(&o->output_ka_encoder);
     SCKeepaliveSource_Free(&o->output_ka_zero);
-    // free job
     BPending_Free(&o->start_job);
-    // free input
     PacketProtoDecoder_Free(&o->input_decoder);
 fail2:
     PacketPassInterface_Free(&o->input_interface);
     if (o->have_ssl) {
-        PRStreamSource_Free(&o->input_source.ssl);
-    } else {
-        StreamSocketSource_Free(&o->input_source.plain);
-    }
-    // free SSL
-    if (o->have_ssl) {
-        BPRFileDesc_Free(&o->ssl_bprfd);
+        BSSLConnection_Free(&o->sslcon);
 fail1:
         ASSERT_FORCE(PR_Close(o->ssl_prfd) == PR_SUCCESS)
     }
+fail0a:
+    BConnection_RecvAsync_Free(&o->con);
+    BConnection_SendAsync_Free(&o->con);
+    BConnection_Free(&o->con);
 fail0:
     // report error
     report_error(o);
@@ -255,10 +236,40 @@ SECStatus client_auth_data_callback (ServerConnection *o, PRFileDesc *fd, CERTDi
     return SECSuccess;
 }
 
-void error_handler (ServerConnection *o, int component, int code)
+void connection_handler (ServerConnection *o, int event)
 {
-    ASSERT(o->state >= STATE_WAITINIT)
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->state >= STATE_WAITINIT)
+    
+    if (event == BCONNECTION_EVENT_RECVCLOSED) {
+        BLog(BLOG_INFO, "connection closed");
+    } else {
+        BLog(BLOG_INFO, "connection error");
+    }
+    
+    report_error(o);
+    return;
+}
+
+void sslcon_handler (ServerConnection *o, int event)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->have_ssl)
+    ASSERT(o->state >= STATE_WAITINIT)
+    ASSERT(event == BSSLCONNECTION_EVENT_ERROR)
+    
+    BLog(BLOG_ERROR, "SSL error");
+    
+    report_error(o);
+    return;
+}
+
+void decoder_handler (ServerConnection *o, int component, int code)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->state >= STATE_WAITINIT)
+    
+    BLog(BLOG_ERROR, "decoder error");
     
     report_error(o);
     return;
@@ -487,22 +498,11 @@ int ServerConnection_Init (
     o->handler_endclient = handler_endclient;
     o->handler_message = handler_message;
     
-    // init socket
-    if (BSocket_Init(&o->sock, o->reactor, addr.type, BSOCKET_TYPE_STREAM) < 0) {
-        BLog(BLOG_ERROR, "BSocket_Init failed (%d)", BSocket_GetError(&o->sock));
+    // init connector
+    if (!BConnector_Init(&o->connector, addr, o->reactor, o, (BConnector_handler)connector_handler)) {
+        BLog(BLOG_ERROR, "BConnector_Init failed");
         goto fail0;
     }
-    
-    // start connecting
-    int res = BSocket_Connect(&o->sock, &addr, 1);
-    if (res != -1 || BSocket_GetError(&o->sock) != BSOCKET_ERROR_IN_PROGRESS) {
-        BLog(BLOG_ERROR, "BSocket_Connect failed (%d)", BSocket_GetError(&o->sock));
-        goto fail1;
-    }
-    
-    // be informed of connection result
-    BSocket_AddEventHandler(&o->sock, BSOCKET_CONNECT, (BSocket_handler)connect_handler, o);
-    BSocket_EnableEvent(&o->sock, BSOCKET_CONNECT);
     
     // set state
     o->state = STATE_CONNECTING;
@@ -511,8 +511,6 @@ int ServerConnection_Init (
     DebugObject_Init(&o->d_obj);
     return 1;
     
-fail1:
-    BSocket_Free(&o->sock);
 fail0:
     return 0;
 }
@@ -537,11 +535,6 @@ void ServerConnection_Free (ServerConnection *o)
         PacketPassPriorityQueue_Free(&o->output_queue);
         KeepaliveIO_Free(&o->output_keepaliveio);
         PacketStreamSender_Free(&o->output_sender);
-        if (o->have_ssl) {
-            PRStreamSink_Free(&o->output_sink.ssl);
-        } else {
-            StreamSocketSink_Free(&o->output_sink.plain);
-        }
         
         // free output keep-alive branch
         PacketProtoEncoder_Free(&o->output_ka_encoder);
@@ -553,21 +546,23 @@ void ServerConnection_Free (ServerConnection *o)
         // free input chain
         PacketProtoDecoder_Free(&o->input_decoder);
         PacketPassInterface_Free(&o->input_interface);
-        if (o->have_ssl) {
-            PRStreamSource_Free(&o->input_source.ssl);
-        } else {
-            StreamSocketSource_Free(&o->input_source.plain);
-        }
         
         // free SSL
         if (o->have_ssl) {
-            BPRFileDesc_Free(&o->ssl_bprfd);
+            BSSLConnection_Free(&o->sslcon);
             ASSERT_FORCE(PR_Close(o->ssl_prfd) == PR_SUCCESS)
         }
+        
+        // free connection interfaces
+        BConnection_RecvAsync_Free(&o->con);
+        BConnection_SendAsync_Free(&o->con);
+        
+        // free connection
+        BConnection_Free(&o->con);
     }
     
-    // free socket
-    BSocket_Free(&o->sock);
+    // free connector
+    BConnector_Free(&o->connector);
 }
 
 int ServerConnection_IsReady (ServerConnection *o)

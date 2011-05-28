@@ -25,17 +25,13 @@
 #include <protocol/scproto.h>
 #include <structure/LinkedList2.h>
 #include <structure/BAVL.h>
-#include <system/BSocket.h>
 #include <flow/PacketProtoDecoder.h>
 #include <flow/PacketStreamSender.h>
 #include <flow/PacketPassPriorityQueue.h>
 #include <flow/PacketPassFairQueue.h>
 #include <flow/PacketProtoFlow.h>
-#include <flowextra/StreamSocketSource.h>
-#include <flowextra/StreamSocketSink.h>
-#include <nspr_support/BPRFileDesc.h>
-#include <nspr_support/PRStreamSource.h>
-#include <nspr_support/PRStreamSink.h>
+#include <system/BConnection.h>
+#include <nspr_support/BSSLConnection.h>
 
 // name of the program
 #define PROGRAM_NAME "server"
@@ -101,13 +97,13 @@ struct peer_know {
 
 struct client_data {
     // socket
-    BSocket sock;
+    BConnection con;
     BAddr addr;
     
-    // SSL file descriptor
+    // SSL connection, if using SSL
     PRFileDesc bottom_prfd;
     PRFileDesc *ssl_prfd;
-    BPRFileDesc ssl_bprfd;
+    BSSLConnection sslcon;
     
     // initialization state
     int initstatus;
@@ -145,22 +141,12 @@ struct client_data {
     int dying;
     BPending dying_job;
     
-    // error domain
-    FlowErrorDomain domain;
-    
     // input
-    union {
-        StreamSocketSource plain;
-        PRStreamSource ssl;
-    } input_source;
+    FlowErrorDomain input_decoder_domain;
     PacketProtoDecoder input_decoder;
     PacketPassInterface input_interface;
     
     // output common
-    union {
-        StreamSocketSink plain;
-        PRStreamSink ssl;
-    } output_sink;
     PacketStreamSender output_sender;
     PacketPassPriorityQueue output_priorityqueue;
     

@@ -35,7 +35,7 @@
 #include <misc/debug.h>
 #include <base/DebugObject.h>
 #include <system/BReactor.h>
-#include <system/BSocket.h>
+#include <system/BConnection.h>
 #include <structure/LinkedList2.h>
 #include <flow/PacketProtoDecoder.h>
 #include <flow/PacketStreamSender.h>
@@ -44,12 +44,8 @@
 #include <flow/PacketCopier.h>
 #include <flow/PacketPassConnector.h>
 #include <flow/StreamRecvConnector.h>
-#include <flowextra/StreamSocketSource.h>
-#include <flowextra/StreamSocketSink.h>
-#include <nspr_support/PRStreamSink.h>
-#include <nspr_support/PRStreamSource.h>
+#include <flow/SingleStreamSender.h>
 #include <client/PasswordListener.h>
-#include <client/PasswordSender.h>
 
 #define STREAMPEERIO_SOCKET_SEND_BUFFER 4096
 
@@ -81,9 +77,6 @@ typedef struct {
     
     // persistent I/O modules
     
-    // I/O error domain
-    FlowErrorDomain ioerrdomain;
-    
     // base sending objects
     PacketCopier output_user_copier;
     PacketProtoEncoder output_user_ppe;
@@ -92,6 +85,7 @@ typedef struct {
     
     // receiving objects
     StreamRecvConnector input_connector;
+    FlowErrorDomain input_decoder_domain;
     PacketProtoDecoder input_decoder;
     
     // connection side
@@ -110,27 +104,20 @@ typedef struct {
             int state;
             CERTCertificate *ssl_cert;
             SECKEYPrivateKey *ssl_key;
+            BConnector connector;
             sslsocket sock;
+            BSSLConnection sslcon;
             uint64_t password;
-            PasswordSender pwsender;
+            SingleStreamSender pwsender;
         } connect;
     };
     
     // socket data
     sslsocket *sock;
+    BSSLConnection sslcon;
     
     // sending objects
     PacketStreamSender output_pss;
-    union {
-        StreamSocketSink plain;
-        PRStreamSink ssl;
-    } output_sink;
-    
-    // receiving objects
-    union {
-        StreamSocketSource plain;
-        PRStreamSource ssl;
-    } input_source;
     
     DebugObject d_obj;
 } StreamPeerIO;
@@ -139,6 +126,8 @@ typedef struct {
  * Initializes the object.
  * The object is initialized in default state.
  * {@link BLog_Init} must have been done.
+ * {@link BNetwork_GlobalInit} must have been done.
+ * {@link BSSLConnection_GlobalInit} must have been done if using SSL.
  *
  * @param pio the object
  * @param reactor reactor we live in
@@ -187,7 +176,7 @@ PacketPassInterface * StreamPeerIO_GetSendInput (StreamPeerIO *pio);
  * On failure, the object enters default state.
  *
  * @param pio the object
- * @param addr address to connect to. Must be recognized and not invalid.
+ * @param addr address to connect to. Must be supported according to {@link BConnection_AddressSupported}.
  * @param password identification code to send to the peer
  * @param ssl_cert if using SSL, the client certificate to use. This object does not
  *                 take ownership of the certificate; it must remain valid until

@@ -49,10 +49,6 @@
 #define BADDR_TYPE_NONE 0
 #define BADDR_TYPE_IPV4 1
 #define BADDR_TYPE_IPV6 2
-#ifndef BADVPN_USE_WINAPI
-    #define BADDR_TYPE_UNIX 3 // only a domain number for BSocket
-    #define BADDR_TYPE_UNIXPIPE 4 // only a domain number for BSocket
-#endif
 #ifdef BADVPN_LINUX
     #define BADDR_TYPE_PACKET 5
 #endif

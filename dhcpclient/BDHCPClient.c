@@ -57,11 +57,15 @@ static const struct sock_filter dhcp_sock_filter[] = {
     BPF_STMT(BPF_RET + BPF_K, 0)                                  // ignore
 };
 
-static void error_handler (BDHCPClient *o, int component, int code)
+static void dgram_handler (BDHCPClient *o, int event)
 {
     DebugObject_Access(&o->d_obj);
     
-    BLog(BLOG_ERROR, "error");
+    BLog(BLOG_ERROR, "packet socket error");
+    
+    // report error
+    DEBUGERROR(&o->d_err, o->handler(o->user, BDHCPCLIENT_EVENT_ERROR));
+    return;
 }
 
 static void dhcp_handler (BDHCPClient *o, int event)
@@ -163,9 +167,9 @@ int BDHCPClient_Init (BDHCPClient *o, const char *ifname, BReactor *reactor, BDH
     
     int dhcp_mtu = if_mtu - IPUDP_OVERHEAD;
     
-    // init socket
-    if (BSocket_Init(&o->sock, o->reactor, BADDR_TYPE_PACKET, BSOCKET_TYPE_DGRAM) < 0) {
-        BLog(BLOG_ERROR, "BSocket_Init failed");
+    // init dgram
+    if (!BDatagram_Init(&o->dgram, BADDR_TYPE_PACKET, o->reactor, o, (BDatagram_handler)dgram_handler)) {
+        BLog(BLOG_ERROR, "BDatagram_Init failed");
         goto fail0;
     }
     
@@ -178,31 +182,32 @@ int BDHCPClient_Init (BDHCPClient *o, const char *ifname, BReactor *reactor, BDH
             .len = flen,
             .filter = filter
         };
-        if (setsockopt(BSocket_SockFd(&o->sock), SOL_SOCKET, SO_ATTACH_FILTER, &fprog, sizeof(fprog)) < 0) {
+        if (setsockopt(BDatagram_GetFd(&o->dgram), SOL_SOCKET, SO_ATTACH_FILTER, &fprog, sizeof(fprog)) < 0) {
             BLog(BLOG_NOTICE, "not using socket filter");
         }
     }
     
-    // bind socket
+    // bind dgram
     BAddr bind_addr;
     BAddr_InitPacket(&bind_addr, hton16(ETHERTYPE_IPV4), if_index, BADDR_PACKET_HEADER_TYPE_ETHERNET, BADDR_PACKET_PACKET_TYPE_HOST, if_mac);
-    if (BSocket_Bind(&o->sock, &bind_addr) < 0) {
-        BLog(BLOG_ERROR, "BSocket_Bind failed");
+    if (!BDatagram_Bind(&o->dgram, bind_addr)) {
+        BLog(BLOG_ERROR, "BDatagram_Bind failed");
         goto fail1;
     }
     
-    // init error handler
-    FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)error_handler, o);
-    
-    // init sending
-    
-    // init sink
+    // set dgram send addresses
     BAddr dest_addr;
     uint8_t broadcast_mac[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
     BAddr_InitPacket(&dest_addr, hton16(ETHERTYPE_IPV4), if_index, BADDR_PACKET_HEADER_TYPE_ETHERNET, BADDR_PACKET_PACKET_TYPE_BROADCAST, broadcast_mac);
     BIPAddr local_addr;
     BIPAddr_InitInvalid(&local_addr);
-    DatagramSocketSink_Init(&o->send_sink, FlowErrorReporter_Create(&o->domain, COMPONENT_SINK), &o->sock, if_mtu, dest_addr, local_addr, BReactor_PendingGroup(o->reactor));
+    BDatagram_SetSendAddrs(&o->dgram, dest_addr, local_addr);
+
+    // init dgram interfaces
+    BDatagram_SendAsync_Init(&o->dgram, if_mtu);
+    BDatagram_RecvAsync_Init(&o->dgram, if_mtu);
+    
+    // init sending
     
     // init copier
     PacketCopier_Init(&o->send_copier, dhcp_mtu, BReactor_PendingGroup(o->reactor));
@@ -211,15 +216,12 @@ int BDHCPClient_Init (BDHCPClient *o, const char *ifname, BReactor *reactor, BDH
     DHCPIpUdpEncoder_Init(&o->send_encoder, PacketCopier_GetOutput(&o->send_copier), BReactor_PendingGroup(o->reactor));
     
     // init buffer
-    if (!SinglePacketBuffer_Init(&o->send_buffer, DHCPIpUdpEncoder_GetOutput(&o->send_encoder), DatagramSocketSink_GetInput(&o->send_sink), BReactor_PendingGroup(o->reactor))) {
+    if (!SinglePacketBuffer_Init(&o->send_buffer, DHCPIpUdpEncoder_GetOutput(&o->send_encoder), BDatagram_SendAsync_GetIf(&o->dgram), BReactor_PendingGroup(o->reactor))) {
         BLog(BLOG_ERROR, "SinglePacketBuffer_Init failed");
         goto fail2;
     }
     
     // init receiving
-    
-    // init source
-    DatagramSocketSource_Init(&o->recv_source, FlowErrorReporter_Create(&o->domain, COMPONENT_SOURCE), &o->sock, if_mtu, BReactor_PendingGroup(o->reactor));
     
     // init copier
     PacketCopier_Init(&o->recv_copier, dhcp_mtu, BReactor_PendingGroup(o->reactor));
@@ -228,7 +230,7 @@ int BDHCPClient_Init (BDHCPClient *o, const char *ifname, BReactor *reactor, BDH
     DHCPIpUdpDecoder_Init(&o->recv_decoder, PacketCopier_GetInput(&o->recv_copier), BReactor_PendingGroup(o->reactor));
     
     // init buffer
-    if (!SinglePacketBuffer_Init(&o->recv_buffer, DatagramSocketSource_GetOutput(&o->recv_source), DHCPIpUdpDecoder_GetInput(&o->recv_decoder), BReactor_PendingGroup(o->reactor))) {
+    if (!SinglePacketBuffer_Init(&o->recv_buffer, BDatagram_RecvAsync_GetIf(&o->dgram), DHCPIpUdpDecoder_GetInput(&o->recv_decoder), BReactor_PendingGroup(o->reactor))) {
         BLog(BLOG_ERROR, "SinglePacketBuffer_Init failed");
         goto fail3;
     }
@@ -242,8 +244,8 @@ int BDHCPClient_Init (BDHCPClient *o, const char *ifname, BReactor *reactor, BDH
     // set not up
     o->up = 0;
     
+    DebugError_Init(&o->d_err, BReactor_PendingGroup(o->reactor));
     DebugObject_Init(&o->d_obj);
-    
     return 1;
     
 fail4:
@@ -251,14 +253,14 @@ fail4:
 fail3:
     DHCPIpUdpDecoder_Free(&o->recv_decoder);
     PacketCopier_Free(&o->recv_copier);
-    DatagramSocketSource_Free(&o->recv_source);
     SinglePacketBuffer_Free(&o->send_buffer);
 fail2:
     DHCPIpUdpEncoder_Free(&o->send_encoder);
     PacketCopier_Free(&o->send_copier);
-    DatagramSocketSink_Free(&o->send_sink);
+    BDatagram_RecvAsync_Free(&o->dgram);
+    BDatagram_SendAsync_Free(&o->dgram);
 fail1:
-    BSocket_Free(&o->sock);
+    BDatagram_Free(&o->dgram);
 fail0:
     return 0;
 }
@@ -266,6 +268,7 @@ fail0:
 void BDHCPClient_Free (BDHCPClient *o)
 {
     DebugObject_Free(&o->d_obj);
+    DebugError_Free(&o->d_err);
     
     // free dhcp
     BDHCPClientCore_Free(&o->dhcp);
@@ -274,16 +277,18 @@ void BDHCPClient_Free (BDHCPClient *o)
     SinglePacketBuffer_Free(&o->recv_buffer);
     DHCPIpUdpDecoder_Free(&o->recv_decoder);
     PacketCopier_Free(&o->recv_copier);
-    DatagramSocketSource_Free(&o->recv_source);
     
     // free sending
     SinglePacketBuffer_Free(&o->send_buffer);
     DHCPIpUdpEncoder_Free(&o->send_encoder);
     PacketCopier_Free(&o->send_copier);
-    DatagramSocketSink_Free(&o->send_sink);
     
-    // free socket
-    BSocket_Free(&o->sock);
+    // free dgram interfaces
+    BDatagram_RecvAsync_Free(&o->dgram);
+    BDatagram_SendAsync_Free(&o->dgram);
+    
+    // free dgram
+    BDatagram_Free(&o->dgram);
 }
 
 int BDHCPClient_IsUp (BDHCPClient *o)

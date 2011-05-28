@@ -33,10 +33,8 @@
 #include <misc/debugerror.h>
 #include <misc/socks_proto.h>
 #include <base/DebugObject.h>
-#include <system/BSocket.h>
+#include <system/BConnection.h>
 #include <flow/PacketStreamSender.h>
-#include <flowextra/StreamSocketSink.h>
-#include <flowextra/StreamSocketSource.h>
 
 #define BSOCKSCLIENT_EVENT_ERROR 1
 #define BSOCKSCLIENT_EVENT_UP 2
@@ -62,14 +60,12 @@ typedef struct {
     void *user;
     BReactor *reactor;
     int state;
-    FlowErrorDomain domain;
-    BSocket sock;
+    BConnector connector;
+    BConnection con;
     union {
         struct {
             PacketPassInterface *send_if;
             PacketStreamSender send_sender;
-            StreamSocketSink send_sink;
-            StreamSocketSource recv_source;
             StreamRecvInterface *recv_if;
             union {
                 struct {
@@ -96,10 +92,6 @@ typedef struct {
             int recv_len;
             int recv_total;
         } control;
-        struct {
-            StreamSocketSink send_sink;
-            StreamSocketSource recv_source;
-        } up;
     };
     DebugError d_err;
     DebugObject d_obj;

@@ -1,5 +1,5 @@
 /**
- * @file sslsocket.h
+ * @file BNetwork.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -18,24 +18,12 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
- * 
- * @section DESCRIPTION
- * 
- * Structure for moving around sockets, possibly together with SSL compoments.
  */
 
-#ifndef BADVPN_MISC_SSLSOCKET_H
-#define BADVPN_MISC_SSLSOCKET_H
+#ifndef BADVPN_SYSTEM_BNETWORK_H
+#define BADVPN_SYSTEM_BNETWORK_H
 
-#include <prio.h>
-
-#include <system/BConnection.h>
-#include <nspr_support/BSSLConnection.h>
-
-typedef struct {
-    BConnection con;
-    PRFileDesc bottom_prfd;
-    PRFileDesc *ssl_prfd;
-} sslsocket;
+int BNetwork_GlobalInit (void);
+void BNetwork_Assert (void);
 
 #endif

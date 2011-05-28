@@ -23,5 +23,7 @@ add_library(flow
     RouteBuffer.c
     PacketRouter.c
     LineBuffer.c
+    SingleStreamSender.c
+    SingleStreamReceiver.c
 )
 target_link_libraries(flow base)

@@ -28,17 +28,16 @@
 #define BADVPN_DHCPCLIENT_BDHCPCLIENT_H
 
 #include <base/DebugObject.h>
-#include <system/BSocket.h>
+#include <system/BDatagram.h>
 #include <flow/PacketCopier.h>
 #include <flow/SinglePacketBuffer.h>
 #include <dhcpclient/BDHCPClientCore.h>
 #include <dhcpclient/DHCPIpUdpDecoder.h>
 #include <dhcpclient/DHCPIpUdpEncoder.h>
-#include <flowextra/DatagramSocketSink.h>
-#include <flowextra/DatagramSocketSource.h>
 
 #define BDHCPCLIENT_EVENT_UP 1
 #define BDHCPCLIENT_EVENT_DOWN 2
+#define BDHCPCLIENT_EVENT_ERROR 3
 
 #define BDHCPCLIENT_MAX_DOMAIN_NAME_SERVERS BDHCPCLIENTCORE_MAX_DOMAIN_NAME_SERVERS
 
@@ -46,20 +45,18 @@ typedef void (*BDHCPClient_handler) (void *user, int event);
 
 typedef struct {
     BReactor *reactor;
-    BSocket sock;
+    BDatagram dgram;
     BDHCPClient_handler handler;
     void *user;
-    FlowErrorDomain domain;
     PacketCopier send_copier;
     DHCPIpUdpEncoder send_encoder;
     SinglePacketBuffer send_buffer;
-    DatagramSocketSink send_sink;
-    DatagramSocketSource recv_source;
     SinglePacketBuffer recv_buffer;
     DHCPIpUdpDecoder recv_decoder;
     PacketCopier recv_copier;
     BDHCPClientCore dhcp;
     int up;
+    DebugError d_err;
     DebugObject d_obj;
 } BDHCPClient;
 

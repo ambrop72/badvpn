@@ -51,13 +51,8 @@ BDHCPClient 4
 NCDIfConfig 4
 BUnixSignal 4
 BProcess 4
-StreamSocketSink 4
-StreamSocketSource 4
-DatagramSocketSink 4
-DatagramSocketSource 4
 PRStreamSink 4
 PRStreamSource 4
-BSocketPRFileDesc 4
 PacketProtoDecoder 4
 DPRelay 4
 BThreadWork 4
@@ -68,7 +63,6 @@ NCDUdevMonitor 4
 NCDUdevCache 4
 NCDUdevManager 4
 BTime 4
-BSocket 4
 BEncryption 4
 SPProtoDecoder 4
 LineBuffer 4
@@ -83,3 +77,7 @@ NCDRfkillMonitor 4
 udpgw 4
 UdpGwClient 4
 SocksUdpGwClient 4
+BNetwork 4
+BConnection 4
+BSSLConnection 4
+BDatagram 4

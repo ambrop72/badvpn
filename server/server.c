@@ -50,8 +50,7 @@
 #include <base/BLog.h>
 #include <system/BSignal.h>
 #include <system/BTime.h>
-#include <system/BAddr.h>
-#include <system/Listener.h>
+#include <system/BNetwork.h>
 #include <security/BRandom.h>
 #include <nspr_support/DummyPRFileDesc.h>
 
@@ -62,10 +61,6 @@
 #include <server/server.h>
 
 #include <generated/blog_channel_server.h>
-
-#define COMPONENT_SOURCE 1
-#define COMPONENT_SINK 2
-#define COMPONENT_DECODER 3
 
 #define LOGGER_STDOUT 1
 #define LOGGER_SYSLOG 2
@@ -138,7 +133,7 @@ PRFileDesc model_dprfd;
 PRFileDesc *model_prfd;
 
 // listeners
-Listener listeners[MAX_LISTEN_ADDRS];
+BListener listeners[MAX_LISTEN_ADDRS];
 int num_listeners;
 
 // number of connected clients
@@ -169,7 +164,7 @@ static int process_arguments (void);
 static void signal_handler (void *unused);
 
 // listener handler, accepts new clients
-static void listener_handler (Listener *listener);
+static void listener_handler (BListener *listener);
 
 // frees resources used by a client
 static void client_dealloc (struct client_data *client);
@@ -192,14 +187,14 @@ static void client_log (struct client_data *client, int level, const char *fmt, 
 // client activity timer handler. Removes the client.
 static void client_disconnect_timer_handler (struct client_data *client);
 
-// drives cline SSL handshake
-static void client_try_handshake (struct client_data *client);
+// BConnection handler
+static void client_connection_handler (struct client_data *client, int event);
 
-// event handler for driving client SSL handshake
-static void client_handshake_read_handler (struct client_data *client, PRInt16 event);
+// BSSLConnection handler
+static void client_sslcon_handler (struct client_data *client, int event);
 
-// handler for client I/O errors. Removes the client.
-static void client_error_handler (struct client_data *client, int component, int code);
+// decoder handler
+static void client_decoder_handler (struct client_data *client, int component, int code);
 
 // provides a buffer for sending a control packet to the client
 static int client_start_control_packet (struct client_data *client, void **data, int len);
@@ -339,9 +334,9 @@ int main (int argc, char *argv[])
     
     BLog(BLOG_NOTICE, "initializing "GLOBAL_PRODUCT_NAME" "PROGRAM_NAME" "GLOBAL_VERSION);
     
-    // initialize sockets
-    if (BSocket_GlobalInit() < 0) {
-        BLog(BLOG_ERROR, "BSocket_GlobalInit failed");
+    // initialize network
+    if (!BNetwork_GlobalInit()) {
+        BLog(BLOG_ERROR, "BNetwork_GlobalInit failed");
         goto fail1;
     }
     
@@ -405,8 +400,8 @@ int main (int argc, char *argv[])
             BLog(BLOG_ERROR, "DummyPRFileDesc_GlobalInit failed");
             goto fail3;
         }
-        if (!BSocketPRFileDesc_GlobalInit()) {
-            BLog(BLOG_ERROR, "BSocketPRFileDesc_GlobalInit failed");
+        if (!BSSLConnection_GlobalInit()) {
+            BLog(BLOG_ERROR, "BSSLConnection_GlobalInit failed");
             goto fail3;
         }
         
@@ -462,8 +457,8 @@ int main (int argc, char *argv[])
     // initialize listeners
     num_listeners = 0;
     while (num_listeners < num_listen_addrs) {
-        if (!Listener_Init(&listeners[num_listeners], &ss, listen_addrs[num_listeners], (Listener_handler)listener_handler, &listeners[num_listeners])) {
-            BLog(BLOG_ERROR, "Listener_Init failed");
+        if (!BListener_Init(&listeners[num_listeners], listen_addrs[num_listeners], &ss, &listeners[num_listeners], (BListener_handler)listener_handler)) {
+            BLog(BLOG_ERROR, "BListener_Init failed");
             goto fail7;
         }
         num_listeners++;
@@ -511,7 +506,7 @@ int main (int argc, char *argv[])
 fail7:
     while (num_listeners > 0) {
         num_listeners--;
-        Listener_Free(&listeners[num_listeners]);
+        BListener_Free(&listeners[num_listeners]);
     }
     
     if (options.ssl) {
@@ -776,7 +771,7 @@ void signal_handler (void *unused)
     BReactor_Quit(&ss, 0);
 }
 
-void listener_handler (Listener *listener)
+void listener_handler (BListener *listener)
 {
     if (clients_num == MAX_CLIENTS) {
         BLog(BLOG_WARNING, "too many clients for new client");
@@ -791,14 +786,14 @@ void listener_handler (Listener *listener)
     }
     
     // accept connection
-    if (!Listener_Accept(listener, &client->sock, &client->addr)) {
-        BLog(BLOG_NOTICE, "Listener_Accept failed");
+    if (!BConnection_Init(&client->con, BCONNECTION_SOURCE_LISTENER(listener, &client->addr), &ss, client, (BConnection_handler)client_connection_handler)) {
+        BLog(BLOG_ERROR, "BConnection_Init failed");
         goto fail1;
     }
     
     // limit socket send buffer, else our scheduling is pointless
-    if (BSocket_SetSendBuffer(&client->sock, CLIENT_SOCKET_SEND_BUFFER) < 0) {
-        BLog(BLOG_WARNING, "BSocket_SetSendBuffer failed");
+    if (!BConnection_SetSendBuffer(&client->con, CLIENT_SOCKET_SEND_BUFFER) < 0) {
+        BLog(BLOG_WARNING, "BConnection_SetSendBuffer failed");
     }
     
     // assign ID
@@ -809,11 +804,18 @@ void listener_handler (Listener *listener)
     
     // now client_log() works
     
+    // init connection interfaces
+    BConnection_SendAsync_Init(&client->con);
+    BConnection_RecvAsync_Init(&client->con);
+    
     if (options.ssl) {
-        // create BSocket NSPR file descriptor
-        BSocketPRFileDesc_Create(&client->bottom_prfd, &client->sock);
+        // create bottom NSPR file descriptor
+        if (!BSSLConnection_MakeBackend(&client->bottom_prfd, BConnection_SendAsync_GetIf(&client->con), BConnection_RecvAsync_GetIf(&client->con))) {
+            client_log(client, BLOG_ERROR, "BSSLConnection_MakeBackend failed");
+            goto fail2;
+        }
         
-        // create SSL file descriptor from the socket's BSocketPRFileDesc
+        // create SSL file descriptor from the bottom NSPR file descriptor
         if (!(client->ssl_prfd = SSL_ImportFD(model_prfd, &client->bottom_prfd))) {
             client_log(client, BLOG_ERROR, "SSL_ImportFD failed");
             ASSERT_FORCE(PR_Close(&client->bottom_prfd) == PR_SUCCESS)
@@ -836,8 +838,8 @@ void listener_handler (Listener *listener)
             goto fail3;
         }
         
-        // initialize BPRFileDesc on SSL file descriptor
-        BPRFileDesc_Init(&client->ssl_bprfd, client->ssl_prfd);
+        // init SSL connection
+        BSSLConnection_Init(&client->sslcon, client->ssl_prfd, 1, &ss, client, (BSSLConnection_handler)client_sslcon_handler);
     } else {
         // initialize I/O
         if (!client_init_io(client)) {
@@ -871,24 +873,16 @@ void listener_handler (Listener *listener)
     
     client_log(client, BLOG_INFO, "initialized");
     
-    // start I/O
-    if (options.ssl) {
-        // set read handler for driving handshake
-        BPRFileDesc_AddEventHandler(&client->ssl_bprfd, PR_POLL_READ, (BPRFileDesc_handler)client_handshake_read_handler, client);
-        
-        // start handshake
-        client_try_handshake(client);
-        return;
-    } else {
-        return;
-    }
+    return;
     
     if (options.ssl) {
 fail3:
         ASSERT_FORCE(PR_Close(client->ssl_prfd) == PR_SUCCESS)
     }
 fail2:
-    BSocket_Free(&client->sock);
+    BConnection_RecvAsync_Free(&client->con);
+    BConnection_SendAsync_Free(&client->con);
+    BConnection_Free(&client->con);
 fail1:
     free(client);
 fail0:
@@ -919,7 +913,7 @@ void client_dealloc (struct client_data *client)
     
     // free SSL
     if (options.ssl) {
-        BPRFileDesc_Free(&client->ssl_bprfd);
+        BSSLConnection_Free(&client->sslcon);
         ASSERT_FORCE(PR_Close(client->ssl_prfd) == PR_SUCCESS)
     }
     
@@ -928,8 +922,12 @@ void client_dealloc (struct client_data *client)
         PORT_Free(client->common_name);
     }
     
-    // free socket
-    BSocket_Free(&client->sock);
+    // free connection interfaces
+    BConnection_RecvAsync_Free(&client->con);
+    BConnection_SendAsync_Free(&client->con);
+    
+    // free connection
+    BConnection_Free(&client->con);
     
     // free memory
     free(client);
@@ -937,27 +935,18 @@ void client_dealloc (struct client_data *client)
 
 int client_init_io (struct client_data *client)
 {
-    // initialize error domain
-    FlowErrorDomain_Init(&client->domain, (FlowErrorDomain_handler)client_error_handler, client);
+    StreamPassInterface *send_if = (options.ssl ? BSSLConnection_GetSendIf(&client->sslcon) : BConnection_SendAsync_GetIf(&client->con));
+    StreamRecvInterface *recv_if = (options.ssl ? BSSLConnection_GetRecvIf(&client->sslcon) : BConnection_RecvAsync_GetIf(&client->con));
     
     // init input
-    
-    // init source
-    StreamRecvInterface *source_interface;
-    if (options.ssl) {
-        PRStreamSource_Init(&client->input_source.ssl, FlowErrorReporter_Create(&client->domain, COMPONENT_SOURCE), &client->ssl_bprfd, BReactor_PendingGroup(&ss));
-        source_interface = PRStreamSource_GetOutput(&client->input_source.ssl);
-    } else {
-        StreamSocketSource_Init(&client->input_source.plain, FlowErrorReporter_Create(&client->domain, COMPONENT_SOURCE), &client->sock, BReactor_PendingGroup(&ss));
-        source_interface = StreamSocketSource_GetOutput(&client->input_source.plain);
-    }
     
     // init interface
     PacketPassInterface_Init(&client->input_interface, SC_MAX_ENC, (PacketPassInterface_handler_send)client_input_handler_send, client, BReactor_PendingGroup(&ss));
     
     // init decoder
-    if (!PacketProtoDecoder_Init(&client->input_decoder, FlowErrorReporter_Create(&client->domain, COMPONENT_DECODER),
-        source_interface, &client->input_interface, BReactor_PendingGroup(&ss)
+    FlowErrorDomain_Init(&client->input_decoder_domain, (FlowErrorDomain_handler)client_decoder_handler, client);
+    if (!PacketProtoDecoder_Init(&client->input_decoder, FlowErrorReporter_Create(&client->input_decoder_domain, 0),
+        recv_if, &client->input_interface, BReactor_PendingGroup(&ss)
     )) {
         client_log(client, BLOG_ERROR, "PacketProtoDecoder_Init failed");
         goto fail1;
@@ -965,18 +954,8 @@ int client_init_io (struct client_data *client)
     
     // init output common
     
-    // init sink
-    StreamPassInterface *sink_interface;
-    if (options.ssl) {
-        PRStreamSink_Init(&client->output_sink.ssl, FlowErrorReporter_Create(&client->domain, COMPONENT_SINK), &client->ssl_bprfd, BReactor_PendingGroup(&ss));
-        sink_interface = PRStreamSink_GetInput(&client->output_sink.ssl);
-    } else {
-        StreamSocketSink_Init(&client->output_sink.plain, FlowErrorReporter_Create(&client->domain, COMPONENT_SINK), &client->sock, BReactor_PendingGroup(&ss));
-        sink_interface = StreamSocketSink_GetInput(&client->output_sink.plain);
-    }
-    
     // init sender
-    PacketStreamSender_Init(&client->output_sender, sink_interface, PACKETPROTO_ENCLEN(SC_MAX_ENC), BReactor_PendingGroup(&ss));
+    PacketStreamSender_Init(&client->output_sender, send_if, PACKETPROTO_ENCLEN(SC_MAX_ENC), BReactor_PendingGroup(&ss));
     
     // init queue
     PacketPassPriorityQueue_Init(&client->output_priorityqueue, PacketStreamSender_GetInput(&client->output_sender), BReactor_PendingGroup(&ss), 0);
@@ -1016,20 +995,10 @@ fail2:
     // free output common
     PacketPassPriorityQueue_Free(&client->output_priorityqueue);
     PacketStreamSender_Free(&client->output_sender);
-    if (options.ssl) {
-        PRStreamSink_Free(&client->output_sink.ssl);
-    } else {
-        StreamSocketSink_Free(&client->output_sink.plain);
-    }
     // free input
     PacketProtoDecoder_Free(&client->input_decoder);
 fail1:
     PacketPassInterface_Free(&client->input_interface);
-    if (options.ssl) {
-        PRStreamSource_Free(&client->input_source.ssl);
-    } else {
-        StreamSocketSource_Free(&client->input_source.plain);
-    }
     return 0;
 }
 
@@ -1060,20 +1029,10 @@ void client_dealloc_io (struct client_data *client)
     // free output common
     PacketPassPriorityQueue_Free(&client->output_priorityqueue);
     PacketStreamSender_Free(&client->output_sender);
-    if (options.ssl) {
-        PRStreamSink_Free(&client->output_sink.ssl);
-    } else {
-        StreamSocketSink_Free(&client->output_sink.plain);
-    }
     
     // free input
     PacketProtoDecoder_Free(&client->input_decoder);
     PacketPassInterface_Free(&client->input_interface);
-    if (options.ssl) {
-        PRStreamSource_Free(&client->input_source.ssl);
-    } else {
-        StreamSocketSource_Free(&client->input_source.plain);
-    }
 }
 
 void client_remove (struct client_data *client)
@@ -1160,25 +1119,34 @@ void client_disconnect_timer_handler (struct client_data *client)
     return;
 }
 
-void client_try_handshake (struct client_data *client)
+void client_connection_handler (struct client_data *client, int event)
 {
-    ASSERT(client->initstatus == INITSTATUS_HANDSHAKE)
     ASSERT(!client->dying)
     
-    // attempt handshake
-    if (SSL_ForceHandshake(client->ssl_prfd) != SECSuccess) {
-        PRErrorCode error = PR_GetError();
-        if (error == PR_WOULD_BLOCK_ERROR) {
-            // try again on read event
-            BPRFileDesc_EnableEvent(&client->ssl_bprfd, PR_POLL_READ);
-            return;
-        }
-        client_log(client, BLOG_NOTICE, "SSL_ForceHandshake failed (%d)", (int)error);
-        goto fail0;
+    if (event == BCONNECTION_EVENT_RECVCLOSED) {
+        client_log(client, BLOG_INFO, "connection closed");
+    } else {
+        client_log(client, BLOG_INFO, "connection error");
     }
     
-    // remove read handler
-    BPRFileDesc_RemoveEventHandler(&client->ssl_bprfd, PR_POLL_READ);
+    client_remove(client);
+    return;
+}
+
+void client_sslcon_handler (struct client_data *client, int event)
+{
+    ASSERT(options.ssl)
+    ASSERT(!client->dying)
+    ASSERT(event == BSSLCONNECTION_EVENT_UP || event == BSSLCONNECTION_EVENT_ERROR)
+    ASSERT(!(event == BSSLCONNECTION_EVENT_UP) || client->initstatus == INITSTATUS_HANDSHAKE)
+    
+    if (event == BSSLCONNECTION_EVENT_ERROR) {
+        client_log(client, BLOG_ERROR, "SSL error");
+        client_remove(client);
+        return;
+    }
+    
+    client_log(client, BLOG_INFO, "handshake complete");
     
     // get client certificate
     CERTCertificate *cert = SSL_PeerCertificate(client->ssl_prfd);
@@ -1247,26 +1215,12 @@ fail0:
     client_remove(client);
 }
 
-void client_handshake_read_handler (struct client_data *client, PRInt16 event)
-{
-    ASSERT(client->initstatus == INITSTATUS_HANDSHAKE)
-    ASSERT(!client->dying)
-    ASSERT(event == PR_POLL_READ)
-    
-    // restart no data timer
-    BReactor_SetTimer(&ss, &client->disconnect_timer);
-    
-    // continue handshake
-    client_try_handshake(client);
-    return;
-}
-
-void client_error_handler (struct client_data *client, int component, int code)
+void client_decoder_handler (struct client_data *client, int component, int code)
 {
     ASSERT(INITSTATUS_HASLINK(client->initstatus))
     ASSERT(!client->dying)
     
-    client_log(client, BLOG_NOTICE, "error");
+    client_log(client, BLOG_ERROR, "decoder error");
     
     client_remove(client);
     return;

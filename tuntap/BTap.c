@@ -61,140 +61,25 @@ static void output_handler_recv (BTap *o, uint8_t *data);
 
 #ifdef BADVPN_USE_WINAPI
 
-static int try_send (BTap *o, uint8_t *data, int data_len)
+static void recv_olap_handler (BTap *o, int event, DWORD bytes)
 {
-    // setup overlapped
-    memset(&o->input_ol, 0, sizeof(o->input_ol));
-    o->input_ol.hEvent = o->input_event;
-    
-    // attempt write
-    if (!WriteFile(o->device, data, data_len, NULL, &o->input_ol)) {
-        DWORD error = GetLastError();
-        if (error == ERROR_IO_PENDING) {
-            // write pending
-            return 0;
-        }
-        BLog(BLOG_WARNING, "WriteFile failed (%u)", error);
-        return 1;
-    }
-    
-    // read result
-    DWORD bytes;
-    if (!GetOverlappedResult(o->device, &o->input_ol, &bytes, FALSE)) {
-        BLog(BLOG_WARNING, "GetOverlappedResult failed (%u)", GetLastError());
-    }
-    else if (bytes != data_len) {
-        BLog(BLOG_WARNING, "written %d expected %d", (int)bytes, data_len);
-    }
-    
-    // reset event
-    ASSERT_FORCE(ResetEvent(o->input_event))
-    
-    return 1;
-}
-
-static int try_recv (BTap *o, uint8_t *data, int *data_len)
-{
-    // setup overlapped
-    memset(&o->output_ol, 0, sizeof(o->output_ol));
-    o->output_ol.hEvent = o->output_event;
-    
-    // attempt read
-    if (!ReadFile(o->device, data, o->frame_mtu, NULL, &o->output_ol)) {
-        DWORD error = GetLastError();
-        if (error == ERROR_IO_PENDING) {
-            // read pending
-            return 0;
-        }
-        
-        BLog(BLOG_ERROR, "ReadFile failed (%u)", error);
-        
-        // fatal error
-        return -1;
-    }
-    
-    // read result
-    DWORD bytes;
-    if (!GetOverlappedResult(o->device, &o->output_ol, &bytes, FALSE)) {
-        BLog(BLOG_ERROR, "GetOverlappedResult (output) failed (%u)", GetLastError());
-        
-        // fatal error
-        return -1;
-    }
-    
-    ASSERT_FORCE(bytes <= o->frame_mtu)
-    
-    // reset event
-    ASSERT_FORCE(ResetEvent(o->output_event))
-    
-    *data_len = bytes;
-    return 1;
-}
-
-static void write_handle_handler (BTap *o)
-{
-    ASSERT(o->input_packet_len >= 0)
-    DebugError_AssertNoError(&o->d_err);
     DebugObject_Access(&o->d_obj);
-    
-    // disable handle event
-    BReactor_DisableHandle(o->reactor, &o->input_bhandle);
-    
-    // read result
-    DWORD bytes;
-    if (!GetOverlappedResult(o->device, &o->input_ol, &bytes, FALSE)) {
-        BLog(BLOG_WARNING, "GetOverlappedResult (input) failed (%u)", GetLastError());
-    } else if (bytes != o->input_packet_len) {
-        BLog(BLOG_WARNING, "written %d expected %d", (int)bytes, o->input_packet_len);
-    }
-    
-    // set no input packet
-    o->input_packet_len = -1;
-    
-    // reset event
-    ASSERT_FORCE(ResetEvent(o->input_event))
-    
-    // inform sender we finished the packet
-    PacketPassInterface_Done(&o->input);
-}
-
-static void read_handle_handler (BTap *o)
-{
     ASSERT(o->output_packet)
-    DebugError_AssertNoError(&o->d_err);
-    DebugObject_Access(&o->d_obj);
-    
-    int bytes;
-    
-    // read result
-    DWORD dbytes;
-    if (!GetOverlappedResult(o->device, &o->output_ol, &dbytes, FALSE)) {
-        DWORD error = GetLastError();
-        BLog(BLOG_ERROR, "GetOverlappedResult (output) failed (%u)", error);
-        
-        // set no output packet (so that BTap_Free doesn't try getting the result again)
-        o->output_packet = NULL;
-        
-        // report fatal error
-        report_error(o);
-        return;
-    }
-    
-    // reset event
-    ASSERT_FORCE(ResetEvent(o->output_event))
-    
-    bytes = dbytes;
-    
-done:
-    ASSERT_FORCE(bytes <= o->frame_mtu)
-    
-    // disable handle event
-    BReactor_DisableHandle(o->reactor, &o->output_bhandle);
+    ASSERT(event == BREACTOR_IOCP_EVENT_SUCCEEDED || event == BREACTOR_IOCP_EVENT_FAILED)
     
     // set no output packet
     o->output_packet = NULL;
     
-    // inform receiver we finished the packet
+    if (event == BREACTOR_IOCP_EVENT_FAILED) {
+        BLog(BLOG_ERROR, "read operation failed");
+        report_error(o);
+        return;
+    }
+    
+    ASSERT(bytes >= 0)
+    ASSERT(bytes <= o->frame_mtu)
+    
+    // done
     PacketRecvInterface_Done(&o->output, bytes);
 }
 
@@ -284,13 +169,32 @@ void input_handler_send (BTap *o, uint8_t *data, int data_len)
     #ifdef BADVPN_USE_WINAPI
     
     // ignore frames without an Ethernet header, or we get errors in WriteFile
-    if (data_len >= 14) {
-        if (!try_send(o, data, data_len)) {
-            // write pending
-            o->input_packet = data;
-            o->input_packet_len = data_len;
-            BReactor_EnableHandle(o->reactor, &o->input_bhandle);
-            return;
+    if (data_len < 14) {
+        goto accept;
+    }
+    
+    memset(&o->send_olap.olap, 0, sizeof(o->send_olap.olap));
+    
+    // write
+    BOOL res = WriteFile(o->device, data, data_len, NULL, &o->send_olap.olap);
+    if (res == FALSE && GetLastError() != ERROR_IO_PENDING) {
+        BLog(BLOG_ERROR, "WriteFile failed (%u)", GetLastError());
+        goto accept;
+    }
+    
+    // wait
+    int succeeded;
+    DWORD bytes;
+    BReactorIOCPOverlapped_Wait(&o->send_olap, &succeeded, &bytes);
+    
+    if (!succeeded) {
+        BLog(BLOG_ERROR, "write operation failed");
+    } else {
+        ASSERT(bytes >= 0)
+        ASSERT(bytes <= data_len)
+        
+        if (bytes < data_len) {
+            BLog(BLOG_ERROR, "write operation didn't write everything");
         }
     }
     
@@ -318,6 +222,7 @@ void input_handler_send (BTap *o, uint8_t *data, int data_len)
     
     #endif
     
+accept:
     PacketPassInterface_Done(&o->input);
 }
 
@@ -328,23 +233,21 @@ void output_handler_recv (BTap *o, uint8_t *data)
     DebugError_AssertNoError(&o->d_err);
     DebugObject_Access(&o->d_obj);
     
-    #ifdef BADVPN_USE_WINAPI
+#ifdef BADVPN_USE_WINAPI
     
-    int bytes;
-    int res;
-    if ((res = try_recv(o, data, &bytes)) < 0) {
-        // report fatal error
+    memset(&o->recv_olap.olap, 0, sizeof(o->recv_olap.olap));
+    
+    // read
+    BOOL res = ReadFile(o->device, data, o->frame_mtu, NULL, &o->recv_olap.olap);
+    if (res == FALSE && GetLastError() != ERROR_IO_PENDING) {
+        BLog(BLOG_ERROR, "ReadFile failed (%u)", GetLastError());
         report_error(o);
         return;
     }
-    if (!res) {
-        // read pending
-        o->output_packet = data;
-        BReactor_EnableHandle(o->reactor, &o->output_bhandle);
-        return;
-    }
     
-    #else
+    o->output_packet = data;
+    
+#else
     
     // attempt read
     int bytes = read(o->fd, data, o->frame_mtu);
@@ -363,11 +266,11 @@ void output_handler_recv (BTap *o, uint8_t *data)
         return;
     }
     
-    #endif
-    
     ASSERT_FORCE(bytes <= o->frame_mtu)
     
     PacketRecvInterface_Done(&o->output, bytes);
+    
+#endif
 }
 
 int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error handler_error, void *handler_error_user, int tun)
@@ -463,38 +366,21 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     
     BLog(BLOG_INFO, "Device opened");
     
-    // init input/output
+    // associate device with IOCP
     
-    if (!(o->input_event = CreateEvent(NULL, TRUE, FALSE, NULL))) {
-        BLog(BLOG_ERROR, "CreateEvent failed");
+    if (!CreateIoCompletionPort(o->device, BReactor_GetIOCPHandle(o->reactor), 0, 0)) {
+        BLog(BLOG_ERROR, "CreateIoCompletionPort failed");
         goto fail1;
     }
     
-    if (!(o->output_event = CreateEvent(NULL, TRUE, FALSE, NULL))) {
-        BLog(BLOG_ERROR, "CreateEvent failed");
-        goto fail2;
-    }
+    // init send olap
+    BReactorIOCPOverlapped_Init(&o->send_olap, o->reactor, o, NULL);
     
-    BHandle_Init(&o->input_bhandle, o->input_event, (BHandle_handler)write_handle_handler, o);
-    BHandle_Init(&o->output_bhandle, o->output_event, (BHandle_handler)read_handle_handler, o);
-    
-    if (!BReactor_AddHandle(o->reactor, &o->input_bhandle)) {
-        BLog(BLOG_ERROR, "BReactor_AddHandle failed");
-        goto fail3;
-    }
-    if (!BReactor_AddHandle(o->reactor, &o->output_bhandle)) {
-        BLog(BLOG_ERROR, "BReactor_AddHandle failed");
-        goto fail4;
-    }
+    // init recv olap
+    BReactorIOCPOverlapped_Init(&o->recv_olap, o->reactor, o, (BReactorIOCPOverlapped_handler)recv_olap_handler);
     
     goto success;
     
-fail4:
-    BReactor_RemoveHandle(o->reactor, &o->input_bhandle);
-fail3:
-    ASSERT_FORCE(CloseHandle(o->output_event))
-fail2:
-    ASSERT_FORCE(CloseHandle(o->input_event))
 fail1:
     ASSERT_FORCE(CloseHandle(o->device))
 fail0:
@@ -650,37 +536,33 @@ void BTap_Free (BTap *o)
     // free input
     PacketPassInterface_Free(&o->input);
     
-    #ifdef BADVPN_USE_WINAPI
+#ifdef BADVPN_USE_WINAPI
     
-    // wait for pending i/o
+    // cancel I/O
     ASSERT_FORCE(CancelIo(o->device))
-    DWORD bytes;
-    DWORD error;
-    if (o->input_packet_len >= 0) {
-        if (!GetOverlappedResult(o->device, &o->input_ol, &bytes, TRUE)) {
-            error = GetLastError();
-            if (error != ERROR_OPERATION_ABORTED) {
-                BLog(BLOG_WARNING, "GetOverlappedResult (input) failed (%u)", error);
-            }
-        }
-    }
+    
+    // wait receiving to finish
     if (o->output_packet) {
-        if (!GetOverlappedResult(o->device, &o->output_ol, &bytes, TRUE)) {
-            error = GetLastError();
-            if (error != ERROR_OPERATION_ABORTED) {
-                BLog(BLOG_WARNING, "GetOverlappedResult (output) failed (%u)", error);
-            }
-        }
+        BLog(BLOG_DEBUG, "waiting for sending to finish");
+        BReactorIOCPOverlapped_Wait(&o->recv_olap, NULL, NULL);
     }
     
-    // free stuff
-    BReactor_RemoveHandle(o->reactor, &o->input_bhandle);
-    BReactor_RemoveHandle(o->reactor, &o->output_bhandle);
-    ASSERT_FORCE(CloseHandle(o->output_event))
-    ASSERT_FORCE(CloseHandle(o->input_event))
+    // wait sending to finish
+    if (o->input_packet_len >= 0) {
+        BLog(BLOG_DEBUG, "waiting for sending to finish");
+        BReactorIOCPOverlapped_Wait(&o->send_olap, NULL, NULL);
+    }
+    
+    // free recv olap
+    BReactorIOCPOverlapped_Free(&o->recv_olap);
+    
+    // free send olap
+    BReactorIOCPOverlapped_Free(&o->send_olap);
+    
+    // close device
     ASSERT_FORCE(CloseHandle(o->device))
     
-    #else
+#else
     
     // free BFileDescriptor
     BReactor_RemoveFileDescriptor(o->reactor, &o->bfd);
@@ -688,7 +570,7 @@ void BTap_Free (BTap *o)
     // close file descriptor
     ASSERT_FORCE(close(o->fd) == 0)
     
-    #endif
+#endif
 }
 
 int BTap_GetMTU (BTap *o)

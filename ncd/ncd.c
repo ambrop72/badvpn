@@ -38,7 +38,7 @@
 #include <base/BLog.h>
 #include <system/BReactor.h>
 #include <system/BSignal.h>
-#include <system/BSocket.h>
+#include <system/BConnection.h>
 #include <process/BProcess.h>
 #include <udevmonitor/NCDUdevManager.h>
 #include <ncdconfig/NCDConfigParser.h>
@@ -222,9 +222,9 @@ int main (int argc, char **argv)
     
     BLog(BLOG_NOTICE, "initializing "GLOBAL_PRODUCT_NAME" "PROGRAM_NAME" "GLOBAL_VERSION);
     
-    // initialize sockets
-    if (BSocket_GlobalInit() < 0) {
-        BLog(BLOG_ERROR, "BSocket_GlobalInit failed");
+    // initialize network
+    if (!BNetwork_GlobalInit()) {
+        BLog(BLOG_ERROR, "BNetwork_GlobalInit failed");
         goto fail1;
     }
     

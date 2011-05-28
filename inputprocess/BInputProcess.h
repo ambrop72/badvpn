@@ -25,9 +25,8 @@
 
 #include <misc/debug.h>
 #include <base/DebugObject.h>
-#include <system/BSocket.h>
+#include <system/BConnection.h>
 #include <process/BProcess.h>
-#include <flowextra/StreamSocketSource.h>
 
 typedef void (*BInputProcess_handler_terminated) (void *user, int normally, uint8_t normally_exit_status);
 typedef void (*BInputProcess_handler_closed) (void *user, int is_error);
@@ -43,9 +42,7 @@ typedef struct {
     int have_process;
     BProcess process;
     int pipe_fd;
-    BSocket pipe_sock;
-    FlowErrorDomain pipe_domain;
-    StreamSocketSource pipe_source;
+    BConnection pipe_con;
     DebugObject d_obj;
 } BInputProcess;
 

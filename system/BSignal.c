@@ -41,10 +41,9 @@ struct {
     BSignal_handler handler;
     void *user;
     #ifdef BADVPN_USE_WINAPI
-    CRITICAL_SECTION handler_mutex; // mutex to make sure only one handler is working at a time
-    HANDLE signal_sem1;
-    HANDLE signal_sem2;
-    BHandle bhandle;
+    BReactorIOCPOverlapped olap;
+    CRITICAL_SECTION iocp_handle_mutex;
+    HANDLE iocp_handle;
     #else
     BUnixSignal signal;
     #endif
@@ -54,30 +53,32 @@ struct {
 
 #ifdef BADVPN_USE_WINAPI
 
-static void signal_handle_handler (void *user)
+static void olap_handler (void *user, int event, DWORD bytes)
 {
     ASSERT(bsignal_global.initialized)
-    ASSERT(!bsignal_global.finished)
+    ASSERT(!(event == BREACTOR_IOCP_EVENT_EXITING) || bsignal_global.finished)
     
-    ASSERT_FORCE(ReleaseSemaphore(bsignal_global.signal_sem2, 1, NULL))
+    if (event == BREACTOR_IOCP_EVENT_EXITING) {
+        BReactorIOCPOverlapped_Free(&bsignal_global.olap);
+        return;
+    }
     
-    BLog(BLOG_DEBUG, "Dispatching signal");
-    
-    // call handler
-    bsignal_global.handler(bsignal_global.user);
-    return;
+    if (!bsignal_global.finished) {
+        // call handler
+        bsignal_global.handler(bsignal_global.user);
+        return;
+    }
 }
 
 static BOOL WINAPI ctrl_handler (DWORD type)
 {
-    // don't check bsignal_global.initialized to avoid a race
+    EnterCriticalSection(&bsignal_global.iocp_handle_mutex);
     
-    EnterCriticalSection(&bsignal_global.handler_mutex);
+    if (bsignal_global.iocp_handle) {
+        PostQueuedCompletionStatus(bsignal_global.iocp_handle, 0, 0, &bsignal_global.olap.olap);
+    }
     
-    ASSERT_FORCE(ReleaseSemaphore(bsignal_global.signal_sem1, 1, NULL))
-    ASSERT_FORCE(WaitForSingleObject(bsignal_global.signal_sem2, INFINITE) == WAIT_OBJECT_0)
-    
-    LeaveCriticalSection(&bsignal_global.handler_mutex);
+    LeaveCriticalSection(&bsignal_global.iocp_handle_mutex);
     
     return TRUE;
 }
@@ -112,30 +113,19 @@ int BSignal_Init (BReactor *reactor, BSignal_handler handler, void *user)
     
     #ifdef BADVPN_USE_WINAPI
     
-    InitializeCriticalSection(&bsignal_global.handler_mutex);
+    // init olap
+    BReactorIOCPOverlapped_Init(&bsignal_global.olap, bsignal_global.reactor, NULL, olap_handler);
     
-    if (!(bsignal_global.signal_sem1 = CreateSemaphore(NULL, 0, 1, NULL))) {
-        BLog(BLOG_ERROR, "CreateSemaphore failed");
-        goto fail1;
-    }
+    // init handler mutex
+    InitializeCriticalSection(&bsignal_global.iocp_handle_mutex);
     
-    if (!(bsignal_global.signal_sem2 = CreateSemaphore(NULL, 0, 1, NULL))) {
-        BLog(BLOG_ERROR, "CreateSemaphore failed");
-        goto fail2;
-    }
-    
-    // init BHandle
-    BHandle_Init(&bsignal_global.bhandle, bsignal_global.signal_sem1, signal_handle_handler, NULL);
-    if (!BReactor_AddHandle(bsignal_global.reactor, &bsignal_global.bhandle)) {
-        BLog(BLOG_ERROR, "BReactor_AddHandle failed");
-        goto fail3;
-    }
-    BReactor_EnableHandle(bsignal_global.reactor, &bsignal_global.bhandle);
+    // remember IOCP handle
+    bsignal_global.iocp_handle = BReactor_GetIOCPHandle(bsignal_global.reactor);
     
     // configure ctrl handler
     if (!SetConsoleCtrlHandler(ctrl_handler, TRUE)) {
         BLog(BLOG_ERROR, "SetConsoleCtrlHandler failed");
-        goto fail4;
+        goto fail1;
     }
     
     #else
@@ -159,14 +149,9 @@ int BSignal_Init (BReactor *reactor, BSignal_handler handler, void *user)
     return 1;
     
     #ifdef BADVPN_USE_WINAPI
-fail4:
-    BReactor_RemoveHandle(bsignal_global.reactor, &bsignal_global.bhandle);
-fail3:
-    ASSERT_FORCE(CloseHandle(bsignal_global.signal_sem2))
-fail2:
-    ASSERT_FORCE(CloseHandle(bsignal_global.signal_sem1))
 fail1:
-    DeleteCriticalSection(&bsignal_global.handler_mutex);
+    DeleteCriticalSection(&bsignal_global.iocp_handle_mutex);
+    BReactorIOCPOverlapped_Free(&bsignal_global.olap);
     #endif
     
 fail0:
@@ -180,8 +165,10 @@ void BSignal_Finish (void)
     
     #ifdef BADVPN_USE_WINAPI
     
-    // free BHandle
-    BReactor_RemoveHandle(bsignal_global.reactor, &bsignal_global.bhandle);
+    // forget IOCP handle
+    EnterCriticalSection(&bsignal_global.iocp_handle_mutex);
+    bsignal_global.iocp_handle = NULL;
+    LeaveCriticalSection(&bsignal_global.iocp_handle_mutex);
     
     #else
     

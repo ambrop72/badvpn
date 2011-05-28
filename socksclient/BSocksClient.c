@@ -45,9 +45,8 @@ static void init_up_io (BSocksClient *o);
 static void free_up_io (BSocksClient *o);
 static void start_receive (BSocksClient *o, uint8_t *dest, int total);
 static void do_receive (BSocksClient *o);
-static void error_handler (BSocksClient *o, int component, int code);
-static void socket_error_handler (BSocksClient *o, int event);
-static void connect_handler (BSocksClient *o, int event);
+static void connector_handler (BSocksClient* o, int is_error);
+static void connection_handler (BSocksClient* o, int event);
 static void recv_handler_done (BSocksClient *o, int data_len);
 static void send_handler_done (BSocksClient *o);
 
@@ -59,13 +58,13 @@ void report_error (BSocksClient *o, int error)
 void init_control_io (BSocksClient *o)
 {
     // init receiving
-    StreamSocketSource_Init(&o->control.recv_source, FlowErrorReporter_Create(&o->domain, COMPONENT_SOURCE), &o->sock, BReactor_PendingGroup(o->reactor));
-    o->control.recv_if = StreamSocketSource_GetOutput(&o->control.recv_source);
+    BConnection_RecvAsync_Init(&o->con);
+    o->control.recv_if = BConnection_RecvAsync_GetIf(&o->con);
     StreamRecvInterface_Receiver_Init(o->control.recv_if, (StreamRecvInterface_handler_done)recv_handler_done, o);
     
     // init sending
-    StreamSocketSink_Init(&o->control.send_sink, FlowErrorReporter_Create(&o->domain, COMPONENT_SINK), &o->sock, BReactor_PendingGroup(o->reactor));
-    PacketStreamSender_Init(&o->control.send_sender, StreamSocketSink_GetInput(&o->control.send_sink), sizeof(o->control.msg), BReactor_PendingGroup(o->reactor));
+    BConnection_SendAsync_Init(&o->con);
+    PacketStreamSender_Init(&o->control.send_sender, BConnection_SendAsync_GetIf(&o->con), sizeof(o->control.msg), BReactor_PendingGroup(o->reactor));
     o->control.send_if = PacketStreamSender_GetInput(&o->control.send_sender);
     PacketPassInterface_Sender_Init(o->control.send_if, (PacketPassInterface_handler_done)send_handler_done, o);
 }
@@ -74,28 +73,28 @@ void free_control_io (BSocksClient *o)
 {
     // free sending
     PacketStreamSender_Free(&o->control.send_sender);
-    StreamSocketSink_Free(&o->control.send_sink);
+    BConnection_SendAsync_Free(&o->con);
     
     // free receiving
-    StreamSocketSource_Free(&o->control.recv_source);
+    BConnection_RecvAsync_Free(&o->con);
 }
 
 void init_up_io (BSocksClient *o)
 {
     // init receiving
-    StreamSocketSource_Init(&o->up.recv_source, FlowErrorReporter_Create(&o->domain, COMPONENT_SOURCE), &o->sock, BReactor_PendingGroup(o->reactor));
+    BConnection_RecvAsync_Init(&o->con);
     
     // init sending
-    StreamSocketSink_Init(&o->up.send_sink, FlowErrorReporter_Create(&o->domain, COMPONENT_SINK), &o->sock, BReactor_PendingGroup(o->reactor));
+    BConnection_SendAsync_Init(&o->con);
 }
 
 void free_up_io (BSocksClient *o)
 {
     // free sending
-    StreamSocketSink_Free(&o->up.send_sink);
+    BConnection_SendAsync_Free(&o->con);
     
     // free receiving
-    StreamSocketSource_Free(&o->up.recv_source);
+    BConnection_RecvAsync_Free(&o->con);
 }
 
 void start_receive (BSocksClient *o, uint8_t *dest, int total)
@@ -116,46 +115,21 @@ void do_receive (BSocksClient *o)
     StreamRecvInterface_Receiver_Recv(o->control.recv_if, o->control.recv_dest + o->control.recv_len, o->control.recv_total - o->control.recv_len);
 }
 
-void error_handler (BSocksClient* o, int component, int code)
+void connector_handler (BSocksClient* o, int is_error)
 {
-    ASSERT(component == COMPONENT_SOURCE || component == COMPONENT_SINK)
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->state == STATE_CONNECTING)
     
-    if (o->state == STATE_UP && component == COMPONENT_SOURCE && code == STREAMSOCKETSOURCE_ERROR_CLOSED) {
-        report_error(o, BSOCKSCLIENT_EVENT_ERROR_CLOSED);
-        return;
+    // check connection result
+    if (is_error) {
+        BLog(BLOG_ERROR, "connection failed");
+        goto fail0;
     }
     
-    report_error(o, BSOCKSCLIENT_EVENT_ERROR);
-    return;
-}
-
-void socket_error_handler (BSocksClient *o, int event)
-{
-    ASSERT(event == BSOCKET_ERROR)
-    DebugObject_Access(&o->d_obj);
-    
-    BLog(BLOG_NOTICE, "socket error event");
-    
-    report_error(o, BSOCKSCLIENT_EVENT_ERROR);
-    return;
-}
-
-void connect_handler (BSocksClient *o, int event)
-{
-    ASSERT(event == BSOCKET_CONNECT)
-    ASSERT(o->state == STATE_CONNECTING)
-    DebugObject_Access(&o->d_obj);
-    
-    // remove event handler
-    BSocket_RemoveEventHandler(&o->sock, BSOCKET_CONNECT);
-    
-    // check connect result
-    int res = BSocket_GetConnectResult(&o->sock);
-    if (res != 0) {
-        BLog(BLOG_NOTICE, "connection failed (%d)", res);
-        report_error(o, BSOCKSCLIENT_EVENT_ERROR);
-        return;
+    // init connection
+    if (!BConnection_Init(&o->con, BCONNECTION_SOURCE_CONNECTOR(&o->connector), o->reactor, o, (BConnection_handler)connection_handler)) {
+        BLog(BLOG_ERROR, "BConnection_Init failed");
+        goto fail0;
     }
     
     BLog(BLOG_DEBUG, "connected");
@@ -171,6 +145,26 @@ void connect_handler (BSocksClient *o, int event)
     
     // set state
     o->state = STATE_SENDING_HELLO;
+    
+    return;
+    
+fail0:
+    report_error(o, BSOCKSCLIENT_EVENT_ERROR);
+    return;
+}
+
+void connection_handler (BSocksClient* o, int event)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->state != STATE_CONNECTING)
+    
+    if (o->state == STATE_UP && event == BCONNECTION_EVENT_RECVCLOSED) {
+        report_error(o, BSOCKSCLIENT_EVENT_ERROR_CLOSED);
+        return;
+    }
+    
+    report_error(o, BSOCKSCLIENT_EVENT_ERROR);
+    return;
 }
 
 void recv_handler_done (BSocksClient *o, int data_len)
@@ -328,28 +322,11 @@ int BSocksClient_Init (BSocksClient *o, BAddr server_addr, BAddr dest_addr, BSoc
     o->user = user;
     o->reactor = reactor;
     
-    // init error domain
-    FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)error_handler, o);
-    
-    // init socket
-    if (BSocket_Init(&o->sock, o->reactor, server_addr.type, BSOCKET_TYPE_STREAM) < 0) {
-        BLog(BLOG_NOTICE, "BSocket_Init failed");
+    // init connector
+    if (!BConnector_Init(&o->connector, server_addr, o->reactor, o, (BConnector_handler)connector_handler)) {
+        BLog(BLOG_ERROR, "BConnector_Init failed");
         goto fail0;
     }
-    
-    // connect socket
-    if (BSocket_Connect(&o->sock, &server_addr, 1) >= 0 || BSocket_GetError(&o->sock) != BSOCKET_ERROR_IN_PROGRESS) {
-        BLog(BLOG_NOTICE, "BSocket_Connect failed");
-        goto fail1;
-    }
-    
-    // setup error event
-    BSocket_AddEventHandler(&o->sock, BSOCKET_ERROR, (BSocket_handler)socket_error_handler, o);
-    BSocket_EnableEvent(&o->sock, BSOCKET_ERROR);
-    
-    // setup connect event
-    BSocket_AddEventHandler(&o->sock, BSOCKET_CONNECT, (BSocket_handler)connect_handler, o);
-    BSocket_EnableEvent(&o->sock, BSOCKET_CONNECT);
     
     // set state
     o->state = STATE_CONNECTING;
@@ -358,8 +335,6 @@ int BSocksClient_Init (BSocksClient *o, BAddr server_addr, BAddr dest_addr, BSoc
     DebugObject_Init(&o->d_obj);
     return 1;
     
-fail1:
-    BSocket_Free(&o->sock);
 fail0:
     return 0;
 }
@@ -369,21 +344,25 @@ void BSocksClient_Free (BSocksClient *o)
     DebugObject_Free(&o->d_obj);
     DebugError_Free(&o->d_err);
     
-    if (o->state == STATE_UP) {
-        // free up I/O
-        free_up_io(o);
-    }
-    else if (o->state != STATE_CONNECTING) {
-        ASSERT(o->state == STATE_SENDING_HELLO || o->state == STATE_SENT_HELLO ||
-               o->state == STATE_SENDING_REQUEST || o->state == STATE_SENT_REQUEST ||
-               o->state == STATE_RECEIVED_REPLY_HEADER
-        )
-        // free control I/O
-        free_control_io(o);
+    if (o->state != STATE_CONNECTING) {
+        if (o->state == STATE_UP) {
+            // free up I/O
+            free_up_io(o);
+        } else {
+            ASSERT(o->state == STATE_SENDING_HELLO || o->state == STATE_SENT_HELLO ||
+                o->state == STATE_SENDING_REQUEST || o->state == STATE_SENT_REQUEST ||
+                o->state == STATE_RECEIVED_REPLY_HEADER
+            )
+            // free control I/O
+            free_control_io(o);
+        }
+        
+        // free connection
+        BConnection_Free(&o->con);
     }
     
-    // free socket
-    BSocket_Free(&o->sock);
+    // free connector
+    BConnector_Free(&o->connector);
 }
 
 StreamPassInterface * BSocksClient_GetSendInterface (BSocksClient *o)
@@ -391,7 +370,7 @@ StreamPassInterface * BSocksClient_GetSendInterface (BSocksClient *o)
     ASSERT(o->state == STATE_UP)
     DebugObject_Access(&o->d_obj);
     
-    return StreamSocketSink_GetInput(&o->up.send_sink);
+    return BConnection_SendAsync_GetIf(&o->con);
 }
 
 StreamRecvInterface * BSocksClient_GetRecvInterface (BSocksClient *o)
@@ -399,5 +378,5 @@ StreamRecvInterface * BSocksClient_GetRecvInterface (BSocksClient *o)
     ASSERT(o->state == STATE_UP)
     DebugObject_Access(&o->d_obj);
     
-    return StreamSocketSource_GetOutput(&o->up.recv_source);
+    return BConnection_RecvAsync_GetIf(&o->con);
 }

@@ -36,56 +36,57 @@
 #define DATAGRAMPEERIO_COMPONENT_SINK 1
 #define DATAGRAMPEERIO_COMPONENT_SOURCE 2
 
-static void init_sending (DatagramPeerIO *o, BAddr addr, BIPAddr local_addr);
-static void free_sending (DatagramPeerIO *o);
-static void init_receiving (DatagramPeerIO *o);
-static void free_receiving (DatagramPeerIO *o);
-static void error_handler (DatagramPeerIO *o, int component, int code);
+static void init_io (DatagramPeerIO *o);
+static void free_io (DatagramPeerIO *o);
+static void dgram_handler (DatagramPeerIO *o, int event);
 static void reset_mode (DatagramPeerIO *o);
 static void recv_decoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_len);
 
-void init_sending (DatagramPeerIO *o, BAddr addr, BIPAddr local_addr)
+void init_io (DatagramPeerIO *o)
 {
-    // init sink
-    DatagramSocketSink_Init(&o->send_sink, FlowErrorReporter_Create(&o->domain, DATAGRAMPEERIO_COMPONENT_SINK), &o->sock, o->effective_socket_mtu, addr, local_addr, BReactor_PendingGroup(o->reactor));
+    // init dgram recv interface
+    BDatagram_RecvAsync_Init(&o->dgram, o->effective_socket_mtu);
+    
+    // connect source
+    PacketRecvConnector_ConnectInput(&o->recv_connector, BDatagram_RecvAsync_GetIf(&o->dgram));
+    
+    // init dgram send interface
+    BDatagram_SendAsync_Init(&o->dgram, o->effective_socket_mtu);
     
     // connect sink
-    PacketPassConnector_ConnectOutput(&o->send_connector, DatagramSocketSink_GetInput(&o->send_sink));
+    PacketPassConnector_ConnectOutput(&o->send_connector, BDatagram_SendAsync_GetIf(&o->dgram));
 }
 
-void free_sending (DatagramPeerIO *o)
+void free_io (DatagramPeerIO *o)
 {
     // disconnect sink
     PacketPassConnector_DisconnectOutput(&o->send_connector);
     
-    // free sink
-    DatagramSocketSink_Free(&o->send_sink);
-}
-
-void init_receiving (DatagramPeerIO *o)
-{
-    // init source
-    DatagramSocketSource_Init(&o->recv_source, FlowErrorReporter_Create(&o->domain, DATAGRAMPEERIO_COMPONENT_SOURCE), &o->sock, o->effective_socket_mtu, BReactor_PendingGroup(o->reactor));
+    // free dgram send interface
+    BDatagram_SendAsync_Free(&o->dgram);
     
-    // connect source
-    PacketRecvConnector_ConnectInput(&o->recv_connector, DatagramSocketSource_GetOutput(&o->recv_source));
-}
-
-void free_receiving (DatagramPeerIO *o)
-{
     // disconnect source
     PacketRecvConnector_DisconnectInput(&o->recv_connector);
     
-    // free source
-    DatagramSocketSource_Free(&o->recv_source);
+    // free dgram recv interface
+    BDatagram_RecvAsync_Free(&o->dgram);
 }
 
-void error_handler (DatagramPeerIO *o, int component, int code)
+void dgram_handler (DatagramPeerIO *o, int event)
 {
-    ASSERT(o->mode == DATAGRAMPEERIO_MODE_CONNECT || o->mode == DATAGRAMPEERIO_MODE_BIND)
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->mode == DATAGRAMPEERIO_MODE_CONNECT || o->mode == DATAGRAMPEERIO_MODE_BIND)
     
     BLog(BLOG_NOTICE, "error");
+    
+    // reset mode
+    reset_mode(o);
+    
+    // report error
+    if (o->handler_error) {
+        o->handler_error(o->user);
+        return;
+    }
 }
 
 void reset_mode (DatagramPeerIO *o)
@@ -96,19 +97,14 @@ void reset_mode (DatagramPeerIO *o)
         return;
     }
     
-    // free sending
-    if (o->mode == DATAGRAMPEERIO_MODE_CONNECT || o->bind_sending_up) {
-        free_sending(o);
-    }
-    
     // remove recv notifier handler
     PacketPassNotifier_SetHandler(&o->recv_notifier, NULL, NULL);
     
-    // free receiving
-    free_receiving(o);
+    // free I/O
+    free_io(o);
     
-    // free socket
-    BSocket_Free(&o->sock);
+    // free datagram object
+    BDatagram_Free(&o->dgram);
     
     // set mode
     o->mode = DATAGRAMPEERIO_MODE_NONE;
@@ -122,18 +118,16 @@ void recv_decoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_l
     // obtain addresses from last received packet
     BAddr addr;
     BIPAddr local_addr;
-    DatagramSocketSource_GetLastAddresses(&o->recv_source, &addr, &local_addr);
+    ASSERT_EXECUTE(BDatagram_GetLastReceiveAddrs(&o->dgram, &addr, &local_addr))
     
-    if (!o->bind_sending_up) {
-        // init sending
-        init_sending(o, addr, local_addr);
-        
-        // set sending up
-        o->bind_sending_up = 1;
-    } else {
-        // update addresses
-        DatagramSocketSink_SetAddresses(&o->send_sink, addr, local_addr);
+    // check address family just in case
+    if (!BDatagram_AddressFamilySupported(addr.type)) {
+        BLog(BLOG_ERROR, "unsupported receive address");
+        return;
     }
+    
+    // update addresses
+    BDatagram_SetSendAddrs(&o->dgram, addr, local_addr);
 }
 
 int DatagramPeerIO_Init (
@@ -164,6 +158,9 @@ int DatagramPeerIO_Init (
     o->payload_mtu = payload_mtu;
     o->sp_params = sp_params;
     
+    // set no handlers
+    o->handler_error = NULL;
+    
     // check payload MTU (for FragmentProto)
     if (o->payload_mtu > UINT16_MAX) {
         BLog(BLOG_ERROR, "payload MTU is too big");
@@ -181,9 +178,6 @@ int DatagramPeerIO_Init (
         BLog(BLOG_ERROR, "spproto_carrier_mtu_for_payload_mtu failed !?");
         goto fail0;
     }
-    
-    // init error domain
-    FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)error_handler, o);
     
     // init receiving
     
@@ -284,69 +278,57 @@ PacketPassInterface * DatagramPeerIO_GetSendInput (DatagramPeerIO *o)
 
 int DatagramPeerIO_Connect (DatagramPeerIO *o, BAddr addr)
 {
-    ASSERT(!BAddr_IsInvalid(&addr))
     DebugObject_Access(&o->d_obj);
+    ASSERT(BDatagram_AddressFamilySupported(addr.type))
     
     // reset mode
     reset_mode(o);
     
-    // init socket
-    if (BSocket_Init(&o->sock, o->reactor, addr.type, BSOCKET_TYPE_DGRAM) < 0) {
-        BLog(BLOG_ERROR, "BSocket_Init failed");
-        goto fail1;
+    // init dgram
+    if (!BDatagram_Init(&o->dgram, addr.type, o->reactor, o, (BDatagram_handler)dgram_handler)) {
+        BLog(BLOG_ERROR, "BDatagram_Init failed");
+        goto fail0;
     }
     
-    // connect the socket
-    // Windows needs this or receive will fail; however, FreeBSD will refuse to send
-    // if this is done
-    #ifdef BADVPN_USE_WINAPI
-    if (BSocket_Connect(&o->sock, &addr, 0) < 0) {
-        BLog(BLOG_ERROR, "BSocket_Connect failed");
-        goto fail2;
-    }
-    #endif
-    
-    // init receiving
-    init_receiving(o);
-    
-    // init sending
+    // set send address
     BIPAddr local_addr;
     BIPAddr_InitInvalid(&local_addr);
-    init_sending(o, addr, local_addr);
+    BDatagram_SetSendAddrs(&o->dgram, addr, local_addr);
+    
+    // init I/O
+    init_io(o);
     
     // set mode
     o->mode = DATAGRAMPEERIO_MODE_CONNECT;
     
     return 1;
     
-fail2:
-    BSocket_Free(&o->sock);
-fail1:
+fail0:
     return 0;
 }
 
 int DatagramPeerIO_Bind (DatagramPeerIO *o, BAddr addr)
 {
-    ASSERT(!BAddr_IsInvalid(&addr))
     DebugObject_Access(&o->d_obj);
+    ASSERT(BDatagram_AddressFamilySupported(addr.type))
     
     // reset mode
     reset_mode(o);
     
-    // init socket
-    if (BSocket_Init(&o->sock, o->reactor, addr.type, BSOCKET_TYPE_DGRAM) < 0) {
-        BLog(BLOG_ERROR, "BSocket_Init failed");
+    // init dgram
+    if (!BDatagram_Init(&o->dgram, addr.type, o->reactor, o, (BDatagram_handler)dgram_handler)) {
+        BLog(BLOG_ERROR, "BDatagram_Init failed");
+        goto fail0;
+    }
+    
+    // bind dgram
+    if (!BDatagram_Bind(&o->dgram, addr)) {
+        BLog(BLOG_INFO, "BDatagram_Bind failed");
         goto fail1;
     }
     
-    // bind socket
-    if (BSocket_Bind(&o->sock, &addr) < 0) {
-        BLog(BLOG_INFO, "BSocket_Bind failed");
-        goto fail2;
-    }
-    
-    // init receiving
-    init_receiving(o);
+    // init I/O
+    init_io(o);
     
     // set recv notifier handler
     PacketPassNotifier_SetHandler(&o->recv_notifier, (PacketPassNotifier_handler_notify)recv_decoder_notifier_handler, o);
@@ -354,14 +336,11 @@ int DatagramPeerIO_Bind (DatagramPeerIO *o, BAddr addr)
     // set mode
     o->mode = DATAGRAMPEERIO_MODE_BIND;
     
-    // set sending not up
-    o->bind_sending_up = 0;
-    
     return 1;
     
-fail2:
-    BSocket_Free(&o->sock);
 fail1:
+    BDatagram_Free(&o->dgram);
+fail0:
     return 0;
 }
 
@@ -425,9 +404,15 @@ void DatagramPeerIO_RemoveOTPRecvSeeds (DatagramPeerIO *o)
     SPProtoDecoder_RemoveOTPSeeds(&o->recv_decoder);
 }
 
-void DatagramPeerIO_SetHandlers (DatagramPeerIO *o, DatagramPeerIO_handler_otp_warning handler_otp_warning, DatagramPeerIO_handler_otp_ready handler_otp_ready, void *user)
+void DatagramPeerIO_SetHandlers (DatagramPeerIO *o, void *user,
+                                 DatagramPeerIO_handler_error handler_error,
+                                 DatagramPeerIO_handler_otp_warning handler_otp_warning,
+                                 DatagramPeerIO_handler_otp_ready handler_otp_ready)
 {
     DebugObject_Access(&o->d_obj);
+    
+    o->user = user;
+    o->handler_error = handler_error;
     
     SPProtoDecoder_SetHandlers(&o->recv_decoder, handler_otp_ready, user);
     SPProtoEncoder_SetHandlers(&o->send_encoder, handler_otp_warning, user);

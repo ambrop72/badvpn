@@ -4,7 +4,6 @@ add_executable(badvpn-client
     DatagramPeerIO.c
     PasswordListener.c
     DataProto.c
-    PasswordSender.c
     FrameDecider.c
     DPRelay.c
     DPReceive.c

@@ -38,18 +38,15 @@
 #include <structure/BAVL.h>
 #include <base/BLog.h>
 #include <system/BReactor.h>
-#include <system/BSocket.h>
+#include <system/BNetwork.h>
+#include <system/BConnection.h>
+#include <system/BDatagram.h>
 #include <system/BSignal.h>
-#include <system/Listener.h>
 #include <flow/PacketProtoDecoder.h>
 #include <flow/PacketPassFairQueue.h>
 #include <flow/PacketStreamSender.h>
 #include <flow/PacketProtoFlow.h>
 #include <flow/SinglePacketBuffer.h>
-#include <flowextra/StreamSocketSource.h>
-#include <flowextra/StreamSocketSink.h>
-#include <flowextra/DatagramSocketSource.h>
-#include <flowextra/DatagramSocketSink.h>
 
 #ifndef BADVPN_USE_WINAPI
 #include <system/BLog_syslog.h>
@@ -63,16 +60,14 @@
 #define LOGGER_SYSLOG 2
 
 struct client {
-    BSocket sock;
+    BConnection con;
     BAddr addr;
     BTimer disconnect_timer;
-    FlowErrorDomain domain;
-    StreamSocketSource recv_source;
+    FlowErrorDomain recv_decoder_domain;
     PacketProtoDecoder recv_decoder;
     PacketPassInterface recv_if;
     PacketPassFairQueue send_queue;
     PacketStreamSender send_sender;
-    StreamSocketSink send_sink;
     BAVL connections_tree;
     LinkedList1 connections_list;
     int num_connections;
@@ -93,12 +88,10 @@ struct connection {
     PacketPassFairQueueFlow send_qflow;
     union {
         struct {
-            BSocket udp_sock;
+            BDatagram udp_dgram;
             FlowErrorDomain udp_domain;
             BufferWriter udp_send_writer;
             PacketBuffer udp_send_buffer;
-            DatagramSocketSink udp_send_sink;
-            DatagramSocketSource udp_recv_source;
             SinglePacketBuffer udp_recv_buffer;
             PacketPassInterface udp_recv_if;
             BAVLNode connections_tree_node;
@@ -140,7 +133,7 @@ int num_listen_addrs;
 BReactor ss;
 
 // listeners
-Listener listeners[MAX_LISTEN_ADDRS];
+BListener listeners[MAX_LISTEN_ADDRS];
 int num_listeners;
 
 // clients
@@ -152,11 +145,12 @@ static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static int process_arguments (void);
 static void signal_handler (void *unused);
-static void listener_handler (Listener *listener);
+static void listener_handler (BListener *listener);
 static void client_free (struct client *client);
 static void client_log (struct client *client, int level, const char *fmt, ...);
 static void client_disconnect_timer_handler (struct client *client);
-static void client_error_handler (struct client *client, int component, int code);
+static void client_connection_handler (struct client *client, int event);
+static void client_decoder_handler (struct client *client, int component, int code);
 static void client_recv_if_handler_send (struct client *client, uint8_t *data, int data_len);
 static void connection_init (struct client *client, uint16_t conid, BAddr addr, const uint8_t *data, int data_len);
 static void connection_free (struct connection *con);
@@ -167,7 +161,7 @@ static int connection_send_to_client (struct connection *con, uint8_t flags, con
 static int connection_send_to_udp (struct connection *con, const uint8_t *data, int data_len);
 static void connection_close (struct connection *con);
 static void connection_send_qflow_busy_handler (struct connection *con);
-static void connection_udp_error_handler (struct connection *con, int component, int code);
+static void connection_dgram_handler_event (struct connection *con, int event);
 static void connection_udp_recv_if_handler_send (struct connection *con, uint8_t *data, int data_len);
 static struct connection * find_connection (struct client *client, uint16_t conid);
 static int uint16_comparator (void *unused, uint16_t *v1, uint16_t *v2);
@@ -225,9 +219,9 @@ int main (int argc, char **argv)
     
     BLog(BLOG_NOTICE, "initializing "GLOBAL_PRODUCT_NAME" "PROGRAM_NAME" "GLOBAL_VERSION);
     
-    // initialize sockets
-    if (BSocket_GlobalInit() < 0) {
-        BLog(BLOG_ERROR, "BSocket_GlobalInit failed");
+    // initialize network
+    if (!BNetwork_GlobalInit()) {
+        BLog(BLOG_ERROR, "BNetwork_GlobalInit failed");
         goto fail1;
     }
     
@@ -264,7 +258,7 @@ int main (int argc, char **argv)
     // initialize listeners
     num_listeners = 0;
     while (num_listeners < num_listen_addrs) {
-        if (!Listener_Init(&listeners[num_listeners], &ss, listen_addrs[num_listeners], (Listener_handler)listener_handler, &listeners[num_listeners])) {
+        if (!BListener_Init(&listeners[num_listeners], listen_addrs[num_listeners], &ss, &listeners[num_listeners], (BListener_handler)listener_handler)) {
             BLog(BLOG_ERROR, "Listener_Init failed");
             goto fail3;
         }
@@ -288,7 +282,7 @@ fail3:
     // free listeners
     while (num_listeners > 0) {
         num_listeners--;
-        Listener_Free(&listeners[num_listeners]);
+        BListener_Free(&listeners[num_listeners]);
     }
     // finish signal handling
     BSignal_Finish();
@@ -516,7 +510,7 @@ void signal_handler (void *unused)
     BReactor_Quit(&ss, 1);
 }
 
-void listener_handler (Listener *listener)
+void listener_handler (BListener *listener)
 {
     if (num_clients == options.max_clients) {
         BLog(BLOG_ERROR, "maximum number of clients reached");
@@ -531,40 +525,36 @@ void listener_handler (Listener *listener)
     }
     
     // accept client
-    if (!Listener_Accept(listener, &client->sock, &client->addr)) {
-        BLog(BLOG_ERROR, "Listener_Accept failed");
+    if (!BConnection_Init(&client->con, BCONNECTION_SOURCE_LISTENER(listener, &client->addr), &ss, client, (BConnection_handler)client_connection_handler)) {
+        BLog(BLOG_ERROR, "BConnection_Init failed");
         goto fail1;
     }
     
     // limit socket send buffer, else our scheduling is pointless
-    if (BSocket_SetSendBuffer(&client->sock, CLIENT_SOCKET_SEND_BUFFER) < 0) {
-        BLog(BLOG_WARNING, "BSocket_SetSendBuffer failed");
+    if (!BConnection_SetSendBuffer(&client->con, CLIENT_SOCKET_SEND_BUFFER)) {
+        BLog(BLOG_WARNING, "BConnection_SetSendBuffer failed");
     }
+    
+    // init connection interfaces
+    BConnection_SendAsync_Init(&client->con);
+    BConnection_RecvAsync_Init(&client->con);
     
     // init disconnect timer
     BTimer_Init(&client->disconnect_timer, CLIENT_DISCONNECT_TIMEOUT, (BTimer_handler)client_disconnect_timer_handler, client);
     BReactor_SetTimer(&ss, &client->disconnect_timer);
     
-    // init error domain
-    FlowErrorDomain_Init(&client->domain, (FlowErrorDomain_handler)client_error_handler, client);
-    
-    // init recv source
-    StreamSocketSource_Init(&client->recv_source, FlowErrorReporter_Create(&client->domain, 0), &client->sock, BReactor_PendingGroup(&ss));
-    
     // init recv interface
     PacketPassInterface_Init(&client->recv_if, udpgw_mtu, (PacketPassInterface_handler_send)client_recv_if_handler_send, client, BReactor_PendingGroup(&ss));
     
     // init recv decoder
-    if (!PacketProtoDecoder_Init(&client->recv_decoder, FlowErrorReporter_Create(&client->domain, 0), StreamSocketSource_GetOutput(&client->recv_source), &client->recv_if, BReactor_PendingGroup(&ss))) {
+    FlowErrorDomain_Init(&client->recv_decoder_domain, (FlowErrorDomain_handler)client_decoder_handler, client);
+    if (!PacketProtoDecoder_Init(&client->recv_decoder, FlowErrorReporter_Create(&client->recv_decoder_domain, 0), BConnection_RecvAsync_GetIf(&client->con), &client->recv_if, BReactor_PendingGroup(&ss))) {
         BLog(BLOG_ERROR, "PacketProtoDecoder_Init failed");
         goto fail2;
     }
     
-    // init send sink
-    StreamSocketSink_Init(&client->send_sink, FlowErrorReporter_Create(&client->domain, 0), &client->sock, BReactor_PendingGroup(&ss));
-    
     // init send sender
-    PacketStreamSender_Init(&client->send_sender, StreamSocketSink_GetInput(&client->send_sink), pp_mtu, BReactor_PendingGroup(&ss));
+    PacketStreamSender_Init(&client->send_sender, BConnection_SendAsync_GetIf(&client->con), pp_mtu, BReactor_PendingGroup(&ss));
     
     // init send queue
     PacketPassFairQueue_Init(&client->send_queue, PacketStreamSender_GetInput(&client->send_sender), BReactor_PendingGroup(&ss), 0, 1);
@@ -591,9 +581,10 @@ void listener_handler (Listener *listener)
     
 fail2:
     PacketPassInterface_Free(&client->recv_if);
-    StreamSocketSource_Free(&client->recv_source);
     BReactor_RemoveTimer(&ss, &client->disconnect_timer);
-    BSocket_Free(&client->sock);
+    BConnection_RecvAsync_Free(&client->con);
+    BConnection_SendAsync_Free(&client->con);
+    BConnection_Free(&client->con);
 fail1:
     free(client);
 fail0:
@@ -627,23 +618,21 @@ void client_free (struct client *client)
     // free send sender
     PacketStreamSender_Free(&client->send_sender);
     
-    // free send sink
-    StreamSocketSink_Free(&client->send_sink);
-    
     // free recv decoder
     PacketProtoDecoder_Free(&client->recv_decoder);
     
     // free recv interface
     PacketPassInterface_Free(&client->recv_if);
     
-    // free recv source
-    StreamSocketSource_Free(&client->recv_source);
-    
     // free disconnect timer
     BReactor_RemoveTimer(&ss, &client->disconnect_timer);
     
-    // free socket
-    BSocket_Free(&client->sock);
+    // free connection interfaces
+    BConnection_RecvAsync_Free(&client->con);
+    BConnection_SendAsync_Free(&client->con);
+    
+    // free connection
+    BConnection_Free(&client->con);
     
     // free structure
     free(client);
@@ -668,9 +657,21 @@ void client_disconnect_timer_handler (struct client *client)
     client_free(client);
 }
 
-void client_error_handler (struct client *client, int component, int code)
+void client_connection_handler (struct client *client, int event)
 {
-    client_log(client, BLOG_INFO, "error");
+    if (event == BCONNECTION_EVENT_RECVCLOSED) {
+        client_log(client, BLOG_INFO, "client closed");
+    } else {
+        client_log(client, BLOG_INFO, "client error");
+    }
+    
+    // free client
+    client_free(client);
+}
+
+void client_decoder_handler (struct client *client, int component, int code)
+{
+    client_log(client, BLOG_ERROR, "decoder error");
     
     // free client
     client_free(client);
@@ -783,47 +784,35 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, const u
     }
     con->send_if = PacketProtoFlow_GetInput(&con->send_ppflow);
     
-    // init UDP socket
-    if (BSocket_Init(&con->udp_sock, &ss, addr.type, BSOCKET_TYPE_DGRAM) < 0) {
-        client_log(client, BLOG_ERROR, "BSocket_Init failed");
+    // init UDP dgram
+    if (!BDatagram_Init(&con->udp_dgram, addr.type, &ss, con, (BDatagram_handler)connection_dgram_handler_event)) {
+        client_log(client, BLOG_ERROR, "BDatagram_Init failed");
         goto fail2;
     }
     
-    // connect the socket
-    // Windows needs this or receive will fail; however, FreeBSD will refuse to send
-    // if this is done
-    #ifdef BADVPN_USE_WINAPI
-    if (BSocket_Connect(&con->udp_sock, &addr, 0) < 0) {
-        client_log(client, BLOG_ERROR, "BSocket_Connect failed");
-        goto fail3;
-    }
-    #endif
-    
-    // init UDP error domain
-    FlowErrorDomain_Init(&con->udp_domain, (FlowErrorDomain_handler)connection_udp_error_handler, con);
-    
-    // init UDP sink
+    // set UDP dgram send address
     BIPAddr ipaddr;
     BIPAddr_InitInvalid(&ipaddr);
-    DatagramSocketSink_Init(&con->udp_send_sink, FlowErrorReporter_Create(&con->udp_domain, 0), &con->udp_sock, options.udp_mtu, addr, ipaddr, BReactor_PendingGroup(&ss));
+    BDatagram_SetSendAddrs(&con->udp_dgram, addr, ipaddr);
+    
+    // init UDP dgram interfaces
+    BDatagram_SendAsync_Init(&con->udp_dgram, options.udp_mtu);
+    BDatagram_RecvAsync_Init(&con->udp_dgram, options.udp_mtu);
     
     // init UDP writer
     BufferWriter_Init(&con->udp_send_writer, options.udp_mtu, BReactor_PendingGroup(&ss));
     
     // init UDP buffer
-    if (!PacketBuffer_Init(&con->udp_send_buffer, BufferWriter_GetOutput(&con->udp_send_writer), DatagramSocketSink_GetInput(&con->udp_send_sink), CONNECTION_UDP_BUFFER_SIZE, BReactor_PendingGroup(&ss))) {
+    if (!PacketBuffer_Init(&con->udp_send_buffer, BufferWriter_GetOutput(&con->udp_send_writer), BDatagram_SendAsync_GetIf(&con->udp_dgram), CONNECTION_UDP_BUFFER_SIZE, BReactor_PendingGroup(&ss))) {
         client_log(client, BLOG_ERROR, "PacketBuffer_Init failed");
         goto fail4;
     }
-    
-    // init UDP receive source
-    DatagramSocketSource_Init(&con->udp_recv_source, FlowErrorReporter_Create(&con->udp_domain, 0), &con->udp_sock, options.udp_mtu, BReactor_PendingGroup(&ss));
     
     // init UDP recv interface
     PacketPassInterface_Init(&con->udp_recv_if, options.udp_mtu, (PacketPassInterface_handler_send)connection_udp_recv_if_handler_send, con, BReactor_PendingGroup(&ss));
     
     // init UDP recv buffer
-    if (!SinglePacketBuffer_Init(&con->udp_recv_buffer, DatagramSocketSource_GetOutput(&con->udp_recv_source), &con->udp_recv_if, BReactor_PendingGroup(&ss))) {
+    if (!SinglePacketBuffer_Init(&con->udp_recv_buffer, BDatagram_RecvAsync_GetIf(&con->udp_dgram), &con->udp_recv_if, BReactor_PendingGroup(&ss))) {
         client_log(client, BLOG_ERROR, "SinglePacketBuffer_Init failed");
         goto fail5;
     }
@@ -843,13 +832,12 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, const u
     
 fail5:
     PacketPassInterface_Free(&con->udp_recv_if);
-    DatagramSocketSource_Free(&con->udp_recv_source);
     PacketBuffer_Free(&con->udp_send_buffer);
 fail4:
     BufferWriter_Free(&con->udp_send_writer);
-    DatagramSocketSink_Free(&con->udp_send_sink);
-fail3:
-    BSocket_Free(&con->udp_sock);
+    BDatagram_RecvAsync_Free(&con->udp_dgram);
+    BDatagram_SendAsync_Free(&con->udp_dgram);
+    BDatagram_Free(&con->udp_dgram);
 fail2:
     PacketProtoFlow_Free(&con->send_ppflow);
 fail1:
@@ -918,20 +906,18 @@ void connection_free_udp (struct connection *con)
     // free UDP receive interface
     PacketPassInterface_Free(&con->udp_recv_if);
     
-    // free UDP receive source
-    DatagramSocketSource_Free(&con->udp_recv_source);
-    
     // free UDP buffer
     PacketBuffer_Free(&con->udp_send_buffer);
     
     // free UDP writer
     BufferWriter_Free(&con->udp_send_writer);
     
-    // free UDP sink
-    DatagramSocketSink_Free(&con->udp_send_sink);
+    // free UDP dgram interfaces
+    BDatagram_RecvAsync_Free(&con->udp_dgram);
+    BDatagram_SendAsync_Free(&con->udp_dgram);
     
-    // free UDP socket
-    BSocket_Free(&con->udp_sock);
+    // free UDP dgram
+    BDatagram_Free(&con->udp_dgram);
 }
 
 void connection_first_job_handler (struct connection *con)
@@ -1047,7 +1033,7 @@ void connection_send_qflow_busy_handler (struct connection *con)
     connection_free(con);
 }
 
-void connection_udp_error_handler (struct connection *con, int component, int code)
+void connection_dgram_handler_event (struct connection *con, int event)
 {
     ASSERT(!con->closing)
     

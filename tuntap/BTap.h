@@ -66,20 +66,16 @@ typedef struct {
     int input_packet_len;
     uint8_t *output_packet;
     
-    #ifdef BADVPN_USE_WINAPI
+#ifdef BADVPN_USE_WINAPI
     HANDLE device;
-    HANDLE input_event;
-    HANDLE output_event;
-    BHandle input_bhandle;
-    BHandle output_bhandle;
-    OVERLAPPED input_ol;
-    OVERLAPPED output_ol;
-    #else
+    BReactorIOCPOverlapped send_olap;
+    BReactorIOCPOverlapped recv_olap;
+#else
     int fd;
     BFileDescriptor bfd;
     char devname[IFNAMSIZ];
     int poll_events;
-    #endif
+#endif
     
     DebugObject d_obj;
     DebugError d_err;

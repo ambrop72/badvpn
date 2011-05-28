@@ -35,33 +35,40 @@
 #include <base/DebugObject.h>
 #include <system/BReactor.h>
 #include <system/BAddr.h>
-#include <system/BSocket.h>
+#include <system/BDatagram.h>
 #include <system/BTime.h>
 #include <flow/PacketPassInterface.h>
 #include <flow/PacketPassConnector.h>
 #include <flow/SinglePacketBuffer.h>
 #include <flow/PacketRecvConnector.h>
 #include <flow/PacketPassNotifier.h>
-#include <flowextra/DatagramSocketSource.h>
-#include <flowextra/DatagramSocketSink.h>
 #include <client/FragmentProtoDisassembler.h>
 #include <client/FragmentProtoAssembler.h>
 #include <client/SPProtoEncoder.h>
 #include <client/SPProtoDecoder.h>
 
 /**
+ * Callback function invoked when an error occurs with the peer connection.
+ * The object has entered default state.
+ * May be called from within a sending Send call.
+ *
+ * @param user as in {@link DatagramPeerIO_SetHandlers}
+ */
+typedef void (*DatagramPeerIO_handler_error) (void *user);
+
+/**
  * Handler function invoked when the number of used OTPs has reached
  * the specified warning number in {@link DatagramPeerIO_SetOTPWarningHandler}.
  * May be called from within a sending Send call.
  *
- * @param user as in {@link DatagramPeerIO_SetOTPWarningHandler}
+ * @param user as in {@link DatagramPeerIO_SetHandlers}
  */
 typedef void (*DatagramPeerIO_handler_otp_warning) (void *user);
 
 /**
  * Handler called when OTP generation for a new receive seed is finished.
  * 
- * @param user as in {@link DatagramPeerIO_Init}
+ * @param user as in {@link DatagramPeerIO_SetHandlers}
  */
 typedef void (*DatagramPeerIO_handler_otp_ready) (void *user);
 
@@ -86,13 +93,10 @@ typedef struct {
     BReactor *reactor;
     int payload_mtu;
     struct spproto_security_params sp_params;
+    void *user;
+    DatagramPeerIO_handler_error handler_error;
     int spproto_payload_mtu;
     int effective_socket_mtu;
-    
-    // flow error domain
-    FlowErrorDomain domain;
-    
-    // persistent I/O objects
     
     // sending base
     FragmentProtoDisassembler send_disassembler;
@@ -110,23 +114,15 @@ typedef struct {
     // mode
     int mode;
     
-    // in binded mode, whether sending is up
-    int bind_sending_up;
-    
-    // datagram socket
-    BSocket sock;
-    
-    // non-persistent sending objects
-    DatagramSocketSink send_sink;
-    
-    // non-persistent receiving objects
-    DatagramSocketSource recv_source;
+    // datagram object
+    BDatagram dgram;
 } DatagramPeerIO;
 
 /**
  * Initializes the object.
  * The interface is initialized in default mode.
  * {@link BLog_Init} must have been done.
+ * {@link BNetwork_GlobalInit} must have been done.
  * {@link BSecurity_GlobalInitThreadSafe} must have been done if
  * {@link BThreadWorkDispatcher_UsingThreads}(twd) = 1.
  *
@@ -181,7 +177,8 @@ PacketPassInterface * DatagramPeerIO_GetSendInput (DatagramPeerIO *o);
  * On failure, the interface enters default mode.
  *
  * @param o the object
- * @param addr address to send packets to. Must be recognized and not invalid.
+ * @param addr address to send packets to. Must be supported according to
+ *             {@link BDatagram_AddressFamilySupported}.
  * @return 1 on success, 0 on failure
  */
 int DatagramPeerIO_Connect (DatagramPeerIO *o, BAddr addr) WARN_UNUSED;
@@ -192,7 +189,8 @@ int DatagramPeerIO_Connect (DatagramPeerIO *o, BAddr addr) WARN_UNUSED;
  * On failure, the interface enters default mode.
  *
  * @param o the object
- * @param addr address to bind to. Must be recognized and not invalid.
+ * @param addr address to bind to. Must be supported according to
+ *             {@link BDatagram_AddressFamilySupported}.
  * @return 1 on success, 0 on failure
  */
 int DatagramPeerIO_Bind (DatagramPeerIO *o, BAddr addr) WARN_UNUSED;
@@ -256,10 +254,14 @@ void DatagramPeerIO_RemoveOTPRecvSeeds (DatagramPeerIO *o);
  * Sets handlers.
  * 
  * @param o the object
+ * @param handler_error error handler
  * @param handler_otp_warning OTP warning handler
  * @param handler_otp_ready handler called when OTP generation for a new receive seed is finished
  * @param user value to pass to handler
  */
-void DatagramPeerIO_SetHandlers (DatagramPeerIO *o, DatagramPeerIO_handler_otp_warning handler_otp_warning, DatagramPeerIO_handler_otp_ready handler_otp_ready, void *user);
+void DatagramPeerIO_SetHandlers (DatagramPeerIO *o, void *user,
+                                 DatagramPeerIO_handler_error handler_error,
+                                 DatagramPeerIO_handler_otp_warning handler_otp_warning,
+                                 DatagramPeerIO_handler_otp_ready handler_otp_ready);
 
 #endif

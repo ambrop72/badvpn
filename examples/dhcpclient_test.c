@@ -28,6 +28,7 @@
 #include <system/BReactor.h>
 #include <system/BSignal.h>
 #include <system/BTime.h>
+#include <system/BNetwork.h>
 #include <dhcpclient/BDHCPClient.h>
 
 BReactor reactor;
@@ -52,6 +53,11 @@ int main (int argc, char **argv)
     BTime_Init();
     
     BLog_InitStdout();
+    
+    if (!BNetwork_GlobalInit()) {
+        DEBUG("BNetwork_GlobalInit failed");
+        goto fail1;
+    }
     
     if (!BReactor_Init(&reactor)) {
         DEBUG("BReactor_Init failed");
@@ -121,6 +127,13 @@ void dhcp_handler (void *unused, int event)
         
         case BDHCPCLIENT_EVENT_DOWN: {
             printf("DHCP: down\n");
+        } break;
+        
+        case BDHCPCLIENT_EVENT_ERROR: {
+            printf("DHCP: error\n");
+            
+            // exit reactor
+            BReactor_Quit(&reactor, 0);
         } break;
         
         default:

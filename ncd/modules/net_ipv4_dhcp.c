@@ -55,6 +55,8 @@ struct instance {
     int up;
 };
 
+static void instance_free (struct instance *o);
+
 static void dhcp_handler (struct instance *o, int event)
 {
     switch (event) {
@@ -68,6 +70,12 @@ static void dhcp_handler (struct instance *o, int event)
             ASSERT(o->up)
             o->up = 0;
             NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+        } break;
+        
+        case BDHCPCLIENT_EVENT_ERROR: {
+            NCDModuleInst_Backend_SetError(o->i);
+            instance_free(o);
+            return;
         } break;
         
         default: ASSERT(0);
@@ -117,9 +125,8 @@ fail0:
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
-static void func_die (void *vo)
+static void instance_free (struct instance *o)
 {
-    struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
     // free DHCP
@@ -129,6 +136,13 @@ static void func_die (void *vo)
     free(o);
     
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+}
+
+static void func_die (void *vo)
+{
+    struct instance *o = vo;
+    
+    instance_free(o);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValue *out)

@@ -36,12 +36,13 @@
 #include <keyhi.h>
 
 #include <misc/debug.h>
-#include <base/DebugObject.h>
-#include <system/Listener.h>
 #include <misc/sslsocket.h>
 #include <structure/LinkedList2.h>
 #include <structure/BAVL.h>
-#include <nspr_support/BPRFileDesc.h>
+#include <base/DebugObject.h>
+#include <flow/SingleStreamReceiver.h>
+#include <system/BConnection.h>
+#include <nspr_support/BSSLConnection.h>
 
 /**
  * Handler function called when a client identifies itself with a password
@@ -50,10 +51,10 @@
  * and must not be unregistered again.
  * 
  * @param user as in {@link PasswordListener_AddEntry}
- * @param sock structure that contains the socket ({@link BSocket}) and, if TLS
- *             is enabled, the SSL socket (PRFileDesc and {@link BPRFileDesc}).
- *             The structure was allocated with malloc() and the user
- *             is responsible for freeing it.
+ * @param sock structure containing a {@link BConnection} and, if TLS is enabled,
+ *             the SSL socket with the bottom layer connected to the async interfaces
+ *             of the {@link BConnection} object. The structure was allocated with
+ *             malloc() and the user is responsible for freeing it.
  */
 typedef void (*PasswordListener_handler_client) (void *user, sslsocket *sock);
 
@@ -64,7 +65,6 @@ struct PasswordListenerClient;
  * based on a number they send.
  */
 typedef struct {
-    DebugObject d_obj;
     BReactor *bsys;
     int ssl;
     PRFileDesc model_dprfd;
@@ -73,7 +73,8 @@ typedef struct {
     LinkedList2 clients_free;
     LinkedList2 clients_used;
     BAVL passwords;
-    Listener listener;
+    BListener listener;
+    DebugObject d_obj;
 } PasswordListener;
 
 typedef struct {
@@ -87,8 +88,9 @@ struct PasswordListenerClient {
     PasswordListener *l;
     LinkedList2Node list_node;
     sslsocket *sock;
+    BSSLConnection sslcon;
+    SingleStreamReceiver receiver;
     uint64_t recv_buffer;
-    int recv_buffer_pos;
 };
 
 /**
@@ -96,7 +98,7 @@ struct PasswordListenerClient {
  * 
  * @param l the object
  * @param bsys reactor we live in
- * @param listen_addr address to listen on. Must not be invalid.
+ * @param listen_addr address to listen on. Must be supported according to {@link BConnection_AddressSupported}.
  * @param max_clients maximum number of client to hold until they are identified.
  *                    Must be >0.
  * @param ssl whether to use TLS. Must be 1 or 0.

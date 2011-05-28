@@ -1,8 +1,4 @@
 add_library(flowextra
-    DatagramSocketSource.c
-    DatagramSocketSink.c
-    StreamSocketSource.c
-    StreamSocketSink.c
     PacketPassInactivityMonitor.c
     KeepaliveIO.c
 )

@@ -28,53 +28,25 @@
 
 #include <generated/blog_channel_BInputProcess.h>
 
-static int init_pipe (BInputProcess *o, int pipe_fd);
-static void free_pipe (BInputProcess *o);
-static void pipe_source_handler_error (BInputProcess *o, int component, int code);
+static void connection_handler (BInputProcess *o, int event);
 static void process_handler (BInputProcess *o, int normally, uint8_t normally_exit_status);
 
-int init_pipe (BInputProcess *o, int pipe_fd)
-{
-    // init socket
-    if (BSocket_InitPipe(&o->pipe_sock, o->reactor, pipe_fd) < 0) {
-        BLog(BLOG_ERROR, "BSocket_InitPipe failed");
-        goto fail0;
-    }
-    
-    // init domain
-    FlowErrorDomain_Init(&o->pipe_domain, (FlowErrorDomain_handler)pipe_source_handler_error, o);
-    
-    // init source
-    StreamSocketSource_Init(&o->pipe_source, FlowErrorReporter_Create(&o->pipe_domain, 0), &o->pipe_sock, BReactor_PendingGroup(o->reactor));
-    
-    return 1;
-    
-fail0:
-    return 0;
-}
-
-void free_pipe (BInputProcess *o)
-{
-    // free source
-    StreamSocketSource_Free(&o->pipe_source);
-    
-    // free socket
-    BSocket_Free(&o->pipe_sock);
-}
-
-void pipe_source_handler_error (BInputProcess *o, int component, int code)
+void connection_handler (BInputProcess *o, int event)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(o->pipe_fd >= 0)
     
-    if (code == STREAMSOCKETSOURCE_ERROR_CLOSED) {
+    if (event == BCONNECTION_EVENT_RECVCLOSED) {
         BLog(BLOG_INFO, "pipe closed");
     } else {
         BLog(BLOG_ERROR, "pipe error");
     }
     
-    // free pipe reading
-    free_pipe(o);
+    // free pipe connection read interface
+    BConnection_RecvAsync_Free(&o->pipe_con);
+    
+    // free pipe connection
+    BConnection_Free(&o->pipe_con);
     
     // close pipe read end
     ASSERT_FORCE(close(o->pipe_fd) == 0)
@@ -83,7 +55,7 @@ void pipe_source_handler_error (BInputProcess *o, int component, int code)
     o->pipe_fd = -1;
     
     // call closed handler
-    o->handler_closed(o->user, (code != STREAMSOCKETSOURCE_ERROR_CLOSED));
+    o->handler_closed(o->user, (event != BCONNECTION_EVENT_RECVCLOSED));
     return;
 }
 
@@ -122,10 +94,14 @@ int BInputProcess_Init (BInputProcess *o, BReactor *reactor, BProcessManager *ma
         goto fail0;
     }
     
-    // init pipe reading
-    if (!init_pipe(o, pipefds[0])) {
+    // init pipe connection
+    if (!BConnection_Init(&o->pipe_con, BCONNECTION_SOURCE_PIPE(pipefds[0]), o->reactor, o, (BConnection_handler)connection_handler)) {
+        BLog(BLOG_ERROR, "BConnection_Init failed");
         goto fail1;
     }
+    
+    // init pipe connection read interface
+    BConnection_RecvAsync_Init(&o->pipe_con);
     
     // remember pipe fds
     o->pipe_fd = pipefds[0];
@@ -137,8 +113,6 @@ int BInputProcess_Init (BInputProcess *o, BReactor *reactor, BProcessManager *ma
     DebugObject_Init(&o->d_obj);
     return 1;
     
-fail2:
-    free_pipe(o);
 fail1:
     ASSERT_FORCE(close(pipefds[0]) == 0)
     ASSERT_FORCE(close(pipefds[1]) == 0)
@@ -161,8 +135,11 @@ void BInputProcess_Free (BInputProcess *o)
     }
     
     if (o->pipe_fd >= 0) {
-        // free pipe reading
-        free_pipe(o);
+        // free pipe connection read interface
+        BConnection_RecvAsync_Free(&o->pipe_con);
+        
+        // free pipe connection
+        BConnection_Free(&o->pipe_con);
         
         // close pipe read end
         ASSERT_FORCE(close(o->pipe_fd) == 0)
@@ -220,5 +197,5 @@ StreamRecvInterface * BInputProcess_GetInput (BInputProcess *o)
     DebugObject_Access(&o->d_obj);
     ASSERT(o->pipe_fd >= 0)
     
-    return StreamSocketSource_GetOutput(&o->pipe_source);
+    return BConnection_RecvAsync_GetIf(&o->pipe_con);
 }

@@ -35,10 +35,10 @@
 #include <base/BLog.h>
 #include <system/BReactor.h>
 #include <system/BSignal.h>
+#include <system/BNetwork.h>
 #include <flow/SinglePacketBuffer.h>
 #include <flow/PacketProtoEncoder.h>
-#include <nspr_support/DummyPRFileDesc.h>
-#include <nspr_support/BSocketPRFileDesc.h>
+#include <nspr_support/BSSLConnection.h>
 #include <server_connection/ServerConnection.h>
 
 #ifndef BADVPN_USE_WINAPI
@@ -202,9 +202,9 @@ int main (int argc, char *argv[])
     
     BLog(BLOG_NOTICE, "initializing "GLOBAL_PRODUCT_NAME" "PROGRAM_NAME" "GLOBAL_VERSION);
     
-    // initialize sockets
-    if (BSocket_GlobalInit() < 0) {
-        BLog(BLOG_ERROR, "BSocket_GlobalInit failed");
+    // initialize network
+    if (!BNetwork_GlobalInit()) {
+        BLog(BLOG_ERROR, "BNetwork_GlobalInit failed");
         goto fail1;
     }
     
@@ -234,13 +234,9 @@ int main (int argc, char *argv[])
         PR_Init(PR_USER_THREAD, PR_PRIORITY_NORMAL, 0);
         
         // register local NSPR file types
-        if (!DummyPRFileDesc_GlobalInit()) {
-            BLog(BLOG_ERROR, "DummyPRFileDesc_GlobalInit failed");
-            goto fail2;
-        }
-        if (!BSocketPRFileDesc_GlobalInit()) {
-            BLog(BLOG_ERROR, "BSocketPRFileDesc_GlobalInit failed");
-            goto fail2;
+        if (!BSSLConnection_GlobalInit()) {
+            BLog(BLOG_ERROR, "BSSLConnection_GlobalInit failed");
+            goto fail3;
         }
         
         // init NSS

@@ -109,42 +109,7 @@ void BTimer_Init (BTimer *bt, btime_t msTime, BTimer_handler handler, void *user
  */
 int BTimer_IsRunning (BTimer *bt);
 
-#ifdef BADVPN_USE_WINAPI
-
-/**
- * Handler function invoked by the reactor when the handle is signalled
- * The handle object is in active state, is being called from within
- * the associated reactor, and is in monitored state.
- *
- * @param user value passed to {@link BHandle_Init}
- */
-typedef void (*BHandle_handler) (void *user);
-
-struct BHandle_t;
-
-/**
- * Windows handle object used with {@link BReactor}.
- */
-typedef struct BHandle_t {
-    HANDLE h;
-    BHandle_handler handler;
-    void *user;
-    int active;
-    int position;
-} BHandle;
-
-/**
- * Initializes the handle object.
- * The handle object is initialized in not active state.
- *
- * @param bh the object
- * @param handle underlying Windows handle
- * @param handler handler function invoked when the handle is signalled
- * @param user value to pass to the handler function
- */
-void BHandle_Init (BHandle *bh, HANDLE handle, BHandle_handler handler, void *user);
-
-#else
+#ifndef BADVPN_USE_WINAPI
 
 struct BFileDescriptor_t;
 
@@ -229,11 +194,9 @@ typedef struct {
     LinkedList1 active_limits_list;
     
     #ifdef BADVPN_USE_WINAPI
-    int num_handles; // number of user handles
-    int enabled_num; // number of user handles in the enabled array
-    HANDLE enabled_handles[BSYSTEM_MAX_HANDLES]; // enabled user handles
-    BHandle *enabled_objects[BSYSTEM_MAX_HANDLES]; // objects corresponding to enabled handles
-    BHandle *returned_object;
+    LinkedList1 iocp_list;
+    HANDLE iocp_handle;
+    LinkedList1 iocp_ready_list;
     #endif
     
     #ifdef BADVPN_USE_EPOLL
@@ -393,50 +356,7 @@ BPendingGroup * BReactor_PendingGroup (BReactor *bsys);
  */
 int BReactor_Synchronize (BReactor *bsys, BPending *ref);
 
-#ifdef BADVPN_USE_WINAPI
-
-/**
- * Registers a Windows handle to be monitored.
- *
- * @param bsys the object
- * @param bh handle object. Must have been initialized with {@link BHandle_Init}.
- *           Must be in not active state. On success, the handle object enters
- *           active state, associated with this reactor, and is initialized
- *           to not monitored state.
- * @return 1 on success, 0 on failure
- */
-int BReactor_AddHandle (BReactor *bsys, BHandle *bh) WARN_UNUSED;
-
-/**
- * Unregisters a Windows handle.
- *
- * @param bsys the object
- * @param bh handle object. Must be in active state, associated with this reactor.
- *           The handle object enters not active state.
- */
-void BReactor_RemoveHandle (BReactor *bsys, BHandle *bh);
-
-/**
- * Starts monitoring a Windows handle.
- *
- * @param bsys the object
- * @param bh handle object. Must be in active state, associated with this reactor.
- *           Must be in not monitored state.
- *           The handle object enters monitored state.
- */
-void BReactor_EnableHandle (BReactor *bsys, BHandle *bh);
-
-/**
- * Stops monitoring a Windows handle.
- *
- * @param bsys the object
- * @param bh handle object. Must be in active state, associated with this reactor.
- *           Must be in monitored state.
- *           The handle object enters not monitored state.
- */
-void BReactor_DisableHandle (BReactor *bsys, BHandle *bh);
-
-#else
+#ifndef BADVPN_USE_WINAPI
 
 /**
  * Starts monitoring a file descriptor.
@@ -538,6 +458,35 @@ typedef struct {
 
 int BReactorKEvent_Init (BReactorKEvent *o, BReactor *reactor, BReactorKEvent_handler handler, void *user, uintptr_t ident, short filter, u_int fflags, intptr_t data);
 void BReactorKEvent_Free (BReactorKEvent *o);
+
+#endif
+
+#ifdef BADVPN_USE_WINAPI
+
+#define BREACTOR_IOCP_EVENT_SUCCEEDED 1
+#define BREACTOR_IOCP_EVENT_FAILED 2
+#define BREACTOR_IOCP_EVENT_EXITING 3
+
+typedef void (*BReactorIOCPOverlapped_handler) (void *user, int event, DWORD bytes);
+
+typedef struct {
+    OVERLAPPED olap;
+    BReactor *reactor;
+    void *user;
+    BReactorIOCPOverlapped_handler handler;
+    LinkedList1Node iocp_list_node;
+    int is_ready;
+    LinkedList1Node ready_list_node;
+    int ready_succeeded;
+    DWORD ready_bytes;
+    DebugObject d_obj;
+} BReactorIOCPOverlapped;
+
+HANDLE BReactor_GetIOCPHandle (BReactor *reactor);
+
+void BReactorIOCPOverlapped_Init (BReactorIOCPOverlapped *o, BReactor *reactor, void *user, BReactorIOCPOverlapped_handler handler);
+void BReactorIOCPOverlapped_Free (BReactorIOCPOverlapped *o);
+void BReactorIOCPOverlapped_Wait (BReactorIOCPOverlapped *o, int *out_succeeded, DWORD *out_bytes);
 
 #endif
 

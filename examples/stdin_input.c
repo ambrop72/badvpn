@@ -27,19 +27,17 @@
 #include <stdio.h>
 #include <stddef.h>
 
-#include <system/BReactor.c>
-#include <system/BSocket.h>
-#include <system/BUnixSignal.h>
 #include <base/DebugObject.h>
-#include <flowextra/StreamSocketSource.h>
+#include <system/BReactor.c>
+#include <system/BNetwork.h>
+#include <system/BConnection.h>
+#include <system/BUnixSignal.h>
 
 #define BUF_SIZE 64
 
 BReactor reactor;
-BSocket pipe_bsock;
+BConnection pipe_con;
 BUnixSignal usignal;
-FlowErrorDomain errdomain;
-StreamSocketSource source;
 StreamRecvInterface *source_if;
 uint8_t buf[BUF_SIZE + 1];
 
@@ -51,16 +49,16 @@ static void signal_handler (void *user, int signo)
     BReactor_Quit(&reactor, 1);
 }
 
-static void source_error_handler (void *user, int component, int code)
+static void connection_handler (void *user, int event)
 {
-    if (code == 0) {
+    if (event == BCONNECTION_EVENT_RECVCLOSED) {
         fprintf(stderr, "pipe closed\n");
     } else {
         fprintf(stderr, "pipe error\n");
     }
     
     // exit event loop
-    BReactor_Quit(&reactor, (code == 0 ? 0 : 1));
+    BReactor_Quit(&reactor, (event == BCONNECTION_EVENT_RECVCLOSED ? 0 : 1));
 }
 
 static void input_handler_done (void *user, int data_len)
@@ -79,6 +77,12 @@ int main ()
     
     BLog_InitStdout();
     
+    // init network
+    if (!BNetwork_GlobalInit()) {
+        fprintf(stderr, "BNetwork_GlobalInit failed\n");
+        goto fail1;
+    }
+    
     // init reactor (event loop)
     if (!BReactor_Init(&reactor)) {
         fprintf(stderr, "BReactor_Init failed\n");
@@ -95,18 +99,15 @@ int main ()
         goto fail2;
     }
     
-    // init BSocket object backed by the stdin fd
-    if (BSocket_InitPipe(&pipe_bsock, &reactor, 0) < 0) {
-        fprintf(stderr, "BSocket_InitPipe failed\n");
+    // init BConnection object backed by the stdin fd
+    if (!BConnection_Init(&pipe_con, BCONNECTION_SOURCE_PIPE(0), &reactor, NULL, connection_handler)) {
+        fprintf(stderr, "BConnection_Init failed\n");
         goto fail3;
     }
     
-    // init error handler
-    FlowErrorDomain_Init(&errdomain, source_error_handler, NULL);
-    
-    // init source (object for reading from a stream BSocket using StreamRecvInterface)
-    StreamSocketSource_Init(&source, FlowErrorReporter_Create(&errdomain, 0), &pipe_bsock, BReactor_PendingGroup(&reactor));
-    source_if = StreamSocketSource_GetOutput(&source);
+    // init connection receive interface
+    BConnection_RecvAsync_Init(&pipe_con);
+    source_if = BConnection_RecvAsync_GetIf(&pipe_con);
     
     // init receive done callback
     StreamRecvInterface_Receiver_Init(source_if, input_handler_done, NULL);
@@ -117,8 +118,8 @@ int main ()
     // run event loop
     ret = BReactor_Exec(&reactor);
     
-    StreamSocketSource_Free(&source);
-    BSocket_Free(&pipe_bsock);
+    BConnection_RecvAsync_Free(&pipe_con);
+    BConnection_Free(&pipe_con);
 fail3:
     BUnixSignal_Free(&usignal, 0);
 fail2:

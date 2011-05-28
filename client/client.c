@@ -20,18 +20,6 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-/*
- NOTE:
- This program works with I/O inside the BPending job environment.
- A consequence of this is that in response to an input, we can't
- directly do any output, but instead have to schedule outputs.
- Because all the buffers used (e.g. server send buffer, data buffers in DataProto)
- are based on flow components, it is impossible to directly write two or more
- packets to a buffer.
- To, for instance, send two packets to a buffer, we have to first schedule
- writing the second packet (using BPending), then send the first one.
-*/
-
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,14 +37,15 @@
 #include <misc/loglevel.h>
 #include <misc/loggers_string.h>
 #include <structure/LinkedList2.h>
+#include <base/DebugObject.h>
+#include <base/BLog.h>
 #include <security/BSecurity.h>
 #include <security/BRandom.h>
-#include <nspr_support/DummyPRFileDesc.h>
-#include <nspr_support/BSocketPRFileDesc.h>
-#include <base/BLog.h>
 #include <system/BSignal.h>
 #include <system/BTime.h>
-#include <base/DebugObject.h>
+#include <system/BNetwork.h>
+#include <nspr_support/DummyPRFileDesc.h>
+#include <nspr_support/BSSLConnection.h>
 #include <server_connection/ServerConnection.h>
 #include <tuntap/BTap.h>
 
@@ -278,6 +267,9 @@ static void peer_udp_pio_handler_seed_warning (struct peer_data *peer);
 // handler from DatagramPeerIO when a new OTP seed can be recognized once it was provided to it
 static void peer_udp_pio_handler_seed_ready (struct peer_data *peer);
 
+// handler from DatagramPeerIO when an error occurs on the connection
+static void peer_udp_pio_handler_error (struct peer_data *peer);
+
 // handler from StreamPeerIO when an error occurs on the connection
 static void peer_tcp_pio_handler_error (struct peer_data *peer);
 
@@ -385,9 +377,9 @@ int main (int argc, char *argv[])
     
     BLog(BLOG_NOTICE, "initializing "GLOBAL_PRODUCT_NAME" "PROGRAM_NAME" "GLOBAL_VERSION);
     
-    // initialize sockets
-    if (BSocket_GlobalInit() < 0) {
-        BLog(BLOG_ERROR, "BSocket_GlobalInit failed");
+    // initialize network
+    if (!BNetwork_GlobalInit()) {
+        BLog(BLOG_ERROR, "BNetwork_GlobalInit failed");
         goto fail1;
     }
     
@@ -435,8 +427,8 @@ int main (int argc, char *argv[])
             BLog(BLOG_ERROR, "DummyPRFileDesc_GlobalInit failed");
             goto fail3;
         }
-        if (!BSocketPRFileDesc_GlobalInit()) {
-            BLog(BLOG_ERROR, "BSocketPRFileDesc_GlobalInit failed");
+        if (!BSSLConnection_GlobalInit()) {
+            BLog(BLOG_ERROR, "BSSLConnection_GlobalInit failed");
             goto fail3;
         }
         
@@ -1469,11 +1461,10 @@ int peer_init_link (struct peer_data *peer)
         }
         
         // set handlers
-        DatagramPeerIO_SetHandlers(
-            &peer->pio.udp.pio,
+        DatagramPeerIO_SetHandlers(&peer->pio.udp.pio, peer,
+            (DatagramPeerIO_handler_error)peer_udp_pio_handler_error,
             (DatagramPeerIO_handler_otp_warning)peer_udp_pio_handler_seed_warning,
-            (DatagramPeerIO_handler_otp_ready)peer_udp_pio_handler_seed_ready,
-            peer
+            (DatagramPeerIO_handler_otp_ready)peer_udp_pio_handler_seed_ready
         );
         
         // init send seed state
@@ -2048,6 +2039,17 @@ void peer_udp_pio_handler_seed_ready (struct peer_data *peer)
     
     // send confirmation
     peer_send_confirmseed(peer, peer->pio.udp.pending_recvseed_id);
+}
+
+void peer_udp_pio_handler_error (struct peer_data *peer)
+{
+    ASSERT(options.transport_mode == TRANSPORT_MODE_UDP)
+    ASSERT(peer->have_link)
+    
+    peer_log(peer, BLOG_NOTICE, "UDP connection failed");
+    
+    peer_reset(peer);
+    return;
 }
 
 void peer_tcp_pio_handler_error (struct peer_data *peer)
