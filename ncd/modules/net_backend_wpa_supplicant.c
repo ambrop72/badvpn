@@ -135,9 +135,9 @@ void process_handler_closed (struct instance *o, int is_error)
     ASSERT(o->have_pipe)
     
     if (is_error) {
-        ModuleLog(o->i, BLOG_INFO, "pipe eof");
-    } else {
         ModuleLog(o->i, BLOG_ERROR, "pipe error");
+    } else {
+        ModuleLog(o->i, BLOG_INFO, "pipe closed");
     }
     
     // free buffer
