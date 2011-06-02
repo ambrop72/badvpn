@@ -58,6 +58,8 @@ static void addr_socket_to_sys (struct sys_addr *out, BAddr addr);
 static void addr_sys_to_socket (BAddr *out, struct sys_addr addr);
 static void set_pktinfo (int fd, int family);
 static void report_error (BDatagram *o);
+static void do_send (BDatagram *o);
+static void do_recv (BDatagram *o);
 static void fd_handler (BDatagram *o, int events);
 static void send_job_handler (BDatagram *o);
 static void recv_job_handler (BDatagram *o);
@@ -194,51 +196,8 @@ static void report_error (BDatagram *o)
     return;
 }
 
-static void fd_handler (BDatagram *o, int events)
+static void do_send (BDatagram *o)
 {
-    DebugObject_Access(&o->d_obj);
-    DebugError_AssertNoError(&o->d_err);
-    
-    // clear handled events
-    o->wait_events &= ~events;
-    BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
-    
-    int handled = 0;
-    
-    if ((events & BREACTOR_WRITE) || ((events & BREACTOR_ERROR) && o->send.inited && o->send.busy && o->send.have_addrs)) {
-        ASSERT(o->send.inited)
-        ASSERT(o->send.busy)
-        ASSERT(o->send.have_addrs)
-        
-        // set handled
-        handled = 1;
-        
-        // set job
-        BPending_Set(&o->send.job);
-    }
-    
-    if ((events & BREACTOR_READ) || ((events & BREACTOR_ERROR) && o->recv.inited && o->recv.busy && o->recv.started)) {
-        ASSERT(o->recv.inited)
-        ASSERT(o->recv.busy)
-        ASSERT(o->recv.started)
-        
-        // set handled
-        handled = 1;
-        
-        // set job
-        BPending_Set(&o->recv.job);
-    }
-    
-    if (!handled) {
-        BLog(BLOG_ERROR, "fd error event");
-        report_error(o);
-        return;
-    }
-}
-
-static void send_job_handler (BDatagram *o)
-{
-    DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
     ASSERT(o->send.inited)
     ASSERT(o->send.busy)
@@ -290,7 +249,7 @@ static void send_job_handler (BDatagram *o)
             cmsg->cmsg_type = IP_SENDSRCADDR;
             cmsg->cmsg_len = CMSG_LEN(sizeof(struct in_addr));
             struct in_addr *addrinfo = (struct in_addr *)CMSG_DATA(cmsg);
-            addrinfo->s_addr = local_addr->ipv4;;
+            addrinfo->s_addr = o->send.local_addr.ipv4;
             controllen += CMSG_SPACE(sizeof(struct in_addr));
 #else
             memset(cmsg, 0, CMSG_SPACE(sizeof(struct in_pktinfo)));
@@ -322,13 +281,14 @@ static void send_job_handler (BDatagram *o)
     
     // send
     int bytes = sendmsg(o->fd, &msg, 0);
-    if (bytes < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-        // wait for fd
-        o->wait_events |= BREACTOR_WRITE;
-        BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
-        return;
-    }
     if (bytes < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            // wait for fd
+            o->wait_events |= BREACTOR_WRITE;
+            BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
+            return;
+        }
+        
         BLog(BLOG_ERROR, "send failed");
         report_error(o);
         return;
@@ -359,9 +319,8 @@ static void send_job_handler (BDatagram *o)
     PacketPassInterface_Done(&o->send.iface);
 }
 
-static void recv_job_handler (BDatagram *o)
+static void do_recv (BDatagram *o)
 {
-    DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
     ASSERT(o->recv.inited)
     ASSERT(o->recv.busy)
@@ -401,13 +360,14 @@ static void recv_job_handler (BDatagram *o)
     
     // recv
     int bytes = recvmsg(o->fd, &msg, 0);
-    if (bytes < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-        // wait for fd
-        o->wait_events |= BREACTOR_READ;
-        BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
-        return;
-    }
     if (bytes < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            // wait for fd
+            o->wait_events |= BREACTOR_READ;
+            BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
+            return;
+        }
+        
         BLog(BLOG_ERROR, "recv failed");
         report_error(o);
         return;
@@ -422,8 +382,7 @@ static void recv_job_handler (BDatagram *o)
     
     // read returned local address
     BIPAddr_InitInvalid(&o->recv.local_addr);
-    struct cmsghdr *cmsg;
-    for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+    for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
 #ifdef BADVPN_FREEBSD
         if (cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_RECVDSTADDR) {
             struct in_addr *addrinfo = (struct in_addr *)CMSG_DATA(cmsg);
@@ -449,6 +408,77 @@ static void recv_job_handler (BDatagram *o)
     
     // done
     PacketRecvInterface_Done(&o->recv.iface, bytes);
+}
+
+static void fd_handler (BDatagram *o, int events)
+{
+    DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
+    
+    // clear handled events
+    o->wait_events &= ~events;
+    BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
+    
+    int have_send = 0;
+    int have_recv = 0;
+    
+    if ((events & BREACTOR_WRITE) || ((events & BREACTOR_ERROR) && o->send.inited && o->send.busy && o->send.have_addrs)) {
+        ASSERT(o->send.inited)
+        ASSERT(o->send.busy)
+        ASSERT(o->send.have_addrs)
+        
+        have_send = 1;
+    }
+    
+    if ((events & BREACTOR_READ) || ((events & BREACTOR_ERROR) && o->recv.inited && o->recv.busy && o->recv.started)) {
+        ASSERT(o->recv.inited)
+        ASSERT(o->recv.busy)
+        ASSERT(o->recv.started)
+        
+        have_recv = 1;
+    }
+    
+    if (have_send) {
+        if (have_recv) {
+            BPending_Set(&o->recv.job);
+        }
+        
+        do_send(o);
+        return;
+    }
+    
+    if (have_recv) {
+        do_recv(o);
+        return;
+    }
+    
+    BLog(BLOG_ERROR, "fd error event");
+    report_error(o);
+    return;
+}
+
+static void send_job_handler (BDatagram *o)
+{
+    DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
+    ASSERT(o->send.inited)
+    ASSERT(o->send.busy)
+    ASSERT(o->send.have_addrs)
+    
+    do_send(o);
+    return;
+}
+
+static void recv_job_handler (BDatagram *o)
+{
+    DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
+    ASSERT(o->recv.inited)
+    ASSERT(o->recv.busy)
+    ASSERT(o->recv.started)
+    
+    do_recv(o);
+    return;
 }
 
 static void send_if_handler_send (BDatagram *o, uint8_t *data, int data_len)
@@ -633,18 +663,18 @@ void BDatagram_SetSendAddrs (BDatagram *o, BAddr remote_addr, BIPAddr local_addr
     ASSERT(BDatagram_AddressFamilySupported(remote_addr.type))
     ASSERT(local_addr.type == BADDR_TYPE_NONE || BDatagram_AddressFamilySupported(local_addr.type))
     
-    int had_send_addrs = o->send.have_addrs;
-    
     // set addresses
     o->send.remote_addr = remote_addr;
     o->send.local_addr = local_addr;
     
-    // set have addresses
-    o->send.have_addrs = 1;
-    
-    // start sending
-    if (!had_send_addrs && o->send.inited && o->send.busy) {
-        BPending_Set(&o->send.job);
+    if (!o->send.have_addrs) {
+        // set have addresses
+        o->send.have_addrs = 1;
+        
+        // start sending
+        if (o->send.inited && o->send.busy) {
+            BPending_Set(&o->send.job);
+        }
     }
 }
 
