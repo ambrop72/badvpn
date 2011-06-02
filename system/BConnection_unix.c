@@ -49,6 +49,8 @@ static void listener_default_job_handler (BListener *o);
 static void connector_fd_handler (BConnector *o, int events);
 static void connector_job_handler (BConnector *o);
 static void connection_report_error (BConnection *o);
+static void connection_send (BConnection *o);
+static void connection_recv (BConnection *o);
 static void connection_fd_handler (BConnection *o, int events);
 static void connection_send_job_handler (BConnection *o);
 static void connection_recv_job_handler (BConnection *o);
@@ -188,50 +190,8 @@ static void connection_report_error (BConnection *o)
     return;
 }
 
-static void connection_fd_handler (BConnection *o, int events)
+static void connection_send (BConnection *o)
 {
-    DebugObject_Access(&o->d_obj);
-    DebugError_AssertNoError(&o->d_err);
-    
-    // clear handled events
-    o->wait_events &= ~events;
-    BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
-    
-    int handled = 0;
-    
-    if ((events & BREACTOR_WRITE) || ((events & BREACTOR_ERROR) && o->send.inited && o->send.busy)) {
-        ASSERT(o->send.inited)
-        ASSERT(o->send.busy)
-        
-        // set handled
-        handled = 1;
-        
-        // set job
-        BPending_Set(&o->send.job);
-    }
-    
-    if ((events & BREACTOR_READ) || ((events & BREACTOR_ERROR) && o->recv.inited && o->recv.busy && !o->recv.closed)) {
-        ASSERT(o->recv.inited)
-        ASSERT(o->recv.busy)
-        ASSERT(!o->recv.closed)
-        
-        // set handled
-        handled = 1;
-        
-        // set job
-        BPending_Set(&o->recv.job);
-    }
-    
-    if (!handled) {
-        BLog(BLOG_ERROR, "fd error event");
-        connection_report_error(o);
-        return;
-    }
-}
-
-static void connection_send_job_handler (BConnection *o)
-{
-    DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
     ASSERT(o->send.inited)
     ASSERT(o->send.busy)
@@ -246,13 +206,14 @@ static void connection_send_job_handler (BConnection *o)
     
     // send
     int bytes = write(o->fd, o->send.busy_data, o->send.busy_data_len);
-    if (bytes < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-        // wait for fd
-        o->wait_events |= BREACTOR_WRITE;
-        BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
-        return;
-    }
     if (bytes < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            // wait for fd
+            o->wait_events |= BREACTOR_WRITE;
+            BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
+            return;
+        }
+        
         BLog(BLOG_ERROR, "send failed");
         connection_report_error(o);
         return;
@@ -268,9 +229,8 @@ static void connection_send_job_handler (BConnection *o)
     StreamPassInterface_Done(&o->send.iface, bytes);
 }
 
-static void connection_recv_job_handler (BConnection *o)
+static void connection_recv (BConnection *o)
 {
-    DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
     ASSERT(o->recv.inited)
     ASSERT(o->recv.busy)
@@ -286,17 +246,19 @@ static void connection_recv_job_handler (BConnection *o)
     
     // recv
     int bytes = read(o->fd, o->recv.busy_data, o->recv.busy_data_avail);
-    if (bytes < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-        // wait for fd
-        o->wait_events |= BREACTOR_READ;
-        BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
-        return;
-    }
     if (bytes < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            // wait for fd
+            o->wait_events |= BREACTOR_READ;
+            BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
+            return;
+        }
+        
         BLog(BLOG_ERROR, "recv failed");
         connection_report_error(o);
         return;
     }
+    
     if (bytes == 0) {
         // set recv closed
         o->recv.closed = 1;
@@ -316,6 +278,75 @@ static void connection_recv_job_handler (BConnection *o)
     StreamRecvInterface_Done(&o->recv.iface, bytes);
 }
 
+static void connection_fd_handler (BConnection *o, int events)
+{
+    DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
+    
+    // clear handled events
+    o->wait_events &= ~events;
+    BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
+    
+    int have_send = 0;
+    int have_recv = 0;
+    
+    if ((events & BREACTOR_WRITE) || ((events & BREACTOR_ERROR) && o->send.inited && o->send.busy)) {
+        ASSERT(o->send.inited)
+        ASSERT(o->send.busy)
+        
+        have_send = 1;
+    }
+    
+    if ((events & BREACTOR_READ) || ((events & BREACTOR_ERROR) && o->recv.inited && o->recv.busy && !o->recv.closed)) {
+        ASSERT(o->recv.inited)
+        ASSERT(o->recv.busy)
+        ASSERT(!o->recv.closed)
+        
+        have_recv = 1;
+    }
+    
+    if (have_send) {
+        if (have_recv) {
+            BPending_Set(&o->recv.job);
+        }
+        
+        connection_send(o);
+        return;
+    }
+    
+    if (have_recv) {
+        connection_recv(o);
+        return;
+    }
+    
+    BLog(BLOG_ERROR, "fd error event");
+    connection_report_error(o);
+    return;
+}
+
+static void connection_send_job_handler (BConnection *o)
+{
+    DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
+    ASSERT(o->send.inited)
+    ASSERT(o->send.busy)
+    
+    connection_send(o);
+    return;
+}
+
+static void connection_recv_job_handler (BConnection *o)
+{
+    DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
+    ASSERT(o->recv.inited)
+    ASSERT(o->recv.busy)
+    ASSERT(!o->recv.closed)
+    
+    connection_recv(o);
+    return;
+}
+
 static void connection_send_if_handler_send (BConnection *o, uint8_t *data, int data_len)
 {
     DebugObject_Access(&o->d_obj);
@@ -331,8 +362,8 @@ static void connection_send_if_handler_send (BConnection *o, uint8_t *data, int 
     // set busy
     o->send.busy = 1;
     
-    // set job
-    BPending_Set(&o->send.job);
+    connection_send(o);
+    return;
 }
 
 static void connection_recv_if_handler_recv (BConnection *o, uint8_t *data, int data_avail)
@@ -351,8 +382,8 @@ static void connection_recv_if_handler_recv (BConnection *o, uint8_t *data, int 
     // set busy
     o->recv.busy = 1;
     
-    // set job
-    BPending_Set(&o->recv.job);
+    connection_recv(o);
+    return;
 }
 
 int BConnection_AddressSupported (BAddr addr)
@@ -678,13 +709,13 @@ void BConnection_Free (BConnection *o)
     }
 }
 
-void BConnection_SetHandlers (BConnection *o, void *user, BConnection_handler handler_event)
+void BConnection_SetHandlers (BConnection *o, void *user, BConnection_handler handler)
 {
     DebugObject_Access(&o->d_obj);
     
     // set handlers
     o->user = user;
-    o->handler = handler_event;
+    o->handler = handler;
 }
 
 int BConnection_SetSendBuffer (BConnection *o, int buf_size)

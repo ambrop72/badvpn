@@ -751,13 +751,13 @@ void BConnection_Free (BConnection *o)
     }
 }
 
-void BConnection_SetHandlers (BConnection *o, void *user, BConnection_handler handler_event)
+void BConnection_SetHandlers (BConnection *o, void *user, BConnection_handler handler)
 {
     DebugObject_Access(&o->d_obj);
     
     // set handlers
     o->user = user;
-    o->handler = handler_event;
+    o->handler = handler;
 }
 
 int BConnection_SetSendBuffer (BConnection *o, int buf_size)

@@ -114,7 +114,7 @@ typedef void (*BConnection_handler) (void *user, int event);
 int BConnection_Init (BConnection *o, struct BConnection_source source, BReactor *reactor, void *user,
                       BConnection_handler handler) WARN_UNUSED;
 void BConnection_Free (BConnection *o);
-void BConnection_SetHandlers (BConnection *o, void *user, BConnection_handler handler_event);
+void BConnection_SetHandlers (BConnection *o, void *user, BConnection_handler handler);
 int BConnection_SetSendBuffer (BConnection *o, int buf_size);
 
 void BConnection_SendAsync_Init (BConnection *o);
