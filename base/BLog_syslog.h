@@ -24,8 +24,8 @@
  * BLog syslog backend.
  */
 
-#ifndef BADVPN_SYSTEM_BLOG_SYSLOG_H
-#define BADVPN_SYSTEM_BLOG_SYSLOG_H
+#ifndef BADVPN_BLOG_SYSLOG_H
+#define BADVPN_BLOG_SYSLOG_H
 
 #include <misc/debug.h>
 #include <base/BLog.h>

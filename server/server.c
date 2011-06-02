@@ -55,7 +55,7 @@
 #include <nspr_support/DummyPRFileDesc.h>
 
 #ifndef BADVPN_USE_WINAPI
-#include <system/BLog_syslog.h>
+#include <base/BLog_syslog.h>
 #endif
 
 #include <server/server.h>

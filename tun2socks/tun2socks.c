@@ -52,7 +52,7 @@
 #include <tun2socks/SocksUdpGwClient.h>
 
 #ifndef BADVPN_USE_WINAPI
-#include <system/BLog_syslog.h>
+#include <base/BLog_syslog.h>
 #endif
 
 #include <tun2socks/tun2socks.h>

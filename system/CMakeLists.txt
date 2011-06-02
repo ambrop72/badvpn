@@ -11,7 +11,6 @@ endif ()
 
 if (NOT WIN32)
     list(APPEND BSYSTEM_ADDITIONAL_SOURCES
-        BLog_syslog.c
         BUnixSignal.c
         BConnection_unix.c
         BDatagram_unix.c

@@ -26,7 +26,7 @@
 
 #include <misc/debug.h>
 
-#include <system/BLog_syslog.h>
+#include "BLog_syslog.h"
 
 static int resolve_facility (char *str, int *out)
 {
