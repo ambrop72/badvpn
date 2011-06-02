@@ -36,7 +36,7 @@
 /**
  * Allocates memory.
  * 
- * @param bytes number of bytes to allocate. Must be >0.
+ * @param bytes number of bytes to allocate.
  * @return a non-NULL pointer to the memory, or NULL on failure.
  *         The memory allocated can be freed using {@link BFree}.
  */
@@ -56,8 +56,8 @@ static void BFree (void *m);
  * A check is first done to make sure the multiplication doesn't overflow;
  * otherwise, this is equivalent to {@link BAlloc}(count * bytes).
  * 
- * @param count number of elements. Must be >0.
- * @param bytes size of one array element. Must be >0.
+ * @param count number of elements.
+ * @param bytes size of one array element.
  * @return a non-NULL pointer to the memory, or NULL on failure.
  *         The memory allocated can be freed using {@link BFree}.
  */
@@ -69,9 +69,9 @@ static void * BAllocArray (size_t count, size_t bytes);
  * Checks are first done to make sure the multiplications don't overflow;
  * otherwise, this is equivalent to {@link BAlloc}((count2 * (count1 * bytes)).
  * 
- * @param count2 number of elements in one dimension. Must be >0.
- * @param count1 number of elements in the other dimension. Must be >0.
- * @param bytes size of one array element. Must be >0.
+ * @param count2 number of elements in one dimension.
+ * @param count1 number of elements in the other dimension.
+ * @param bytes size of one array element.
  * @return a non-NULL pointer to the memory, or NULL on failure.
  *         The memory allocated can be freed using {@link BFree}.
  */
@@ -79,7 +79,9 @@ static void * BAllocArray2 (size_t count2, size_t count1, size_t bytes);
 
 void * BAlloc (size_t bytes)
 {
-    ASSERT(bytes > 0)
+    if (bytes == 0) {
+        return malloc(1);
+    }
     
     return malloc(bytes);
 }
@@ -91,8 +93,9 @@ void BFree (void *m)
 
 void * BAllocArray (size_t count, size_t bytes)
 {
-    ASSERT(count > 0)
-    ASSERT(bytes > 0)
+    if (count == 0 || bytes == 0) {
+        return malloc(1);
+    }
     
     if (count > SIZE_MAX / bytes) {
         return NULL;
@@ -103,9 +106,9 @@ void * BAllocArray (size_t count, size_t bytes)
 
 void * BAllocArray2 (size_t count2, size_t count1, size_t bytes)
 {
-    ASSERT(count2 > 0)
-    ASSERT(count1 > 0)
-    ASSERT(bytes > 0)
+    if (count2 == 0 || count1 == 0 || bytes == 0) {
+        return malloc(1);
+    }
     
     if (count1 > SIZE_MAX / bytes) {
         return NULL;
