@@ -23,6 +23,7 @@
 #include <stdlib.h>
 
 #include <misc/debug.h>
+#include <misc/balloc.h>
 
 #include <flow/SinglePacketBuffer.h>
 
@@ -55,7 +56,7 @@ int SinglePacketBuffer_Init (SinglePacketBuffer *o, PacketRecvInterface *input, 
     PacketPassInterface_Sender_Init(o->output, (PacketPassInterface_handler_done)output_handler_done, o);
     
     // init buffer
-    if (!(o->buf = malloc(PacketRecvInterface_GetMTU(o->input)))) {
+    if (!(o->buf = BAlloc(PacketRecvInterface_GetMTU(o->input)))) {
         goto fail1;
     }
     
@@ -75,5 +76,5 @@ void SinglePacketBuffer_Free (SinglePacketBuffer *o)
     DebugObject_Free(&o->d_obj);
     
     // free buffer
-    free(o->buf);
+    BFree(o->buf);
 }

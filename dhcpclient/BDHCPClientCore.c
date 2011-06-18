@@ -25,6 +25,7 @@
 
 #include <misc/byteorder.h>
 #include <misc/minmax.h>
+#include <misc/balloc.h>
 #include <security/BRandom.h>
 #include <base/BLog.h>
 
@@ -615,12 +616,12 @@ int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, Pack
     o->user = user;
     
     // allocate buffers
-    if (!(o->send_buf = malloc(PacketPassInterface_GetMTU(send_if)))) {
-        BLog(BLOG_ERROR, "malloc send buf failed");
+    if (!(o->send_buf = BAlloc(PacketPassInterface_GetMTU(send_if)))) {
+        BLog(BLOG_ERROR, "BAlloc send buf failed");
         goto fail0;
     }
-    if (!(o->recv_buf = malloc(PacketRecvInterface_GetMTU(recv_if)))) {
-        BLog(BLOG_ERROR, "malloc recv buf failed");
+    if (!(o->recv_buf = BAlloc(PacketRecvInterface_GetMTU(recv_if)))) {
+        BLog(BLOG_ERROR, "BAlloc recv buf failed");
         goto fail1;
     }
     
@@ -651,7 +652,7 @@ int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, Pack
     return 1;
     
 fail1:
-    free(o->send_buf);
+    BFree(o->send_buf);
 fail0:
     return 0;
 }
@@ -668,8 +669,8 @@ void BDHCPClientCore_Free (BDHCPClientCore *o)
     BReactor_RemoveTimer(o->reactor, &o->reset_timer);
     
     // free buffers
-    free(o->recv_buf);
-    free(o->send_buf);
+    BFree(o->recv_buf);
+    BFree(o->send_buf);
 }
 
 void BDHCPClientCore_GetClientIP (BDHCPClientCore *o, uint32_t *out_ip)

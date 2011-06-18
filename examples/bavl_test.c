@@ -24,6 +24,7 @@
 
 #include <misc/offset.h>
 #include <misc/debug.h>
+#include <misc/balloc.h>
 #include <structure/BAVL.h>
 #include <security/BRandom.h>
 
@@ -80,16 +81,13 @@ int main (int argc, char **argv)
         return 1;
     }
     
-    struct mynode *nodes = malloc(num_nodes * sizeof(*nodes));
-    if (!nodes) {
-        fprintf(stderr, "malloc failed\n");
-        return 1;
-    }
+    struct mynode *nodes = BAllocArray(num_nodes, sizeof(*nodes));
+    ASSERT_FORCE(nodes)
     
-    int *values_ins = malloc(num_nodes * sizeof(int));
+    int *values_ins = BAllocArray(num_nodes, sizeof(int));
     ASSERT_FORCE(values_ins)
     
-    int *values = malloc(num_random_delete * sizeof(int));
+    int *values = BAllocArray(num_random_delete, sizeof(int));
     ASSERT_FORCE(values)
     
     BAVL avl;
@@ -132,8 +130,9 @@ int main (int argc, char **argv)
     
     printf("Removed %d entries\n", removed);
     
-    free(nodes);
-    free(values);
+    BFree(nodes);
+    BFree(values_ins);
+    BFree(values);
     
     return 0;
 }

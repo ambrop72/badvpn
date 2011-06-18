@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include <limits.h>
 
+#include <misc/balloc.h>
 #include <security/BRandom.h>
 #include <security/BEncryption.h>
 #include <base/DebugObject.h>
@@ -92,19 +93,23 @@ int main (int argc, char **argv)
     uint8_t iv[block_size];
     BRandom_randomize(iv, sizeof(iv));
     
+    if (num_blocks > INT_MAX / block_size) {
+        printf("too much");
+        goto fail0;
+    }
     int unit_size = num_blocks * block_size;
     
     printf("unit size %d\n", unit_size);
     
-    uint8_t *buf1 = malloc(unit_size);
+    uint8_t *buf1 = BAlloc(unit_size);
     if (!buf1) {
-        printf("malloc failed");
+        printf("BAlloc failed");
         goto fail0;
     }
     
-    uint8_t *buf2 = malloc(unit_size);
+    uint8_t *buf2 = BAlloc(unit_size);
     if (!buf2) {
-        printf("malloc failed");
+        printf("BAlloc failed");
         goto fail1;
     }
     
@@ -124,9 +129,9 @@ int main (int argc, char **argv)
     }
     
     BEncryption_Free(&enc);
-    free(buf2);
+    BFree(buf2);
 fail1:
-    free(buf1);
+    BFree(buf1);
 fail0:
     DebugObjectGlobal_Finish();
     

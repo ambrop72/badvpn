@@ -21,6 +21,7 @@
  */
 
 #include <misc/offset.h>
+#include <misc/balloc.h>
 #include <structure/BHeap.h>
 #include <security/BRandom.h>
 
@@ -77,13 +78,10 @@ int main (int argc, char **argv)
         return 1;
     }
     
-    struct mynode *nodes = malloc(num_nodes * sizeof(*nodes));
-    if (!nodes) {
-        fprintf(stderr, "malloc failed\n");
-        return 1;
-    }
+    struct mynode *nodes = BAllocArray(num_nodes, sizeof(*nodes));
+    ASSERT_FORCE(nodes)
     
-    int *values = malloc(num_random_delete * sizeof(int));
+    int *values = BAllocArray(num_random_delete, sizeof(int));
     ASSERT_FORCE(values)
     
     BHeap heap;
@@ -123,8 +121,8 @@ int main (int argc, char **argv)
     
     //print_heap(&heap);
     
-    free(nodes);
-    free(values);
+    BFree(values);
+    BFree(nodes);
     
     return 0;
 }
