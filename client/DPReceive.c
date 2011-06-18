@@ -186,9 +186,6 @@ int DPReceiveDevice_Init (DPReceiveDevice *o, int device_mtu, DPReceiveDevice_ou
     // have no peer ID
     o->have_peer_id = 0;
     
-    // set not freeing
-    o->freeing = 0;
-    
     // init peers list
     LinkedList2_Init(&o->peers_list);
     

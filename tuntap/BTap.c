@@ -86,8 +86,8 @@ static void recv_olap_handler (BTap *o, int event, DWORD bytes)
 
 static void fd_handler (BTap *o, int events)
 {
-    DebugError_AssertNoError(&o->d_err);
     DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
     
     if (events&BREACTOR_ERROR) {
         BLog(BLOG_WARNING, "device fd reports error?");
@@ -131,10 +131,10 @@ void report_error (BTap *o)
 
 void output_handler_recv (BTap *o, uint8_t *data)
 {
+    DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
     ASSERT(data)
     ASSERT(!o->output_packet)
-    DebugError_AssertNoError(&o->d_err);
-    DebugObject_Access(&o->d_obj);
     
 #ifdef BADVPN_USE_WINAPI
     
@@ -416,16 +416,15 @@ success:
     // set no output packet
     o->output_packet = NULL;
     
-    DebugObject_Init(&o->d_obj);
     DebugError_Init(&o->d_err, BReactor_PendingGroup(o->reactor));
-    
+    DebugObject_Init(&o->d_obj);
     return 1;
 }
 
 void BTap_Free (BTap *o)
 {
-    DebugError_Free(&o->d_err);
     DebugObject_Free(&o->d_obj);
+    DebugError_Free(&o->d_err);
     
     // free output
     PacketRecvInterface_Free(&o->output);

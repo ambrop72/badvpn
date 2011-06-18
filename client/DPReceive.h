@@ -51,7 +51,6 @@ typedef struct {
     DPRelayRouter relay_router;
     int have_peer_id;
     peerid_t peer_id;
-    int freeing;
     LinkedList2 peers_list;
     DebugObject d_obj;
 } DPReceiveDevice;
