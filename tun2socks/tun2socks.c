@@ -34,14 +34,13 @@
 #include <misc/ipv4_proto.h>
 #include <misc/udp_proto.h>
 #include <misc/byteorder.h>
+#include <misc/balloc.h>
 #include <structure/LinkedList2.h>
 #include <base/BLog.h>
 #include <system/BReactor.h>
 #include <system/BSignal.h>
 #include <system/BAddr.h>
 #include <system/BNetwork.h>
-#include <flow/PacketBuffer.h>
-#include <flow/BufferWriter.h>
 #include <flow/SinglePacketBuffer.h>
 #include <socksclient/BSocksClient.h>
 #include <tuntap/BTap.h>
@@ -140,9 +139,8 @@ int quitting;
 // TUN device
 BTap device;
 
-// device writing
-BufferWriter device_write_writer;
-PacketBuffer device_write_buffer;
+// device write buffer
+uint8_t *device_write_buf;
 
 // device reading
 SinglePacketBuffer device_read_buffer;
@@ -322,10 +320,9 @@ int main (int argc, char **argv)
     BPending_Init(&lwip_init_job, BReactor_PendingGroup(&ss), lwip_init_job_hadler, NULL);
     BPending_Set(&lwip_init_job);
     
-    // init device writing
-    BufferWriter_Init(&device_write_writer, BTap_GetMTU(&device), BReactor_PendingGroup(&ss));
-    if (!PacketBuffer_Init(&device_write_buffer, BufferWriter_GetOutput(&device_write_writer), BTap_GetInput(&device), DEVICE_WRITE_BUFFER_SIZE, BReactor_PendingGroup(&ss))) {
-        BLog(BLOG_ERROR, "PacketBuffer_Init failed");
+    // init device write buffer
+    if (!(device_write_buf = BAlloc(BTap_GetMTU(&device)))) {
+        BLog(BLOG_ERROR, "BAlloc failed");
         goto fail5;
     }
     
@@ -368,9 +365,8 @@ int main (int argc, char **argv)
     }
     
     BReactor_RemoveTimer(&ss, &tcp_timer);
-    PacketBuffer_Free(&device_write_buffer);
+    BFree(device_write_buf);
 fail5:
-    BufferWriter_Free(&device_write_writer);
     BPending_Free(&lwip_init_job);
     if (options.udpgw_remote_server_addr) {
         SocksUdpGwClient_Free(&udpgw_client);
@@ -897,12 +893,6 @@ err_t netif_output_func (struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr)
         return ERR_OK;
     }
     
-    uint8_t *out;
-    if (!BufferWriter_StartPacket(&device_write_writer, &out)) {
-        BLog(BLOG_ERROR, "netif func output: BufferWriter_StartPacket failed");
-        return ERR_OK;
-    }
-    
     int len = 0;
     while (p) {
         int remain = BTap_GetMTU(&device) - len;
@@ -910,13 +900,13 @@ err_t netif_output_func (struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr)
             BLog(BLOG_WARNING, "netif func output: no space left");
             break;
         }
-        memcpy(out + len, p->payload, p->len);
+        memcpy(device_write_buf + len, p->payload, p->len);
         len += p->len;
         p = p->next;
     }
     
     SYNC_FROMHERE
-    BufferWriter_EndPacket(&device_write_writer, len);
+    BTap_Send(&device, device_write_buf, len);
     SYNC_COMMIT
     
     return ERR_OK;
@@ -1480,15 +1470,8 @@ void udpgw_client_handler_received (void *unused, BAddr local_addr, BAddr remote
     
     BLog(BLOG_INFO, "UDP: from udpgw %d bytes", data_len);
     
-    // obtain buffer location
-    uint8_t *out;
-    if (!BufferWriter_StartPacket(&device_write_writer, &out)) {
-        BLog(BLOG_ERROR, "UDP: out of device buffer");
-        return;
-    }
-    
     // write IP header
-    struct ipv4_header *iph = (struct ipv4_header *)out;
+    struct ipv4_header *iph = (struct ipv4_header *)device_write_buf;
     iph->version4_ihl4 = IPV4_MAKE_VERSION_IHL(sizeof(*iph));
     iph->ds = hton8(0);
     iph->total_length = hton16(sizeof(*iph) + sizeof(struct udp_header) + data_len);
@@ -1505,19 +1488,19 @@ void udpgw_client_handler_received (void *unused, BAddr local_addr, BAddr remote
     iph->checksum = checksum;
     
     // write UDP header
-    struct udp_header *udph = (struct udp_header *)(out + sizeof(*iph));
+    struct udp_header *udph = (struct udp_header *)(device_write_buf + sizeof(*iph));
     udph->source_port = remote_addr.ipv4.port;
     udph->dest_port = local_addr.ipv4.port;
     udph->length = hton16(sizeof(*udph) + data_len);
     udph->checksum = hton16(0);
     
     // write data
-    memcpy(out + sizeof(*iph) + sizeof(struct udp_header), data, data_len);
+    memcpy(device_write_buf + sizeof(*iph) + sizeof(struct udp_header), data, data_len);
     
     // compute checksum
     checksum = udp_checksum((uint8_t *)udph, sizeof(*udph) + data_len, iph->source_address, iph->destination_address);
     udph->checksum = checksum;
     
     // submit packet
-    BufferWriter_EndPacket(&device_write_writer, sizeof(*iph) + sizeof(*udph) + data_len);
+    BTap_Send(&device, device_write_buf, sizeof(*iph) + sizeof(*udph) + data_len);
 }

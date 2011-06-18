@@ -32,28 +32,27 @@
 #include <misc/debug.h>
 #include <structure/LinkedList2.h>
 #include <base/DebugObject.h>
-#include <flow/PacketPassFairQueue.h>
 #include <client/DataProto.h>
 #include <client/DPRelay.h>
 #include <client/FrameDecider.h>
 
-typedef void (*DPReceiveReceiver_forgotten_cb) (void *user);
+typedef void (*DPReceiveDevice_output_func) (void *output_user, uint8_t *data, int data_len);
 
 struct DPReceiveReceiver_s;
 
 typedef struct {
+    int device_mtu;
+    DPReceiveDevice_output_func output_func;
+    void *output_func_user;
     BReactor *reactor;
     int relay_flow_buffer_size;
     int relay_flow_inactivity_time;
-    int device_mtu;
     int packet_mtu;
     DPRelayRouter relay_router;
-    PacketPassFairQueue queue;
     int have_peer_id;
     peerid_t peer_id;
     int freeing;
     LinkedList2 peers_list;
-    struct DPReceiveReceiver_s *forgotten_receiver;
     DebugObject d_obj;
 } DPReceiveDevice;
 
@@ -73,17 +72,12 @@ typedef struct {
 typedef struct DPReceiveReceiver_s {
     DPReceivePeer *peer;
     DPReceiveDevice *device;
-    PacketPassFairQueueFlow qflow;
-    PacketPassInterface *qflow_if;
     PacketPassInterface recv_if;
-    DPReceiveReceiver_forgotten_cb forgotten_cb;
-    void *forgotten_user;
     DebugObject d_obj;
 } DPReceiveReceiver;
 
-int DPReceiveDevice_Init (DPReceiveDevice *o, PacketPassInterface *output, BReactor *reactor, int relay_flow_buffer_size, int relay_flow_inactivity_time) WARN_UNUSED;
+int DPReceiveDevice_Init (DPReceiveDevice *o, int device_mtu, DPReceiveDevice_output_func output_func, void *output_func_user, BReactor *reactor, int relay_flow_buffer_size, int relay_flow_inactivity_time) WARN_UNUSED;
 void DPReceiveDevice_Free (DPReceiveDevice *o);
-void DPReceiveDevice_PrepareFree (DPReceiveDevice *o);
 void DPReceiveDevice_SetPeerID (DPReceiveDevice *o, peerid_t peer_id);
 
 void DPReceivePeer_Init (DPReceivePeer *o, DPReceiveDevice *device, peerid_t peer_id, FrameDeciderPeer *decider_peer, int is_relay_client);
@@ -94,7 +88,5 @@ void DPReceivePeer_DetachSink (DPReceivePeer *o);
 void DPReceiveReceiver_Init (DPReceiveReceiver *o, DPReceivePeer *peer);
 void DPReceiveReceiver_Free (DPReceiveReceiver *o);
 PacketPassInterface * DPReceiveReceiver_GetInput (DPReceiveReceiver *o);
-int DPReceiveReceiver_IsBusy (DPReceiveReceiver *o);
-void DPReceiveReceiver_Forget (DPReceiveReceiver *o, DPReceiveReceiver_forgotten_cb forgotten_cb, void *user);
 
 #endif

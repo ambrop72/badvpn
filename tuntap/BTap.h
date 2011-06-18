@@ -43,27 +43,24 @@
 #include <base/DebugObject.h>
 #include <system/BReactor.h>
 #include <flow/PacketRecvInterface.h>
-#include <flow/PacketPassInterface.h>
 
 #define BTAP_ETHERNET_HEADER_LENGTH 14
 
+/**
+ * Handler called when an error occurs on the device.
+ * The object must be destroyed from the job context of this
+ * handler, and no further I/O may occur.
+ * 
+ * @param user as in {@link BTap_Init}
+ */
 typedef void (*BTap_handler_error) (void *used);
 
-/**
- * TAP device abstraction.
- * 
- * Frames are written to the device using {@link PacketPassInterface}
- * and read from the device using {@link PacketRecvInterface}.
- */
 typedef struct {
     BReactor *reactor;
     BTap_handler_error handler_error;
     void *handler_error_user;
     int frame_mtu;
-    PacketPassInterface input;
     PacketRecvInterface output;
-    uint8_t *input_packet;
-    int input_packet_len;
     uint8_t *output_packet;
     
 #ifdef BADVPN_USE_WINAPI
@@ -119,13 +116,14 @@ void BTap_Free (BTap *o);
 int BTap_GetMTU (BTap *o);
 
 /**
- * Returns a {@link PacketPassInterface} for writing packets to the device.
- * The MTU of the interface will be {@link BTap_GetMTU}.
- *
+ * Sends a packet to the device.
+ * Any errors will be reported via a job.
+ * 
  * @param o the object
- * @return input interface
+ * @param data packet to send
+ * @param data_len length of packet. Must be >=0 and <=MTU, as reported by {@link BTap_GetMTU}.
  */
-PacketPassInterface * BTap_GetInput (BTap *o);
+void BTap_Send (BTap *o, uint8_t *data, int data_len);
 
 /**
  * Returns a {@link PacketRecvInterface} for reading packets from the device.

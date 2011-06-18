@@ -492,7 +492,7 @@ int main (int argc, char *argv[])
     }
     
     // init device output
-    if (!DPReceiveDevice_Init(&device_output_dprd, BTap_GetInput(&device), &ss, options.send_buffer_relay_size, PEER_RELAY_FLOW_INACTIVITY_TIME)) {
+    if (!DPReceiveDevice_Init(&device_output_dprd, device_mtu, (DPReceiveDevice_output_func)BTap_Send, &device, &ss, options.send_buffer_relay_size, PEER_RELAY_FLOW_INACTIVITY_TIME)) {
         BLog(BLOG_ERROR, "DPReceiveDevice_Init failed");
         goto fail7a;
     }
@@ -529,9 +529,6 @@ int main (int argc, char *argv[])
     // enter event loop
     BLog(BLOG_NOTICE, "entering event loop");
     BReactor_Exec(&ss);
-    
-    // allow freeing receive receivers in peers' links
-    DPReceiveDevice_PrepareFree(&device_output_dprd);
     
     // free peers
     LinkedList2Node *node;
@@ -1524,8 +1521,6 @@ void peer_free_link (struct peer_data *peer)
     
     ASSERT(!peer->relaying_peer)
     ASSERT(!peer->waiting_relay)
-    
-    ASSERT(!DPReceiveReceiver_IsBusy(&peer->receive_receiver)) // TODO
     
     // detach receive peer from our DataProtoSink
     DPReceivePeer_DetachSink(&peer->receive_peer);

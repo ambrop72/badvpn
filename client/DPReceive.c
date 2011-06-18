@@ -146,11 +146,12 @@ static void receiver_recv_handler_send (DPReceiveReceiver *o, uint8_t *packet, i
     }
     
 out:
-    // pass packet to device or accept right away
+    // accept packet
+    PacketPassInterface_Done(&o->recv_if);
+    
+    // pass packet to device
     if (local) {
-        PacketPassInterface_Sender_Send(o->qflow_if, data, data_len);
-    } else {
-        PacketPassInterface_Done(&o->recv_if);
+        o->device->output_func(o->device->output_func_user, data, data_len);
     }
     
     // relay frame
@@ -159,48 +160,19 @@ out:
     }
 }
 
-static void receiver_qflow_handler_done (DPReceiveReceiver *o)
+int DPReceiveDevice_Init (DPReceiveDevice *o, int device_mtu, DPReceiveDevice_output_func output_func, void *output_func_user, BReactor *reactor, int relay_flow_buffer_size, int relay_flow_inactivity_time)
 {
-    DebugObject_Access(&o->d_obj);
-    ASSERT(o->peer)
-    
-    PacketPassInterface_Done(&o->recv_if);
-}
-
-static void device_call_forgotten_cb (DPReceiveDevice *o)
-{
-    ASSERT(o->forgotten_receiver)
-    
-    DPReceiveReceiver *r = o->forgotten_receiver;
-    ASSERT(!r->peer)
-    
-    r->forgotten_cb(r->forgotten_user);
-    
-    ASSERT(!o->forgotten_receiver)
-}
-
-static void receiver_qflow_handler_busy (DPReceiveReceiver *o)
-{
-    DebugObject_Access(&o->d_obj);
-    ASSERT(!o->peer)
-    DPReceiveDevice *device = o->device;
-    ASSERT(device->forgotten_receiver == o)
-    
-    device_call_forgotten_cb(device);
-}
-
-int DPReceiveDevice_Init (DPReceiveDevice *o, PacketPassInterface *output, BReactor *reactor, int relay_flow_buffer_size, int relay_flow_inactivity_time)
-{
-    ASSERT(PacketPassInterface_GetMTU(output) <= INT_MAX - DATAPROTO_MAX_OVERHEAD)
+    ASSERT(device_mtu >= 0)
+    ASSERT(device_mtu <= INT_MAX - DATAPROTO_MAX_OVERHEAD)
     ASSERT(relay_flow_buffer_size > 0)
     
     // init arguments
+    o->device_mtu = device_mtu;
+    o->output_func = output_func;
+    o->output_func_user = output_func_user;
     o->reactor = reactor;
     o->relay_flow_buffer_size = relay_flow_buffer_size;
     o->relay_flow_inactivity_time = relay_flow_inactivity_time;
-    
-    // remember device MTU
-    o->device_mtu = PacketPassInterface_GetMTU(output);
     
     // remember packet MTU
     o->packet_mtu = DATAPROTO_MAX_OVERHEAD + o->device_mtu;
@@ -211,9 +183,6 @@ int DPReceiveDevice_Init (DPReceiveDevice *o, PacketPassInterface *output, BReac
         goto fail0;
     }
     
-    // init queue
-    PacketPassFairQueue_Init(&o->queue, output, BReactor_PendingGroup(o->reactor), 0, 1);
-    
     // have no peer ID
     o->have_peer_id = 0;
     
@@ -222,9 +191,6 @@ int DPReceiveDevice_Init (DPReceiveDevice *o, PacketPassInterface *output, BReac
     
     // init peers list
     LinkedList2_Init(&o->peers_list);
-    
-    // set no forgotten receiver
-    o->forgotten_receiver = NULL;
     
     DebugObject_Init(&o->d_obj);
     return 1;
@@ -236,30 +202,10 @@ fail0:
 void DPReceiveDevice_Free (DPReceiveDevice *o)
 {
     DebugObject_Free(&o->d_obj);
-    ASSERT(!o->forgotten_receiver)
     ASSERT(LinkedList2_IsEmpty(&o->peers_list))
-    
-    // free queue
-    PacketPassFairQueue_Free(&o->queue);
     
     // free relay router
     DPRelayRouter_Free(&o->relay_router);
-}
-
-void DPReceiveDevice_PrepareFree (DPReceiveDevice *o)
-{
-    DebugObject_Access(&o->d_obj);
-    
-    // prepare queue for freeing
-    PacketPassFairQueue_PrepareFree(&o->queue);
-    
-    // set freeing
-    o->freeing = 1;
-    
-    // call callback for forgotten receiver
-    if (o->forgotten_receiver) {
-        device_call_forgotten_cb(o);
-    }
 }
 
 void DPReceiveDevice_SetPeerID (DPReceiveDevice *o, peerid_t peer_id)
@@ -342,45 +288,26 @@ void DPReceiveReceiver_Init (DPReceiveReceiver *o, DPReceivePeer *peer)
     DebugObject_Access(&peer->d_obj);
     DPReceiveDevice *device = peer->device;
     
-    // remember peer
+    // init arguments
     o->peer = peer;
     
     // remember device
     o->device = device;
     
-    // init queue flow
-    PacketPassFairQueueFlow_Init(&o->qflow, &device->queue);
-    o->qflow_if = PacketPassFairQueueFlow_GetInput(&o->qflow);
-    PacketPassInterface_Sender_Init(o->qflow_if, (PacketPassInterface_handler_done)receiver_qflow_handler_done, o);
-    
     // init receive interface
     PacketPassInterface_Init(&o->recv_if, device->packet_mtu, (PacketPassInterface_handler_send)receiver_recv_handler_send, o, BReactor_PendingGroup(device->reactor));
     
-    // increment peer's receivers counter
     DebugCounter_Increment(&peer->d_receivers_ctr);
-    
     DebugObject_Init(&o->d_obj);
 }
 
 void DPReceiveReceiver_Free (DPReceiveReceiver *o)
 {
     DebugObject_Free(&o->d_obj);
-    PacketPassFairQueueFlow_AssertFree(&o->qflow);
-    
-    if (o->peer) {
-        // decrement peer's receivers counter
-        DebugCounter_Decrement(&o->peer->d_receivers_ctr);
-    } else {
-        // clear forgotten receiver reference in the device
-        ASSERT(o->device->forgotten_receiver == o)
-        o->device->forgotten_receiver = NULL;
-    }
+    DebugCounter_Decrement(&o->peer->d_receivers_ctr);
     
     // free receive interface
     PacketPassInterface_Free(&o->recv_if);
-    
-    // free queue flow
-    PacketPassFairQueueFlow_Free(&o->qflow);
 }
 
 PacketPassInterface * DPReceiveReceiver_GetInput (DPReceiveReceiver *o)
@@ -388,36 +315,4 @@ PacketPassInterface * DPReceiveReceiver_GetInput (DPReceiveReceiver *o)
     DebugObject_Access(&o->d_obj);
     
     return &o->recv_if;
-}
-
-int DPReceiveReceiver_IsBusy (DPReceiveReceiver *o)
-{
-    DebugObject_Access(&o->d_obj);
-    
-    return (o->device->freeing ? 0 : PacketPassFairQueueFlow_IsBusy(&o->qflow));
-}
-
-void DPReceiveReceiver_Forget (DPReceiveReceiver *o, DPReceiveReceiver_forgotten_cb forgotten_cb, void *user)
-{
-    DebugObject_Access(&o->d_obj);
-    ASSERT(o->peer)
-    ASSERT(!o->device->freeing)
-    ASSERT(PacketPassFairQueueFlow_IsBusy(&o->qflow))
-    
-    // decrement peer's receivers counter
-    DebugCounter_Decrement(&o->peer->d_receivers_ctr);
-    
-    // add forgotten receiver reference in the device
-    ASSERT(!o->device->forgotten_receiver)
-    o->device->forgotten_receiver = o;
-    
-    // set queue flow's busy handler
-    PacketPassFairQueueFlow_SetBusyHandler(&o->qflow, (PacketPassFairQueue_handler_busy)receiver_qflow_handler_busy, o);
-    
-    // remember callback
-    o->forgotten_cb = forgotten_cb;
-    o->forgotten_user = user;
-    
-    // forget peer
-    o->peer = NULL;
 }

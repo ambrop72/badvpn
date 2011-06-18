@@ -23,10 +23,6 @@
 // name of the program
 #define PROGRAM_NAME "tun2socks"
 
-// device write buffer size, in number of packets
-// WARNING: each packet takes at least 65535 bytes
-#define DEVICE_WRITE_BUFFER_SIZE 1
-
 // size of temporary buffer for passing data from the SOCKS server to TCP for sending
 #define CLIENT_SOCKS_RECV_BUF_SIZE 8192
 

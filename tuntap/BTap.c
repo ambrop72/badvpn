@@ -56,7 +56,6 @@
 #include <generated/blog_channel_BTap.h>
 
 static void report_error (BTap *o);
-static void input_handler_send (BTap *o, uint8_t *data, int data_len);
 static void output_handler_recv (BTap *o, uint8_t *data);
 
 #ifdef BADVPN_USE_WINAPI
@@ -94,34 +93,6 @@ static void fd_handler (BTap *o, int events)
         BLog(BLOG_WARNING, "device fd reports error?");
     }
     
-    if (events&BREACTOR_WRITE) do {
-        ASSERT(o->input_packet_len >= 0)
-        
-        int bytes = write(o->fd, o->input_packet, o->input_packet_len);
-        if (bytes < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                // retry later
-                break;
-            }
-            // malformed packets will cause errors, ignore them and act like
-            // the packet was accepeted
-        } else {
-            if (bytes != o->input_packet_len) {
-                BLog(BLOG_WARNING, "written %d expected %d", bytes, o->input_packet_len);
-            }
-        }
-        
-        // set no input packet
-        o->input_packet_len = -1;
-        
-        // update events
-        o->poll_events &= ~BREACTOR_WRITE;
-        BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->poll_events);
-        
-        // inform sender we finished the packet
-        PacketPassInterface_Done(&o->input);
-    } while (0);
-    
     if (events&BREACTOR_READ) do {
         ASSERT(o->output_packet)
         
@@ -156,74 +127,6 @@ static void fd_handler (BTap *o, int events)
 void report_error (BTap *o)
 {
     DEBUGERROR(&o->d_err, o->handler_error(o->handler_error_user));
-}
-
-void input_handler_send (BTap *o, uint8_t *data, int data_len)
-{
-    ASSERT(data_len >= 0)
-    ASSERT(data_len <= o->frame_mtu)
-    ASSERT(o->input_packet_len == -1)
-    DebugError_AssertNoError(&o->d_err);
-    DebugObject_Access(&o->d_obj);
-    
-    #ifdef BADVPN_USE_WINAPI
-    
-    // ignore frames without an Ethernet header, or we get errors in WriteFile
-    if (data_len < 14) {
-        goto accept;
-    }
-    
-    memset(&o->send_olap.olap, 0, sizeof(o->send_olap.olap));
-    
-    // write
-    BOOL res = WriteFile(o->device, data, data_len, NULL, &o->send_olap.olap);
-    if (res == FALSE && GetLastError() != ERROR_IO_PENDING) {
-        BLog(BLOG_ERROR, "WriteFile failed (%u)", GetLastError());
-        goto accept;
-    }
-    
-    // wait
-    int succeeded;
-    DWORD bytes;
-    BReactorIOCPOverlapped_Wait(&o->send_olap, &succeeded, &bytes);
-    
-    if (!succeeded) {
-        BLog(BLOG_ERROR, "write operation failed");
-    } else {
-        ASSERT(bytes >= 0)
-        ASSERT(bytes <= data_len)
-        
-        if (bytes < data_len) {
-            BLog(BLOG_ERROR, "write operation didn't write everything");
-        }
-    }
-    
-    #else
-    
-    int bytes = write(o->fd, data, data_len);
-    if (bytes < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            // retry later in fd_handler
-            // remember packet
-            o->input_packet = data;
-            o->input_packet_len = data_len;
-            // update events
-            o->poll_events |= BREACTOR_WRITE;
-            BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->poll_events);
-            return;
-        }
-        // malformed packets will cause errors, ignore them and act like
-        // the packet was accepeted
-    } else {
-        if (bytes != data_len) {
-            BLog(BLOG_WARNING, "written %d expected %d", bytes, data_len);
-        }
-    }
-    
-    #endif
-    
-accept:
-    PacketPassInterface_Done(&o->input);
 }
 
 void output_handler_recv (BTap *o, uint8_t *data)
@@ -507,14 +410,8 @@ fail0:
     #endif
     
 success:
-    // init input
-    PacketPassInterface_Init(&o->input, o->frame_mtu, (PacketPassInterface_handler_send)input_handler_send, o, BReactor_PendingGroup(o->reactor));
-    
     // init output
     PacketRecvInterface_Init(&o->output, o->frame_mtu, (PacketRecvInterface_handler_recv)output_handler_recv, o, BReactor_PendingGroup(o->reactor));
-    
-    // set no input packet
-    o->input_packet_len = -1;
     
     // set no output packet
     o->output_packet = NULL;
@@ -533,9 +430,6 @@ void BTap_Free (BTap *o)
     // free output
     PacketRecvInterface_Free(&o->output);
     
-    // free input
-    PacketPassInterface_Free(&o->input);
-    
 #ifdef BADVPN_USE_WINAPI
     
     // cancel I/O
@@ -543,14 +437,8 @@ void BTap_Free (BTap *o)
     
     // wait receiving to finish
     if (o->output_packet) {
-        BLog(BLOG_DEBUG, "waiting for sending to finish");
+        BLog(BLOG_DEBUG, "waiting for receiving to finish");
         BReactorIOCPOverlapped_Wait(&o->recv_olap, NULL, NULL);
-    }
-    
-    // wait sending to finish
-    if (o->input_packet_len >= 0) {
-        BLog(BLOG_DEBUG, "waiting for sending to finish");
-        BReactorIOCPOverlapped_Wait(&o->send_olap, NULL, NULL);
     }
     
     // free recv olap
@@ -580,11 +468,58 @@ int BTap_GetMTU (BTap *o)
     return o->frame_mtu;
 }
 
-PacketPassInterface * BTap_GetInput (BTap *o)
+void BTap_Send (BTap *o, uint8_t *data, int data_len)
 {
     DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= o->frame_mtu)
     
-    return &o->input;
+#ifdef BADVPN_USE_WINAPI
+    
+    // ignore frames without an Ethernet header, or we get errors in WriteFile
+    if (data_len < 14) {
+        return;
+    }
+    
+    memset(&o->send_olap.olap, 0, sizeof(o->send_olap.olap));
+    
+    // write
+    BOOL res = WriteFile(o->device, data, data_len, NULL, &o->send_olap.olap);
+    if (res == FALSE && GetLastError() != ERROR_IO_PENDING) {
+        BLog(BLOG_ERROR, "WriteFile failed (%u)", GetLastError());
+        return;
+    }
+    
+    // wait
+    int succeeded;
+    DWORD bytes;
+    BReactorIOCPOverlapped_Wait(&o->send_olap, &succeeded, &bytes);
+    
+    if (!succeeded) {
+        BLog(BLOG_ERROR, "write operation failed");
+    } else {
+        ASSERT(bytes >= 0)
+        ASSERT(bytes <= data_len)
+        
+        if (bytes < data_len) {
+            BLog(BLOG_ERROR, "write operation didn't write everything");
+        }
+    }
+    
+#else
+    
+    int bytes = write(o->fd, data, data_len);
+    if (bytes < 0) {
+        // malformed packets will cause errors, ignore them and act like
+        // the packet was accepeted
+    } else {
+        if (bytes != data_len) {
+            BLog(BLOG_WARNING, "written %d expected %d", bytes, data_len);
+        }
+    }
+    
+#endif
 }
 
 PacketRecvInterface * BTap_GetOutput (BTap *o)
