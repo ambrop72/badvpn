@@ -912,8 +912,7 @@ err_t netif_output_func (struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr)
             }
             memcpy(device_write_buf + len, p->payload, p->len);
             len += p->len;
-            p = p->next;
-        } while (p);
+        } while (p = p->next);
         
         SYNC_FROMHERE
         BTap_Send(&device, device_write_buf, len);

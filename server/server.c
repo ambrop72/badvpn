@@ -944,7 +944,7 @@ int client_init_io (struct client_data *client)
     PacketPassInterface_Init(&client->input_interface, SC_MAX_ENC, (PacketPassInterface_handler_send)client_input_handler_send, client, BReactor_PendingGroup(&ss));
     
     // init decoder
-    if (!PacketProtoDecoder_Init(&client->input_decoder,recv_if, &client->input_interface, BReactor_PendingGroup(&ss), client,
+    if (!PacketProtoDecoder_Init(&client->input_decoder, recv_if, &client->input_interface, BReactor_PendingGroup(&ss), client,
         (PacketProtoDecoder_handler_error)client_decoder_handler_error
     )) {
         client_log(client, BLOG_ERROR, "PacketProtoDecoder_Init failed");
