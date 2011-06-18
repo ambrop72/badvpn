@@ -70,12 +70,11 @@ typedef struct {
 #else
     int fd;
     BFileDescriptor bfd;
-    char devname[IFNAMSIZ];
     int poll_events;
 #endif
     
-    DebugObject d_obj;
     DebugError d_err;
+    DebugObject d_obj;
 } BTap;
 
 /**

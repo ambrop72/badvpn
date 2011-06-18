@@ -293,6 +293,8 @@ fail0:
     
     #if defined(BADVPN_LINUX) || defined(BADVPN_FREEBSD)
     
+    char devname_real[IFNAMSIZ];
+    
     #ifdef BADVPN_LINUX
     
     // open device
@@ -321,7 +323,7 @@ fail0:
         goto fail1;
     }
     
-    strcpy(o->devname, ifr.ifr_name);
+    strcpy(devname_real, ifr.ifr_name);
     
     #endif
     
@@ -356,7 +358,7 @@ fail0:
         goto fail1;
     }
     
-    strcpy(o->devname, ifr.ifr_name);
+    strcpy(devname_real, ifr.ifr_name);
     
     #endif
     
@@ -370,7 +372,7 @@ fail0:
     }
     
     memset(&ifr, 0, sizeof(ifr));
-    strcpy(ifr.ifr_name, o->devname);
+    strcpy(ifr.ifr_name, devname_real);
     
     if (ioctl(sock, SIOCGIFMTU, (void *)&ifr) < 0) {
         BLog(BLOG_ERROR, "error getting MTU");
