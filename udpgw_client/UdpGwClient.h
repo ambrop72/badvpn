@@ -69,7 +69,6 @@ typedef struct {
     PacketPassFairQueueFlow keepalive_qflow;
     int keepalive_sending;
     int have_server;
-    FlowErrorDomain domain;
     PacketStreamSender send_sender;
     PacketProtoDecoder recv_decoder;
     PacketPassInterface recv_if;

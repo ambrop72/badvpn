@@ -194,7 +194,7 @@ static void client_connection_handler (struct client_data *client, int event);
 static void client_sslcon_handler (struct client_data *client, int event);
 
 // decoder handler
-static void client_decoder_handler (struct client_data *client, int component, int code);
+static void client_decoder_handler_error (struct client_data *client);
 
 // provides a buffer for sending a control packet to the client
 static int client_start_control_packet (struct client_data *client, void **data, int len);
@@ -944,9 +944,8 @@ int client_init_io (struct client_data *client)
     PacketPassInterface_Init(&client->input_interface, SC_MAX_ENC, (PacketPassInterface_handler_send)client_input_handler_send, client, BReactor_PendingGroup(&ss));
     
     // init decoder
-    FlowErrorDomain_Init(&client->input_decoder_domain, (FlowErrorDomain_handler)client_decoder_handler, client);
-    if (!PacketProtoDecoder_Init(&client->input_decoder, FlowErrorReporter_Create(&client->input_decoder_domain, 0),
-        recv_if, &client->input_interface, BReactor_PendingGroup(&ss)
+    if (!PacketProtoDecoder_Init(&client->input_decoder,recv_if, &client->input_interface, BReactor_PendingGroup(&ss), client,
+        (PacketProtoDecoder_handler_error)client_decoder_handler_error
     )) {
         client_log(client, BLOG_ERROR, "PacketProtoDecoder_Init failed");
         goto fail1;
@@ -1215,7 +1214,7 @@ fail0:
     client_remove(client);
 }
 
-void client_decoder_handler (struct client_data *client, int component, int code)
+void client_decoder_handler_error (struct client_data *client)
 {
     ASSERT(INITSTATUS_HASLINK(client->initstatus))
     ASSERT(!client->dying)

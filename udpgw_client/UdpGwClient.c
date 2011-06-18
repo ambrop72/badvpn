@@ -35,7 +35,7 @@ static int uint16_comparator (void *unused, uint16_t *v1, uint16_t *v2);
 static int compare_addresses (BAddr v1, BAddr v2);
 static int conaddr_comparator (void *unused, struct UdpGwClient_conaddr *v1, struct UdpGwClient_conaddr *v2);
 static void free_server (UdpGwClient *o);
-static void server_error_handler (UdpGwClient *o, int component, int code);
+static void decoder_handler_error (UdpGwClient *o);
 static void recv_interface_handler_send (UdpGwClient *o, uint8_t *data, int data_len);
 static void send_monitor_handler (UdpGwClient *o);
 static void keepalive_if_handler_done (UdpGwClient *o);
@@ -108,7 +108,7 @@ static void free_server (UdpGwClient *o)
     PacketPassInterface_Free(&o->recv_if);
 }
 
-static void server_error_handler (UdpGwClient *o, int component, int code)
+static void decoder_handler_error (UdpGwClient *o)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(o->have_server)
@@ -520,14 +520,11 @@ int UdpGwClient_ConnectServer (UdpGwClient *o, StreamPassInterface *send_if, Str
     DebugObject_Access(&o->d_obj);
     ASSERT(!o->have_server)
     
-    // init error domain
-    FlowErrorDomain_Init(&o->domain, (FlowErrorDomain_handler)server_error_handler, o);
-    
     // init receive interface
     PacketPassInterface_Init(&o->recv_if, o->udpgw_mtu, (PacketPassInterface_handler_send)recv_interface_handler_send, o, BReactor_PendingGroup(o->reactor));
     
     // init receive decoder
-    if (!PacketProtoDecoder_Init(&o->recv_decoder, FlowErrorReporter_Create(&o->domain, 0), recv_if, &o->recv_if, BReactor_PendingGroup(o->reactor))) {
+    if (!PacketProtoDecoder_Init(&o->recv_decoder, recv_if, &o->recv_if, BReactor_PendingGroup(o->reactor), o, (PacketProtoDecoder_handler_error)decoder_handler_error)) {
         BLog(BLOG_ERROR, "PacketProtoDecoder_Init failed");
         goto fail1;
     }

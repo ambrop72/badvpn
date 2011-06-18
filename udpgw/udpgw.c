@@ -63,7 +63,6 @@ struct client {
     BConnection con;
     BAddr addr;
     BTimer disconnect_timer;
-    FlowErrorDomain recv_decoder_domain;
     PacketProtoDecoder recv_decoder;
     PacketPassInterface recv_if;
     PacketPassFairQueue send_queue;
@@ -89,7 +88,6 @@ struct connection {
     union {
         struct {
             BDatagram udp_dgram;
-            FlowErrorDomain udp_domain;
             BufferWriter udp_send_writer;
             PacketBuffer udp_send_buffer;
             SinglePacketBuffer udp_recv_buffer;
@@ -150,7 +148,7 @@ static void client_free (struct client *client);
 static void client_log (struct client *client, int level, const char *fmt, ...);
 static void client_disconnect_timer_handler (struct client *client);
 static void client_connection_handler (struct client *client, int event);
-static void client_decoder_handler (struct client *client, int component, int code);
+static void client_decoder_handler_error (struct client *client);
 static void client_recv_if_handler_send (struct client *client, uint8_t *data, int data_len);
 static void connection_init (struct client *client, uint16_t conid, BAddr addr, const uint8_t *data, int data_len);
 static void connection_free (struct connection *con);
@@ -547,8 +545,9 @@ void listener_handler (BListener *listener)
     PacketPassInterface_Init(&client->recv_if, udpgw_mtu, (PacketPassInterface_handler_send)client_recv_if_handler_send, client, BReactor_PendingGroup(&ss));
     
     // init recv decoder
-    FlowErrorDomain_Init(&client->recv_decoder_domain, (FlowErrorDomain_handler)client_decoder_handler, client);
-    if (!PacketProtoDecoder_Init(&client->recv_decoder, FlowErrorReporter_Create(&client->recv_decoder_domain, 0), BConnection_RecvAsync_GetIf(&client->con), &client->recv_if, BReactor_PendingGroup(&ss))) {
+    if (!PacketProtoDecoder_Init(&client->recv_decoder, BConnection_RecvAsync_GetIf(&client->con), &client->recv_if, BReactor_PendingGroup(&ss), client,
+        (PacketProtoDecoder_handler_error)client_decoder_handler_error
+    )) {
         BLog(BLOG_ERROR, "PacketProtoDecoder_Init failed");
         goto fail2;
     }
@@ -669,7 +668,7 @@ void client_connection_handler (struct client *client, int event)
     client_free(client);
 }
 
-void client_decoder_handler (struct client *client, int component, int code)
+void client_decoder_handler_error (struct client *client)
 {
     client_log(client, BLOG_ERROR, "decoder error");
     

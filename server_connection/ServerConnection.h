@@ -45,7 +45,6 @@
 #include <protocol/msgproto.h>
 #include <base/DebugObject.h>
 #include <system/BConnection.h>
-#include <flow/FlowError.h>
 #include <flow/PacketProtoEncoder.h>
 #include <flow/PacketStreamSender.h>
 #include <flow/PacketProtoDecoder.h>
@@ -158,7 +157,6 @@ typedef struct {
     BSSLConnection sslcon;
     
     // input
-    FlowErrorDomain input_decoder_domain;
     PacketProtoDecoder input_decoder;
     PacketPassInterface input_interface;
     

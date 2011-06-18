@@ -85,7 +85,6 @@ typedef struct {
     
     // receiving objects
     StreamRecvConnector input_connector;
-    FlowErrorDomain input_decoder_domain;
     PacketProtoDecoder input_decoder;
     
     // connection side

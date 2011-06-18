@@ -32,16 +32,9 @@
 
 #include <generated/blog_channel_PacketProtoDecoder.h>
 
-static void report_error (PacketProtoDecoder *enc, int error);
 static void process_data (PacketProtoDecoder *enc);
 static void input_handler_done (PacketProtoDecoder *enc, int data_len);
 static void output_handler_done (PacketProtoDecoder *enc);
-
-void report_error (PacketProtoDecoder *enc, int error)
-{
-    FlowErrorReporter_ReportError(&enc->rep, error);
-    return;
-}
 
 void process_data (PacketProtoDecoder *enc)
 {
@@ -98,7 +91,7 @@ void process_data (PacketProtoDecoder *enc)
     
     // if we had error, report it
     if (was_error) {
-        report_error(enc, PACKETPROTODECODER_ERROR_TOOLONG);
+        enc->handler_error(enc->user);
         return;
     }
 }
@@ -126,12 +119,13 @@ void output_handler_done (PacketProtoDecoder *enc)
     return;
 }
 
-int PacketProtoDecoder_Init (PacketProtoDecoder *enc, FlowErrorReporter rep, StreamRecvInterface *input, PacketPassInterface *output, BPendingGroup *pg) 
+int PacketProtoDecoder_Init (PacketProtoDecoder *enc, StreamRecvInterface *input, PacketPassInterface *output, BPendingGroup *pg, void *user, PacketProtoDecoder_handler_error handler_error)
 {
     // init arguments
-    enc->rep = rep;
     enc->input = input;
     enc->output = output;
+    enc->user = user;
+    enc->handler_error = handler_error;
     
     // init input
     StreamRecvInterface_Receiver_Init(enc->input, (StreamRecvInterface_handler_done)input_handler_done, enc);

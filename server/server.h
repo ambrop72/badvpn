@@ -142,7 +142,6 @@ struct client_data {
     BPending dying_job;
     
     // input
-    FlowErrorDomain input_decoder_domain;
     PacketProtoDecoder input_decoder;
     PacketPassInterface input_interface;
     

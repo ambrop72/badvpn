@@ -48,7 +48,7 @@
 #define LISTEN_STATE_GOTCLIENT 1
 #define LISTEN_STATE_FINISHED 2
 
-static void decoder_handler (StreamPeerIO *pio, int component, int code);
+static void decoder_handler_error (StreamPeerIO *pio);
 static void connector_handler (StreamPeerIO *pio, int is_error);
 static void connection_handler (StreamPeerIO *pio, int event);
 static void connect_sslcon_handler (StreamPeerIO *pio, int event);
@@ -63,7 +63,7 @@ static int compare_certificate (StreamPeerIO *pio, CERTCertificate *cert);
 static void reset_state (StreamPeerIO *pio);
 static void reset_and_report_error (StreamPeerIO *pio);
 
-void decoder_handler (StreamPeerIO *pio, int component, int code)
+void decoder_handler_error (StreamPeerIO *pio)
 {
     DebugObject_Access(&pio->d_obj);
     
@@ -563,8 +563,9 @@ int StreamPeerIO_Init (
     
     // init receiveing objects
     StreamRecvConnector_Init(&pio->input_connector, BReactor_PendingGroup(pio->reactor));
-    FlowErrorDomain_Init(&pio->input_decoder_domain, (FlowErrorDomain_handler)decoder_handler, pio);
-    if (!PacketProtoDecoder_Init(&pio->input_decoder, FlowErrorReporter_Create(&pio->input_decoder_domain, 0), StreamRecvConnector_GetOutput(&pio->input_connector), user_recv_if, BReactor_PendingGroup(pio->reactor))) {
+    if (!PacketProtoDecoder_Init(&pio->input_decoder, StreamRecvConnector_GetOutput(&pio->input_connector), user_recv_if, BReactor_PendingGroup(pio->reactor), pio,
+        (PacketProtoDecoder_handler_error)decoder_handler_error
+    )) {
         BLog(BLOG_ERROR, "FlowErrorDomain_Init failed");
         goto fail1;
     }

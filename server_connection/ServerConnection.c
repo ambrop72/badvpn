@@ -39,7 +39,7 @@ static void pending_handler (ServerConnection *o);
 static SECStatus client_auth_data_callback (ServerConnection *o, PRFileDesc *fd, CERTDistNames *caNames, CERTCertificate **pRetCert, SECKEYPrivateKey **pRetKey);
 static void connection_handler (ServerConnection *o, int event);
 static void sslcon_handler (ServerConnection *o, int event);
-static void decoder_handler (ServerConnection *o, int component, int code);
+static void decoder_handler_error (ServerConnection *o);
 static void input_handler_send (ServerConnection *o, uint8_t *data, int data_len);
 static void packet_hello (ServerConnection *o, uint8_t *data, int data_len);
 static void packet_newclient (ServerConnection *o, uint8_t *data, int data_len);
@@ -120,8 +120,7 @@ void connector_handler (ServerConnection *o, int is_error)
     
     // init input chain
     PacketPassInterface_Init(&o->input_interface, SC_MAX_ENC, (PacketPassInterface_handler_send)input_handler_send, o, BReactor_PendingGroup(o->reactor));
-    FlowErrorDomain_Init(&o->input_decoder_domain, (FlowErrorDomain_handler)decoder_handler, o);
-    if (!PacketProtoDecoder_Init(&o->input_decoder, FlowErrorReporter_Create(&o->input_decoder_domain, 0), recv_iface, &o->input_interface, BReactor_PendingGroup(o->reactor))) {
+    if (!PacketProtoDecoder_Init(&o->input_decoder, recv_iface, &o->input_interface, BReactor_PendingGroup(o->reactor), o, (PacketProtoDecoder_handler_error)decoder_handler_error)) {
         BLog(BLOG_ERROR, "PacketProtoDecoder_Init failed");
         goto fail2;
     }
@@ -264,7 +263,7 @@ void sslcon_handler (ServerConnection *o, int event)
     return;
 }
 
-void decoder_handler (ServerConnection *o, int component, int code)
+void decoder_handler_error (ServerConnection *o)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(o->state >= STATE_WAITINIT)

@@ -19,7 +19,6 @@ add_library(flow
     PacketRecvInterface.c
     StreamPassInterface.c
     StreamRecvInterface.c
-    FlowError.c
     RouteBuffer.c
     PacketRouter.c
     LineBuffer.c

@@ -35,26 +35,20 @@
 #include <base/DebugObject.h>
 #include <flow/StreamRecvInterface.h>
 #include <flow/PacketPassInterface.h>
-#include <flow/FlowError.h>
-
-#define PACKETPROTODECODER_ERROR_TOOLONG 1
 
 /**
- * Object which decodes a stream according to PacketProto.
- *
- * Input is with {@link StreamRecvInterface}.
- * Output is with {@link PacketPassInterface}.
- *
- * Errors are reported through {@link FlowErrorDomain}.
- * On error, the decoder is reset to the initial state.
- * Error code is an int which is one of the following:
- *     - PACKETPROTODECODER_ERROR_TOOLONG: the packet header contains
- *       a packet length value which is too big.
+ * Handler called when a protocol error occurs.
+ * When an error occurs, the decoder is reset to the initial state.
+ * 
+ * @param user as in {@link PacketProtoDecoder_Init}
  */
+typedef void (*PacketProtoDecoder_handler_error) (void *user);
+
 typedef struct {
-    FlowErrorReporter rep;
     StreamRecvInterface *input;
     PacketPassInterface *output;
+    void *user;
+    PacketProtoDecoder_handler_error handler_error;
     int output_mtu;
     int buf_size;
     int buf_start;
@@ -67,14 +61,15 @@ typedef struct {
  * Initializes the object.
  *
  * @param enc the object
- * @param rep error reporting data
  * @param input input interface. The decoder will accept packets with payload size up to its MTU
  *              (but the payload can never be more than PACKETPROTO_MAXPAYLOAD).
  * @param output output interface
  * @param pg pending group
+ * @param user argument to handlers
+ * @param handler_error error handler
  * @return 1 on success, 0 on failure
  */
-int PacketProtoDecoder_Init (PacketProtoDecoder *enc, FlowErrorReporter rep, StreamRecvInterface *input, PacketPassInterface *output, BPendingGroup *pg) WARN_UNUSED;
+int PacketProtoDecoder_Init (PacketProtoDecoder *enc, StreamRecvInterface *input, PacketPassInterface *output, BPendingGroup *pg, void *user, PacketProtoDecoder_handler_error handler_error) WARN_UNUSED;
 
 /**
  * Frees the object.
