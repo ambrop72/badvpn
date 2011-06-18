@@ -33,9 +33,6 @@
 #define DATAGRAMPEERIO_MODE_CONNECT 1
 #define DATAGRAMPEERIO_MODE_BIND 2
 
-#define DATAGRAMPEERIO_COMPONENT_SINK 1
-#define DATAGRAMPEERIO_COMPONENT_SOURCE 2
-
 static void init_io (DatagramPeerIO *o);
 static void free_io (DatagramPeerIO *o);
 static void dgram_handler (DatagramPeerIO *o, int event);

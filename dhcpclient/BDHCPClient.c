@@ -40,9 +40,6 @@
 
 #include <generated/blog_channel_BDHCPClient.h>
 
-#define COMPONENT_SOURCE 1
-#define COMPONENT_SINK 2
-
 #define DHCP_SERVER_PORT 67
 #define DHCP_CLIENT_PORT 68
 

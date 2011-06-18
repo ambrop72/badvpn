@@ -35,9 +35,6 @@
 #define STATE_RECEIVED_REPLY_HEADER 6
 #define STATE_UP 7
 
-#define COMPONENT_SOURCE 1
-#define COMPONENT_SINK 2
-
 static void report_error (BSocksClient *o, int error);
 static void init_control_io (BSocksClient *o);
 static void free_control_io (BSocksClient *o);
