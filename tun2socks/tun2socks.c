@@ -893,22 +893,34 @@ err_t netif_output_func (struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr)
         return ERR_OK;
     }
     
-    int len = 0;
-    while (p) {
-        int remain = BTap_GetMTU(&device) - len;
-        if (p->len > remain) {
+    // if there is just one chunk, send it directly, else via buffer
+    if (!p->next) {
+        if (p->len > BTap_GetMTU(&device)) {
             BLog(BLOG_WARNING, "netif func output: no space left");
-            break;
+            goto out;
         }
-        memcpy(device_write_buf + len, p->payload, p->len);
-        len += p->len;
-        p = p->next;
+        
+        SYNC_FROMHERE
+        BTap_Send(&device, p->payload, p->len);
+        SYNC_COMMIT
+    } else {
+        int len = 0;
+        do {
+            if (p->len > BTap_GetMTU(&device) - len) {
+                BLog(BLOG_WARNING, "netif func output: no space left");
+                goto out;
+            }
+            memcpy(device_write_buf + len, p->payload, p->len);
+            len += p->len;
+            p = p->next;
+        } while (p);
+        
+        SYNC_FROMHERE
+        BTap_Send(&device, device_write_buf, len);
+        SYNC_COMMIT
     }
     
-    SYNC_FROMHERE
-    BTap_Send(&device, device_write_buf, len);
-    SYNC_COMMIT
-    
+out:
     return ERR_OK;
 }
 
