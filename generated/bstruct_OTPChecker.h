@@ -4,60 +4,101 @@
 */
 
 #include <stdint.h>
+#include <limits.h>
 
 #include <misc/balign.h>
+#include <misc/debug.h>
 
 
 typedef struct oc_table_struct oc_table;
 
 typedef struct {
-    int id_off;
-    int id_size;
+    size_t id_off;
+    size_t id_size;
     #ifndef NDEBUG
-    int id_count;
+    size_t id_count;
     #endif
 
-    int entries_off;
-    int entries_size;
+    size_t entries_off;
+    size_t entries_size;
     #ifndef NDEBUG
-    int entries_count;
+    size_t entries_count;
     #endif
 
-    int len;
-    int align;
+    size_t len;
+    size_t align;
 } oc_tableParams;
 
-static void oc_tableParams_Init (oc_tableParams *o, int num_entries)
+static int oc_tableParams_Init (oc_tableParams *o, int num_entries) WARN_UNUSED;
+
+static int oc_tableParams_Init (oc_tableParams *o, int num_entries)
 {
-    int cur_size;
-    int cur_align;
-    int cur_count;
+    size_t cur_size;
+    size_t cur_align;
+    size_t cur_count;
 
     o->len = 0;
     o->align = 1;
 
+    if ((sizeof(uint16_t)) > SIZE_MAX) {
+        return 0;
+    }
     cur_size = (sizeof(uint16_t));
+    if ((__alignof__(uint16_t)) > SIZE_MAX) {
+        return 0;
+    }
     cur_align = (__alignof__(uint16_t));
+    if (1 > SIZE_MAX) {
+        return 0;
+    }
     cur_count = (1);
+    if (balign_up_overflows(o->len, cur_align)) {
+        return 0;
+    }
     o->id_off = balign_up(o->len, cur_align);
     o->id_size = cur_size;
     #ifndef NDEBUG
     o->id_count = cur_count;
     #endif
-    o->len = o->id_off + (cur_count * cur_size);
+    if (cur_count > SIZE_MAX / cur_size) {
+        return 0;
+    }
+    if (o->id_off > SIZE_MAX - cur_count * cur_size) {
+        return 0;
+    }
+    o->len = o->id_off + cur_count * cur_size;
     o->align = (cur_align > o->align ? cur_align : o->align);
 
+    if ((sizeof(struct OTPChecker_entry)) > SIZE_MAX) {
+        return 0;
+    }
     cur_size = (sizeof(struct OTPChecker_entry));
+    if ((__alignof__(struct OTPChecker_entry)) > SIZE_MAX) {
+        return 0;
+    }
     cur_align = (__alignof__(struct OTPChecker_entry));
+    if (num_entries > SIZE_MAX) {
+        return 0;
+    }
     cur_count = (num_entries);
+    if (balign_up_overflows(o->len, cur_align)) {
+        return 0;
+    }
     o->entries_off = balign_up(o->len, cur_align);
     o->entries_size = cur_size;
     #ifndef NDEBUG
     o->entries_count = cur_count;
     #endif
-    o->len = o->entries_off + (cur_count * cur_size);
+    if (cur_count > SIZE_MAX / cur_size) {
+        return 0;
+    }
+    if (o->entries_off > SIZE_MAX - cur_count * cur_size) {
+        return 0;
+    }
+    o->len = o->entries_off + cur_count * cur_size;
     o->align = (cur_align > o->align ? cur_align : o->align);
 
+    return 1;
 }
 
 static uint16_t * oc_table_id (oc_tableParams *o, oc_table *s)
@@ -65,7 +106,7 @@ static uint16_t * oc_table_id (oc_tableParams *o, oc_table *s)
     return (uint16_t *)((uint8_t *)s + o->id_off);
 }
 
-static uint16_t * oc_table_id_at (oc_tableParams *o, oc_table *s, int i)
+static uint16_t * oc_table_id_at (oc_tableParams *o, oc_table *s, size_t i)
 {
     ASSERT(i >= 0)
     ASSERT(i < o->id_count)
@@ -78,7 +119,7 @@ static struct OTPChecker_entry * oc_table_entries (oc_tableParams *o, oc_table *
     return (struct OTPChecker_entry *)((uint8_t *)s + o->entries_off);
 }
 
-static struct OTPChecker_entry * oc_table_entries_at (oc_tableParams *o, oc_table *s, int i)
+static struct OTPChecker_entry * oc_table_entries_at (oc_tableParams *o, oc_table *s, size_t i)
 {
     ASSERT(i >= 0)
     ASSERT(i < o->entries_count)
@@ -90,37 +131,60 @@ typedef struct oc_tables_struct oc_tables;
 
 typedef struct {
     oc_tableParams tables_params;
-    int tables_off;
-    int tables_size;
+    size_t tables_off;
+    size_t tables_size;
     #ifndef NDEBUG
-    int tables_count;
+    size_t tables_count;
     #endif
 
-    int len;
-    int align;
+    size_t len;
+    size_t align;
 } oc_tablesParams;
 
-static void oc_tablesParams_Init (oc_tablesParams *o, int num_tables, int num_entries)
+static int oc_tablesParams_Init (oc_tablesParams *o, int num_tables, int num_entries) WARN_UNUSED;
+
+static int oc_tablesParams_Init (oc_tablesParams *o, int num_tables, int num_entries)
 {
-    int cur_size;
-    int cur_align;
-    int cur_count;
+    size_t cur_size;
+    size_t cur_align;
+    size_t cur_count;
 
     o->len = 0;
     o->align = 1;
 
-    oc_tableParams_Init(&o->tables_params, num_entries);
+    if (!oc_tableParams_Init(&o->tables_params, num_entries)) {
+        return 0;
+    }
+    if (o->tables_params.len > SIZE_MAX) {
+        return 0;
+    }
     cur_size = o->tables_params.len;
+    if (o->tables_params.align > SIZE_MAX) {
+        return 0;
+    }
     cur_align = o->tables_params.align;
+    if (num_tables > SIZE_MAX) {
+        return 0;
+    }
     cur_count = (num_tables);
+    if (balign_up_overflows(o->len, cur_align)) {
+        return 0;
+    }
     o->tables_off = balign_up(o->len, cur_align);
     o->tables_size = cur_size;
     #ifndef NDEBUG
     o->tables_count = cur_count;
     #endif
-    o->len = o->tables_off + (cur_count * cur_size);
+    if (cur_count > SIZE_MAX / cur_size) {
+        return 0;
+    }
+    if (o->tables_off > SIZE_MAX - cur_count * cur_size) {
+        return 0;
+    }
+    o->len = o->tables_off + cur_count * cur_size;
     o->align = (cur_align > o->align ? cur_align : o->align);
 
+    return 1;
 }
 
 static oc_table * oc_tables_tables (oc_tablesParams *o, oc_tables *s)
@@ -128,7 +192,7 @@ static oc_table * oc_tables_tables (oc_tablesParams *o, oc_tables *s)
     return (oc_table *)((uint8_t *)s + o->tables_off);
 }
 
-static oc_table * oc_tables_tables_at (oc_tablesParams *o, oc_tables *s, int i)
+static oc_table * oc_tables_tables_at (oc_tablesParams *o, oc_tables *s, size_t i)
 {
     ASSERT(i >= 0)
     ASSERT(i < o->tables_count)

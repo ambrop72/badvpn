@@ -155,6 +155,9 @@ int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables, B
     mc->handler = NULL;
     
     // set number of entries
+    if (mc->num_otps > INT_MAX / 2) {
+        goto fail0;
+    }
     mc->num_entries = 2 * mc->num_otps;
     
     // set no tables used
@@ -167,7 +170,9 @@ int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables, B
     }
     
     // allocate tables
-    oc_tablesParams_Init(&mc->tables_params, mc->num_tables, mc->num_entries);
+    if (!(oc_tablesParams_Init(&mc->tables_params, mc->num_tables, mc->num_entries))) {
+        goto fail1;
+    }
     if (!(mc->tables = malloc(mc->tables_params.len))) {
         goto fail1;
     }

@@ -117,8 +117,10 @@ function generate_header ($name, $directives, $structures)
 */
 
 #include <stdint.h>
+#include <limits.h>
 
 #include <misc/balign.h>
+#include <misc/debug.h>
 
 
 EOD;
@@ -160,10 +162,10 @@ EOD;
             }
 
             echo <<<EOD
-    int {$entry["name"]}_off;
-    int {$entry["name"]}_size;
+    size_t {$entry["name"]}_off;
+    size_t {$entry["name"]}_size;
     #ifndef NDEBUG
-    int {$entry["name"]}_count;
+    size_t {$entry["name"]}_count;
     #endif
 
 
@@ -171,15 +173,17 @@ EOD;
         }
 
         echo <<<EOD
-    int len;
-    int align;
+    size_t len;
+    size_t align;
 } {$struct["name"]}Params;
 
-static void {$struct["name"]}Params_Init ({$struct["name"]}Params *o{$add_parameters})
+static int {$struct["name"]}Params_Init ({$struct["name"]}Params *o{$add_parameters}) WARN_UNUSED;
+
+static int {$struct["name"]}Params_Init ({$struct["name"]}Params *o{$add_parameters})
 {
-    int cur_size;
-    int cur_align;
-    int cur_count;
+    size_t cur_size;
+    size_t cur_align;
+    size_t cur_count;
 
     o->len = 0;
     o->align = 1;
@@ -200,7 +204,9 @@ EOD;
                     $init_add_parameters = ", {$entry["type"]["parameters"]}";
                 }
                 echo <<<EOD
-    {$entry["type"]["name"]}Params_Init(&o->{$entry["name"]}_params{$init_add_parameters});
+    if (!{$entry["type"]["name"]}Params_Init(&o->{$entry["name"]}_params{$init_add_parameters})) {
+        return 0;
+    }
 
 EOD;
             }
@@ -211,22 +217,39 @@ EOD;
 
 
             echo <<<EOD
+    if ({$size} > SIZE_MAX) {
+        return 0;
+    }
     cur_size = {$size};
+    if ({$align} > SIZE_MAX) {
+        return 0;
+    }
     cur_align = {$align};
+    if ({$entry["num"]} > SIZE_MAX) {
+        return 0;
+    }
     cur_count = ({$entry["num"]});
 
 EOD;
 
             $off = "balign_up(o->len, cur_align)";
-            $len = "(cur_count * cur_size)";
 
             echo <<<EOD
+    if (balign_up_overflows(o->len, cur_align)) {
+        return 0;
+    }
     o->{$entry["name"]}_off = {$off};
     o->{$entry["name"]}_size = cur_size;
     #ifndef NDEBUG
     o->{$entry["name"]}_count = cur_count;
     #endif
-    o->len = o->{$entry["name"]}_off + {$len};
+    if (cur_count > SIZE_MAX / cur_size) {
+        return 0;
+    }
+    if (o->{$entry["name"]}_off > SIZE_MAX - cur_count * cur_size) {
+        return 0;
+    }
+    o->len = o->{$entry["name"]}_off + cur_count * cur_size;
     o->align = (cur_align > o->align ? cur_align : o->align);
 
 
@@ -234,6 +257,7 @@ EOD;
         }
 
         echo <<<EOD
+    return 1;
 }
 
 
@@ -247,7 +271,7 @@ static {$entry["type"]["ctype"]} * {$struct["name"]}_{$entry["name"]} ({$struct[
     return ({$entry["type"]["ctype"]} *)((uint8_t *)s + o->{$entry["name"]}_off);
 }
 
-static {$entry["type"]["ctype"]} * {$struct["name"]}_{$entry["name"]}_at ({$struct["name"]}Params *o, {$struct["name"]} *s, int i)
+static {$entry["type"]["ctype"]} * {$struct["name"]}_{$entry["name"]}_at ({$struct["name"]}Params *o, {$struct["name"]} *s, size_t i)
 {
     ASSERT(i >= 0)
     ASSERT(i < o->{$entry["name"]}_count)

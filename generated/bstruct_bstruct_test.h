@@ -4,43 +4,66 @@
 */
 
 #include <stdint.h>
+#include <limits.h>
 
 #include <misc/balign.h>
+#include <misc/debug.h>
 
 
 typedef struct str0_struct str0;
 
 typedef struct {
-    int x_off;
-    int x_size;
+    size_t x_off;
+    size_t x_size;
     #ifndef NDEBUG
-    int x_count;
+    size_t x_count;
     #endif
 
-    int len;
-    int align;
+    size_t len;
+    size_t align;
 } str0Params;
 
-static void str0Params_Init (str0Params *o, int n)
+static int str0Params_Init (str0Params *o, int n) WARN_UNUSED;
+
+static int str0Params_Init (str0Params *o, int n)
 {
-    int cur_size;
-    int cur_align;
-    int cur_count;
+    size_t cur_size;
+    size_t cur_align;
+    size_t cur_count;
 
     o->len = 0;
     o->align = 1;
 
+    if ((sizeof(int)) > SIZE_MAX) {
+        return 0;
+    }
     cur_size = (sizeof(int));
+    if ((__alignof__(int)) > SIZE_MAX) {
+        return 0;
+    }
     cur_align = (__alignof__(int));
+    if (n > SIZE_MAX) {
+        return 0;
+    }
     cur_count = (n);
+    if (balign_up_overflows(o->len, cur_align)) {
+        return 0;
+    }
     o->x_off = balign_up(o->len, cur_align);
     o->x_size = cur_size;
     #ifndef NDEBUG
     o->x_count = cur_count;
     #endif
-    o->len = o->x_off + (cur_count * cur_size);
+    if (cur_count > SIZE_MAX / cur_size) {
+        return 0;
+    }
+    if (o->x_off > SIZE_MAX - cur_count * cur_size) {
+        return 0;
+    }
+    o->len = o->x_off + cur_count * cur_size;
     o->align = (cur_align > o->align ? cur_align : o->align);
 
+    return 1;
 }
 
 static int * str0_x (str0Params *o, str0 *s)
@@ -48,7 +71,7 @@ static int * str0_x (str0Params *o, str0 *s)
     return (int *)((uint8_t *)s + o->x_off);
 }
 
-static int * str0_x_at (str0Params *o, str0 *s, int i)
+static int * str0_x_at (str0Params *o, str0 *s, size_t i)
 {
     ASSERT(i >= 0)
     ASSERT(i < o->x_count)
@@ -59,89 +82,166 @@ static int * str0_x_at (str0Params *o, str0 *s, int i)
 typedef struct str1_struct str1;
 
 typedef struct {
-    int a_off;
-    int a_size;
+    size_t a_off;
+    size_t a_size;
     #ifndef NDEBUG
-    int a_count;
+    size_t a_count;
     #endif
 
-    int b_off;
-    int b_size;
+    size_t b_off;
+    size_t b_size;
     #ifndef NDEBUG
-    int b_count;
+    size_t b_count;
     #endif
 
-    int c_off;
-    int c_size;
+    size_t c_off;
+    size_t c_size;
     #ifndef NDEBUG
-    int c_count;
+    size_t c_count;
     #endif
 
     str0Params d_params;
-    int d_off;
-    int d_size;
+    size_t d_off;
+    size_t d_size;
     #ifndef NDEBUG
-    int d_count;
+    size_t d_count;
     #endif
 
-    int len;
-    int align;
+    size_t len;
+    size_t align;
 } str1Params;
 
-static void str1Params_Init (str1Params *o, int nb, int nc, int m)
+static int str1Params_Init (str1Params *o, int nb, int nc, int m) WARN_UNUSED;
+
+static int str1Params_Init (str1Params *o, int nb, int nc, int m)
 {
-    int cur_size;
-    int cur_align;
-    int cur_count;
+    size_t cur_size;
+    size_t cur_align;
+    size_t cur_count;
 
     o->len = 0;
     o->align = 1;
 
+    if ((sizeof(int)) > SIZE_MAX) {
+        return 0;
+    }
     cur_size = (sizeof(int));
+    if ((__alignof__(int)) > SIZE_MAX) {
+        return 0;
+    }
     cur_align = (__alignof__(int));
+    if (1 > SIZE_MAX) {
+        return 0;
+    }
     cur_count = (1);
+    if (balign_up_overflows(o->len, cur_align)) {
+        return 0;
+    }
     o->a_off = balign_up(o->len, cur_align);
     o->a_size = cur_size;
     #ifndef NDEBUG
     o->a_count = cur_count;
     #endif
-    o->len = o->a_off + (cur_count * cur_size);
+    if (cur_count > SIZE_MAX / cur_size) {
+        return 0;
+    }
+    if (o->a_off > SIZE_MAX - cur_count * cur_size) {
+        return 0;
+    }
+    o->len = o->a_off + cur_count * cur_size;
     o->align = (cur_align > o->align ? cur_align : o->align);
 
+    if ((sizeof(char)) > SIZE_MAX) {
+        return 0;
+    }
     cur_size = (sizeof(char));
+    if ((__alignof__(char)) > SIZE_MAX) {
+        return 0;
+    }
     cur_align = (__alignof__(char));
+    if (nb > SIZE_MAX) {
+        return 0;
+    }
     cur_count = (nb);
+    if (balign_up_overflows(o->len, cur_align)) {
+        return 0;
+    }
     o->b_off = balign_up(o->len, cur_align);
     o->b_size = cur_size;
     #ifndef NDEBUG
     o->b_count = cur_count;
     #endif
-    o->len = o->b_off + (cur_count * cur_size);
+    if (cur_count > SIZE_MAX / cur_size) {
+        return 0;
+    }
+    if (o->b_off > SIZE_MAX - cur_count * cur_size) {
+        return 0;
+    }
+    o->len = o->b_off + cur_count * cur_size;
     o->align = (cur_align > o->align ? cur_align : o->align);
 
+    if ((sizeof(double)) > SIZE_MAX) {
+        return 0;
+    }
     cur_size = (sizeof(double));
+    if ((__alignof__(double)) > SIZE_MAX) {
+        return 0;
+    }
     cur_align = (__alignof__(double));
+    if (nc > SIZE_MAX) {
+        return 0;
+    }
     cur_count = (nc);
+    if (balign_up_overflows(o->len, cur_align)) {
+        return 0;
+    }
     o->c_off = balign_up(o->len, cur_align);
     o->c_size = cur_size;
     #ifndef NDEBUG
     o->c_count = cur_count;
     #endif
-    o->len = o->c_off + (cur_count * cur_size);
+    if (cur_count > SIZE_MAX / cur_size) {
+        return 0;
+    }
+    if (o->c_off > SIZE_MAX - cur_count * cur_size) {
+        return 0;
+    }
+    o->len = o->c_off + cur_count * cur_size;
     o->align = (cur_align > o->align ? cur_align : o->align);
 
-    str0Params_Init(&o->d_params, m);
+    if (!str0Params_Init(&o->d_params, m)) {
+        return 0;
+    }
+    if (o->d_params.len > SIZE_MAX) {
+        return 0;
+    }
     cur_size = o->d_params.len;
+    if (o->d_params.align > SIZE_MAX) {
+        return 0;
+    }
     cur_align = o->d_params.align;
+    if (1 > SIZE_MAX) {
+        return 0;
+    }
     cur_count = (1);
+    if (balign_up_overflows(o->len, cur_align)) {
+        return 0;
+    }
     o->d_off = balign_up(o->len, cur_align);
     o->d_size = cur_size;
     #ifndef NDEBUG
     o->d_count = cur_count;
     #endif
-    o->len = o->d_off + (cur_count * cur_size);
+    if (cur_count > SIZE_MAX / cur_size) {
+        return 0;
+    }
+    if (o->d_off > SIZE_MAX - cur_count * cur_size) {
+        return 0;
+    }
+    o->len = o->d_off + cur_count * cur_size;
     o->align = (cur_align > o->align ? cur_align : o->align);
 
+    return 1;
 }
 
 static int * str1_a (str1Params *o, str1 *s)
@@ -149,7 +249,7 @@ static int * str1_a (str1Params *o, str1 *s)
     return (int *)((uint8_t *)s + o->a_off);
 }
 
-static int * str1_a_at (str1Params *o, str1 *s, int i)
+static int * str1_a_at (str1Params *o, str1 *s, size_t i)
 {
     ASSERT(i >= 0)
     ASSERT(i < o->a_count)
@@ -162,7 +262,7 @@ static char * str1_b (str1Params *o, str1 *s)
     return (char *)((uint8_t *)s + o->b_off);
 }
 
-static char * str1_b_at (str1Params *o, str1 *s, int i)
+static char * str1_b_at (str1Params *o, str1 *s, size_t i)
 {
     ASSERT(i >= 0)
     ASSERT(i < o->b_count)
@@ -175,7 +275,7 @@ static double * str1_c (str1Params *o, str1 *s)
     return (double *)((uint8_t *)s + o->c_off);
 }
 
-static double * str1_c_at (str1Params *o, str1 *s, int i)
+static double * str1_c_at (str1Params *o, str1 *s, size_t i)
 {
     ASSERT(i >= 0)
     ASSERT(i < o->c_count)
@@ -188,7 +288,7 @@ static str0 * str1_d (str1Params *o, str1 *s)
     return (str0 *)((uint8_t *)s + o->d_off);
 }
 
-static str0 * str1_d_at (str1Params *o, str1 *s, int i)
+static str0 * str1_d_at (str1Params *o, str1 *s, size_t i)
 {
     ASSERT(i >= 0)
     ASSERT(i < o->d_count)

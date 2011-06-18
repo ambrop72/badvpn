@@ -12,9 +12,9 @@ int main ()
     int m = 6;
     
     str1Params p;
-    str1Params_Init(&p, nb, nc, m);
+    ASSERT_FORCE(str1Params_Init(&p, nb, nc, m))
     
-    printf("len=%d align=%d\n", p.len, p.align);
+    printf("len=%zu align=%zu\n", p.len, p.align);
     
     void *s = malloc(p.len);
     ASSERT_FORCE(s)
