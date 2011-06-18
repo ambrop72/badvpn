@@ -21,6 +21,7 @@
  */
 
 #include <stdint.h>
+#include <stddef.h>
 
 #ifdef BADVPN_THREADWORK_USE_PTHREAD
     #include <unistd.h>
@@ -83,6 +84,8 @@ static void * dispatcher_thread (struct BThreadWorkDispatcher_thread *t)
     }
     
     ASSERT_FORCE(pthread_mutex_unlock(&o->mutex) == 0)
+    
+    return NULL;
 }
 
 static void dispatch_job (BThreadWorkDispatcher *o)

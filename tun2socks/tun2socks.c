@@ -199,7 +199,7 @@ static void client_socks_recv_initiate (struct tcp_client *client);
 static void client_socks_recv_handler_done (struct tcp_client *client, int data_len);
 static int client_socks_recv_send_out (struct tcp_client *client);
 static err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len);
-static void udpgw_client_handler_received (void *unused, BAddr local_addr, BAddr remote_addr, const char *data, int data_len);
+static void udpgw_client_handler_received (void *unused, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len);
 
 int main (int argc, char **argv)
 {
@@ -1473,7 +1473,7 @@ err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
     return ERR_OK;
 }
 
-void udpgw_client_handler_received (void *unused, BAddr local_addr, BAddr remote_addr, const char *data, int data_len)
+void udpgw_client_handler_received (void *unused, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len)
 {
     ASSERT(options.udpgw_remote_server_addr)
     ASSERT(data_len >= 0)

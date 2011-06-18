@@ -28,7 +28,7 @@
 #include <udpgw_client/UdpGwClient.h>
 #include <socksclient/BSocksClient.h>
 
-typedef void (*SocksUdpGwClient_handler_received) (void *user, BAddr local_addr, BAddr remote_addr, const char *data, int data_len);
+typedef void (*SocksUdpGwClient_handler_received) (void *user, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len);
 
 typedef struct {
     int udp_mtu;

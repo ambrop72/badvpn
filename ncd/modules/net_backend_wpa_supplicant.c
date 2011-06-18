@@ -162,7 +162,7 @@ void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len)
         return;
     }
     
-    if (data_begins_with(data, data_len, EVENT_STRING_CONNECTED)) {
+    if (data_begins_with((char *)data, data_len, EVENT_STRING_CONNECTED)) {
         ModuleLog(o->i, BLOG_INFO, "connected event");
         
         if (!o->up) {
@@ -170,7 +170,7 @@ void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len)
             NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
         }
     }
-    else if (data_begins_with(data, data_len, EVENT_STRING_DISCONNECTED)) {
+    else if (data_begins_with((char *)data, data_len, EVENT_STRING_DISCONNECTED)) {
         ModuleLog(o->i, BLOG_INFO, "disconnected event");
         
         if (o->up) {

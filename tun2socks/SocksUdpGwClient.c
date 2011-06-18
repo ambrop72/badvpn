@@ -32,7 +32,7 @@ static void try_connect (SocksUdpGwClient *o);
 static void reconnect_timer_handler (SocksUdpGwClient *o);
 static void socks_client_handler (SocksUdpGwClient *o, int event);
 static void udpgw_handler_servererror (SocksUdpGwClient *o);
-static void udpgw_handler_received (SocksUdpGwClient *o, BAddr local_addr, BAddr remote_addr, const char *data, int data_len);
+static void udpgw_handler_received (SocksUdpGwClient *o, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len);
 
 static void free_socks (SocksUdpGwClient *o)
 {
@@ -143,7 +143,7 @@ static void udpgw_handler_servererror (SocksUdpGwClient *o)
     BReactor_SetTimer(o->reactor, &o->reconnect_timer);
 }
 
-static void udpgw_handler_received (SocksUdpGwClient *o, BAddr local_addr, BAddr remote_addr, const char *data, int data_len)
+static void udpgw_handler_received (SocksUdpGwClient *o, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len)
 {
     DebugObject_Access(&o->d_obj);
     

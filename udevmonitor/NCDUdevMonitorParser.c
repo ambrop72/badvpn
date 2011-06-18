@@ -87,7 +87,7 @@ static int parse_message (NCDUdevMonitorParser *o)
     o->buf[o->ready_len - 1] = '\0';
     
     // start parsing
-    char *line = o->buf;
+    char *line = (char *)o->buf;
     int first_line = 1;
     
     // set is not ready event
