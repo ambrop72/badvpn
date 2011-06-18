@@ -26,7 +26,7 @@
 #include <base/BLog.h>
 #include <system/BReactor.h>
 #include <system/BSignal.h>
-#include <process/BProcess.h>
+#include <system/BProcess.h>
 #include <udevmonitor/NCDUdevMonitor.h>
 
 BReactor reactor;

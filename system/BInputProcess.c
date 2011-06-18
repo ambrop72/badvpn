@@ -24,7 +24,7 @@
 
 #include <base/BLog.h>
 
-#include <inputprocess/BInputProcess.h>
+#include "BInputProcess.h"
 
 #include <generated/blog_channel_BInputProcess.h>
 

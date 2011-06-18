@@ -29,7 +29,7 @@
 #include <system/BReactor.h>
 #include <system/BSignal.h>
 #include <system/BTime.h>
-#include <process/BProcess.h>
+#include <system/BProcess.h>
 
 BReactor reactor;
 BProcessManager manager;

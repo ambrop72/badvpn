@@ -4,4 +4,4 @@ add_library(udevmonitor
     NCDUdevCache.c
     NCDUdevManager.c
 )
-target_link_libraries(udevmonitor system flow inputprocess stringmap)
+target_link_libraries(udevmonitor system flow stringmap)

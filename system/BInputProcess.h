@@ -20,13 +20,13 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef BADVPN_INPUTPROCESS_BINPUTPROCESS_H
-#define BADVPN_INPUTPROCESS_BINPUTPROCESS_H
+#ifndef BADVPN_BINPUTPROCESS_H
+#define BADVPN_BINPUTPROCESS_H
 
 #include <misc/debug.h>
 #include <base/DebugObject.h>
 #include <system/BConnection.h>
-#include <process/BProcess.h>
+#include <system/BProcess.h>
 
 typedef void (*BInputProcess_handler_terminated) (void *user, int normally, uint8_t normally_exit_status);
 typedef void (*BInputProcess_handler_closed) (void *user, int is_error);

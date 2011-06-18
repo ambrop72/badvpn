@@ -36,7 +36,7 @@
 #include <misc/cmdline.h>
 #include <misc/string_begins_with.h>
 #include <flow/LineBuffer.h>
-#include <inputprocess/BInputProcess.h>
+#include <system/BInputProcess.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_net_backend_wpa_supplicant.h>

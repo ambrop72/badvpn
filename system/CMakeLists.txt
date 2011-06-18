@@ -14,6 +14,8 @@ if (NOT WIN32)
         BUnixSignal.c
         BConnection_unix.c
         BDatagram_unix.c
+        BProcess.c
+        BInputProcess.c
     )
 endif ()
 

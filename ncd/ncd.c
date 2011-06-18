@@ -39,7 +39,7 @@
 #include <system/BReactor.h>
 #include <system/BSignal.h>
 #include <system/BConnection.h>
-#include <process/BProcess.h>
+#include <system/BProcess.h>
 #include <udevmonitor/NCDUdevManager.h>
 #include <ncdconfig/NCDConfigParser.h>
 #include <ncd/NCDModule.h>

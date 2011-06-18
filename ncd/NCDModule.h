@@ -27,7 +27,7 @@
 #include <system/BReactor.h>
 #include <base/BPending.h>
 #include <base/BLog.h>
-#include <process/BProcess.h>
+#include <system/BProcess.h>
 #include <udevmonitor/NCDUdevManager.h>
 #include <ncd/NCDValue.h>
 

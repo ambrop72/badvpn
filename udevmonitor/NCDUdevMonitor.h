@@ -26,7 +26,7 @@
 #include <misc/debug.h>
 #include <misc/debugerror.h>
 #include <flow/StreamRecvConnector.h>
-#include <inputprocess/BInputProcess.h>
+#include <system/BInputProcess.h>
 #include <udevmonitor/NCDUdevMonitorParser.h>
 
 typedef void (*NCDUdevMonitor_handler_event) (void *user);

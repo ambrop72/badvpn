@@ -35,7 +35,7 @@
 #include <misc/offset.h>
 #include <base/BLog.h>
 
-#include <process/BProcess.h>
+#include "BProcess.h"
 
 #include <generated/blog_channel_BProcess.h>
 

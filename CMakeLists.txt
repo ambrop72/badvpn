@@ -154,8 +154,6 @@ add_subdirectory(threadwork)
 add_subdirectory(stringmap)
 add_subdirectory(udpgw_client)
 if (NOT WIN32)
-    add_subdirectory(process)
-    add_subdirectory(inputprocess)
     add_subdirectory(udevmonitor)
 endif ()
 

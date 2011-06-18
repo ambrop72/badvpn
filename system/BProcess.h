@@ -20,8 +20,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef BADVPN_PROCESS_BPROCESS_H
-#define BADVPN_PROCESS_BPROCESS_H
+#ifndef BADVPN_BPROCESS_H
+#define BADVPN_BPROCESS_H
 
 #include <stdint.h>
 #include <unistd.h>
