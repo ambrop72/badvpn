@@ -485,6 +485,13 @@ int main (int argc, char *argv[])
     
     BLog(BLOG_INFO, "device MTU is %d", device_mtu);
     
+    // calculate data MTU
+    if (device_mtu > INT_MAX - DATAPROTO_MAX_OVERHEAD) {
+        BLog(BLOG_ERROR, "Device MTU is too large");
+        goto fail7;
+    }
+    data_mtu = DATAPROTO_MAX_OVERHEAD + device_mtu;
+    
     // init device input
     if (!DataProtoSource_Init(&device_input_dpd, BTap_GetOutput(&device), device_input_dpd_handler, NULL, &ss)) {
         BLog(BLOG_ERROR, "DataProtoSource_Init failed");
@@ -496,13 +503,6 @@ int main (int argc, char *argv[])
         BLog(BLOG_ERROR, "DPReceiveDevice_Init failed");
         goto fail7a;
     }
-    
-    // calculate data MTU
-    if (device_mtu > INT_MAX - DATAPROTO_MAX_OVERHEAD) {
-        BLog(BLOG_ERROR, "Device MTU is too large");
-        goto fail8;
-    }
-    data_mtu = DATAPROTO_MAX_OVERHEAD + device_mtu;
     
     // init peers list
     LinkedList2_Init(&peers);
@@ -540,7 +540,6 @@ int main (int argc, char *argv[])
     ServerConnection_Free(&server);
 fail9:
     FrameDecider_Free(&frame_decider);
-fail8:
     DPReceiveDevice_Free(&device_output_dprd);
 fail7a:
     DataProtoSource_Free(&device_input_dpd);
