@@ -28,6 +28,17 @@
 #define BADVPN_MISC_BALIGN_H
 
 #include <stddef.h>
+#include <stdint.h>
+
+/**
+ * Checks if aligning x up to n would overflow.
+ */
+static int balign_up_overflows (size_t x, size_t n)
+{
+    size_t r = x % n;
+    
+    return (r && x > SIZE_MAX - (n - r));
+}
 
 /**
  * Aligns x up to n.
