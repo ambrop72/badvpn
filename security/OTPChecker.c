@@ -45,7 +45,7 @@ void OTPChecker_Table_AddOTP (OTPChecker *mc, struct OTPChecker_table *t, otp_t 
     
     // try indexes starting with the base position
     for (int i = 0; i < mc->num_entries; i++) {
-        int index = BMODADD(start_index, i, mc->num_entries);
+        int index = bmodadd_int(start_index, i, mc->num_entries);
         struct OTPChecker_entry *entry = &t->entries[index];
         
         // if we find a free index, use it
@@ -88,7 +88,7 @@ int OTPChecker_Table_CheckOTP (OTPChecker *mc, struct OTPChecker_table *t, otp_t
     
     // try indexes starting with the base position
     for (int i = 0; i < mc->num_entries; i++) {
-        int index = BMODADD(start_index, i, mc->num_entries);
+        int index = bmodadd_int(start_index, i, mc->num_entries);
         struct OTPChecker_entry *entry = &t->entries[index];
         
         // if we find an empty entry, there is no such mac
@@ -127,7 +127,7 @@ static void work_done_handler (OTPChecker *mc)
     mc->tw_have = 0;
     
     // update next table number
-    mc->next_table = BMODADD(mc->next_table, 1, mc->num_tables);
+    mc->next_table = bmodadd_int(mc->next_table, 1, mc->num_tables);
     
     // update number of used tables if not all are used yet
     if (mc->tables_used < mc->num_tables) {
@@ -266,7 +266,7 @@ int OTPChecker_CheckOTP (OTPChecker *mc, uint16_t seed_id, otp_t otp)
     
     // try tables in reverse order
     for (int i = 1; i <= mc->tables_used; i++) {
-        int table_index = BMODADD(mc->next_table, mc->num_tables - i, mc->num_tables);
+        int table_index = bmodadd_int(mc->next_table, mc->num_tables - i, mc->num_tables);
         if (table_index == mc->next_table && mc->tw_have) {
             // ignore table that is being generated
             continue;

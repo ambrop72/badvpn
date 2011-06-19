@@ -22,6 +22,9 @@
  * @section DESCRIPTION
  * 
  * Modular addition macro.
+ * 
+ * Calculates (x + y) mod m, assuming
+ * 0 <= x < m and 0 <= y < m.
  */
 
 #ifndef BADVPN_MISC_MODADD_H
@@ -29,20 +32,21 @@
 
 #include <misc/debug.h>
 
-/**
- * Calculates (x + y) mod m, assuming
- * 0 <= x < m and 0 <= y < m.
- */
-#define BMODADD(x, y, m) \
-    ({ \
-        typeof (x) _modadd_x = (x); \
-        typeof (y) _modadd_y = (y); \
-        typeof (m) _modadd_m = (m); \
-        ASSERT(_modadd_x >= 0) \
-        ASSERT(_modadd_x < _modadd_m) \
-        ASSERT(_modadd_y >= 0) \
-        ASSERT(_modadd_y < _modadd_m) \
-        (_modadd_y >= _modadd_m - _modadd_x ? _modadd_y - (_modadd_m - _modadd_x) : _modadd_x + _modadd_y); \
-    })
+#define DECLARE_BMODADD(type, name) \
+static type bmodadd_##name (type x, type y, type m) \
+{ \
+    ASSERT(x >= 0) \
+    ASSERT(x < m) \
+    ASSERT(y >= 0) \
+    ASSERT(y < m) \
+     \
+    if (y >= m - x) { \
+        return (y - (m - x)); \
+    } else { \
+        return (x + y); \
+    } \
+} \
+
+DECLARE_BMODADD(int, int)
 
 #endif
