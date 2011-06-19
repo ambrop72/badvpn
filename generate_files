@@ -14,12 +14,6 @@ function bproto() {
     "${PHP_CMD[@]}" bproto_generator/bproto.php --input-file "${input}" --output-dir "${OUT_DIR}" --name "bproto_${name}"
 }
 
-function bstruct() {
-    local input="$1"
-    local name="$2"
-    "${PHP_CMD[@]}" bstruct_generator/bstruct.php --input-file "${input}" --output-dir "${OUT_DIR}" --name "bstruct_${name}"
-}
-
 function do_flex() {
     local input="$1"
     local name="$2"
@@ -48,8 +42,6 @@ mkdir -p generated
 bproto tests/bproto_test.bproto bproto_test
 bproto protocol/msgproto.bproto msgproto
 bproto protocol/addr.bproto addr
-bstruct tests/bstruct_test.bstruct bstruct_test
-bstruct security/OTPChecker.bstruct OTPChecker
 do_flex predicate/BPredicate.l BPredicate
 do_bison predicate/BPredicate.y BPredicate
 "${PHP_CMD[@]}" blog_generator/blog.php --input-file blog_channels.txt --output-dir "${OUT_DIR}"

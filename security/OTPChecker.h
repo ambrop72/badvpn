@@ -41,7 +41,10 @@ struct OTPChecker_entry {
     int avail;
 };
 
-#include <generated/bstruct_OTPChecker.h>
+struct OTPChecker_table {
+    uint16_t id;
+    struct OTPChecker_entry *entries;
+};
 
 /**
  * Handler called when OTP generation for a seed is finished and new OTPs
@@ -65,8 +68,8 @@ typedef struct {
     int tables_used;
     int next_table;
     OTPCalculator calc;
-    oc_tablesParams tables_params;
-    oc_tables *tables;
+    struct OTPChecker_table *tables;
+    struct OTPChecker_entry *entries;
     int tw_have;
     BThreadWork tw;
     uint8_t tw_key[BENCRYPTION_MAX_KEY_SIZE];

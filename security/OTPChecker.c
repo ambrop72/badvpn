@@ -22,21 +22,23 @@
 
 #include <string.h>
 
+#include <misc/balloc.h>
+
 #include <security/OTPChecker.h>
 
-static void OTPChecker_Table_Empty (OTPChecker *mc, oc_table *t);
-static void OTPChecker_Table_AddOTP (OTPChecker *mc, oc_table *t, otp_t otp);
-static void OTPChecker_Table_Generate (OTPChecker *mc, oc_table *t, OTPCalculator *calc, uint8_t *key, uint8_t *iv);
-static int OTPChecker_Table_CheckOTP (OTPChecker *mc, oc_table *t, otp_t otp);
+static void OTPChecker_Table_Empty (OTPChecker *mc, struct OTPChecker_table *t);
+static void OTPChecker_Table_AddOTP (OTPChecker *mc, struct OTPChecker_table *t, otp_t otp);
+static void OTPChecker_Table_Generate (OTPChecker *mc, struct OTPChecker_table *t, OTPCalculator *calc, uint8_t *key, uint8_t *iv);
+static int OTPChecker_Table_CheckOTP (OTPChecker *mc, struct OTPChecker_table *t, otp_t otp);
 
-void OTPChecker_Table_Empty (OTPChecker *mc, oc_table *t)
+void OTPChecker_Table_Empty (OTPChecker *mc, struct OTPChecker_table *t)
 {
     for (int i = 0; i < mc->num_entries; i++) {
-        oc_table_entries_at(&mc->tables_params.tables_params, t, i)->avail = -1;
+        t->entries[i].avail = -1;
     }
 }
 
-void OTPChecker_Table_AddOTP (OTPChecker *mc, oc_table *t, otp_t otp)
+void OTPChecker_Table_AddOTP (OTPChecker *mc, struct OTPChecker_table *t, otp_t otp)
 {
     // calculate starting index
     int start_index = otp % mc->num_entries;
@@ -44,7 +46,7 @@ void OTPChecker_Table_AddOTP (OTPChecker *mc, oc_table *t, otp_t otp)
     // try indexes starting with the base position
     for (int i = 0; i < mc->num_entries; i++) {
         int index = BMODADD(start_index, i, mc->num_entries);
-        struct OTPChecker_entry *entry = oc_table_entries_at(&mc->tables_params.tables_params, t, index);
+        struct OTPChecker_entry *entry = &t->entries[index];
         
         // if we find a free index, use it
         if (entry->avail < 0) {
@@ -65,7 +67,7 @@ void OTPChecker_Table_AddOTP (OTPChecker *mc, oc_table *t, otp_t otp)
     ASSERT(0)
 }
 
-void OTPChecker_Table_Generate (OTPChecker *mc, oc_table *t, OTPCalculator *calc, uint8_t *key, uint8_t *iv)
+void OTPChecker_Table_Generate (OTPChecker *mc, struct OTPChecker_table *t, OTPCalculator *calc, uint8_t *key, uint8_t *iv)
 {
     // calculate values
     otp_t *otps = OTPCalculator_Generate(calc, key, iv, 0);
@@ -79,7 +81,7 @@ void OTPChecker_Table_Generate (OTPChecker *mc, oc_table *t, OTPCalculator *calc
     }
 }
 
-int OTPChecker_Table_CheckOTP (OTPChecker *mc, oc_table *t, otp_t otp)
+int OTPChecker_Table_CheckOTP (OTPChecker *mc, struct OTPChecker_table *t, otp_t otp)
 {
     // calculate starting index
     int start_index = otp % mc->num_entries;
@@ -87,7 +89,7 @@ int OTPChecker_Table_CheckOTP (OTPChecker *mc, oc_table *t, otp_t otp)
     // try indexes starting with the base position
     for (int i = 0; i < mc->num_entries; i++) {
         int index = BMODADD(start_index, i, mc->num_entries);
-        struct OTPChecker_entry *entry = oc_table_entries_at(&mc->tables_params.tables_params, t, index);
+        struct OTPChecker_entry *entry = &t->entries[index];
         
         // if we find an empty entry, there is no such mac
         if (entry->avail < 0) {
@@ -111,7 +113,7 @@ int OTPChecker_Table_CheckOTP (OTPChecker *mc, oc_table *t, otp_t otp)
 
 static void work_func (OTPChecker *mc)
 {
-    oc_table *table = oc_tables_tables_at(&mc->tables_params, mc->tables, mc->next_table);
+    struct OTPChecker_table *table = &mc->tables[mc->next_table];
     OTPChecker_Table_Generate(mc, table, &mc->calc, mc->tw_key, mc->tw_iv);
 }
 
@@ -170,16 +172,20 @@ int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables, B
     }
     
     // allocate tables
-    if (!(oc_tablesParams_Init(&mc->tables_params, mc->num_tables, mc->num_entries))) {
+    if (!(mc->tables = BAllocArray(mc->num_tables, sizeof(mc->tables[0])))) {
         goto fail1;
     }
-    if (!(mc->tables = malloc(mc->tables_params.len))) {
-        goto fail1;
+    
+    // allocate entries
+    if (!(mc->entries = BAllocArray2(mc->num_tables, mc->num_entries, sizeof(mc->entries[0])))) {
+        goto fail2;
     }
     
     // initialize tables
     for (int i = 0; i < mc->num_tables; i++) {
-        OTPChecker_Table_Empty(mc, oc_tables_tables_at(&mc->tables_params, mc->tables, i));
+        struct OTPChecker_table *table = &mc->tables[i];
+        table->entries = mc->entries + i * mc->num_entries;
+        OTPChecker_Table_Empty(mc, table);
     }
     
     // have no work
@@ -188,6 +194,8 @@ int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables, B
     DebugObject_Init(&mc->d_obj);
     return 1;
     
+fail2:
+    BFree(mc->tables);
 fail1:
     OTPCalculator_Free(&mc->calc);
 fail0:
@@ -203,8 +211,11 @@ void OTPChecker_Free (OTPChecker *mc)
         BThreadWork_Free(&mc->tw);
     }
     
+    // free entries
+    BFree(mc->entries);
+    
     // free tables
-    free(mc->tables);
+    BFree(mc->tables);
     
     // free calculator
     OTPCalculator_Free(&mc->calc);
@@ -222,8 +233,7 @@ void OTPChecker_AddSeed (OTPChecker *mc, uint16_t seed_id, uint8_t *key, uint8_t
     }
     
     // set table's seed ID
-    oc_table *table = oc_tables_tables_at(&mc->tables_params, mc->tables, mc->next_table);
-    *oc_table_id(&mc->tables_params.tables_params, table) = seed_id;
+    mc->tables[mc->next_table].id = seed_id;
     
     // copy key and IV
     memcpy(mc->tw_key, key, BEncryption_cipher_key_size(mc->cipher));
@@ -262,8 +272,8 @@ int OTPChecker_CheckOTP (OTPChecker *mc, uint16_t seed_id, otp_t otp)
             continue;
         }
         
-        oc_table *table = oc_tables_tables_at(&mc->tables_params, mc->tables, table_index);
-        if (*oc_table_id(&mc->tables_params.tables_params, table) == seed_id) {
+        struct OTPChecker_table *table = &mc->tables[table_index];
+        if (table->id == seed_id) {
             return OTPChecker_Table_CheckOTP(mc, table, otp);
         }
     }
