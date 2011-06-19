@@ -47,8 +47,6 @@
 #include <flow/SingleStreamSender.h>
 #include <client/PasswordListener.h>
 
-#define STREAMPEERIO_SOCKET_SEND_BUFFER 4096
-
 /**
  * Callback function invoked when an error occurs with the peer connection.
  * The object has entered default state.
@@ -72,6 +70,7 @@ typedef struct {
     uint8_t *ssl_peer_cert;
     int ssl_peer_cert_len;
     int payload_mtu;
+    int sock_sndbuf;
     StreamPeerIO_handler_error handler_error;
     void *user;
     
@@ -134,6 +133,7 @@ typedef struct {
  * @param ssl_peer_cert if using SSL, the certificate we expect the peer to have
  * @param ssl_peer_cert_len if using SSL, the length of the certificate
  * @param payload_mtu maximum packet size as seen from the user. Must be >=0.
+ * @param sock_sndbuf socket SO_SNDBUF option. Specify <=0 to not set it.
  * @param user_recv_if interface to use for submitting received packets. Its MTU
  *                     must be >=payload_mtu.
  * @param handler_error handler function invoked when a connection error occurs
@@ -147,6 +147,7 @@ int StreamPeerIO_Init (
     uint8_t *ssl_peer_cert,
     int ssl_peer_cert_len,
     int payload_mtu,
+    int sock_sndbuf,
     PacketPassInterface *user_recv_if,
     StreamPeerIO_handler_error handler_error,
     void *user

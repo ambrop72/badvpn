@@ -304,8 +304,10 @@ int init_io (StreamPeerIO *pio, sslsocket *sock)
     ASSERT(!pio->sock)
     
     // limit socket send buffer, else our scheduling is pointless
-    if (!BConnection_SetSendBuffer(&sock->con, STREAMPEERIO_SOCKET_SEND_BUFFER)) {
-        BLog(BLOG_WARNING, "BConnection_SetSendBuffer failed");
+    if (pio->sock_sndbuf > 0) {
+        if (!BConnection_SetSendBuffer(&sock->con, pio->sock_sndbuf)) {
+            BLog(BLOG_WARNING, "BConnection_SetSendBuffer failed");
+        }
     }
     
     if (pio->ssl) {
@@ -534,6 +536,7 @@ int StreamPeerIO_Init (
     uint8_t *ssl_peer_cert,
     int ssl_peer_cert_len,
     int payload_mtu,
+    int sock_sndbuf,
     PacketPassInterface *user_recv_if,
     StreamPeerIO_handler_error handler_error,
     void *user
@@ -552,6 +555,7 @@ int StreamPeerIO_Init (
         pio->ssl_peer_cert_len = ssl_peer_cert_len;
     }
     pio->payload_mtu = payload_mtu;
+    pio->sock_sndbuf = sock_sndbuf;
     pio->handler_error = handler_error;
     pio->user = user;
     
