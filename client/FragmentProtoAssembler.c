@@ -396,12 +396,12 @@ int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, Packe
     o->time_tolerance = num_frames;
     
     // allocate frames
-    if (!(o->frames_entries = BAllocArray(num_frames, sizeof(struct FragmentProtoAssembler_frame)))) {
+    if (!(o->frames_entries = BAllocArray(num_frames, sizeof(o->frames_entries[0])))) {
         goto fail1;
     }
     
     // allocate chunks
-    if (!(o->frames_chunks = BAllocArray2(num_frames, o->num_chunks, sizeof(struct FragmentProtoAssembler_chunk)))) {
+    if (!(o->frames_chunks = BAllocArray2(num_frames, o->num_chunks, sizeof(o->frames_chunks[0])))) {
         goto fail2;
     }
     
@@ -418,9 +418,9 @@ int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, Packe
     for (int i = 0; i < num_frames; i++) {
         struct FragmentProtoAssembler_frame *frame = &o->frames_entries[i];
         // set chunks array pointer
-        frame->chunks = o->frames_chunks + i * o->num_chunks;
+        frame->chunks = o->frames_chunks + (size_t)i * o->num_chunks;
         // set buffer pointer
-        frame->buffer = o->frames_buffer + i * o->output_mtu;
+        frame->buffer = o->frames_buffer + (size_t)i * o->output_mtu;
         // add to free list
         LinkedList2_Append(&o->frames_free, &frame->list_node);
     }

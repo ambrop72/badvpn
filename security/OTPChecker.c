@@ -184,7 +184,7 @@ int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables, B
     // initialize tables
     for (int i = 0; i < mc->num_tables; i++) {
         struct OTPChecker_table *table = &mc->tables[i];
-        table->entries = mc->entries + i * mc->num_entries;
+        table->entries = mc->entries + (size_t)i * mc->num_entries;
         OTPChecker_Table_Empty(mc, table);
     }
     
