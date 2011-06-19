@@ -158,6 +158,12 @@ int DatagramPeerIO_Init (
     // set no handlers
     o->handler_error = NULL;
     
+    // check num frames (for FragmentProtoAssembler)
+    if (num_frames >= FPA_MAX_TIME) {
+        BLog(BLOG_ERROR, "num_frames is too big");
+        goto fail0;
+    }
+    
     // check payload MTU (for FragmentProto)
     if (o->payload_mtu > UINT16_MAX) {
         BLog(BLOG_ERROR, "payload MTU is too big");
