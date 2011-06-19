@@ -22,6 +22,8 @@
 
 #include <limits.h>
 
+#include <misc/balloc.h>
+
 #include <security/OTPCalculator.h>
 
 int OTPCalculator_Init (OTPCalculator *calc, int num_otps, int cipher)
@@ -33,19 +35,17 @@ int OTPCalculator_Init (OTPCalculator *calc, int num_otps, int cipher)
     calc->num_otps = num_otps;
     calc->cipher = cipher;
     
-    if (calc->num_otps > SIZE_MAX / sizeof(otp_t)) {
-        goto fail0;
-    }
-    
     // remember block size
     calc->block_size = BEncryption_cipher_block_size(calc->cipher);
     
     // calculate number of blocks
+    if (calc->num_otps > SIZE_MAX / sizeof(otp_t)) {
+        goto fail0;
+    }
     calc->num_blocks = bdivide_up(calc->num_otps * sizeof(otp_t), calc->block_size);
     
     // allocate buffer
-    calc->data = malloc(calc->num_blocks * calc->block_size);
-    if (!calc->data) {
+    if (!(calc->data = BAllocArray(calc->num_blocks, calc->block_size))) {
         goto fail0;
     }
     
@@ -64,7 +64,7 @@ void OTPCalculator_Free (OTPCalculator *calc)
     DebugObject_Free(&calc->d_obj);
     
     // free buffer
-    free(calc->data);
+    BFree(calc->data);
 }
 
 otp_t * OTPCalculator_Generate (OTPCalculator *calc, uint8_t *key, uint8_t *iv, int shuffle)
