@@ -49,7 +49,7 @@ typedef struct {
     int num_otps;
     int cipher;
     int block_size;
-    int num_blocks;
+    size_t num_blocks;
     otp_t *data;
 } OTPCalculator;
 

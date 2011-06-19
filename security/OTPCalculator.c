@@ -84,7 +84,7 @@ otp_t * OTPCalculator_Generate (OTPCalculator *calc, uint8_t *key, uint8_t *iv, 
     BEncryption_Init(&encryptor, BENCRYPTION_MODE_ENCRYPT, calc->cipher, key);
     
     // encrypt zero blocks
-    for (int i = 0; i < calc->num_blocks; i++) {
+    for (size_t i = 0; i < calc->num_blocks; i++) {
         BEncryption_Encrypt(&encryptor, zero, (uint8_t *)calc->data + i * calc->block_size, calc->block_size, iv_work);
     }
     
