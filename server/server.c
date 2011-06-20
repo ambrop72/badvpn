@@ -806,8 +806,10 @@ void listener_handler (BListener *listener)
     }
     
     // limit socket send buffer, else our scheduling is pointless
-    if (!BConnection_SetSendBuffer(&client->con, options.client_sndbuf) < 0) {
-        BLog(BLOG_WARNING, "BConnection_SetSendBuffer failed");
+    if (options.client_sndbuf > 0) {
+        if (!BConnection_SetSendBuffer(&client->con, options.client_sndbuf) < 0) {
+            BLog(BLOG_WARNING, "BConnection_SetSendBuffer failed");
+        }
     }
     
     // assign ID
