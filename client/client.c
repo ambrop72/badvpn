@@ -102,7 +102,7 @@ struct {
     int otp_num_warn;
     int fragmentation_latency;
     int peer_ssl;
-    int peer_tcp_sndbuf;
+    int peer_tcp_socket_sndbuf;
     char *scopes[MAX_SCOPES];
     int num_scopes;
     int send_buffer_size;
@@ -626,7 +626,7 @@ void print_help (const char *name)
         "        )\n"
         "        (transport-mode=tcp?\n"
         "            (ssl? [--peer-ssl])\n"
-        "            [--peer-tcp-sndbuf <bytes / 0>]\n"
+        "            [--peer-tcp-socket-sndbuf <bytes / 0>]\n"
         "        )\n"
         "        [--send-buffer-size <num-packets>]\n"
         "        [--send-buffer-relay-size <num-packets>]\n"
@@ -676,7 +676,7 @@ int parse_arguments (int argc, char *argv[])
     options.otp_mode = SPPROTO_OTP_MODE_NONE;
     options.fragmentation_latency = PEER_DEFAULT_UDP_FRAGMENTATION_LATENCY;
     options.peer_ssl = 0;
-    options.peer_tcp_sndbuf = -1;
+    options.peer_tcp_socket_sndbuf = -1;
     options.send_buffer_size = PEER_DEFAULT_SEND_BUFFER_SIZE;
     options.send_buffer_relay_size = PEER_DEFAULT_SEND_BUFFER_RELAY_SIZE;
     options.max_macs = PEER_DEFAULT_MAX_MACS;
@@ -979,12 +979,12 @@ int parse_arguments (int argc, char *argv[])
         else if (!strcmp(arg, "--peer-ssl")) {
             options.peer_ssl = 1;
         }
-        else if (!strcmp(arg, "--peer-tcp-sndbuf")) {
+        else if (!strcmp(arg, "--peer-tcp-socket-sndbuf")) {
             if (1 >= argc - i) {
                 fprintf(stderr, "%s: requires an argument\n", arg);
                 return 0;
             }
-            if ((options.peer_tcp_sndbuf = atoi(argv[i + 1])) < 0) {
+            if ((options.peer_tcp_socket_sndbuf = atoi(argv[i + 1])) < 0) {
                 fprintf(stderr, "%s: wrong argument\n", arg);
                 return 0;
             }
@@ -1111,8 +1111,8 @@ int parse_arguments (int argc, char *argv[])
         return 0;
     }
     
-    if (!(!(options.peer_tcp_sndbuf >= 0) || options.transport_mode == TRANSPORT_MODE_TCP)) {
-        fprintf(stderr, "False: --peer-tcp-sndbuf => TCP\n");
+    if (!(!(options.peer_tcp_socket_sndbuf >= 0) || options.transport_mode == TRANSPORT_MODE_TCP)) {
+        fprintf(stderr, "False: --peer-tcp-socket-sndbuf => TCP\n");
         return 0;
     }
     
@@ -1496,7 +1496,7 @@ int peer_init_link (struct peer_data *peer)
             (options.peer_ssl ? peer->cert : NULL),
             (options.peer_ssl ? peer->cert_len : -1),
             data_mtu,
-            (options.peer_tcp_sndbuf >= 0 ? options.peer_tcp_sndbuf : PEER_DEFAULT_TCP_SNDBUF),
+            (options.peer_tcp_socket_sndbuf >= 0 ? options.peer_tcp_socket_sndbuf : PEER_DEFAULT_TCP_SOCKET_SNDBUF),
             recv_if,
             (StreamPeerIO_handler_error)peer_tcp_pio_handler_error, peer
         )) {

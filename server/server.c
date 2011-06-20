@@ -83,7 +83,7 @@ struct {
     int num_listen_addrs;
     char *comm_predicate;
     char *relay_predicate;
-    int client_sndbuf;
+    int client_socket_sndbuf;
 } options;
 
 // listen addresses
@@ -573,7 +573,7 @@ void print_help (const char *name)
         "        [--ssl --nssdb <string> --server-cert-name <string>]\n"
         "        [--comm-predicate <string>]\n"
         "        [--relay-predicate <string>]\n"
-        "        [--client-sndbuf <bytes / 0>]\n"
+        "        [--client-socket-sndbuf <bytes / 0>]\n"
         "Address format is a.b.c.d:port (IPv4) or [addr]:port (IPv6).\n",
         name
     );
@@ -603,7 +603,7 @@ int parse_arguments (int argc, char *argv[])
     options.num_listen_addrs = 0;
     options.comm_predicate = NULL;
     options.relay_predicate = NULL;
-    options.client_sndbuf = CLIENT_SOCKET_DEFAULT_SEND_BUFFER;
+    options.client_socket_sndbuf = CLIENT_DEFAULT_SOCKET_SNDBUF;
     
     for (int i = 1; i < argc; i++) {
         char *arg = argv[i];
@@ -728,12 +728,12 @@ int parse_arguments (int argc, char *argv[])
             options.relay_predicate = argv[i + 1];
             i++;
         }
-        else if (!strcmp(arg, "--client-sndbuf")) {
+        else if (!strcmp(arg, "--client-socket-sndbuf")) {
             if (1 >= argc - i) {
                 fprintf(stderr, "%s: requires an argument\n", arg);
                 return 0;
             }
-            if ((options.client_sndbuf = atoi(argv[i + 1])) < 0) {
+            if ((options.client_socket_sndbuf = atoi(argv[i + 1])) < 0) {
                 fprintf(stderr, "%s: wrong argument\n", arg);
                 return 0;
             }
@@ -806,8 +806,8 @@ void listener_handler (BListener *listener)
     }
     
     // limit socket send buffer, else our scheduling is pointless
-    if (options.client_sndbuf > 0) {
-        if (!BConnection_SetSendBuffer(&client->con, options.client_sndbuf) < 0) {
+    if (options.client_socket_sndbuf > 0) {
+        if (!BConnection_SetSendBuffer(&client->con, options.client_socket_sndbuf) < 0) {
             BLog(BLOG_WARNING, "BConnection_SetSendBuffer failed");
         }
     }
