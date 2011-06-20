@@ -117,6 +117,7 @@ struct {
     int udp_mtu;
     int max_clients;
     int max_connections_for_client;
+    int client_socket_sndbuf;
 } options;
 
 // MTUs
@@ -318,6 +319,7 @@ void print_help (const char *name)
         "        [--udp-mtu <bytes>]\n"
         "        [--max-clients <number>]\n"
         "        [--max-connections-for-client <number>]\n"
+        "        [--client-socket-sndbuf <bytes / 0>]\n"
         "Address format is a.b.c.d:port (IPv4) or [addr]:port (IPv6).\n",
         name
     );
@@ -349,6 +351,7 @@ int parse_arguments (int argc, char *argv[])
     options.udp_mtu = DEFAULT_UDP_MTU;
     options.max_clients = DEFAULT_MAX_CLIENTS;
     options.max_connections_for_client = DEFAULT_MAX_CONNECTIONS_FOR_CLIENT;
+    options.client_socket_sndbuf = CLIENT_DEFAULT_SOCKET_SEND_BUFFER;
     
     int i;
     for (i = 1; i < argc; i++) {
@@ -472,6 +475,17 @@ int parse_arguments (int argc, char *argv[])
             }
             i++;
         }
+        else if (!strcmp(arg, "--client-socket-sndbuf")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            if ((options.client_socket_sndbuf = atoi(argv[i + 1])) < 0) {
+                fprintf(stderr, "%s: wrong argument\n", arg);
+                return 0;
+            }
+            i++;
+        }
         else {
             fprintf(stderr, "unknown option: %s\n", arg);
             return 0;
@@ -529,8 +543,10 @@ void listener_handler (BListener *listener)
     }
     
     // limit socket send buffer, else our scheduling is pointless
-    if (!BConnection_SetSendBuffer(&client->con, CLIENT_SOCKET_SEND_BUFFER)) {
-        BLog(BLOG_WARNING, "BConnection_SetSendBuffer failed");
+    if (options.client_socket_sndbuf > 0) {
+        if (!BConnection_SetSendBuffer(&client->con, options.client_socket_sndbuf)) {
+            BLog(BLOG_WARNING, "BConnection_SetSendBuffer failed");
+        }
     }
     
     // init connection interfaces

@@ -44,5 +44,5 @@
 // how long after nothing has been received to disconnect a client
 #define CLIENT_DISCONNECT_TIMEOUT 20000
 
-// SO_SNDBFUF socket option for clients
-#define CLIENT_SOCKET_SEND_BUFFER 4096
+// SO_SNDBFUF socket option for clients, 0 to not set
+#define CLIENT_DEFAULT_SOCKET_SEND_BUFFER 1048576
