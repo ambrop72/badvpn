@@ -1,4 +1,4 @@
-.TH badvpn-client 8 "6 October 2010"
+.TH badvpn-client 8 "21 June 2011"
 .SH NAME
 badvpn-client \- VPN node daemon for the BadVPN peer-to-peer VPN system
 .SH SYNOPSIS
@@ -69,6 +69,8 @@ badvpn-client \- VPN node daemon for the BadVPN peer-to-peer VPN system
 .br
 .RS
 .RB "(ssl? [" --peer-ssl "])"
+.br
+.RB "[" --peer-tcp-socket-sndbuf " <bytes / 0>]"
 .br
 .RE
 )
@@ -213,6 +215,11 @@ frames to put into an incomplete packet since the first chunk of the packet was 
 When using TCP transport, enables TLS for data connections. Requires using TLS for server connection.
 For this to work, the peers must trust each others' cerificates, and the cerificates must grant the
 TLS server usage context. This option must match on all peers.
+.TP
+.BR --peer-tcp-socket-sndbuf " <bytes / 0>"
+Sets the value of the SO_SNDBUF socket option for peer TCP sockets (zero to not set). Lower values
+will improve fairness when data from multiple sources (local and relaying) is being sent to a
+given peer, but may result in lower bandwidth if the network's bandwidth-delay product to too big.
 .TP
 .BR --send-buffer-size " <num-packets>"
 Sets the minimum size of the peers' send buffers for sending frames originating from this system, in

@@ -1,4 +1,4 @@
-.TH badvpn-server 8 "6 October 2010"
+.TH badvpn-server 8 "21 June 2011"
 .SH NAME
 badvpn-server \- chat server for the BadVPN peer-to-peer VPN system
 .SH SYNOPSIS
@@ -32,6 +32,8 @@ badvpn-server \- chat server for the BadVPN peer-to-peer VPN system
 .RB "[" --comm-predicate " <string>]"
 .br
 .RB "[" --relay-predicate " <string>]"
+.br
+.RB "[" --client-socket-sndbuf " <bytes / 0>]"
 .br
 .RE
 .SH INTRODUCTION
@@ -122,6 +124,11 @@ name is assumed to be an empty string.
 .BR raddr "(string)"
 - true if the IP address of peer R equals the given string. The string must not be a name.
 .br
+.TP
+.BR --client-socket-sndbuf " <bytes / 0>"
+Sets the value of the SO_SNDBUF socket option for client TCP sockets (zero to not set). Lower values
+will improve fairness when data from multiple peers is being sent to a given peer, but may result in lower
+bandwidth if the network's bandwidth-delay product to too big.
 .SH "EXIT CODE"
 .P
 If initialization fails, exits with code 1. Otherwise runs until termination is requested and exits with code 1.
