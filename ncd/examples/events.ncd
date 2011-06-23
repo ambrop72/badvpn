@@ -1,42 +1,42 @@
 #
-# NCD volume key handling program.
+# NCD input event handling example program.
 #
 # This program responds to volume key presses by synchronously calling an external
-# script for muting and adjusting volume.
+# script for muting and adjusting volume, and responds to power button presses by
+# suspending using pm-suspend.
 #
-# It uses process_manager() and sys.watch_directory() to dynamically create and remove
+# It uses process_manager() and sys.watch_input() to dynamically create and remove
 # processes that deal with specific input devices. The individual input device processes
-# then use sys.evdev() to handle input events from specific devices.
+# then use sys.evdev() to handle input events from their input device.
 #
 
-process volumekeys_main {
-    # Directory to watch for input devices.
-    var("/dev/input/by-path") watch_dir;
-    # Regular expression for device names to work with.
-    var("-event$") watch_regex;
+process events_main {
     # Volume control script, called with argument "up", "down" or "mute".
     var("/usr/local/bin/volumekey") volume_script;
+    # Suspend command.
+    list("/usr/sbin/pm-suspend") suspend_cmd;
 
     # Provide for accessing configuration from event providers.
-    provide("volumekeys_config");
+    provide("events_config");
 
     # Create process manager.
     process_manager() manager;
 
-    # Wait for directory events.
-    sys.watch_directory(watch_dir) watcher;
+    # Wait for input device events.
+    sys.watch_input("event") watcher;
 
     # Determine if the device is of interest.
-    regex_match(watcher.filename, watch_regex) match;
+    # Volume and power keys are reported by "key" devices.
+    strcmp(watcher.device_type, "key") interest;
 
     # Determine dispatch location.
     strcmp(watcher.event_type, "added") added;
-    and(added, match.succeeded) dispatch_added;
+    and(added, interest) dispatch_added;
     strcmp(watcher.event_type, "removed") removed;
-    and(removed, match.succeeded) dispatch_removed;
+    and(removed, interest) dispatch_removed;
 
     # Dispatch event.
-    provide("volumekeys_directory_event");
+    provide("events_watcher_event");
 
     # If event was not recognized, finish it here.
     ifnot(dispatch_added);
@@ -44,37 +44,37 @@ process volumekeys_main {
     watcher->nextevent();
 }
 
-process volumekeys_directory_event_added {
+process events_watcher_event_added {
     # Wait for event.
-    depend("volumekeys_directory_event") evdep;
+    depend("events_watcher_event") evdep;
     if(evdep.dispatch_added);
 
     # Start event handling process for this device.
-    list(evdep.watcher.filepath) args;
-    evdep.manager->start(evdep.watcher.filename, "volumekeys_input_device", args);
+    list(evdep.watcher.devname) args;
+    evdep.manager->start(evdep.watcher.devname, "events_input_device", args);
 
     # Finish event.
     evdep.watcher->nextevent();
 }
 
-process volumekeys_directory_event_removed {
+process events_watcher_event_removed {
     # Wait for event.
-    depend("volumekeys_directory_event") evdep;
+    depend("events_watcher_event") evdep;
     if(evdep.dispatch_removed);
 
     # Stop event handling process for this device.
-    evdep.manager->stop(evdep.watcher.filename);
+    evdep.manager->stop(evdep.watcher.devname);
 
     # Finish event.
     evdep.watcher->nextevent();
 }
 
-template volumekeys_input_device {
+template events_input_device {
     # Alias arguments.
     var(_arg0) dev;
 
     # Dependency for accessing configuration.
-    depend("volumekeys_config") config;
+    depend("events_config") config;
 
     # Wait for input events.
     sys.evdev(dev) evdev;
@@ -83,60 +83,74 @@ template volumekeys_input_device {
     strcmp(evdev.code, "KEY_MUTE") is_mute;
     strcmp(evdev.code, "KEY_VOLUMEUP") is_vup;
     strcmp(evdev.code, "KEY_VOLUMEDOWN") is_vdown;
+    strcmp(evdev.code, "KEY_POWER") is_power;
     strcmp(evdev.value, "1") is_pressed;
 
     # Compute where to dispatch the event.
     and(is_mute, is_pressed) dispatch_mute;
     and(is_vup, is_pressed) dispatch_vup;
     and(is_vdown, is_pressed) dispatch_vdown;
+    and(is_power, is_pressed) dispatch_power;
 
     # Dispatch event.
-    provide_event("volumekeys_input_event");
+    provide_event("events_input_event");
 
-    # If event was not recognized, finish it here.
+    # Handle unhandled event.
     ifnot(dispatch_mute);
     ifnot(dispatch_vup);
     ifnot(dispatch_vdown);
+    ifnot(dispatch_power);
+
+    # Finish unhandled event.
     evdev->nextevent();
 }
 
-process volumekeys_event_mute {
+process events_input_event_mute {
     # Wait for event.
-    depend("volumekeys_input_event") dep;
+    depend("events_input_event") dep;
     if(dep.dispatch_mute);
 
     # Process event.
-    list(dep.config.volume_script, "mute") do;
-    list("/bin/true") undo;
-    run(do, undo);
+    list(dep.config.volume_script, "mute") cmd;
+    runonce(cmd);
 
     # Finish event.
     dep.evdev->nextevent();
 }
 
-process volumekeys_event_vup {
+process events_input_event_vup {
     # Wait for event.
-    depend("volumekeys_input_event") dep;
+    depend("events_input_event") dep;
     if(dep.dispatch_vup);
 
     # Process event.
-    list(dep.config.volume_script, "up") do;
-    list("/bin/true") undo;
-    run(do, undo);
+    list(dep.config.volume_script, "up") cmd;
+    runonce(cmd);
 
     # Finish event.
     dep.evdev->nextevent();
 }
 
-process volumekeys_event_vdown {
+process events_input_event_vdown {
     # Wait for event.
-    depend("volumekeys_input_event") dep;
+    depend("events_input_event") dep;
     if(dep.dispatch_vdown);
 
     # Process event.
-    list(dep.config.volume_script, "down") do;
-    list("/bin/true") undo;
-    run(do, undo);
+    list(dep.config.volume_script, "down") cmd;
+    runonce(cmd);
+
+    # Finish event.
+    dep.evdev->nextevent();
+}
+
+process events_input_event_power {
+    # Wait for event.
+    depend("events_input_event") dep;
+    if(dep.dispatch_power);
+
+    # Process event.
+    runonce(dep.config.suspend_cmd);
 
     # Finish event.
     dep.evdev->nextevent();
