@@ -72,7 +72,7 @@ struct nextevent_instance {
 
 static void templ_func_free (struct instance *o);
 
-struct device * find_device_by_ifname (struct instance *o, const char *ifname)
+static struct device * find_device_by_ifname (struct instance *o, const char *ifname)
 {
     LinkedList1Node *list_node = LinkedList1_GetFirst(&o->devices_list);
     while (list_node) {
@@ -86,7 +86,7 @@ struct device * find_device_by_ifname (struct instance *o, const char *ifname)
     return NULL;
 }
 
-struct device * find_device_by_devpath (struct instance *o, const char *devpath)
+static struct device * find_device_by_devpath (struct instance *o, const char *devpath)
 {
     LinkedList1Node *list_node = LinkedList1_GetFirst(&o->devices_list);
     while (list_node) {
