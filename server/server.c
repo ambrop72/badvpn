@@ -1161,8 +1161,6 @@ void client_sslcon_handler (struct client_data *client, int event)
         return;
     }
     
-    client_log(client, BLOG_INFO, "handshake complete");
-    
     // get client certificate
     CERTCertificate *cert = SSL_PeerCertificate(client->ssl_prfd);
     if (!cert) {
