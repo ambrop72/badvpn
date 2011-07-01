@@ -1,8 +1,0 @@
-structure oc_table ("int num_entries") {
-    "uint16_t" id;
-    "struct OTPChecker_entry" entries["num_entries"];
-};
-
-structure oc_tables ("int num_tables, int num_entries") {
-    structure oc_table("num_entries") tables["num_tables"];
-};
