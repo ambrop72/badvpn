@@ -45,6 +45,7 @@
 #define IP_CMD "ip"
 #define RESOLVCONF_FILE "/etc/resolv.conf"
 #define RESOLVCONF_TEMP_FILE "/etc/resolv.conf-ncd-temp"
+#define TUN_DEVNODE "/dev/net/tun"
 
 static int run_command (const char *cmd)
 {
@@ -221,7 +222,7 @@ fail0:
 
 static int open_tuntap (const char *ifname, int flags)
 {
-    int fd = open("/dev/net/tun", O_RDWR);
+    int fd = open(TUN_DEVNODE, O_RDWR);
     if (fd < 0) {
          BLog(BLOG_ERROR, "open tun failed");
          return -1;
@@ -243,6 +244,13 @@ static int open_tuntap (const char *ifname, int flags)
 
 int NCDIfConfig_make_tuntap (const char *ifname, const char *owner, int tun)
 {
+    // load tun module if needed
+    if (access(TUN_DEVNODE, F_OK) < 0) {
+        if (run_command("/sbin/modprobe tun") != 0) {
+            BLog(BLOG_ERROR, "modprobe tun failed");
+        }
+    }
+    
     int fd;
     if ((fd = open_tuntap(ifname, (tun ? IFF_TUN : IFF_TAP))) < 0) {
         goto fail0;
