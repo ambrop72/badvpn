@@ -29,6 +29,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <ncd/BEventLock.h>
 
@@ -39,6 +40,7 @@
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 #define IPTABLES_PATH "/sbin/iptables"
+#define IPTABLES_PATH2 "/usr/sbin/iptables"
 
 static void template_free_func (void *vo, int is_error);
 
@@ -48,6 +50,20 @@ struct instance {
     NCDModuleInst *i;
     command_template_instance cti;
 };
+
+static const char *find_iptables (NCDModuleInst *i)
+{
+    if (access(IPTABLES_PATH, X_OK) == 0) {
+        return IPTABLES_PATH;
+    }
+    
+    if (access(IPTABLES_PATH2, X_OK) == 0) {
+        return IPTABLES_PATH2;
+    }
+    
+    ModuleLog(i, BLOG_ERROR, "failed to find iptables (tried "IPTABLES_PATH" and "IPTABLES_PATH2")");
+    return NULL;
+}
 
 static int build_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
 {
@@ -65,8 +81,14 @@ static int build_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdL
     char *table = NCDValue_StringValue(table_arg);
     char *chain = NCDValue_StringValue(chain_arg);
     
+    // find iptables
+    const char *iptables_path = find_iptables(i);
+    if (!iptables_path) {
+        goto fail0;
+    }
+    
     // alloc exec
-    if (!(*exec = strdup(IPTABLES_PATH))) {
+    if (!(*exec = strdup(iptables_path))) {
         ModuleLog(i, BLOG_ERROR, "strdup failed");
         goto fail0;
     }
@@ -78,7 +100,7 @@ static int build_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdL
     }
     
     // add header
-    if (!CmdLine_Append(cl, IPTABLES_PATH) || !CmdLine_Append(cl, "-t") || !CmdLine_Append(cl, table) || !CmdLine_Append(cl, (remove ? "-D" : "-A")) || !CmdLine_Append(cl, chain)) {
+    if (!CmdLine_Append(cl, iptables_path) || !CmdLine_Append(cl, "-t") || !CmdLine_Append(cl, table) || !CmdLine_Append(cl, (remove ? "-D" : "-A")) || !CmdLine_Append(cl, chain)) {
         ModuleLog(i, BLOG_ERROR, "CmdLine_Append failed");
         goto fail2;
     }
@@ -137,8 +159,14 @@ static int build_policy_cmdline (NCDModuleInst *i, int remove, char **exec, CmdL
     char *target = NCDValue_StringValue(target_arg);
     char *revert_target = NCDValue_StringValue(revert_target_arg);
     
+    // find iptables
+    const char *iptables_path = find_iptables(i);
+    if (!iptables_path) {
+        goto fail0;
+    }
+    
     // alloc exec
-    if (!(*exec = strdup(IPTABLES_PATH))) {
+    if (!(*exec = strdup(iptables_path))) {
         ModuleLog(i, BLOG_ERROR, "strdup failed");
         goto fail0;
     }
@@ -150,7 +178,7 @@ static int build_policy_cmdline (NCDModuleInst *i, int remove, char **exec, CmdL
     }
     
     // add arguments
-    if (!CmdLine_Append(cl, IPTABLES_PATH) || !CmdLine_Append(cl, "-t") || !CmdLine_Append(cl, table) ||
+    if (!CmdLine_Append(cl, iptables_path) || !CmdLine_Append(cl, "-t") || !CmdLine_Append(cl, table) ||
         !CmdLine_Append(cl, "-P") || !CmdLine_Append(cl, chain) || !CmdLine_Append(cl, (remove ? revert_target : target))) {
         ModuleLog(i, BLOG_ERROR, "CmdLine_Append failed");
         goto fail2;

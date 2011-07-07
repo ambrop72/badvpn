@@ -39,7 +39,7 @@ typedef struct {
 
 static int CmdLine_Init (CmdLine *c);
 static void CmdLine_Free (CmdLine *c);
-static int CmdLine_Append (CmdLine *c, char *str);
+static int CmdLine_Append (CmdLine *c, const char *str);
 static int CmdLine_Finish (CmdLine *c);
 static char ** CmdLine_Get (CmdLine *c);
 
@@ -68,7 +68,7 @@ void CmdLine_Free (CmdLine *c)
     free(c->arr.v);
 }
 
-int CmdLine_Append (CmdLine *c, char *str)
+int CmdLine_Append (CmdLine *c, const char *str)
 {
     ASSERT(str)
     ASSERT(!_CmdLine_finished(c))
