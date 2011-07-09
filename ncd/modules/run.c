@@ -29,7 +29,7 @@
  * Arguments:
  *   list do_cmd - Command run on startup. The first element is the full path
  *     to the executable, other elements are command line arguments (excluding
- *     the zeroth argument).
+ *     the zeroth argument). An empty list is interpreted as no operation.
  *   list undo_cmd - Command run on shutdown, like do_cmd.
  */
 
@@ -66,12 +66,14 @@ static int build_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl
     
     NCDValue *list = (remove ? undo_cmd_arg : do_cmd_arg);
     
+    // check if there is no command
+    if (!NCDValue_ListFirst(list)) {
+        *exec = NULL;
+        return 1;
+    }
+    
     // read exec
     NCDValue *exec_arg = NCDValue_ListFirst(list);
-    if (!exec_arg) {
-        ModuleLog(i, BLOG_ERROR, "missing executable name");
-        goto fail0;
-    }
     if (NCDValue_Type(exec_arg) != NCDVALUE_STRING) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;

@@ -43,6 +43,10 @@ typedef struct {
     command_template_free_func free_func;
     void *user;
     int blog_channel;
+    char *do_exec;
+    CmdLine do_cmdline;
+    char *undo_exec;
+    CmdLine undo_cmdline;
     BEventLockJob elock_job;
     int state;
     int have_process;
