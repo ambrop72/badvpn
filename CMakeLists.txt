@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 2.8)
 project(BADVPN C)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
@@ -37,6 +37,11 @@ test_big_endian(BIG_ENDIAN)
 check_type_size(int INT_SIZE)
 if (NOT (INT_SIZE GREATER "3"))
     message(FATAL_ERROR "int must be at least 32 bits")
+endif ()
+
+check_type_size(size_t SIZE_SIZE)
+if (NOT (SIZE_SIZE GREATER INT_SIZE OR SIZE_SIZE EQUAL INT_SIZE))
+    message(FATAL_ERROR "size_t must be greater or equal than int")
 endif ()
 
 add_definitions(-std=gnu99 -Werror=implicit-function-declaration -Wno-unused-value -Wno-parentheses -Wno-switch-enum -Wredundant-decls)
