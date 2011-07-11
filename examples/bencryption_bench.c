@@ -87,11 +87,11 @@ int main (int argc, char **argv)
     int key_size = BEncryption_cipher_key_size(cipher);
     int block_size = BEncryption_cipher_block_size(cipher);
     
-    uint8_t key[key_size];
-    BRandom_randomize(key, sizeof(key));
+    uint8_t key[BENCRYPTION_MAX_KEY_SIZE];
+    BRandom_randomize(key, key_size);
     
-    uint8_t iv[block_size];
-    BRandom_randomize(iv, sizeof(iv));
+    uint8_t iv[BENCRYPTION_MAX_BLOCK_SIZE];
+    BRandom_randomize(iv, block_size);
     
     if (num_blocks > INT_MAX / block_size) {
         printf("too much");

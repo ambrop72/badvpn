@@ -28,18 +28,21 @@
 #define BADVPN_MISC_PARSE_NUMBER_H
 
 #include <inttypes.h>
+#include <string.h>
+#include <stddef.h>
 
+static int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out);
 static int parse_unsigned_integer (const char *str, uintmax_t *out);
 
-int parse_unsigned_integer (const char *str, uintmax_t *out)
+int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out)
 {
     uintmax_t n = 0;
     
-    if (!*str) {
+    if (str_len == 0) {
         return 0;
     }
     
-    while (*str) {
+    while (str_len > 0) {
         if (*str < '0' || *str > '9') {
             return 0;
         }
@@ -56,10 +59,16 @@ int parse_unsigned_integer (const char *str, uintmax_t *out)
         n += digit;
         
         str++;
+        str_len--;
     }
     
     *out = n;
     return 1;
+}
+
+int parse_unsigned_integer (const char *str, uintmax_t *out)
+{
+    return parse_unsigned_integer_bin(str, strlen(str), out);
 }
 
 #endif

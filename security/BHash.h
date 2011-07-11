@@ -40,6 +40,8 @@
 #define BHASH_TYPE_SHA1 2
 #define BHASH_TYPE_SHA1_SIZE 20
 
+#define BHASH_MAX_SIZE 20
+
 /**
  * Checks if the given hash type number is valid.
  * 

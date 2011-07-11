@@ -72,11 +72,11 @@ otp_t * OTPCalculator_Generate (OTPCalculator *calc, uint8_t *key, uint8_t *iv, 
     ASSERT(shuffle == 0 || shuffle == 1)
     
     // copy IV so it can be updated
-    uint8_t iv_work[calc->block_size];
+    uint8_t iv_work[BENCRYPTION_MAX_BLOCK_SIZE];
     memcpy(iv_work, iv, calc->block_size);
     
     // create zero block
-    uint8_t zero[calc->block_size];
+    uint8_t zero[BENCRYPTION_MAX_BLOCK_SIZE];
     memset(zero, 0, calc->block_size);
     
     // init encryptor

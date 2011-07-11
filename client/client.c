@@ -36,6 +36,7 @@
 #include <misc/nsskey.h>
 #include <misc/loglevel.h>
 #include <misc/loggers_string.h>
+#include <misc/string_begins_with.h>
 #include <structure/LinkedList2.h>
 #include <base/DebugObject.h>
 #include <base/BLog.h>
@@ -1169,15 +1170,8 @@ int process_arguments (void)
             POINTER(eout, out->ext_addrs[out->num_ext_addrs])
             
             // read addr
-            char *colon = strstr(eaddr->addr, ":");
-            if (!colon) {
-                BLog(BLOG_ERROR, "ext addr: no colon");
-                return 0;
-            }
-            char addrstr[colon - eaddr->addr + 1];
-            memcpy(addrstr, eaddr->addr, colon - eaddr->addr);
-            addrstr[colon - eaddr->addr] = '\0';
-            if (!strcmp(addrstr, "{server_reported}")) {
+            if (string_begins_with(eaddr->addr, "{server_reported}:")) {
+                char *colon = strstr(eaddr->addr, ":");
                 if ((eout->server_reported_port = atoi(colon + 1)) < 0) {
                     BLog(BLOG_ERROR, "ext addr: wrong port");
                     return 0;
@@ -2172,11 +2166,11 @@ void peer_bind_one_address (struct peer_data *peer, int addr_index, int *cont)
             return;
         }
         
-        uint8_t key[SPPROTO_HAVE_ENCRYPTION(sp_params) ? BEncryption_cipher_key_size(sp_params.encryption_mode) : 0];
+        uint8_t key[BENCRYPTION_MAX_KEY_SIZE];
         
         // generate and set encryption key
         if (SPPROTO_HAVE_ENCRYPTION(sp_params)) {
-            BRandom_randomize(key, sizeof(key));
+            BRandom_randomize(key, BEncryption_cipher_key_size(sp_params.encryption_mode));
             DatagramPeerIO_SetEncryptionKey(&peer->pio.udp.pio, key);
         }
         

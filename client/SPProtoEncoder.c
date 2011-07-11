@@ -108,7 +108,7 @@ static void encode_work_func (SPProtoEncoder *o)
         // zero hash field
         memset(header_hash, 0, o->hash_size);
         // calculate hash
-        uint8_t hash[o->hash_size];
+        uint8_t hash[BHASH_MAX_SIZE];
         BHash_calculate(o->sp_params.hash_mode, plaintext, plaintext_len, hash);
         // set hash field
         memcpy(header_hash, hash, o->hash_size);
@@ -130,7 +130,7 @@ static void encode_work_func (SPProtoEncoder *o)
         BRandom_randomize(o->out, o->enc_block_size);
         
         // copy IV because BEncryption_Encrypt changes the IV
-        uint8_t iv[o->enc_block_size];
+        uint8_t iv[BENCRYPTION_MAX_BLOCK_SIZE];
         memcpy(iv, o->out, o->enc_block_size);
         
         // encrypt

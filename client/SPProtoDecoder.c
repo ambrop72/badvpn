@@ -69,7 +69,7 @@ static void decode_work_func (SPProtoDecoder *o)
         }
         
         // copy IV as BEncryption_Decrypt changes the IV
-        uint8_t iv[o->enc_block_size];
+        uint8_t iv[BENCRYPTION_MAX_BLOCK_SIZE];
         memcpy(iv, in, o->enc_block_size);
         
         // decrypt
@@ -125,12 +125,12 @@ static void decode_work_func (SPProtoDecoder *o)
     if (SPPROTO_HAVE_HASH(o->sp_params)) {
         uint8_t *header_hash = header + SPPROTO_HEADER_HASH_OFF(o->sp_params);
         // read hash
-        uint8_t hash[o->hash_size];
+        uint8_t hash[BHASH_MAX_SIZE];
         memcpy(hash, header_hash, o->hash_size);
         // zero hash in packet
         memset(header_hash, 0, o->hash_size);
         // calculate hash
-        uint8_t hash_calc[o->hash_size];
+        uint8_t hash_calc[BHASH_MAX_SIZE];
         BHash_calculate(o->sp_params.hash_mode, plaintext, plaintext_len, hash_calc);
         // set hash field to its original value
         memcpy(header_hash, hash, o->hash_size);

@@ -31,6 +31,7 @@
 
 #include <misc/offset.h>
 #include <misc/bsort.h>
+#include <misc/balloc.h>
 #include <structure/LinkedList2.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDIfConfig.h>
@@ -129,11 +130,16 @@ static int dns_sort_comparator (const void *v1, const void *v2)
 
 static int set_servers (void)
 {
+    int ret = 0;
+    
     // count servers
     size_t num_ipv4_dns_servers = num_servers();
     
     // allocate sort array
-    struct dns_sort_entry servers[num_ipv4_dns_servers];
+    struct dns_sort_entry *servers = BAllocArray(num_ipv4_dns_servers, sizeof(servers[0]));
+    if (!servers) {
+        goto fail0;
+    }
     size_t num_servers = 0;
     
     // fill sort array
@@ -156,20 +162,31 @@ static int set_servers (void)
     
     // sort by priority
     // use a custom insertion sort instead of qsort() because we want a stable sort
-    BInsertionSort(servers, num_servers, sizeof(servers[0]), dns_sort_comparator);
+    struct dns_sort_entry sort_temp;
+    BInsertionSort(servers, num_servers, sizeof(servers[0]), dns_sort_comparator, &sort_temp);
     
     // copy addresses into an array
-    uint32_t addrs[num_servers];
+    uint32_t *addrs = BAllocArray(num_servers, sizeof(addrs[0]));
+    if (!addrs) {
+        goto fail1;
+    }
     for (size_t i = 0; i < num_servers; i++) {
         addrs[i] = servers[i].addr;
     }
     
     // set servers
     if (!NCDIfConfig_set_dns_servers(addrs, num_servers)) {
-        return 0;
+        goto fail2;
     }
     
-    return 1;
+    ret = 1;
+    
+fail2:
+    BFree(addrs);
+fail1:
+    BFree(servers);
+fail0:
+    return ret;
 }
 
 static int func_globalinit (struct NCDModuleInitParams params)

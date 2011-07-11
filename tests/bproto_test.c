@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include <misc/debug.h>
+#include <misc/balloc.h>
 
 #include <generated/bproto_bproto_test.h>
 
@@ -20,7 +21,8 @@ int main ()
     
     int len = msg1_SIZEa + msg1_SIZEc + msg1_SIZEd + msg1_SIZEd + msg1_SIZEe + msg1_SIZEf(strlen(f)) + msg1_SIZEg;
     
-    uint8_t msg[len];
+    uint8_t *msg = BAlloc(len);
+    ASSERT_FORCE(msg)
     msg1Writer writer;
     msg1Writer_Init(&writer, msg);
     msg1Writer_Adda(&writer, a);
@@ -67,6 +69,8 @@ int main ()
     ASSERT(!memcmp(p_g, g, strlen(g)))
     
     ASSERT(msg1Parser_GotEverything(&parser))
+    
+    BFree(msg);
     
     return 0;
 }

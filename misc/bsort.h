@@ -32,12 +32,13 @@
 #include <string.h>
 
 #include <misc/debug.h>
+#include <misc/balloc.h>
 
 typedef int (*BSort_comparator) (const void *e1, const void *e2);
 
-static void BInsertionSort (void *arr, size_t count, size_t esize, BSort_comparator compatator);
+static void BInsertionSort (void *arr, size_t count, size_t esize, BSort_comparator compatator, void *temp);
 
-void BInsertionSort (void *arr, size_t count, size_t esize, BSort_comparator compatator)
+void BInsertionSort (void *arr, size_t count, size_t esize, BSort_comparator compatator, void *temp)
 {
     ASSERT(esize > 0)
     
@@ -50,7 +51,6 @@ void BInsertionSort (void *arr, size_t count, size_t esize, BSort_comparator com
             if (c <= 0) {
                 break;
             }
-            uint8_t temp[esize];
             memcpy(temp, x, esize);
             memcpy(x, y, esize);
             memcpy(y, temp, esize);

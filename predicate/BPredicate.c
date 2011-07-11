@@ -26,6 +26,7 @@
 
 #include <misc/debug.h>
 #include <misc/offset.h>
+#include <misc/balloc.h>
 #include <predicate/BPredicate_internal.h>
 #include <predicate/BPredicate_parser.h>
 #include <predicate/LexMemoryBufferInput.h>
@@ -68,7 +69,7 @@ static int eval_function (BPredicate *p, struct predicate_node *root)
     
     // evaluate arguments
     struct arguments_node *arg = root->function.args;
-    void *args[func->num_args];
+    void *args[PREDICATE_MAX_ARGS];
     for (int i = 0; i < func->num_args; i++) {
         if (!arg) {
             BLog(BLOG_WARNING, "not enough arguments");

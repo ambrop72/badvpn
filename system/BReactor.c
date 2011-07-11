@@ -1082,7 +1082,9 @@ void BReactor_RemoveFileDescriptor (BReactor *bsys, BFileDescriptor *bs)
     #ifdef BADVPN_USE_EPOLL
     
     // delete epoll entry
-    ASSERT_FORCE(epoll_ctl(bsys->efd, EPOLL_CTL_DEL, bs->fd, NULL) == 0)
+    struct epoll_event event;
+    memset(&event, 0, sizeof(event));
+    ASSERT_FORCE(epoll_ctl(bsys->efd, EPOLL_CTL_DEL, bs->fd, &event) == 0)
     
     // write through epoll returned pointer
     if (bs->epoll_returned_ptr) {

@@ -172,11 +172,10 @@ int BDHCPClient_Init (BDHCPClient *o, const char *ifname, BReactor *reactor, BDH
     
     // set socket filter
     {
-        size_t flen = sizeof(dhcp_sock_filter) / sizeof(dhcp_sock_filter[0]);
-        struct sock_filter filter[flen];
+        struct sock_filter filter[sizeof(dhcp_sock_filter) / sizeof(dhcp_sock_filter[0])];
         memcpy(filter, dhcp_sock_filter, sizeof(filter));
         struct sock_fprog fprog = {
-            .len = flen,
+            .len = sizeof(filter) / sizeof(filter[0]),
             .filter = filter
         };
         if (setsockopt(BDatagram_GetFd(&o->dgram), SOL_SOCKET, SO_ATTACH_FILTER, &fprog, sizeof(fprog)) < 0) {

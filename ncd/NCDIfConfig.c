@@ -104,7 +104,11 @@ fail0:
 
 int NCDIfConfig_set_up (const char *ifname)
 {
-    char cmd[50 + strlen(ifname)];
+    if (strlen(ifname) >= IFNAMSIZ) {
+        return 0;
+    }
+    
+    char cmd[50 + IFNAMSIZ];
     sprintf(cmd, IP_CMD" link set %s up", ifname);
     
     return !run_command(cmd);
@@ -112,7 +116,11 @@ int NCDIfConfig_set_up (const char *ifname)
 
 int NCDIfConfig_set_down (const char *ifname)
 {
-    char cmd[50 + strlen(ifname)];
+    if (strlen(ifname) >= IFNAMSIZ) {
+        return 0;
+    }
+    
+    char cmd[50 + IFNAMSIZ];
     sprintf(cmd, IP_CMD" link set %s down", ifname);
     
     return !run_command(cmd);
@@ -123,9 +131,13 @@ int NCDIfConfig_add_ipv4_addr (const char *ifname, struct ipv4_ifaddr ifaddr)
     ASSERT(ifaddr.prefix >= 0)
     ASSERT(ifaddr.prefix <= 32)
     
+    if (strlen(ifname) >= IFNAMSIZ) {
+        return 0;
+    }
+    
     uint8_t *addr = (uint8_t *)&ifaddr.addr;
     
-    char cmd[50 + strlen(ifname)];
+    char cmd[50 + IFNAMSIZ];
     sprintf(cmd, IP_CMD" addr add %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"/%d dev %s", addr[0], addr[1], addr[2], addr[3], ifaddr.prefix, ifname);
     
     return !run_command(cmd);
@@ -136,9 +148,13 @@ int NCDIfConfig_remove_ipv4_addr (const char *ifname, struct ipv4_ifaddr ifaddr)
     ASSERT(ifaddr.prefix >= 0)
     ASSERT(ifaddr.prefix <= 32)
     
+    if (strlen(ifname) >= IFNAMSIZ) {
+        return 0;
+    }
+    
     uint8_t *addr = (uint8_t *)&ifaddr.addr;
     
-    char cmd[50 + strlen(ifname)];
+    char cmd[50 + IFNAMSIZ];
     sprintf(cmd, IP_CMD" addr del %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"/%d dev %s", addr[0], addr[1], addr[2], addr[3], ifaddr.prefix, ifname);
     
     return !run_command(cmd);
@@ -156,7 +172,7 @@ static int route_cmd (const char *cmdtype, struct ipv4_ifaddr dest, const uint32
         const uint8_t *g_addr = (uint8_t *)gateway;
         sprintf(gwstr, " via %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, g_addr[0], g_addr[1], g_addr[2], g_addr[3]);
     } else {
-        sprintf(gwstr, "");
+        gwstr[0] = '\0';
     }
     
     char cmd[100];
@@ -222,6 +238,10 @@ fail0:
 
 static int open_tuntap (const char *ifname, int flags)
 {
+    if (strlen(ifname) >= IFNAMSIZ) {
+        return 0;
+    }
+    
     int fd = open(TUN_DEVNODE, O_RDWR);
     if (fd < 0) {
          BLog(BLOG_ERROR, "open tun failed");
