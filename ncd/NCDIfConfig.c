@@ -83,6 +83,7 @@ int NCDIfConfig_query (const char *ifname)
     memset(&ifr, 0, sizeof(ifr));
     snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s", ifname);
     if (ioctl(s, SIOCGIFFLAGS, &ifr)) {
+        BLog(BLOG_ERROR, "SIOCGIFFLAGS failed");
         goto fail1;
     }
     
@@ -105,6 +106,7 @@ fail0:
 int NCDIfConfig_set_up (const char *ifname)
 {
     if (strlen(ifname) >= IFNAMSIZ) {
+        BLog(BLOG_ERROR, "ifname too long");
         return 0;
     }
     
@@ -117,6 +119,7 @@ int NCDIfConfig_set_up (const char *ifname)
 int NCDIfConfig_set_down (const char *ifname)
 {
     if (strlen(ifname) >= IFNAMSIZ) {
+        BLog(BLOG_ERROR, "ifname too long");
         return 0;
     }
     
@@ -132,6 +135,7 @@ int NCDIfConfig_add_ipv4_addr (const char *ifname, struct ipv4_ifaddr ifaddr)
     ASSERT(ifaddr.prefix <= 32)
     
     if (strlen(ifname) >= IFNAMSIZ) {
+        BLog(BLOG_ERROR, "ifname too long");
         return 0;
     }
     
@@ -149,6 +153,7 @@ int NCDIfConfig_remove_ipv4_addr (const char *ifname, struct ipv4_ifaddr ifaddr)
     ASSERT(ifaddr.prefix <= 32)
     
     if (strlen(ifname) >= IFNAMSIZ) {
+        BLog(BLOG_ERROR, "ifname too long");
         return 0;
     }
     
@@ -239,7 +244,8 @@ fail0:
 static int open_tuntap (const char *ifname, int flags)
 {
     if (strlen(ifname) >= IFNAMSIZ) {
-        return 0;
+        BLog(BLOG_ERROR, "ifname too long");
+        return -1;
     }
     
     int fd = open(TUN_DEVNODE, O_RDWR);

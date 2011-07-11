@@ -118,14 +118,7 @@ int ipaddr_parse_ipv4_ifaddr (char *str, struct ipv4_ifaddr *out)
         return 0;
     }
     
-    char *prefix = slash + 1;
-    size_t prefix_len = strlen(prefix);
-    
-    if (prefix_len > 2) {
-        return 0;
-    }
-    
-    if (!ipaddr_parse_ipv4_prefix_bin(prefix, prefix_len, &out->prefix)) {
+    if (!ipaddr_parse_ipv4_prefix(slash + 1, &out->prefix)) {
         return 0;
     }
     

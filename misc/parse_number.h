@@ -31,8 +31,10 @@
 #include <string.h>
 #include <stddef.h>
 
-static int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out);
-static int parse_unsigned_integer (const char *str, uintmax_t *out);
+#include <misc/debug.h>
+
+static int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out) WARN_UNUSED;
+static int parse_unsigned_integer (const char *str, uintmax_t *out) WARN_UNUSED;
 
 int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out)
 {
