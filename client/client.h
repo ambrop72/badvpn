@@ -25,11 +25,15 @@
 
 #include <protocol/scproto.h>
 #include <structure/LinkedList2.h>
+#include <flow/PacketPassFairQueue.h>
+#include <flow/PacketBuffer.h>
+#include <flow/BufferWriter.h>
 #include <client/DatagramPeerIO.h>
 #include <client/StreamPeerIO.h>
 #include <client/DataProto.h>
 #include <client/DPReceive.h>
 #include <client/FrameDecider.h>
+#include <client/PeerChatSender.h>
 
 // NOTE: all time values are in milliseconds
 
@@ -81,6 +85,14 @@
 // maximum scopes
 #define MAX_SCOPES 8
 
+struct server_flow {
+    PacketPassFairQueueFlow qflow;
+    PeerChatSender sender;
+    PacketBuffer buffer;
+    BufferWriter writer;
+    int msg_len;
+};
+
 struct peer_data {
     // peer identifier
     peerid_t id;
@@ -92,6 +104,13 @@ struct peer_data {
     uint8_t cert[SCID_NEWCLIENT_MAX_CERT_LEN];
     int cert_len;
     char *common_name;
+    
+    // jobs
+    BPending job_send_seed_after_binding;
+    BPending job_init;
+    
+    // server flow
+    struct server_flow *server_flow;
     
     // local flow
     DataProtoFlow local_dpflow;
@@ -146,9 +165,6 @@ struct peer_data {
     // binding state
     int binding;
     int binding_addrpos;
-    
-    // jobs
-    BPending job_send_seed_after_binding;
     
     // peers linked list node
     LinkedList2Node list_node;

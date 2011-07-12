@@ -183,6 +183,15 @@ ServerConnection server;
 // my ID, defined only after server_ready
 peerid_t my_id;
 
+// fair queue for sending peer messages to the server
+PacketPassFairQueue server_queue;
+
+// whether server is ready
+int server_ready;
+
+// dying server flow
+struct server_flow *dying_server_flow;
+
 // stops event processing, causing the program to exit
 static void terminate (void);
 
@@ -201,17 +210,11 @@ static int process_arguments (void);
 // handler for program termination request
 static void signal_handler (void *unused);
 
-// provides a buffer for sending a packet to the server
-static int server_start_msg (void **data, peerid_t peer_id, int type, int len);
-
-// submits a written packet to the server
-static void server_end_msg (void);
-
 // adds a new peer
 static void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len);
 
 // removes a peer
-static void peer_remove (struct peer_data *peer);
+static void peer_remove (struct peer_data *peer, int exiting);
 
 // passes a message to the logger, prepending it info about the peer
 static void peer_log (struct peer_data *peer, int level, const char *fmt, ...);
@@ -327,8 +330,16 @@ static void server_handler_newclient (void *user, peerid_t peer_id, int flags, c
 static void server_handler_endclient (void *user, peerid_t peer_id);
 static void server_handler_message (void *user, peerid_t peer_id, uint8_t *data, int data_len);
 
-// job to generate and send OTP seed after binding
+// jobs
 static void peer_job_send_seed_after_binding (struct peer_data *peer);
+static void peer_job_init (struct peer_data *peer);
+
+static struct server_flow * server_flow_init (peerid_t peer_id);
+static void server_flow_free (struct server_flow *flow);
+static void server_flow_die (struct server_flow *flow);
+static void server_flow_qflow_handler_busy (struct server_flow *flow);
+static int server_flow_start_message (struct server_flow *flow, uint8_t **buf, int len);
+static void server_flow_end_message (struct server_flow *flow);
 
 int main (int argc, char *argv[])
 {
@@ -532,17 +543,36 @@ int main (int argc, char *argv[])
         goto fail9;
     }
     
+    // set server not ready
+    server_ready = 0;
+    
+    // set no dying flow
+    dying_server_flow = NULL;
+    
     // enter event loop
     BLog(BLOG_NOTICE, "entering event loop");
     BReactor_Exec(&ss);
+    
+    // allow freeing server queue flows
+    if (server_ready) {
+        PacketPassFairQueue_PrepareFree(&server_queue);
+    }
     
     // free peers
     LinkedList2Node *node;
     while (node = LinkedList2_GetFirst(&peers)) {
         struct peer_data *peer = UPPER_OBJECT(node, struct peer_data, list_node);
-        peer_remove(peer);
+        peer_remove(peer, 1);
     }
     
+    // free dying server flow
+    if (dying_server_flow) {
+        server_flow_free(dying_server_flow);
+    }
+    
+    if (server_ready) {
+        PacketPassFairQueue_Free(&server_queue);
+    }
     ServerConnection_Free(&server);
 fail9:
     FrameDecider_Free(&frame_decider);
@@ -1217,40 +1247,6 @@ void signal_handler (void *unused)
     terminate();
 }
 
-int server_start_msg (void **data, peerid_t peer_id, int type, int len)
-{
-    ASSERT(ServerConnection_IsReady(&server))
-    ASSERT(len >= 0)
-    ASSERT(len <= MSG_MAX_PAYLOAD)
-    ASSERT(!(len > 0) || data)
-    
-    uint8_t *packet;
-    if (!ServerConnection_StartMessage(&server, &packet, peer_id, msg_SIZEtype + msg_SIZEpayload(len))) {
-        BLog(BLOG_ERROR, "out of server buffer, exiting");
-        terminate();
-        return -1;
-    }
-    
-    msgWriter writer;
-    msgWriter_Init(&writer, packet);
-    msgWriter_Addtype(&writer, type);
-    uint8_t *payload_dst = msgWriter_Addpayload(&writer, len);
-    msgWriter_Finish(&writer);
-    
-    if (data) {
-        *data = payload_dst;
-    }
-    
-    return 0;
-}
-
-void server_end_msg (void)
-{
-    ASSERT(ServerConnection_IsReady(&server))
-    
-    ServerConnection_EndMessage(&server);
-}
-
 void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
 {
     ASSERT(ServerConnection_IsReady(&server))
@@ -1276,6 +1272,19 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     // set no common name
     peer->common_name = NULL;
     
+    // init jobs
+    BPending_Init(&peer->job_send_seed_after_binding, BReactor_PendingGroup(&ss), (BPending_handler)peer_job_send_seed_after_binding, peer);
+    BPending_Init(&peer->job_init, BReactor_PendingGroup(&ss), (BPending_handler)peer_job_init, peer);
+    
+    // set init job (must be before initing server flow so we can send)
+    BPending_Set(&peer->job_init);
+    
+    // init server flow
+    if (!(peer->server_flow = server_flow_init(peer->id))) {
+        peer_log(peer, BLOG_ERROR, "server_flow_init failed");
+        goto fail1;
+    }
+    
     if (options.ssl) {
         // remember certificate
         memcpy(peer->cert, cert, cert_len);
@@ -1285,7 +1294,7 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
         // in which case following workaroud wouldn't help
         if (!(cert_len > 0 && (cert[0] & 0x1f) == 0x10)) {
             peer_log(peer, BLOG_ERROR, "certificate does not look like DER");
-            goto fail1;
+            goto fail1a;
         }
         
         // copy the certificate and append it a good load of zero bytes,
@@ -1294,7 +1303,7 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
         uint8_t *certbuf = malloc(cert_len + 100);
         if (!certbuf) {
             peer_log(peer, BLOG_ERROR, "malloc failed");
-            goto fail1;
+            goto fail1a;
         }
         memcpy(certbuf, cert, cert_len);
         memset(certbuf + cert_len, 0, 100);
@@ -1304,7 +1313,7 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
         if (!nsscert) {
             peer_log(peer, BLOG_ERROR, "CERT_DecodeCertFromPackage failed (%d)", PORT_GetError());
             free(certbuf);
-            goto fail1;
+            goto fail1a;
         }
         
         free(certbuf);
@@ -1313,7 +1322,7 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
         if (!(peer->common_name = CERT_GetCommonName(&nsscert->subject))) {
             peer_log(peer, BLOG_ERROR, "CERT_GetCommonName failed");
             CERT_DestroyCertificate(nsscert);
-            goto fail1;
+            goto fail1a;
         }
         
         CERT_DestroyCertificate(nsscert);
@@ -1352,19 +1361,11 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     // init binding
     peer->binding = 0;
     
-    // init send seed job
-    BPending_Init(&peer->job_send_seed_after_binding, BReactor_PendingGroup(&ss), (BPending_handler)peer_job_send_seed_after_binding, peer);
-    
     // add to peers list
     LinkedList2_Append(&peers, &peer->list_node);
     num_peers++;
     
     peer_log(peer, BLOG_INFO, "initialized");
-    
-    // start setup process
-    if (peer_am_master(peer)) {
-        peer_start_binding(peer);
-    }
     
     return;
     
@@ -1374,12 +1375,16 @@ fail2:
     if (peer->common_name) {
         PORT_Free(peer->common_name);
     }
+fail1a:
+    server_flow_free(peer->server_flow);
 fail1:
+    BPending_Free(&peer->job_init);
+    BPending_Free(&peer->job_send_seed_after_binding);
     free(peer);
 fail0:;
 }
 
-void peer_remove (struct peer_data *peer)
+void peer_remove (struct peer_data *peer, int exiting)
 {
     peer_log(peer, BLOG_INFO, "removing");
     
@@ -1406,9 +1411,6 @@ void peer_remove (struct peer_data *peer)
     LinkedList2_Remove(&peers, &peer->list_node);
     num_peers--;
     
-    // free send seed job
-    BPending_Free(&peer->job_send_seed_after_binding);
-    
     // free reset timer
     BReactor_RemoveTimer(&ss, &peer->reset_timer);
     
@@ -1420,6 +1422,17 @@ void peer_remove (struct peer_data *peer)
     
     // free local flow
     DataProtoFlow_Free(&peer->local_dpflow);
+    
+    // free/die server flow
+    if (exiting || !PacketPassFairQueueFlow_IsBusy(&peer->server_flow->qflow)) {
+        server_flow_free(peer->server_flow);
+    } else {
+        server_flow_die(peer->server_flow);
+    }
+    
+    // free jobs
+    BPending_Free(&peer->job_init);
+    BPending_Free(&peer->job_send_seed_after_binding);
     
     // free common name
     if (peer->common_name) {
@@ -2241,12 +2254,33 @@ void peer_connect (struct peer_data *peer, BAddr addr, uint8_t* encryption_key, 
 
 static int peer_start_msg (struct peer_data *peer, void **data, int type, int len)
 {
-    return server_start_msg(data, peer->id, type, len);
+    ASSERT(len >= 0)
+    ASSERT(len <= MSG_MAX_PAYLOAD)
+    ASSERT(!(len > 0) || data)
+    
+    uint8_t *packet;
+    if (!server_flow_start_message(peer->server_flow, &packet, msg_SIZEtype + msg_SIZEpayload(len))) {
+        BLog(BLOG_ERROR, "out of peer server buffer, exiting");
+        terminate();
+        return -1;
+    }
+    
+    msgWriter writer;
+    msgWriter_Init(&writer, packet);
+    msgWriter_Addtype(&writer, type);
+    uint8_t *payload_dst = msgWriter_Addpayload(&writer, len);
+    msgWriter_Finish(&writer);
+    
+    if (data) {
+        *data = payload_dst;
+    }
+    
+    return 0;
 }
 
 static void peer_end_msg (struct peer_data *peer)
 {
-    server_end_msg();
+    server_flow_end_message(peer->server_flow);
 }
 
 void peer_send_simple (struct peer_data *peer, int msgid)
@@ -2522,6 +2556,8 @@ void server_handler_error (void *user)
 
 void server_handler_ready (void *user, peerid_t param_my_id, uint32_t ext_ip)
 {
+    ASSERT(!server_ready)
+    
     // remember our ID
     my_id = param_my_id;
     
@@ -2546,6 +2582,12 @@ void server_handler_ready (void *user, peerid_t param_my_id, uint32_t ext_ip)
     
     // give receive device the ID
     DPReceiveDevice_SetPeerID(&device_output_dprd, my_id);
+    
+    // init server queue
+    PacketPassFairQueue_Init(&server_queue, ServerConnection_GetSendInterface(&server), BReactor_PendingGroup(&ss), 0, 1);
+    
+    // set server ready
+    server_ready = 1;
     
     BLog(BLOG_INFO, "server: ready, my ID is %d", (int)my_id);
 }
@@ -2594,7 +2636,7 @@ void server_handler_endclient (void *user, peerid_t peer_id)
     }
     
     // remove peer
-    peer_remove(peer);
+    peer_remove(peer, 0);
 }
 
 void server_handler_message (void *user, peerid_t peer_id, uint8_t *data, int data_len)
@@ -2623,4 +2665,133 @@ void peer_job_send_seed_after_binding (struct peer_data *peer)
     ASSERT(!peer->pio.udp.sendseed_sent)
     
     peer_generate_and_send_seed(peer);
+}
+
+void peer_job_init (struct peer_data *peer)
+{
+    // start setup process
+    if (peer_am_master(peer)) {
+        peer_start_binding(peer);
+    }
+}
+
+struct server_flow * server_flow_init (peerid_t peer_id)
+{
+    ASSERT(server_ready)
+    
+    // allocate structure
+    struct server_flow *flow = malloc(sizeof(*flow));
+    if (!flow) {
+        BLog(BLOG_ERROR, "malloc failed");
+        goto fail0;
+    }
+    
+    // init queue flow
+    PacketPassFairQueueFlow_Init(&flow->qflow, &server_queue);
+    
+    // init sender
+    if (!PeerChatSender_Init(&flow->sender, peer_id, PacketPassFairQueueFlow_GetInput(&flow->qflow), BReactor_PendingGroup(&ss), NULL, NULL)) {
+        BLog(BLOG_ERROR, "PeerChatSender_Init failed");
+        goto fail1;
+    }
+    
+    // init writer
+    BufferWriter_Init(&flow->writer, SC_MAX_MSGLEN, BReactor_PendingGroup(&ss));
+    
+    // init buffer
+    if (!PacketBuffer_Init(&flow->buffer, BufferWriter_GetOutput(&flow->writer), PeerChatSender_GetInput(&flow->sender), SERVER_BUFFER_MIN_PACKETS, BReactor_PendingGroup(&ss))) {
+        BLog(BLOG_ERROR, "PacketBuffer_Init failed");
+        goto fail2;
+    }
+    
+    // set no message
+    flow->msg_len = -1;
+    
+    return flow;
+    
+fail2:
+    BufferWriter_Free(&flow->writer);
+    PeerChatSender_Free(&flow->sender);
+fail1:
+    PacketPassFairQueueFlow_Free(&flow->qflow);
+    free(flow);
+fail0:
+    return NULL;
+}
+
+void server_flow_free (struct server_flow *flow)
+{
+    PacketPassFairQueueFlow_AssertFree(&flow->qflow);
+    
+    // remove dying flow reference
+    if (flow == dying_server_flow) {
+        dying_server_flow = NULL;
+    }
+    
+    // free buffer
+    PacketBuffer_Free(&flow->buffer);
+    
+    // free writer
+    BufferWriter_Free(&flow->writer);
+    
+    // free sender
+    PeerChatSender_Free(&flow->sender);
+    
+    // free queue flow
+    PacketPassFairQueueFlow_Free(&flow->qflow);
+    
+    // free structure
+    free(flow);
+}
+
+void server_flow_die (struct server_flow *flow)
+{
+    ASSERT(PacketPassFairQueueFlow_IsBusy(&flow->qflow))
+    ASSERT(!dying_server_flow)
+    
+    // request notification when flow is done
+    PacketPassFairQueueFlow_SetBusyHandler(&flow->qflow, (PacketPassFairQueue_handler_busy)server_flow_qflow_handler_busy, flow);
+    
+    // set dying flow
+    dying_server_flow = flow;
+}
+
+void server_flow_qflow_handler_busy (struct server_flow *flow)
+{
+    ASSERT(flow == dying_server_flow)
+    PacketPassFairQueueFlow_AssertFree(&flow->qflow);
+    
+    // finally free flow
+    server_flow_free(flow);
+}
+
+int server_flow_start_message (struct server_flow *flow, uint8_t **buf, int len)
+{
+    ASSERT(flow != dying_server_flow)
+    ASSERT(flow->msg_len == -1)
+    ASSERT(len >= 0)
+    ASSERT(len <= SC_MAX_MSGLEN)
+    
+    // obtain buffer location
+    if (!BufferWriter_StartPacket(&flow->writer, buf)) {
+        BLog(BLOG_ERROR, "BufferWriter_StartPacket failed");
+        return 0;
+    }
+    
+    // set have message
+    flow->msg_len = len;
+    
+    return 1;
+}
+
+void server_flow_end_message (struct server_flow *flow)
+{
+    ASSERT(flow != dying_server_flow)
+    ASSERT(flow->msg_len >= 0)
+    
+    // submit packet to buffer
+    BufferWriter_EndPacket(&flow->writer, flow->msg_len);
+    
+    // set no message
+    flow->msg_len = -1;
 }
