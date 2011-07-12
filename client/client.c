@@ -289,6 +289,10 @@ static void peer_bind_one_address (struct peer_data *peer, int addr_index, int *
 
 static void peer_connect (struct peer_data *peer, BAddr addr, uint8_t *encryption_key, uint64_t password);
 
+static int peer_start_msg (struct peer_data *peer, void **data, int type, int len);
+
+static void peer_end_msg (struct peer_data *peer);
+
 // sends a message with no payload to the peer
 static void peer_send_simple (struct peer_data *peer, int msgid);
 
@@ -2235,12 +2239,22 @@ void peer_connect (struct peer_data *peer, BAddr addr, uint8_t* encryption_key, 
     }
 }
 
+static int peer_start_msg (struct peer_data *peer, void **data, int type, int len)
+{
+    return server_start_msg(data, peer->id, type, len);
+}
+
+static void peer_end_msg (struct peer_data *peer)
+{
+    server_end_msg();
+}
+
 void peer_send_simple (struct peer_data *peer, int msgid)
 {
-    if (server_start_msg(NULL, peer->id, msgid, 0) < 0) {
+    if (peer_start_msg(peer, NULL, msgid, 0) < 0) {
         return;
     }
-    server_end_msg();
+    peer_end_msg(peer);
 }
 
 void peer_send_conectinfo (struct peer_data *peer, int addr_index, int port_adjust, uint8_t *enckey, uint64_t pass)
@@ -2287,7 +2301,7 @@ void peer_send_conectinfo (struct peer_data *peer, int addr_index, int port_adju
         
     // start message
     uint8_t *msg;
-    if (server_start_msg((void **)&msg, peer->id, MSGID_YOUCONNECT, msg_len) < 0) {
+    if (peer_start_msg(peer, (void **)&msg, MSGID_YOUCONNECT, msg_len) < 0) {
         return;
     }
         
@@ -2339,7 +2353,7 @@ void peer_send_conectinfo (struct peer_data *peer, int addr_index, int port_adju
     msg_youconnectWriter_Finish(&writer);
     
     // end message
-    server_end_msg();
+    peer_end_msg(peer);
 }
 
 void peer_generate_and_send_seed (struct peer_data *peer)
@@ -2366,7 +2380,7 @@ void peer_generate_and_send_seed (struct peer_data *peer)
     // send seed to the peer
     int msg_len = msg_seed_SIZEseed_id + msg_seed_SIZEkey(key_len) + msg_seed_SIZEiv(iv_len);
     uint8_t *msg;
-    if (server_start_msg((void **)&msg, peer->id, MSGID_SEED, msg_len) < 0) {
+    if (peer_start_msg(peer, (void **)&msg, MSGID_SEED, msg_len) < 0) {
         return;
     }
     msg_seedWriter writer;
@@ -2377,7 +2391,7 @@ void peer_generate_and_send_seed (struct peer_data *peer)
     uint8_t *iv_dst = msg_seedWriter_Addiv(&writer, iv_len);
     memcpy(iv_dst, peer->pio.udp.sendseed_sent_iv, iv_len);
     msg_seedWriter_Finish(&writer);
-    server_end_msg();
+    peer_end_msg(peer);
 }
 
 void peer_send_confirmseed (struct peer_data *peer, uint16_t seed_id)
@@ -2388,14 +2402,14 @@ void peer_send_confirmseed (struct peer_data *peer, uint16_t seed_id)
     // send confirmation
     int msg_len = msg_confirmseed_SIZEseed_id;
     uint8_t *msg;
-    if (server_start_msg((void **)&msg, peer->id, MSGID_CONFIRMSEED, msg_len) < 0) {
+    if (peer_start_msg(peer, (void **)&msg, MSGID_CONFIRMSEED, msg_len) < 0) {
         return;
     }
     msg_confirmseedWriter writer;
     msg_confirmseedWriter_Init(&writer, msg);
     msg_confirmseedWriter_Addseed_id(&writer, seed_id);
     msg_confirmseedWriter_Finish(&writer);
-    server_end_msg();
+    peer_end_msg(peer);
 }
 
 void peer_dataproto_handler (struct peer_data *peer, int up)
