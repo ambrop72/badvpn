@@ -24,5 +24,6 @@ add_library(flow
     LineBuffer.c
     SingleStreamSender.c
     SingleStreamReceiver.c
+    StreamPacketSender.c
 )
 target_link_libraries(flow base)
