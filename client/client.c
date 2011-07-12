@@ -2690,7 +2690,7 @@ struct server_flow * server_flow_init (peerid_t peer_id)
     PacketPassFairQueueFlow_Init(&flow->qflow, &server_queue);
     
     // init sender
-    if (!PeerChat_Init(&flow->sender, peer_id, PacketPassFairQueueFlow_GetInput(&flow->qflow), BReactor_PendingGroup(&ss), NULL, NULL)) {
+    if (!PeerChat_Init(&flow->sender, peer_id, BReactor_PendingGroup(&ss), NULL, NULL)) {
         BLog(BLOG_ERROR, "PeerChat_Init failed");
         goto fail1;
     }
@@ -2698,10 +2698,16 @@ struct server_flow * server_flow_init (peerid_t peer_id)
     // init writer
     BufferWriter_Init(&flow->writer, SC_MAX_MSGLEN, BReactor_PendingGroup(&ss));
     
-    // init buffer
-    if (!PacketBuffer_Init(&flow->buffer, BufferWriter_GetOutput(&flow->writer), PeerChat_GetInput(&flow->sender), SERVER_BUFFER_MIN_PACKETS, BReactor_PendingGroup(&ss))) {
-        BLog(BLOG_ERROR, "PacketBuffer_Init failed");
+    // init encoder buffer
+    if (!SinglePacketBuffer_Init(&flow->encoder_buffer, PeerChat_GetSendOutput(&flow->sender), PacketPassFairQueueFlow_GetInput(&flow->qflow), BReactor_PendingGroup(&ss))) {
+        BLog(BLOG_ERROR, "SinglePacketBuffer_Init failed");
         goto fail2;
+    }
+    
+    // init buffer
+    if (!PacketBuffer_Init(&flow->buffer, BufferWriter_GetOutput(&flow->writer), PeerChat_GetSendInput(&flow->sender), SERVER_BUFFER_MIN_PACKETS, BReactor_PendingGroup(&ss))) {
+        BLog(BLOG_ERROR, "PacketBuffer_Init failed");
+        goto fail3;
     }
     
     // set no message
@@ -2709,6 +2715,8 @@ struct server_flow * server_flow_init (peerid_t peer_id)
     
     return flow;
     
+fail3:
+    SinglePacketBuffer_Free(&flow->encoder_buffer);
 fail2:
     BufferWriter_Free(&flow->writer);
     PeerChat_Free(&flow->sender);
@@ -2730,6 +2738,9 @@ void server_flow_free (struct server_flow *flow)
     
     // free buffer
     PacketBuffer_Free(&flow->buffer);
+    
+    // free encoder buffer
+    SinglePacketBuffer_Free(&flow->encoder_buffer);
     
     // free writer
     BufferWriter_Free(&flow->writer);

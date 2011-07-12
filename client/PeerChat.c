@@ -26,10 +26,8 @@
 
 #include "PeerChat.h"
 
-int PeerChat_Init (PeerChat *o, peerid_t peer_id, PacketPassInterface *output, BPendingGroup *pg, void *user, PeerChat_handler_error handler_error)
+int PeerChat_Init (PeerChat *o, peerid_t peer_id, BPendingGroup *pg, void *user, PeerChat_handler_error handler_error)
 {
-    ASSERT(PacketPassInterface_GetMTU(output) >= sizeof(struct packetproto_header) + SC_MAX_ENC)
-    
     // init arguments
     o->user = user;
     o->handler_error = handler_error;
@@ -42,11 +40,6 @@ int PeerChat_Init (PeerChat *o, peerid_t peer_id, PacketPassInterface *output, B
     
     // init PacketProto encoder
     PacketProtoEncoder_Init(&o->pp_encoder, SCOutmsgEncoder_GetOutput(&o->sc_encoder), pg);
-    
-    // init buffer
-    if (!SinglePacketBuffer_Init(&o->buffer, PacketProtoEncoder_GetOutput(&o->pp_encoder), output, pg)) {
-        goto fail1;
-    }
     
     DebugObject_Init(&o->d_obj);
     return 1;
@@ -62,9 +55,6 @@ void PeerChat_Free (PeerChat *o)
 {
     DebugObject_Free(&o->d_obj);
     
-    // free buffer
-    SinglePacketBuffer_Free(&o->buffer);
-    
     // free PacketProto encoder
     PacketProtoEncoder_Free(&o->pp_encoder);
     
@@ -75,9 +65,16 @@ void PeerChat_Free (PeerChat *o)
     PacketCopier_Free(&o->copier);
 }
 
-PacketPassInterface * PeerChat_GetInput (PeerChat *o)
+PacketPassInterface * PeerChat_GetSendInput (PeerChat *o)
 {
     DebugObject_Access(&o->d_obj);
     
     return PacketCopier_GetInput(&o->copier);
+}
+
+PacketRecvInterface * PeerChat_GetSendOutput (PeerChat *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    return PacketProtoEncoder_GetOutput(&o->pp_encoder);
 }

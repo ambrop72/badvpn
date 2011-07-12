@@ -28,6 +28,7 @@
 #include <flow/PacketPassFairQueue.h>
 #include <flow/PacketBuffer.h>
 #include <flow/BufferWriter.h>
+#include <flow/SinglePacketBuffer.h>
 #include <client/DatagramPeerIO.h>
 #include <client/StreamPeerIO.h>
 #include <client/DataProto.h>
@@ -87,6 +88,7 @@
 
 struct server_flow {
     PacketPassFairQueueFlow qflow;
+    SinglePacketBuffer encoder_buffer;
     PeerChat sender;
     PacketBuffer buffer;
     BufferWriter writer;
