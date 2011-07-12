@@ -29,6 +29,7 @@
 #include <flow/PacketBuffer.h>
 #include <flow/BufferWriter.h>
 #include <flow/SinglePacketBuffer.h>
+#include <flow/PacketRecvConnector.h>
 #include <client/DatagramPeerIO.h>
 #include <client/StreamPeerIO.h>
 #include <client/DataProto.h>
@@ -89,10 +90,7 @@
 struct server_flow {
     PacketPassFairQueueFlow qflow;
     SinglePacketBuffer encoder_buffer;
-    PeerChat sender;
-    PacketBuffer buffer;
-    BufferWriter writer;
-    int msg_len;
+    PacketRecvConnector connector;
 };
 
 struct peer_data {
@@ -111,8 +109,14 @@ struct peer_data {
     BPending job_send_seed_after_binding;
     BPending job_init;
     
-    // server flow
-    struct server_flow *server_flow;
+    // chat
+    PeerChat chat;
+    
+    // chat sending
+    struct server_flow *chat_send_flow;
+    PacketBuffer chat_send_buffer;
+    BufferWriter chat_send_writer;
+    int chat_send_msg_len;
     
     // local flow
     DataProtoFlow local_dpflow;
