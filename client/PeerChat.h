@@ -27,25 +27,33 @@
 #include <protocol/scproto.h>
 #include <misc/debug.h>
 #include <base/DebugObject.h>
+#include <base/BPending.h>
 #include <flow/SinglePacketSender.h>
 #include <flow/PacketProtoEncoder.h>
 #include <flow/PacketCopier.h>
 #include <client/SCOutmsgEncoder.h>
 
 typedef void (*PeerChat_handler_error) (void *user);
+typedef void (*PeerChat_handler_message) (void *user, uint8_t *data, int data_len);
 
 typedef struct {
     void *user;
     PeerChat_handler_error handler_error;
+    PeerChat_handler_message handler_message;
     PacketProtoEncoder pp_encoder;
     SCOutmsgEncoder sc_encoder;
     PacketCopier copier;
+    BPending received_job;
+    uint8_t *received_data;
+    int received_data_len;
     DebugObject d_obj;
 } PeerChat;
 
-int PeerChat_Init (PeerChat *o, peerid_t peer_id, BPendingGroup *pg, void *user, PeerChat_handler_error handler_error) WARN_UNUSED;
+int PeerChat_Init (PeerChat *o, peerid_t peer_id, BPendingGroup *pg, void *user, PeerChat_handler_error handler_error,
+                                                                                 PeerChat_handler_message handler_message) WARN_UNUSED;
 void PeerChat_Free (PeerChat *o);
 PacketPassInterface * PeerChat_GetSendInput (PeerChat *o);
 PacketRecvInterface * PeerChat_GetSendOutput (PeerChat *o);
+void PeerChat_InputReceived (PeerChat *o, uint8_t *data, int data_len);
 
 #endif

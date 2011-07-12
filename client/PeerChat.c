@@ -26,11 +26,28 @@
 
 #include "PeerChat.h"
 
-int PeerChat_Init (PeerChat *o, peerid_t peer_id, BPendingGroup *pg, void *user, PeerChat_handler_error handler_error)
+static void received_job_handler (PeerChat *o)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->received_data_len >= 0)
+    
+    int data_len = o->received_data_len;
+    
+    // set no received data
+    o->received_data_len = -1;
+    
+    // call message handler
+    o->handler_message(o->user, o->received_data, data_len);
+    return;
+}
+
+int PeerChat_Init (PeerChat *o, peerid_t peer_id, BPendingGroup *pg, void *user, PeerChat_handler_error handler_error,
+                                                                                 PeerChat_handler_message handler_message)
 {
     // init arguments
     o->user = user;
     o->handler_error = handler_error;
+    o->handler_message = handler_message;
     
     // init copier
     PacketCopier_Init(&o->copier, SC_MAX_MSGLEN, pg);
@@ -40,6 +57,12 @@ int PeerChat_Init (PeerChat *o, peerid_t peer_id, BPendingGroup *pg, void *user,
     
     // init PacketProto encoder
     PacketProtoEncoder_Init(&o->pp_encoder, SCOutmsgEncoder_GetOutput(&o->sc_encoder), pg);
+    
+    // init received job
+    BPending_Init(&o->received_job, pg, (BPending_handler)received_job_handler, o);
+    
+    // set no received data
+    o->received_data_len = -1;
     
     DebugObject_Init(&o->d_obj);
     return 1;
@@ -54,6 +77,9 @@ fail1:
 void PeerChat_Free (PeerChat *o)
 {
     DebugObject_Free(&o->d_obj);
+    
+    // free received job
+    BPending_Free(&o->received_job);
     
     // free PacketProto encoder
     PacketProtoEncoder_Free(&o->pp_encoder);
@@ -77,4 +103,19 @@ PacketRecvInterface * PeerChat_GetSendOutput (PeerChat *o)
     DebugObject_Access(&o->d_obj);
     
     return PacketProtoEncoder_GetOutput(&o->pp_encoder);
+}
+
+void PeerChat_InputReceived (PeerChat *o, uint8_t *data, int data_len)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->received_data_len == -1)
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= SC_MAX_MSGLEN)
+    
+    // remember data
+    o->received_data = data;
+    o->received_data_len = data_len;
+    
+    // set received job
+    BPending_Set(&o->received_job);
 }

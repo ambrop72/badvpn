@@ -256,7 +256,7 @@ static void peer_unregister_need_relay (struct peer_data *peer);
 static void peer_reset (struct peer_data *peer);
 
 // handle incoming peer messages
-static void peer_msg (struct peer_data *peer, uint8_t *data, int data_len);
+static void peer_chat_handler_message (struct peer_data *peer, uint8_t *data, int data_len);
 
 // handlers for different message types
 static void peer_msg_youconnect (struct peer_data *peer, uint8_t *data, int data_len);
@@ -1278,7 +1278,9 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     BPending_Set(&peer->job_init);
     
     // init chat
-    if (!PeerChat_Init(&peer->chat, peer->id, BReactor_PendingGroup(&ss), NULL, NULL)) {
+    if (!PeerChat_Init(&peer->chat, peer->id, BReactor_PendingGroup(&ss), peer, NULL,
+                                                                                (PeerChat_handler_message)peer_chat_handler_message
+    )) {
         peer_log(peer, BLOG_ERROR, "PeerChat_Init failed");
         goto fail1;
     }
@@ -1792,7 +1794,7 @@ void peer_reset (struct peer_data *peer)
     }
 }
 
-void peer_msg (struct peer_data *peer, uint8_t *data, int data_len)
+void peer_chat_handler_message (struct peer_data *peer, uint8_t *data, int data_len)
 {
     ASSERT(data_len >= 0)
     ASSERT(data_len <= SC_MAX_MSGLEN)
@@ -2693,9 +2695,8 @@ void server_handler_message (void *user, peerid_t peer_id, uint8_t *data, int da
         return;
     }
     
-    // process peer message
-    peer_msg(peer, data, data_len);
-    return;
+    // pass message to chat
+    PeerChat_InputReceived(&peer->chat, data, data_len);
 }
 
 void peer_job_send_seed_after_binding (struct peer_data *peer)
