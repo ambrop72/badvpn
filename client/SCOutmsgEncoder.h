@@ -23,14 +23,15 @@
 #ifndef BADVPN_SCOUTMSGENCODER_H
 #define BADVPN_SCOUTMSGENCODER_H
 
-#include <stdint.h>
-
 #include <protocol/scproto.h>
 #include <base/DebugObject.h>
 #include <flow/PacketRecvInterface.h>
 
 #define SCOUTMSG_OVERHEAD (sizeof(struct sc_header) + sizeof(struct sc_client_outmsg))
 
+/**
+ * A {@link PacketRecvInterface} layer which encodes SCProto outgoing messages.
+ */
 typedef struct {
     peerid_t peer_id;
     PacketRecvInterface *input;
@@ -39,8 +40,30 @@ typedef struct {
     DebugObject d_obj;
 } SCOutmsgEncoder;
 
-void SCOutmsgEncoder_Init (SCOutmsgEncoder *enc, peerid_t peer_id, PacketRecvInterface *input, BPendingGroup *pg);
-void SCOutmsgEncoder_Free (SCOutmsgEncoder *enc);
-PacketRecvInterface * SCOutmsgEncoder_GetOutput (SCOutmsgEncoder *enc);
+/**
+ * Initializes the object.
+ * 
+ * @param o the object
+ * @param peer_id destination peer for messages
+ * @param input input interface. Its MTU muse be <= (INT_MAX - SCOUTMSG_OVERHEAD).
+ * @param pg pending group we live in
+ */
+void SCOutmsgEncoder_Init (SCOutmsgEncoder *o, peerid_t peer_id, PacketRecvInterface *input, BPendingGroup *pg);
+
+/**
+ * Frees the object.
+ * 
+ * @param o the object
+ */
+void SCOutmsgEncoder_Free (SCOutmsgEncoder *o);
+
+/**
+ * Returns the output interface.
+ * The MTU of the interface will be (SCOUTMSG_OVERHEAD + input MTU).
+ * 
+ * @param o the object
+ * @return output interface
+ */
+PacketRecvInterface * SCOutmsgEncoder_GetOutput (SCOutmsgEncoder *o);
 
 #endif
