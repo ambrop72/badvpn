@@ -12,7 +12,7 @@ add_executable(badvpn-client
     SPProtoEncoder.c
     SPProtoDecoder.c
     DataProtoKeepaliveSource.c
-    PeerChatSender.c
+    PeerChat.c
     SCOutmsgEncoder.c
 )
 target_link_libraries(badvpn-client system flow flowextra tuntap server_conection security ${NSPR_LIBRARIES} ${NSS_LIBRARIES})

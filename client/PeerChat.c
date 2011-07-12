@@ -1,5 +1,5 @@
 /**
- * @file PeerChatSender.c
+ * @file PeerChat.c
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -24,9 +24,9 @@
 
 #include <misc/byteorder.h>
 
-#include "PeerChatSender.h"
+#include "PeerChat.h"
 
-int PeerChatSender_Init (PeerChatSender *o, peerid_t peer_id, PacketPassInterface *output, BPendingGroup *pg, void *user, PeerChatSender_handler_error handler_error)
+int PeerChat_Init (PeerChat *o, peerid_t peer_id, PacketPassInterface *output, BPendingGroup *pg, void *user, PeerChat_handler_error handler_error)
 {
     ASSERT(PacketPassInterface_GetMTU(output) >= sizeof(struct packetproto_header) + SC_MAX_ENC)
     
@@ -58,7 +58,7 @@ fail1:
     return 0;
 }
 
-void PeerChatSender_Free (PeerChatSender *o)
+void PeerChat_Free (PeerChat *o)
 {
     DebugObject_Free(&o->d_obj);
     
@@ -75,7 +75,7 @@ void PeerChatSender_Free (PeerChatSender *o)
     PacketCopier_Free(&o->copier);
 }
 
-PacketPassInterface * PeerChatSender_GetInput (PeerChatSender *o)
+PacketPassInterface * PeerChat_GetInput (PeerChat *o)
 {
     DebugObject_Access(&o->d_obj);
     

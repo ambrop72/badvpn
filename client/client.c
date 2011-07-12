@@ -2690,8 +2690,8 @@ struct server_flow * server_flow_init (peerid_t peer_id)
     PacketPassFairQueueFlow_Init(&flow->qflow, &server_queue);
     
     // init sender
-    if (!PeerChatSender_Init(&flow->sender, peer_id, PacketPassFairQueueFlow_GetInput(&flow->qflow), BReactor_PendingGroup(&ss), NULL, NULL)) {
-        BLog(BLOG_ERROR, "PeerChatSender_Init failed");
+    if (!PeerChat_Init(&flow->sender, peer_id, PacketPassFairQueueFlow_GetInput(&flow->qflow), BReactor_PendingGroup(&ss), NULL, NULL)) {
+        BLog(BLOG_ERROR, "PeerChat_Init failed");
         goto fail1;
     }
     
@@ -2699,7 +2699,7 @@ struct server_flow * server_flow_init (peerid_t peer_id)
     BufferWriter_Init(&flow->writer, SC_MAX_MSGLEN, BReactor_PendingGroup(&ss));
     
     // init buffer
-    if (!PacketBuffer_Init(&flow->buffer, BufferWriter_GetOutput(&flow->writer), PeerChatSender_GetInput(&flow->sender), SERVER_BUFFER_MIN_PACKETS, BReactor_PendingGroup(&ss))) {
+    if (!PacketBuffer_Init(&flow->buffer, BufferWriter_GetOutput(&flow->writer), PeerChat_GetInput(&flow->sender), SERVER_BUFFER_MIN_PACKETS, BReactor_PendingGroup(&ss))) {
         BLog(BLOG_ERROR, "PacketBuffer_Init failed");
         goto fail2;
     }
@@ -2711,7 +2711,7 @@ struct server_flow * server_flow_init (peerid_t peer_id)
     
 fail2:
     BufferWriter_Free(&flow->writer);
-    PeerChatSender_Free(&flow->sender);
+    PeerChat_Free(&flow->sender);
 fail1:
     PacketPassFairQueueFlow_Free(&flow->qflow);
     free(flow);
@@ -2735,7 +2735,7 @@ void server_flow_free (struct server_flow *flow)
     BufferWriter_Free(&flow->writer);
     
     // free sender
-    PeerChatSender_Free(&flow->sender);
+    PeerChat_Free(&flow->sender);
     
     // free queue flow
     PacketPassFairQueueFlow_Free(&flow->qflow);

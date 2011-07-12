@@ -33,7 +33,7 @@
 #include <client/DataProto.h>
 #include <client/DPReceive.h>
 #include <client/FrameDecider.h>
-#include <client/PeerChatSender.h>
+#include <client/PeerChat.h>
 
 // NOTE: all time values are in milliseconds
 
@@ -87,7 +87,7 @@
 
 struct server_flow {
     PacketPassFairQueueFlow qflow;
-    PeerChatSender sender;
+    PeerChat sender;
     PacketBuffer buffer;
     BufferWriter writer;
     int msg_len;
