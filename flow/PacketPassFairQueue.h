@@ -113,6 +113,13 @@ void PacketPassFairQueue_Free (PacketPassFairQueue *m);
 void PacketPassFairQueue_PrepareFree (PacketPassFairQueue *m);
 
 /**
+ * Returns the MTU of the queue.
+ *
+ * @param m the object
+ */
+int PacketPassFairQueue_GetMTU (PacketPassFairQueue *m);
+
+/**
  * Initializes a queue flow.
  * Queue must not be in freeing state.
  * Must not be called from queue calls to output.

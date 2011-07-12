@@ -270,6 +270,13 @@ void PacketPassFairQueue_PrepareFree (PacketPassFairQueue *m)
     m->freeing = 1;
 }
 
+int PacketPassFairQueue_GetMTU (PacketPassFairQueue *m)
+{
+    DebugObject_Access(&m->d_obj);
+    
+    return PacketPassInterface_GetMTU(m->output);
+}
+
 void PacketPassFairQueueFlow_Init (PacketPassFairQueueFlow *flow, PacketPassFairQueue *m)
 {
     ASSERT(!m->freeing)

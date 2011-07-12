@@ -166,6 +166,13 @@ void PacketPassPriorityQueue_PrepareFree (PacketPassPriorityQueue *m)
     m->freeing = 1;
 }
 
+int PacketPassPriorityQueue_GetMTU (PacketPassPriorityQueue *m)
+{
+    DebugObject_Access(&m->d_obj);
+    
+    return PacketPassInterface_GetMTU(m->output);
+}
+
 void PacketPassPriorityQueueFlow_Init (PacketPassPriorityQueueFlow *flow, PacketPassPriorityQueue *m, int priority)
 {
     ASSERT(!m->freeing)
