@@ -43,9 +43,9 @@ typedef struct {
     PacketProtoEncoder pp_encoder;
     SCOutmsgEncoder sc_encoder;
     PacketCopier copier;
-    BPending received_job;
-    uint8_t *received_data;
-    int received_data_len;
+    BPending recv_job;
+    uint8_t *recv_data;
+    int recv_data_len;
     DebugObject d_obj;
 } PeerChat;
 

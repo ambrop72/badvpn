@@ -26,18 +26,18 @@
 
 #include "PeerChat.h"
 
-static void received_job_handler (PeerChat *o)
+static void recv_job_handler (PeerChat *o)
 {
     DebugObject_Access(&o->d_obj);
-    ASSERT(o->received_data_len >= 0)
+    ASSERT(o->recv_data_len >= 0)
     
-    int data_len = o->received_data_len;
+    int data_len = o->recv_data_len;
     
     // set no received data
-    o->received_data_len = -1;
+    o->recv_data_len = -1;
     
     // call message handler
-    o->handler_message(o->user, o->received_data, data_len);
+    o->handler_message(o->user, o->recv_data, data_len);
     return;
 }
 
@@ -59,10 +59,10 @@ int PeerChat_Init (PeerChat *o, peerid_t peer_id, BPendingGroup *pg, void *user,
     PacketProtoEncoder_Init(&o->pp_encoder, SCOutmsgEncoder_GetOutput(&o->sc_encoder), pg);
     
     // init received job
-    BPending_Init(&o->received_job, pg, (BPending_handler)received_job_handler, o);
+    BPending_Init(&o->recv_job, pg, (BPending_handler)recv_job_handler, o);
     
     // set no received data
-    o->received_data_len = -1;
+    o->recv_data_len = -1;
     
     DebugObject_Init(&o->d_obj);
     return 1;
@@ -79,7 +79,7 @@ void PeerChat_Free (PeerChat *o)
     DebugObject_Free(&o->d_obj);
     
     // free received job
-    BPending_Free(&o->received_job);
+    BPending_Free(&o->recv_job);
     
     // free PacketProto encoder
     PacketProtoEncoder_Free(&o->pp_encoder);
@@ -108,14 +108,14 @@ PacketRecvInterface * PeerChat_GetSendOutput (PeerChat *o)
 void PeerChat_InputReceived (PeerChat *o, uint8_t *data, int data_len)
 {
     DebugObject_Access(&o->d_obj);
-    ASSERT(o->received_data_len == -1)
+    ASSERT(o->recv_data_len == -1)
     ASSERT(data_len >= 0)
     ASSERT(data_len <= SC_MAX_MSGLEN)
     
     // remember data
-    o->received_data = data;
-    o->received_data_len = data_len;
+    o->recv_data = data;
+    o->recv_data_len = data_len;
     
     // set received job
-    BPending_Set(&o->received_job);
+    BPending_Set(&o->recv_job);
 }
