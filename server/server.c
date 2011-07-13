@@ -1313,12 +1313,15 @@ int client_send_newclient (struct client_data *client, struct client_data *nc, i
     if (relay_client) {
         flags |= SCID_NEWCLIENT_FLAG_RELAY_CLIENT;
     }
+    if (options.ssl && client->version > SC_OLDVERSION_NOSSL && nc->version > SC_OLDVERSION_NOSSL) {
+        flags |= SCID_NEWCLIENT_FLAG_SSL;
+    }
     
     uint8_t *cert_data = NULL;
     int cert_len = 0;
     if (options.ssl) {
-        cert_data = (client->version == SC_OLDVERSION ?  nc->cert_old : nc->cert);
-        cert_len = (client->version == SC_OLDVERSION ?  nc->cert_old_len : nc->cert_len);
+        cert_data = (client->version == SC_OLDVERSION_BROKENCERT ?  nc->cert_old : nc->cert);
+        cert_len = (client->version == SC_OLDVERSION_BROKENCERT ?  nc->cert_old_len : nc->cert_len);
     }
     
     struct sc_server_newclient *pack;
@@ -1413,10 +1416,15 @@ void process_packet_hello (struct client_data *client, uint8_t *data, int data_l
     struct sc_client_hello *msg = (struct sc_client_hello *)data;
     client->version = ltoh16(msg->version);
     
-    if (client->version != SC_VERSION && client->version != SC_OLDVERSION) {
-        client_log(client, BLOG_NOTICE, "hello: unknown version");
-        client_remove(client);
-        return;
+    switch (client->version) {
+        case SC_VERSION:
+        case SC_OLDVERSION_NOSSL:
+        case SC_OLDVERSION_BROKENCERT:
+            break;
+        default:
+            client_log(client, BLOG_ERROR, "hello: unknown version (%d)", client->version);
+            client_remove(client);
+            return;
     }
     
     client_log(client, BLOG_INFO, "received hello");

@@ -54,8 +54,9 @@
 
 #include <stdint.h>
 
-#define SC_VERSION 27
-#define SC_OLDVERSION 26
+#define SC_VERSION 28
+#define SC_OLDVERSION_NOSSL 27
+#define SC_OLDVERSION_BROKENCERT 26
 
 #define SC_KEEPALIVE_INTERVAL 10000
 
@@ -135,12 +136,15 @@ struct sc_server_newclient {
      *     You can relay frames to other peers through this peer.
      *   - SCID_NEWCLIENT_FLAG_RELAY_CLIENT
      *     You must allow this peer to relay frames to other peers through you.
+     *   - SCID_NEWCLIENT_FLAG_SSL
+     *     SSL must be used to talk to this peer through messages.
      */
     uint16_t flags;
 } __attribute__((packed));
 
 #define SCID_NEWCLIENT_FLAG_RELAY_SERVER 1
 #define SCID_NEWCLIENT_FLAG_RELAY_CLIENT 2
+#define SCID_NEWCLIENT_FLAG_SSL 4
 
 #define SCID_NEWCLIENT_MAX_CERT_LEN (SC_MAX_PAYLOAD - sizeof(struct sc_server_newclient))
 

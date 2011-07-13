@@ -83,3 +83,4 @@ BNetwork 4
 BConnection 4
 BSSLConnection 4
 BDatagram 4
+PeerChat 4

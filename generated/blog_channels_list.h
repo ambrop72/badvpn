@@ -83,3 +83,4 @@
 {.name = "BConnection", .loglevel = 4},
 {.name = "BSSLConnection", .loglevel = 4},
 {.name = "BDatagram", .loglevel = 4},
+{.name = "PeerChat", .loglevel = 4},

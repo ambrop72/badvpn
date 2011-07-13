@@ -36,6 +36,7 @@
 #include <client/DPReceive.h>
 #include <client/FrameDecider.h>
 #include <client/PeerChat.h>
+#include <client/SinglePacketSource.h>
 
 // NOTE: all time values are in milliseconds
 
@@ -91,6 +92,7 @@ struct server_flow {
     PacketPassFairQueueFlow qflow;
     SinglePacketBuffer encoder_buffer;
     PacketRecvConnector connector;
+    int connected;
 };
 
 struct peer_data {
@@ -109,14 +111,20 @@ struct peer_data {
     BPending job_send_seed_after_binding;
     BPending job_init;
     
-    // chat
-    PeerChat chat;
+    // server flow
+    struct server_flow *server_flow;
     
-    // chat sending
-    struct server_flow *chat_send_flow;
+    // chat
+    int have_chat;
+    PeerChat chat;
     PacketBuffer chat_send_buffer;
     BufferWriter chat_send_writer;
     int chat_send_msg_len;
+    
+    // resetpeer source (when chat fails)
+    int have_resetpeer;
+    uint8_t resetpeer_packet[sizeof(struct packetproto_header) + sizeof(struct sc_header) + sizeof(struct sc_client_resetpeer)];
+    SinglePacketSource resetpeer_source;
     
     // local flow
     DataProtoFlow local_dpflow;
