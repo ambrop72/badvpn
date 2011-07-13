@@ -1,4 +1,4 @@
-.TH badvpn-client 8 "21 June 2011"
+.TH badvpn-client 8 "14 July 2011"
 .SH NAME
 badvpn-client \- VPN node daemon for the BadVPN peer-to-peer VPN system
 .SH SYNOPSIS
@@ -86,6 +86,8 @@ badvpn-client \- VPN node daemon for the BadVPN peer-to-peer VPN system
 .RB "[" --igmp-group-membership-interval " <ms>]"
 .br
 .RB "[" --igmp-last-member-query-time " <ms>]"
+.br
+.RB "[" --allow-peer-talk-without-ssl "]"
 .br
 .RE
 .SH INTRODUCTION
@@ -242,6 +244,13 @@ Sets the Group Membership Interval parameter for IGMP snooping, in milliseconds.
 .TP
 .BR --igmp-last-member-query-time " <ms>"
 Sets the Last Member Query Time parameter for IGMP snooping, in milliseconds.
+.TP
+.BR --allow-peer-talk-without-ssl
+When SSL is enabled, the clients not only connect to the server using SSL, but also exchange messages through
+the server through another layer of SSL. This protects the messages from attacks on the server. Older versions
+of BadVPN (<1.999.109), however, do not support this. This option allows older and newer clients to
+interoperate by not using SSL if the other peer does not support it. It does however negate the security
+benefits of using SSL, since the (potentionally compromised) server can then order peers not to use SSL.
 .SH "EXIT CODE"
 .P
 If initialization fails, exits with code 1. Otherwise runs until termination is requested or server connection
