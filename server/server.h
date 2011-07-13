@@ -52,6 +52,9 @@
 // maxiumum listen addresses
 #define MAX_LISTEN_ADDRS 16
 
+//#define SIMULATE_OUT_OF_CONTROL_BUFFER 20
+//#define SIMULATE_OUT_OF_FLOW_BUFFER 100
+
 
 // performing SSL handshake
 #define INITSTATUS_HANDSHAKE 1
@@ -63,6 +66,7 @@
 #define INITSTATUS_HASLINK(status) ((status) == INITSTATUS_WAITHELLO || (status) == INITSTATUS_COMPLETE)
 
 struct client_data;
+struct peer_know;
 
 struct peer_flow {
     // source client
@@ -82,6 +86,10 @@ struct peer_flow {
     BufferWriter *input;
     int packet_len;
     uint8_t *packet;
+    // opposite flow
+    struct peer_flow *opposite;
+    // corresponding know
+    struct peer_know *know;
 };
 
 struct peer_know {

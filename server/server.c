@@ -276,11 +276,15 @@ static int relay_predicate_func_raddr_cb (void *user, void **args);
 // comparator for peerid_t used in AVL tree
 static int peerid_comparator (void *unused, peerid_t *p1, peerid_t *p2);
 
-static int create_know (struct client_data *from, struct client_data *to, int relay_server, int relay_client);
+static struct peer_know * create_know (struct client_data *from, struct client_data *to, int relay_server, int relay_client);
 static void remove_know (struct peer_know *k);
 static void know_inform_job_handler (struct peer_know *k);
 static void uninform_know (struct peer_know *k);
 static void know_uninform_job_handler (struct peer_know *k);
+
+static int create_know_pair (struct peer_flow *flow_to);
+
+static void reset_clients (struct peer_flow *flow_to);
 
 int main (int argc, char *argv[])
 {
@@ -1248,6 +1252,16 @@ int client_start_control_packet (struct client_data *client, void **data, int le
     ASSERT(!client->dying)
     ASSERT(client->output_control_packet_len == -1)
     
+#ifdef SIMULATE_OUT_OF_CONTROL_BUFFER
+    uint8_t x;
+    BRandom_randomize(&x, sizeof(x));
+    if (x < SIMULATE_OUT_OF_CONTROL_BUFFER) {
+        client_log(client, BLOG_INFO, "out of control buffer, removing");
+        client_remove(client);
+        return -1;
+    }
+#endif
+    
     // obtain location for writing the packet
     if (!BufferWriter_StartPacket(client->output_control_input, &client->output_control_packet)) {
         // out of buffer, kill client
@@ -1411,29 +1425,26 @@ void process_packet_hello (struct client_data *client, uint8_t *data, int data_l
             continue;
         }
         
-        // determine relay relations
-        int relay_to = relay_allowed(client, client2);
-        int relay_from = relay_allowed(client2, client);
-        
-        if (!create_know(client, client2, relay_to, relay_from)) {
-            client_log(client, BLOG_ERROR, "failed to allocate know to %d", (int)client2->id);
-            goto fail;
-        }
-        
-        if (!create_know(client2, client, relay_from, relay_to)) {
-            client_log(client, BLOG_ERROR, "failed to allocate know from %d", (int)client2->id);
-            goto fail;
-        }
-        
         // create flow from client to client2
-        if (!peer_flow_create(client, client2)) {
+        struct peer_flow *flow_to = peer_flow_create(client, client2);
+        if (!flow_to) {
             client_log(client, BLOG_ERROR, "failed to allocate flow to %d", (int)client2->id);
             goto fail;
         }
         
         // create flow from client2 to client
-        if (!peer_flow_create(client2, client)) {
+        struct peer_flow *flow_from = peer_flow_create(client2, client);
+        if (!flow_from) {
             client_log(client, BLOG_ERROR, "failed to allocate flow from %d", (int)client2->id);
+            goto fail;
+        }
+        
+        // set opposite flow pointers
+        flow_to->opposite = flow_from;
+        flow_from->opposite = flow_to;
+        
+        // create knows
+        if (!create_know_pair(flow_to)) {
             goto fail;
         }
     }
@@ -1488,9 +1499,20 @@ void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_
     }
     struct peer_flow *flow = UPPER_OBJECT(node, struct peer_flow, src_tree_node);
     
+#ifdef SIMULATE_OUT_OF_FLOW_BUFFER
+    uint8_t x;
+    BRandom_randomize(&x, sizeof(x));
+    if (x < SIMULATE_OUT_OF_FLOW_BUFFER) {
+        reset_clients(flow);
+        return;
+    }
+#endif
+    
     // send packet
     struct sc_server_inmsg *pack;
     if (!peer_flow_start_packet(flow, (void **)&pack, sizeof(struct sc_server_inmsg) + payload_size)) {
+        // out of buffer, reset these two clients
+        reset_clients(flow);
         return;
     }
     pack->clientid = htol16(client->id);
@@ -1797,7 +1819,7 @@ int peerid_comparator (void *unused, peerid_t *p1, peerid_t *p2)
     return 0;
 }
 
-int create_know (struct client_data *from, struct client_data *to, int relay_server, int relay_client)
+struct peer_know * create_know (struct client_data *from, struct client_data *to, int relay_server, int relay_client)
 {
     ASSERT(from->initstatus == INITSTATUS_COMPLETE)
     ASSERT(!from->dying)
@@ -1807,7 +1829,7 @@ int create_know (struct client_data *from, struct client_data *to, int relay_ser
     // allocate structure
     struct peer_know *k = malloc(sizeof(*k));
     if (!k) {
-        return 0;
+        return NULL;
     }
     
     // init arguments
@@ -1827,7 +1849,7 @@ int create_know (struct client_data *from, struct client_data *to, int relay_ser
     // init uninform job
     BPending_Init(&k->uninform_job, BReactor_PendingGroup(&ss), (BPending_handler)know_uninform_job_handler, k);
     
-    return 1;
+    return k;
 }
 
 void remove_know (struct peer_know *k)
@@ -1858,8 +1880,6 @@ void know_inform_job_handler (struct peer_know *k)
 void uninform_know (struct peer_know *k)
 {
     ASSERT(!k->from->dying)
-    ASSERT(k->to->dying)
-    ASSERT(!BPending_IsSet(&k->uninform_job))
     
     // if 'from' has not been informed about 'to' yet, remove know, otherwise
     // schedule informing 'from' that 'to' is no more
@@ -1873,7 +1893,6 @@ void uninform_know (struct peer_know *k)
 void know_uninform_job_handler (struct peer_know *k)
 {
     ASSERT(!k->from->dying)
-    ASSERT(k->to->dying)
     ASSERT(!BPending_IsSet(&k->inform_job))
     
     struct client_data *from = k->from;
@@ -1884,4 +1903,70 @@ void know_uninform_job_handler (struct peer_know *k)
     
     // uninform
     client_send_endclient(from, to->id);
+}
+
+int create_know_pair (struct peer_flow *flow_to)
+{
+    struct client_data *client = flow_to->src_client;
+    struct client_data *client2 = flow_to->dest_client;
+    ASSERT(client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!client->dying)
+    ASSERT(client2->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!client2->dying)
+    
+    // determine relay relations
+    int relay_to = relay_allowed(client, client2);
+    int relay_from = relay_allowed(client2, client);
+    
+    // create know to
+    struct peer_know *know_to = create_know(client, client2, relay_to, relay_from);
+    if (!know_to) {
+        client_log(client, BLOG_ERROR, "failed to allocate know to %d", (int)client2->id);
+        goto fail;
+    }
+    
+    // create know from
+    struct peer_know *know_from = create_know(client2, client, relay_from, relay_to);
+    if (!know_from) {
+        client_log(client, BLOG_ERROR, "failed to allocate know from %d", (int)client2->id);
+        goto fail;
+    }
+    
+    // set know pointers in flows
+    flow_to->know = know_to;
+    flow_to->opposite->know = know_from;
+    
+    return 1;
+    
+fail:
+    return 0;
+}
+
+void reset_clients (struct peer_flow *flow_to)
+{
+    struct client_data *client = flow_to->src_client;
+    struct client_data *client2 = flow_to->dest_client;
+    ASSERT(client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!client->dying)
+    ASSERT(client2->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!client2->dying)
+    
+    client_log(client, BLOG_ERROR, "resetting link to client %d", (int)client2->id);
+    
+    struct peer_know *know_to = flow_to->know;
+    struct peer_know *know_from = flow_to->opposite->know;
+    
+    // create new knows
+    if (!create_know_pair(flow_to)) {
+        goto fail;
+    }
+    
+    // remove old knows
+    uninform_know(know_to);
+    uninform_know(know_from);
+    
+    return;
+    
+fail:
+    client_remove(client);
 }
