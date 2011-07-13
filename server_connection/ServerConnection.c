@@ -112,7 +112,7 @@ void connector_handler (ServerConnection *o, int is_error)
         }
         
         // init BSSLConnection
-        BSSLConnection_Init(&o->sslcon, o->ssl_prfd, 0, o->reactor, o, (BSSLConnection_handler)sslcon_handler);
+        BSSLConnection_Init(&o->sslcon, o->ssl_prfd, 0, BReactor_PendingGroup(o->reactor), o, (BSSLConnection_handler)sslcon_handler);
         
         send_iface = BSSLConnection_GetSendIf(&o->sslcon);
         recv_iface = BSSLConnection_GetRecvIf(&o->sslcon);

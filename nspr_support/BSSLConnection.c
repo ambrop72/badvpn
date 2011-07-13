@@ -333,13 +333,13 @@ static void connection_init_job_handler (BSSLConnection *o)
 static void connection_init_up (BSSLConnection *o)
 {
     // init send interface
-    StreamPassInterface_Init(&o->send_if, (StreamPassInterface_handler_send)connection_send_if_handler_send, o, BReactor_PendingGroup(o->reactor));
+    StreamPassInterface_Init(&o->send_if, (StreamPassInterface_handler_send)connection_send_if_handler_send, o, o->pg);
     
     // init recv interface
-    StreamRecvInterface_Init(&o->recv_if, (StreamRecvInterface_handler_recv)connection_recv_if_handler_recv, o, BReactor_PendingGroup(o->reactor));
+    StreamRecvInterface_Init(&o->recv_if, (StreamRecvInterface_handler_recv)connection_recv_if_handler_recv, o, o->pg);
     
     // init recv job
-    BPending_Init(&o->recv_job, BReactor_PendingGroup(o->reactor), (BPending_handler)connection_recv_job_handler, o);
+    BPending_Init(&o->recv_job, o->pg, (BPending_handler)connection_recv_job_handler, o);
     
     // set no send data
     o->send_len = -1;
@@ -576,7 +576,7 @@ int BSSLConnection_MakeBackend (PRFileDesc *prfd, StreamPassInterface *send_if, 
     return 1;
 }
 
-void BSSLConnection_Init (BSSLConnection *o, PRFileDesc *prfd, int force_handshake, BReactor *reactor, void *user,
+void BSSLConnection_Init (BSSLConnection *o, PRFileDesc *prfd, int force_handshake, BPendingGroup *pg, void *user,
                           BSSLConnection_handler handler)
 {
     ASSERT(force_handshake == 0 || force_handshake == 1)
@@ -587,7 +587,7 @@ void BSSLConnection_Init (BSSLConnection *o, PRFileDesc *prfd, int force_handsha
     
     // init arguments
     o->prfd = prfd;
-    o->reactor = reactor;
+    o->pg = pg;
     o->user = user;
     o->handler = handler;
     
@@ -598,7 +598,7 @@ void BSSLConnection_Init (BSSLConnection *o, PRFileDesc *prfd, int force_handsha
     o->have_error = 0;
     
     // init init job
-    BPending_Init(&o->init_job, BReactor_PendingGroup(o->reactor), (BPending_handler)connection_init_job_handler, o);
+    BPending_Init(&o->init_job, o->pg, (BPending_handler)connection_init_job_handler, o);
     
     if (force_handshake) {
         // set not up
@@ -614,7 +614,7 @@ void BSSLConnection_Init (BSSLConnection *o, PRFileDesc *prfd, int force_handsha
     // set backend connection
     o->backend->con = o;
     
-    DebugError_Init(&o->d_err, BReactor_PendingGroup(o->reactor));
+    DebugError_Init(&o->d_err, o->pg);
     DebugObject_Init(&o->d_obj);
 }
 

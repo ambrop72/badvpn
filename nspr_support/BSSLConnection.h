@@ -28,7 +28,7 @@
 #include <misc/debug.h>
 #include <misc/debugerror.h>
 #include <base/DebugObject.h>
-#include <system/BReactor.h>
+#include <base/BPending.h>
 #include <flow/StreamPassInterface.h>
 #include <flow/StreamRecvInterface.h>
 
@@ -43,7 +43,7 @@ struct BSSLConnection_backend;
 
 typedef struct {
     PRFileDesc *prfd;
-    BReactor *reactor;
+    BPendingGroup *pg;
     void *user;
     BSSLConnection_handler handler;
     struct BSSLConnection_backend *backend;
@@ -77,7 +77,7 @@ struct BSSLConnection_backend {
 int BSSLConnection_GlobalInit (void) WARN_UNUSED;
 int BSSLConnection_MakeBackend (PRFileDesc *prfd, StreamPassInterface *send_if, StreamRecvInterface *recv_if) WARN_UNUSED;
 
-void BSSLConnection_Init (BSSLConnection *o, PRFileDesc *prfd, int force_handshake, BReactor *reactor, void *user,
+void BSSLConnection_Init (BSSLConnection *o, PRFileDesc *prfd, int force_handshake, BPendingGroup *pg, void *user,
                           BSSLConnection_handler handler);
 void BSSLConnection_Free (BSSLConnection *o);
 StreamPassInterface * BSSLConnection_GetSendIf (BSSLConnection *o);

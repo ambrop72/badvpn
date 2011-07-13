@@ -862,7 +862,7 @@ void listener_handler (BListener *listener)
         }
         
         // init SSL connection
-        BSSLConnection_Init(&client->sslcon, client->ssl_prfd, 1, &ss, client, (BSSLConnection_handler)client_sslcon_handler);
+        BSSLConnection_Init(&client->sslcon, client->ssl_prfd, 1, BReactor_PendingGroup(&ss), client, (BSSLConnection_handler)client_sslcon_handler);
     } else {
         // initialize I/O
         if (!client_init_io(client)) {

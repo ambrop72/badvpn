@@ -148,7 +148,7 @@ void listener_handler (PasswordListener *l)
         }
         
         // initialize SSLConnection
-        BSSLConnection_Init(&client->sslcon, client->sock->ssl_prfd, 0, l->bsys, client, (BSSLConnection_handler)client_sslcon_handler);
+        BSSLConnection_Init(&client->sslcon, client->sock->ssl_prfd, 0, BReactor_PendingGroup(l->bsys), client, (BSSLConnection_handler)client_sslcon_handler);
         
         send_if = BSSLConnection_GetSendIf(&client->sslcon);
         recv_if = BSSLConnection_GetRecvIf(&client->sslcon);

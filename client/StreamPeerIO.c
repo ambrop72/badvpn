@@ -127,7 +127,7 @@ void connector_handler (StreamPeerIO *pio, int is_error)
         }
         
         // init BSSLConnection
-        BSSLConnection_Init(&pio->connect.sslcon, pio->connect.sock.ssl_prfd, 1, pio->reactor, pio, (BSSLConnection_handler)connect_sslcon_handler);
+        BSSLConnection_Init(&pio->connect.sslcon, pio->connect.sock.ssl_prfd, 1, BReactor_PendingGroup(pio->reactor), pio, (BSSLConnection_handler)connect_sslcon_handler);
         
         // change state
         pio->connect.state = CONNECT_STATE_HANDSHAKE;
@@ -312,7 +312,7 @@ int init_io (StreamPeerIO *pio, sslsocket *sock)
     
     if (pio->ssl) {
         // init BSSLConnection
-        BSSLConnection_Init(&pio->sslcon, sock->ssl_prfd, 0, pio->reactor, pio, (BSSLConnection_handler)sslcon_handler);
+        BSSLConnection_Init(&pio->sslcon, sock->ssl_prfd, 0, BReactor_PendingGroup(pio->reactor), pio, (BSSLConnection_handler)sslcon_handler);
     } else {
         // init connection interfaces
         BConnection_SendAsync_Init(&sock->con);
