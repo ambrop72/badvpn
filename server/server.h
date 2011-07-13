@@ -30,6 +30,7 @@
 #include <flow/PacketPassPriorityQueue.h>
 #include <flow/PacketPassFairQueue.h>
 #include <flow/PacketProtoFlow.h>
+#include <system/BReactor.h>
 #include <system/BConnection.h>
 #include <nspr_support/BSSLConnection.h>
 
@@ -48,6 +49,8 @@
 #define CLIENT_NO_DATA_TIME_LIMIT 30000
 // SO_SNDBFUF socket option for clients
 #define CLIENT_DEFAULT_SOCKET_SNDBUF 16384
+// reset time when a buffer runs out or when we get the resetpeer message
+#define CLIENT_RESET_TIME 30000
 
 // maxiumum listen addresses
 #define MAX_LISTEN_ADDRS 16
@@ -86,6 +89,8 @@ struct peer_flow {
     BufferWriter *input;
     int packet_len;
     uint8_t *packet;
+    // reset timer
+    BTimer reset_timer;
     // opposite flow
     struct peer_flow *opposite;
     // corresponding know

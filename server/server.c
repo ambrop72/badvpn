@@ -239,6 +239,12 @@ static void peer_flow_end_packet (struct peer_flow *flow, uint8_t type);
 // handler called by the queue when a peer flow can be freed after its source has gone away
 static void peer_flow_handler_canremove (struct peer_flow *flow);
 
+// schedules resetting of clients knowledge
+static void peer_flow_schedule_reset (struct peer_flow *flow);
+
+// resets clients knowledge after the timer expires
+static void peer_flow_reset_timer_handler (struct peer_flow *flow);
+
 // generates a client ID to be used for a newly connected client
 static peerid_t new_client_id (void);
 
@@ -286,8 +292,6 @@ static void uninform_know (struct peer_know *k);
 static void know_uninform_job_handler (struct peer_know *k);
 
 static int create_know_pair (struct peer_flow *flow_to);
-
-static void reset_clients (struct peer_flow *flow_to);
 
 int main (int argc, char *argv[])
 {
@@ -1517,7 +1521,8 @@ void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_
     uint8_t x;
     BRandom_randomize(&x, sizeof(x));
     if (x < SIMULATE_OUT_OF_FLOW_BUFFER) {
-        reset_clients(flow);
+        client_log(client, BLOG_WARNING, "simulating error; scheduling reset to %d", (int)flow->dest_client->id);
+        peer_flow_schedule_reset(flow);
         return;
     }
 #endif
@@ -1526,7 +1531,8 @@ void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_
     struct sc_server_inmsg *pack;
     if (!peer_flow_start_packet(flow, (void **)&pack, sizeof(struct sc_server_inmsg) + payload_size)) {
         // out of buffer, reset these two clients
-        reset_clients(flow);
+        client_log(client, BLOG_WARNING, "out of buffer; scheduling reset to %d", (int)flow->dest_client->id);
+        peer_flow_schedule_reset(flow);
         return;
     }
     pack->clientid = htol16(client->id);
@@ -1559,8 +1565,10 @@ void process_packet_resetpeer (struct client_data *client, uint8_t *data, int da
     }
     struct peer_flow *flow = UPPER_OBJECT(node, struct peer_flow, src_tree_node);
     
+    client_log(client, BLOG_WARNING, "resetpeer: scheduling reset to %d", (int)flow->dest_client->id);
+    
     // reset clients
-    reset_clients(flow);
+    peer_flow_schedule_reset(flow);
 }
 
 struct peer_flow * peer_flow_create (struct client_data *src_client, struct client_data *dest_client)
@@ -1601,6 +1609,9 @@ struct peer_flow * peer_flow_create (struct client_data *src_client, struct clie
     flow->input = PacketProtoFlow_GetInput(&flow->oflow);
     flow->packet_len = -1;
     
+    // init reset timer
+    BTimer_Init(&flow->reset_timer, CLIENT_RESET_TIME, (BTimer_handler)peer_flow_reset_timer_handler, flow);
+    
     return flow;
     
 fail1:
@@ -1616,6 +1627,9 @@ fail0:
 void peer_flow_dealloc (struct peer_flow *flow)
 {
     PacketPassFairQueueFlow_AssertFree(&flow->qflow);
+    
+    // free reset timer
+    BReactor_RemoveTimer(&ss, &flow->reset_timer);
     
     // free I/O
     PacketProtoFlow_Free(&flow->oflow);
@@ -1659,7 +1673,6 @@ int peer_flow_start_packet (struct peer_flow *flow, void **data, int len)
     
     // obtain location for writing the packet
     if (!BufferWriter_StartPacket(flow->input, &flow->packet)) {
-        client_log(flow->src_client, BLOG_INFO, "out of flow buffer for message to %d", (int)flow->dest_client->id);
         return 0;
     }
     
@@ -1697,6 +1710,47 @@ void peer_flow_handler_canremove (struct peer_flow *flow)
     
     peer_flow_dealloc(flow);
     return;
+}
+
+void peer_flow_schedule_reset (struct peer_flow *flow)
+{
+    ASSERT(flow->src_client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!flow->src_client->dying)
+    ASSERT(flow->dest_client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!flow->dest_client->dying)
+    
+    // set reset timer
+    BReactor_SetTimer(&ss, &flow->reset_timer);
+}
+
+void peer_flow_reset_timer_handler (struct peer_flow *flow)
+{
+    ASSERT(flow->src_client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!flow->src_client->dying)
+    ASSERT(flow->dest_client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!flow->dest_client->dying)
+    
+    client_log(flow->src_client, BLOG_WARNING, "resetting to %d", (int)flow->dest_client->id);
+    
+    // stop opposite reset timer
+    BReactor_RemoveTimer(&ss, &flow->opposite->reset_timer);
+    
+    struct peer_know *know = flow->know;
+    struct peer_know *know_opposite = flow->opposite->know;
+    
+    // create new knows
+    if (!create_know_pair(flow)) {
+        goto fail;
+    }
+    
+    // remove old knows
+    uninform_know(know);
+    uninform_know(know_opposite);
+    
+    return;
+    
+fail:
+    client_remove(flow->src_client);
 }
 
 peerid_t new_client_id (void)
@@ -1983,33 +2037,4 @@ int create_know_pair (struct peer_flow *flow_to)
     
 fail:
     return 0;
-}
-
-void reset_clients (struct peer_flow *flow_to)
-{
-    struct client_data *client = flow_to->src_client;
-    struct client_data *client2 = flow_to->dest_client;
-    ASSERT(client->initstatus == INITSTATUS_COMPLETE)
-    ASSERT(!client->dying)
-    ASSERT(client2->initstatus == INITSTATUS_COMPLETE)
-    ASSERT(!client2->dying)
-    
-    client_log(client, BLOG_ERROR, "resetting link to client %d", (int)client2->id);
-    
-    struct peer_know *know_to = flow_to->know;
-    struct peer_know *know_from = flow_to->opposite->know;
-    
-    // create new knows
-    if (!create_know_pair(flow_to)) {
-        goto fail;
-    }
-    
-    // remove old knows
-    uninform_know(know_to);
-    uninform_know(know_from);
-    
-    return;
-    
-fail:
-    client_remove(client);
 }
