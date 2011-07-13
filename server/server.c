@@ -218,6 +218,9 @@ static void process_packet_hello (struct client_data *client, uint8_t *data, int
 // processes outmsg packets from clients
 static void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_len);
 
+// processes resetpeer packets from clients
+static void process_packet_resetpeer (struct client_data *client, uint8_t *data, int data_len);
+
 // creates a peer flow
 static struct peer_flow * peer_flow_create (struct client_data *src_client, struct client_data *dest_client);
 
@@ -1383,6 +1386,9 @@ void client_input_handler_send (struct client_data *client, uint8_t *data, int d
         case SCID_OUTMSG:
             process_packet_outmsg(client, data, data_len);
             return;
+        case SCID_RESETPEER:
+            process_packet_resetpeer(client, data, data_len);
+            return;
         default:
             client_log(client, BLOG_NOTICE, "unknown packet type %d, removing", (int)type);
             client_remove(client);
@@ -1518,6 +1524,35 @@ void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_
     pack->clientid = htol16(client->id);
     memcpy((uint8_t *)(pack + 1), payload, payload_size);
     peer_flow_end_packet(flow, SCID_INMSG);
+}
+
+void process_packet_resetpeer (struct client_data *client, uint8_t *data, int data_len)
+{
+    if (client->initstatus != INITSTATUS_COMPLETE) {
+        client_log(client, BLOG_NOTICE, "resetpeer: not expected");
+        client_remove(client);
+        return;
+    }
+    
+    if (data_len != sizeof(struct sc_client_resetpeer)) {
+        client_log(client, BLOG_NOTICE, "resetpeer: wrong size");
+        client_remove(client);
+        return;
+    }
+    
+    struct sc_client_resetpeer *msg = (struct sc_client_resetpeer *)data;
+    peerid_t id = ltoh16(msg->clientid);
+    
+    // lookup flow to destination client
+    BAVLNode *node = BAVL_LookupExact(&client->peer_out_flows_tree, &id);
+    if (!node) {
+        client_log(client, BLOG_INFO, "resetpeer: no flow to %d", (int)id);
+        return;
+    }
+    struct peer_flow *flow = UPPER_OBJECT(node, struct peer_flow, src_tree_node);
+    
+    // reset clients
+    reset_clients(flow);
 }
 
 struct peer_flow * peer_flow_create (struct client_data *src_client, struct client_data *dest_client)

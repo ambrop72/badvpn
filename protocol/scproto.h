@@ -82,6 +82,7 @@ typedef uint16_t peerid_t;
 #define SCID_ENDCLIENT 4
 #define SCID_OUTMSG 5
 #define SCID_INMSG 6
+#define SCID_RESETPEER 7
 
 /**
  * "clienthello" client packet payload.
@@ -182,5 +183,16 @@ struct sc_server_inmsg {
 #define _SC_MAX_INMSGLEN (SC_MAX_PAYLOAD - sizeof(struct sc_server_inmsg))
 
 #define SC_MAX_MSGLEN (_SC_MAX_OUTMSGLEN < _SC_MAX_INMSGLEN ? _SC_MAX_OUTMSGLEN : _SC_MAX_INMSGLEN)
+
+/**
+ * "resetpeer" client packet header.
+ * Packet type is SCID_RESETPEER.
+ */
+struct sc_client_resetpeer {
+    /**
+     * ID of the peer to reset.
+     */
+    peerid_t clientid;
+} __attribute__((packed));
 
 #endif
