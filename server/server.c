@@ -293,6 +293,9 @@ static void know_uninform_job_handler (struct peer_know *k);
 
 static int create_know_pair (struct peer_flow *flow_to);
 
+// find flow from a client to some client
+static struct peer_flow * find_flow (struct client_data *client, peerid_t dest_id);
+
 int main (int argc, char *argv[])
 {
     if (argc <= 0) {
@@ -1510,12 +1513,11 @@ void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_
     uint8_t *payload = data + sizeof(struct sc_client_outmsg);
     
     // lookup flow to destination client
-    BAVLNode *node = BAVL_LookupExact(&client->peer_out_flows_tree, &id);
-    if (!node) {
+    struct peer_flow *flow = find_flow(client, id);
+    if (!flow) {
         client_log(client, BLOG_INFO, "no flow for message to %d", (int)id);
         return;
     }
-    struct peer_flow *flow = UPPER_OBJECT(node, struct peer_flow, src_tree_node);
     
 #ifdef SIMULATE_OUT_OF_FLOW_BUFFER
     uint8_t x;
@@ -1558,12 +1560,11 @@ void process_packet_resetpeer (struct client_data *client, uint8_t *data, int da
     peerid_t id = ltoh16(msg->clientid);
     
     // lookup flow to destination client
-    BAVLNode *node = BAVL_LookupExact(&client->peer_out_flows_tree, &id);
-    if (!node) {
+    struct peer_flow *flow = find_flow(client, id);
+    if (!flow) {
         client_log(client, BLOG_INFO, "resetpeer: no flow to %d", (int)id);
         return;
     }
-    struct peer_flow *flow = UPPER_OBJECT(node, struct peer_flow, src_tree_node);
     
     client_log(client, BLOG_WARNING, "resetpeer: scheduling reset to %d", (int)flow->dest_client->id);
     
@@ -1577,7 +1578,7 @@ struct peer_flow * peer_flow_create (struct client_data *src_client, struct clie
     ASSERT(!src_client->dying)
     ASSERT(dest_client->initstatus == INITSTATUS_COMPLETE)
     ASSERT(!dest_client->dying)
-    ASSERT(!BAVL_LookupExact(&src_client->peer_out_flows_tree, &dest_client->id))
+    ASSERT(!find_flow(src_client, dest_client->id))
     
     // allocate flow structure
     struct peer_flow *flow = malloc(sizeof(*flow));
@@ -2037,4 +2038,22 @@ int create_know_pair (struct peer_flow *flow_to)
     
 fail:
     return 0;
+}
+
+struct peer_flow * find_flow (struct client_data *client, peerid_t dest_id)
+{
+    ASSERT(client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!client->dying)
+    
+    BAVLNode *node = BAVL_LookupExact(&client->peer_out_flows_tree, &dest_id);
+    if (!node) {
+        return NULL;
+    }
+    struct peer_flow *flow = UPPER_OBJECT(node, struct peer_flow, src_tree_node);
+    
+    ASSERT(flow->dest_client->id == dest_id)
+    ASSERT(flow->dest_client->initstatus == INITSTATUS_COMPLETE)
+    ASSERT(!flow->dest_client->dying)
+    
+    return flow;
 }
