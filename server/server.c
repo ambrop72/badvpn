@@ -1519,6 +1519,13 @@ void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_
         return;
     }
     
+    // if the flow has reset scheduled, ignore packet. Clients expect messages
+    // to be reliable, so we can't deliver subsequent messages after we dropped one.
+    if (BTimer_IsRunning(&flow->reset_timer)) {
+        client_log(client, BLOG_INFO, "flow is resetting; not forwarding message to %d", (int)id);
+        return;
+    }
+    
 #ifdef SIMULATE_OUT_OF_FLOW_BUFFER
     uint8_t x;
     BRandom_randomize(&x, sizeof(x));
