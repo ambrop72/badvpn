@@ -21,8 +21,9 @@
  * 
  * @section DESCRIPTION
  * 
- * Definitions for MsgProto, the protocol the VPN peers communicate in via the server
- * in order to establish data connections.
+ * MsgProto is used by each pair of VPN peers as messages through the server, in order to
+ * establish a direct data connection. MsgProto operates on top of the SCProto message
+ * service, optionally secured with SSL; see {@link scproto.h} for details.
  * 
  * MsgProto is built with BProto, the protocol and code generator for building
  * custom message protocols. The BProto specification file is msgproto.bproto.

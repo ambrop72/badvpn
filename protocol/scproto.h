@@ -40,6 +40,7 @@
  * the client a "serverhello" packet to the client. That packet contains
  * the ID of the client and possibly its IPv4 address as the server sees it
  * (zero if not applicable).
+ * 
  * The server than proceeds to synchronize the peers' knowledge of each other.
  * It does that by sending a "newclient" messages to a client to inform it of
  * another peer, and "endclient" messages to inform it that a peer is gone.
@@ -47,6 +48,28 @@
  * communicate. A peer sends a message to another peer by sending the "outmsg"
  * packet to the server, and the server delivers a message to a peer by sending
  * it the "inmsg" packet.
+ * 
+ * The message service is reliable; messages from one client to another are
+ * expected to arrive unmodified and in the same order. There is, however,
+ * no flow control. This means that messages can not be used for bulk transfers
+ * between the clients (and they are not). If the server runs out of buffer for
+ * messages from one client to another, it will stop forwarding messages, and
+ * will reset knowledge of the two clients after some delay. Similarly, if one
+ * of the clients runs out of buffer locally, it will send the "resetpeer"
+ * packet to make the server reset knowledge.
+ * 
+ * The messages transport either:
+ * 
+ * - If the relevant "newclient" packets do not contain the
+ *   SCID_NEWCLIENT_FLAG_SSL flag, then plaintext MsgProto messages.
+ * 
+ * - If the relevant "newclient" packets do contain the SCID_NEWCLIENT_FLAG_SSL
+ *   flag, then SSL, broken down into packets, PacketProto inside SSL, and finally
+ *   MsgProto inside PacketProto. The master peer (one with higher ID) acts as an
+ *   SSL server, and the other acts as an SSL client. The peers must identify with
+ *   the same certificate they used when connecting to the server, and each peer
+ *   must byte-compare the other's certificate agains the one provided to it by
+ *   by the server in the relevent "newclient" message.
  */
 
 #ifndef BADVPN_PROTOCOL_SCPROTO_H
