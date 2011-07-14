@@ -1353,18 +1353,6 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
         chat_ssl_mode = (peer_am_master(peer) ? PEERCHAT_SSL_SERVER : PEERCHAT_SSL_CLIENT);
     }
     
-    switch (chat_ssl_mode) {
-        case PEERCHAT_SSL_NONE:
-            peer_log(peer, BLOG_INFO, "talking to peer in plaintext mode");
-            break;
-        case PEERCHAT_SSL_CLIENT:
-            peer_log(peer, BLOG_INFO, "talking to peer in SSL client mode");
-            break;
-        case PEERCHAT_SSL_SERVER:
-            peer_log(peer, BLOG_INFO, "talking to peer in SSL server mode");
-            break;
-    }
-    
     // init chat
     if (!PeerChat_Init(&peer->chat, peer->id, chat_ssl_mode, client_cert, client_key, peer->cert, peer->cert_len, BReactor_PendingGroup(&ss), peer,
         (PeerChat_handler_error)peer_chat_handler_error,
@@ -1432,7 +1420,17 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     LinkedList2_Append(&peers, &peer->list_node);
     num_peers++;
     
-    peer_log(peer, BLOG_INFO, "initialized");
+    switch (chat_ssl_mode) {
+        case PEERCHAT_SSL_NONE:
+            peer_log(peer, BLOG_INFO, "initialized; talking to peer in plaintext mode");
+            break;
+        case PEERCHAT_SSL_CLIENT:
+            peer_log(peer, BLOG_INFO, "initialized; talking to peer in SSL client mode");
+            break;
+        case PEERCHAT_SSL_SERVER:
+            peer_log(peer, BLOG_INFO, "initialized; talking to peer in SSL server mode");
+            break;
+    }
     
     return;
     
