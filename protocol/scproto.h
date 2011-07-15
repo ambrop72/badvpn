@@ -44,6 +44,8 @@
  * The server than proceeds to synchronize the peers' knowledge of each other.
  * It does that by sending a "newclient" messages to a client to inform it of
  * another peer, and "endclient" messages to inform it that a peer is gone.
+ * Each client, upon receiving a "newclient" message, MUST sent a corresponding
+ * "acceptpeer" message, before sending any messages to the new peer.
  * The server forwards messages between synchronized peers to allow them to
  * communicate. A peer sends a message to another peer by sending the "outmsg"
  * packet to the server, and the server delivers a message to a peer by sending
@@ -77,7 +79,7 @@
 
 #include <stdint.h>
 
-#define SC_VERSION 28
+#define SC_VERSION 29
 #define SC_OLDVERSION_NOSSL 27
 #define SC_OLDVERSION_BROKENCERT 26
 
@@ -107,6 +109,7 @@ typedef uint16_t peerid_t;
 #define SCID_OUTMSG 5
 #define SCID_INMSG 6
 #define SCID_RESETPEER 7
+#define SCID_ACCEPTPEER 8
 
 /**
  * "clienthello" client packet payload.
@@ -218,6 +221,17 @@ struct sc_server_inmsg {
 struct sc_client_resetpeer {
     /**
      * ID of the peer to reset.
+     */
+    peerid_t clientid;
+} __attribute__((packed));
+
+/**
+ * "acceptpeer" client packet payload.
+ * Packet type is SCID_ACCEPTPEER.
+ */
+struct sc_client_acceptpeer {
+    /**
+     * ID of the peer to accept.
      */
     peerid_t clientid;
 } __attribute__((packed));

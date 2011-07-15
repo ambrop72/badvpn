@@ -143,6 +143,11 @@ typedef struct {
     BConnector connector;
     BConnection con;
     
+    // job to report new client after sending acceptpeer
+    BPending newclient_job;
+    uint8_t *newclient_data;
+    int newclient_data_len;
+    
     // state
     int state;
     

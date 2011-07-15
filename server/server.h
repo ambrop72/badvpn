@@ -50,7 +50,8 @@
 // SO_SNDBFUF socket option for clients
 #define CLIENT_DEFAULT_SOCKET_SNDBUF 16384
 // reset time when a buffer runs out or when we get the resetpeer message
-#define CLIENT_RESET_TIME 30000
+//#define CLIENT_RESET_TIME 30000
+#define CLIENT_RESET_TIME 0
 
 // maxiumum listen addresses
 #define MAX_LISTEN_ADDRS 16
@@ -84,6 +85,7 @@ struct peer_flow {
     // node in destination client list
     LinkedList2Node dest_list_node;
     // output chain
+    int have_io;
     PacketPassFairQueueFlow qflow;
     PacketProtoFlow oflow;
     BufferWriter *input;
@@ -93,8 +95,10 @@ struct peer_flow {
     BTimer reset_timer;
     // opposite flow
     struct peer_flow *opposite;
-    // corresponding know
+    // pair data
     struct peer_know *know;
+    int accepted;
+    int resetting;
 };
 
 struct peer_know {

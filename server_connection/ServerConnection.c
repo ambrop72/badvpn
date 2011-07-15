@@ -47,6 +47,7 @@ static void packet_endclient (ServerConnection *o, uint8_t *data, int data_len);
 static void packet_inmsg (ServerConnection *o, uint8_t *data, int data_len);
 static int start_packet (ServerConnection *o, void **data, int len);
 static void end_packet (ServerConnection *o, uint8_t type);
+static void newclient_job_handler (ServerConnection *o);
 
 void report_error (ServerConnection *o)
 {
@@ -356,14 +357,21 @@ void packet_newclient (ServerConnection *o, uint8_t *data, int data_len)
     
     struct sc_server_newclient *msg = (struct sc_server_newclient *)data;
     peerid_t id = ltoh16(msg->id);
-    int flags = ltoh16(msg->flags);
     
-    uint8_t *cert_data = (uint8_t *)msg + sizeof(struct sc_server_newclient);
-    int cert_len = data_len - sizeof(struct sc_server_newclient);
+    // schedule reporting new client
+    o->newclient_data = data;
+    o->newclient_data_len = data_len;
+    BPending_Set(&o->newclient_job);
     
-    // report
-    o->handler_newclient(o->user, id, flags, cert_data, cert_len);
-    return;
+    // send acceptpeer
+    struct sc_client_acceptpeer *packet;
+    if (!start_packet(o, (void **)&packet, sizeof(*packet))) {
+        BLog(BLOG_ERROR, "newclient: out of buffer for acceptpeer");
+        report_error(o);
+        return;
+    }
+    packet->clientid = htol16(id);
+    end_packet(o, SCID_ACCEPTPEER);
 }
 
 void packet_endclient (ServerConnection *o, uint8_t *data, int data_len)
@@ -503,6 +511,9 @@ int ServerConnection_Init (
         goto fail0;
     }
     
+    // init newclient job
+    BPending_Init(&o->newclient_job, BReactor_PendingGroup(o->reactor), (BPending_handler)newclient_job_handler, o);
+    
     // set state
     o->state = STATE_CONNECTING;
     
@@ -560,6 +571,9 @@ void ServerConnection_Free (ServerConnection *o)
         BConnection_Free(&o->con);
     }
     
+    // free newclient job
+    BPending_Free(&o->newclient_job);
+    
     // free connector
     BConnector_Free(&o->connector);
 }
@@ -578,4 +592,21 @@ PacketPassInterface * ServerConnection_GetSendInterface (ServerConnection *o)
     DebugObject_Access(&o->d_obj);
     
     return PacketPassPriorityQueueFlow_GetInput(&o->output_user_qflow);
+}
+
+void newclient_job_handler (ServerConnection *o)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->state == STATE_COMPLETE)
+    
+    struct sc_server_newclient *msg = (struct sc_server_newclient *)o->newclient_data;
+    peerid_t id = ltoh16(msg->id);
+    int flags = ltoh16(msg->flags);
+    
+    uint8_t *cert_data = (uint8_t *)(msg + 1);
+    int cert_len = o->newclient_data_len - sizeof(*msg);
+    
+    // report new client
+    o->handler_newclient(o->user, id, flags, cert_data, cert_len);
+    return;
 }
