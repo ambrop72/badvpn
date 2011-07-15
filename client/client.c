@@ -217,6 +217,9 @@ static void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
 // removes a peer
 static void peer_remove (struct peer_data *peer, int exiting);
 
+// appends the peer log prefix to the logger
+static void peer_logfunc (struct peer_data *peer);
+
 // passes a message to the logger, prepending it info about the peer
 static void peer_log (struct peer_data *peer, int level, const char *fmt, ...);
 
@@ -1390,7 +1393,7 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     }
     
     // init frame decider peer
-    if (!FrameDeciderPeer_Init(&peer->decider_peer, &frame_decider)) {
+    if (!FrameDeciderPeer_Init(&peer->decider_peer, &frame_decider, peer, (FrameDeciderPeer_logfunc)peer_logfunc)) {
         peer_log(peer, BLOG_ERROR, "FrameDeciderPeer_Init failed");
         goto fail6;
     }
@@ -1528,15 +1531,21 @@ void peer_remove (struct peer_data *peer, int exiting)
     free(peer);
 }
 
-void peer_log (struct peer_data *peer, int level, const char *fmt, ...)
+void peer_logfunc (struct peer_data *peer)
 {
-    va_list vl;
-    va_start(vl, fmt);
     BLog_Append("peer %d", (int)peer->id);
     if (peer->common_name) {
         BLog_Append(" (%s)", peer->common_name);
     }
     BLog_Append(": ");
+}
+
+void peer_log (struct peer_data *peer, int level, const char *fmt, ...)
+{
+    peer_logfunc(peer);
+    
+    va_list vl;
+    va_start(vl, fmt);
     BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
     va_end(vl);
 }

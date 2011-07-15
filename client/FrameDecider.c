@@ -42,6 +42,8 @@
 #define DECIDE_STATE_FLOOD 3
 #define DECIDE_STATE_MULTICAST 4
 
+#define PeerLog(_o, ...) ((_o)->logfunc((_o)->user), BLog_LogToChannel(BLOG_CURRENT_CHANNEL, __VA_ARGS__))
+
 static int mac_comparator (void *user, uint8_t *mac1, uint8_t *mac2)
 {
     int c = memcmp(mac1, mac2, 6);
@@ -107,7 +109,7 @@ static void add_mac_to_peer (FrameDeciderPeer *o, uint8_t *mac)
         LinkedList2_Remove(&o->mac_entries_used, &entry->list_node);
     }
     
-    BLog(BLOG_INFO, "adding MAC %02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8"", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    PeerLog(o, BLOG_INFO, "adding MAC %02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8"", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     
     // set MAC in entry
     memcpy(entry->mac, mac, sizeof(entry->mac));
@@ -210,7 +212,7 @@ static void add_group_to_peer (FrameDeciderPeer *o, uint32_t group)
         LinkedList2_Remove(&o->group_entries_used, &group_entry->list_node);
         LinkedList2_Append(&o->group_entries_used, &group_entry->list_node);
     } else {
-        BLog(BLOG_INFO, "joined group %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"",
+        PeerLog(o, BLOG_INFO, "joined group %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"",
             ((uint8_t *)&group)[0], ((uint8_t *)&group)[1], ((uint8_t *)&group)[2], ((uint8_t *)&group)[3]
         );
         
@@ -261,7 +263,7 @@ static void remove_group_entry (struct _FrameDecider_group_entry *group_entry)
     
     uint32_t group = group_entry->group;
     
-    BLog(BLOG_INFO, "left group %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"",
+    PeerLog(peer, BLOG_INFO, "left group %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"",
         ((uint8_t *)&group)[0], ((uint8_t *)&group)[1], ((uint8_t *)&group)[2], ((uint8_t *)&group)[3]
     );
     
@@ -551,20 +553,22 @@ FrameDeciderPeer * FrameDecider_NextDestination (FrameDecider *o)
     }
 }
 
-int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d)
+int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d, void *user, FrameDeciderPeer_logfunc logfunc)
 {
     // init arguments
     o->d = d;
+    o->user = user;
+    o->logfunc = logfunc;
     
     // allocate MAC entries
     if (!(o->mac_entries = BAllocArray(d->max_peer_macs, sizeof(struct _FrameDecider_mac_entry)))) {
-        BLog(BLOG_ERROR, "failed to allocate MAC entries");
+        PeerLog(o, BLOG_ERROR, "failed to allocate MAC entries");
         goto fail0;
     }
     
     // allocate group entries
     if (!(o->group_entries = BAllocArray(d->max_peer_groups, sizeof(struct _FrameDecider_group_entry)))) {
-        BLog(BLOG_ERROR, "failed to allocate group entries");
+        PeerLog(o, BLOG_ERROR, "failed to allocate group entries");
         goto fail1;
     }
     
@@ -685,7 +689,7 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int fr
             // check IPv4 header
             struct ipv4_header *ipv4_header;
             if (!ipv4_check((uint8_t *)pos, len, &ipv4_header, (uint8_t **)&pos, &len)) {
-                BLog(BLOG_INFO, "analyze: wrong IP packet");
+                PeerLog(o, BLOG_INFO, "analyze: wrong IP packet");
                 goto out;
             }
             
@@ -696,7 +700,7 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int fr
             
             // check IGMP header
             if (len < sizeof(struct igmp_base)) {
-                BLog(BLOG_INFO, "analyze: IGMP: short packet");
+                PeerLog(o, BLOG_INFO, "analyze: IGMP: short packet");
                 goto out;
             }
             struct igmp_base *igmp_base = (struct igmp_base *)pos;
@@ -707,7 +711,7 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int fr
                 case IGMP_TYPE_V2_MEMBERSHIP_REPORT: {
                     // check extra
                     if (len < sizeof(struct igmp_v2_extra)) {
-                        BLog(BLOG_INFO, "analyze: IGMP: short v2 report");
+                        PeerLog(o, BLOG_INFO, "analyze: IGMP: short v2 report");
                         goto out;
                     }
                     struct igmp_v2_extra *report = (struct igmp_v2_extra *)pos;
@@ -721,7 +725,7 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int fr
                 case IGMP_TYPE_V3_MEMBERSHIP_REPORT: {
                     // check extra
                     if (len < sizeof(struct igmp_v3_report_extra)) {
-                        BLog(BLOG_INFO, "analyze: IGMP: short v3 report");
+                        PeerLog(o, BLOG_INFO, "analyze: IGMP: short v3 report");
                         goto out;
                     }
                     struct igmp_v3_report_extra *report = (struct igmp_v3_report_extra *)pos;
@@ -733,7 +737,7 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int fr
                     for (int i = 0; i < num_records; i++) {
                         // check record
                         if (len < sizeof(struct igmp_v3_report_record)) {
-                            BLog(BLOG_INFO, "analyze: IGMP: short record header");
+                            PeerLog(o, BLOG_INFO, "analyze: IGMP: short record header");
                             goto out;
                         }
                         struct igmp_v3_report_record *record = (struct igmp_v3_report_record *)pos;
@@ -746,7 +750,7 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int fr
                         for (j = 0; j < num_sources; j++) {
                             // check source
                             if (len < sizeof(struct igmp_source)) {
-                                BLog(BLOG_INFO, "analyze: IGMP: short source");
+                                PeerLog(o, BLOG_INFO, "analyze: IGMP: short source");
                                 goto out;
                             }
                             struct igmp_source *source = (struct igmp_source *)pos;
@@ -757,7 +761,7 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int fr
                         // check aux data
                         uint16_t aux_len = ntoh16(record->aux_data_len);
                         if (len < aux_len) {
-                            BLog(BLOG_INFO, "analyze: IGMP: short record aux data");
+                            PeerLog(o, BLOG_INFO, "analyze: IGMP: short record aux data");
                             goto out;
                         }
                         pos += aux_len;

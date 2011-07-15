@@ -39,6 +39,8 @@
 struct _FrameDeciderPeer;
 struct _FrameDecider_mac_entry;
 
+typedef void (*FrameDeciderPeer_logfunc) (void *user);
+
 /**
  * Object that represents a local device.
  */
@@ -63,6 +65,8 @@ typedef struct {
  */
 typedef struct _FrameDeciderPeer {
     FrameDecider *d;
+    void *user;
+    FrameDeciderPeer_logfunc logfunc;
     struct _FrameDecider_mac_entry *mac_entries;
     struct _FrameDecider_group_entry *group_entries;
     LinkedList2Node list_node; // node in FrameDecider.peers_list
@@ -149,9 +153,11 @@ FrameDeciderPeer * FrameDecider_NextDestination (FrameDecider *o);
  * 
  * @param o the object
  * @param d decider this peer will belong to
+ * @param user argument to log function
+ * @param logfunc function which prepends the log prefix using {@link BLog_Append}
  * @return 1 on success, 0 on failure
  */
-int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d) WARN_UNUSED;
+int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d, void *user, FrameDeciderPeer_logfunc logfunc) WARN_UNUSED;
 
 /**
  * Frees the object.
