@@ -47,6 +47,8 @@
 #include <client/SPProtoEncoder.h>
 #include <client/SPProtoDecoder.h>
 
+typedef void (*DatagramPeerIO_logfunc) (void *user);
+
 /**
  * Callback function invoked when an error occurs with the peer connection.
  * The object has entered default state.
@@ -94,6 +96,7 @@ typedef struct {
     int payload_mtu;
     struct spproto_security_params sp_params;
     void *user;
+    DatagramPeerIO_logfunc logfunc;
     DatagramPeerIO_handler_error handler_error;
     int spproto_payload_mtu;
     int effective_socket_mtu;
@@ -140,6 +143,7 @@ typedef struct {
  *                          In this case, must be >0 and <=sp_params.otp_num.
  * @param twd thread work dispatcher
  * @param user value to pass to handlers
+ * @param logfunc function which prepends the log prefix using {@link BLog_Append}
  * @param handler_error error handler
  * @param handler_otp_warning OTP warning handler
  * @param handler_otp_ready handler called when OTP generation for a new receive seed is finished
@@ -157,6 +161,7 @@ int DatagramPeerIO_Init (
     int otp_warning_count,
     BThreadWorkDispatcher *twd,
     void *user,
+    DatagramPeerIO_logfunc logfunc,
     DatagramPeerIO_handler_error handler_error,
     DatagramPeerIO_handler_otp_warning handler_otp_warning,
     DatagramPeerIO_handler_otp_ready handler_otp_ready

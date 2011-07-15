@@ -33,6 +33,8 @@
 #define DATAGRAMPEERIO_MODE_CONNECT 1
 #define DATAGRAMPEERIO_MODE_BIND 2
 
+#define PeerLog(_o, ...) ((_o)->logfunc((_o)->user), BLog_LogToChannel(BLOG_CURRENT_CHANNEL, __VA_ARGS__))
+
 static void init_io (DatagramPeerIO *o);
 static void free_io (DatagramPeerIO *o);
 static void dgram_handler (DatagramPeerIO *o, int event);
@@ -74,7 +76,7 @@ void dgram_handler (DatagramPeerIO *o, int event)
     DebugObject_Access(&o->d_obj);
     ASSERT(o->mode == DATAGRAMPEERIO_MODE_CONNECT || o->mode == DATAGRAMPEERIO_MODE_BIND)
     
-    BLog(BLOG_NOTICE, "error");
+    PeerLog(o, BLOG_NOTICE, "error");
     
     // reset mode
     reset_mode(o);
@@ -119,7 +121,7 @@ void recv_decoder_notifier_handler (DatagramPeerIO *o, uint8_t *data, int data_l
     
     // check address family just in case
     if (!BDatagram_AddressFamilySupported(addr.type)) {
-        BLog(BLOG_ERROR, "unsupported receive address");
+        PeerLog(o, BLOG_ERROR, "unsupported receive address");
         return;
     }
     
@@ -139,6 +141,7 @@ int DatagramPeerIO_Init (
     int otp_warning_count,
     BThreadWorkDispatcher *twd,
     void *user,
+    DatagramPeerIO_logfunc logfunc,
     DatagramPeerIO_handler_error handler_error,
     DatagramPeerIO_handler_otp_warning handler_otp_warning,
     DatagramPeerIO_handler_otp_ready handler_otp_ready
@@ -159,29 +162,30 @@ int DatagramPeerIO_Init (
     o->payload_mtu = payload_mtu;
     o->sp_params = sp_params;
     o->user = user;
+    o->logfunc = logfunc;
     o->handler_error = handler_error;
     
     // check num frames (for FragmentProtoAssembler)
     if (num_frames >= FPA_MAX_TIME) {
-        BLog(BLOG_ERROR, "num_frames is too big");
+        PeerLog(o, BLOG_ERROR, "num_frames is too big");
         goto fail0;
     }
     
     // check payload MTU (for FragmentProto)
     if (o->payload_mtu > UINT16_MAX) {
-        BLog(BLOG_ERROR, "payload MTU is too big");
+        PeerLog(o, BLOG_ERROR, "payload MTU is too big");
         goto fail0;
     }
     
     // calculate SPProto payload MTU
     if ((o->spproto_payload_mtu = spproto_payload_mtu_for_carrier_mtu(o->sp_params, socket_mtu)) <= (int)sizeof(struct fragmentproto_chunk_header)) {
-        BLog(BLOG_ERROR, "socket MTU is too small");
+        PeerLog(o, BLOG_ERROR, "socket MTU is too small");
         goto fail0;
     }
     
     // calculate effective socket MTU
     if ((o->effective_socket_mtu = spproto_carrier_mtu_for_payload_mtu(o->sp_params, o->spproto_payload_mtu)) < 0) {
-        BLog(BLOG_ERROR, "spproto_carrier_mtu_for_payload_mtu failed !?");
+        PeerLog(o, BLOG_ERROR, "spproto_carrier_mtu_for_payload_mtu failed !?");
         goto fail0;
     }
     
@@ -189,7 +193,7 @@ int DatagramPeerIO_Init (
     
     // init assembler
     if (!FragmentProtoAssembler_Init(&o->recv_assembler, o->spproto_payload_mtu, recv_userif, num_frames, fragmentproto_max_chunks_for_frame(o->spproto_payload_mtu, o->payload_mtu), BReactor_PendingGroup(o->reactor))) {
-        BLog(BLOG_ERROR, "FragmentProtoAssembler_Init failed");
+        PeerLog(o, BLOG_ERROR, "FragmentProtoAssembler_Init failed");
         goto fail0;
     }
     
@@ -198,7 +202,7 @@ int DatagramPeerIO_Init (
     
     // init decoder
     if (!SPProtoDecoder_Init(&o->recv_decoder, PacketPassNotifier_GetInput(&o->recv_notifier), o->sp_params, 2, BReactor_PendingGroup(o->reactor), twd)) {
-        BLog(BLOG_ERROR, "SPProtoDecoder_Init failed");
+        PeerLog(o, BLOG_ERROR, "SPProtoDecoder_Init failed");
         goto fail1;
     }
     SPProtoDecoder_SetHandlers(&o->recv_decoder, handler_otp_ready, user);
@@ -208,7 +212,7 @@ int DatagramPeerIO_Init (
     
     // init buffer
     if (!SinglePacketBuffer_Init(&o->recv_buffer, PacketRecvConnector_GetOutput(&o->recv_connector), SPProtoDecoder_GetInput(&o->recv_decoder), BReactor_PendingGroup(o->reactor))) {
-        BLog(BLOG_ERROR, "SinglePacketBuffer_Init failed");
+        PeerLog(o, BLOG_ERROR, "SinglePacketBuffer_Init failed");
         goto fail2;
     }
     
@@ -219,7 +223,7 @@ int DatagramPeerIO_Init (
     
     // init encoder
     if (!SPProtoEncoder_Init(&o->send_encoder, FragmentProtoDisassembler_GetOutput(&o->send_disassembler), o->sp_params, otp_warning_count, BReactor_PendingGroup(o->reactor), twd)) {
-        BLog(BLOG_ERROR, "SPProtoEncoder_Init failed");
+        PeerLog(o, BLOG_ERROR, "SPProtoEncoder_Init failed");
         goto fail3;
     }
     SPProtoEncoder_SetHandlers(&o->send_encoder, handler_otp_warning, user);
@@ -229,7 +233,7 @@ int DatagramPeerIO_Init (
     
     // init buffer
     if (!SinglePacketBuffer_Init(&o->send_buffer, SPProtoEncoder_GetOutput(&o->send_encoder), PacketPassConnector_GetInput(&o->send_connector), BReactor_PendingGroup(o->reactor))) {
-        BLog(BLOG_ERROR, "SinglePacketBuffer_Init failed");
+        PeerLog(o, BLOG_ERROR, "SinglePacketBuffer_Init failed");
         goto fail4;
     }
     
@@ -293,7 +297,7 @@ int DatagramPeerIO_Connect (DatagramPeerIO *o, BAddr addr)
     
     // init dgram
     if (!BDatagram_Init(&o->dgram, addr.type, o->reactor, o, (BDatagram_handler)dgram_handler)) {
-        BLog(BLOG_ERROR, "BDatagram_Init failed");
+        PeerLog(o, BLOG_ERROR, "BDatagram_Init failed");
         goto fail0;
     }
     
@@ -324,13 +328,13 @@ int DatagramPeerIO_Bind (DatagramPeerIO *o, BAddr addr)
     
     // init dgram
     if (!BDatagram_Init(&o->dgram, addr.type, o->reactor, o, (BDatagram_handler)dgram_handler)) {
-        BLog(BLOG_ERROR, "BDatagram_Init failed");
+        PeerLog(o, BLOG_ERROR, "BDatagram_Init failed");
         goto fail0;
     }
     
     // bind dgram
     if (!BDatagram_Bind(&o->dgram, addr)) {
-        BLog(BLOG_INFO, "BDatagram_Bind failed");
+        PeerLog(o, BLOG_INFO, "BDatagram_Bind failed");
         goto fail1;
     }
     

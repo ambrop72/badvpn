@@ -1595,6 +1595,7 @@ int peer_init_link (struct peer_data *peer)
             &peer->pio.udp.pio, &ss, data_mtu, CLIENT_UDP_MTU, sp_params,
             options.fragmentation_latency, PEER_UDP_ASSEMBLER_NUM_FRAMES, recv_if,
             options.otp_num_warn, &twd, peer,
+            (DatagramPeerIO_logfunc)peer_logfunc,
             (DatagramPeerIO_handler_error)peer_udp_pio_handler_error,
             (DatagramPeerIO_handler_otp_warning)peer_udp_pio_handler_seed_warning,
             (DatagramPeerIO_handler_otp_ready)peer_udp_pio_handler_seed_ready
