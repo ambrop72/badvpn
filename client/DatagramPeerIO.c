@@ -137,7 +137,11 @@ int DatagramPeerIO_Init (
     int num_frames,
     PacketPassInterface *recv_userif,
     int otp_warning_count,
-    BThreadWorkDispatcher *twd
+    BThreadWorkDispatcher *twd,
+    void *user,
+    DatagramPeerIO_handler_error handler_error,
+    DatagramPeerIO_handler_otp_warning handler_otp_warning,
+    DatagramPeerIO_handler_otp_ready handler_otp_ready
 )
 {
     ASSERT(payload_mtu >= 0)
@@ -154,9 +158,8 @@ int DatagramPeerIO_Init (
     o->reactor = reactor;
     o->payload_mtu = payload_mtu;
     o->sp_params = sp_params;
-    
-    // set no handlers
-    o->handler_error = NULL;
+    o->user = user;
+    o->handler_error = handler_error;
     
     // check num frames (for FragmentProtoAssembler)
     if (num_frames >= FPA_MAX_TIME) {
@@ -198,6 +201,7 @@ int DatagramPeerIO_Init (
         BLog(BLOG_ERROR, "SPProtoDecoder_Init failed");
         goto fail1;
     }
+    SPProtoDecoder_SetHandlers(&o->recv_decoder, handler_otp_ready, user);
     
     // init connector
     PacketRecvConnector_Init(&o->recv_connector, o->effective_socket_mtu, BReactor_PendingGroup(o->reactor));
@@ -218,6 +222,7 @@ int DatagramPeerIO_Init (
         BLog(BLOG_ERROR, "SPProtoEncoder_Init failed");
         goto fail3;
     }
+    SPProtoEncoder_SetHandlers(&o->send_encoder, handler_otp_warning, user);
     
     // init connector
     PacketPassConnector_Init(&o->send_connector, o->effective_socket_mtu, BReactor_PendingGroup(o->reactor));
@@ -232,7 +237,6 @@ int DatagramPeerIO_Init (
     o->mode = DATAGRAMPEERIO_MODE_NONE;
     
     DebugObject_Init(&o->d_obj);
-    
     return 1;
     
 fail4:
@@ -405,18 +409,4 @@ void DatagramPeerIO_RemoveOTPRecvSeeds (DatagramPeerIO *o)
     
     // remove receiving seeds
     SPProtoDecoder_RemoveOTPSeeds(&o->recv_decoder);
-}
-
-void DatagramPeerIO_SetHandlers (DatagramPeerIO *o, void *user,
-                                 DatagramPeerIO_handler_error handler_error,
-                                 DatagramPeerIO_handler_otp_warning handler_otp_warning,
-                                 DatagramPeerIO_handler_otp_ready handler_otp_ready)
-{
-    DebugObject_Access(&o->d_obj);
-    
-    o->user = user;
-    o->handler_error = handler_error;
-    
-    SPProtoDecoder_SetHandlers(&o->recv_decoder, handler_otp_ready, user);
-    SPProtoEncoder_SetHandlers(&o->send_encoder, handler_otp_warning, user);
 }
