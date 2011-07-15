@@ -1095,7 +1095,6 @@ void client_remove (struct client_data *client)
         if (PacketPassFairQueueFlow_IsBusy(&flow->qflow)) {
             client_log(client, BLOG_DEBUG, "removing flow to %d later", (int)flow->dest_client->id);
             peer_flow_disconnect(flow);
-            PacketPassFairQueueFlow_SetBusyHandler(&flow->qflow, (PacketPassFairQueue_handler_busy)peer_flow_handler_canremove, flow);
         } else {
             client_log(client, BLOG_DEBUG, "removing flow to %d now", (int)flow->dest_client->id);
             peer_flow_dealloc(flow);
@@ -1666,6 +1665,12 @@ void peer_flow_disconnect (struct peer_flow *flow)
     
     // set no source
     flow->src_client = NULL;
+    
+    // set busy handler
+    PacketPassFairQueueFlow_SetBusyHandler(&flow->qflow, (PacketPassFairQueue_handler_busy)peer_flow_handler_canremove, flow);
+    
+    // stop reset timer
+    BReactor_RemoveTimer(&ss, &flow->reset_timer);
 }
 
 int peer_flow_start_packet (struct peer_flow *flow, void **data, int len)
