@@ -47,6 +47,8 @@
 #include <flow/SingleStreamSender.h>
 #include <client/PasswordListener.h>
 
+typedef void (*StreamPeerIO_logfunc) (void *user);
+
 /**
  * Callback function invoked when an error occurs with the peer connection.
  * The object has entered default state.
@@ -71,6 +73,7 @@ typedef struct {
     int ssl_peer_cert_len;
     int payload_mtu;
     int sock_sndbuf;
+    StreamPeerIO_logfunc logfunc;
     StreamPeerIO_handler_error handler_error;
     void *user;
     
@@ -136,6 +139,7 @@ typedef struct {
  * @param sock_sndbuf socket SO_SNDBUF option. Specify <=0 to not set it.
  * @param user_recv_if interface to use for submitting received packets. Its MTU
  *                     must be >=payload_mtu.
+ * @param logfunc function which prepends the log prefix using {@link BLog_Append}
  * @param handler_error handler function invoked when a connection error occurs
  * @param user value to pass to handler functions
  * @return 1 on success, 0 on failure
@@ -149,6 +153,7 @@ int StreamPeerIO_Init (
     int payload_mtu,
     int sock_sndbuf,
     PacketPassInterface *user_recv_if,
+    StreamPeerIO_logfunc logfunc,
     StreamPeerIO_handler_error handler_error,
     void *user
 ) WARN_UNUSED;

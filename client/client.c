@@ -1620,6 +1620,7 @@ int peer_init_link (struct peer_data *peer)
             data_mtu,
             (options.peer_tcp_socket_sndbuf >= 0 ? options.peer_tcp_socket_sndbuf : PEER_DEFAULT_TCP_SOCKET_SNDBUF),
             recv_if,
+            (StreamPeerIO_logfunc)peer_logfunc,
             (StreamPeerIO_handler_error)peer_tcp_pio_handler_error, peer
         )) {
             peer_log(peer, BLOG_ERROR, "StreamPeerIO_Init failed");

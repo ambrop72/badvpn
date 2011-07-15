@@ -48,6 +48,8 @@
 #define LISTEN_STATE_GOTCLIENT 1
 #define LISTEN_STATE_FINISHED 2
 
+#define PeerLog(_o, ...) ((_o)->logfunc((_o)->user), BLog_LogToChannel(BLOG_CURRENT_CHANNEL, __VA_ARGS__))
+
 static void decoder_handler_error (StreamPeerIO *pio);
 static void connector_handler (StreamPeerIO *pio, int is_error);
 static void connection_handler (StreamPeerIO *pio, int event);
@@ -67,7 +69,7 @@ void decoder_handler_error (StreamPeerIO *pio)
 {
     DebugObject_Access(&pio->d_obj);
     
-    BLog(BLOG_ERROR, "decoder error");
+    PeerLog(pio, BLOG_ERROR, "decoder error");
     
     reset_and_report_error(pio);
     return;
@@ -81,13 +83,13 @@ void connector_handler (StreamPeerIO *pio, int is_error)
     
     // check connection result
     if (is_error) {
-        BLog(BLOG_NOTICE, "connection failed");
+        PeerLog(pio, BLOG_NOTICE, "connection failed");
         goto fail0;
     }
     
     // init connection
     if (!BConnection_Init(&pio->connect.sock.con, BCONNECTION_SOURCE_CONNECTOR(&pio->connect.connector), pio->reactor, pio, (BConnection_handler)connection_handler)) {
-        BLog(BLOG_ERROR, "BConnection_Init failed");
+        PeerLog(pio, BLOG_ERROR, "BConnection_Init failed");
         goto fail0;
     }
     
@@ -98,7 +100,7 @@ void connector_handler (StreamPeerIO *pio, int is_error)
         
         // create bottom NSPR file descriptor
         if (!BSSLConnection_MakeBackend(&pio->connect.sock.bottom_prfd, BConnection_SendAsync_GetIf(&pio->connect.sock.con), BConnection_RecvAsync_GetIf(&pio->connect.sock.con))) {
-            BLog(BLOG_ERROR, "BSSLConnection_MakeBackend failed");
+            PeerLog(pio, BLOG_ERROR, "BSSLConnection_MakeBackend failed");
             goto fail1;
         }
         
@@ -110,19 +112,19 @@ void connector_handler (StreamPeerIO *pio, int is_error)
         
         // set client mode
         if (SSL_ResetHandshake(pio->connect.sock.ssl_prfd, PR_FALSE) != SECSuccess) {
-            BLog(BLOG_ERROR, "SSL_ResetHandshake failed");
+            PeerLog(pio, BLOG_ERROR, "SSL_ResetHandshake failed");
             goto fail2;
         }
         
         // set verify peer certificate hook
         if (SSL_AuthCertificateHook(pio->connect.sock.ssl_prfd, (SSLAuthCertificate)client_auth_certificate_callback, pio) != SECSuccess) {
-            BLog(BLOG_ERROR, "SSL_AuthCertificateHook failed");
+            PeerLog(pio, BLOG_ERROR, "SSL_AuthCertificateHook failed");
             goto fail2;
         }
         
         // set client certificate callback
         if (SSL_GetClientAuthDataHook(pio->connect.sock.ssl_prfd, (SSLGetClientAuthData)client_client_auth_data_callback, pio) != SECSuccess) {
-            BLog(BLOG_ERROR, "SSL_GetClientAuthDataHook failed");
+            PeerLog(pio, BLOG_ERROR, "SSL_GetClientAuthDataHook failed");
             goto fail2;
         }
         
@@ -165,9 +167,9 @@ void connection_handler (StreamPeerIO *pio, int event)
     ASSERT(!(pio->mode == MODE_LISTEN) || pio->listen.state >= LISTEN_STATE_FINISHED)
     
     if (event == BCONNECTION_EVENT_RECVCLOSED) {
-        BLog(BLOG_NOTICE, "connection closed");
+        PeerLog(pio, BLOG_NOTICE, "connection closed");
     } else {
-        BLog(BLOG_NOTICE, "connection error");
+        PeerLog(pio, BLOG_NOTICE, "connection error");
     }
     
     reset_and_report_error(pio);
@@ -183,7 +185,7 @@ void connect_sslcon_handler (StreamPeerIO *pio, int event)
     ASSERT(event == BSSLCONNECTION_EVENT_UP || event == BSSLCONNECTION_EVENT_ERROR)
     
     if (event == BSSLCONNECTION_EVENT_ERROR) {
-        BLog(BLOG_NOTICE, "SSL error");
+        PeerLog(pio, BLOG_NOTICE, "SSL error");
         
         reset_and_report_error(pio);
         return;
@@ -194,13 +196,13 @@ void connect_sslcon_handler (StreamPeerIO *pio, int event)
     
     // remove client certificate callback
     if (SSL_GetClientAuthDataHook(pio->connect.sock.ssl_prfd, NULL, NULL) != SECSuccess) {
-        BLog(BLOG_ERROR, "SSL_GetClientAuthDataHook failed");
+        PeerLog(pio, BLOG_ERROR, "SSL_GetClientAuthDataHook failed");
         goto fail0;
     }
     
     // remove verify peer certificate callback
     if (SSL_AuthCertificateHook(pio->connect.sock.ssl_prfd, NULL, NULL) != SECSuccess) {
-        BLog(BLOG_ERROR, "SSL_AuthCertificateHook failed");
+        PeerLog(pio, BLOG_ERROR, "SSL_AuthCertificateHook failed");
         goto fail0;
     }
     
@@ -271,7 +273,7 @@ void listener_handler_client (StreamPeerIO *pio, sslsocket *sock)
     if (pio->ssl) {
         CERTCertificate *peer_cert = SSL_PeerCertificate(pio->listen.sock->ssl_prfd);
         if (!peer_cert) {
-            BLog(BLOG_ERROR, "SSL_PeerCertificate failed");
+            PeerLog(pio, BLOG_ERROR, "SSL_PeerCertificate failed");
             goto fail0;
         }
         
@@ -306,7 +308,7 @@ int init_io (StreamPeerIO *pio, sslsocket *sock)
     // limit socket send buffer, else our scheduling is pointless
     if (pio->sock_sndbuf > 0) {
         if (!BConnection_SetSendBuffer(&sock->con, pio->sock_sndbuf)) {
-            BLog(BLOG_WARNING, "BConnection_SetSendBuffer failed");
+            PeerLog(pio, BLOG_WARNING, "BConnection_SetSendBuffer failed");
         }
     }
     
@@ -369,7 +371,7 @@ void sslcon_handler (StreamPeerIO *pio, int event)
     ASSERT(!(pio->mode == MODE_LISTEN) || pio->listen.state == LISTEN_STATE_FINISHED)
     ASSERT(event == BSSLCONNECTION_EVENT_ERROR)
     
-    BLog(BLOG_NOTICE, "SSL error");
+    PeerLog(pio, BLOG_NOTICE, "SSL error");
     
     reset_and_report_error(pio);
     return;
@@ -390,7 +392,7 @@ SECStatus client_auth_certificate_callback (StreamPeerIO *pio, PRFileDesc *fd, P
     
     CERTCertificate *server_cert = SSL_PeerCertificate(pio->connect.sock.ssl_prfd);
     if (!server_cert) {
-        BLog(BLOG_ERROR, "SSL_PeerCertificate failed");
+        PeerLog(pio, BLOG_ERROR, "SSL_PeerCertificate failed");
         PORT_SetError(SSL_ERROR_BAD_CERTIFICATE);
         goto fail1;
     }
@@ -422,13 +424,13 @@ SECStatus client_client_auth_data_callback (StreamPeerIO *pio, PRFileDesc *fd, C
     
     CERTCertificate *cert = CERT_DupCertificate(pio->connect.ssl_cert);
     if (!cert) {
-        BLog(BLOG_ERROR, "CERT_DupCertificate failed");
+        PeerLog(pio, BLOG_ERROR, "CERT_DupCertificate failed");
         goto fail0;
     }
     
     SECKEYPrivateKey *key = SECKEY_CopyPrivateKey(pio->connect.ssl_key);
     if (!key) {
-        BLog(BLOG_ERROR, "SECKEY_CopyPrivateKey failed");
+        PeerLog(pio, BLOG_ERROR, "SECKEY_CopyPrivateKey failed");
         goto fail1;
     }
     
@@ -448,7 +450,7 @@ int compare_certificate (StreamPeerIO *pio, CERTCertificate *cert)
     
     SECItem der = cert->derCert;
     if (der.len != pio->ssl_peer_cert_len || memcmp(der.data, pio->ssl_peer_cert, der.len)) {
-        BLog(BLOG_NOTICE, "Client certificate doesn't match");
+        PeerLog(pio, BLOG_NOTICE, "Client certificate doesn't match");
         return 0;
     }
     
@@ -538,6 +540,7 @@ int StreamPeerIO_Init (
     int payload_mtu,
     int sock_sndbuf,
     PacketPassInterface *user_recv_if,
+    StreamPeerIO_logfunc logfunc,
     StreamPeerIO_handler_error handler_error,
     void *user
 )
@@ -556,12 +559,13 @@ int StreamPeerIO_Init (
     }
     pio->payload_mtu = payload_mtu;
     pio->sock_sndbuf = sock_sndbuf;
+    pio->logfunc = logfunc;
     pio->handler_error = handler_error;
     pio->user = user;
     
     // check payload MTU
     if (pio->payload_mtu > PACKETPROTO_MAXPAYLOAD) {
-        BLog(BLOG_ERROR, "payload MTU is too large");
+        PeerLog(pio, BLOG_ERROR, "payload MTU is too large");
         goto fail0;
     }
     
@@ -570,7 +574,7 @@ int StreamPeerIO_Init (
     if (!PacketProtoDecoder_Init(&pio->input_decoder, StreamRecvConnector_GetOutput(&pio->input_connector), user_recv_if, BReactor_PendingGroup(pio->reactor), pio,
         (PacketProtoDecoder_handler_error)decoder_handler_error
     )) {
-        BLog(BLOG_ERROR, "FlowErrorDomain_Init failed");
+        PeerLog(pio, BLOG_ERROR, "FlowErrorDomain_Init failed");
         goto fail1;
     }
     
@@ -579,7 +583,7 @@ int StreamPeerIO_Init (
     PacketProtoEncoder_Init(&pio->output_user_ppe, PacketCopier_GetOutput(&pio->output_user_copier), BReactor_PendingGroup(pio->reactor));
     PacketPassConnector_Init(&pio->output_connector, PACKETPROTO_ENCLEN(pio->payload_mtu), BReactor_PendingGroup(pio->reactor));
     if (!SinglePacketBuffer_Init(&pio->output_user_spb, PacketProtoEncoder_GetOutput(&pio->output_user_ppe), PacketPassConnector_GetInput(&pio->output_connector), BReactor_PendingGroup(pio->reactor))) {
-        BLog(BLOG_ERROR, "SinglePacketBuffer_Init failed");
+        PeerLog(pio, BLOG_ERROR, "SinglePacketBuffer_Init failed");
         goto fail2;
     }
     
@@ -638,7 +642,7 @@ int StreamPeerIO_Connect (StreamPeerIO *pio, BAddr addr, uint64_t password, CERT
     
     // init connector
     if (!BConnector_Init(&pio->connect.connector, addr, pio->reactor, pio, (BConnector_handler)connector_handler)) {
-        BLog(BLOG_ERROR, "BConnector_Init failed");
+        PeerLog(pio, BLOG_ERROR, "BConnector_Init failed");
         goto fail0;
     }
     
