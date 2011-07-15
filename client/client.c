@@ -1358,6 +1358,7 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     
     // init chat
     if (!PeerChat_Init(&peer->chat, peer->id, chat_ssl_mode, client_cert, client_key, peer->cert, peer->cert_len, BReactor_PendingGroup(&ss), peer,
+        (PeerChat_logfunc)peer_logfunc,
         (PeerChat_handler_error)peer_chat_handler_error,
         (PeerChat_handler_message)peer_chat_handler_message
     )) {

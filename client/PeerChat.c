@@ -33,6 +33,8 @@
 
 #include <generated/blog_channel_PeerChat.h>
 
+#define PeerLog(_o, ...) ((_o)->logfunc((_o)->user), BLog_LogToChannel(BLOG_CURRENT_CHANNEL, __VA_ARGS__))
+
 static void report_error (PeerChat *o)
 {
     DebugError_AssertNoError(&o->d_err);
@@ -57,7 +59,7 @@ static void recv_job_handler (PeerChat *o)
     uint8_t x;
     BRandom_randomize(&x, sizeof(x));
     if (x < PEERCHAT_SIMULATE_ERROR) {
-        BLog(BLOG_ERROR, "simulate error");
+        PeerLog(o, BLOG_ERROR, "simulate error");
         report_error(o);
         return;
     }
@@ -66,7 +68,7 @@ static void recv_job_handler (PeerChat *o)
     if (o->ssl_mode != PEERCHAT_SSL_NONE) {
         // buffer data
         if (!SimpleStreamBuffer_Write(&o->ssl_recv_buf, o->recv_data, data_len)) {
-            BLog(BLOG_ERROR, "out of recv buffer");
+            PeerLog(o, BLOG_ERROR, "out of recv buffer");
             report_error(o);
             return;
         }
@@ -84,7 +86,7 @@ static void ssl_con_handler (PeerChat *o, int event)
     ASSERT(o->ssl_mode == PEERCHAT_SSL_CLIENT || o->ssl_mode == PEERCHAT_SSL_SERVER)
     ASSERT(event == BSSLCONNECTION_EVENT_ERROR)
     
-    BLog(BLOG_ERROR, "SSL error");
+    PeerLog(o, BLOG_ERROR, "SSL error");
     
     report_error(o);
     return;
@@ -97,13 +99,13 @@ static SECStatus client_auth_data_callback (PeerChat *o, PRFileDesc *fd, CERTDis
     
     CERTCertificate *cert = CERT_DupCertificate(o->ssl_cert);
     if (!cert) {
-        BLog(BLOG_ERROR, "CERT_DupCertificate failed");
+        PeerLog(o, BLOG_ERROR, "CERT_DupCertificate failed");
         goto fail0;
     }
     
     SECKEYPrivateKey *key = SECKEY_CopyPrivateKey(o->ssl_key);
     if (!key) {
-        BLog(BLOG_ERROR, "SECKEY_CopyPrivateKey failed");
+        PeerLog(o, BLOG_ERROR, "SECKEY_CopyPrivateKey failed");
         goto fail1;
     }
     
@@ -130,7 +132,7 @@ static SECStatus auth_certificate_callback (PeerChat *o, PRFileDesc *fd, PRBool 
     
     CERTCertificate *cert = SSL_PeerCertificate(o->ssl_prfd);
     if (!cert) {
-        BLog(BLOG_ERROR, "SSL_PeerCertificate failed");
+        PeerLog(o, BLOG_ERROR, "SSL_PeerCertificate failed");
         PORT_SetError(SSL_ERROR_BAD_CERTIFICATE);
         goto fail1;
     }
@@ -144,7 +146,7 @@ static SECStatus auth_certificate_callback (PeerChat *o, PRFileDesc *fd, PRBool 
     // compare to certificate provided by the server
     SECItem der = cert->derCert;
     if (der.len != o->ssl_peer_cert_len || memcmp(der.data, o->ssl_peer_cert, der.len)) {
-        BLog(BLOG_ERROR, "peer certificate doesn't match");
+        PeerLog(o, BLOG_ERROR, "peer certificate doesn't match");
         PORT_SetError(SSL_ERROR_BAD_CERTIFICATE);
         goto fail2;
     }
@@ -179,7 +181,7 @@ static void ssl_recv_decoder_handler_error (PeerChat *o)
     DebugError_AssertNoError(&o->d_err);
     ASSERT(o->ssl_mode == PEERCHAT_SSL_CLIENT || o->ssl_mode == PEERCHAT_SSL_SERVER)
     
-    BLog(BLOG_ERROR, "decoder error");
+    PeerLog(o, BLOG_ERROR, "decoder error");
     
     report_error(o);
     return;
@@ -187,6 +189,7 @@ static void ssl_recv_decoder_handler_error (PeerChat *o)
 
 int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate *ssl_cert, SECKEYPrivateKey *ssl_key,
                    uint8_t *ssl_peer_cert, int ssl_peer_cert_len, BPendingGroup *pg, void *user,
+                   PeerChat_logfunc logfunc,
                    PeerChat_handler_error handler_error,
                    PeerChat_handler_message handler_message)
 {
@@ -202,6 +205,7 @@ int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate 
     o->ssl_peer_cert = ssl_peer_cert;
     o->ssl_peer_cert_len = ssl_peer_cert_len;
     o->user = user;
+    o->logfunc = logfunc;
     o->handler_error = handler_error;
     o->handler_message = handler_message;
     
@@ -223,7 +227,7 @@ int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate 
     if (o->ssl_mode != PEERCHAT_SSL_NONE) {
         // init receive buffer
         if (!SimpleStreamBuffer_Init(&o->ssl_recv_buf, PEERCHAT_SSL_RECV_BUF_SIZE, pg)) {
-            BLog(BLOG_ERROR, "SimpleStreamBuffer_Init failed");
+            PeerLog(o, BLOG_ERROR, "SimpleStreamBuffer_Init failed");
             goto fail1;
         }
         
@@ -232,50 +236,50 @@ int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate 
         
         // init SSL bottom prfd
         if (!BSSLConnection_MakeBackend(&o->ssl_bottom_prfd, StreamPacketSender_GetInput(&o->ssl_sp_sender), SimpleStreamBuffer_GetOutput(&o->ssl_recv_buf))) {
-            BLog(BLOG_ERROR, "BSSLConnection_MakeBackend failed");
+            PeerLog(o, BLOG_ERROR, "BSSLConnection_MakeBackend failed");
             goto fail2;
         }
         
         // init SSL prfd
         if (!(o->ssl_prfd = SSL_ImportFD(NULL, &o->ssl_bottom_prfd))) {
             ASSERT_FORCE(PR_Close(&o->ssl_bottom_prfd) == PR_SUCCESS)
-            BLog(BLOG_ERROR, "SSL_ImportFD failed");
+            PeerLog(o, BLOG_ERROR, "SSL_ImportFD failed");
             goto fail2;
         }
         
         // set client or server mode
         if (SSL_ResetHandshake(o->ssl_prfd, (o->ssl_mode == PEERCHAT_SSL_SERVER ? PR_TRUE : PR_FALSE)) != SECSuccess) {
-            BLog(BLOG_ERROR, "SSL_ResetHandshake failed");
+            PeerLog(o, BLOG_ERROR, "SSL_ResetHandshake failed");
             goto fail3;
         }
         
         if (o->ssl_mode == PEERCHAT_SSL_SERVER) {
             // set server certificate
             if (SSL_ConfigSecureServer(o->ssl_prfd, o->ssl_cert, o->ssl_key, NSS_FindCertKEAType(o->ssl_cert)) != SECSuccess) {
-                BLog(BLOG_ERROR, "SSL_ConfigSecureServer failed");
+                PeerLog(o, BLOG_ERROR, "SSL_ConfigSecureServer failed");
                 goto fail3;
             }
             
             // set require client certificate
             if (SSL_OptionSet(o->ssl_prfd, SSL_REQUEST_CERTIFICATE, PR_TRUE) != SECSuccess) {
-                BLog(BLOG_ERROR, "SSL_OptionSet(SSL_REQUEST_CERTIFICATE) failed");
+                PeerLog(o, BLOG_ERROR, "SSL_OptionSet(SSL_REQUEST_CERTIFICATE) failed");
                 goto fail3;
             }
             if (SSL_OptionSet(o->ssl_prfd, SSL_REQUIRE_CERTIFICATE, PR_TRUE) != SECSuccess) {
-                BLog(BLOG_ERROR, "SSL_OptionSet(SSL_REQUIRE_CERTIFICATE) failed");
+                PeerLog(o, BLOG_ERROR, "SSL_OptionSet(SSL_REQUIRE_CERTIFICATE) failed");
                 goto fail3;
             }
         } else {
             // set client certificate callback
             if (SSL_GetClientAuthDataHook(o->ssl_prfd, (SSLGetClientAuthData)client_auth_data_callback, o) != SECSuccess) {
-                BLog(BLOG_ERROR, "SSL_GetClientAuthDataHook failed");
+                PeerLog(o, BLOG_ERROR, "SSL_GetClientAuthDataHook failed");
                 goto fail3;
             }
         }
         
         // set verify peer certificate hook
         if (SSL_AuthCertificateHook(o->ssl_prfd, (SSLAuthCertificate)auth_certificate_callback, o) != SECSuccess) {
-            BLog(BLOG_ERROR, "SSL_AuthCertificateHook failed");
+            PeerLog(o, BLOG_ERROR, "SSL_AuthCertificateHook failed");
             goto fail3;
         }
         
@@ -293,7 +297,7 @@ int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate 
         
         // init SSL buffer
         if (!SinglePacketBuffer_Init(&o->ssl_buffer, PacketProtoEncoder_GetOutput(&o->ssl_encoder), PacketStreamSender_GetInput(&o->ssl_ps_sender), pg)) {
-            BLog(BLOG_ERROR, "SinglePacketBuffer_Init failed");
+            PeerLog(o, BLOG_ERROR, "SinglePacketBuffer_Init failed");
             goto fail4;
         }
         
@@ -302,7 +306,7 @@ int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate 
         
         // init receive decoder
         if (!PacketProtoDecoder_Init(&o->ssl_recv_decoder, BSSLConnection_GetRecvIf(&o->ssl_con), &o->ssl_recv_if, pg, o, (PacketProtoDecoder_handler_error)ssl_recv_decoder_handler_error)) {
-            BLog(BLOG_ERROR, "PacketProtoDecoder_Init failed");
+            PeerLog(o, BLOG_ERROR, "PacketProtoDecoder_Init failed");
             goto fail5;
         }
     }

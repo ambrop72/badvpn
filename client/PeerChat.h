@@ -51,6 +51,7 @@
 
 //#define PEERCHAT_SIMULATE_ERROR 40
 
+typedef void (*PeerChat_logfunc) (void *user);
 typedef void (*PeerChat_handler_error) (void *user);
 typedef void (*PeerChat_handler_message) (void *user, uint8_t *data, int data_len);
 
@@ -61,6 +62,7 @@ typedef struct {
     uint8_t *ssl_peer_cert;
     int ssl_peer_cert_len;
     void *user;
+    PeerChat_logfunc logfunc;
     PeerChat_handler_error handler_error;
     PeerChat_handler_message handler_message;
     
@@ -95,6 +97,7 @@ typedef struct {
 
 int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate *ssl_cert, SECKEYPrivateKey *ssl_key,
                    uint8_t *ssl_peer_cert, int ssl_peer_cert_len, BPendingGroup *pg, void *user,
+                   PeerChat_logfunc logfunc,
                    PeerChat_handler_error handler_error,
                    PeerChat_handler_message handler_message) WARN_UNUSED;
 void PeerChat_Free (PeerChat *o);
