@@ -571,41 +571,6 @@ int ServerConnection_IsReady (ServerConnection *o)
     return (o->state == STATE_COMPLETE);
 }
 
-int ServerConnection_StartMessage (ServerConnection *o, uint8_t **data, peerid_t peer_id, int len)
-{
-    ASSERT(o->state == STATE_COMPLETE)
-    ASSERT(o->output_local_packet_len == -1)
-    ASSERT(len >= 0)
-    ASSERT(len <= SC_MAX_MSGLEN)
-    ASSERT(data || len == 0)
-    DebugError_AssertNoError(&o->d_err);
-    DebugObject_Access(&o->d_obj);
-    
-    uint8_t *packet;
-    if (!start_packet(o, (void **)&packet, sizeof(struct sc_client_outmsg) + len)) {
-        return 0;
-    }
-    
-    struct sc_client_outmsg *msg = (struct sc_client_outmsg *)packet;
-    msg->clientid = htol16(peer_id);
-    
-    if (data) {
-        *data = packet + sizeof(struct sc_client_outmsg);
-    }
-    
-    return 1;
-}
-
-void ServerConnection_EndMessage (ServerConnection *o)
-{
-    ASSERT(o->state == STATE_COMPLETE)
-    ASSERT(o->output_local_packet_len >= 0)
-    DebugError_AssertNoError(&o->d_err);
-    DebugObject_Access(&o->d_obj);
-    
-    end_packet(o, SCID_OUTMSG);
-}
-
 PacketPassInterface * ServerConnection_GetSendInterface (ServerConnection *o)
 {
     ASSERT(o->state == STATE_COMPLETE)

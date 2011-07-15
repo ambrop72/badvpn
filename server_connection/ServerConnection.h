@@ -248,37 +248,11 @@ void ServerConnection_Free (ServerConnection *o);
 int ServerConnection_IsReady (ServerConnection *o);
 
 /**
- * Provides a buffer for writing a message to be sent to a peer.
- * The object must be in ready and not writing state.
- * On success, the object enters writing state.
- * Must not be called from the error handler.
- * May invoke the error handler.
- *
- * @param o the object
- * @param data the buffer will be returned here on success. Must not be NULL unless len is 0.
- * @param peer_id ID of peer the message goes to
- * @param len length of the message. Must be >=0 and <=SC_MAX_MSGLEN.
- * @return 1 on success, 0 on out of buffer
- */
-int ServerConnection_StartMessage (ServerConnection *o, uint8_t **data, peerid_t peer_id, int len) WARN_UNUSED;
-
-/**
- * Submits a written message for sending to a peer.
- * The object must be in ready and writing state.
- * The object enters not writing state.
- * Must not be called from the error handler.
- * May invoke the error handler.
- *
- * @param o the object
- */
-void ServerConnection_EndMessage (ServerConnection *o);
-
-/**
  * Returns an interface for sending data to the server (just one).
  * This goes directly into the link (i.e. TCP, possibly via SSL), so packets
  * need to be manually encoded according to PacketProto.
  * The interface must not be used after an error was reported.
- * The object must be in ready and writing state.
+ * The object must be in ready state.
  * Must not be called from the error handler.
  *
  * @param o the object
