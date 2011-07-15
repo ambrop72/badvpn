@@ -2239,9 +2239,9 @@ int launch_pair (struct peer_flow *flow_to)
     flow_to->know = know_to;
     flow_to->opposite->know = know_from;
     
-    // set not accepted
-    flow_to->accepted = 0;
-    flow_to->opposite->accepted = 0;
+    // set not accepted, or assume accepted for old version
+    flow_to->accepted = (flow_to->src_client->version <= SC_OLDVERSION_NOSSL);
+    flow_to->opposite->accepted = (flow_to->opposite->src_client->version <= SC_OLDVERSION_NOSSL);
     
     // set not resetting
     flow_to->resetting = 0;
