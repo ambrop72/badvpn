@@ -69,4 +69,5 @@ See the file INSTALL-WINDOWS for detailed instructions.
 
 3 Usage
 
-See the documentation in the man pages (badvpn(7), badvpn-server(8), badvpn-client(8)).
+The primary documentation is on the BadVPN homepage, http://code.google.com/p/badvpn/ .
+Additionally, some man pages are installed (badvpn(7), badvpn-server(8), badvpn-client(8)).
