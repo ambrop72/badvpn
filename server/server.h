@@ -50,8 +50,7 @@
 // SO_SNDBFUF socket option for clients
 #define CLIENT_DEFAULT_SOCKET_SNDBUF 16384
 // reset time when a buffer runs out or when we get the resetpeer message
-//#define CLIENT_RESET_TIME 30000
-#define CLIENT_RESET_TIME 0
+#define CLIENT_RESET_TIME 30000
 
 // maxiumum listen addresses
 #define MAX_LISTEN_ADDRS 16
