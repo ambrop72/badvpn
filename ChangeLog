@@ -1,0 +1,33 @@
+- Improved protocol such that peers can use SSL when comminicating via the server. This
+  improves security, as compromising the server will not allow the attacker to see secret
+  data shared by peers (in particular, encryption keys and OTP seeds when in UDP mode).
+
+  Compatibility is preserved if an only if the following conditions are met:
+  - The server is using the latest version.
+  - If the network is using SSL, all clients using the new version are using the
+    "--allow-peer-talk-without-ssl" command line option.
+
+  Be aware, however, that using the "--allow-peer-talk-without-ssl" option negates the
+  security benefits of the new SSL support - not only between pairs of peers where one
+  peer is using the old version, but also between pairs where both peers are capable
+  of SSL. This is because the server can re-initialize the pair, telling them not to use
+  SSL.
+
+Version 1.999.107:
+
+- Added Windows IOCP support, removing the limitation on ~64 connections. This is important
+  for tun2socks, which may have to handle several hundred connections.
+
+Version 1.999.105.2:
+
+- Fixed an assertion failure in tun2socks related to sending data to SOCKS.
+
+Version 1.999.101.3:
+
+- Fixed UDP transport on Windows 7 which didn't work (was only tested on XP).
+
+Version 1.999.101:
+
+- Fixed a protocol issue present in versions <=1.999.100.3. Compatibility is preserved in
+  case of a new server and old clients, but it is not possible to connect to an old server
+  with a new client.
