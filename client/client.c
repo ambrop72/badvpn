@@ -1345,7 +1345,7 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
         goto fail3;
     }
     
-    if (!(peer->flags & SCID_NEWCLIENT_FLAG_SSL) && !options.allow_peer_talk_without_ssl) {
+    if (options.ssl && !(peer->flags & SCID_NEWCLIENT_FLAG_SSL) && !options.allow_peer_talk_without_ssl) {
         peer_log(peer, BLOG_ERROR, "peer requires talking without SSL, but we don't allow that");
         goto fail3;
     }
