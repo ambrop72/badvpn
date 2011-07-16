@@ -1,2 +1,0 @@
-- in the server, somehow handle when a peer message is discarded
-- detect non-working link and try more addresses
