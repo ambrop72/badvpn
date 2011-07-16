@@ -224,6 +224,8 @@ int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate 
     // set no received data
     o->recv_data_len = -1;
     
+    PacketPassInterface *send_buf_output = PacketCopier_GetInput(&o->copier);
+    
     if (o->ssl_mode != PEERCHAT_SSL_NONE) {
         // init receive buffer
         if (!SimpleStreamBuffer_Init(&o->ssl_recv_buf, PEERCHAT_SSL_RECV_BUF_SIZE, pg)) {
@@ -232,7 +234,7 @@ int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate 
         }
         
         // init SSL StreamPacketSender
-        StreamPacketSender_Init(&o->ssl_sp_sender, PacketCopier_GetInput(&o->copier), pg);
+        StreamPacketSender_Init(&o->ssl_sp_sender, send_buf_output, pg);
         
         // init SSL bottom prfd
         if (!BSSLConnection_MakeBackend(&o->ssl_bottom_prfd, StreamPacketSender_GetInput(&o->ssl_sp_sender), SimpleStreamBuffer_GetOutput(&o->ssl_recv_buf))) {
@@ -309,13 +311,27 @@ int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate 
             PeerLog(o, BLOG_ERROR, "PacketProtoDecoder_Init failed");
             goto fail5;
         }
+        
+        send_buf_output = PacketCopier_GetInput(&o->ssl_copier);
+    }
+    
+    // init send writer
+    BufferWriter_Init(&o->send_writer, SC_MAX_MSGLEN, pg);
+    
+    // init send buffer
+    if (!PacketBuffer_Init(&o->send_buf, BufferWriter_GetOutput(&o->send_writer), send_buf_output, PEERCHAT_SEND_BUF_SIZE, pg)) {
+        PeerLog(o, BLOG_ERROR, "PacketBuffer_Init failed");
+        goto fail6;
     }
     
     DebugError_Init(&o->d_err, pg);
     DebugObject_Init(&o->d_obj);
     return 1;
     
+fail6:
+    BufferWriter_Free(&o->send_writer);
     if (o->ssl_mode != PEERCHAT_SSL_NONE) {
+        PacketProtoDecoder_Free(&o->ssl_recv_decoder);
 fail5:
         PacketPassInterface_Free(&o->ssl_recv_if);
         SinglePacketBuffer_Free(&o->ssl_buffer);
@@ -343,6 +359,8 @@ void PeerChat_Free (PeerChat *o)
     DebugObject_Free(&o->d_obj);
     DebugError_Free(&o->d_err);
     
+    PacketBuffer_Free(&o->send_buf);
+    BufferWriter_Free(&o->send_writer);
     if (o->ssl_mode != PEERCHAT_SSL_NONE) {
         PacketProtoDecoder_Free(&o->ssl_recv_decoder);
         PacketPassInterface_Free(&o->ssl_recv_if);
@@ -359,17 +377,6 @@ void PeerChat_Free (PeerChat *o)
     PacketProtoEncoder_Free(&o->pp_encoder);
     SCOutmsgEncoder_Free(&o->sc_encoder);
     PacketCopier_Free(&o->copier);
-}
-
-PacketPassInterface * PeerChat_GetSendInput (PeerChat *o)
-{
-    DebugObject_Access(&o->d_obj);
-    
-    if (o->ssl_mode != PEERCHAT_SSL_NONE) {
-        return PacketCopier_GetInput(&o->ssl_copier);
-    } else {
-        return PacketCopier_GetInput(&o->copier);
-    }
 }
 
 PacketRecvInterface * PeerChat_GetSendOutput (PeerChat *o)
@@ -393,4 +400,22 @@ void PeerChat_InputReceived (PeerChat *o, uint8_t *data, int data_len)
     
     // set received job
     BPending_Set(&o->recv_job);
+}
+
+int PeerChat_StartMessage (PeerChat *o, uint8_t **data)
+{
+    DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
+    
+    return BufferWriter_StartPacket(&o->send_writer, data);
+}
+
+void PeerChat_EndMessage (PeerChat *o, int data_len)
+{
+    DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= SC_MAX_MSGLEN)
+    
+    BufferWriter_EndPacket(&o->send_writer, data_len);
 }

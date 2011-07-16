@@ -39,6 +39,8 @@
 #include <flow/PacketStreamSender.h>
 #include <flow/SinglePacketBuffer.h>
 #include <flow/PacketProtoDecoder.h>
+#include <flow/PacketBuffer.h>
+#include <flow/BufferWriter.h>
 #include <nspr_support/BSSLConnection.h>
 #include <client/SCOutmsgEncoder.h>
 #include <client/SimpleStreamBuffer.h>
@@ -48,6 +50,7 @@
 #define PEERCHAT_SSL_SERVER 2
 
 #define PEERCHAT_SSL_RECV_BUF_SIZE 4096
+#define PEERCHAT_SEND_BUF_SIZE 200
 
 //#define PEERCHAT_SIMULATE_ERROR 40
 
@@ -66,7 +69,7 @@ typedef struct {
     PeerChat_handler_error handler_error;
     PeerChat_handler_message handler_message;
     
-    // common
+    // transport
     PacketProtoEncoder pp_encoder;
     SCOutmsgEncoder sc_encoder;
     PacketCopier copier;
@@ -91,6 +94,10 @@ typedef struct {
     PacketProtoDecoder ssl_recv_decoder;
     PacketPassInterface ssl_recv_if;
     
+    // higher layer send buffer
+    PacketBuffer send_buf;
+    BufferWriter send_writer;
+    
     DebugError d_err;
     DebugObject d_obj;
 } PeerChat;
@@ -101,8 +108,9 @@ int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate 
                    PeerChat_handler_error handler_error,
                    PeerChat_handler_message handler_message) WARN_UNUSED;
 void PeerChat_Free (PeerChat *o);
-PacketPassInterface * PeerChat_GetSendInput (PeerChat *o);
 PacketRecvInterface * PeerChat_GetSendOutput (PeerChat *o);
 void PeerChat_InputReceived (PeerChat *o, uint8_t *data, int data_len);
+int PeerChat_StartMessage (PeerChat *o, uint8_t **data) WARN_UNUSED;
+void PeerChat_EndMessage (PeerChat *o, int data_len);
 
 #endif

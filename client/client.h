@@ -26,8 +26,6 @@
 #include <protocol/scproto.h>
 #include <structure/LinkedList2.h>
 #include <flow/PacketPassFairQueue.h>
-#include <flow/PacketBuffer.h>
-#include <flow/BufferWriter.h>
 #include <flow/SinglePacketBuffer.h>
 #include <flow/PacketRecvConnector.h>
 #include <client/DatagramPeerIO.h>
@@ -117,8 +115,6 @@ struct peer_data {
     // chat
     int have_chat;
     PeerChat chat;
-    PacketBuffer chat_send_buffer;
-    BufferWriter chat_send_writer;
     int chat_send_msg_len;
     
     // resetpeer source (when chat fails)

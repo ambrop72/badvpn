@@ -1366,15 +1366,6 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
         goto fail3;
     }
     
-    // init chat send writer
-    BufferWriter_Init(&peer->chat_send_writer, SC_MAX_MSGLEN, BReactor_PendingGroup(&ss));
-    
-    // init chat send buffer
-    if (!PacketBuffer_Init(&peer->chat_send_buffer, BufferWriter_GetOutput(&peer->chat_send_writer), PeerChat_GetSendInput(&peer->chat), SERVER_BUFFER_MIN_PACKETS, BReactor_PendingGroup(&ss))) {
-        peer_log(peer, BLOG_ERROR, "PacketBuffer_Init failed");
-        goto fail4;
-    }
-    
     // set no message
     peer->chat_send_msg_len = -1;
     
@@ -1442,9 +1433,6 @@ fail6:
     DataProtoFlow_Free(&peer->local_dpflow);
 fail5:
     server_flow_disconnect(peer->server_flow);
-    PacketBuffer_Free(&peer->chat_send_buffer);
-fail4:
-    BufferWriter_Free(&peer->chat_send_writer);
     PeerChat_Free(&peer->chat);
 fail3:
     server_flow_free(peer->server_flow);
@@ -1562,12 +1550,6 @@ void peer_free_chat (struct peer_data *peer)
     
     // disconnect chat from server flow
     server_flow_disconnect(peer->server_flow);
-    
-    // free chat send buffer
-    PacketBuffer_Free(&peer->chat_send_buffer);
-    
-    // free chat send writer
-    BufferWriter_Free(&peer->chat_send_writer);
     
     // free chat
     PeerChat_Free(&peer->chat);
@@ -2409,7 +2391,7 @@ static int peer_start_msg (struct peer_data *peer, void **data, int type, int le
     
     // obtain buffer location
     uint8_t *packet;
-    if (!BufferWriter_StartPacket(&peer->chat_send_writer, &packet)) {
+    if (!PeerChat_StartMessage(&peer->chat, &packet)) {
         peer_log(peer, BLOG_ERROR, "cannot send message, out of buffer");
         return 0;
     }
@@ -2436,7 +2418,7 @@ static void peer_end_msg (struct peer_data *peer)
     ASSERT(peer->have_chat)
     
     // submit packet to buffer
-    BufferWriter_EndPacket(&peer->chat_send_writer, msg_SIZEtype + msg_SIZEpayload(peer->chat_send_msg_len));
+    PeerChat_EndMessage(&peer->chat, msg_SIZEtype + msg_SIZEpayload(peer->chat_send_msg_len));
     
     // set no message
     peer->chat_send_msg_len = -1;
