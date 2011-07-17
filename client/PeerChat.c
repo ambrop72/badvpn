@@ -195,6 +195,7 @@ int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate 
 {
     ASSERT(ssl_mode == PEERCHAT_SSL_NONE || ssl_mode == PEERCHAT_SSL_CLIENT || ssl_mode == PEERCHAT_SSL_SERVER)
     ASSERT(ssl_mode == PEERCHAT_SSL_NONE || ssl_peer_cert_len >= 0)
+    ASSERT(logfunc)
     ASSERT(handler_error)
     ASSERT(handler_message)
     

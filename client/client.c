@@ -226,6 +226,7 @@ static void peer_log (struct peer_data *peer, int level, const char *fmt, ...);
 // see if we are the master relative to this peer
 static int peer_am_master (struct peer_data *peer);
 
+// frees PeerChat, disconnecting it from the server flow
 static void peer_free_chat (struct peer_data *peer);
 
 // initializes the link
@@ -431,14 +432,14 @@ int main (int argc, char *argv[])
     // init thread work dispatcher
     if (!BThreadWorkDispatcher_Init(&twd, &ss, options.threads)) {
         BLog(BLOG_ERROR, "BThreadWorkDispatcher_Init failed");
-        goto fail2a;
+        goto fail3;
     }
     
     // init BSecurity
     if (BThreadWorkDispatcher_UsingThreads(&twd)) {
         if (!BSecurity_GlobalInitThreadSafe()) {
             BLog(BLOG_ERROR, "BSecurity_GlobalInitThreadSafe failed");
-            goto fail2b;
+            goto fail4;
         }
     }
     
@@ -449,35 +450,35 @@ int main (int argc, char *argv[])
         // register local NSPR file types
         if (!DummyPRFileDesc_GlobalInit()) {
             BLog(BLOG_ERROR, "DummyPRFileDesc_GlobalInit failed");
-            goto fail3;
+            goto fail5;
         }
         if (!BSSLConnection_GlobalInit()) {
             BLog(BLOG_ERROR, "BSSLConnection_GlobalInit failed");
-            goto fail3;
+            goto fail5;
         }
         
         // init NSS
         if (NSS_Init(options.nssdb) != SECSuccess) {
             BLog(BLOG_ERROR, "NSS_Init failed (%d)", (int)PR_GetError());
-            goto fail3;
+            goto fail5;
         }
         
         // set cipher policy
         if (NSS_SetDomesticPolicy() != SECSuccess) {
             BLog(BLOG_ERROR, "NSS_SetDomesticPolicy failed (%d)", (int)PR_GetError());
-            goto fail4;
+            goto fail6;
         }
         
         // init server cache
         if (SSL_ConfigServerSessionIDCache(0, 0, 0, NULL) != SECSuccess) {
             BLog(BLOG_ERROR, "SSL_ConfigServerSessionIDCache failed (%d)", (int)PR_GetError());
-            goto fail4;
+            goto fail6;
         }
         
         // open server certificate and private key
         if (!open_nss_cert_and_key(options.client_cert_name, &client_cert, &client_key)) {
             BLog(BLOG_ERROR, "Cannot open certificate and key");
-            goto fail5;
+            goto fail7;
         }
     }
     
@@ -492,7 +493,7 @@ int main (int argc, char *argv[])
                 (options.peer_ssl ? client_key : NULL)
             )) {
                 BLog(BLOG_ERROR, "PasswordListener_Init failed");
-                goto fail6;
+                goto fail8;
             }
             num_listeners++;
         }
@@ -501,7 +502,7 @@ int main (int argc, char *argv[])
     // init device
     if (!BTap_Init(&device, &ss, options.tapdev, device_error_handler, NULL, 0)) {
         BLog(BLOG_ERROR, "BTap_Init failed");
-        goto fail6;
+        goto fail8;
     }
     
     // remember device MTU
@@ -512,20 +513,20 @@ int main (int argc, char *argv[])
     // calculate data MTU
     if (device_mtu > INT_MAX - DATAPROTO_MAX_OVERHEAD) {
         BLog(BLOG_ERROR, "Device MTU is too large");
-        goto fail7;
+        goto fail9;
     }
     data_mtu = DATAPROTO_MAX_OVERHEAD + device_mtu;
     
     // init device input
     if (!DataProtoSource_Init(&device_input_dpd, BTap_GetOutput(&device), device_input_dpd_handler, NULL, &ss)) {
         BLog(BLOG_ERROR, "DataProtoSource_Init failed");
-        goto fail7;
+        goto fail9;
     }
     
     // init device output
     if (!DPReceiveDevice_Init(&device_output_dprd, device_mtu, (DPReceiveDevice_output_func)BTap_Send, &device, &ss, options.send_buffer_relay_size, PEER_RELAY_FLOW_INACTIVITY_TIME)) {
         BLog(BLOG_ERROR, "DPReceiveDevice_Init failed");
-        goto fail7a;
+        goto fail10;
     }
     
     // init peers list
@@ -547,7 +548,7 @@ int main (int argc, char *argv[])
         server_handler_error, server_handler_ready, server_handler_newclient, server_handler_endclient, server_handler_message
     )) {
         BLog(BLOG_ERROR, "ServerConnection_Init failed");
-        goto fail9;
+        goto fail11;
     }
     
     // set server not ready
@@ -581,14 +582,14 @@ int main (int argc, char *argv[])
         PacketPassFairQueue_Free(&server_queue);
     }
     ServerConnection_Free(&server);
-fail9:
+fail11:
     FrameDecider_Free(&frame_decider);
     DPReceiveDevice_Free(&device_output_dprd);
-fail7a:
+fail10:
     DataProtoSource_Free(&device_input_dpd);
-fail7:
+fail9:
     BTap_Free(&device);
-fail6:
+fail8:
     if (options.transport_mode == TRANSPORT_MODE_TCP) {
         while (num_listeners-- > 0) {
             PasswordListener_Free(&listeners[num_listeners]);
@@ -597,21 +598,21 @@ fail6:
     if (options.ssl) {
         CERT_DestroyCertificate(client_cert);
         SECKEY_DestroyPrivateKey(client_key);
-fail5:
+fail7:
         ASSERT_FORCE(SSL_ShutdownServerSessionIDCache() == SECSuccess)
-fail4:
+fail6:
         SSL_ClearSessionCache();
         ASSERT_FORCE(NSS_Shutdown() == SECSuccess)
-fail3:
+fail5:
         ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
         PL_ArenaFinish();
     }
     if (BThreadWorkDispatcher_UsingThreads(&twd)) {
         BSecurity_GlobalFreeThreadSafe();
     }
-fail2b:
+fail4:
     BThreadWorkDispatcher_Free(&twd);
-fail2a:
+fail3:
     BSignal_Finish();
 fail2:
     BReactor_Free(&ss);
@@ -1381,13 +1382,13 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     // init local flow
     if (!DataProtoFlow_Init(&peer->local_dpflow, &device_input_dpd, my_id, peer->id, options.send_buffer_size, -1, NULL, NULL)) {
         peer_log(peer, BLOG_ERROR, "DataProtoFlow_Init failed");
-        goto fail5;
+        goto fail4;
     }
     
     // init frame decider peer
     if (!FrameDeciderPeer_Init(&peer->decider_peer, &frame_decider, peer, (FrameDeciderPeer_logfunc)peer_logfunc)) {
         peer_log(peer, BLOG_ERROR, "FrameDeciderPeer_Init failed");
-        goto fail6;
+        goto fail5;
     }
     
     // init receive peer
@@ -1429,9 +1430,9 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     
     return;
     
-fail6:
-    DataProtoFlow_Free(&peer->local_dpflow);
 fail5:
+    DataProtoFlow_Free(&peer->local_dpflow);
+fail4:
     server_flow_disconnect(peer->server_flow);
     PeerChat_Free(&peer->chat);
 fail3:

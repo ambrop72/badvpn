@@ -389,7 +389,7 @@ int main (int argc, char *argv[])
         // init predicate
         if (!BPredicate_Init(&relay_predicate, options.relay_predicate)) {
             BLog(BLOG_ERROR, "BPredicate_Init failed");
-            goto fail1_1;
+            goto fail2;
         }
         
         // init functions
@@ -405,13 +405,13 @@ int main (int argc, char *argv[])
     // initialize reactor
     if (!BReactor_Init(&ss)) {
         BLog(BLOG_ERROR, "BReactor_Init failed");
-        goto fail2;
+        goto fail3;
     }
     
     // setup signal handler
     if (!BSignal_Init(&ss, signal_handler, NULL)) {
         BLog(BLOG_ERROR, "BSignal_Init failed");
-        goto fail2a;
+        goto fail4;
     }
     
     if (options.ssl) {
@@ -421,33 +421,33 @@ int main (int argc, char *argv[])
         // initialize i/o layer types
         if (!DummyPRFileDesc_GlobalInit()) {
             BLog(BLOG_ERROR, "DummyPRFileDesc_GlobalInit failed");
-            goto fail3;
+            goto fail5;
         }
         if (!BSSLConnection_GlobalInit()) {
             BLog(BLOG_ERROR, "BSSLConnection_GlobalInit failed");
-            goto fail3;
+            goto fail5;
         }
         
         // initialize NSS
         if (NSS_Init(options.nssdb) != SECSuccess) {
             BLog(BLOG_ERROR, "NSS_Init failed (%d)", (int)PR_GetError());
-            goto fail3;
+            goto fail5;
         }
         if (NSS_SetDomesticPolicy() != SECSuccess) {
             BLog(BLOG_ERROR, "NSS_SetDomesticPolicy failed (%d)", (int)PR_GetError());
-            goto fail4;
+            goto fail6;
         }
         
         // initialize server cache
         if (SSL_ConfigServerSessionIDCache(0, 0, 0, NULL) != SECSuccess) {
             BLog(BLOG_ERROR, "SSL_ConfigServerSessionIDCache failed (%d)", (int)PR_GetError());
-            goto fail4;
+            goto fail6;
         }
         
         // open server certificate and private key
         if (!open_nss_cert_and_key(options.server_cert_name, &server_cert, &server_key)) {
             BLog(BLOG_ERROR, "Cannot open certificate and key");
-            goto fail4a;
+            goto fail7;
         }
         
         // initialize model SSL fd
@@ -455,13 +455,13 @@ int main (int argc, char *argv[])
         if (!(model_prfd = SSL_ImportFD(NULL, &model_dprfd))) {
             BLog(BLOG_ERROR, "SSL_ImportFD failed");
             ASSERT_FORCE(PR_Close(&model_dprfd) == PR_SUCCESS)
-            goto fail5;
+            goto fail8;
         }
         
         // set server certificate
         if (SSL_ConfigSecureServer(model_prfd, server_cert, server_key, NSS_FindCertKEAType(server_cert)) != SECSuccess) {
             BLog(BLOG_ERROR, "SSL_ConfigSecureServer failed");
-            goto fail6;
+            goto fail9;
         }
     }
     
@@ -482,7 +482,7 @@ int main (int argc, char *argv[])
     while (num_listeners < num_listen_addrs) {
         if (!BListener_Init(&listeners[num_listeners], listen_addrs[num_listeners], &ss, &listeners[num_listeners], (BListener_handler)listener_handler)) {
             BLog(BLOG_ERROR, "BListener_Init failed");
-            goto fail7;
+            goto fail10;
         }
         num_listeners++;
     }
@@ -526,31 +526,31 @@ int main (int argc, char *argv[])
         // deallocate client
         client_dealloc(client);
     }
-fail7:
+fail10:
     while (num_listeners > 0) {
         num_listeners--;
         BListener_Free(&listeners[num_listeners]);
     }
     
     if (options.ssl) {
-fail6:
+fail9:
         ASSERT_FORCE(PR_Close(model_prfd) == PR_SUCCESS)
-fail5:
+fail8:
         CERT_DestroyCertificate(server_cert);
         SECKEY_DestroyPrivateKey(server_key);
-fail4a:
+fail7:
         ASSERT_FORCE(SSL_ShutdownServerSessionIDCache() == SECSuccess)
-fail4:
+fail6:
         ASSERT_FORCE(NSS_Shutdown() == SECSuccess)
-fail3:
+fail5:
         ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
         PL_ArenaFinish();
     }
     
     BSignal_Finish();
-fail2a:
+fail4:
     BReactor_Free(&ss);
-fail2:
+fail3:
     if (options.relay_predicate) {
         BPredicateFunction_Free(&relay_predicate_func_raddr);
         BPredicateFunction_Free(&relay_predicate_func_paddr);
@@ -558,7 +558,7 @@ fail2:
         BPredicateFunction_Free(&relay_predicate_func_pname);
         BPredicate_Free(&relay_predicate);
     }
-fail1_1:
+fail2:
     if (options.comm_predicate) {
         BPredicateFunction_Free(&comm_predicate_func_p2addr);
         BPredicateFunction_Free(&comm_predicate_func_p1addr);
