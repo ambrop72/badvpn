@@ -98,7 +98,7 @@ typedef struct {
     DataProtoSource *source;
     peerid_t source_id;
     peerid_t dest_id;
-    DataProtoSink *dp_desired;
+    DataProtoSink *sink_desired;
     struct DataProtoFlow_buffer *b;
     DebugObject d_obj;
 } DataProtoFlow;
@@ -109,8 +109,8 @@ struct DataProtoFlow_buffer {
     RouteBuffer rbuf;
     PacketPassInactivityMonitor monitor;
     PacketPassConnector connector;
-    DataProtoSink *dp;
-    PacketPassFairQueueFlow dp_qflow;
+    DataProtoSink *sink;
+    PacketPassFairQueueFlow sink_qflow;
 };
 
 /**
@@ -212,14 +212,14 @@ void DataProtoFlow_Free (DataProtoFlow *o);
 void DataProtoFlow_Route (DataProtoFlow *o, int more);
 
 /**
- * Attaches the object to a destination.
+ * Attaches the object to a sink.
  * The object must be in not attached state.
  * 
  * @param o the object
- * @param dp destination to attach to. This object's frame_mtu must be <=
- *           (output MTU of dp) - DATAPROTO_MAX_OVERHEAD.
+ * @param sink sink to attach to. This object's frame_mtu must be <=
+ *             (output MTU of dp) - DATAPROTO_MAX_OVERHEAD.
  */
-void DataProtoFlow_Attach (DataProtoFlow *o, DataProtoSink *dp);
+void DataProtoFlow_Attach (DataProtoFlow *o, DataProtoSink *sink);
 
 /**
  * Detaches the object from a destination.
