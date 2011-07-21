@@ -105,7 +105,7 @@ void up_job_handler (DataProtoSink *o)
     return;
 }
 
-void device_router_handler (DataProtoSource *o, uint8_t *buf, int recv_len)
+void source_router_handler (DataProtoSource *o, uint8_t *buf, int recv_len)
 {
     ASSERT(buf)
     ASSERT(recv_len >= 0)
@@ -364,7 +364,7 @@ int DataProtoSource_Init (DataProtoSource *o, PacketRecvInterface *input, DataPr
     o->frame_mtu = PacketRecvInterface_GetMTU(input);
     
     // init router
-    if (!PacketRouter_Init(&o->router, DATAPROTO_MAX_OVERHEAD + o->frame_mtu, DATAPROTO_MAX_OVERHEAD, input, (PacketRouter_handler)device_router_handler, o, BReactor_PendingGroup(reactor))) {
+    if (!PacketRouter_Init(&o->router, DATAPROTO_MAX_OVERHEAD + o->frame_mtu, DATAPROTO_MAX_OVERHEAD, input, (PacketRouter_handler)source_router_handler, o, BReactor_PendingGroup(reactor))) {
         goto fail1;
     }
     
@@ -387,14 +387,14 @@ void DataProtoSource_Free (DataProtoSource *o)
 }
 
 int DataProtoFlow_Init (
-    DataProtoFlow *o, DataProtoSource *device, peerid_t source_id, peerid_t dest_id, int num_packets,
+    DataProtoFlow *o, DataProtoSource *source, peerid_t source_id, peerid_t dest_id, int num_packets,
     int inactivity_time, DataProtoFlow_handler_inactivity handler_inactivity, void *user
 )
 {
     ASSERT(num_packets > 0)
     
     // init arguments
-    o->device = device;
+    o->source = source;
     o->source_id = source_id;
     o->dest_id = dest_id;
     
@@ -416,17 +416,17 @@ int DataProtoFlow_Init (
     b->inactivity_time = inactivity_time;
     
     // init connector
-    PacketPassConnector_Init(&b->connector, DATAPROTO_MAX_OVERHEAD + device->frame_mtu, BReactor_PendingGroup(device->reactor));
+    PacketPassConnector_Init(&b->connector, DATAPROTO_MAX_OVERHEAD + source->frame_mtu, BReactor_PendingGroup(source->reactor));
     
     // init inactivity monitor
     PacketPassInterface *buf_out = PacketPassConnector_GetInput(&b->connector);
     if (b->inactivity_time >= 0) {
-        PacketPassInactivityMonitor_Init(&b->monitor, buf_out, device->reactor, b->inactivity_time, handler_inactivity, user);
+        PacketPassInactivityMonitor_Init(&b->monitor, buf_out, source->reactor, b->inactivity_time, handler_inactivity, user);
         buf_out = PacketPassInactivityMonitor_GetInput(&b->monitor);
     }
     
     // init route buffer
-    if (!RouteBuffer_Init(&b->rbuf, DATAPROTO_MAX_OVERHEAD + device->frame_mtu, buf_out, num_packets)) {
+    if (!RouteBuffer_Init(&b->rbuf, DATAPROTO_MAX_OVERHEAD + source->frame_mtu, buf_out, num_packets)) {
         BLog(BLOG_ERROR, "RouteBuffer_Init failed");
         goto fail1;
     }
@@ -435,7 +435,7 @@ int DataProtoFlow_Init (
     b->dp = NULL;
     
     DebugObject_Init(&o->d_obj);
-    DebugCounter_Increment(&device->d_ctr);
+    DebugCounter_Increment(&source->d_ctr);
     
     return 1;
     
@@ -453,7 +453,7 @@ void DataProtoFlow_Free (DataProtoFlow *o)
 {
     struct DataProtoFlow_buffer *b = o->b;
     ASSERT(!o->dp_desired)
-    DebugCounter_Decrement(&o->device->d_ctr);
+    DebugCounter_Decrement(&o->source->d_ctr);
     DebugObject_Free(&o->d_obj);
     
     if (b->dp) {
@@ -481,12 +481,12 @@ void DataProtoFlow_Route (DataProtoFlow *o, int more)
 {
     struct DataProtoFlow_buffer *b = o->b;
     ASSERT(more == 0 || more == 1)
-    PacketRouter_AssertRoute(&o->device->router);
-    ASSERT(o->device->current_buf)
+    PacketRouter_AssertRoute(&o->source->router);
+    ASSERT(o->source->current_buf)
     DebugObject_Access(&o->d_obj);
     
     // write header
-    struct dataproto_header *header = (struct dataproto_header *)o->device->current_buf;
+    struct dataproto_header *header = (struct dataproto_header *)o->source->current_buf;
     // don't set flags, it will be set in notifier_handler
     header->from_id = htol16(o->source_id);
     header->num_peer_ids = htol16(1);
@@ -496,14 +496,14 @@ void DataProtoFlow_Route (DataProtoFlow *o, int more)
     // route
     uint8_t *next_buf;
     if (!PacketRouter_Route(
-        &o->device->router, DATAPROTO_MAX_OVERHEAD + o->device->current_recv_len, &b->rbuf,
-        &next_buf, DATAPROTO_MAX_OVERHEAD, (more ? o->device->current_recv_len : 0)
+        &o->source->router, DATAPROTO_MAX_OVERHEAD + o->source->current_recv_len, &b->rbuf,
+        &next_buf, DATAPROTO_MAX_OVERHEAD, (more ? o->source->current_recv_len : 0)
     )) {
         BLog(BLOG_NOTICE, "buffer full: %d->%d", (int)o->source_id, (int)o->dest_id);
         return;
     }
     
-    o->device->current_buf = (more ? next_buf : NULL);
+    o->source->current_buf = (more ? next_buf : NULL);
 }
 
 void DataProtoFlow_Attach (DataProtoFlow *o, DataProtoSink *dp)
@@ -511,7 +511,7 @@ void DataProtoFlow_Attach (DataProtoFlow *o, DataProtoSink *dp)
     struct DataProtoFlow_buffer *b = o->b;
     ASSERT(dp)
     ASSERT(!o->dp_desired)
-    ASSERT(o->device->frame_mtu <= dp->frame_mtu)
+    ASSERT(o->source->frame_mtu <= dp->frame_mtu)
     DebugObject_Access(&o->d_obj);
     DebugObject_Access(&dp->d_obj);
     

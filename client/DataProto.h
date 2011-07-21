@@ -74,8 +74,8 @@ typedef struct {
 } DataProtoSink;
 
 /**
- * Object that receives frames from a device and routes
- * them to buffers in {@link DataProtoFlow} objects.
+ * Receives frames from a {@link PacketRecvInterface} input and
+ * allows the user to route them to buffers in {@link DataProtoFlow} objects.
  */
 typedef struct {
     DataProtoSource_handler handler;
@@ -90,11 +90,12 @@ typedef struct {
 } DataProtoSource;
 
 /**
- * Local frame source.
- * Buffers frames received from the TAP device, addressed to a particular peer.
+ * Contains a buffer for frames from a specific peer to a specific peer.
+ * Receives frames from a {@link DataProtoSource} as routed by the user.
+ * Can be attached to a {@link DataProtoSink} to send out frames.
  */
 typedef struct {
-    DataProtoSource *device;
+    DataProtoSource *source;
     peerid_t source_id;
     peerid_t dest_id;
     DataProtoSink *dp_desired;
@@ -150,8 +151,8 @@ void DataProtoSink_Received (DataProtoSink *o, int peer_receiving);
  * Initiazes the object.
  * 
  * @param o the object
- * @param input device input. Its input MTU must be <= INT_MAX - DATAPROTO_MAX_OVERHEAD.
- * @param handler handler called when a packet arrives to allow the user to route it to
+ * @param input frame input. Its input MTU must be <= INT_MAX - DATAPROTO_MAX_OVERHEAD.
+ * @param handler handler called when a frame arrives to allow the user to route it to
  *                appropriate {@link DataProtoFlow} objects.
  * @param user value passed to handler
  * @param reactor reactor we live in
@@ -161,7 +162,7 @@ int DataProtoSource_Init (DataProtoSource *o, PacketRecvInterface *input, DataPr
 
 /**
  * Frees the object.
- * There must be no {@link DataProtoFlow} objects referring to this device.
+ * There must be no {@link DataProtoFlow} objects using this source.
  * 
  * @param o the object
  */
@@ -172,7 +173,7 @@ void DataProtoSource_Free (DataProtoSource *o);
  * The object is initialized in not attached state.
  * 
  * @param o the object
- * @param device device to receive frames from
+ * @param source source to receive frames from
  * @param source_id source peer ID to encode in the headers (i.e. our ID)
  * @param dest_id destination peer ID to encode in the headers (i.e. ID if the peer this
  *                object belongs to)
@@ -186,7 +187,7 @@ void DataProtoSource_Free (DataProtoSource *o);
  * @return 1 on success, 0 on failure
  */
 int DataProtoFlow_Init (
-    DataProtoFlow *o, DataProtoSource *device, peerid_t source_id, peerid_t dest_id, int num_packets,
+    DataProtoFlow *o, DataProtoSource *source, peerid_t source_id, peerid_t dest_id, int num_packets,
     int inactivity_time, DataProtoFlow_handler_inactivity handler_inactivity, void *user
 ) WARN_UNUSED;
 
@@ -199,7 +200,7 @@ int DataProtoFlow_Init (
 void DataProtoFlow_Free (DataProtoFlow *o);
 
 /**
- * Routes a frame from the device to this object.
+ * Routes a frame from the flow's source to this flow.
  * Must be called from within the job context of the {@link DataProtoSource_handler} handler.
  * Must not be called after this has been called with more=0 for the current frame.
  * 
