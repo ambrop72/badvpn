@@ -48,7 +48,7 @@ static struct DPRelay_flow * create_flow (DPRelaySource *src, DPRelaySink *sink,
     flow->sink = sink;
     
     // init DataProtoFlow
-    if (!DataProtoFlow_Init(&flow->dp_flow, &src->router->dp_source, src->source_id, sink->dest_id, num_packets, inactivity_time, (DataProtoFlow_handler_inactivity)flow_inactivity_handler, flow)) {
+    if (!DataProtoFlow_Init(&flow->dp_flow, &src->router->dp_source, src->source_id, sink->dest_id, num_packets, inactivity_time, flow, (DataProtoFlow_handler_inactivity)flow_inactivity_handler)) {
         BLog(BLOG_ERROR, "relay flow %d->%d: DataProtoFlow_Init failed", (int)src->source_id, (int)sink->dest_id);
         goto fail1;
     }
@@ -178,14 +178,14 @@ void DPRelayRouter_Free (DPRelayRouter *o)
 
 void DPRelayRouter_SubmitFrame (DPRelayRouter *o, DPRelaySource *src, DPRelaySink *sink, uint8_t *data, int data_len, int num_packets, int inactivity_time)
 {
-    ASSERT(data_len >= 0)
-    ASSERT(data_len <= o->frame_mtu)
-    ASSERT(num_packets > 0)
-    ASSERT(!o->current_flow)
-    ASSERT(src->router == o)
     DebugObject_Access(&o->d_obj);
     DebugObject_Access(&src->d_obj);
     DebugObject_Access(&sink->d_obj);
+    ASSERT(!o->current_flow)
+    ASSERT(src->router == o)
+    ASSERT(data_len >= 0)
+    ASSERT(data_len <= o->frame_mtu)
+    ASSERT(num_packets > 0)
     
     // get memory location
     uint8_t *out;

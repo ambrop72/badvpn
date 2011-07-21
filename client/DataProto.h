@@ -182,14 +182,12 @@ void DataProtoSource_Free (DataProtoSource *o);
  *                        inactivity handler; <0 to disable. Note that the flow is considered
  *                        active as long as its buffer is non-empty, even if is not attached to
  *                        a {@link DataProtoSink}.
- * @param handler_inactivity inactivity handler, if inactivity_time >=0
  * @param user value to pass to handler
+ * @param handler_inactivity inactivity handler, if inactivity_time >=0
  * @return 1 on success, 0 on failure
  */
-int DataProtoFlow_Init (
-    DataProtoFlow *o, DataProtoSource *source, peerid_t source_id, peerid_t dest_id, int num_packets,
-    int inactivity_time, DataProtoFlow_handler_inactivity handler_inactivity, void *user
-) WARN_UNUSED;
+int DataProtoFlow_Init (DataProtoFlow *o, DataProtoSource *source, peerid_t source_id, peerid_t dest_id, int num_packets, int inactivity_time, void *user,
+                        DataProtoFlow_handler_inactivity handler_inactivity) WARN_UNUSED;
 
 /**
  * Frees the flow.

@@ -34,13 +34,11 @@
 
 static DPReceivePeer * find_peer (DPReceiveDevice *o, peerid_t id)
 {
-    LinkedList2Node *node = LinkedList2_GetFirst(&o->peers_list);
-    while (node) {
+    for (LinkedList2Node *node = LinkedList2_GetFirst(&o->peers_list); node; node = LinkedList2Node_Next(node)) {
         DPReceivePeer *p = UPPER_OBJECT(node, DPReceivePeer, list_node);
         if (p->peer_id == id) {
             return p;
         }
-        node = LinkedList2Node_Next(node);
     }
     
     return NULL;
@@ -49,7 +47,6 @@ static DPReceivePeer * find_peer (DPReceiveDevice *o, peerid_t id)
 static void receiver_recv_handler_send (DPReceiveReceiver *o, uint8_t *packet, int packet_len)
 {
     DebugObject_Access(&o->d_obj);
-    ASSERT(o->peer)
     DPReceivePeer *peer = o->peer;
     DPReceiveDevice *device = peer->device;
     ASSERT(packet_len >= 0)
@@ -164,6 +161,7 @@ int DPReceiveDevice_Init (DPReceiveDevice *o, int device_mtu, DPReceiveDevice_ou
 {
     ASSERT(device_mtu >= 0)
     ASSERT(device_mtu <= INT_MAX - DATAPROTO_MAX_OVERHEAD)
+    ASSERT(output_func)
     ASSERT(relay_flow_buffer_size > 0)
     
     // init arguments
