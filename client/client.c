@@ -488,7 +488,7 @@ int main (int argc, char *argv[])
         while (num_listeners < num_bind_addrs) {
             POINTER(addr, bind_addrs[num_listeners])
             if (!PasswordListener_Init(
-                &listeners[num_listeners], &ss, addr->addr, 50, options.peer_ssl,
+                &listeners[num_listeners], &ss, addr->addr, TCP_MAX_PASSWORD_LISTENER_CLIENTS, options.peer_ssl,
                 (options.peer_ssl ? client_cert : NULL),
                 (options.peer_ssl ? client_key : NULL)
             )) {

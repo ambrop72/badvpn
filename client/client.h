@@ -47,6 +47,9 @@
 // maximum UDP payload size
 #define CLIENT_UDP_MTU 1472
 
+// maximum number of pending TCP PasswordListener clients
+#define TCP_MAX_PASSWORD_LISTENER_CLIENTS 50
+
 // maximum number of peers
 #define MAX_PEERS 256
 // maximum number of peer's MAC addresses to remember
