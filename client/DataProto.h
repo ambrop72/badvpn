@@ -75,7 +75,7 @@ typedef struct {
 
 /**
  * Receives frames from a {@link PacketRecvInterface} input and
- * allows the user to route them to buffers in {@link DataProtoFlow} objects.
+ * allows the user to route them to buffers in {@link DataProtoFlow}'s.
  */
 typedef struct {
     DataProtoSource_handler handler;
@@ -114,7 +114,7 @@ struct DataProtoFlow_buffer {
 };
 
 /**
- * Initializes the object.
+ * Initializes the sink.
  * 
  * @param o the object
  * @param reactor reactor we live in
@@ -130,7 +130,7 @@ struct DataProtoFlow_buffer {
 int DataProtoSink_Init (DataProtoSink *o, BReactor *reactor, PacketPassInterface *output, btime_t keepalive_time, btime_t tolerance_time, DataProtoSink_handler handler, void *user) WARN_UNUSED;
 
 /**
- * Frees the object.
+ * Frees the sink.
  * There must be no local sources attached.
  * 
  * @param o the object
@@ -138,7 +138,7 @@ int DataProtoSink_Init (DataProtoSink *o, BReactor *reactor, PacketPassInterface
 void DataProtoSink_Free (DataProtoSink *o);
 
 /**
- * Notifies the object that a packet was received from the peer.
+ * Notifies the sink that a packet was received from the peer.
  * Must not be in freeing state.
  * 
  * @param o the object
@@ -148,12 +148,12 @@ void DataProtoSink_Free (DataProtoSink *o);
 void DataProtoSink_Received (DataProtoSink *o, int peer_receiving);
 
 /**
- * Initiazes the object.
+ * Initiazes the source.
  * 
  * @param o the object
  * @param input frame input. Its input MTU must be <= INT_MAX - DATAPROTO_MAX_OVERHEAD.
  * @param handler handler called when a frame arrives to allow the user to route it to
- *                appropriate {@link DataProtoFlow} objects.
+ *                appropriate {@link DataProtoFlow}'s.
  * @param user value passed to handler
  * @param reactor reactor we live in
  * @return 1 on success, 0 on failure
@@ -161,25 +161,25 @@ void DataProtoSink_Received (DataProtoSink *o, int peer_receiving);
 int DataProtoSource_Init (DataProtoSource *o, PacketRecvInterface *input, DataProtoSource_handler handler, void *user, BReactor *reactor) WARN_UNUSED;
 
 /**
- * Frees the object.
- * There must be no {@link DataProtoFlow} objects using this source.
+ * Frees the source.
+ * There must be no {@link DataProtoFlow}'s using this source.
  * 
  * @param o the object
  */
 void DataProtoSource_Free (DataProtoSource *o);
 
 /**
- * Initializes the object.
- * The object is initialized in not attached state.
+ * Initializes the flow.
+ * The flow is initialized in not attached state.
  * 
  * @param o the object
  * @param source source to receive frames from
  * @param source_id source peer ID to encode in the headers (i.e. our ID)
  * @param dest_id destination peer ID to encode in the headers (i.e. ID if the peer this
- *                object belongs to)
+ *                flow belongs to)
  * @param num_packets number of packets the buffer should hold. Must be >0.
  * @param inactivity_time milliseconds of output inactivity after which to call the
- *                        inactivity handler; <0 to disable. Note that the object is considered
+ *                        inactivity handler; <0 to disable. Note that the flow is considered
  *                        active as long as its buffer is non-empty, even if is not attached to
  *                        a {@link DataProtoSink}.
  * @param handler_inactivity inactivity handler, if inactivity_time >=0
@@ -192,8 +192,8 @@ int DataProtoFlow_Init (
 ) WARN_UNUSED;
 
 /**
- * Frees the object.
- * The object must be in not attached state.
+ * Frees the flow.
+ * The flow must be in not attached state.
  * 
  * @param o the object
  */
@@ -206,24 +206,24 @@ void DataProtoFlow_Free (DataProtoFlow *o);
  * 
  * @param o the object
  * @param more whether the current frame may have to be routed to more
- *             objects. If 0, must not be called again until the handler is
+ *             flows. If 0, must not be called again until the handler is
  *             called for the next frame. Must be 0 or 1.
  */
 void DataProtoFlow_Route (DataProtoFlow *o, int more);
 
 /**
- * Attaches the object to a sink.
- * The object must be in not attached state.
+ * Attaches the flow to a sink.
+ * The flow must be in not attached state.
  * 
  * @param o the object
- * @param sink sink to attach to. This object's frame_mtu must be <=
- *             (output MTU of dp) - DATAPROTO_MAX_OVERHEAD.
+ * @param sink sink to attach to. This flow's frame_mtu must be <=
+ *             (output MTU of sink) - DATAPROTO_MAX_OVERHEAD.
  */
 void DataProtoFlow_Attach (DataProtoFlow *o, DataProtoSink *sink);
 
 /**
- * Detaches the object from a destination.
- * The object must be in attached state.
+ * Detaches the flow from a destination.
+ * The flow must be in attached state.
  * 
  * @param o the object
  */
