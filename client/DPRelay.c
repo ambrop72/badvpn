@@ -108,14 +108,12 @@ static void flow_inactivity_handler (struct DPRelay_flow *flow)
 
 static struct DPRelay_flow * source_find_flow (DPRelaySource *o, DPRelaySink *sink)
 {
-    LinkedList1Node *node = LinkedList1_GetFirst(&o->flows_list);
-    while (node) {
+    for (LinkedList1Node *node = LinkedList1_GetFirst(&o->flows_list); node; node = LinkedList1Node_Next(node)) {
         struct DPRelay_flow *flow = UPPER_OBJECT(node, struct DPRelay_flow, src_list_node);
         ASSERT(flow->src == o)
         if (flow->sink == sink) {
             return flow;
         }
-        node = LinkedList1Node_Next(node);
     }
     
     return NULL;
@@ -156,9 +154,8 @@ int DPRelayRouter_Init (DPRelayRouter *o, int frame_mtu, BReactor *reactor)
     // have no current flow
     o->current_flow = NULL;
     
-    DebugObject_Init(&o->d_obj);
     DebugCounter_Init(&o->d_ctr);
-    
+    DebugObject_Init(&o->d_obj);
     return 1;
     
 fail1:
@@ -168,9 +165,9 @@ fail1:
 
 void DPRelayRouter_Free (DPRelayRouter *o)
 {
-    ASSERT(!o->current_flow) // have no sources
-    DebugCounter_Free(&o->d_ctr);
     DebugObject_Free(&o->d_obj);
+    DebugCounter_Free(&o->d_ctr);
+    ASSERT(!o->current_flow) // have no sources
     
     // free DataProtoSource
     DataProtoSource_Free(&o->dp_source);
@@ -227,14 +224,14 @@ void DPRelaySource_Init (DPRelaySource *o, DPRelayRouter *router, peerid_t sourc
     // init flows list
     LinkedList1_Init(&o->flows_list);
     
-    DebugObject_Init(&o->d_obj);
     DebugCounter_Increment(&o->router->d_ctr);
+    DebugObject_Init(&o->d_obj);
 }
 
 void DPRelaySource_Free (DPRelaySource *o)
 {
-    DebugCounter_Decrement(&o->router->d_ctr);
     DebugObject_Free(&o->d_obj);
+    DebugCounter_Decrement(&o->router->d_ctr);
     
     // free flows, detaching them if needed
     LinkedList1Node *node;
@@ -260,8 +257,8 @@ void DPRelaySink_Init (DPRelaySink *o, peerid_t dest_id)
 
 void DPRelaySink_Free (DPRelaySink *o)
 {
-    ASSERT(!o->dp_sink)
     DebugObject_Free(&o->d_obj);
+    ASSERT(!o->dp_sink)
     
     // free flows
     LinkedList1Node *node;
@@ -273,16 +270,14 @@ void DPRelaySink_Free (DPRelaySink *o)
 
 void DPRelaySink_Attach (DPRelaySink *o, DataProtoSink *dp_sink)
 {
-    ASSERT(dp_sink)
-    ASSERT(!o->dp_sink)
     DebugObject_Access(&o->d_obj);
+    ASSERT(!o->dp_sink)
+    ASSERT(dp_sink)
     
     // attach flows
-    LinkedList1Node *node = LinkedList1_GetFirst(&o->flows_list);
-    while (node) {
+    for (LinkedList1Node *node = LinkedList1_GetFirst(&o->flows_list); node; node = LinkedList1Node_Next(node)) {
         struct DPRelay_flow *flow = UPPER_OBJECT(node, struct DPRelay_flow, sink_list_node);
         DataProtoFlow_Attach(&flow->dp_flow, dp_sink);
-        node = LinkedList1Node_Next(node);
     }
     
     // set sink
@@ -291,15 +286,13 @@ void DPRelaySink_Attach (DPRelaySink *o, DataProtoSink *dp_sink)
 
 void DPRelaySink_Detach (DPRelaySink *o)
 {
-    ASSERT(o->dp_sink)
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->dp_sink)
     
     // detach flows
-    LinkedList1Node *node = LinkedList1_GetFirst(&o->flows_list);
-    while (node) {
+    for (LinkedList1Node *node = LinkedList1_GetFirst(&o->flows_list); node; node = LinkedList1Node_Next(node)) {
         struct DPRelay_flow *flow = UPPER_OBJECT(node, struct DPRelay_flow, sink_list_node);
         DataProtoFlow_Detach(&flow->dp_flow);
-        node = LinkedList1Node_Next(node);
     }
     
     // set no sink
