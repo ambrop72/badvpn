@@ -487,11 +487,7 @@ int main (int argc, char *argv[])
     if (options.transport_mode == TRANSPORT_MODE_TCP) {
         while (num_listeners < num_bind_addrs) {
             POINTER(addr, bind_addrs[num_listeners])
-            if (!PasswordListener_Init(
-                &listeners[num_listeners], &ss, addr->addr, TCP_MAX_PASSWORD_LISTENER_CLIENTS, options.peer_ssl,
-                (options.peer_ssl ? client_cert : NULL),
-                (options.peer_ssl ? client_key : NULL)
-            )) {
+            if (!PasswordListener_Init(&listeners[num_listeners], &ss, addr->addr, TCP_MAX_PASSWORD_LISTENER_CLIENTS, options.peer_ssl, client_cert, client_key)) {
                 BLog(BLOG_ERROR, "PasswordListener_Init failed");
                 goto fail8;
             }
@@ -543,9 +539,8 @@ int main (int argc, char *argv[])
     LinkedList2_Init(&waiting_relay_peers);
     
     // start connecting to server
-    if (!ServerConnection_Init(
-        &server, &ss, server_addr, SC_KEEPALIVE_INTERVAL, SERVER_BUFFER_MIN_PACKETS, options.ssl, client_cert, client_key, server_name, NULL,
-        server_handler_error, server_handler_ready, server_handler_newclient, server_handler_endclient, server_handler_message
+    if (!ServerConnection_Init(&server, &ss, server_addr, SC_KEEPALIVE_INTERVAL, SERVER_BUFFER_MIN_PACKETS, options.ssl, client_cert, client_key, server_name, NULL,
+                               server_handler_error, server_handler_ready, server_handler_newclient, server_handler_endclient, server_handler_message
     )) {
         BLog(BLOG_ERROR, "ServerConnection_Init failed");
         goto fail11;
@@ -1445,7 +1440,8 @@ fail2:
     }
 fail1:
     free(peer);
-fail0:;
+fail0:
+    return;
 }
 
 void peer_remove (struct peer_data *peer, int exiting)
