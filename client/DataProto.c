@@ -243,7 +243,10 @@ int DataProtoSink_Init (DataProtoSink *o, BReactor *reactor, PacketPassInterface
     PacketPassInactivityMonitor_Force(&o->monitor);
     
     // init queue
-    PacketPassFairQueue_Init(&o->queue, PacketPassInactivityMonitor_GetInput(&o->monitor), BReactor_PendingGroup(o->reactor), 1, 1);
+    if (!PacketPassFairQueue_Init(&o->queue, PacketPassInactivityMonitor_GetInput(&o->monitor), BReactor_PendingGroup(o->reactor), 1, 1)) {
+        BLog(BLOG_ERROR, "PacketPassFairQueue_Init failed");
+        goto fail1;
+    }
     
     // init keepalive queue flow
     PacketPassFairQueueFlow_Init(&o->ka_qflow, &o->queue);
@@ -257,7 +260,7 @@ int DataProtoSink_Init (DataProtoSink *o, BReactor *reactor, PacketPassInterface
     // init keepalive buffer
     if (!SinglePacketBuffer_Init(&o->ka_buffer, PacketRecvBlocker_GetOutput(&o->ka_blocker), PacketPassFairQueueFlow_GetInput(&o->ka_qflow), BReactor_PendingGroup(o->reactor))) {
         BLog(BLOG_ERROR, "SinglePacketBuffer_Init failed");
-        goto fail1;
+        goto fail2;
     }
     
     // init receive timer
@@ -275,14 +278,14 @@ int DataProtoSink_Init (DataProtoSink *o, BReactor *reactor, PacketPassInterface
     
     DebugCounter_Init(&o->d_ctr);
     DebugObject_Init(&o->d_obj);
-    
     return 1;
     
-fail1:
+fail2:
     PacketRecvBlocker_Free(&o->ka_blocker);
     DataProtoKeepaliveSource_Free(&o->ka_source);
     PacketPassFairQueueFlow_Free(&o->ka_qflow);
     PacketPassFairQueue_Free(&o->queue);
+fail1:
     PacketPassInactivityMonitor_Free(&o->monitor);
     PacketPassNotifier_Free(&o->notifier);
     return 0;

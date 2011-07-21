@@ -373,9 +373,9 @@ static struct UdpGwClient_connection * reuse_connection (UdpGwClient *o, struct 
     return con;
 }
 
-void UdpGwClient_Init (UdpGwClient *o, int udp_mtu, int max_connections, int send_buffer_size, btime_t keepalive_time, BReactor *reactor, void *user,
-                       UdpGwClient_handler_servererror handler_servererror,
-                       UdpGwClient_handler_received handler_received)
+int UdpGwClient_Init (UdpGwClient *o, int udp_mtu, int max_connections, int send_buffer_size, btime_t keepalive_time, BReactor *reactor, void *user,
+                      UdpGwClient_handler_servererror handler_servererror,
+                      UdpGwClient_handler_received handler_received)
 {
     ASSERT(udp_mtu >= 0)
     ASSERT(udpgw_compute_mtu(udp_mtu) >= 0)
@@ -424,7 +424,9 @@ void UdpGwClient_Init (UdpGwClient *o, int udp_mtu, int max_connections, int sen
     PacketPassInactivityMonitor_Init(&o->send_monitor, PacketPassConnector_GetInput(&o->send_connector), o->reactor, o->keepalive_time, (PacketPassInactivityMonitor_handler)send_monitor_handler, o);
     
     // init send queue
-    PacketPassFairQueue_Init(&o->send_queue, PacketPassInactivityMonitor_GetInput(&o->send_monitor), BReactor_PendingGroup(o->reactor), 0, 1);
+    if (!PacketPassFairQueue_Init(&o->send_queue, PacketPassInactivityMonitor_GetInput(&o->send_monitor), BReactor_PendingGroup(o->reactor), 0, 1)) {
+        goto fail0;
+    }
     
     // construct keepalive packet
     o->keepalive_packet.pp.len = sizeof(o->keepalive_packet.udpgw);
@@ -445,6 +447,12 @@ void UdpGwClient_Init (UdpGwClient *o, int udp_mtu, int max_connections, int sen
     o->have_server = 0;
     
     DebugObject_Init(&o->d_obj);
+    return 1;
+    
+fail0:
+    PacketPassInactivityMonitor_Free(&o->send_monitor);
+    PacketPassConnector_Free(&o->send_connector);
+    return 0;
 }
 
 void UdpGwClient_Free (UdpGwClient *o)

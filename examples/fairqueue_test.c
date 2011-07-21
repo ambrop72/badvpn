@@ -114,7 +114,10 @@ int main ()
     TimerPacketSink_Init(&sink, &reactor, 500, OUTPUT_INTERVAL);
     
     // initialize queue
-    PacketPassFairQueue_Init(&fq, TimerPacketSink_GetInput(&sink), BReactor_PendingGroup(&reactor), 1, 1);
+    if (!PacketPassFairQueue_Init(&fq, TimerPacketSink_GetInput(&sink), BReactor_PendingGroup(&reactor), 1, 1)) {
+        DEBUG("PacketPassFairQueue_Init failed");
+        return 1;
+    }
     
     // initialize inputs
     for (int i = 0; i < NUM_INPUTS; i++) {

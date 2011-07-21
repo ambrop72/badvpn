@@ -210,11 +210,9 @@ static void output_handler_done (PacketPassFairQueue *m)
     }
 }
 
-void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *output, BPendingGroup *pg, int use_cancel, int packet_weight)
+int PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *output, BPendingGroup *pg, int use_cancel, int packet_weight)
 {
-    ASSERT(PacketPassInterface_GetMTU(output) <= FAIRQUEUE_MAX_TIME)
     ASSERT(packet_weight > 0)
-    ASSERT(packet_weight <= FAIRQUEUE_MAX_TIME - PacketPassInterface_GetMTU(output))
     ASSERT(use_cancel == 0 || use_cancel == 1)
     ASSERT(!use_cancel || PacketPassInterface_HasCancel(output))
     
@@ -223,6 +221,14 @@ void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *outp
     m->pg = pg;
     m->use_cancel = use_cancel;
     m->packet_weight = packet_weight;
+    
+    // make sure that (output MTU + packet_weight <= FAIRQUEUE_MAX_TIME)
+    if (!(
+        (PacketPassInterface_GetMTU(output) <= FAIRQUEUE_MAX_TIME) &&
+        (packet_weight <= FAIRQUEUE_MAX_TIME - PacketPassInterface_GetMTU(output))
+    )) {
+        goto fail0;
+    }
     
     // init output
     PacketPassInterface_Sender_Init(m->output, (PacketPassInterface_handler_done)output_handler_done, m);
@@ -247,6 +253,10 @@ void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *outp
     
     DebugObject_Init(&m->d_obj);
     DebugCounter_Init(&m->d_ctr);
+    return 1;
+    
+fail0:
+    return 0;
 }
 
 void PacketPassFairQueue_Free (PacketPassFairQueue *m)

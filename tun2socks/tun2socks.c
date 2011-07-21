@@ -312,8 +312,12 @@ int main (int argc, char **argv)
         }
         
         // init udpgw client
-        SocksUdpGwClient_Init(&udpgw_client, udp_mtu, DEFAULT_UDPGW_MAX_CONNECTIONS, options.udpgw_connection_buffer_size, UDPGW_KEEPALIVE_TIME,
-                              socks_server_addr, udpgw_remote_server_addr, UDPGW_RECONNECT_TIME, &ss, NULL, udpgw_client_handler_received);
+        if (!SocksUdpGwClient_Init(&udpgw_client, udp_mtu, DEFAULT_UDPGW_MAX_CONNECTIONS, options.udpgw_connection_buffer_size, UDPGW_KEEPALIVE_TIME,
+                                   socks_server_addr, udpgw_remote_server_addr, UDPGW_RECONNECT_TIME, &ss, NULL, udpgw_client_handler_received
+        )) {
+            BLog(BLOG_ERROR, "SocksUdpGwClient_Init failed");
+            goto fail4a;
+        }
     }
     
     // init lwip init job

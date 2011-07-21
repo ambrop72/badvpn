@@ -2726,7 +2726,11 @@ void server_handler_ready (void *user, peerid_t param_my_id, uint32_t ext_ip)
     DPReceiveDevice_SetPeerID(&device_output_dprd, my_id);
     
     // init server queue
-    PacketPassFairQueue_Init(&server_queue, ServerConnection_GetSendInterface(&server), BReactor_PendingGroup(&ss), 0, 1);
+    if (!PacketPassFairQueue_Init(&server_queue, ServerConnection_GetSendInterface(&server), BReactor_PendingGroup(&ss), 0, 1)) {
+        BLog(BLOG_ERROR, "PacketPassFairQueue_Init failed");
+        terminate();
+        return;
+    }
     
     // set server ready
     server_ready = 1;

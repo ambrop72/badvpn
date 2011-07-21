@@ -95,9 +95,9 @@ struct UdpGwClient_connection {
     LinkedList1Node connections_list_node;
 };
 
-void UdpGwClient_Init (UdpGwClient *o, int udp_mtu, int max_connections, int send_buffer_size, btime_t keepalive_time, BReactor *reactor, void *user,
-                       UdpGwClient_handler_servererror handler_servererror,
-                       UdpGwClient_handler_received handler_received);
+int UdpGwClient_Init (UdpGwClient *o, int udp_mtu, int max_connections, int send_buffer_size, btime_t keepalive_time, BReactor *reactor, void *user,
+                      UdpGwClient_handler_servererror handler_servererror,
+                      UdpGwClient_handler_received handler_received) WARN_UNUSED;
 void UdpGwClient_Free (UdpGwClient *o);
 void UdpGwClient_SubmitPacket (UdpGwClient *o, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len);
 int UdpGwClient_ConnectServer (UdpGwClient *o, StreamPassInterface *send_if, StreamRecvInterface *recv_if) WARN_UNUSED;

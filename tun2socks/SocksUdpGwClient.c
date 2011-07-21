@@ -152,8 +152,8 @@ static void udpgw_handler_received (SocksUdpGwClient *o, BAddr local_addr, BAddr
     return;
 }
 
-void SocksUdpGwClient_Init (SocksUdpGwClient *o, int udp_mtu, int max_connections, int send_buffer_size, btime_t keepalive_time, BAddr socks_server_addr, BAddr remote_udpgw_addr, btime_t reconnect_time, BReactor *reactor, void *user,
-                            SocksUdpGwClient_handler_received handler_received)
+int SocksUdpGwClient_Init (SocksUdpGwClient *o, int udp_mtu, int max_connections, int send_buffer_size, btime_t keepalive_time, BAddr socks_server_addr, BAddr remote_udpgw_addr, btime_t reconnect_time, BReactor *reactor, void *user,
+                           SocksUdpGwClient_handler_received handler_received)
 {
     ASSERT(udp_mtu >= 0)
     ASSERT(udpgw_compute_mtu(udp_mtu) >= 0)
@@ -172,9 +172,12 @@ void SocksUdpGwClient_Init (SocksUdpGwClient *o, int udp_mtu, int max_connection
     o->handler_received = handler_received;
     
     // init udpgw client
-    UdpGwClient_Init(&o->udpgw_client, udp_mtu, max_connections, send_buffer_size, keepalive_time, o->reactor, o,
-                     (UdpGwClient_handler_servererror)udpgw_handler_servererror,
-                     (UdpGwClient_handler_received)udpgw_handler_received);
+    if (!UdpGwClient_Init(&o->udpgw_client, udp_mtu, max_connections, send_buffer_size, keepalive_time, o->reactor, o,
+                          (UdpGwClient_handler_servererror)udpgw_handler_servererror,
+                          (UdpGwClient_handler_received)udpgw_handler_received
+    )) {
+        goto fail0;
+    }
     
     // init reconnect timer
     BTimer_Init(&o->reconnect_timer, reconnect_time, (BTimer_handler)reconnect_timer_handler, o);
@@ -186,6 +189,10 @@ void SocksUdpGwClient_Init (SocksUdpGwClient *o, int udp_mtu, int max_connection
     try_connect(o);
     
     DebugObject_Init(&o->d_obj);
+    return 1;
+    
+fail0:
+    return 0;
 }
 
 void SocksUdpGwClient_Free (SocksUdpGwClient *o)

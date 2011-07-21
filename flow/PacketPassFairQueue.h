@@ -29,6 +29,7 @@
 
 #include <stdint.h>
 
+#include <misc/debug.h>
 #include <misc/debugcounter.h>
 #include <structure/BHeap.h>
 #include <structure/LinkedList2.h>
@@ -80,7 +81,6 @@ typedef struct PacketPassFairQueueFlow_s {
 
 /**
  * Initializes the queue.
- * (output MTU + packet_weight <= FAIRQUEUE_MAX_TIME) must hold.
  *
  * @param m the object
  * @param output output interface
@@ -89,8 +89,9 @@ typedef struct PacketPassFairQueueFlow_s {
  *                   If 1, output must support cancel functionality.
  * @param packet_weight additional weight a packet bears. Must be >0, to keep
  *                      the queue fair for zero size packets.
+ * @return 1 on success, 0 on failure (because output MTU is too large)
  */
-void PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *output, BPendingGroup *pg, int use_cancel, int packet_weight);
+int PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *output, BPendingGroup *pg, int use_cancel, int packet_weight) WARN_UNUSED;
 
 /**
  * Frees the queue.

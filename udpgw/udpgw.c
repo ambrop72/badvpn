@@ -572,7 +572,10 @@ void listener_handler (BListener *listener)
     PacketStreamSender_Init(&client->send_sender, BConnection_SendAsync_GetIf(&client->con), pp_mtu, BReactor_PendingGroup(&ss));
     
     // init send queue
-    PacketPassFairQueue_Init(&client->send_queue, PacketStreamSender_GetInput(&client->send_sender), BReactor_PendingGroup(&ss), 0, 1);
+    if (!PacketPassFairQueue_Init(&client->send_queue, PacketStreamSender_GetInput(&client->send_sender), BReactor_PendingGroup(&ss), 0, 1)) {
+        BLog(BLOG_ERROR, "PacketPassFairQueue_Init failed");
+        goto fail3;
+    }
     
     // init connections tree
     BAVL_Init(&client->connections_tree, OFFSET_DIFF(struct connection, conid, connections_tree_node), (BAVL_comparator)uint16_comparator, NULL);
@@ -594,6 +597,9 @@ void listener_handler (BListener *listener)
     
     return;
     
+fail3:
+    PacketStreamSender_Free(&client->send_sender);
+    PacketProtoDecoder_Free(&client->recv_decoder);
 fail2:
     PacketPassInterface_Free(&client->recv_if);
     BReactor_RemoveTimer(&ss, &client->disconnect_timer);
