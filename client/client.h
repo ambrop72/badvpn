@@ -108,8 +108,7 @@ struct peer_data {
     int cert_len;
     char *common_name;
     
-    // jobs
-    BPending job_send_seed_after_binding;
+    // init job
     BPending job_init;
     
     // server flow
@@ -150,6 +149,7 @@ struct peer_data {
             uint8_t sendseed_sent_key[BENCRYPTION_MAX_KEY_SIZE];
             uint8_t sendseed_sent_iv[BENCRYPTION_MAX_BLOCK_SIZE];
             uint16_t pending_recvseed_id;
+            BPending job_send_seed;
         } udp;
         struct {
             StreamPeerIO pio;

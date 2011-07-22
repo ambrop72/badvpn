@@ -483,7 +483,6 @@ int ServerConnection_Init (
     ServerConnection_handler_message handler_message
 )
 {
-    ASSERT(addr.type == BADDR_TYPE_IPV4 || addr.type == BADDR_TYPE_IPV6)
     ASSERT(keepalive_interval > 0)
     ASSERT(buffer_size > 0)
     ASSERT(have_ssl == 0 || have_ssl == 1)
@@ -504,6 +503,11 @@ int ServerConnection_Init (
     o->handler_newclient = handler_newclient;
     o->handler_endclient = handler_endclient;
     o->handler_message = handler_message;
+    
+    if (!BConnection_AddressSupported(addr)) {
+        BLog(BLOG_ERROR, "BConnection_AddressSupported failed");
+        goto fail0;
+    }
     
     // init connector
     if (!BConnector_Init(&o->connector, addr, o->reactor, o, (BConnector_handler)connector_handler)) {
@@ -576,13 +580,6 @@ void ServerConnection_Free (ServerConnection *o)
     
     // free connector
     BConnector_Free(&o->connector);
-}
-
-int ServerConnection_IsReady (ServerConnection *o)
-{
-    DebugObject_Access(&o->d_obj);
-    
-    return (o->state == STATE_COMPLETE);
 }
 
 PacketPassInterface * ServerConnection_GetSendInterface (ServerConnection *o)

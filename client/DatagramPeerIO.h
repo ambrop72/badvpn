@@ -190,8 +190,7 @@ PacketPassInterface * DatagramPeerIO_GetSendInput (DatagramPeerIO *o);
  * On failure, the interface enters default mode.
  *
  * @param o the object
- * @param addr address to send packets to. Must be supported according to
- *             {@link BDatagram_AddressFamilySupported}.
+ * @param addr address to send packets to
  * @return 1 on success, 0 on failure
  */
 int DatagramPeerIO_Connect (DatagramPeerIO *o, BAddr addr) WARN_UNUSED;

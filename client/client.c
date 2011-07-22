@@ -84,6 +84,9 @@ struct {
     char *client_cert_name;
     char *server_name;
     char *server_addr;
+    char *tapdev;
+    int num_scopes;
+    char *scopes[MAX_SCOPES];
     int num_bind_addrs;
     struct {
         char *addr;
@@ -94,7 +97,6 @@ struct {
             char *scope;
         } ext_addrs[MAX_EXT_ADDRS];
     } bind_addrs[MAX_BIND_ADDRS];
-    char *tapdev;
     int transport_mode;
     int encryption_mode;
     int hash_mode;
@@ -104,8 +106,6 @@ struct {
     int fragmentation_latency;
     int peer_ssl;
     int peer_tcp_socket_sndbuf;
-    char *scopes[MAX_SCOPES];
-    int num_scopes;
     int send_buffer_size;
     int send_buffer_relay_size;
     int max_macs;
@@ -157,7 +157,7 @@ BTap device;
 int device_mtu;
 
 // DataProtoSource for device input (reading)
-DataProtoSource device_input_dpd;
+DataProtoSource device_dpsource;
 
 // DPReceiveDevice for device output (writing)
 DPReceiveDevice device_output_dprd;
@@ -235,8 +235,8 @@ static int peer_init_link (struct peer_data *peer);
 // frees link resources
 static void peer_free_link (struct peer_data *peer);
 
-// creates a fresh link
-static int peer_new_link (struct peer_data *peer);
+// frees link, relaying, waiting relaying
+static void peer_cleanup_connections (struct peer_data *peer);
 
 // registers the peer as a relay provider
 static void peer_enable_relay_provider (struct peer_data *peer);
@@ -309,8 +309,6 @@ static void peer_send_simple (struct peer_data *peer, int msgid);
 
 static void peer_send_conectinfo (struct peer_data *peer, int addr_index, int port_adjust, uint8_t *enckey, uint64_t pass);
 
-static void peer_generate_and_send_seed (struct peer_data *peer);
-
 static void peer_send_confirmseed (struct peer_data *peer, uint16_t seed_id);
 
 // handler for peer DataProto up state changes
@@ -323,7 +321,7 @@ static struct peer_data * find_peer_by_id (peerid_t id);
 static void device_error_handler (void *unused);
 
 // DataProtoSource handler for packets from the device
-static void device_input_dpd_handler (void *unused, const uint8_t *frame, int frame_len);
+static void device_dpsource_handler (void *unused, const uint8_t *frame, int frame_len);
 
 // assign relays to clients waiting for them
 static void assign_relays (void);
@@ -339,10 +337,11 @@ static void server_handler_endclient (void *user, peerid_t peer_id);
 static void server_handler_message (void *user, peerid_t peer_id, uint8_t *data, int data_len);
 
 // jobs
-static void peer_job_send_seed_after_binding (struct peer_data *peer);
+static void peer_job_send_seed (struct peer_data *peer);
 static void peer_job_init (struct peer_data *peer);
 
-static struct server_flow * server_flow_init (peerid_t peer_id);
+// server flows
+static struct server_flow * server_flow_init (void);
 static void server_flow_free (struct server_flow *flow);
 static void server_flow_die (struct server_flow *flow);
 static void server_flow_qflow_handler_busy (struct server_flow *flow);
@@ -514,7 +513,7 @@ int main (int argc, char *argv[])
     data_mtu = DATAPROTO_MAX_OVERHEAD + device_mtu;
     
     // init device input
-    if (!DataProtoSource_Init(&device_input_dpd, BTap_GetOutput(&device), device_input_dpd_handler, NULL, &ss)) {
+    if (!DataProtoSource_Init(&device_dpsource, BTap_GetOutput(&device), device_dpsource_handler, NULL, &ss)) {
         BLog(BLOG_ERROR, "DataProtoSource_Init failed");
         goto fail9;
     }
@@ -581,7 +580,7 @@ fail11:
     FrameDecider_Free(&frame_decider);
     DPReceiveDevice_Free(&device_output_dprd);
 fail10:
-    DataProtoSource_Free(&device_input_dpd);
+    DataProtoSource_Free(&device_dpsource);
 fail9:
     BTap_Free(&device);
 fail8:
@@ -1170,10 +1169,6 @@ int process_arguments (void)
         BLog(BLOG_ERROR, "server addr: BAddr_Parse failed");
         return 0;
     }
-    if (!addr_supported(server_addr)) {
-        BLog(BLOG_ERROR, "server addr: not supported");
-        return 0;
-    }
     
     // override server name if requested
     if (options.server_name) {
@@ -1224,6 +1219,10 @@ int process_arguments (void)
                     BLog(BLOG_ERROR, "ext addr: BAddr_Parse failed");
                     return 0;
                 }
+                if (!addr_supported(eout->addr)) {
+                    BLog(BLOG_ERROR, "ext addr: addr_supported failed");
+                    return 0;
+                }
             }
             
             // read scope
@@ -1257,7 +1256,7 @@ void signal_handler (void *unused)
 
 void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
 {
-    ASSERT(ServerConnection_IsReady(&server))
+    ASSERT(server_ready)
     ASSERT(num_peers < MAX_PEERS)
     ASSERT(!find_peer_by_id(id))
     ASSERT(id != my_id)
@@ -1323,15 +1322,12 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
         CERT_DestroyCertificate(nsscert);
     }
     
-    // init jobs
-    BPending_Init(&peer->job_send_seed_after_binding, BReactor_PendingGroup(&ss), (BPending_handler)peer_job_send_seed_after_binding, peer);
+    // init and set init job (must be before initing server flow so we can send)
     BPending_Init(&peer->job_init, BReactor_PendingGroup(&ss), (BPending_handler)peer_job_init, peer);
-    
-    // set init job (must be before initing server flow so we can send)
     BPending_Set(&peer->job_init);
     
     // init server flow
-    if (!(peer->server_flow = server_flow_init(peer->id))) {
+    if (!(peer->server_flow = server_flow_init())) {
         peer_log(peer, BLOG_ERROR, "server_flow_init failed");
         goto fail2;
     }
@@ -1375,7 +1371,7 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     peer->have_resetpeer = 0;
     
     // init local flow
-    if (!DataProtoFlow_Init(&peer->local_dpflow, &device_input_dpd, my_id, peer->id, options.send_buffer_size, -1, NULL, NULL)) {
+    if (!DataProtoFlow_Init(&peer->local_dpflow, &device_dpsource, my_id, peer->id, options.send_buffer_size, -1, NULL, NULL)) {
         peer_log(peer, BLOG_ERROR, "DataProtoFlow_Init failed");
         goto fail4;
     }
@@ -1434,7 +1430,6 @@ fail3:
     server_flow_free(peer->server_flow);
 fail2:
     BPending_Free(&peer->job_init);
-    BPending_Free(&peer->job_send_seed_after_binding);
     if (peer->common_name) {
         PORT_Free(peer->common_name);
     }
@@ -1448,24 +1443,13 @@ void peer_remove (struct peer_data *peer, int exiting)
 {
     peer_log(peer, BLOG_INFO, "removing");
     
-    // cleanup
-    if (peer->have_link) {
-        if (peer->is_relay) {
-            peer_disable_relay_provider(peer);
-        }
-        peer_free_link(peer);
-    }
-    else if (peer->relaying_peer) {
-        peer_free_relaying(peer);
-    }
-    else if (peer->waiting_relay) {
-        peer_unregister_need_relay(peer);
-    }
+    // cleanup connections
+    peer_cleanup_connections(peer);
     
-    ASSERT(!peer->relaying_peer)
-    ASSERT(!peer->is_relay)
-    ASSERT(!peer->waiting_relay)
     ASSERT(!peer->have_link)
+    ASSERT(!peer->relaying_peer)
+    ASSERT(!peer->waiting_relay)
+    ASSERT(!peer->is_relay)
     
     // remove from peers list
     LinkedList2_Remove(&peers, &peer->list_node);
@@ -1506,7 +1490,6 @@ void peer_remove (struct peer_data *peer, int exiting)
     
     // free jobs
     BPending_Free(&peer->job_init);
-    BPending_Free(&peer->job_send_seed_after_binding);
     
     // free common name
     if (peer->common_name) {
@@ -1584,10 +1567,13 @@ int peer_init_link (struct peer_data *peer)
             goto fail1;
         }
         
-        // init send seed state
         if (SPPROTO_HAVE_OTP(sp_params)) {
+            // init send seed state
             peer->pio.udp.sendseed_nextid = 0;
             peer->pio.udp.sendseed_sent = 0;
+            
+            // init send seed job
+            BPending_Init(&peer->pio.udp.job_send_seed, BReactor_PendingGroup(&ss), (BPending_handler)peer_job_send_seed, peer);
         }
         
         link_if = DatagramPeerIO_GetSendInput(&peer->pio.udp.pio);
@@ -1622,12 +1608,16 @@ int peer_init_link (struct peer_data *peer)
     // attach receive peer to our DataProtoSink
     DPReceivePeer_AttachSink(&peer->receive_peer, &peer->send_dp);
     
+    // set have link
     peer->have_link = 1;
     
     return 1;
     
 fail2:
     if (options.transport_mode == TRANSPORT_MODE_UDP) {
+        if (SPPROTO_HAVE_OTP(sp_params)) {
+            BPending_Free(&peer->pio.udp.job_send_seed);
+        }
         DatagramPeerIO_Free(&peer->pio.udp.pio);
     } else {
         StreamPeerIO_Free(&peer->pio.tcp.pio);
@@ -1656,6 +1646,9 @@ void peer_free_link (struct peer_data *peer)
     
     // free transport-specific link objects
     if (options.transport_mode == TRANSPORT_MODE_UDP) {
+        if (SPPROTO_HAVE_OTP(sp_params)) {
+            BPending_Free(&peer->pio.udp.job_send_seed);
+        }
         DatagramPeerIO_Free(&peer->pio.udp.pio);
     } else {
         StreamPeerIO_Free(&peer->pio.tcp.pio);
@@ -1664,10 +1657,11 @@ void peer_free_link (struct peer_data *peer)
     // free receive receiver
     DPReceiveReceiver_Free(&peer->receive_receiver);
     
+    // set have no link
     peer->have_link = 0;
 }
 
-int peer_new_link (struct peer_data *peer)
+void peer_cleanup_connections (struct peer_data *peer)
 {
     if (peer->have_link) {
         if (peer->is_relay) {
@@ -1682,11 +1676,10 @@ int peer_new_link (struct peer_data *peer)
         peer_unregister_need_relay(peer);
     }
     
-    if (!peer_init_link(peer)) {
-        return 0;
-    }
-    
-    return 1;
+    ASSERT(!peer->have_link)
+    ASSERT(!peer->relaying_peer)
+    ASSERT(!peer->waiting_relay)
+    ASSERT(!peer->is_relay)
 }
 
 void peer_enable_relay_provider (struct peer_data *peer)
@@ -1703,6 +1696,7 @@ void peer_enable_relay_provider (struct peer_data *peer)
     // init users list
     LinkedList2_Init(&peer->relay_users);
     
+    // set is relay
     peer->is_relay = 1;
     
     // assign relays
@@ -1733,6 +1727,7 @@ void peer_disable_relay_provider (struct peer_data *peer)
     // remove from relays list
     LinkedList2_Remove(&relays, &peer->relay_list_node);
     
+    // set is not relay
     peer->is_relay = 0;
     
     // assign relays
@@ -1757,6 +1752,7 @@ void peer_install_relaying (struct peer_data *peer, struct peer_data *relay)
     // attach local flow to relay
     DataProtoFlow_Attach(&peer->local_dpflow, &relay->send_dp);
     
+    // set relaying
     peer->relaying_peer = relay;
 }
 
@@ -1779,6 +1775,7 @@ void peer_free_relaying (struct peer_data *peer)
     // remove from relay's users list
     LinkedList2_Remove(&relay->relay_users, &peer->relaying_list_node);
     
+    // set not relaying
     peer->relaying_peer = NULL;
 }
 
@@ -1816,6 +1813,7 @@ void peer_register_need_relay (struct peer_data *peer)
     // add to need relay list
     LinkedList2_Append(&waiting_relay_peers, &peer->waiting_relay_list_node);
     
+    // set waiting relay
     peer->waiting_relay = 1;
 }
 
@@ -1830,6 +1828,7 @@ void peer_unregister_need_relay (struct peer_data *peer)
     // remove from need relay list
     LinkedList2_Remove(&waiting_relay_peers, &peer->waiting_relay_list_node);
     
+    // set not waiting relay
     peer->waiting_relay = 0;
 }
 
@@ -1837,13 +1836,8 @@ void peer_reset (struct peer_data *peer)
 {
     peer_log(peer, BLOG_NOTICE, "resetting");
     
-    // free link
-    if (peer->have_link) {
-        if (peer->is_relay) {
-            peer_disable_relay_provider(peer);
-        }
-        peer_free_link(peer);
-    }
+    // cleanup connections
+    peer_cleanup_connections(peer);
     
     if (peer_am_master(peer)) {
         // if we're the master, schedule retry
@@ -2174,7 +2168,7 @@ void peer_udp_pio_handler_seed_warning (struct peer_data *peer)
     
     // generate and send a new seed
     if (!peer->pio.udp.sendseed_sent) {
-        peer_generate_and_send_seed(peer);
+        BPending_Set(&peer->pio.udp.job_send_seed);
     }
 }
 
@@ -2278,7 +2272,8 @@ void peer_bind_one_address (struct peer_data *peer, int addr_index, int *cont)
     ASSERT(bind_addrs[addr_index].num_ext_addrs > 0)
     
     // get a fresh link
-    if (!peer_new_link(peer)) {
+    peer_cleanup_connections(peer);
+    if (!peer_init_link(peer)) {
         peer_log(peer, BLOG_ERROR, "cannot get link");
         *cont = 0;
         peer_reset(peer);
@@ -2314,7 +2309,7 @@ void peer_bind_one_address (struct peer_data *peer, int addr_index, int *cont)
         
         // schedule sending OTP seed
         if (SPPROTO_HAVE_OTP(sp_params)) {
-            BPending_Set(&peer->job_send_seed_after_binding);
+            BPending_Set(&peer->pio.udp.job_send_seed);
         }
         
         // send connectinfo
@@ -2335,10 +2330,9 @@ void peer_bind_one_address (struct peer_data *peer, int addr_index, int *cont)
 
 void peer_connect (struct peer_data *peer, BAddr addr, uint8_t* encryption_key, uint64_t password)
 {
-    ASSERT(!BAddr_IsInvalid(&addr))
-    
     // get a fresh link
-    if (!peer_new_link(peer)) {
+    peer_cleanup_connections(peer);
+    if (!peer_init_link(peer)) {
         peer_log(peer, BLOG_ERROR, "cannot get link");
         peer_reset(peer);
         return;
@@ -2348,7 +2342,8 @@ void peer_connect (struct peer_data *peer, BAddr addr, uint8_t* encryption_key, 
         // order DatagramPeerIO to connect
         if (!DatagramPeerIO_Connect(&peer->pio.udp.pio, addr)) {
             peer_log(peer, BLOG_NOTICE, "DatagramPeerIO_Connect failed");
-            return peer_reset(peer);
+            peer_reset(peer);
+            return;
         }
         
         // set encryption key
@@ -2358,17 +2353,14 @@ void peer_connect (struct peer_data *peer, BAddr addr, uint8_t* encryption_key, 
         
         // generate and send a send seed
         if (SPPROTO_HAVE_OTP(sp_params)) {
-            peer_generate_and_send_seed(peer);
+            BPending_Set(&peer->pio.udp.job_send_seed);
         }
     } else {
         // order StreamPeerIO to connect
-        if (!StreamPeerIO_Connect(
-            &peer->pio.tcp.pio, addr, password,
-            (options.peer_ssl ? client_cert : NULL),
-            (options.peer_ssl ? client_key : NULL)
-        )) {
+        if (!StreamPeerIO_Connect(&peer->pio.tcp.pio, addr, password, client_cert, client_key)) {
             peer_log(peer, BLOG_NOTICE, "StreamPeerIO_Connect failed");
-            return peer_reset(peer);
+            peer_reset(peer);
+            return;
         }
     }
 }
@@ -2528,44 +2520,6 @@ void peer_send_conectinfo (struct peer_data *peer, int addr_index, int port_adju
     peer_end_msg(peer);
 }
 
-void peer_generate_and_send_seed (struct peer_data *peer)
-{
-    ASSERT(options.transport_mode == TRANSPORT_MODE_UDP)
-    ASSERT(SPPROTO_HAVE_OTP(sp_params))
-    ASSERT(peer->have_link)
-    ASSERT(!peer->pio.udp.sendseed_sent)
-    
-    peer_log(peer, BLOG_DEBUG, "sending OTP send seed");
-    
-    int key_len = BEncryption_cipher_key_size(sp_params.otp_mode);
-    int iv_len = BEncryption_cipher_block_size(sp_params.otp_mode);
-    
-    // generate seed
-    peer->pio.udp.sendseed_sent_id = peer->pio.udp.sendseed_nextid;
-    BRandom_randomize(peer->pio.udp.sendseed_sent_key, key_len);
-    BRandom_randomize(peer->pio.udp.sendseed_sent_iv, iv_len);
-    
-    // set as sent, increment next seed ID
-    peer->pio.udp.sendseed_sent = 1;
-    peer->pio.udp.sendseed_nextid++;
-    
-    // send seed to the peer
-    int msg_len = msg_seed_SIZEseed_id + msg_seed_SIZEkey(key_len) + msg_seed_SIZEiv(iv_len);
-    uint8_t *msg;
-    if (!peer_start_msg(peer, (void **)&msg, MSGID_SEED, msg_len)) {
-        return;
-    }
-    msg_seedWriter writer;
-    msg_seedWriter_Init(&writer, msg);
-    msg_seedWriter_Addseed_id(&writer, peer->pio.udp.sendseed_sent_id);
-    uint8_t *key_dst = msg_seedWriter_Addkey(&writer, key_len);
-    memcpy(key_dst, peer->pio.udp.sendseed_sent_key, key_len);
-    uint8_t *iv_dst = msg_seedWriter_Addiv(&writer, iv_len);
-    memcpy(iv_dst, peer->pio.udp.sendseed_sent_iv, iv_len);
-    msg_seedWriter_Finish(&writer);
-    peer_end_msg(peer);
-}
-
 void peer_send_confirmseed (struct peer_data *peer, uint16_t seed_id)
 {
     ASSERT(options.transport_mode == TRANSPORT_MODE_UDP)
@@ -2592,7 +2546,7 @@ void peer_dataproto_handler (struct peer_data *peer, int up)
         peer_log(peer, BLOG_INFO, "up");
         
         // if it can be a relay provided, enable it
-        if ((peer->flags&SCID_NEWCLIENT_FLAG_RELAY_SERVER) && !peer->is_relay) {
+        if ((peer->flags & SCID_NEWCLIENT_FLAG_RELAY_SERVER) && !peer->is_relay) {
             peer_enable_relay_provider(peer);
         }
     } else {
@@ -2607,13 +2561,11 @@ void peer_dataproto_handler (struct peer_data *peer, int up)
 
 struct peer_data * find_peer_by_id (peerid_t id)
 {
-    LinkedList2Node *node = LinkedList2_GetFirst(&peers);
-    while (node) {
+    for (LinkedList2Node *node = LinkedList2_GetFirst(&peers); node; node = LinkedList2Node_Next(node)) {
         struct peer_data *peer = UPPER_OBJECT(node, struct peer_data, list_node);
         if (peer->id == id) {
             return peer;
         }
-        node = LinkedList2Node_Next(node);
     }
     
     return NULL;
@@ -2624,12 +2576,12 @@ void device_error_handler (void *unused)
     BLog(BLOG_ERROR, "device error");
     
     terminate();
-    return;
 }
 
-void device_input_dpd_handler (void *unused, const uint8_t *frame, int frame_len)
+void device_dpsource_handler (void *unused, const uint8_t *frame, int frame_len)
 {
     ASSERT(frame_len >= 0)
+    ASSERT(frame_len <= device_mtu)
     
     // give frame to decider
     FrameDecider_AnalyzeAndDecide(&frame_decider, frame, frame_len);
@@ -2689,7 +2641,6 @@ void server_handler_error (void *user)
     BLog(BLOG_ERROR, "server connection failed, exiting");
     
     terminate();
-    return;
 }
 
 void server_handler_ready (void *user, peerid_t param_my_id, uint32_t ext_ip)
@@ -2736,7 +2687,7 @@ void server_handler_ready (void *user, peerid_t param_my_id, uint32_t ext_ip)
 
 void server_handler_newclient (void *user, peerid_t peer_id, int flags, const uint8_t *cert, int cert_len)
 {
-    ASSERT(ServerConnection_IsReady(&server))
+    ASSERT(server_ready)
     ASSERT(cert_len >= 0)
     ASSERT(cert_len <= SCID_NEWCLIENT_MAX_CERT_LEN)
     
@@ -2768,7 +2719,7 @@ void server_handler_newclient (void *user, peerid_t peer_id, int flags, const ui
 
 void server_handler_endclient (void *user, peerid_t peer_id)
 {
-    ASSERT(ServerConnection_IsReady(&server))
+    ASSERT(server_ready)
     
     // find peer
     struct peer_data *peer = find_peer_by_id(peer_id);
@@ -2783,7 +2734,7 @@ void server_handler_endclient (void *user, peerid_t peer_id)
 
 void server_handler_message (void *user, peerid_t peer_id, uint8_t *data, int data_len)
 {
-    ASSERT(ServerConnection_IsReady(&server))
+    ASSERT(server_ready)
     ASSERT(data_len >= 0)
     ASSERT(data_len <= SC_MAX_MSGLEN)
     
@@ -2804,14 +2755,46 @@ void server_handler_message (void *user, peerid_t peer_id, uint8_t *data, int da
     PeerChat_InputReceived(&peer->chat, data, data_len);
 }
 
-void peer_job_send_seed_after_binding (struct peer_data *peer)
+void peer_job_send_seed (struct peer_data *peer)
 {
     ASSERT(options.transport_mode == TRANSPORT_MODE_UDP)
     ASSERT(SPPROTO_HAVE_OTP(sp_params))
     ASSERT(peer->have_link)
     ASSERT(!peer->pio.udp.sendseed_sent)
     
-    peer_generate_and_send_seed(peer);
+    peer_log(peer, BLOG_DEBUG, "sending OTP send seed");
+    
+    int key_len = BEncryption_cipher_key_size(sp_params.otp_mode);
+    int iv_len = BEncryption_cipher_block_size(sp_params.otp_mode);
+    
+    // generate seed
+    peer->pio.udp.sendseed_sent_id = peer->pio.udp.sendseed_nextid;
+    BRandom_randomize(peer->pio.udp.sendseed_sent_key, key_len);
+    BRandom_randomize(peer->pio.udp.sendseed_sent_iv, iv_len);
+    
+    // set as sent, increment next seed ID
+    peer->pio.udp.sendseed_sent = 1;
+    peer->pio.udp.sendseed_nextid++;
+    
+    // send seed to the peer
+    int msg_len = msg_seed_SIZEseed_id + msg_seed_SIZEkey(key_len) + msg_seed_SIZEiv(iv_len);
+    if (msg_len > MSG_MAX_PAYLOAD) {
+        peer_log(peer, BLOG_ERROR, "OTP send seed message too big");
+        return;
+    }
+    uint8_t *msg;
+    if (!peer_start_msg(peer, (void **)&msg, MSGID_SEED, msg_len)) {
+        return;
+    }
+    msg_seedWriter writer;
+    msg_seedWriter_Init(&writer, msg);
+    msg_seedWriter_Addseed_id(&writer, peer->pio.udp.sendseed_sent_id);
+    uint8_t *key_dst = msg_seedWriter_Addkey(&writer, key_len);
+    memcpy(key_dst, peer->pio.udp.sendseed_sent_key, key_len);
+    uint8_t *iv_dst = msg_seedWriter_Addiv(&writer, iv_len);
+    memcpy(iv_dst, peer->pio.udp.sendseed_sent_iv, iv_len);
+    msg_seedWriter_Finish(&writer);
+    peer_end_msg(peer);
 }
 
 void peer_job_init (struct peer_data *peer)
@@ -2822,7 +2805,7 @@ void peer_job_init (struct peer_data *peer)
     }
 }
 
-struct server_flow * server_flow_init (peerid_t peer_id)
+struct server_flow * server_flow_init (void)
 {
     ASSERT(server_ready)
     

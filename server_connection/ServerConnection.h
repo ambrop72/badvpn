@@ -200,7 +200,7 @@ typedef struct {
  *
  * @param o the object
  * @param reactor {@link BReactor} we live in
- * @param addr address to connect to. Must be IPv4 or IPv6.
+ * @param addr address to connect to
  * @param keepalive_interval keep-alive sending interval. Must be >0.
  * @param buffer_size minimum size of send buffer in number of packets. Must be >0.
  * @param have_ssl whether to use SSL for connecting to the server. Must be 1 or 0.
@@ -243,14 +243,6 @@ int ServerConnection_Init (
  * @param o the object
  */
 void ServerConnection_Free (ServerConnection *o);
-
-/**
- * Determines if the object is in ready state.
- *
- * @param o the object
- * @return 1 if ready, 0 of not
- */
-int ServerConnection_IsReady (ServerConnection *o);
 
 /**
  * Returns an interface for sending data to the server (just one).

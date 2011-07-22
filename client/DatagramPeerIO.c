@@ -290,10 +290,15 @@ PacketPassInterface * DatagramPeerIO_GetSendInput (DatagramPeerIO *o)
 int DatagramPeerIO_Connect (DatagramPeerIO *o, BAddr addr)
 {
     DebugObject_Access(&o->d_obj);
-    ASSERT(BDatagram_AddressFamilySupported(addr.type))
     
     // reset mode
     reset_mode(o);
+    
+    // check address
+    if (!BDatagram_AddressFamilySupported(addr.type)) {
+        PeerLog(o, BLOG_ERROR, "BDatagram_AddressFamilySupported failed");
+        goto fail0;
+    }
     
     // init dgram
     if (!BDatagram_Init(&o->dgram, addr.type, o->reactor, o, (BDatagram_handler)dgram_handler)) {

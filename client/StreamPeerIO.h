@@ -181,7 +181,7 @@ PacketPassInterface * StreamPeerIO_GetSendInput (StreamPeerIO *pio);
  * On failure, the object enters default state.
  *
  * @param pio the object
- * @param addr address to connect to. Must be supported according to {@link BConnection_AddressSupported}.
+ * @param addr address to connect to
  * @param password identification code to send to the peer
  * @param ssl_cert if using SSL, the client certificate to use. This object does not
  *                 take ownership of the certificate; it must remain valid until

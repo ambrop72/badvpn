@@ -635,10 +635,15 @@ PacketPassInterface * StreamPeerIO_GetSendInput (StreamPeerIO *pio)
 int StreamPeerIO_Connect (StreamPeerIO *pio, BAddr addr, uint64_t password, CERTCertificate *ssl_cert, SECKEYPrivateKey *ssl_key)
 {
     DebugObject_Access(&pio->d_obj);
-    ASSERT(BConnection_AddressSupported(addr))
     
     // reset state
     reset_state(pio);
+    
+    // check address
+    if (!BConnection_AddressSupported(addr)) {
+        PeerLog(pio, BLOG_ERROR, "BConnection_AddressSupported failed");
+        goto fail0;
+    }
     
     // init connector
     if (!BConnector_Init(&pio->connect.connector, addr, pio->reactor, pio, (BConnector_handler)connector_handler)) {
