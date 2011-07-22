@@ -89,6 +89,8 @@
 // maximum scopes
 #define MAX_SCOPES 8
 
+//#define SIMULATE_PEER_OUT_OF_BUFFER 70
+
 struct server_flow {
     PacketPassFairQueueFlow qflow;
     SinglePacketBuffer encoder_buffer;

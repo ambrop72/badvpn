@@ -262,6 +262,9 @@ static void peer_unregister_need_relay (struct peer_data *peer);
 // handle a link setup failure
 static void peer_reset (struct peer_data *peer);
 
+// fees chat and sends resetpeer
+static void peer_resetpeer (struct peer_data *peer);
+
 // chat handlers
 static void peer_chat_handler_error (struct peer_data *peer);
 static void peer_chat_handler_message (struct peer_data *peer, uint8_t *data, int data_len);
@@ -1848,12 +1851,10 @@ void peer_reset (struct peer_data *peer)
     }
 }
 
-void peer_chat_handler_error (struct peer_data *peer)
+void peer_resetpeer (struct peer_data *peer)
 {
     ASSERT(peer->have_chat)
     ASSERT(!peer->have_resetpeer)
-    
-    peer_log(peer, BLOG_ERROR, "chat error, resetting peer");
     
     // free chat
     peer_free_chat(peer);
@@ -1874,6 +1875,16 @@ void peer_chat_handler_error (struct peer_data *peer)
     
     // set have resetpeer
     peer->have_resetpeer = 1;
+}
+
+void peer_chat_handler_error (struct peer_data *peer)
+{
+    ASSERT(peer->have_chat)
+    ASSERT(!peer->have_resetpeer)
+    
+    peer_log(peer, BLOG_ERROR, "chat error, sending resetpeer");
+    
+    peer_resetpeer(peer);
 }
 
 void peer_chat_handler_message (struct peer_data *peer, uint8_t *data, int data_len)
@@ -2378,10 +2389,21 @@ static int peer_start_msg (struct peer_data *peer, void **data, int type, int le
         return 0;
     }
     
+#ifdef SIMULATE_PEER_OUT_OF_BUFFER
+    uint8_t x;
+    BRandom_randomize(&x, sizeof(x));
+    if (x < SIMULATE_PEER_OUT_OF_BUFFER) {
+        peer_log(peer, BLOG_ERROR, "simulating out of buffer, sending resetpeer");
+        peer_resetpeer(peer);
+        return 0;
+    }
+#endif
+    
     // obtain buffer location
     uint8_t *packet;
     if (!PeerChat_StartMessage(&peer->chat, &packet)) {
-        peer_log(peer, BLOG_ERROR, "cannot send message, out of buffer");
+        peer_log(peer, BLOG_ERROR, "cannot send message, out of buffer, sending resetpeer");
+        peer_resetpeer(peer);
         return 0;
     }
     
