@@ -26,9 +26,7 @@
 #include <sslerr.h>
 
 #include <misc/offset.h>
-#include <misc/debug.h>
 #include <misc/byteorder.h>
-#include <base/BLog.h>
 
 #include <client/StreamPeerIO.h>
 

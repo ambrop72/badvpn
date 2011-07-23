@@ -26,7 +26,6 @@
 #include <sslerr.h>
 
 #include <misc/byteorder.h>
-#include <base/BLog.h>
 #include <security/BRandom.h>
 
 #include "PeerChat.h"

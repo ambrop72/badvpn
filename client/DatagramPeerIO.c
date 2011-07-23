@@ -20,11 +20,6 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <stdint.h>
-
-#include <misc/debug.h>
-#include <base/BLog.h>
-
 #include <client/DatagramPeerIO.h>
 
 #include <generated/blog_channel_DatagramPeerIO.h>

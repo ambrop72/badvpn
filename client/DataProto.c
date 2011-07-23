@@ -26,7 +26,6 @@
 
 #include <protocol/dataproto.h>
 #include <misc/byteorder.h>
-#include <misc/debug.h>
 #include <base/BLog.h>
 
 #include <client/DataProto.h>

@@ -23,7 +23,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include <misc/debug.h>
 #include <misc/balign.h>
 #include <misc/offset.h>
 #include <misc/byteorder.h>

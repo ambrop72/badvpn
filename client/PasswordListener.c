@@ -26,7 +26,6 @@
 
 #include <ssl.h>
 
-#include <misc/debug.h>
 #include <misc/offset.h>
 #include <misc/byteorder.h>
 #include <misc/balloc.h>
