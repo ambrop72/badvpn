@@ -363,12 +363,9 @@ void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const 
 {
     DebugObject_Access(&n->d_obj);
     
-    // call log handler to append log prefix
-    n->handler_log(n->user);
-    
     va_list vl;
     va_start(vl, fmt);
-    BLog_LogToChannelVarArg(channel, level, fmt, vl);
+    BLog_LogViaFuncVarArg(n->handler_log, n->user, channel, level, fmt, vl);
     va_end(vl);
 }
 

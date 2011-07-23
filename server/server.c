@@ -182,6 +182,9 @@ static void client_remove (struct client_data *client);
 // job to finish removal after clients are informed
 static void client_dying_job (struct client_data *client);
 
+// appends client log prefix
+static void client_logfunc (struct client_data *client);
+
 // passes a message to the logger, prepending about the client
 static void client_log (struct client_data *client, int level, const char *fmt, ...);
 
@@ -1136,18 +1139,23 @@ void client_dying_job (struct client_data *client)
     return;
 }
 
-void client_log (struct client_data *client, int level, const char *fmt, ...)
+void client_logfunc (struct client_data *client)
 {
-    va_list vl;
-    va_start(vl, fmt);
     char addr[BADDR_MAX_PRINT_LEN];
     BAddr_Print(&client->addr, addr);
+    
     BLog_Append("client %d (%s)", (int)client->id, addr);
     if (client->common_name) {
         BLog_Append(" (%s)", client->common_name);
     }
     BLog_Append(": ");
-    BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
+}
+
+void client_log (struct client_data *client, int level, const char *fmt, ...)
+{
+    va_list vl;
+    va_start(vl, fmt);
+    BLog_LogViaFuncVarArg((BLog_logfunc)client_logfunc, client, BLOG_CURRENT_CHANNEL, level, fmt, vl);
     va_end(vl);
 }
 

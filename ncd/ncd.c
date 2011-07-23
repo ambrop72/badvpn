@@ -151,6 +151,7 @@ static void process_start_teminating (struct process *p);
 static void process_free_statements (struct process *p);
 static size_t process_rap (struct process *p);
 static void process_assert_pointers (struct process *p);
+static void process_logfunc (struct process *p);
 static void process_log (struct process *p, int level, const char *fmt, ...);
 static void process_schedule_work (struct process *p);
 static void process_work_job_handler (struct process *p);
@@ -160,6 +161,7 @@ static struct process_statement * process_find_statement (struct process *p, siz
 static int process_resolve_name (struct process *p, size_t pos, const char *name, struct process_statement **first_ps, const char **rest);
 static int process_resolve_variable (struct process *p, size_t pos, const char *varname, NCDValue *out);
 static struct process_statement * process_resolve_object (struct process *p, size_t pos, const char *objname);
+static void process_statement_logfunc (struct process_statement *ps);
 static void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...);
 static void process_statement_set_error (struct process_statement *ps);
 static void process_statement_instance_handler_event (struct process_statement *ps, int event);
@@ -849,12 +851,16 @@ void process_assert_pointers (struct process *p)
     ASSERT(p->fp == fp)
 }
 
+void process_logfunc (struct process *p)
+{
+    BLog_Append("process %s: ", p->name);
+}
+
 void process_log (struct process *p, int level, const char *fmt, ...)
 {
     va_list vl;
     va_start(vl, fmt);
-    BLog_Append("process %s: ", p->name);
-    BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
+    BLog_LogViaFuncVarArg((BLog_logfunc)process_logfunc, p, BLOG_CURRENT_CHANNEL, level, fmt, vl);
     va_end(vl);
 }
 
@@ -1236,12 +1242,17 @@ struct process_statement * process_resolve_object (struct process *p, size_t pos
     return res_ps;
 }
 
+void process_statement_logfunc (struct process_statement *ps)
+{
+    process_logfunc(ps->p);
+    BLog_Append("statement %zu: ", ps->i);
+}
+
 void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...)
 {
     va_list vl;
     va_start(vl, fmt);
-    BLog_Append("process %s: statement %zu: ", ps->p->name, ps->i);
-    BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
+    BLog_LogViaFuncVarArg((BLog_logfunc)process_statement_logfunc, ps, BLOG_CURRENT_CHANNEL, level, fmt, vl);
     va_end(vl);
 }
 
@@ -1389,7 +1400,8 @@ void process_statement_instance_handler_log (struct process_statement *ps)
 {
     ASSERT(ps->state != SSTATE_FORGOTTEN)
     
-    BLog_Append("process %s: statement %zu: module: ", ps->p->name, ps->i);
+    process_statement_logfunc(ps);
+    BLog_Append("module: ");
 }
 
 void process_moduleprocess_handler_die (struct process *p)

@@ -146,6 +146,7 @@ static int process_arguments (void);
 static void signal_handler (void *unused);
 static void listener_handler (BListener *listener);
 static void client_free (struct client *client);
+static void client_logfunc (struct client *client);
 static void client_log (struct client *client, int level, const char *fmt, ...);
 static void client_disconnect_timer_handler (struct client *client);
 static void client_connection_handler (struct client *client, int event);
@@ -153,6 +154,7 @@ static void client_decoder_handler_error (struct client *client);
 static void client_recv_if_handler_send (struct client *client, uint8_t *data, int data_len);
 static void connection_init (struct client *client, uint16_t conid, BAddr addr, const uint8_t *data, int data_len);
 static void connection_free (struct connection *con);
+static void connection_logfunc (struct connection *con);
 static void connection_log (struct connection *con, int level, const char *fmt, ...);
 static void connection_free_udp (struct connection *con);
 static void connection_first_job_handler (struct connection *con);
@@ -659,14 +661,19 @@ void client_free (struct client *client)
     free(client);
 }
 
+void client_logfunc (struct client *client)
+{
+    char addr[BADDR_MAX_PRINT_LEN];
+    BAddr_Print(&client->addr, addr);
+    
+    BLog_Append("client (%s): ", addr);
+}
+
 void client_log (struct client *client, int level, const char *fmt, ...)
 {
     va_list vl;
     va_start(vl, fmt);
-    char addr[BADDR_MAX_PRINT_LEN];
-    BAddr_Print(&client->addr, addr);
-    BLog_Append("client (%s): ", addr);
-    BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
+    BLog_LogViaFuncVarArg((BLog_logfunc)client_logfunc, client, BLOG_CURRENT_CHANNEL, level, fmt, vl);
     va_end(vl);
 }
 
@@ -904,18 +911,22 @@ void connection_free (struct connection *con)
     free(con);
 }
 
+void connection_logfunc (struct connection *con)
+{
+    client_logfunc(con->client);
+    
+    if (con->closing) {
+        BLog_Append("old connection %"PRIu16": ", con->conid);
+    } else {
+        BLog_Append("connection %"PRIu16": ", con->conid);
+    }
+}
+
 void connection_log (struct connection *con, int level, const char *fmt, ...)
 {
     va_list vl;
     va_start(vl, fmt);
-    char addr[BADDR_MAX_PRINT_LEN];
-    BAddr_Print(&con->client->addr, addr);
-    if (con->closing) {
-        BLog_Append("client (%s): old connection %"PRIu16": ", addr, con->conid);
-    } else {
-        BLog_Append("client (%s): connection %"PRIu16": ", addr, con->conid);
-    }
-    BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
+    BLog_LogViaFuncVarArg((BLog_logfunc)connection_logfunc, con, BLOG_CURRENT_CHANNEL, level, fmt, vl);
     va_end(vl);
 }
 

@@ -65,17 +65,21 @@ struct _BLog_global {
 extern struct _BLog_channel blog_channel_list[];
 extern struct _BLog_global blog_global;
 
+typedef void (*BLog_logfunc) (void *);
+
 static int BLogGlobal_GetChannelByName (const char *channel_name);
 
 static void BLog_Init (_BLog_log_func log_func, _BLog_free_func free_func);
 static void BLog_Free (void);
 static void BLog_SetChannelLoglevel (int channel, int loglevel);
+static int BLog_WouldLog (int channel, int level);
 static void BLog_AppendVarArg (const char *fmt, va_list vl);
 static void BLog_Append (const char *fmt, ...);
 static void BLog_Finish (int channel, int level);
-static void BLog_LogToChannelStr (int channel, int level, const char *msg);
 static void BLog_LogToChannelVarArg (int channel, int level, const char *fmt, va_list vl);
 static void BLog_LogToChannel (int channel, int level, const char *fmt, ...);
+static void BLog_LogViaFuncVarArg (BLog_logfunc func, void *arg, int channel, int level, const char *fmt, va_list vl);
+static void BLog_LogViaFunc (BLog_logfunc func, void *arg, int channel, int level, const char *fmt, ...);
 
 void BLog_InitStdout (void);
 
@@ -128,6 +132,15 @@ void BLog_SetChannelLoglevel (int channel, int loglevel)
     blog_global.channels[channel].loglevel = loglevel;
 }
 
+int BLog_WouldLog (int channel, int level)
+{
+    ASSERT(blog_global.initialized)
+    ASSERT(channel >= 0 && channel < BLOG_NUM_CHANNELS)
+    ASSERT(level >= BLOG_ERROR && level <= BLOG_DEBUG)
+    
+    return (level <= blog_global.channels[channel].loglevel);
+}
+
 void BLog_AppendVarArg (const char *fmt, va_list vl)
 {
     ASSERT(blog_global.initialized)
@@ -158,26 +171,15 @@ void BLog_Finish (int channel, int level)
     ASSERT(blog_global.initialized)
     ASSERT(channel >= 0 && channel < BLOG_NUM_CHANNELS)
     ASSERT(level >= BLOG_ERROR && level <= BLOG_DEBUG)
+    ASSERT(BLog_WouldLog(channel, level))
     
     ASSERT(blog_global.logbuf_pos >= 0 && blog_global.logbuf_pos < sizeof(blog_global.logbuf))
     ASSERT(blog_global.logbuf[blog_global.logbuf_pos] == '\0')
     
-    if (level <= blog_global.channels[channel].loglevel) {
-        blog_global.log_func(channel, level, blog_global.logbuf);
-    }
+    blog_global.log_func(channel, level, blog_global.logbuf);
     
     blog_global.logbuf_pos = 0;
     blog_global.logbuf[0] = '\0';
-}
-
-void BLog_LogToChannelStr (int channel, int level, const char *msg)
-{
-    ASSERT(blog_global.initialized)
-    ASSERT(channel >= 0 && channel < BLOG_NUM_CHANNELS)
-    ASSERT(level >= BLOG_ERROR && level <= BLOG_DEBUG)
-    
-    BLog_Append("%s", msg);
-    BLog_Finish(channel, level);
 }
 
 void BLog_LogToChannelVarArg (int channel, int level, const char *fmt, va_list vl)
@@ -185,6 +187,12 @@ void BLog_LogToChannelVarArg (int channel, int level, const char *fmt, va_list v
     ASSERT(blog_global.initialized)
     ASSERT(channel >= 0 && channel < BLOG_NUM_CHANNELS)
     ASSERT(level >= BLOG_ERROR && level <= BLOG_DEBUG)
+    
+    if (!BLog_WouldLog(channel, level)) {
+        blog_global.logbuf_pos = 0;
+        blog_global.logbuf[0] = '\0';
+        return;
+    }
     
     BLog_AppendVarArg(fmt, vl);
     BLog_Finish(channel, level);
@@ -196,9 +204,57 @@ void BLog_LogToChannel (int channel, int level, const char *fmt, ...)
     ASSERT(channel >= 0 && channel < BLOG_NUM_CHANNELS)
     ASSERT(level >= BLOG_ERROR && level <= BLOG_DEBUG)
     
+    if (!BLog_WouldLog(channel, level)) {
+        blog_global.logbuf_pos = 0;
+        blog_global.logbuf[0] = '\0';
+        return;
+    }
+    
     va_list vl;
     va_start(vl, fmt);
-    BLog_LogToChannelVarArg(channel, level, fmt, vl);
+    
+    BLog_AppendVarArg(fmt, vl);
+    BLog_Finish(channel, level);
+    
+    va_end(vl);
+}
+
+void BLog_LogViaFuncVarArg (BLog_logfunc func, void *arg, int channel, int level, const char *fmt, va_list vl)
+{
+    ASSERT(blog_global.initialized)
+    ASSERT(channel >= 0 && channel < BLOG_NUM_CHANNELS)
+    ASSERT(level >= BLOG_ERROR && level <= BLOG_DEBUG)
+    
+    if (!BLog_WouldLog(channel, level)) {
+        blog_global.logbuf_pos = 0;
+        blog_global.logbuf[0] = '\0';
+        return;
+    }
+    
+    func(arg);
+    BLog_AppendVarArg(fmt, vl);
+    BLog_Finish(channel, level);
+}
+
+void BLog_LogViaFunc (BLog_logfunc func, void *arg, int channel, int level, const char *fmt, ...)
+{
+    ASSERT(blog_global.initialized)
+    ASSERT(channel >= 0 && channel < BLOG_NUM_CHANNELS)
+    ASSERT(level >= BLOG_ERROR && level <= BLOG_DEBUG)
+    
+    if (!BLog_WouldLog(channel, level)) {
+        blog_global.logbuf_pos = 0;
+        blog_global.logbuf[0] = '\0';
+        return;
+    }
+    
+    va_list vl;
+    va_start(vl, fmt);
+    
+    func(arg);
+    BLog_AppendVarArg(fmt, vl);
+    BLog_Finish(channel, level);
+    
     va_end(vl);
 }
 

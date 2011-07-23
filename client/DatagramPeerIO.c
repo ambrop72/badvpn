@@ -33,7 +33,7 @@
 #define DATAGRAMPEERIO_MODE_CONNECT 1
 #define DATAGRAMPEERIO_MODE_BIND 2
 
-#define PeerLog(_o, ...) ((_o)->logfunc((_o)->user), BLog_LogToChannel(BLOG_CURRENT_CHANNEL, __VA_ARGS__))
+#define PeerLog(_o, ...) BLog_LogViaFunc((_o)->logfunc, (_o)->user, BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 static void init_io (DatagramPeerIO *o);
 static void free_io (DatagramPeerIO *o);

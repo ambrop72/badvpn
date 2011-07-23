@@ -48,7 +48,7 @@
 #define LISTEN_STATE_GOTCLIENT 1
 #define LISTEN_STATE_FINISHED 2
 
-#define PeerLog(_o, ...) ((_o)->logfunc((_o)->user), BLog_LogToChannel(BLOG_CURRENT_CHANNEL, __VA_ARGS__))
+#define PeerLog(_o, ...) BLog_LogViaFunc((_o)->logfunc, (_o)->user, BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 static void decoder_handler_error (StreamPeerIO *pio);
 static void connector_handler (StreamPeerIO *pio, int is_error);

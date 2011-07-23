@@ -182,6 +182,7 @@ static void device_read_handler_send (void *unused, uint8_t *data, int data_len)
 static int process_device_udp_packet (uint8_t *data, int data_len);
 static err_t netif_init_func (struct netif *netif);
 static err_t netif_output_func (struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr);
+static void client_logfunc (struct tcp_client *client);
 static void client_log (struct tcp_client *client, int level, const char *fmt, ...);
 static err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err);
 static void client_handle_freed_client (struct tcp_client *client, int was_abrt);
@@ -927,20 +928,21 @@ out:
     return ERR_OK;
 }
 
-void client_log (struct tcp_client *client, int level, const char *fmt, ...)
+void client_logfunc (struct tcp_client *client)
 {
-    va_list vl;
-    va_start(vl, fmt);
-    
     char local_addr_s[BADDR_MAX_PRINT_LEN];
     BAddr_Print(&client->local_addr, local_addr_s);
-    
     char remote_addr_s[BADDR_MAX_PRINT_LEN];
     BAddr_Print(&client->remote_addr, remote_addr_s);
     
     BLog_Append("%05d (%s %s): ", num_clients, local_addr_s, remote_addr_s);
-    BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
-    
+}
+
+void client_log (struct tcp_client *client, int level, const char *fmt, ...)
+{
+    va_list vl;
+    va_start(vl, fmt);
+    BLog_LogViaFuncVarArg((BLog_logfunc)client_logfunc, client, BLOG_CURRENT_CHANNEL, level, fmt, vl);
     va_end(vl);
 }
 

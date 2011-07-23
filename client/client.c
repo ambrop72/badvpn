@@ -1514,11 +1514,9 @@ void peer_logfunc (struct peer_data *peer)
 
 void peer_log (struct peer_data *peer, int level, const char *fmt, ...)
 {
-    peer_logfunc(peer);
-    
     va_list vl;
     va_start(vl, fmt);
-    BLog_LogToChannelVarArg(BLOG_CURRENT_CHANNEL, level, fmt, vl);
+    BLog_LogViaFuncVarArg((BLog_logfunc)peer_logfunc, peer, BLOG_CURRENT_CHANNEL, level, fmt, vl);
     va_end(vl);
 }
 
