@@ -1,4 +1,4 @@
-Version 1.999.110:
+Version 1.999.111:
 
 - Improved protocol such that peers can use SSL when comminicating via the server. This
   improves security, as compromising the server will not allow the attacker to see secret
