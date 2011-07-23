@@ -198,7 +198,7 @@ int DatagramPeerIO_Init (
     PacketPassNotifier_Init(&o->recv_notifier, FragmentProtoAssembler_GetInput(&o->recv_assembler), BReactor_PendingGroup(o->reactor));
     
     // init decoder
-    if (!SPProtoDecoder_Init(&o->recv_decoder, PacketPassNotifier_GetInput(&o->recv_notifier), o->sp_params, 2, BReactor_PendingGroup(o->reactor), twd)) {
+    if (!SPProtoDecoder_Init(&o->recv_decoder, PacketPassNotifier_GetInput(&o->recv_notifier), o->sp_params, 2, BReactor_PendingGroup(o->reactor), twd, o->user, o->logfunc)) {
         PeerLog(o, BLOG_ERROR, "SPProtoDecoder_Init failed");
         goto fail1;
     }

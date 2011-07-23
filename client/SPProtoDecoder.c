@@ -25,11 +25,12 @@
 #include <misc/balign.h>
 #include <misc/byteorder.h>
 #include <security/BHash.h>
-#include <base/BLog.h>
 
 #include "SPProtoDecoder.h"
 
 #include <generated/blog_channel_SPProtoDecoder.h>
+
+#define PeerLog(_o, ...) BLog_LogViaFunc((_o)->logfunc, (_o)->user, BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 static void decode_work_func (SPProtoDecoder *o)
 {
@@ -51,19 +52,19 @@ static void decode_work_func (SPProtoDecoder *o)
     } else {
         // input must be a multiple of blocks size
         if (in_len % o->enc_block_size != 0) {
-            BLog(BLOG_WARNING, "packet size not a multiple of block size");
+            PeerLog(o, BLOG_WARNING, "packet size not a multiple of block size");
             return;
         }
         
         // input must have an IV block
         if (in_len < o->enc_block_size) {
-            BLog(BLOG_WARNING, "packet does not have an IV");
+            PeerLog(o, BLOG_WARNING, "packet does not have an IV");
             return;
         }
         
         // check if we have encryption key
         if (!o->have_encryption_key) {
-            BLog(BLOG_WARNING, "have no encryption key");
+            PeerLog(o, BLOG_WARNING, "have no encryption key");
             return;
         }
         
@@ -79,7 +80,7 @@ static void decode_work_func (SPProtoDecoder *o)
         
         // read padding
         if (ciphertext_len < o->enc_block_size) {
-            BLog(BLOG_WARNING, "packet does not have a padding block");
+            PeerLog(o, BLOG_WARNING, "packet does not have a padding block");
             return;
         }
         int i;
@@ -88,12 +89,12 @@ static void decode_work_func (SPProtoDecoder *o)
                 break;
             }
             if (plaintext[i] != 0) {
-                BLog(BLOG_WARNING, "packet padding wrong (nonzero byte)");
+                PeerLog(o, BLOG_WARNING, "packet padding wrong (nonzero byte)");
                 return;
             }
         }
         if (i < ciphertext_len - o->enc_block_size) {
-            BLog(BLOG_WARNING, "packet padding wrong (all zeroes)");
+            PeerLog(o, BLOG_WARNING, "packet padding wrong (all zeroes)");
             return;
         }
         plaintext_len = i;
@@ -101,14 +102,14 @@ static void decode_work_func (SPProtoDecoder *o)
     
     // check for header
     if (plaintext_len < SPPROTO_HEADER_LEN(o->sp_params)) {
-        BLog(BLOG_WARNING, "packet has no header");
+        PeerLog(o, BLOG_WARNING, "packet has no header");
         return;
     }
     uint8_t *header = plaintext;
     
     // check data length
     if (plaintext_len - SPPROTO_HEADER_LEN(o->sp_params) > o->output_mtu) {
-        BLog(BLOG_WARNING, "packet too long");
+        PeerLog(o, BLOG_WARNING, "packet too long");
         return;
     }
     
@@ -135,7 +136,7 @@ static void decode_work_func (SPProtoDecoder *o)
         memcpy(header_hash, hash, o->hash_size);
         // compare hashes
         if (memcmp(hash, hash_calc, o->hash_size)) {
-            BLog(BLOG_WARNING, "packet has wrong hash");
+            PeerLog(o, BLOG_WARNING, "packet has wrong hash");
             return;
         }
     }
@@ -158,7 +159,7 @@ static void decode_work_handler (SPProtoDecoder *o)
     // check OTP
     if (SPPROTO_HAVE_OTP(o->sp_params) && o->tw_out_len >= 0) {
         if (!OTPChecker_CheckOTP(&o->otpchecker, o->tw_out_seed_id, o->tw_out_otp)) {
-            BLog(BLOG_WARNING, "packet has wrong OTP");
+            PeerLog(o, BLOG_WARNING, "packet has wrong OTP");
             o->tw_out_len = -1;
         }
     }
@@ -216,7 +217,7 @@ static void maybe_stop_work_and_ignore (SPProtoDecoder *o)
     }
 }
 
-int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg, BThreadWorkDispatcher *twd)
+int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg, BThreadWorkDispatcher *twd, void *user, BLog_logfunc logfunc)
 {
     spproto_assert_security_params(sp_params);
     ASSERT(spproto_carrier_mtu_for_payload_mtu(sp_params, PacketPassInterface_GetMTU(output)) >= 0)
@@ -226,6 +227,8 @@ int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct 
     o->output = output;
     o->sp_params = sp_params;
     o->twd = twd;
+    o->user = user;
+    o->logfunc = logfunc;
     
     // init output
     PacketPassInterface_Sender_Init(o->output, (PacketPassInterface_handler_done)output_handler_done, o);

@@ -31,6 +31,7 @@
 
 #include <misc/debug.h>
 #include <base/DebugObject.h>
+#include <base/BLog.h>
 #include <protocol/spproto.h>
 #include <security/BEncryption.h>
 #include <security/OTPChecker.h>
@@ -52,6 +53,8 @@ typedef struct {
     PacketPassInterface *output;
     struct spproto_security_params sp_params;
     BThreadWorkDispatcher *twd;
+    void *user;
+    BLog_logfunc logfunc;
     int output_mtu;
     int hash_size;
     int enc_block_size;
@@ -87,9 +90,11 @@ typedef struct {
  *                      receiving packets. Must be >=2 if using OTPs.
  * @param pg pending group
  * @param twd thread work dispatcher
+ * @param user argument to handlers
+ * @param logfunc function which prepends the log prefix using {@link BLog_Append}
  * @return 1 on success, 0 on failure
  */
-int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg, BThreadWorkDispatcher *twd) WARN_UNUSED;
+int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct spproto_security_params sp_params, int num_otp_seeds, BPendingGroup *pg, BThreadWorkDispatcher *twd, void *user, BLog_logfunc logfunc) WARN_UNUSED;
 
 /**
  * Frees the object.
