@@ -27,11 +27,12 @@
 #include <misc/debug.h>
 #include <misc/byteorder.h>
 #include <misc/balloc.h>
-#include <base/BLog.h>
 
 #include "FragmentProtoAssembler.h"
 
 #include <generated/blog_channel_FragmentProtoAssembler.h>
+
+#define PeerLog(_o, ...) BLog_LogViaFunc((_o)->logfunc, (_o)->user, BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 static int frame_id_comparator (void *unused, fragmentproto_frameid *v1, fragmentproto_frameid *v2)
 {
@@ -74,7 +75,7 @@ static struct FragmentProtoAssembler_frame * allocate_new_frame (FragmentProtoAs
     
     // if there are no free entries, free the oldest used one
     if (LinkedList2_IsEmpty(&o->frames_free)) {
-        BLog(BLOG_INFO, "freeing used frame");
+        PeerLog(o, BLOG_INFO, "freeing used frame");
         free_oldest_frame(o);
     }
     
@@ -124,7 +125,7 @@ static void reduce_times (FragmentProtoAssembler *o)
     while (list_node = LinkedList2Iterator_Next(&it)) {
         struct FragmentProtoAssembler_frame *frame = UPPER_OBJECT(list_node, struct FragmentProtoAssembler_frame, list_node);
         if (frame_is_timed_out(o, frame)) {
-            BLog(BLOG_INFO, "freeing timed out frame (while reducing times)");
+            PeerLog(o, BLOG_INFO, "freeing timed out frame (while reducing times)");
             free_frame(o, frame);
         } else {
             if (!minframe || frame->time < minframe->time) {
@@ -162,13 +163,13 @@ static int process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid frame
     
     // check start
     if (chunk_start > o->output_mtu) {
-        BLog(BLOG_INFO, "chunk starts outside");
+        PeerLog(o, BLOG_INFO, "chunk starts outside");
         return 0;
     }
     
     // check frame size bound
     if (chunk_len > o->output_mtu - chunk_start) {
-        BLog(BLOG_INFO, "chunk ends outside");
+        PeerLog(o, BLOG_INFO, "chunk ends outside");
         return 0;
     }
     
@@ -189,7 +190,7 @@ static int process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid frame
         // check frame time
         if (frame_is_timed_out(o, frame)) {
             // frame is timed out, remove it and use a new one
-            BLog(BLOG_INFO, "freeing timed out frame (while processing chunk)");
+            PeerLog(o, BLOG_INFO, "freeing timed out frame (while processing chunk)");
             free_frame(o, frame);
             frame = allocate_new_frame(o, frame_id);
         }
@@ -201,7 +202,7 @@ static int process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid frame
     for (int i = 0; i < frame->num_chunks; i++) {
         struct FragmentProtoAssembler_chunk *chunk = &frame->chunks[i];
         if (chunks_overlap(chunk->start, chunk->len, chunk_start, chunk_len)) {
-            BLog(BLOG_INFO, "chunk overlaps with existing chunk");
+            PeerLog(o, BLOG_INFO, "chunk overlaps with existing chunk");
             goto fail_frame;
         }
     }
@@ -209,20 +210,20 @@ static int process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid frame
     if (is_last) {
         // this chunk is marked as last
         if (frame->length >= 0) {
-            BLog(BLOG_INFO, "got last chunk, but already have one");
+            PeerLog(o, BLOG_INFO, "got last chunk, but already have one");
             goto fail_frame;
         }
         // check if frame size according to this packet is consistent
         // with existing chunks
         if (frame->length_so_far > chunk_end) {
-            BLog(BLOG_INFO, "got last chunk, but already have data over its bound");
+            PeerLog(o, BLOG_INFO, "got last chunk, but already have data over its bound");
             goto fail_frame;
         }
     } else {
         // if we have length, chunk must be in its bound
         if (frame->length >= 0) {
             if (chunk_end > frame->length) {
-                BLog(BLOG_INFO, "chunk out of length bound");
+                PeerLog(o, BLOG_INFO, "chunk out of length bound");
                 goto fail_frame;
             }
         }
@@ -260,7 +261,7 @@ static int process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid frame
     if (frame->length < 0 || frame->sum < frame->length) {
         // if all chunks are used, fail it
         if (frame->num_chunks == o->num_chunks) {
-            BLog(BLOG_INFO, "all chunks used, but frame not complete");
+            PeerLog(o, BLOG_INFO, "all chunks used, but frame not complete");
             goto fail_frame;
         }
         
@@ -270,7 +271,7 @@ static int process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid frame
     
     ASSERT(frame->sum == frame->length)
     
-    BLog(BLOG_DEBUG, "frame complete");
+    PeerLog(o, BLOG_DEBUG, "frame complete");
     
     // free frame entry
     free_frame(o, frame);
@@ -293,7 +294,7 @@ static void process_input (FragmentProtoAssembler *o)
     while (o->in_pos < o->in_len) {
         // obtain header
         if (o->in_len - o->in_pos < sizeof(struct fragmentproto_chunk_header)) {
-            BLog(BLOG_INFO, "too little data for chunk header");
+            PeerLog(o, BLOG_INFO, "too little data for chunk header");
             break;
         }
         struct fragmentproto_chunk_header *header = (struct fragmentproto_chunk_header *)(o->in + o->in_pos);
@@ -305,13 +306,13 @@ static void process_input (FragmentProtoAssembler *o)
         
         // check is_last field
         if (!(is_last == 0 || is_last == 1)) {
-            BLog(BLOG_INFO, "chunk is_last wrong");
+            PeerLog(o, BLOG_INFO, "chunk is_last wrong");
             break;
         }
         
         // obtain data
         if (o->in_len - o->in_pos < chunk_len) {
-            BLog(BLOG_INFO, "too little data for chunk data");
+            PeerLog(o, BLOG_INFO, "too little data for chunk data");
             break;
         }
         
@@ -369,7 +370,7 @@ static void output_handler_done (FragmentProtoAssembler *o)
     process_input(o);
 }
 
-int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, PacketPassInterface *output, int num_frames, int num_chunks, BPendingGroup *pg)
+int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, PacketPassInterface *output, int num_frames, int num_chunks, BPendingGroup *pg, void *user, BLog_logfunc logfunc)
 {
     ASSERT(input_mtu >= 0)
     ASSERT(num_frames > 0)
@@ -379,6 +380,8 @@ int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, Packe
     // init arguments
     o->output = output;
     o->num_chunks = num_chunks;
+    o->user = user;
+    o->logfunc = logfunc;
     
     // init input
     PacketPassInterface_Init(&o->input, input_mtu, (PacketPassInterface_handler_send)input_handler_send, o, pg);

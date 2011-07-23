@@ -32,6 +32,7 @@
 #include <protocol/fragmentproto.h>
 #include <misc/debug.h>
 #include <base/DebugObject.h>
+#include <base/BLog.h>
 #include <structure/LinkedList2.h>
 #include <structure/BAVL.h>
 #include <flow/PacketPassInterface.h>
@@ -64,6 +65,8 @@ struct FragmentProtoAssembler_frame {
  * Output is with {@link PacketPassInterface}.
  */
 typedef struct {
+    void *user;
+    BLog_logfunc logfunc;
     PacketPassInterface input;
     PacketPassInterface *output;
     int output_mtu;
@@ -94,9 +97,11 @@ typedef struct {
  *  Here, D is the minimum size of a hypothetical buffer needed to order the input.
  * @param num_chunks maximum number of chunks a frame can come in. Must be >0.
  * @param pg pending group
+ * @param user argument to handlers
+ * @param logfunc function which prepends the log prefix using {@link BLog_Append}
  * @return 1 on success, 0 on failure
  */
-int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, PacketPassInterface *output, int num_frames, int num_chunks, BPendingGroup *pg) WARN_UNUSED;
+int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, PacketPassInterface *output, int num_frames, int num_chunks, BPendingGroup *pg, void *user, BLog_logfunc logfunc) WARN_UNUSED;
 
 /**
  * Frees the object.

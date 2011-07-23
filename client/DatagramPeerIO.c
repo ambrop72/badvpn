@@ -192,7 +192,9 @@ int DatagramPeerIO_Init (
     // init receiving
     
     // init assembler
-    if (!FragmentProtoAssembler_Init(&o->recv_assembler, o->spproto_payload_mtu, recv_userif, num_frames, fragmentproto_max_chunks_for_frame(o->spproto_payload_mtu, o->payload_mtu), BReactor_PendingGroup(o->reactor))) {
+    if (!FragmentProtoAssembler_Init(&o->recv_assembler, o->spproto_payload_mtu, recv_userif, num_frames, fragmentproto_max_chunks_for_frame(o->spproto_payload_mtu, o->payload_mtu),
+                                     BReactor_PendingGroup(o->reactor), o->user, o->logfunc
+    )) {
         PeerLog(o, BLOG_ERROR, "FragmentProtoAssembler_Init failed");
         goto fail0;
     }
