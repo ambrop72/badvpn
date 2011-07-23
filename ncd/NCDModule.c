@@ -125,7 +125,7 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleI
                          NCDModule_handler_getvar handler_getvar,
                          NCDModule_handler_getobj handler_getobj,
                          NCDModule_handler_initprocess handler_initprocess,
-                         NCDModule_handler_log handler_log)
+                         BLog_logfunc logfunc)
 {
     // init arguments
     n->m = m;
@@ -139,7 +139,7 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleI
     n->handler_getvar = handler_getvar;
     n->handler_getobj = handler_getobj;
     n->handler_initprocess = handler_initprocess;
-    n->handler_log = handler_log;
+    n->logfunc = logfunc;
     
     // init jobs
     BPending_Init(&n->init_job, BReactor_PendingGroup(n->reactor), (BPending_handler)init_job_handler, n);
@@ -365,7 +365,7 @@ void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const 
     
     va_list vl;
     va_start(vl, fmt);
-    BLog_LogViaFuncVarArg(n->handler_log, n->user, channel, level, fmt, vl);
+    BLog_LogViaFuncVarArg(n->logfunc, n->user, channel, level, fmt, vl);
     va_end(vl);
 }
 

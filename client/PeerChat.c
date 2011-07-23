@@ -189,7 +189,7 @@ static void ssl_recv_decoder_handler_error (PeerChat *o)
 
 int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate *ssl_cert, SECKEYPrivateKey *ssl_key,
                    uint8_t *ssl_peer_cert, int ssl_peer_cert_len, BPendingGroup *pg, void *user,
-                   PeerChat_logfunc logfunc,
+                   BLog_logfunc logfunc,
                    PeerChat_handler_error handler_error,
                    PeerChat_handler_message handler_message)
 {

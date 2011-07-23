@@ -168,7 +168,7 @@ static void process_statement_instance_handler_event (struct process_statement *
 static int process_statement_instance_handler_getvar (struct process_statement *ps, const char *varname, NCDValue *out);
 static NCDModuleInst * process_statement_instance_handler_getobj (struct process_statement *ps, const char *objname);
 static int process_statement_instance_handler_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name, NCDValue args);
-static void process_statement_instance_handler_log (struct process_statement *ps);
+static void process_statement_instance_logfunc (struct process_statement *ps);
 static void process_moduleprocess_handler_die (struct process *p);
 
 int main (int argc, char **argv)
@@ -1059,7 +1059,7 @@ void process_advance_job_handler (struct process *p)
         (NCDModule_handler_getvar)process_statement_instance_handler_getvar,
         (NCDModule_handler_getobj)process_statement_instance_handler_getobj,
         (NCDModule_handler_initprocess)process_statement_instance_handler_initprocess,
-        (NCDModule_handler_log)process_statement_instance_handler_log
+        (BLog_logfunc)process_statement_instance_logfunc
     );
     
     // set statement state CHILD
@@ -1396,7 +1396,7 @@ int process_statement_instance_handler_initprocess (struct process_statement *ps
     return 1;
 }
 
-void process_statement_instance_handler_log (struct process_statement *ps)
+void process_statement_instance_logfunc (struct process_statement *ps)
 {
     ASSERT(ps->state != SSTATE_FORGOTTEN)
     

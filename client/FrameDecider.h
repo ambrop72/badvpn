@@ -34,12 +34,11 @@
 #include <structure/LinkedList2.h>
 #include <structure/LinkedList3.h>
 #include <base/DebugObject.h>
+#include <base/BLog.h>
 #include <system/BReactor.h>
 
 struct _FrameDeciderPeer;
 struct _FrameDecider_mac_entry;
-
-typedef void (*FrameDeciderPeer_logfunc) (void *user);
 
 /**
  * Object that represents a local device.
@@ -66,7 +65,7 @@ typedef struct {
 typedef struct _FrameDeciderPeer {
     FrameDecider *d;
     void *user;
-    FrameDeciderPeer_logfunc logfunc;
+    BLog_logfunc logfunc;
     struct _FrameDecider_mac_entry *mac_entries;
     struct _FrameDecider_group_entry *group_entries;
     LinkedList2Node list_node; // node in FrameDecider.peers_list
@@ -157,7 +156,7 @@ FrameDeciderPeer * FrameDecider_NextDestination (FrameDecider *o);
  * @param logfunc function which prepends the log prefix using {@link BLog_Append}
  * @return 1 on success, 0 on failure
  */
-int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d, void *user, FrameDeciderPeer_logfunc logfunc) WARN_UNUSED;
+int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d, void *user, BLog_logfunc logfunc) WARN_UNUSED;
 
 /**
  * Frees the object.

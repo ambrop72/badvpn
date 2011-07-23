@@ -540,7 +540,7 @@ int StreamPeerIO_Init (
     int payload_mtu,
     int sock_sndbuf,
     PacketPassInterface *user_recv_if,
-    StreamPeerIO_logfunc logfunc,
+    BLog_logfunc logfunc,
     StreamPeerIO_handler_error handler_error,
     void *user
 )

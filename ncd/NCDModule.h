@@ -45,7 +45,6 @@ typedef void (*NCDModule_handler_event) (void *user, int event);
 typedef int (*NCDModule_handler_getvar) (void *user, const char *varname, NCDValue *out);
 typedef struct NCDModuleInst_s * (*NCDModule_handler_getobj) (void *user, const char *objname);
 typedef int (*NCDModule_handler_initprocess) (void *user, struct NCDModuleProcess_s *p, const char *template_name, NCDValue args);
-typedef void (*NCDModule_handler_log) (void *user);
 
 typedef void (*NCDModuleProcess_handler_dead) (void *user);
 typedef void (*NCDModuleProcess_interp_handler_die) (void *user);
@@ -70,7 +69,7 @@ typedef struct NCDModuleInst_s {
     NCDModule_handler_getvar handler_getvar;
     NCDModule_handler_getobj handler_getobj;
     NCDModule_handler_initprocess handler_initprocess;
-    NCDModule_handler_log handler_log;
+    BLog_logfunc logfunc;
     BPending init_job;
     BPending uninit_job;
     BPending die_job;
@@ -98,7 +97,7 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleI
                          NCDModule_handler_getvar handler_getvar,
                          NCDModule_handler_getobj handler_getobj,
                          NCDModule_handler_initprocess handler_initprocess,
-                         NCDModule_handler_log handler_log);
+                         BLog_logfunc logfunc);
 void NCDModuleInst_Free (NCDModuleInst *n);
 void NCDModuleInst_Event (NCDModuleInst *n, int event);
 int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out) WARN_UNUSED;

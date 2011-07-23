@@ -33,6 +33,7 @@
 #include <protocol/spproto.h>
 #include <protocol/fragmentproto.h>
 #include <base/DebugObject.h>
+#include <base/BLog.h>
 #include <system/BReactor.h>
 #include <system/BAddr.h>
 #include <system/BDatagram.h>
@@ -46,8 +47,6 @@
 #include <client/FragmentProtoAssembler.h>
 #include <client/SPProtoEncoder.h>
 #include <client/SPProtoDecoder.h>
-
-typedef void (*DatagramPeerIO_logfunc) (void *user);
 
 /**
  * Callback function invoked when an error occurs with the peer connection.
@@ -96,7 +95,7 @@ typedef struct {
     int payload_mtu;
     struct spproto_security_params sp_params;
     void *user;
-    DatagramPeerIO_logfunc logfunc;
+    BLog_logfunc logfunc;
     DatagramPeerIO_handler_error handler_error;
     int spproto_payload_mtu;
     int effective_socket_mtu;
@@ -161,7 +160,7 @@ int DatagramPeerIO_Init (
     int otp_warning_count,
     BThreadWorkDispatcher *twd,
     void *user,
-    DatagramPeerIO_logfunc logfunc,
+    BLog_logfunc logfunc,
     DatagramPeerIO_handler_error handler_error,
     DatagramPeerIO_handler_otp_warning handler_otp_warning,
     DatagramPeerIO_handler_otp_ready handler_otp_ready

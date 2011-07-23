@@ -34,6 +34,7 @@
 
 #include <misc/debug.h>
 #include <base/DebugObject.h>
+#include <base/BLog.h>
 #include <system/BReactor.h>
 #include <system/BConnection.h>
 #include <structure/LinkedList2.h>
@@ -46,8 +47,6 @@
 #include <flow/StreamRecvConnector.h>
 #include <flow/SingleStreamSender.h>
 #include <client/PasswordListener.h>
-
-typedef void (*StreamPeerIO_logfunc) (void *user);
 
 /**
  * Callback function invoked when an error occurs with the peer connection.
@@ -73,7 +72,7 @@ typedef struct {
     int ssl_peer_cert_len;
     int payload_mtu;
     int sock_sndbuf;
-    StreamPeerIO_logfunc logfunc;
+    BLog_logfunc logfunc;
     StreamPeerIO_handler_error handler_error;
     void *user;
     
@@ -153,7 +152,7 @@ int StreamPeerIO_Init (
     int payload_mtu,
     int sock_sndbuf,
     PacketPassInterface *user_recv_if,
-    StreamPeerIO_logfunc logfunc,
+    BLog_logfunc logfunc,
     StreamPeerIO_handler_error handler_error,
     void *user
 ) WARN_UNUSED;

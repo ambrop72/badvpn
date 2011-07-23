@@ -141,7 +141,7 @@ int DatagramPeerIO_Init (
     int otp_warning_count,
     BThreadWorkDispatcher *twd,
     void *user,
-    DatagramPeerIO_logfunc logfunc,
+    BLog_logfunc logfunc,
     DatagramPeerIO_handler_error handler_error,
     DatagramPeerIO_handler_otp_warning handler_otp_warning,
     DatagramPeerIO_handler_otp_ready handler_otp_ready

@@ -1353,7 +1353,7 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     
     // init chat
     if (!PeerChat_Init(&peer->chat, peer->id, chat_ssl_mode, client_cert, client_key, peer->cert, peer->cert_len, BReactor_PendingGroup(&ss), peer,
-        (PeerChat_logfunc)peer_logfunc,
+        (BLog_logfunc)peer_logfunc,
         (PeerChat_handler_error)peer_chat_handler_error,
         (PeerChat_handler_message)peer_chat_handler_message
     )) {
@@ -1380,7 +1380,7 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     }
     
     // init frame decider peer
-    if (!FrameDeciderPeer_Init(&peer->decider_peer, &frame_decider, peer, (FrameDeciderPeer_logfunc)peer_logfunc)) {
+    if (!FrameDeciderPeer_Init(&peer->decider_peer, &frame_decider, peer, (BLog_logfunc)peer_logfunc)) {
         peer_log(peer, BLOG_ERROR, "FrameDeciderPeer_Init failed");
         goto fail5;
     }
@@ -1559,7 +1559,7 @@ int peer_init_link (struct peer_data *peer)
             &peer->pio.udp.pio, &ss, data_mtu, CLIENT_UDP_MTU, sp_params,
             options.fragmentation_latency, PEER_UDP_ASSEMBLER_NUM_FRAMES, recv_if,
             options.otp_num_warn, &twd, peer,
-            (DatagramPeerIO_logfunc)peer_logfunc,
+            (BLog_logfunc)peer_logfunc,
             (DatagramPeerIO_handler_error)peer_udp_pio_handler_error,
             (DatagramPeerIO_handler_otp_warning)peer_udp_pio_handler_seed_warning,
             (DatagramPeerIO_handler_otp_ready)peer_udp_pio_handler_seed_ready
@@ -1587,7 +1587,7 @@ int peer_init_link (struct peer_data *peer)
             data_mtu,
             (options.peer_tcp_socket_sndbuf >= 0 ? options.peer_tcp_socket_sndbuf : PEER_DEFAULT_TCP_SOCKET_SNDBUF),
             recv_if,
-            (StreamPeerIO_logfunc)peer_logfunc,
+            (BLog_logfunc)peer_logfunc,
             (StreamPeerIO_handler_error)peer_tcp_pio_handler_error, peer
         )) {
             peer_log(peer, BLOG_ERROR, "StreamPeerIO_Init failed");

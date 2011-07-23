@@ -553,7 +553,7 @@ FrameDeciderPeer * FrameDecider_NextDestination (FrameDecider *o)
     }
 }
 
-int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d, void *user, FrameDeciderPeer_logfunc logfunc)
+int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d, void *user, BLog_logfunc logfunc)
 {
     // init arguments
     o->d = d;
