@@ -56,8 +56,6 @@
 #define PEER_DEFAULT_MAX_MACS 16
 // maximum number of multicast addresses per peer
 #define PEER_DEFAULT_MAX_GROUPS 16
-// how long we wait for a packet to reach full size before sending it (see FragmentProtoDisassembler latency argument)
-#define PEER_DEFAULT_UDP_FRAGMENTATION_LATENCY 0
 // value related to how much out-of-order input we tolerate (see FragmentProtoAssembler num_frames argument)
 #define PEER_UDP_ASSEMBLER_NUM_FRAMES 4
 // socket send buffer (SO_SNDBUF) for peer TCP connections, <=0 to not set

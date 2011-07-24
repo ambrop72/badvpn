@@ -60,8 +60,6 @@ badvpn-client \- VPN node daemon for the BadVPN peer-to-peer VPN system
 .br
 .RB "[" --otp " <blowfish/aes> <num> <num-warn>]"
 .br
-.RB "[" --fragmentation-latency " <milliseconds>]"
-.br
 .RE
 )
 .br
@@ -206,12 +204,6 @@ a new seed to be negotiated before the sender runs out of passwords. Negotiating
 the sending peer sending it to the receiving peer via the server and the receiving peer confirming
 it via the server. Note that one-time passwords are only useful if clients use TLS to connect to the
 server. The OTP option must match on all peers, except for num-warn.
-.TP
-.BR --fragmentation-latency " <milliseconds>"
-When using UDP transport, sets the maximum latency to sacrifice in order to pack frames into data
-packets more efficiently. If it is >=0, a timer of that many milliseconds is used to wait for further
-frames to put into an incomplete packet since the first chunk of the packet was written. If it is
-<0, packets are sent out immediately. Defaults to 0, which is the recommended setting.
 .TP
 .BR --peer-ssl
 When using TCP transport, enables TLS for data connections. Requires using TLS for server connection.

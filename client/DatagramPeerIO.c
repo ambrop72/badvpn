@@ -130,7 +130,6 @@ int DatagramPeerIO_Init (
     int payload_mtu,
     int socket_mtu,
     struct spproto_security_params sp_params,
-    btime_t latency,
     int num_frames,
     PacketPassInterface *recv_userif,
     int otp_warning_count,
@@ -216,7 +215,7 @@ int DatagramPeerIO_Init (
     // init sending base
     
     // init disassembler
-    FragmentProtoDisassembler_Init(&o->send_disassembler, o->reactor, o->payload_mtu, o->spproto_payload_mtu, -1, latency);
+    FragmentProtoDisassembler_Init(&o->send_disassembler, BReactor_PendingGroup(o->reactor), o->payload_mtu, o->spproto_payload_mtu, -1);
     
     // init encoder
     if (!SPProtoEncoder_Init(&o->send_encoder, FragmentProtoDisassembler_GetOutput(&o->send_disassembler), o->sp_params, otp_warning_count, BReactor_PendingGroup(o->reactor), twd)) {

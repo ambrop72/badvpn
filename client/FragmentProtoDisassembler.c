@@ -61,6 +61,23 @@ static void write_chunks (FragmentProtoDisassembler *o)
         o->out_used += sizeof(struct fragmentproto_chunk_header) + chunk_len;
     } while (IN_AVAIL > 0 && OUT_AVAIL > 0);
     
+    // should we finish the output packet?
+    if (OUT_AVAIL <= 0) {
+        // set no output packet
+        o->out = NULL;
+        
+        // stop timer (if it's running)
+        BPending_Unset(&o->finish_job);
+        
+        // finish output
+        PacketRecvInterface_Done(&o->output, o->out_used);
+    } else {
+        // start finish job if we have more space in the output packet. This allows us to
+        // write more data into this output packet if the input has more data, before we
+        // submit it out in the job handler.
+        BPending_Set(&o->finish_job);
+    }
+    
     // have we finished the input packet?
     if (IN_AVAIL == 0) {
         // set no input packet
@@ -71,25 +88,6 @@ static void write_chunks (FragmentProtoDisassembler *o)
         
         // finish input
         PacketPassInterface_Done(&o->input);
-    }
-    
-    // should we finish the output packet?
-    if (OUT_AVAIL <= 0 || o->latency < 0) {
-        // set no output packet
-        o->out = NULL;
-        
-        // stop timer (if it's running)
-        if (o->latency >= 0) {
-            BReactor_RemoveTimer(o->reactor, &o->timer);
-        }
-        
-        // finish output
-        PacketRecvInterface_Done(&o->output, o->out_used);
-    } else {
-        // start timer if we have output and it's not running (output was empty before)
-        if (!BTimer_IsRunning(&o->timer)) {
-            BReactor_SetTimer(o->reactor, &o->timer);
-        }
     }
 }
 
@@ -140,9 +138,8 @@ static void output_handler_recv (FragmentProtoDisassembler *o, uint8_t *data)
     write_chunks(o);
 }
 
-static void timer_handler (FragmentProtoDisassembler *o)
+static void finish_job_handler (FragmentProtoDisassembler *o)
 {
-    ASSERT(o->latency >= 0)
     ASSERT(o->out)
     ASSERT(o->in_len == -1)
     
@@ -153,7 +150,7 @@ static void timer_handler (FragmentProtoDisassembler *o)
     PacketRecvInterface_Done(&o->output, o->out_used);
 }
 
-void FragmentProtoDisassembler_Init (FragmentProtoDisassembler *o, BReactor *reactor, int input_mtu, int output_mtu, int chunk_mtu, btime_t latency)
+void FragmentProtoDisassembler_Init (FragmentProtoDisassembler *o, BPendingGroup *pg, int input_mtu, int output_mtu, int chunk_mtu)
 {
     ASSERT(input_mtu >= 0)
     ASSERT(input_mtu <= UINT16_MAX)
@@ -161,22 +158,18 @@ void FragmentProtoDisassembler_Init (FragmentProtoDisassembler *o, BReactor *rea
     ASSERT(chunk_mtu > 0 || chunk_mtu < 0)
     
     // init arguments
-    o->reactor = reactor;
     o->output_mtu = output_mtu;
     o->chunk_mtu = chunk_mtu;
-    o->latency = latency;
     
     // init input
-    PacketPassInterface_Init(&o->input, input_mtu, (PacketPassInterface_handler_send)input_handler_send, o, BReactor_PendingGroup(reactor));
+    PacketPassInterface_Init(&o->input, input_mtu, (PacketPassInterface_handler_send)input_handler_send, o, pg);
     PacketPassInterface_EnableCancel(&o->input, (PacketPassInterface_handler_requestcancel)input_handler_requestcancel);
     
     // init output
-    PacketRecvInterface_Init(&o->output, o->output_mtu, (PacketRecvInterface_handler_recv)output_handler_recv, o, BReactor_PendingGroup(reactor));
+    PacketRecvInterface_Init(&o->output, o->output_mtu, (PacketRecvInterface_handler_recv)output_handler_recv, o, pg);
     
-    // init timer
-    if (o->latency >= 0) {
-        BTimer_Init(&o->timer, o->latency, (BTimer_handler)timer_handler, o);
-    }
+    // init finish job
+    BPending_Init(&o->finish_job, pg, (BPending_handler)finish_job_handler, o);
     
     // have no input packet
     o->in_len = -1;
@@ -194,10 +187,8 @@ void FragmentProtoDisassembler_Free (FragmentProtoDisassembler *o)
 {
     DebugObject_Free(&o->d_obj);
 
-    // free timer
-    if (o->latency >= 0) {
-        BReactor_RemoveTimer(o->reactor, &o->timer);
-    }
+    // free finish job
+    BPending_Free(&o->finish_job);
     
     // free output
     PacketRecvInterface_Free(&o->output);
