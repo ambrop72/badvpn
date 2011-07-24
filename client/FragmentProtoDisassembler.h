@@ -32,7 +32,8 @@
 
 #include <protocol/fragmentproto.h>
 #include <base/DebugObject.h>
-#include <base/BPending.h>
+#include <system/BReactor.h>
+#include <system/BTime.h>
 #include <flow/PacketPassInterface.h>
 #include <flow/PacketRecvInterface.h>
 
@@ -44,11 +45,13 @@
  * Output is with {@link PacketRecvInterface}.
  */
 typedef struct {
+    BReactor *reactor;
     int output_mtu;
     int chunk_mtu;
+    btime_t latency;
     PacketPassInterface input;
     PacketRecvInterface output;
-    BPending finish_job;
+    BTimer timer;
     int in_len;
     uint8_t *in;
     int in_used;
@@ -62,12 +65,16 @@ typedef struct {
  * Initializes the object.
  *
  * @param o the object
- * @param pg pending group we live in
+ * @param reactor reactor we live in
  * @param input_mtu maximum input packet size. Must be >=0 and <=UINT16_MAX.
  * @param output_mtu maximum output packet size. Must be >sizeof(struct fragmentproto_chunk_header).
  * @param chunk_mtu maximum chunk size. Must be >0, or <0 for no explicit limit.
+ * @param latency maximum time a pending output packet with some data can wait for more data
+ *                before being sent out. If nonnegative, a timer will be used. If negative,
+ *                packets will always be sent out immediately. If low latency is desired,
+ *                prefer setting this to zero rather than negative.
  */
-void FragmentProtoDisassembler_Init (FragmentProtoDisassembler *o, BPendingGroup *pg, int input_mtu, int output_mtu, int chunk_mtu);
+void FragmentProtoDisassembler_Init (FragmentProtoDisassembler *o, BReactor *reactor, int input_mtu, int output_mtu, int chunk_mtu, btime_t latency);
 
 /**
  * Frees the object.

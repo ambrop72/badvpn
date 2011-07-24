@@ -135,6 +135,7 @@ typedef struct {
  *                   send a FragmentProto chunk with one byte of data over SPProto, i.e. the following has to hold:
  *                   spproto_payload_mtu_for_carrier_mtu(sp_params, socket_mtu) > sizeof(struct fragmentproto_chunk_header)
  * @param sp_params SPProto security parameters
+ * @param latency latency parameter to {@link FragmentProtoDisassembler_Init}.
  * @param num_frames num_frames parameter to {@link FragmentProtoAssembler_Init}. Must be >0.
  * @param recv_userif interface to pass received packets to the user. Its MTU must be >=payload_mtu.
  * @param otp_warning_count If using OTPs, after how many encoded packets to call the handler.
@@ -153,6 +154,7 @@ int DatagramPeerIO_Init (
     int payload_mtu,
     int socket_mtu,
     struct spproto_security_params sp_params,
+    btime_t latency,
     int num_frames,
     PacketPassInterface *recv_userif,
     int otp_warning_count,

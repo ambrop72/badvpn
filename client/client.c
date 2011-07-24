@@ -102,6 +102,7 @@ struct {
     int otp_mode;
     int otp_num;
     int otp_num_warn;
+    int fragmentation_latency;
     int peer_ssl;
     int peer_tcp_socket_sndbuf;
     int send_buffer_size;
@@ -660,6 +661,7 @@ void print_help (const char *name)
         "            --encryption-mode <blowfish/aes/none>\n"
         "            --hash-mode <md5/sha1/none>\n"
         "            [--otp <blowfish/aes> <num> <num-warn>]\n"
+        "            [--fragmentation-latency <milliseconds>]\n"
         "        )\n"
         "        (transport-mode=tcp?\n"
         "            (ssl? [--peer-ssl])\n"
@@ -712,6 +714,7 @@ int parse_arguments (int argc, char *argv[])
     options.encryption_mode = -1;
     options.hash_mode = -1;
     options.otp_mode = SPPROTO_OTP_MODE_NONE;
+    options.fragmentation_latency = PEER_DEFAULT_UDP_FRAGMENTATION_LATENCY;
     options.peer_ssl = 0;
     options.peer_tcp_socket_sndbuf = -1;
     options.send_buffer_size = PEER_DEFAULT_SEND_BUFFER_SIZE;
@@ -721,6 +724,8 @@ int parse_arguments (int argc, char *argv[])
     options.igmp_group_membership_interval = DEFAULT_IGMP_GROUP_MEMBERSHIP_INTERVAL;
     options.igmp_last_member_query_time = DEFAULT_IGMP_LAST_MEMBER_QUERY_TIME;
     options.allow_peer_talk_without_ssl = 0;
+    
+    int have_fragmentation_latency = 0;
     
     int i;
     for (i = 1; i < argc; i++) {
@@ -1003,6 +1008,15 @@ int parse_arguments (int argc, char *argv[])
             }
             i += 3;
         }
+        else if (!strcmp(arg, "--fragmentation-latency")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.fragmentation_latency = atoi(argv[i + 1]);
+            have_fragmentation_latency = 1;
+            i++;
+        }
         else if (!strcmp(arg, "--peer-ssl")) {
             options.peer_ssl = 1;
         }
@@ -1128,6 +1142,11 @@ int parse_arguments (int argc, char *argv[])
     
     if (!(!(options.otp_mode != SPPROTO_OTP_MODE_NONE) || (options.transport_mode == TRANSPORT_MODE_UDP))) {
         fprintf(stderr, "False: --otp => UDP\n");
+        return 0;
+    }
+    
+    if (!(!have_fragmentation_latency || (options.transport_mode == TRANSPORT_MODE_UDP))) {
+        fprintf(stderr, "False: --fragmentation-latency => UDP\n");
         return 0;
     }
     
@@ -1537,7 +1556,7 @@ int peer_init_link (struct peer_data *peer)
         // init DatagramPeerIO
         if (!DatagramPeerIO_Init(
             &peer->pio.udp.pio, &ss, data_mtu, CLIENT_UDP_MTU, sp_params,
-            PEER_UDP_ASSEMBLER_NUM_FRAMES, recv_if,
+            options.fragmentation_latency, PEER_UDP_ASSEMBLER_NUM_FRAMES, recv_if,
             options.otp_num_warn, &twd, peer,
             (BLog_logfunc)peer_logfunc,
             (DatagramPeerIO_handler_error)peer_udp_pio_handler_error,
