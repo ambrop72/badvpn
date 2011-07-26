@@ -162,7 +162,7 @@ void DummyPRFileDesc_Create (PRFileDesc *prfd)
 {
     ASSERT(dummyprfiledesc_initialized)
     
-    memset(prfd, 0, sizeof(prfd));
+    memset(prfd, 0, sizeof(*prfd));
     prfd->methods = &methods;
     prfd->secret = NULL;
     prfd->identity = dummyprfiledesc_identity;
