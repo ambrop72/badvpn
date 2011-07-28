@@ -47,7 +47,7 @@ badvpn-client \- VPN node daemon for the BadVPN peer-to-peer VPN system
 .RB "[" --ext-addr " <addr / {server_reported}:port> <scope_name>] ..."
 .br
 .RE
-]
+] ...
 .br
 .BR --transport-mode " <udp/tcp>"
 .br
@@ -221,7 +221,7 @@ TLS server usage context. This option must match on all peers.
 .BR --peer-tcp-socket-sndbuf " <bytes / 0>"
 Sets the value of the SO_SNDBUF socket option for peer TCP sockets (zero to not set). Lower values
 will improve fairness when data from multiple sources (local and relaying) is being sent to a
-given peer, but may result in lower bandwidth if the network's bandwidth-delay product to too big.
+given peer, but may result in lower bandwidth if the network's bandwidth-delay product is too big.
 .TP
 .BR --send-buffer-size " <num-packets>"
 Sets the minimum size of the peers' send buffers for sending frames originating from this system, in

@@ -97,6 +97,13 @@ generated with the
 .B certutil
 command. See the examples section on how to generate and distribute the certificates.
 .P
+.B TLS for peer messaging
+.P
+If TLS is being used for client-server connections, it will also be used between each pair of
+peers communicating via the server, on top of the TLS connections to the server. This secures
+the messages from the server itself. It is important because the messages may include
+encryption keys and other private data.
+.P
 .B TLS for TCP data connections
 .P
 If TCP is used for data connections between the peers, the data connections can be secured
