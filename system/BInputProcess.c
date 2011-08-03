@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include <base/BLog.h>
+#include <system/BNetwork.h>
 
 #include "BInputProcess.h"
 
@@ -80,6 +81,8 @@ int BInputProcess_Init (BInputProcess *o, BReactor *reactor, BProcessManager *ma
                         BInputProcess_handler_terminated handler_terminated,
                         BInputProcess_handler_closed handler_closed)
 {
+    BNetwork_Assert();
+    
     // init arguments
     o->reactor = reactor;
     o->manager = manager;
