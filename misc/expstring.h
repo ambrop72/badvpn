@@ -35,7 +35,7 @@ typedef struct {
 
 static int ExpString_Init (ExpString *c);
 static void ExpString_Free (ExpString *c);
-static int ExpString_Append (ExpString *c, char *str);
+static int ExpString_Append (ExpString *c, const char *str);
 static char * ExpString_Get (ExpString *c);
 
 int ExpString_Init (ExpString *c)
@@ -55,7 +55,7 @@ void ExpString_Free (ExpString *c)
     free(c->arr.v);
 }
 
-int ExpString_Append (ExpString *c, char *str)
+int ExpString_Append (ExpString *c, const char *str)
 {
     ASSERT(str)
     
