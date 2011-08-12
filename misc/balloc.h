@@ -32,6 +32,7 @@
 #include <stdlib.h>
 
 #include <misc/debug.h>
+#include <misc/bsize.h>
 
 /**
  * Allocates memory.
@@ -50,6 +51,16 @@ static void * BAlloc (size_t bytes);
  *          in this case, this function does nothing.
  */
 static void BFree (void *m);
+
+/**
+ * Allocates memory, with size given as a {@link bsize_t}.
+ * 
+ * @param bytes number of bytes to allocate. If the size is overflow,
+ *              this function will return NULL.
+ * @return a non-NULL pointer to the memory, or NULL on failure.
+ *         The memory allocated can be freed using {@link BFree}.
+ */
+static void * BAllocSize (bsize_t bytes);
 
 /**
  * Allocates memory for an array.
@@ -89,6 +100,15 @@ void * BAlloc (size_t bytes)
 void BFree (void *m)
 {
     free(m);
+}
+
+void * BAllocSize (bsize_t bytes)
+{
+    if (bytes.is_overflow) {
+        return NULL;
+    }
+    
+    return BAlloc(bytes.value);
 }
 
 void * BAllocArray (size_t count, size_t bytes)
