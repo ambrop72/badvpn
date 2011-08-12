@@ -77,6 +77,22 @@ typedef void (*BListener_handler) (void *user);
 int BListener_Init (BListener *o, BAddr addr, BReactor *reactor, void *user,
                     BListener_handler handler) WARN_UNUSED;
 
+#ifndef BADVPN_USE_WINAPI
+/**
+ * Initializes the object for listening on a Unix socket.
+ * {@link BNetwork_GlobalInit} must have been done.
+ * 
+ * @param o the object
+ * @param socket_path socket path for listening
+ * @param reactor reactor we live in
+ * @param user argument to handler
+ * @param handler handler called when a connection can be accepted
+ * @return 1 on success, 0 on failure
+ */
+int BListener_InitUnix (BListener *o, const char *socket_path, BReactor *reactor, void *user,
+                        BListener_handler handler) WARN_UNUSED;
+#endif
+
 /**
  * Frees the object.
  * 

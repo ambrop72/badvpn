@@ -21,10 +21,12 @@
  */
 
 #include <string.h>
+#include <stddef.h>
 #include <unistd.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 
 #include <misc/nonblocking.h>
 #include <base/BLog.h>
@@ -32,6 +34,8 @@
 #include "BConnection.h"
 
 #include <generated/blog_channel_BConnection.h>
+
+#define MAX_UNIX_SOCKET_PATH 200
 
 struct sys_addr {
     socklen_t len;
@@ -42,6 +46,15 @@ struct sys_addr {
     } addr;
 };
 
+struct unix_addr {
+    socklen_t len;
+    union {
+        struct sockaddr_un addr;
+        uint8_t bytes[offsetof(struct sockaddr_un, sun_path) + MAX_UNIX_SOCKET_PATH + 1];
+    } u;
+};
+
+static int build_unix_address (struct unix_addr *out, const char *socket_path);
 static void addr_socket_to_sys (struct sys_addr *out, BAddr addr);
 static void addr_sys_to_socket (BAddr *out, struct sys_addr addr);
 static void listener_fd_handler (BListener *o, int events);
@@ -56,6 +69,21 @@ static void connection_send_job_handler (BConnection *o);
 static void connection_recv_job_handler (BConnection *o);
 static void connection_send_if_handler_send (BConnection *o, uint8_t *data, int data_len);
 static void connection_recv_if_handler_recv (BConnection *o, uint8_t *data, int data_len);
+
+static int build_unix_address (struct unix_addr *out, const char *socket_path)
+{
+    ASSERT(socket_path);
+    
+    if (strlen(socket_path) > MAX_UNIX_SOCKET_PATH) {
+        return 0;
+    }
+    
+    out->len = offsetof(struct sockaddr_un, sun_path) + strlen(socket_path) + 1;
+    out->u.addr.sun_family = AF_UNIX;
+    strcpy(out->u.addr.sun_path, socket_path);
+    
+    return 1;
+}
 
 static void addr_socket_to_sys (struct sys_addr *out, BAddr addr)
 {
@@ -429,6 +457,71 @@ int BListener_Init (BListener *o, BAddr addr, BReactor *reactor, void *user,
     
     // bind
     if (bind(o->fd, &sysaddr.addr.generic, sysaddr.len) < 0) {
+        BLog(BLOG_ERROR, "bind failed");
+        goto fail1;
+    }
+    
+    // listen
+    if (listen(o->fd, BCONNECTION_LISTEN_BACKLOG) < 0) {
+        BLog(BLOG_ERROR, "listen failed");
+        goto fail1;
+    }
+    
+    // init BFileDescriptor
+    BFileDescriptor_Init(&o->bfd, o->fd, (BFileDescriptor_handler)listener_fd_handler, o);
+    if (!BReactor_AddFileDescriptor(o->reactor, &o->bfd)) {
+        BLog(BLOG_ERROR, "BReactor_AddFileDescriptor failed");
+        goto fail1;
+    }
+    BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, BREACTOR_READ);
+    
+    // init default job
+    BPending_Init(&o->default_job, BReactor_PendingGroup(o->reactor), (BPending_handler)listener_default_job_handler, o);
+    
+    DebugObject_Init(&o->d_obj);
+    return 1;
+    
+fail1:
+    if (close(o->fd) < 0) {
+        BLog(BLOG_ERROR, "close failed");
+    }
+fail0:
+    return 0;
+}
+
+int BListener_InitUnix (BListener *o, const char *socket_path, BReactor *reactor, void *user,
+                        BListener_handler handler)
+{
+    ASSERT(socket_path)
+    ASSERT(handler)
+    BNetwork_Assert();
+    
+    // init arguments
+    o->reactor = reactor;
+    o->user = user;
+    o->handler = handler;
+    
+    // build address
+    struct unix_addr addr;
+    if (!build_unix_address(&addr, socket_path)) {
+        BLog(BLOG_ERROR, "build_unix_address failed");
+        goto fail0;
+    }
+    
+    // init fd
+    if ((o->fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        BLog(BLOG_ERROR, "socket failed");
+        goto fail0;
+    }
+    
+    // set non-blocking
+    if (!badvpn_set_nonblocking(o->fd)) {
+        BLog(BLOG_ERROR, "badvpn_set_nonblocking failed");
+        goto fail1;
+    }
+    
+    // bind
+    if (bind(o->fd, (struct sockaddr *)&addr.u.addr, addr.len) < 0) {
         BLog(BLOG_ERROR, "bind failed");
         goto fail1;
     }
