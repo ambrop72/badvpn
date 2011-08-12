@@ -37,6 +37,7 @@ typedef struct {
 
 static bsize_t bsize_fromsize (size_t v);
 static bsize_t bsize_fromint (int v);
+static bsize_t bsize_overflow (void);
 static int bsize_tosize (bsize_t s, size_t *out);
 static int bsize_toint (bsize_t s, int *out);
 static bsize_t bsize_add (bsize_t s1, bsize_t s2);
@@ -60,6 +61,15 @@ bsize_t bsize_fromint (int v)
         s.is_overflow = 0;
         s.value = v;
     }
+    
+    return s;
+}
+
+static bsize_t bsize_overflow (void)
+{
+    bsize_t s;
+    
+    s.is_overflow = 1;
     
     return s;
 }
