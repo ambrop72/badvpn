@@ -76,6 +76,10 @@ static int ExpArray_resize (struct ExpArray *o, size_t size)
         newsize = 2 * newsize;
     }
     
+    if (newsize > SIZE_MAX / o->esize) {
+        return 0;
+    }
+    
     void *newarr = realloc(o->v, newsize * o->esize);
     if (!newarr) {
         return 0;
