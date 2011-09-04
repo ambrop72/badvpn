@@ -26,6 +26,7 @@ add_library(ncdconfig
     NCDConfigTokenizer.c
     NCDConfigParser.c
 )
+target_link_libraries(ncdconfig base)
 
 add_executable(badvpn-ncd
     ncd.c
