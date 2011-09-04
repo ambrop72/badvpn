@@ -1,9 +1,15 @@
 Version 1.999.113:
 
+- NCD: when starting child processes, make sure that file descriptors for standard
+  streams are always open in the child, by opening /dev/null if they are not.
+
 - Improve build system to allow selective building of components.
   By default, everything is built, unless -DBUILD_NOTHING_BY_DEFAULT=1 is given.
   Individual components can then be enabled or disabled using -DBUILD_COMPONENT=1
   and -DBUILD_COMPONENT=0.
+
+- When starting any BadVPN program, make sure that file descriptors for standard
+  streams are always open in the child, by opening /dev/null if they are not.
 
 - NCD: net.backend.wpa_supplicant(): add 'bssid' and 'ssid' variables to allow
   determining what wireless network wpa_supplicant connected to.
