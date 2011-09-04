@@ -173,10 +173,6 @@ install(
     FILES badvpn.7
     DESTINATION share/man/man7
 )
-install(
-    FILES badvpn-server.8 badvpn-client.8
-    DESTINATION share/man/man8
-)
 
 # reset variables indicating whether we're building various libraries,
 # and set them in the respective CMakeLists files. This is used to disable

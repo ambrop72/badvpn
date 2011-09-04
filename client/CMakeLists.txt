@@ -23,3 +23,8 @@ install(
     TARGETS badvpn-client
     RUNTIME DESTINATION bin
 )
+
+install(
+    FILES badvpn-client.8
+    DESTINATION share/man/man8
+)

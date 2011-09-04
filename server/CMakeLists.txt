@@ -5,3 +5,8 @@ install(
     TARGETS badvpn-server
     RUNTIME DESTINATION bin
 )
+
+install(
+    FILES badvpn-server.8
+    DESTINATION share/man/man8
+)
