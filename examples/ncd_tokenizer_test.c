@@ -25,7 +25,7 @@
 #include <string.h>
 
 #include <misc/debug.h>
-#include <ncdconfig/NCDConfigTokenizer.h>
+#include <ncd/NCDConfigTokenizer.h>
 
 int error;
 

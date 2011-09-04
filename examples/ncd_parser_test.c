@@ -25,7 +25,7 @@
 #include <string.h>
 
 #include <misc/debug.h>
-#include <ncdconfig/NCDConfigParser.h>
+#include <ncd/NCDConfigParser.h>
 
 int error;
 
