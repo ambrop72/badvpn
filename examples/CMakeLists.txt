@@ -11,22 +11,16 @@ endif ()
 add_executable(fairqueue_test fairqueue_test.c)
 target_link_libraries(fairqueue_test system flow)
 
-if (LIBCRYPTO_LIBRARIES)
+if (BUILDING_SECURITY)
     add_executable(fairqueue_test2 fairqueue_test2.c)
     target_link_libraries(fairqueue_test2 system flow security)
-endif ()
 
-if (LIBCRYPTO_LIBRARIES)
     add_executable(bheap_test bheap_test.c)
     target_link_libraries(bheap_test security)
-endif ()
 
-if (LIBCRYPTO_LIBRARIES)
     add_executable(bavl_test bavl_test.c)
     target_link_libraries(bavl_test security)
-endif ()
 
-if (LIBCRYPTO_LIBRARIES)
     add_executable(bencryption_bench bencryption_bench.c)
     target_link_libraries(bencryption_bench system security)
 endif ()

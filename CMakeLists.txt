@@ -181,6 +181,7 @@ install(
 # reset variables indicating whether we're building various libraries,
 # and set them in the respective CMakeLists files. This is used to disable
 # building examples and tests which require libraries that are not available.
+set(BUILDING_SECURITY 0)
 set(BUILDING_DHCPCLIENT 0)
 set(BUILDING_BKIO 0)
 set(BUILDING_PREDICATE 0)
@@ -193,12 +194,13 @@ add_subdirectory(system)
 add_subdirectory(flow)
 add_subdirectory(flowextra)
 if (OpenSSL_FOUND)
+    set(BUILDING_SECURITY 1)
     add_subdirectory(security)
 endif ()
 if (NSS_FOUND)
     add_subdirectory(nspr_support)
 endif ()
-if (BUILD_CLIENT OR BUILD_NCD)
+if (BUILD_CLIENT OR BUILDING_SECURITY)
     set(BUILDING_THREADWORK 1)
     add_subdirectory(threadwork)
 endif ()
