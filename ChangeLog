@@ -1,3 +1,11 @@
+Version 1.999.112:
+
+- NCD: net.backend.wpa_supplicant(): add 'bssid' and 'ssid' variables to allow
+  determining what wireless network wpa_supplicant connected to.
+
+- NCD: net.backend.wpa_supplicant(): do not require the user to start wpa_supplicant via
+  stdbuf, but do it automatically.
+
 Version 1.999.111:
 
 - Improved protocol such that peers can use SSL when comminicating via the server. This
