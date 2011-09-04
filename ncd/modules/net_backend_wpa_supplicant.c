@@ -30,7 +30,7 @@
  * 
  * Synopsis: net.backend.wpa_supplicant(string ifname, string conf, string exec, list(string) args)
  * Variables:
- *   bssid - BSSID of the wireless network we connected to.
+ *   bssid - BSSID of the wireless network we connected to, or "none".
  *           Consists of 6 capital, two-character hexadecimal numbers, separated with colons.
  *           Example: "01:B2:C3:04:E5:F6"
  *   ssid - SSID of the wireless network we connected to. Note that this is after what
@@ -72,14 +72,16 @@ struct instance {
     LineBuffer pipe_buffer;
     PacketPassInterface pipe_input;
     int have_info;
+    int info_have_bssid;
     uint8_t info_bssid[6];
     char *info_ssid;
 };
 
 static int parse_hex_digit (uint8_t d, uint8_t *out);
 static int parse_trying (uint8_t *data, int data_len, uint8_t *out_bssid, uint8_t **out_ssid, int *out_ssid_len);
+static int parse_trying_nobssid (uint8_t *data, int data_len, uint8_t **out_ssid, int *out_ssid_len);
 static int build_cmdline (struct instance *o, CmdLine *c);
-static int init_info (struct instance *o, const uint8_t *bssid, const uint8_t *ssid, size_t ssid_len);
+static int init_info (struct instance *o, int have_bssid, const uint8_t *bssid, const uint8_t *ssid, size_t ssid_len);
 static void free_info (struct instance *o);
 static void process_error (struct instance *o);
 static void process_handler_terminated (struct instance *o, int normally, uint8_t normally_exit_status);
@@ -165,6 +167,35 @@ int parse_trying (uint8_t *data, int data_len, uint8_t *out_bssid, uint8_t **out
     return 1;
 }
 
+int parse_trying_nobssid (uint8_t *data, int data_len, uint8_t **out_ssid, int *out_ssid_len)
+{
+    // Trying to associate with SSID 'Some SSID'
+    
+    int p;
+    if (!(p = data_begins_with(data, data_len, "Trying to associate with SSID '"))) {
+        return 0;
+    }
+    data += p;
+    data_len -= p;
+    
+    // find last '
+    uint8_t *q = NULL;
+    for (int i = data_len; i > 0; i--) {
+        if (data[i - 1] == '\'') {
+            q = &data[i - 1];
+            break;
+        }
+    }
+    if (!q) {
+        return 0;
+    }
+    
+    *out_ssid = data;
+    *out_ssid_len = q - data;
+    
+    return 1;
+}
+
 int build_cmdline (struct instance *o, CmdLine *c)
 {
     // init cmdline
@@ -216,12 +247,15 @@ fail0:
     return 0;
 }
 
-int init_info (struct instance *o, const uint8_t *bssid, const uint8_t *ssid, size_t ssid_len)
+int init_info (struct instance *o, int have_bssid, const uint8_t *bssid, const uint8_t *ssid, size_t ssid_len)
 {
     ASSERT(!o->have_info)
     
     // set bssid
-    memcpy(o->info_bssid, bssid, 6);
+    o->info_have_bssid = have_bssid;
+    if (have_bssid) {
+        memcpy(o->info_bssid, bssid, 6);
+    }
     
     // set ssid
     if (!(o->info_ssid = BAllocSize(bsize_add(bsize_fromsize(ssid_len), bsize_fromsize(1))))) {
@@ -298,10 +332,11 @@ void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len)
         return;
     }
     
+    int have_bssid = 1;
     uint8_t bssid[6];
     uint8_t *ssid;
     int ssid_len;
-    if (parse_trying(data, data_len, bssid, &ssid, &ssid_len)) {
+    if (parse_trying(data, data_len, bssid, &ssid, &ssid_len) || (have_bssid = 0, parse_trying_nobssid(data, data_len, &ssid, &ssid_len))) {
         ModuleLog(o->i, BLOG_INFO, "trying event");
         
         if (o->up) {
@@ -314,7 +349,7 @@ void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len)
             free_info(o);
         }
         
-        if (!init_info(o, bssid, ssid, ssid_len)) {
+        if (!init_info(o, have_bssid, bssid, ssid, ssid_len)) {
             ModuleLog(o->i, BLOG_ERROR, "init_info failed");
             process_error(o);
             return;
@@ -484,9 +519,14 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     ASSERT(o->have_info)
     
     if (!strcmp(name, "bssid")) {
-        uint8_t *bssid = o->info_bssid;
         char str[18];
-        sprintf(str, "%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8, bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
+        
+        if (!o->info_have_bssid) {
+            sprintf(str, "none");
+        } else {
+            uint8_t *id = o->info_bssid;
+            sprintf(str, "%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8, id[0], id[1], id[2], id[3], id[4], id[5]);
+        }
         
         if (!NCDValue_InitString(out, str)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
