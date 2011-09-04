@@ -95,6 +95,8 @@ void BProcessManager_Free (BProcessManager *o);
  * Initializes the process.
  * 'file', 'argv', 'username', 'fds' and 'fds_map' arguments are only used during this
  * function call.
+ * If no file descriptor is mapped to a standard stream (file descriptors 0, 1, 2),
+ * then /dev/null will be opened in the child for that standard stream.
  * 
  * @param o the object
  * @param m process manager

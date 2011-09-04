@@ -31,6 +31,8 @@
 #include <grp.h>
 #include <pwd.h>
 #include <errno.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include <misc/offset.h>
 #include <base/BLog.h>
@@ -175,6 +177,32 @@ static int fds_contains (const int *fds, int fd, size_t *pos)
     return 0;
 }
 
+static int ensure_standard_stream (const int *fds_map, size_t fds_map_size, int fd)
+{
+    // if some file descriptor from parent is being used for this standard stream, keep it
+    for (size_t i = 0; i < fds_map_size; i++) {
+        if (fds_map[i] == fd) {
+            return 1;
+        }
+    }
+    
+    // open /dev/null
+    int ofd = open("/dev/null", O_RDWR);
+    if (ofd < 0) {
+        return 0;
+    }
+    
+    // map the new fd to the standard stream
+    if (ofd != fd) {
+        if (dup2(ofd, fd) < 0) {
+            return 0;
+        }
+        close(ofd);
+    }
+    
+    return 1;
+}
+
 int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[], const char *username, const int *fds, const int *fds_map)
 {
     // init arguments
@@ -242,6 +270,8 @@ int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler hand
             close(i);
         }
         
+        const int *orig_fds_map = fds_map;
+        
         // map fds to requested fd numbers
         while (*fds2 >= 0) {
             // resolve possible conflict
@@ -266,6 +296,17 @@ int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler hand
             
             fds2++;
             fds_map++;
+        }
+        
+        // make sure standard streams are open
+        if (!ensure_standard_stream(orig_fds_map, num_fds, 0)) {
+            abort();
+        }
+        if (!ensure_standard_stream(orig_fds_map, num_fds, 1)) {
+            abort();
+        }
+        if (!ensure_standard_stream(orig_fds_map, num_fds, 2)) {
+            abort();
         }
         
         // assume identity of username, if requested
