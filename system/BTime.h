@@ -89,7 +89,7 @@ static void BTime_Init (void)
     #endif
 }
 
-static btime_t btime_gettime ()
+static btime_t btime_gettime (void)
 {
     ASSERT(btime_global.initialized)
     
@@ -132,6 +132,11 @@ static btime_t btime_add (btime_t t1, btime_t t2)
     }
     
     return sum;
+}
+
+static btime_t btime_getpast (void)
+{
+    return INT64_MIN;
 }
 
 #endif
