@@ -8,19 +8,51 @@ include(CheckIncludeFiles)
 include(CheckSymbolExists)
 include(CheckTypeSize)
 
-find_package(OpenSSL REQUIRED)
-set(LIBCRYPTO_INCLUDE_DIRS "${OpenSSL_INCLUDE_DIRS}")
-set(LIBCRYPTO_LIBRARY_DIRS "${OpenSSL_LIBRARY_DIRS}")
-set(LIBCRYPTO_LIBRARIES "${OpenSSL_LIBRARIES}")
+set(BUILD_COMPONENTS)
 
-find_package(NSPR REQUIRED)
-find_package(NSS REQUIRED)
+macro (build_switch name default)
+    if (NOT DEFINED BUILD_${name})
+        if (BUILD_NOTHING_BY_DEFAULT)
+            set(BUILD_${name} 0)
+        else ()
+            set(BUILD_${name} "${default}")
+        endif ()
+    endif ()
+    list(APPEND BUILD_COMPONENTS "${name}")
+endmacro ()
+
+# define build defaults
+build_switch(EXAMPLES 1)
+build_switch(TESTS 1)
+build_switch(SERVER 1)
+build_switch(CLIENT 1)
+build_switch(FLOODER 1)
+build_switch(TUN2SOCKS 1)
+build_switch(UDPGW 1)
+build_switch(NCD 1)
+
+if (BUILD_NCD AND NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+    message(FATAL_ERROR, "NCD is only available on Linux")
+endif ()
+
+if (BUILD_CLIENT OR BUILD_SERVER OR BUILD_NCD)
+    find_package(OpenSSL REQUIRED)
+    set(LIBCRYPTO_INCLUDE_DIRS "${OpenSSL_INCLUDE_DIRS}")
+    set(LIBCRYPTO_LIBRARY_DIRS "${OpenSSL_LIBRARY_DIRS}")
+    set(LIBCRYPTO_LIBRARIES "${OpenSSL_LIBRARIES}")
+endif ()
+
+if (BUILD_SERVER OR BUILD_CLIENT OR BUILD_FLOODER)
+    find_package(NSPR REQUIRED)
+    find_package(NSS REQUIRED)
+endif ()
 
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${LIBCRYPTO_INCLUDE_DIRS}
     ${NSPR_INCLUDE_DIRS}
     ${NSS_INCLUDE_DIRS}
+    ${FUSE_INCLUDE_DIRS}
     lwip/custom
     lwip/src/include
     lwip/src/include/ipv4
@@ -30,6 +62,11 @@ link_directories(
     ${LIBCRYPTO_LIBRARY_DIRS}
     ${NSPR_LIBRARY_DIRS}
     ${NSS_LIBRARY_DIRS}
+    ${FUSE_LIBRARY_DIRS}
+)
+
+add_definitions(
+    ${FUSE_CFLAGS}
 )
 
 test_big_endian(BIG_ENDIAN)
@@ -141,48 +178,115 @@ install(
     DESTINATION share/man/man8
 )
 
+# reset variables indicating whether we're building various libraries,
+# and set them in the respective CMakeLists files. This is used to disable
+# building examples and tests which require libraries that are not available.
+set(BUILDING_DHCPCLIENT 0)
+set(BUILDING_BKIO 0)
+set(BUILDING_PREDICATE 0)
+set(BUILDING_UDEVMONITOR 0)
+set(BUILDING_THREADWORK 0)
+
 # internal libraries
 add_subdirectory(base)
 add_subdirectory(system)
 add_subdirectory(flow)
 add_subdirectory(flowextra)
-add_subdirectory(tuntap)
-add_subdirectory(predicate)
-add_subdirectory(nspr_support)
-add_subdirectory(server_connection)
-add_subdirectory(security)
-add_subdirectory(socksclient)
-add_subdirectory(lwip)
-add_subdirectory(dhcpclient)
-add_subdirectory(threadwork)
-add_subdirectory(stringmap)
-add_subdirectory(udpgw_client)
-if (NOT WIN32)
+if (OpenSSL_FOUND)
+    add_subdirectory(security)
+endif ()
+if (NSS_FOUND)
+    add_subdirectory(nspr_support)
+endif ()
+if (BUILD_CLIENT OR BUILD_NCD)
+    set(BUILDING_THREADWORK 1)
+    add_subdirectory(threadwork)
+endif ()
+if (BUILD_CLIENT OR BUILD_TUN2SOCKS)
+    add_subdirectory(tuntap)
+endif ()
+if (BUILD_SERVER)
+    set(BUILDING_PREDICATE 1)
+    add_subdirectory(predicate)
+endif ()
+if (BUILD_CLIENT OR BUILD_FLOODER)
+    add_subdirectory(server_connection)
+endif ()
+if (BUILD_NCD)
+    set(BUILDING_DHCPCLIENT 1)
+    set(BUILDING_UDEVMONITOR 1)
+    add_subdirectory(stringmap)
     add_subdirectory(udevmonitor)
+    add_subdirectory(dhcpclient)
+endif ()
+if (BUILD_TUN2SOCKS)
+    add_subdirectory(socksclient)
+    add_subdirectory(udpgw_client)
+    add_subdirectory(lwip)
 endif ()
 
 # example programs
-add_subdirectory(examples)
+if (BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif ()
 
 # tests
-add_subdirectory(tests)
+if (BUILD_TESTS)
+    add_subdirectory(tests)
+endif ()
 
 # server
-add_subdirectory(server)
+if (BUILD_SERVER)
+    add_subdirectory(server)
+endif ()
 
 # client
-add_subdirectory(client)
+if (BUILD_CLIENT)
+    add_subdirectory(client)
+endif ()
 
 # flooder
-add_subdirectory(flooder)
+if (BUILD_FLOODER)
+    add_subdirectory(flooder)
+endif ()
 
 # tun2socks
-add_subdirectory(tun2socks)
+if (BUILD_TUN2SOCKS)
+    add_subdirectory(tun2socks)
+endif ()
 
 # udpgw
-add_subdirectory(udpgw)
+if (BUILD_UDPGW)
+    add_subdirectory(udpgw)
+endif ()
 
 # ncd
-if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+if (BUILD_NCD)
     add_subdirectory(ncd)
 endif ()
+
+message(STATUS "Building components:")
+
+# print what we're building and what not
+foreach (name ${BUILD_COMPONENTS})
+    # to lower name
+    string(TOLOWER "${name}" name_withspaces)
+
+    # append spaces to name
+    #while (TRUE)
+    #    string(LENGTH "${name_withspaces}" length)
+    #    if (NOT (length LESS 12))
+    #        break()
+    #    endif ()
+    #    set(name_withspaces "${name_withspaces} ")
+    #endwhile ()
+    
+    # determine if we're building
+    if (BUILD_${name})
+        set(building "yes")
+    else ()
+        set(building "no")
+    endif ()
+    
+    message(STATUS "    ${name_withspaces} ${building}")
+endforeach ()
