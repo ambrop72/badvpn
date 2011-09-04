@@ -34,6 +34,7 @@
 #include <misc/concat_strings.h>
 #include <misc/string_begins_with.h>
 #include <misc/parse_number.h>
+#include <misc/open_standard_streams.h>
 #include <structure/LinkedList2.h>
 #include <base/BLog.h>
 #include <system/BReactor.h>
@@ -176,6 +177,9 @@ int main (int argc, char **argv)
     if (argc <= 0) {
         return 1;
     }
+    
+    // open standard streams
+    open_standard_streams();
     
     // parse command-line arguments
     if (!parse_arguments(argc, argv)) {

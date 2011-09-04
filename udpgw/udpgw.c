@@ -34,6 +34,7 @@
 #include <misc/offset.h>
 #include <misc/byteorder.h>
 #include <misc/bsize.h>
+#include <misc/open_standard_streams.h>
 #include <structure/LinkedList1.h>
 #include <structure/BAVL.h>
 #include <base/BLog.h>
@@ -172,6 +173,9 @@ int main (int argc, char **argv)
     if (argc <= 0) {
         return 1;
     }
+    
+    // open standard streams
+    open_standard_streams();
     
     // parse command-line arguments
     if (!parse_arguments(argc, argv)) {
