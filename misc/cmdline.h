@@ -28,6 +28,7 @@
 #define BADVPN_MISC_CMDLINE_H
 
 #include <stddef.h>
+#include <stdarg.h>
 
 #include <misc/debug.h>
 #include <misc/exparray.h>
@@ -40,6 +41,7 @@ typedef struct {
 static int CmdLine_Init (CmdLine *c);
 static void CmdLine_Free (CmdLine *c);
 static int CmdLine_Append (CmdLine *c, const char *str);
+static int CmdLine_AppendMulti (CmdLine *c, int num, ...);
 static int CmdLine_Finish (CmdLine *c);
 static char ** CmdLine_Get (CmdLine *c);
 
@@ -84,6 +86,26 @@ int CmdLine_Append (CmdLine *c, const char *str)
     c->n++;
     
     return 1;
+}
+
+int CmdLine_AppendMulti (CmdLine *c, int num, ...)
+{
+    int res = 1;
+    
+    va_list vl;
+    va_start(vl, num);
+    
+    for (int i = 0; i < num; i++) {
+        const char *str = va_arg(vl, const char *);
+        if (!CmdLine_Append(c, str)) {
+            res = 0;
+            break;
+        }
+    }
+    
+    va_end(vl);
+    
+    return res;
 }
 
 int CmdLine_Finish (CmdLine *c)
