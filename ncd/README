@@ -164,9 +164,12 @@ process WLAN {
     net.backend.rfkill("wlan", dev);
 
     # Start wpa_supplicant on this interface, using configuration in /etc/wpa_supplicant/all.conf .
-    # (wpa_supplicant is started via the stdbuf command to avoid problems with buffering of its output)
-    list("-o", "L", "/usr/sbin/wpa_supplicant") args;
-    net.backend.wpa_supplicant(dev, "/etc/wpa_supplicant/all.conf", "/usr/bin/stdbuf", args);
+    list() args;
+    net.backend.wpa_supplicant(dev, "/etc/wpa_supplicant/all.conf", "/usr/sbin/wpa_supplicant", args) sup;
+
+    # wpa_supplicant tells us what network we connected to. Look below for how this can be used to
+    # have different configurations, "BadVPN, but configured differently based on what network we're in".
+    println("connected to wireless network: bssid=", sup.bssid, " ssid=", sup.ssid);
 
     # Wireless connection successful, here comes network config (DHCP/static/whatever) ...
 }
