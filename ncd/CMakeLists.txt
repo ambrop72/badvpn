@@ -21,6 +21,12 @@ if (BADVPN_USE_INOTIFY)
     )
 endif ()
 
+add_library(ncdconfig
+    NCDConfig.c
+    NCDConfigTokenizer.c
+    NCDConfigParser.c
+)
+
 add_executable(badvpn-ncd
     ncd.c
     NCDValue.c

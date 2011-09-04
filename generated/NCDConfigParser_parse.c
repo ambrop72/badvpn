@@ -11,7 +11,7 @@
 #include <stddef.h>
 
 #include <misc/debug.h>
-#include <ncdconfig/NCDConfig.h>
+#include <ncd/NCDConfig.h>
 
 struct parser_out {
     int out_of_memory;

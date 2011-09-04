@@ -42,7 +42,7 @@
 #include <system/BConnection.h>
 #include <system/BProcess.h>
 #include <udevmonitor/NCDUdevManager.h>
-#include <ncdconfig/NCDConfigParser.h>
+#include <ncd/NCDConfigParser.h>
 #include <ncd/NCDModule.h>
 #include <ncd/modules/modules.h>
 
