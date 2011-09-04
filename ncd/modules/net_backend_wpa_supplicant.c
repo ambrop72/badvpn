@@ -21,7 +21,7 @@
  * 
  * @section DESCRIPTION
  * 
- * Wireless interface module which runs wpa_supplicant.
+ * Wireless interface module which runs wpa_supplicant to connect to a wireless network.
  * 
  * Note: wpa_supplicant does not monitor the state of rfkill switches and will fail to
  * start if the switch is of when it is started, and will stop working indefinitely if the
@@ -35,6 +35,7 @@
 
 #include <misc/cmdline.h>
 #include <misc/string_begins_with.h>
+#include <misc/stdbuf_cmdline.h>
 #include <flow/LineBuffer.h>
 #include <system/BInputProcess.h>
 #include <ncd/NCDModule.h>
@@ -69,12 +70,13 @@ static void instance_free (struct instance *o);
 
 int build_cmdline (struct instance *o, CmdLine *c)
 {
+    // init cmdline
     if (!CmdLine_Init(c)) {
         goto fail0;
     }
     
-    // append exec
-    if (!CmdLine_Append(c, o->exec)) {
+    // append stdbuf part
+    if (!build_stdbuf_cmdline(c, o->exec)) {
         goto fail1;
     }
     
