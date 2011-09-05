@@ -21,10 +21,26 @@
  * 
  * @section DESCRIPTION
  * 
- * Conditional module.
+ * Modules for printing to standard output.
  * 
- * Synopsis: print(string str)
- * Synopsis: println(string str)
+ * Synopsis:
+ *   print([string str ...])
+ * Description:
+ *   On initialization, prints strings to standard output.
+ * 
+ * Synopsis:
+ *   println([string str ...])
+ * Description:
+ *   On initialization, prints strings to standard output, and a newline.
+ * 
+ * Synopsis:
+ *   rprint([string str ...])
+ * Description:
+ *   On deinitialization, prints strings to standard output.
+ * 
+ * Synopsis: rprintln([string str ...])
+ * Description:
+ *   On deinitialization, prints strings to standard output, and a newline.
  */
 
 #include <stdlib.h>
@@ -38,45 +54,23 @@
 
 struct instance {
     NCDModuleInst *i;
+    int ln;
+    int rev;
 };
 
-static void func_new (NCDModuleInst *i)
+static void do_print (NCDModuleInst *i, int ln)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
-    o->i = i;
-    
-    // print
-    NCDValue *arg = NCDValue_ListFirst(o->i->args);
-    while (arg) {
-        if (NCDValue_Type(arg) != NCDVALUE_STRING) {
-            ModuleLog(o->i, BLOG_ERROR, "wrong type");
-            goto fail1;
-        }
+    for (NCDValue *arg = NCDValue_ListFirst(i->args); arg; arg = NCDValue_ListNext(i->args, arg)) {
+        ASSERT(NCDValue_Type(arg) == NCDVALUE_STRING)
         printf("%s", NCDValue_StringValue(arg));
-        arg = NCDValue_ListNext(o->i->args, arg);
     }
     
-    // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
-    
-    return;
-    
-fail1:
-    free(o);
-fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    if (ln) {
+        printf("\n");
+    }
 }
 
-static void func_new_ln (NCDModuleInst *i)
+static void func_new_temp (NCDModuleInst *i, int ln, int rev)
 {
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
@@ -88,18 +82,21 @@ static void func_new_ln (NCDModuleInst *i)
     
     // init arguments
     o->i = i;
+    o->ln = ln;
+    o->rev = rev;
     
-    // print
-    NCDValue *arg = NCDValue_ListFirst(o->i->args);
-    while (arg) {
+    // check arguments
+    for (NCDValue *arg = NCDValue_ListFirst(i->args); arg; arg = NCDValue_ListNext(i->args, arg)) {
         if (NCDValue_Type(arg) != NCDVALUE_STRING) {
             ModuleLog(o->i, BLOG_ERROR, "wrong type");
             goto fail1;
         }
-        printf("%s", NCDValue_StringValue(arg));
-        arg = NCDValue_ListNext(o->i->args, arg);
     }
-    printf("\n");
+    
+    // print
+    if (!o->rev) {
+        do_print(o->i, o->ln);
+    }
     
     // signal up
     NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
@@ -118,20 +115,53 @@ static void func_die (void *vo)
     struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
+    // print
+    if (o->rev) {
+        do_print(o->i, o->ln);
+    }
+    
     // free instance
     free(o);
     
     NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
 }
 
+static void print_func_new (NCDModuleInst *i)
+{
+    return func_new_temp(i, 0, 0);
+}
+
+static void println_func_new (NCDModuleInst *i)
+{
+    return func_new_temp(i, 1, 0);
+}
+
+static void rprint_func_new (NCDModuleInst *i)
+{
+    return func_new_temp(i, 0, 1);
+}
+
+static void rprintln_func_new (NCDModuleInst *i)
+{
+    return func_new_temp(i, 1, 1);
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "print",
-        .func_new = func_new,
+        .func_new = print_func_new,
         .func_die = func_die
     }, {
         .type = "println",
-        .func_new = func_new_ln,
+        .func_new = println_func_new,
+        .func_die = func_die
+    }, {
+        .type = "rprint",
+        .func_new = rprint_func_new,
+        .func_die = func_die
+     }, {
+        .type = "rprintln",
+        .func_new = rprintln_func_new,
         .func_die = func_die
     }, {
         .type = NULL
