@@ -23,15 +23,48 @@
  * 
  * iptables module.
  * 
- * Synopsis: net.iptables.append(string table, string chain, string arg1,  ...)
- * Synopsis: net.iptables.policy(string table, string chain, string target, string revert_target)
- * Synopsis: net.iptables.newchain(string chain)
+ * Note that all iptables commands (in general) must be issued synchronously, or
+ * the kernel may randomly report errors if there is another iptables command in progress.
+ * To solve this, the NCD process contains a single "iptables lock". All iptables commands
+ * exposed here go through that lock.
+ * In case you wish to call iptables directly, the lock is exposed via net.iptables.lock().
+ * 
+ * Synopsis:
+ *   net.iptables.append(string table, string chain, string arg1  ...)
+ * Description:
+ *   init:   iptables -t table -A chain arg1 ...
+ *   deinit: iptables -t table -D chain arg1 ...
+ * 
+ * Synopsis:
+ *   net.iptables.policy(string table, string chain, string target, string revert_target)
+ * Description:
+ *   init:   iptables -t table -P chain target
+ *   deinit: iptables -t table -P chain revert_target
+ * 
+ * Synopsis:
+ *   net.iptables.newchain(string chain)
+ * Description:
+ *   init:   iptables -N chain
+ *   deinit: iptables -X chain
+ * 
+ * Synopsis:
+ *   net.iptables.lock()
+ * Description:
+ *   Use at the beginning of a block of custom iptables commands to make sure
+ *   they do not interfere with other iptables commands.
+ * 
+ * Synopsis:
+ *   net.iptables.lock::unlock()
+ * Description:
+ *   Use at the end of a block of custom iptables commands to make sure
+ *   they do not interfere with other iptables commands.
  */
 
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#include <misc/debug.h>
 #include <ncd/BEventLock.h>
 
 #include <ncd/modules/command_template.h>
@@ -51,6 +84,27 @@ struct instance {
     NCDModuleInst *i;
     command_template_instance cti;
 };
+
+struct unlock_instance;
+
+#define LOCK_STATE_LOCKING 1
+#define LOCK_STATE_LOCKED 2
+#define LOCK_STATE_UNLOCKED 3
+#define LOCK_STATE_RELOCKING 4
+
+struct lock_instance {
+    NCDModuleInst *i;
+    BEventLockJob lock_job;
+    struct unlock_instance *unlock;
+    int state;
+};
+
+struct unlock_instance {
+    NCDModuleInst *i;
+    struct lock_instance *lock;
+};
+
+static void unlock_free (struct unlock_instance *o);
 
 static const char *find_iptables (NCDModuleInst *i)
 {
@@ -255,6 +309,32 @@ fail0:
     return 0;
 }
 
+static void lock_job_handler (struct lock_instance *o)
+{
+    ASSERT(o->state == LOCK_STATE_LOCKING || o->state == LOCK_STATE_RELOCKING)
+    
+    if (o->state == LOCK_STATE_LOCKING) {
+        ASSERT(!o->unlock)
+        
+        // up
+        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+        
+        // set state locked
+        o->state = LOCK_STATE_LOCKED;
+    }
+    else if (o->state == LOCK_STATE_RELOCKING) {
+        ASSERT(o->unlock)
+        ASSERT(o->unlock->lock == o)
+        
+        // die unlock
+        unlock_free(o->unlock);
+        o->unlock = NULL;
+        
+        // set state locked
+        o->state = LOCK_STATE_LOCKED;
+    }
+}
+
 static int func_globalinit (struct NCDModuleInitParams params)
 {
     // init iptables lock
@@ -326,6 +406,142 @@ static void func_die (void *vo)
     command_template_die(&o->cti);
 }
 
+static void lock_func_new (NCDModuleInst *i)
+{
+    // allocate instance
+    struct lock_instance *o = malloc(sizeof(*o));
+    if (!o) {
+        BLog(BLOG_ERROR, "malloc failed");
+        goto fail0;
+    }
+    NCDModuleInst_Backend_SetUser(i, o);
+    
+    // init arguments
+    o->i = i;
+    
+    // init lock job
+    BEventLockJob_Init(&o->lock_job, &iptables_lock, (BEventLock_handler)lock_job_handler, o);
+    BEventLockJob_Wait(&o->lock_job);
+    
+    // set no unlock
+    o->unlock = NULL;
+    
+    // set state locking
+    o->state = LOCK_STATE_LOCKING;
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+}
+
+static void lock_func_die (void *vo)
+{
+    struct lock_instance *o = vo;
+    NCDModuleInst *i = o->i;
+    
+    if (o->state == LOCK_STATE_UNLOCKED) {
+        ASSERT(o->unlock)
+        ASSERT(o->unlock->lock == o)
+        o->unlock->lock = NULL;
+    }
+    else if (o->state == LOCK_STATE_RELOCKING) {
+        ASSERT(o->unlock)
+        ASSERT(o->unlock->lock == o)
+        unlock_free(o->unlock);
+    }
+    else {
+        ASSERT(!o->unlock)
+    }
+    
+    // free lock job
+    BEventLockJob_Free(&o->lock_job);
+    
+    // free instance
+    free(o);
+    
+    // dead
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+}
+
+static void unlock_func_new (NCDModuleInst *i)
+{
+    // allocate instance
+    struct unlock_instance *o = malloc(sizeof(*o));
+    if (!o) {
+        BLog(BLOG_ERROR, "malloc failed");
+        goto fail0;
+    }
+    NCDModuleInst_Backend_SetUser(i, o);
+    
+    // init arguments
+    o->i = i;
+    
+    // get lock lock
+    struct lock_instance *lock = i->method_object->inst_user;
+    
+    // make sure lock doesn't already have an unlock
+    if (lock->unlock) {
+        BLog(BLOG_ERROR, "lock already has an unlock");
+        goto fail1;
+    }
+    
+    ASSERT(lock->state == LOCK_STATE_LOCKED)
+    
+    // set lock
+    o->lock = lock;
+    
+    // set unlock in lock
+    lock->unlock = o;
+    
+    // up
+    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    
+    // release lock
+    BEventLockJob_Release(&lock->lock_job);
+    
+    // set lock state unlocked
+    lock->state = LOCK_STATE_UNLOCKED;
+    return;
+    
+fail1:
+    free(o);
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+}
+
+static void unlock_func_die (void *vo)
+{
+    struct unlock_instance *o = vo;
+    NCDModuleInst *i = o->i;
+    
+    // if lock is gone, die right away
+    if (!o->lock) {
+        unlock_free(o);
+        return;
+    }
+    
+    ASSERT(o->lock->unlock == o)
+    ASSERT(o->lock->state == LOCK_STATE_UNLOCKED)
+    
+    // wait lock
+    BEventLockJob_Wait(&o->lock->lock_job);
+    
+    // set lock state relocking
+    o->lock->state = LOCK_STATE_RELOCKING;
+}
+
+static void unlock_free (struct unlock_instance *o)
+{
+    NCDModuleInst *i = o->i;
+    
+    // free instance
+    free(o);
+    
+    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "net.iptables.append",
@@ -339,6 +555,14 @@ static const struct NCDModule modules[] = {
         .type = "net.iptables.newchain",
         .func_new = newchain_func_new,
         .func_die = func_die
+    }, {
+        .type = "net.iptables.lock",
+        .func_new = lock_func_new,
+        .func_die = lock_func_die
+    }, {
+        .type = "net.iptables.lock::unlock",
+        .func_new = unlock_func_new,
+        .func_die = unlock_func_die
     }, {
         .type = NULL
     }
