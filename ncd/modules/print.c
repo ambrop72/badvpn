@@ -38,7 +38,8 @@
  * Description:
  *   On deinitialization, prints strings to standard output.
  * 
- * Synopsis: rprintln([string str ...])
+ * Synopsis:
+ *   rprintln([string str ...])
  * Description:
  *   On deinitialization, prints strings to standard output, and a newline.
  */
