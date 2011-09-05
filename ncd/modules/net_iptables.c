@@ -52,6 +52,11 @@
  * Description:
  *   Use at the beginning of a block of custom iptables commands to make sure
  *   they do not interfere with other iptables commands.
+ *   WARNING: improper usage of the lock can lead to deadlock. In particular:
+ *   - Do not call any of the iptables wrappers above from a lock section; those
+ *     will attempt to aquire the lock themselves.
+ *   - Do not enter another lock section from a lock section.
+ *   - Do not perform any potentially long wait from a lock section.
  * 
  * Synopsis:
  *   net.iptables.lock::unlock()
