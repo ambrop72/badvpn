@@ -25,6 +25,7 @@
  * 
  * Synopsis: net.iptables.append(string table, string chain, string arg1,  ...)
  * Synopsis: net.iptables.policy(string table, string chain, string target, string revert_target)
+ * Synopsis: net.iptables.newchain(string chain)
  */
 
 #include <stdlib.h>
@@ -200,6 +201,60 @@ fail0:
     return 0;
 }
 
+static int build_newchain_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+{
+    // read arguments
+    NCDValue *chain_arg;
+    if (!NCDValue_ListRead(i->args, 1, &chain_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (NCDValue_Type(chain_arg) != NCDVALUE_STRING) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    char *chain = NCDValue_StringValue(chain_arg);
+    
+    // find iptables
+    const char *iptables_path = find_iptables(i);
+    if (!iptables_path) {
+        goto fail0;
+    }
+    
+    // alloc exec
+    if (!(*exec = strdup(iptables_path))) {
+        ModuleLog(i, BLOG_ERROR, "strdup failed");
+        goto fail0;
+    }
+    
+    // start cmdline
+    if (!CmdLine_Init(cl)) {
+        ModuleLog(i, BLOG_ERROR, "CmdLine_Init failed");
+        goto fail1;
+    }
+    
+    // add arguments
+    if (!CmdLine_AppendMulti(cl, 3, iptables_path, (remove ? "-X" : "-N"), chain)) {
+        ModuleLog(i, BLOG_ERROR, "CmdLine_AppendMulti failed");
+        goto fail2;
+    }
+    
+    // finish
+    if (!CmdLine_Finish(cl)) {
+        ModuleLog(i, BLOG_ERROR, "CmdLine_Finish failed");
+        goto fail2;
+    }
+    
+    return 1;
+    
+fail2:
+    CmdLine_Free(cl);
+fail1:
+    free(*exec);
+fail0:
+    return 0;
+}
+
 static int func_globalinit (struct NCDModuleInitParams params)
 {
     // init iptables lock
@@ -259,6 +314,11 @@ static void policy_func_new (NCDModuleInst *i)
     func_new(i, build_policy_cmdline);
 }
 
+static void newchain_func_new (NCDModuleInst *i)
+{
+    func_new(i, build_newchain_cmdline);
+}
+
 static void func_die (void *vo)
 {
     struct instance *o = vo;
@@ -274,6 +334,10 @@ static const struct NCDModule modules[] = {
     }, {
         .type = "net.iptables.policy",
         .func_new = policy_func_new,
+        .func_die = func_die
+    }, {
+        .type = "net.iptables.newchain",
+        .func_new = newchain_func_new,
         .func_die = func_die
     }, {
         .type = NULL
