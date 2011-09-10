@@ -148,7 +148,7 @@ static void statement_free (struct statement *s);
 static void statement_free_args (struct statement *s);
 static int process_new (struct NCDConfig_interfaces *conf, NCDModuleProcess *module_process, NCDValue args);
 static void process_free (struct process *p);
-static void process_start_teminating (struct process *p);
+static void process_start_terminating (struct process *p);
 static void process_free_statements (struct process *p);
 static size_t process_rap (struct process *p);
 static void process_assert_pointers (struct process *p);
@@ -534,7 +534,7 @@ void signal_handler (void *unused)
         if (p->module_process) {
             continue;
         }
-        process_start_teminating(p);
+        process_start_terminating(p);
     }
 }
 
@@ -802,7 +802,7 @@ void process_free (struct process *p)
     free(p);
 }
 
-void process_start_teminating (struct process *p)
+void process_start_terminating (struct process *p)
 {
     if (p->terminating) {
         return;
@@ -1420,5 +1420,5 @@ void process_moduleprocess_handler_die (struct process *p)
     process_log(p, BLOG_INFO, "process termination requested");
     
     // start terminating
-    process_start_teminating(p);
+    process_start_terminating(p);
 }
