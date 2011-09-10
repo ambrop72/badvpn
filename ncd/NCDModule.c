@@ -42,7 +42,6 @@
 #define PROCESS_STATE_DIE 4
 #define PROCESS_STATE_DEAD_PENDING 5
 #define PROCESS_STATE_DEAD 6
-#define PROCESS_STATE_ZOMBIE 7
 
 static void frontend_event (NCDModuleInst *n, int event)
 {
@@ -434,22 +433,10 @@ void NCDModuleProcess_Free (NCDModuleProcess *o)
 void NCDModuleProcess_Die (NCDModuleProcess *o)
 {
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->state == PROCESS_STATE_NORMAL)
     
-    switch (o->state) {
-        case PROCESS_STATE_ZOMBIE: {
-            BPending_Set(&o->dead_job);
-            
-            o->state = PROCESS_STATE_DEAD_PENDING;
-        } break;
-        
-        case PROCESS_STATE_NORMAL: {
-            BPending_Set(&o->die_job);
-        
-            o->state = PROCESS_STATE_DIE_PENDING;
-        } break;
-        
-        default: ASSERT(0);
-    }
+    BPending_Set(&o->die_job);
+    o->state = PROCESS_STATE_DIE_PENDING;
 }
 
 void NCDModuleProcess_Interp_SetHandlers (NCDModuleProcess *o, void *interp_user, NCDModuleProcess_interp_handler_die interp_handler_die)
@@ -461,23 +448,8 @@ void NCDModuleProcess_Interp_SetHandlers (NCDModuleProcess *o, void *interp_user
 void NCDModuleProcess_Interp_Dead (NCDModuleProcess *o)
 {
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->state == PROCESS_STATE_DIE)
     
-    switch (o->state) {
-        case PROCESS_STATE_NORMAL: {
-            o->state = PROCESS_STATE_ZOMBIE;
-        } break;
-        
-        case PROCESS_STATE_DIE_PENDING: {
-            BPending_Unset(&o->die_job);
-            BPending_Set(&o->dead_job);
-            o->state = PROCESS_STATE_DEAD_PENDING;
-        } break;
-        
-        case PROCESS_STATE_DIE: {
-            BPending_Set(&o->dead_job);
-            o->state = PROCESS_STATE_DEAD_PENDING;
-        } break;
-        
-        default: ASSERT(0);
-    }
+    BPending_Set(&o->dead_job);
+    o->state = PROCESS_STATE_DEAD_PENDING;
 }

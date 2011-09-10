@@ -525,12 +525,15 @@ void signal_handler (void *unused)
         return;
     }
     
-    // start terminating all processes
+    // start terminating non-template processes
     LinkedList2Iterator it;
     LinkedList2Iterator_InitForward(&it, &processes);
     LinkedList2Node *n;
     while (n = LinkedList2Iterator_Next(&it)) {
         struct process *p = UPPER_OBJECT(n, struct process, list_node);
+        if (p->module_process) {
+            continue;
+        }
         process_start_teminating(p);
     }
 }
@@ -767,6 +770,7 @@ void process_free (struct process *p)
 {
     ASSERT(p->ap == 0)
     ASSERT(p->fp == 0)
+    ASSERT(p->terminating)
     
     // inform module process that the process is dead
     if (p->module_process) {
@@ -1410,7 +1414,11 @@ void process_statement_instance_logfunc (struct process_statement *ps)
 
 void process_moduleprocess_handler_die (struct process *p)
 {
+    ASSERT(p->module_process)
+    ASSERT(!p->terminating)
+    
     process_log(p, BLOG_INFO, "process termination requested");
     
+    // start terminating
     process_start_teminating(p);
 }
