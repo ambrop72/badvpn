@@ -27,7 +27,7 @@
  * Description: manages processes. On deinitialization, initiates termination of all
  *   contained processes and waits for them to terminate.
  * 
- * Synopsis: process_manager::start(string name, string template_name, list(string) args)
+ * Synopsis: process_manager::start(string name, string template_name, list args)
  * Description: creates a new process from the template named template_name, with arguments args,
  *   identified by name within the process manager. If a process with this name already exists
  *   and is not being terminated, does nothing. If it is being terminated, it will be restarted
@@ -201,10 +201,19 @@ void process_retry_timer_handler (struct process *p)
     process_try(p);
 }
 
-void process_module_process_handler_dead (struct process *p)
+void process_module_process_handler_event (struct process *p, int event)
 {
     struct instance *o = p->manager;
     ASSERT(p->have_module_process)
+    
+    if (event == NCDMODULEPROCESS_EVENT_DOWN) {
+        // allow process to continue
+        NCDModuleProcess_Continue(&p->module_process);
+    }
+    
+    if (event != NCDMODULEPROCESS_EVENT_TERMINATED) {
+        return;
+    }
     
     // free module process
     NCDModuleProcess_Free(&p->module_process);
@@ -251,8 +260,8 @@ void process_stop (struct process *p)
         case PROCESS_STATE_RUNNING: {
             ASSERT(p->have_module_process)
             
-            // request process to die
-            NCDModuleProcess_Die(&p->module_process);
+            // request process to terminate
+            NCDModuleProcess_Terminate(&p->module_process);
             
             // set state
             p->state = PROCESS_STATE_STOPPING;
@@ -314,7 +323,7 @@ void process_try (struct process *p)
     ModuleLog(o->i, BLOG_INFO, "trying process %s", p->name);
     
     // init module process
-    if (!NCDModuleProcess_Init(&p->module_process, o->i, p->params_template_name, p->params_args, p, (NCDModuleProcess_handler_dead)process_module_process_handler_dead)) {
+    if (!NCDModuleProcess_Init(&p->module_process, o->i, p->params_template_name, p->params_args, p, (NCDModuleProcess_handler_event)process_module_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         
         // set timer

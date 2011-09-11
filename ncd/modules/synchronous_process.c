@@ -24,7 +24,7 @@
  * Module which starts a process from a process template on initialization, and
  * stops it on deinitialization.
  * 
- * Synopsis: synchronous_process(string template_name, list(string) args)
+ * Synopsis: synchronous_process(string template_name, list args)
  * Description: on initialization, creates a new process from the template named
  *   template_name, with arguments args. On deinitialization, initiates termination
  *   of the process and waits for it to terminate.
@@ -38,17 +38,48 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
+#define STATE_WORKING 1
+#define STATE_UP 2
+#define STATE_TERMINATING 3
+
 struct instance {
     NCDModuleInst *i;
     NCDModuleProcess process;
+    int state;
 };
 
 static void instance_free (struct instance *o);
 
-static void process_handler_dead (struct instance *o)
+static void process_handler_event (struct instance *o, int event)
 {
-    // die now
-    instance_free(o);
+    switch (event) {
+        case NCDMODULEPROCESS_EVENT_UP: {
+            ASSERT(o->state == STATE_WORKING)
+            
+            // set state up
+            o->state = STATE_UP;
+        } break;
+        
+        case NCDMODULEPROCESS_EVENT_DOWN: {
+            ASSERT(o->state == STATE_UP)
+            
+            // process went down; allow it to continue immediately
+            NCDModuleProcess_Continue(&o->process);
+            
+            // set state working
+            o->state = STATE_WORKING;
+        } break;
+        
+        case NCDMODULEPROCESS_EVENT_TERMINATED: {
+            ASSERT(o->state == STATE_TERMINATING)
+            
+            // die finally
+            instance_free(o);
+            return;
+        } break;
+        
+        default: ASSERT(0);
+    }
 }
 
 static void func_new (NCDModuleInst *i)
@@ -88,12 +119,14 @@ static void func_new (NCDModuleInst *i)
     }
     
     // create process
-    if (!NCDModuleProcess_Init(&o->process, o->i, NCDValue_StringValue(template_name_arg), args, o, (NCDModuleProcess_handler_dead)process_handler_dead)) {
+    if (!NCDModuleProcess_Init(&o->process, o->i, NCDValue_StringValue(template_name_arg), args, o, (NCDModuleProcess_handler_event)process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         NCDValue_Free(&args);
         goto fail1;
     }
     
+    // set state working
+    o->state = STATE_WORKING;
     return;
     
 fail1:
@@ -119,9 +152,13 @@ void instance_free (struct instance *o)
 static void func_die (void *vo)
 {
     struct instance *o = vo;
+    ASSERT(o->state != STATE_TERMINATING)
     
-    // request process to die
-    NCDModuleProcess_Die(&o->process);
+    // request process to terminate
+    NCDModuleProcess_Terminate(&o->process);
+    
+    // set state terminating
+    o->state = STATE_TERMINATING;
 }
 
 static const struct NCDModule modules[] = {

@@ -62,6 +62,11 @@
 #define SSTATE_DYING 3
 #define SSTATE_FORGOTTEN 4
 
+#define PSTATE_WORKING 1
+#define PSTATE_UP 2
+#define PSTATE_WAITING 3
+#define PSTATE_TERMINATING 4
+
 struct statement {
     char *object_name;
     char *method_name;
@@ -84,7 +89,7 @@ struct process {
     char *name;
     size_t num_statements;
     struct process_statement *statements;
-    int terminating;
+    int state;
     size_t ap;
     size_t fp;
     BTimer wait_timer;
@@ -170,7 +175,7 @@ static int process_statement_instance_handler_getvar (struct process_statement *
 static NCDModuleInst * process_statement_instance_handler_getobj (struct process_statement *ps, const char *objname);
 static int process_statement_instance_handler_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name, NCDValue args);
 static void process_statement_instance_logfunc (struct process_statement *ps);
-static void process_moduleprocess_handler_die (struct process *p);
+static void process_moduleprocess_func_event (struct process *p, int event);
 
 int main (int argc, char **argv)
 {
@@ -534,7 +539,9 @@ void signal_handler (void *unused)
         if (p->module_process) {
             continue;
         }
-        process_start_terminating(p);
+        if (p->state != PSTATE_TERMINATING) {
+            process_start_terminating(p);
+        }
     }
 }
 
@@ -678,7 +685,7 @@ int process_new (struct NCDConfig_interfaces *conf, NCDModuleProcess *module_pro
     
     // set module process handlers
     if (p->module_process) {
-        NCDModuleProcess_Interp_SetHandlers(p->module_process, p, (NCDModuleProcess_interp_handler_die)process_moduleprocess_handler_die);
+        NCDModuleProcess_Interp_SetHandlers(p->module_process, p, (NCDModuleProcess_interp_func_event)process_moduleprocess_func_event);
     }
     
     // set arguments
@@ -729,8 +736,8 @@ int process_new (struct NCDConfig_interfaces *conf, NCDModuleProcess *module_pro
         st = st->next;
     }
     
-    // set not terminating
-    p->terminating = 0;
+    // set state working
+    p->state = PSTATE_WORKING;
     
     // set AP=0
     p->ap = 0;
@@ -770,11 +777,11 @@ void process_free (struct process *p)
 {
     ASSERT(p->ap == 0)
     ASSERT(p->fp == 0)
-    ASSERT(p->terminating)
+    ASSERT(p->state == PSTATE_TERMINATING)
     
-    // inform module process that the process is dead
+    // inform module process that the process is terminated
     if (p->module_process) {
-        NCDModuleProcess_Interp_Dead(p->module_process);
+        NCDModuleProcess_Interp_Terminated(p->module_process);
     }
     
     // remove from processes list
@@ -804,12 +811,10 @@ void process_free (struct process *p)
 
 void process_start_terminating (struct process *p)
 {
-    if (p->terminating) {
-        return;
-    }
+    ASSERT(p->state != PSTATE_TERMINATING)
     
     // set terminating
-    p->terminating = 1;
+    p->state = PSTATE_TERMINATING;
     
     // schedule work
     process_schedule_work(p);
@@ -892,7 +897,11 @@ void process_work_job_handler (struct process *p)
     ASSERT(!BTimer_IsRunning(&p->wait_timer))
     ASSERT(!BPending_IsSet(&p->advance_job))
     
-    if (p->terminating) {
+    if (p->state == PSTATE_WAITING) {
+        return;
+    }
+    
+    if (p->state == PSTATE_TERMINATING) {
         if (p->fp == 0) {
             // finished retreating
             process_free(p);
@@ -901,67 +910,47 @@ void process_work_job_handler (struct process *p)
             if (terminating && LinkedList2_IsEmpty(&processes)) {
                 BReactor_Quit(&ss, 1);
             }
-        } else {
-            // order the last living statement to die, if needed
-            struct process_statement *ps = &p->statements[p->fp - 1];
-            ASSERT(ps->state != SSTATE_FORGOTTEN)
-            if (ps->state != SSTATE_DYING) {
-                process_statement_log(ps, BLOG_INFO, "killing");
-                
-                // order it to die
-                NCDModuleInst_Event(&ps->inst, NCDMODULE_TOEVENT_DIE);
-                
-                // set statement state DYING
-                ps->state = SSTATE_DYING;
-                
-                // update AP
-                if (p->ap > ps->i) {
-                    p->ap = ps->i;
-                }
-            }
-            
-            process_assert_pointers(p);
+            return;
         }
         
+        // order the last living statement to die, if needed
+        struct process_statement *ps = &p->statements[p->fp - 1];
+        ASSERT(ps->state != SSTATE_FORGOTTEN)
+        if (ps->state != SSTATE_DYING) {
+            process_statement_log(ps, BLOG_INFO, "killing");
+            
+            // order it to die
+            NCDModuleInst_Event(&ps->inst, NCDMODULE_TOEVENT_DIE);
+            
+            // set statement state DYING
+            ps->state = SSTATE_DYING;
+            
+            // update AP
+            if (p->ap > ps->i) {
+                p->ap = ps->i;
+            }
+        }
         return;
     }
     
-    if (p->ap == p->fp) {
-        if (p->ap == process_rap(p)) {
-            if (p->ap == p->num_statements) {
-                // all statements are up
-                process_log(p, BLOG_INFO, "victory");
-            } else {
-                struct process_statement *ps = &p->statements[p->ap];
-                ASSERT(ps->state == SSTATE_FORGOTTEN)
-                
-                // clear expired error
-                if (ps->have_error && ps->error_until <= btime_gettime()) {
-                    ps->have_error = 0;
-                }
-                
-                if (ps->have_error) {
-                    // next statement has error, wait
-                    process_statement_log(ps, BLOG_INFO, "waiting after error");
-                    BReactor_SetTimerAbsolute(&ss, &p->wait_timer, ps->error_until);
-                } else {
-                    // schedule advance
-                    BPending_Set(&p->advance_job);
-                }
-            }
-        } else {
-            ASSERT(p->ap > 0)
-            ASSERT(p->ap <= p->num_statements)
+    // process was up but is no longer?
+    if (p->state == PSTATE_UP && !(p->ap == process_rap(p) && p->ap == p->num_statements)) {
+        // if we have module process, wait for its permission to continue
+        if (p->module_process) {
+            // set module process down
+            NCDModuleProcess_Interp_Down(p->module_process);
             
-            struct process_statement *ps = &p->statements[p->ap - 1];
-            ASSERT(ps->state == SSTATE_CHILD)
-            
-            process_statement_log(ps, BLOG_INFO, "clean");
-            
-            // report clean
-            NCDModuleInst_Event(&ps->inst, NCDMODULE_TOEVENT_CLEAN);
+            // set state waiting
+            p->state = PSTATE_WAITING;
+            return;
         }
-    } else {
+        
+        // set state working
+        p->state = PSTATE_WORKING;
+    }
+    
+    // cleaning up?
+    if (p->ap < p->fp) {
         // order the last living statement to die, if needed
         struct process_statement *ps = &p->statements[p->fp - 1];
         if (ps->state != SSTATE_DYING) {
@@ -973,9 +962,59 @@ void process_work_job_handler (struct process *p)
             // set statement state DYING
             ps->state = SSTATE_DYING;
         }
+        return;
     }
     
-    process_assert_pointers(p);
+    // clean?
+    if (p->ap > process_rap(p)) {
+        ASSERT(p->ap > 0)
+        ASSERT(p->ap <= p->num_statements)
+        
+        struct process_statement *ps = &p->statements[p->ap - 1];
+        ASSERT(ps->state == SSTATE_CHILD)
+        
+        process_statement_log(ps, BLOG_INFO, "clean");
+        
+        // report clean
+        NCDModuleInst_Event(&ps->inst, NCDMODULE_TOEVENT_CLEAN);
+        return;
+    }
+    
+    // advancing?
+    if (p->ap < p->num_statements) {
+        ASSERT(p->state == PSTATE_WORKING)
+        struct process_statement *ps = &p->statements[p->ap];
+        ASSERT(ps->state == SSTATE_FORGOTTEN)
+        
+        // clear expired error
+        if (ps->have_error && ps->error_until <= btime_gettime()) {
+            ps->have_error = 0;
+        }
+        
+        if (ps->have_error) {
+            process_statement_log(ps, BLOG_INFO, "waiting after error");
+            
+            // set wait timer
+            BReactor_SetTimerAbsolute(&ss, &p->wait_timer, ps->error_until);
+        } else {
+            // schedule advance
+            BPending_Set(&p->advance_job);
+        }
+        return;
+    }
+    
+    // have we just finished?
+    if (p->state == PSTATE_WORKING) {
+        process_log(p, BLOG_INFO, "victory");
+        
+        // set module process up
+        if (p->module_process) {
+            NCDModuleProcess_Interp_Up(p->module_process);
+        }
+        
+        // set state up
+        p->state = PSTATE_UP;
+    }
 }
 
 void process_advance_job_handler (struct process *p)
@@ -987,7 +1026,7 @@ void process_advance_job_handler (struct process *p)
     ASSERT(!p->statements[p->ap].have_error)
     ASSERT(!BPending_IsSet(&p->work_job))
     ASSERT(!BTimer_IsRunning(&p->wait_timer))
-    ASSERT(!p->terminating)
+    ASSERT(p->state == PSTATE_WORKING)
     
     struct process_statement *ps = &p->statements[p->ap];
     ASSERT(ps->state == SSTATE_FORGOTTEN)
@@ -1091,7 +1130,7 @@ fail0:
     process_statement_set_error(ps);
     
     // schedule work to start the timer
-    BPending_Set(&p->work_job);
+    process_schedule_work(p);
 }
 
 void process_wait_timer_handler (struct process *p)
@@ -1103,7 +1142,7 @@ void process_wait_timer_handler (struct process *p)
     ASSERT(p->statements[p->ap].have_error)
     ASSERT(!BPending_IsSet(&p->work_job))
     ASSERT(!BPending_IsSet(&p->advance_job))
-    ASSERT(!p->terminating)
+    ASSERT(p->state == PSTATE_WORKING)
     
     process_log(p, BLOG_INFO, "retrying");
     
@@ -1412,13 +1451,30 @@ void process_statement_instance_logfunc (struct process_statement *ps)
     BLog_Append("module: ");
 }
 
-void process_moduleprocess_handler_die (struct process *p)
+void process_moduleprocess_func_event (struct process *p, int event)
 {
     ASSERT(p->module_process)
-    ASSERT(!p->terminating)
     
-    process_log(p, BLOG_INFO, "process termination requested");
-    
-    // start terminating
-    process_start_terminating(p);
+    switch (event) {
+        case NCDMODULEPROCESS_INTERP_EVENT_CONTINUE: {
+            ASSERT(p->state == PSTATE_WAITING)
+            
+            // set state working
+            p->state = PSTATE_WORKING;
+            
+            // schedule work
+            process_schedule_work(p);
+        } break;
+        
+        case NCDMODULEPROCESS_INTERP_EVENT_TERMINATE: {
+            ASSERT(p->state != PSTATE_TERMINATING)
+            
+            process_log(p, BLOG_INFO, "process termination requested");
+        
+            // start terminating
+            process_start_terminating(p);
+        } break;
+        
+        default: ASSERT(0);
+    }
 }

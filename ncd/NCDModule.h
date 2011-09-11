@@ -46,8 +46,16 @@ typedef int (*NCDModule_handler_getvar) (void *user, const char *varname, NCDVal
 typedef struct NCDModuleInst_s * (*NCDModule_handler_getobj) (void *user, const char *objname);
 typedef int (*NCDModule_handler_initprocess) (void *user, struct NCDModuleProcess_s *p, const char *template_name, NCDValue args);
 
-typedef void (*NCDModuleProcess_handler_dead) (void *user);
-typedef void (*NCDModuleProcess_interp_handler_die) (void *user);
+#define NCDMODULEPROCESS_EVENT_UP 1
+#define NCDMODULEPROCESS_EVENT_DOWN 2
+#define NCDMODULEPROCESS_EVENT_TERMINATED 3
+
+typedef void (*NCDModuleProcess_handler_event) (void *user, int event);
+
+#define NCDMODULEPROCESS_INTERP_EVENT_CONTINUE 1
+#define NCDMODULEPROCESS_INTERP_EVENT_TERMINATE 2
+
+typedef void (*NCDModuleProcess_interp_func_event) (void *user, int event);
 
 struct NCDModule;
 
@@ -83,12 +91,11 @@ typedef struct NCDModuleInst_s {
 typedef struct NCDModuleProcess_s {
     NCDModuleInst *n;
     void *user;
-    NCDModuleProcess_handler_dead handler_dead;
-    void *interp_user;
-    NCDModuleProcess_interp_handler_die interp_handler_die;
-    BPending die_job;
-    BPending dead_job;
+    NCDModuleProcess_handler_event handler_event;
+    BPending event_job;
     int state;
+    void *interp_user;
+    NCDModuleProcess_interp_func_event interp_func_event;
     DebugObject d_obj;
 } NCDModuleProcess;
 
@@ -110,11 +117,14 @@ NCDModuleInst * NCDModuleInst_Backend_GetObj (NCDModuleInst *n, const char *objn
 void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const char *fmt, ...);
 void NCDModuleInst_Backend_SetError (NCDModuleInst *n);
 
-int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValue args, void *user, NCDModuleProcess_handler_dead handler_dead);
+int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValue args, void *user, NCDModuleProcess_handler_event handler_event);
 void NCDModuleProcess_Free (NCDModuleProcess *o);
-void NCDModuleProcess_Die (NCDModuleProcess *o);
-void NCDModuleProcess_Interp_SetHandlers (NCDModuleProcess *o, void *interp_user, NCDModuleProcess_interp_handler_die interp_handler_die);
-void NCDModuleProcess_Interp_Dead (NCDModuleProcess *o);
+void NCDModuleProcess_Continue (NCDModuleProcess *o);
+void NCDModuleProcess_Terminate (NCDModuleProcess *o);
+void NCDModuleProcess_Interp_SetHandlers (NCDModuleProcess *o, void *interp_user,  NCDModuleProcess_interp_func_event interp_func_event);
+void NCDModuleProcess_Interp_Up (NCDModuleProcess *o);
+void NCDModuleProcess_Interp_Down (NCDModuleProcess *o);
+void NCDModuleProcess_Interp_Terminated (NCDModuleProcess *o);
 
 typedef int (*NCDModule_func_globalinit) (const struct NCDModuleInitParams params);
 typedef void (*NCDModule_func_globalfree) (void);
