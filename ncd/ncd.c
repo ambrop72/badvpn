@@ -176,6 +176,8 @@ static NCDModuleInst * process_statement_instance_handler_getobj (struct process
 static int process_statement_instance_handler_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name, NCDValue args);
 static void process_statement_instance_logfunc (struct process_statement *ps);
 static void process_moduleprocess_func_event (struct process *p, int event);
+static int process_moduleprocess_func_getvar (struct process *p, const char *name, NCDValue *out);
+static NCDModuleInst * process_moduleprocess_func_getobj (struct process *p, const char *name);
 
 int main (int argc, char **argv)
 {
@@ -685,7 +687,10 @@ int process_new (struct NCDConfig_interfaces *conf, NCDModuleProcess *module_pro
     
     // set module process handlers
     if (p->module_process) {
-        NCDModuleProcess_Interp_SetHandlers(p->module_process, p, (NCDModuleProcess_interp_func_event)process_moduleprocess_func_event);
+        NCDModuleProcess_Interp_SetHandlers(p->module_process, p,
+                                            (NCDModuleProcess_interp_func_event)process_moduleprocess_func_event,
+                                            (NCDModuleProcess_interp_func_getvar)process_moduleprocess_func_getvar,
+                                            (NCDModuleProcess_interp_func_getobj)process_moduleprocess_func_getobj);
     }
     
     // set arguments
@@ -1477,4 +1482,33 @@ void process_moduleprocess_func_event (struct process *p, int event)
         
         default: ASSERT(0);
     }
+}
+
+int process_moduleprocess_func_getvar (struct process *p, const char *name, NCDValue *out)
+{
+    ASSERT(p->module_process)
+    
+    if (p->num_statements > process_rap(p)) {
+        process_log(p, BLOG_ERROR, "module process tried to resolve variable %s but it's dirty", name);
+        return 0;
+    }
+    
+    return process_resolve_variable(p, p->num_statements, name, out);
+}
+
+NCDModuleInst * process_moduleprocess_func_getobj (struct process *p, const char *name)
+{
+    ASSERT(p->module_process)
+    
+    if (p->num_statements > process_rap(p)) {
+        process_log(p, BLOG_ERROR, "module process tried to resolve object %s but it's dirty", name);
+        return NULL;
+    }
+    
+    struct process_statement *rps = process_resolve_object(p, p->num_statements, name);
+    if (!rps) {
+        return NULL;
+    }
+    
+    return &rps->inst;
 }

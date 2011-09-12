@@ -468,12 +468,51 @@ void NCDModuleProcess_Terminate (NCDModuleProcess *o)
     o->interp_func_event(o->interp_user, NCDMODULEPROCESS_INTERP_EVENT_TERMINATE);
 }
 
-void NCDModuleProcess_Interp_SetHandlers (NCDModuleProcess *o, void *interp_user,  NCDModuleProcess_interp_func_event interp_func_event)
+int NCDModuleProcess_GetVar (NCDModuleProcess *o, const char *name, NCDValue *out)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->state != PROCESS_STATE_INIT)
+    ASSERT(name)
+    ASSERT(out)
+    
+    // interpreter gone?
+    if (o->state == PROCESS_STATE_TERMINATED_PENDING || o->state == PROCESS_STATE_TERMINATED) {
+        return 0;
+    }
+    
+    int res = o->interp_func_getvar(o->interp_user, name, out);
+    ASSERT(res == 0 || res == 1)
+    
+    return res;
+}
+
+NCDModuleInst * NCDModuleProcess_GetObj (NCDModuleProcess *o, const char *name)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->state != PROCESS_STATE_INIT)
+    ASSERT(name)
+    
+    // interpreter gone?
+    if (o->state == PROCESS_STATE_TERMINATED_PENDING || o->state == PROCESS_STATE_TERMINATED) {
+        return NULL;
+    }
+    
+    return o->interp_func_getobj(o->interp_user, name);
+}
+
+void NCDModuleProcess_Interp_SetHandlers (NCDModuleProcess *o, void *interp_user,
+                                          NCDModuleProcess_interp_func_event interp_func_event,
+                                          NCDModuleProcess_interp_func_getvar interp_func_getvar,
+                                          NCDModuleProcess_interp_func_getobj interp_func_getobj)
 {
     ASSERT(interp_func_event)
+    ASSERT(interp_func_getvar)
+    ASSERT(interp_func_getobj)
     
     o->interp_user = interp_user;
     o->interp_func_event = interp_func_event;
+    o->interp_func_getvar = interp_func_getvar;
+    o->interp_func_getobj = interp_func_getobj;
 }
 
 void NCDModuleProcess_Interp_Up (NCDModuleProcess *o)

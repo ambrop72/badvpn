@@ -56,6 +56,8 @@ typedef void (*NCDModuleProcess_handler_event) (void *user, int event);
 #define NCDMODULEPROCESS_INTERP_EVENT_TERMINATE 2
 
 typedef void (*NCDModuleProcess_interp_func_event) (void *user, int event);
+typedef int (*NCDModuleProcess_interp_func_getvar) (void *user, const char *name, NCDValue *out);
+typedef struct NCDModuleInst_s * (*NCDModuleProcess_interp_func_getobj) (void *user, const char *name);
 
 struct NCDModule;
 
@@ -96,6 +98,8 @@ typedef struct NCDModuleProcess_s {
     int state;
     void *interp_user;
     NCDModuleProcess_interp_func_event interp_func_event;
+    NCDModuleProcess_interp_func_getvar interp_func_getvar;
+    NCDModuleProcess_interp_func_getobj interp_func_getobj;
     DebugObject d_obj;
 } NCDModuleProcess;
 
@@ -121,7 +125,12 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
 void NCDModuleProcess_Free (NCDModuleProcess *o);
 void NCDModuleProcess_Continue (NCDModuleProcess *o);
 void NCDModuleProcess_Terminate (NCDModuleProcess *o);
-void NCDModuleProcess_Interp_SetHandlers (NCDModuleProcess *o, void *interp_user,  NCDModuleProcess_interp_func_event interp_func_event);
+int NCDModuleProcess_GetVar (NCDModuleProcess *o, const char *name, NCDValue *out) WARN_UNUSED;
+NCDModuleInst * NCDModuleProcess_GetObj (NCDModuleProcess *o, const char *name) WARN_UNUSED;
+void NCDModuleProcess_Interp_SetHandlers (NCDModuleProcess *o, void *interp_user,
+                                          NCDModuleProcess_interp_func_event interp_func_event,
+                                          NCDModuleProcess_interp_func_getvar interp_func_getvar,
+                                          NCDModuleProcess_interp_func_getobj interp_func_getobj);
 void NCDModuleProcess_Interp_Up (NCDModuleProcess *o);
 void NCDModuleProcess_Interp_Down (NCDModuleProcess *o);
 void NCDModuleProcess_Interp_Terminated (NCDModuleProcess *o);
