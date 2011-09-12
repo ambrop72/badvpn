@@ -22,11 +22,15 @@
  * @section DESCRIPTION
  * 
  * Synopsis: call(string template_name, list args)
+ * 
  * Description:
  *   Module which allows using a single statement to represent multiple statements
  *   in a process template, allowing reuse of repetitive code.
  * 
- *   Behavior in detail:
+ * Variables:
+ *   Exposes variables as seen from the end of the called process template.
+ * 
+ * Behavior in detail:
  *   - On initialization, creates a new process from the template named
  *     template_name, with arguments args.
  *   - When all the statements in the created process go UP, transitions UP.
@@ -182,12 +186,30 @@ static void func_clean (void *vo)
     o->state = STATE_WORKING;
 }
 
+static int func_getvar (void *vo, const char *name, NCDValue *out)
+{
+    struct instance *o = vo;
+    ASSERT(o->state == STATE_UP)
+    
+    return NCDModuleProcess_GetVar(&o->process, name, out);
+}
+
+static NCDModuleInst * func_getobj (void *vo, const char *name)
+{
+    struct instance *o = vo;
+    ASSERT(o->state == STATE_UP)
+    
+    return NCDModuleProcess_GetObj(&o->process, name);
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "call",
         .func_new = func_new,
         .func_die = func_die,
-        .func_clean = func_clean
+        .func_clean = func_clean,
+        .func_getvar = func_getvar,
+        .func_getobj = func_getobj
     }, {
         .type = NULL
     }
