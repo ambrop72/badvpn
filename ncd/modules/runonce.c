@@ -143,7 +143,7 @@ static void process_handler (struct instance *o, int normally, uint8_t normally_
     o->state = STATE_FINISHED;
     
     // set up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
 }
 
 static void func_new (NCDModuleInst *i)
@@ -193,7 +193,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void instance_free (struct instance *o)
@@ -203,7 +203,7 @@ static void instance_free (struct instance *o)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)

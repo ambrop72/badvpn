@@ -116,10 +116,10 @@ static void monitor_handler (struct instance *o, struct rfkill_event event)
     o->up = (event.op != RFKILL_OP_DEL && !event.soft && !event.hard);
     
     if (o->up && !was_up) {
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+        NCDModuleInst_Backend_Up(o->i);
     }
     else if (!o->up && was_up) {
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+        NCDModuleInst_Backend_Down(o->i);
     }
 }
 
@@ -182,7 +182,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)
@@ -196,7 +196,7 @@ static void func_die (void *vo)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static const struct NCDModule modules[] = {

@@ -69,7 +69,7 @@ static void process_handler_event (struct instance *o, int event)
             ASSERT(o->state == STATE_WORKING)
             
             // signal up
-            NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+            NCDModuleInst_Backend_Up(o->i);
             
             // set state up
             o->state = STATE_UP;
@@ -79,7 +79,7 @@ static void process_handler_event (struct instance *o, int event)
             ASSERT(o->state == STATE_UP)
             
             // signal down
-            NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+            NCDModuleInst_Backend_Down(o->i);
             
             // set state waiting
             o->state = STATE_WAITING;
@@ -144,7 +144,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 void instance_free (struct instance *o)
@@ -157,7 +157,7 @@ void instance_free (struct instance *o)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)

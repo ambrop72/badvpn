@@ -377,7 +377,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void templ_func_free (struct instance *o)
@@ -397,7 +397,7 @@ static void templ_func_free (struct instance *o)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)
@@ -438,7 +438,7 @@ static void nextevent_func_new (NCDModuleInst *i)
     // signal up.
     // Do it before finishing the event so our process does not advance any further if
     // we would be killed the event provider going down.
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     // wait for next event
     next_event(mo);
@@ -449,7 +449,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void nextevent_func_die (void *vo)
@@ -460,7 +460,7 @@ static void nextevent_func_die (void *vo)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static const struct NCDModule modules[] = {

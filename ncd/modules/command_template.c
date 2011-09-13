@@ -98,7 +98,7 @@ static void process_handler (command_template_instance *o, int normally, uint8_t
             o->state = STATE_DONE;
             
             // signal up
-            NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+            NCDModuleInst_Backend_Up(o->i);
         } break;
         
         case STATE_ADDING_NEED_DELETE: {
@@ -160,7 +160,7 @@ void command_template_new (command_template_instance *o, NCDModuleInst *i, comma
         o->state = STATE_DONE;
         
         // signal up
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+        NCDModuleInst_Backend_Up(o->i);
     }
     
     return;

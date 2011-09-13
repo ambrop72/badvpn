@@ -322,7 +322,7 @@ static void lock_job_handler (struct lock_instance *o)
         ASSERT(!o->unlock)
         
         // up
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+        NCDModuleInst_Backend_Up(o->i);
         
         // set state locked
         o->state = LOCK_STATE_LOCKED;
@@ -372,7 +372,7 @@ static void func_new (NCDModuleInst *i, command_template_build_cmdline build_cmd
     
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 void template_free_func (void *vo, int is_error)
@@ -386,7 +386,7 @@ void template_free_func (void *vo, int is_error)
     if (is_error) {
         NCDModuleInst_Backend_SetError(i);
     }
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void append_func_new (NCDModuleInst *i)
@@ -437,7 +437,7 @@ static void lock_func_new (NCDModuleInst *i)
     
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void lock_func_die (void *vo)
@@ -466,7 +466,7 @@ static void lock_func_die (void *vo)
     free(o);
     
     // dead
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void unlock_func_new (NCDModuleInst *i)
@@ -500,7 +500,7 @@ static void unlock_func_new (NCDModuleInst *i)
     lock->unlock = o;
     
     // up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     // release lock
     BEventLockJob_Release(&lock->lock_job);
@@ -513,7 +513,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void unlock_func_die (void *vo)
@@ -544,7 +544,7 @@ static void unlock_free (struct unlock_instance *o)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static const struct NCDModule modules[] = {

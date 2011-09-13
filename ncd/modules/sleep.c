@@ -54,7 +54,7 @@ static void timer_handler (void *vo)
     
     if (!o->dying) {
         // signal up
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+        NCDModuleInst_Backend_Up(o->i);
     } else {
         // die
         instance_free(o);
@@ -109,7 +109,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 void instance_free (struct instance *o)
@@ -122,7 +122,7 @@ void instance_free (struct instance *o)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)

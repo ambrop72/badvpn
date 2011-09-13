@@ -96,7 +96,7 @@ static void func_new (NCDModuleInst *i)
     o->dying = 0;
     
     // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     return;
     
@@ -104,7 +104,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void instance_free (struct instance *o)
@@ -115,7 +115,7 @@ static void instance_free (struct instance *o)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)
@@ -153,7 +153,7 @@ static void updown_func_new_templ (NCDModuleInst *i, int up)
     }
     
     // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     // get method object
     struct instance *mo = i->method_object->inst_user;
@@ -169,7 +169,11 @@ static void updown_func_new_templ (NCDModuleInst *i, int up)
         while (node = LinkedList2Iterator_Next(&it)) {
             struct use_instance *user = UPPER_OBJECT(node, struct use_instance, blocker_node);
             ASSERT(user->blocker == mo)
-            NCDModuleInst_Backend_Event(user->i, up ? NCDMODULE_EVENT_UP : NCDMODULE_EVENT_DOWN);
+            if (up) {
+                NCDModuleInst_Backend_Up(user->i);
+            } else {
+                NCDModuleInst_Backend_Down(user->i);
+            }
         }
     }
     
@@ -179,7 +183,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void up_func_new (NCDModuleInst *i)
@@ -200,7 +204,7 @@ static void updown_func_die (void *vo)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void use_func_new (NCDModuleInst *i)
@@ -230,7 +234,7 @@ static void use_func_new (NCDModuleInst *i)
     
     // signal up if needed
     if (o->blocker->up) {
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+        NCDModuleInst_Backend_Up(o->i);
     }
     
     return;
@@ -239,7 +243,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void use_func_die (void *vo)
@@ -258,7 +262,7 @@ static void use_func_die (void *vo)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static const struct NCDModule modules[] = {

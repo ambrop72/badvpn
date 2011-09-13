@@ -101,7 +101,7 @@ static void func_new (NCDModuleInst *i)
     }
     
     // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     return;
     
@@ -109,7 +109,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)
@@ -123,7 +123,7 @@ static void func_die (void *vo)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValue *out)
@@ -178,7 +178,7 @@ static void append_func_new (NCDModuleInst *i)
     }
     
     // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     return;
     
@@ -186,7 +186,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void append_func_die (void *vo)
@@ -197,7 +197,7 @@ static void append_func_die (void *vo)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void appendv_func_new (NCDModuleInst *i)
@@ -240,7 +240,7 @@ static void appendv_func_new (NCDModuleInst *i)
     }
     
     // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     return;
     
@@ -248,7 +248,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void appendv_func_die (void *vo)
@@ -259,7 +259,7 @@ static void appendv_func_die (void *vo)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void length_func_new (NCDModuleInst *i)
@@ -288,7 +288,7 @@ static void length_func_new (NCDModuleInst *i)
     o->length = NCDValue_ListCount(&mo->list);
     
     // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     return;
     
@@ -296,7 +296,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void length_func_die (void *vo)
@@ -307,7 +307,7 @@ static void length_func_die (void *vo)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static int length_func_getvar (void *vo, const char *name, NCDValue *out)
@@ -374,7 +374,7 @@ static void get_func_new (NCDModuleInst *i)
     }
     
     // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     return;
     
@@ -382,7 +382,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void get_func_die (void *vo)
@@ -396,7 +396,7 @@ static void get_func_die (void *vo)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static int get_func_getvar (void *vo, const char *name, NCDValue *out)
@@ -446,7 +446,7 @@ static void shift_func_new (NCDModuleInst *i)
     NCDValue_Free(&v);
     
     // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     return;
     
@@ -454,7 +454,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void shift_func_die (void *vo)
@@ -465,7 +465,7 @@ static void shift_func_die (void *vo)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static const struct NCDModule modules[] = {

@@ -116,7 +116,7 @@ static void device_handler (struct instance *o, int events)
     o->processing = 1;
     
     // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
 }
 
 static void device_nextevent (struct instance *o)
@@ -130,7 +130,7 @@ static void device_nextevent (struct instance *o)
     o->processing = 0;
     
     // signal down
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+    NCDModuleInst_Backend_Down(o->i);
 }
 
 static void func_new (NCDModuleInst *i)
@@ -188,7 +188,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 void instance_free (struct instance *o, int is_error)
@@ -210,7 +210,7 @@ void instance_free (struct instance *o, int is_error)
     if (is_error) {
         NCDModuleInst_Backend_SetError(i);
     }
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)
@@ -331,7 +331,7 @@ static void nextevent_func_new (NCDModuleInst *i)
     // signal up.
     // Do it before finishing the event so our process does not advance any further if
     // we would be killed the event provider going down.
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     // wait for next event
     device_nextevent(mo);
@@ -342,7 +342,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void nextevent_func_die (void *vo)
@@ -353,7 +353,7 @@ static void nextevent_func_die (void *vo)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static const struct NCDModule modules[] = {

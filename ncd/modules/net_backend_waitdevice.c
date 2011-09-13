@@ -57,7 +57,7 @@ static void client_handler (struct instance *o, char *devpath, int have_map, BSt
         o->devpath = NULL;
         
         // signal down
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+        NCDModuleInst_Backend_Down(o->i);
     } else {
         const BStringMap *cache_map = NCDUdevManager_Query(o->i->umanager, devpath);
         if (!cache_map) {
@@ -81,7 +81,7 @@ static void client_handler (struct instance *o, char *devpath, int have_map, BSt
             o->devpath = NULL;
             
             // signal down
-            NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+            NCDModuleInst_Backend_Down(o->i);
         }
         
         if (!o->devpath) {
@@ -93,7 +93,7 @@ static void client_handler (struct instance *o, char *devpath, int have_map, BSt
             o->ifindex = ifindex;
             
             // signal up
-            NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+            NCDModuleInst_Backend_Up(o->i);
         }
     }
     
@@ -141,7 +141,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)
@@ -160,7 +160,7 @@ static void func_die (void *vo)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static const struct NCDModule modules[] = {

@@ -51,7 +51,7 @@ static void enable_event (event_template *o)
     o->enabled = 1;
     
     // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
 }
 
 void event_template_new (event_template *o, NCDModuleInst *i, int blog_channel, int maxevents, void *user,
@@ -165,7 +165,7 @@ void event_template_dequeue (event_template *o, int *out_is_empty)
     o->enabled = 0;
     
     // signal down
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+    NCDModuleInst_Backend_Down(o->i);
     
     // enable if there are more events
     if (!LinkedList1_IsEmpty(&o->events_list)) {

@@ -143,7 +143,7 @@ static void provide_promote (struct provide *o)
         d->p = o;
         
         // signal up
-        NCDModuleInst_Backend_Event(d->i, NCDMODULE_EVENT_UP);
+        NCDModuleInst_Backend_Up(d->i);
     }
 }
 
@@ -186,7 +186,7 @@ static void provide_func_new_templ (NCDModuleInst *i, int event)
     // signal up.
     // This comes above provide_promote(), so that effects on related depend statements are
     // computed before this process advances, avoiding problems like failed variable resolutions.
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     // check for existing provide with this name
     struct provide *ep = find_provide(o->name);
@@ -217,7 +217,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void provide_func_new (NCDModuleInst *i)
@@ -261,7 +261,7 @@ static void provide_free (struct provide *o)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void provide_func_die (void *vo)
@@ -287,7 +287,7 @@ static void provide_func_die (void *vo)
         ASSERT(d->p == o)
         
         // signal down
-        NCDModuleInst_Backend_Event(d->i, NCDMODULE_EVENT_DOWN);
+        NCDModuleInst_Backend_Down(d->i);
     }
 }
 
@@ -328,7 +328,7 @@ static void depend_func_new (NCDModuleInst *i)
         o->p = p;
         
         // signal up
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+        NCDModuleInst_Backend_Up(o->i);
     } else {
         // insert to free depends list
         LinkedList2_Append(&free_depends, &o->node);
@@ -343,7 +343,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void depend_free (struct depend *o)
@@ -367,7 +367,7 @@ static void depend_free (struct depend *o)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void depend_func_die (void *vo)

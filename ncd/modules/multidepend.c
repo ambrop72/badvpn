@@ -120,7 +120,7 @@ static void depend_update (struct depend *o)
         o->provide_collapsing = 1;
         
         // signal down
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+        NCDModuleInst_Backend_Down(o->i);
     } else {
         // insert to provide's list
         LinkedList2_Append(&bp->depends, &o->provide_node);
@@ -132,7 +132,7 @@ static void depend_update (struct depend *o)
         o->provide = bp;
         
         // signal up
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+        NCDModuleInst_Backend_Up(o->i);
     }
 }
 
@@ -190,7 +190,7 @@ static void provide_func_new (NCDModuleInst *i)
     // signal up.
     // This comes above the loop which follows, so that effects on related depend statements are
     // computed before this process advances, avoiding problems like failed variable resolutions.
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     // update depends
     LinkedList2Iterator it;
@@ -207,7 +207,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void provide_free (struct provide *o)
@@ -221,7 +221,7 @@ static void provide_free (struct provide *o)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void provide_func_die (void *vo)
@@ -301,7 +301,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void depend_free (struct depend *o)
@@ -324,7 +324,7 @@ static void depend_free (struct depend *o)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void depend_func_die (void *vo)

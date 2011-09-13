@@ -146,7 +146,7 @@ static void func_new (NCDModuleInst *i)
     
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 void template_free_func (void *vo, int is_error)
@@ -163,7 +163,7 @@ void template_free_func (void *vo, int is_error)
     if (is_error) {
         NCDModuleInst_Backend_SetError(i);
     }
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)

@@ -201,7 +201,7 @@ static void func_new (NCDModuleInst *i)
     BTimer_Init(&o->timer, RETRY_TIME, (BTimer_handler)timer_handler, o);
     
     // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     // try starting process
     try_process(o);
@@ -216,7 +216,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 void instance_free (struct instance *o)
@@ -240,7 +240,7 @@ void instance_free (struct instance *o)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)

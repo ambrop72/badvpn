@@ -365,7 +365,7 @@ void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len)
         }
         
         o->up = 1;
-        NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+        NCDModuleInst_Backend_Up(o->i);
     }
     else if (data_begins_with((char *)data, data_len, EVENT_STRING_DISCONNECTED)) {
         ModuleLog(o->i, BLOG_INFO, "disconnected event");
@@ -376,7 +376,7 @@ void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len)
         
         if (o->up) {
             o->up = 0;
-            NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+            NCDModuleInst_Backend_Down(o->i);
         }
     }
 }
@@ -471,7 +471,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 void instance_free (struct instance *o)
@@ -497,7 +497,7 @@ void instance_free (struct instance *o)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)

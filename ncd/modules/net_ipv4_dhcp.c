@@ -63,13 +63,13 @@ static void dhcp_handler (struct instance *o, int event)
         case BDHCPCLIENT_EVENT_UP: {
             ASSERT(!o->up)
             o->up = 1;
-            NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+            NCDModuleInst_Backend_Up(o->i);
         } break;
         
         case BDHCPCLIENT_EVENT_DOWN: {
             ASSERT(o->up)
             o->up = 0;
-            NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_DOWN);
+            NCDModuleInst_Backend_Down(o->i);
         } break;
         
         case BDHCPCLIENT_EVENT_ERROR: {
@@ -122,7 +122,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void instance_free (struct instance *o)
@@ -135,7 +135,7 @@ static void instance_free (struct instance *o)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)

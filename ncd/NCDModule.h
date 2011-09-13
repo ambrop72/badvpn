@@ -113,7 +113,9 @@ int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out) WAR
 NCDModuleInst * NCDModuleInst_GetObj (NCDModuleInst *n, const char *objname) WARN_UNUSED;
 int NCDModuleInst_HaveError (NCDModuleInst *n);
 void NCDModuleInst_Backend_SetUser (NCDModuleInst *n, void *user);
-void NCDModuleInst_Backend_Event (NCDModuleInst *n, int event);
+void NCDModuleInst_Backend_Up (NCDModuleInst *n);
+void NCDModuleInst_Backend_Down (NCDModuleInst *n);
+void NCDModuleInst_Backend_Dead (NCDModuleInst *n);
 int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *varname, NCDValue *out) WARN_UNUSED;
 NCDModuleInst * NCDModuleInst_Backend_GetObj (NCDModuleInst *n, const char *objname) WARN_UNUSED;
 void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const char *fmt, ...);

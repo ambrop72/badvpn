@@ -391,7 +391,7 @@ static void func_new (NCDModuleInst *i)
     o->dying = 0;
     
     // signal up
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     return;
     
@@ -399,7 +399,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 void instance_free (struct instance *o)
@@ -410,7 +410,7 @@ void instance_free (struct instance *o)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)
@@ -468,7 +468,7 @@ static void start_func_new (NCDModuleInst *i)
     
     // signal up.
     // Do it before creating the process so that the process starts initializing before our own process continues.
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     // get method object
     struct instance *mo = i->method_object->inst_user;
@@ -500,7 +500,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void stop_func_new (NCDModuleInst *i)
@@ -530,7 +530,7 @@ static void stop_func_new (NCDModuleInst *i)
     
     // signal up.
     // Do it before stopping the process so that the process starts terminating before our own process continues.
-    NCDModuleInst_Backend_Event(o->i, NCDMODULE_EVENT_UP);
+    NCDModuleInst_Backend_Up(o->i);
     
     // get method object
     struct instance *mo = i->method_object->inst_user;
@@ -552,7 +552,7 @@ fail1:
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void startstop_func_die (void *vo)
@@ -563,7 +563,7 @@ static void startstop_func_die (void *vo)
     // free instance
     free(o);
     
-    NCDModuleInst_Backend_Event(i, NCDMODULE_EVENT_DEAD);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static const struct NCDModule modules[] = {

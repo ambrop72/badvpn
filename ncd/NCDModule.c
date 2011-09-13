@@ -281,72 +281,77 @@ void NCDModuleInst_Backend_SetUser (NCDModuleInst *n, void *user)
     n->inst_user = user;
 }
 
-void NCDModuleInst_Backend_Event (NCDModuleInst *n, int event)
+void NCDModuleInst_Backend_Up (NCDModuleInst *n)
 {
     DebugObject_Access(&n->d_obj);
-    ASSERT(event == NCDMODULE_EVENT_UP || event == NCDMODULE_EVENT_DOWN || event == NCDMODULE_EVENT_DEAD)
     
-    if (event == NCDMODULE_EVENT_UP) {
-        switch (n->state) {
-            case STATE_DOWN_CLEAN:
-            case STATE_DOWN_UNCLEAN: {
-                n->state = STATE_UP;
-                frontend_event(n, NCDMODULE_EVENT_UP);
-            } break;
-            
-            case STATE_DOWN_PCLEAN: {
-                n->state = STATE_UP;
-                BPending_Unset(&n->clean_job);
-                frontend_event(n, NCDMODULE_EVENT_UP);
-            } break;
-            
-            case STATE_DOWN_DIE: {
-                n->state = STATE_UP_DIE;
-            } break;
-            
-            default: ASSERT(0);
-        }
-    }
-    else if (event == NCDMODULE_EVENT_DOWN) {
-        switch (n->state) {
-            case STATE_UP: {
-                n->state = STATE_DOWN_UNCLEAN;
-                frontend_event(n, NCDMODULE_EVENT_DOWN);
-            } break;
-            
-            case STATE_UP_DIE: {
-                n->state = STATE_DOWN_DIE;
-            } break;
-            
-            default: ASSERT(0);
-        }
-    }
-    else if (event == NCDMODULE_EVENT_DEAD) {
-        switch (n->state) {
-            case STATE_DOWN_DIE:
-            case STATE_UP_DIE: {
-                n->state = STATE_DEAD;
-                BPending_Unset(&n->die_job);
-            } break;
-            
-            case STATE_DOWN_CLEAN:
-            case STATE_DOWN_UNCLEAN:
-            case STATE_UP:
-            case STATE_DYING: {
-                n->state = STATE_DEAD;
-            } break;
-            
-            case STATE_DOWN_PCLEAN: {
-                n->state = STATE_DEAD;
-                BPending_Unset(&n->clean_job);
-            } break;
-            
-            default: ASSERT(0);
-        }
+    switch (n->state) {
+        case STATE_DOWN_CLEAN:
+        case STATE_DOWN_UNCLEAN: {
+            n->state = STATE_UP;
+            frontend_event(n, NCDMODULE_EVENT_UP);
+        } break;
         
-        frontend_event(n, NCDMODULE_EVENT_DEAD);
-        return;
+        case STATE_DOWN_PCLEAN: {
+            n->state = STATE_UP;
+            BPending_Unset(&n->clean_job);
+            frontend_event(n, NCDMODULE_EVENT_UP);
+        } break;
+        
+        case STATE_DOWN_DIE: {
+            n->state = STATE_UP_DIE;
+        } break;
+        
+        default: ASSERT(0);
     }
+}
+
+void NCDModuleInst_Backend_Down (NCDModuleInst *n)
+{
+    DebugObject_Access(&n->d_obj);
+    
+    switch (n->state) {
+        case STATE_UP: {
+            n->state = STATE_DOWN_UNCLEAN;
+            frontend_event(n, NCDMODULE_EVENT_DOWN);
+        } break;
+        
+        case STATE_UP_DIE: {
+            n->state = STATE_DOWN_DIE;
+        } break;
+        
+        default: ASSERT(0);
+    }
+}
+
+void NCDModuleInst_Backend_Dead (NCDModuleInst *n)
+{
+    DebugObject_Access(&n->d_obj);
+    
+    switch (n->state) {
+        case STATE_DOWN_DIE:
+        case STATE_UP_DIE: {
+            n->state = STATE_DEAD;
+            BPending_Unset(&n->die_job);
+        } break;
+        
+        case STATE_DOWN_CLEAN:
+        case STATE_DOWN_UNCLEAN:
+        case STATE_UP:
+        case STATE_DYING: {
+            n->state = STATE_DEAD;
+        } break;
+        
+        case STATE_DOWN_PCLEAN: {
+            n->state = STATE_DEAD;
+            BPending_Unset(&n->clean_job);
+        } break;
+        
+        default: ASSERT(0);
+    }
+    
+    frontend_event(n, NCDMODULE_EVENT_DEAD);
+    return;
 }
 
 int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *varname, NCDValue *out)
