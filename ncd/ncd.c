@@ -170,10 +170,10 @@ static struct process_statement * process_resolve_object (struct process *p, siz
 static void process_statement_logfunc (struct process_statement *ps);
 static void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...);
 static void process_statement_set_error (struct process_statement *ps);
-static void process_statement_instance_handler_event (struct process_statement *ps, int event);
-static int process_statement_instance_handler_getvar (struct process_statement *ps, const char *varname, NCDValue *out);
-static NCDModuleInst * process_statement_instance_handler_getobj (struct process_statement *ps, const char *objname);
-static int process_statement_instance_handler_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name, NCDValue args);
+static void process_statement_instance_func_event (struct process_statement *ps, int event);
+static int process_statement_instance_func_getvar (struct process_statement *ps, const char *varname, NCDValue *out);
+static NCDModuleInst * process_statement_instance_func_getobj (struct process_statement *ps, const char *objname);
+static int process_statement_instance_func_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name, NCDValue args);
 static void process_statement_instance_logfunc (struct process_statement *ps);
 static void process_moduleprocess_func_event (struct process *p, int event);
 static int process_moduleprocess_func_getvar (struct process *p, const char *name, NCDValue *out);
@@ -1107,10 +1107,10 @@ void process_advance_job_handler (struct process *p)
     // initialize module instance
     NCDModuleInst_Init(
         &ps->inst, module, method_object, &ps->inst_args, &ss, &manager, &umanager, ps,
-        (NCDModuleInst_func_event)process_statement_instance_handler_event,
-        (NCDModuleInst_func_getvar)process_statement_instance_handler_getvar,
-        (NCDModuleInst_func_getobj)process_statement_instance_handler_getobj,
-        (NCDModuleInst_func_initprocess)process_statement_instance_handler_initprocess,
+        (NCDModuleInst_func_event)process_statement_instance_func_event,
+        (NCDModuleInst_func_getvar)process_statement_instance_func_getvar,
+        (NCDModuleInst_func_getobj)process_statement_instance_func_getobj,
+        (NCDModuleInst_func_initprocess)process_statement_instance_func_initprocess,
         (BLog_logfunc)process_statement_instance_logfunc
     );
     
@@ -1316,7 +1316,7 @@ void process_statement_set_error (struct process_statement *ps)
     ps->error_until = btime_add(btime_gettime(), options.retry_time);
 }
 
-void process_statement_instance_handler_event (struct process_statement *ps, int event)
+void process_statement_instance_func_event (struct process_statement *ps, int event)
 {
     ASSERT(ps->state == SSTATE_CHILD || ps->state == SSTATE_ADULT || ps->state == SSTATE_DYING)
     
@@ -1389,7 +1389,7 @@ void process_statement_instance_handler_event (struct process_statement *ps, int
     }
 }
 
-int process_statement_instance_handler_getvar (struct process_statement *ps, const char *varname, NCDValue *out)
+int process_statement_instance_func_getvar (struct process_statement *ps, const char *varname, NCDValue *out)
 {
     ASSERT(ps->state != SSTATE_FORGOTTEN)
     
@@ -1401,7 +1401,7 @@ int process_statement_instance_handler_getvar (struct process_statement *ps, con
     return process_resolve_variable(ps->p, ps->i, varname, out);
 }
 
-NCDModuleInst * process_statement_instance_handler_getobj (struct process_statement *ps, const char *objname)
+NCDModuleInst * process_statement_instance_func_getobj (struct process_statement *ps, const char *objname)
 {
     ASSERT(ps->state != SSTATE_FORGOTTEN)
     
@@ -1418,7 +1418,7 @@ NCDModuleInst * process_statement_instance_handler_getobj (struct process_statem
     return &rps->inst;
 }
 
-int process_statement_instance_handler_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name, NCDValue args)
+int process_statement_instance_func_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name, NCDValue args)
 {
     ASSERT(ps->state != SSTATE_FORGOTTEN)
     ASSERT(NCDValue_Type(&args) == NCDVALUE_LIST)
