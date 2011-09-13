@@ -141,6 +141,14 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleI
                          NCDModuleInst_func_initprocess func_initprocess,
                          BLog_logfunc logfunc)
 {
+    ASSERT(args)
+    ASSERT(NCDValue_Type(args) == NCDVALUE_LIST)
+    ASSERT(func_event)
+    ASSERT(func_getvar)
+    ASSERT(func_getobj)
+    ASSERT(func_initprocess)
+    ASSERT(logfunc)
+    
     // init arguments
     n->m = m;
     n->method_object = method_object;
@@ -250,17 +258,17 @@ int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out)
     return n->m->func_getvar(n->inst_user, name, out);
 }
 
-NCDModuleInst * NCDModuleInst_GetObj (NCDModuleInst *n, const char *objname)
+NCDModuleInst * NCDModuleInst_GetObj (NCDModuleInst *n, const char *name)
 {
     DebugObject_Access(&n->d_obj);
     ASSERT(n->state == STATE_UP)
-    ASSERT(objname)
+    ASSERT(name)
     
     if (!n->m->func_getobj) {
         return NULL;
     }
     
-    return n->m->func_getobj(n->inst_user, objname);
+    return n->m->func_getobj(n->inst_user, name);
 }
 
 int NCDModuleInst_HaveError (NCDModuleInst *n)
@@ -354,29 +362,29 @@ void NCDModuleInst_Backend_Dead (NCDModuleInst *n)
     return;
 }
 
-int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *varname, NCDValue *out)
+int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *name, NCDValue *out)
 {
     DebugObject_Access(&n->d_obj);
     ASSERT(n->state == STATE_DOWN_PCLEAN || n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
            n->state == STATE_UP || n->state == STATE_DOWN_DIE || n->state == STATE_UP_DIE ||
            n->state == STATE_DYING)
-    ASSERT(varname)
+    ASSERT(name)
     
-    int res = n->func_getvar(n->user, varname, out);
+    int res = n->func_getvar(n->user, name, out);
     ASSERT(res == 0 || res == 1)
     
     return res;
 }
 
-NCDModuleInst * NCDModuleInst_Backend_GetObj (NCDModuleInst *n, const char *objname)
+NCDModuleInst * NCDModuleInst_Backend_GetObj (NCDModuleInst *n, const char *name)
 {
     DebugObject_Access(&n->d_obj);
     ASSERT(n->state == STATE_DOWN_PCLEAN || n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
            n->state == STATE_UP || n->state == STATE_DOWN_DIE || n->state == STATE_UP_DIE ||
            n->state == STATE_DYING)
-    ASSERT(objname)
+    ASSERT(name)
     
-    return n->func_getobj(n->user, objname);
+    return n->func_getobj(n->user, name);
 }
 
 void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const char *fmt, ...)
@@ -406,6 +414,7 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     ASSERT(n->state == STATE_DOWN_PCLEAN || n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
            n->state == STATE_UP || n->state == STATE_DOWN_DIE || n->state == STATE_UP_DIE ||
            n->state == STATE_DYING)
+    ASSERT(template_name)
     ASSERT(NCDValue_Type(&args) == NCDVALUE_LIST)
     ASSERT(handler_event)
     
