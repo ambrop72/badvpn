@@ -41,10 +41,10 @@
 struct NCDModuleInst_s;
 struct NCDModuleProcess_s;
 
-typedef void (*NCDModule_handler_event) (void *user, int event);
-typedef int (*NCDModule_handler_getvar) (void *user, const char *varname, NCDValue *out);
-typedef struct NCDModuleInst_s * (*NCDModule_handler_getobj) (void *user, const char *objname);
-typedef int (*NCDModule_handler_initprocess) (void *user, struct NCDModuleProcess_s *p, const char *template_name, NCDValue args);
+typedef void (*NCDModuleInst_func_event) (void *user, int event);
+typedef int (*NCDModuleInst_func_getvar) (void *user, const char *varname, NCDValue *out);
+typedef struct NCDModuleInst_s * (*NCDModuleInst_func_getobj) (void *user, const char *objname);
+typedef int (*NCDModuleInst_func_initprocess) (void *user, struct NCDModuleProcess_s *p, const char *template_name, NCDValue args);
 
 #define NCDMODULEPROCESS_EVENT_UP 1
 #define NCDMODULEPROCESS_EVENT_DOWN 2
@@ -75,10 +75,10 @@ typedef struct NCDModuleInst_s {
     BProcessManager *manager;
     NCDUdevManager *umanager;
     void *user;
-    NCDModule_handler_event handler_event;
-    NCDModule_handler_getvar handler_getvar;
-    NCDModule_handler_getobj handler_getobj;
-    NCDModule_handler_initprocess handler_initprocess;
+    NCDModuleInst_func_event func_event;
+    NCDModuleInst_func_getvar func_getvar;
+    NCDModuleInst_func_getobj func_getobj;
+    NCDModuleInst_func_initprocess func_initprocess;
     BLog_logfunc logfunc;
     BPending init_job;
     BPending uninit_job;
@@ -104,10 +104,10 @@ typedef struct NCDModuleProcess_s {
 } NCDModuleProcess;
 
 void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, BReactor *reactor, BProcessManager *manager, NCDUdevManager *umanager, void *user,
-                         NCDModule_handler_event handler_event,
-                         NCDModule_handler_getvar handler_getvar,
-                         NCDModule_handler_getobj handler_getobj,
-                         NCDModule_handler_initprocess handler_initprocess,
+                         NCDModuleInst_func_event func_event,
+                         NCDModuleInst_func_getvar func_getvar,
+                         NCDModuleInst_func_getobj func_getobj,
+                         NCDModuleInst_func_initprocess func_initprocess,
                          BLog_logfunc logfunc);
 void NCDModuleInst_Free (NCDModuleInst *n);
 void NCDModuleInst_Event (NCDModuleInst *n, int event);

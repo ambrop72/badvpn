@@ -1107,10 +1107,10 @@ void process_advance_job_handler (struct process *p)
     // initialize module instance
     NCDModuleInst_Init(
         &ps->inst, module, method_object, &ps->inst_args, &ss, &manager, &umanager, ps,
-        (NCDModule_handler_event)process_statement_instance_handler_event,
-        (NCDModule_handler_getvar)process_statement_instance_handler_getvar,
-        (NCDModule_handler_getobj)process_statement_instance_handler_getobj,
-        (NCDModule_handler_initprocess)process_statement_instance_handler_initprocess,
+        (NCDModuleInst_func_event)process_statement_instance_handler_event,
+        (NCDModuleInst_func_getvar)process_statement_instance_handler_getvar,
+        (NCDModuleInst_func_getobj)process_statement_instance_handler_getobj,
+        (NCDModuleInst_func_initprocess)process_statement_instance_handler_initprocess,
         (BLog_logfunc)process_statement_instance_logfunc
     );
     

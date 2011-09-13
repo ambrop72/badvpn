@@ -49,8 +49,7 @@
 
 static void frontend_event (NCDModuleInst *n, int event)
 {
-    n->handler_event(n->user, event);
-    return;
+    n->func_event(n->user, event);
 }
 
 static void init_job_handler (NCDModuleInst *n)
@@ -136,10 +135,10 @@ static void process_event_job_handler (NCDModuleProcess *o)
 }
 
 void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, BReactor *reactor, BProcessManager *manager, NCDUdevManager *umanager, void *user,
-                         NCDModule_handler_event handler_event,
-                         NCDModule_handler_getvar handler_getvar,
-                         NCDModule_handler_getobj handler_getobj,
-                         NCDModule_handler_initprocess handler_initprocess,
+                         NCDModuleInst_func_event func_event,
+                         NCDModuleInst_func_getvar func_getvar,
+                         NCDModuleInst_func_getobj func_getobj,
+                         NCDModuleInst_func_initprocess func_initprocess,
                          BLog_logfunc logfunc)
 {
     // init arguments
@@ -150,10 +149,10 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleI
     n->manager = manager;
     n->umanager = umanager;
     n->user = user;
-    n->handler_event = handler_event;
-    n->handler_getvar = handler_getvar;
-    n->handler_getobj = handler_getobj;
-    n->handler_initprocess = handler_initprocess;
+    n->func_event = func_event;
+    n->func_getvar = func_getvar;
+    n->func_getobj = func_getobj;
+    n->func_initprocess = func_initprocess;
     n->logfunc = logfunc;
     
     // init jobs
@@ -357,7 +356,7 @@ int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *varname, NCDValu
            n->state == STATE_DYING)
     ASSERT(varname)
     
-    int res = n->handler_getvar(n->user, varname, out);
+    int res = n->func_getvar(n->user, varname, out);
     ASSERT(res == 0 || res == 1)
     
     return res;
@@ -371,7 +370,7 @@ NCDModuleInst * NCDModuleInst_Backend_GetObj (NCDModuleInst *n, const char *objn
            n->state == STATE_DYING)
     ASSERT(objname)
     
-    return n->handler_getobj(n->user, objname);
+    return n->func_getobj(n->user, objname);
 }
 
 void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const char *fmt, ...)
@@ -419,7 +418,7 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     o->interp_func_event = NULL;
     
     // init interpreter part
-    if (!(n->handler_initprocess(n->user, o, template_name, args))) {
+    if (!(n->func_initprocess(n->user, o, template_name, args))) {
         goto fail1;
     }
     
