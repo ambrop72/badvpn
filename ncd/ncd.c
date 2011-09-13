@@ -925,7 +925,7 @@ void process_work_job_handler (struct process *p)
             process_statement_log(ps, BLOG_INFO, "killing");
             
             // order it to die
-            NCDModuleInst_Event(&ps->inst, NCDMODULE_TOEVENT_DIE);
+            NCDModuleInst_Die(&ps->inst);
             
             // set statement state DYING
             ps->state = SSTATE_DYING;
@@ -962,7 +962,7 @@ void process_work_job_handler (struct process *p)
             process_statement_log(ps, BLOG_INFO, "killing");
             
             // order it to die
-            NCDModuleInst_Event(&ps->inst, NCDMODULE_TOEVENT_DIE);
+            NCDModuleInst_Die(&ps->inst);
             
             // set statement state DYING
             ps->state = SSTATE_DYING;
@@ -981,7 +981,7 @@ void process_work_job_handler (struct process *p)
         process_statement_log(ps, BLOG_INFO, "clean");
         
         // report clean
-        NCDModuleInst_Event(&ps->inst, NCDMODULE_TOEVENT_CLEAN);
+        NCDModuleInst_Clean(&ps->inst);
         return;
     }
     

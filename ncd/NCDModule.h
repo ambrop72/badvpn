@@ -35,9 +35,6 @@
 #define NCDMODULE_EVENT_DOWN 2
 #define NCDMODULE_EVENT_DEAD 3
 
-#define NCDMODULE_TOEVENT_DIE 101
-#define NCDMODULE_TOEVENT_CLEAN 102
-
 struct NCDModuleInst_s;
 struct NCDModuleProcess_s;
 
@@ -110,7 +107,8 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleI
                          NCDModuleInst_func_initprocess func_initprocess,
                          BLog_logfunc logfunc);
 void NCDModuleInst_Free (NCDModuleInst *n);
-void NCDModuleInst_Event (NCDModuleInst *n, int event);
+void NCDModuleInst_Die (NCDModuleInst *n);
+void NCDModuleInst_Clean (NCDModuleInst *n);
 int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out) WARN_UNUSED;
 NCDModuleInst * NCDModuleInst_GetObj (NCDModuleInst *n, const char *objname) WARN_UNUSED;
 int NCDModuleInst_HaveError (NCDModuleInst *n);

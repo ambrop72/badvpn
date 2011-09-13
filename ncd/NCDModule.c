@@ -186,53 +186,54 @@ void NCDModuleInst_Free (NCDModuleInst *n)
     BPending_Free(&n->init_job);
 }
 
-void NCDModuleInst_Event (NCDModuleInst *n, int event)
+void NCDModuleInst_Die (NCDModuleInst *n)
 {
     DebugObject_Access(&n->d_obj);
-    ASSERT(event == NCDMODULE_TOEVENT_DIE || event == NCDMODULE_TOEVENT_CLEAN)
     
-    if (event == NCDMODULE_TOEVENT_DIE) {
-        switch (n->state) {
-            case STATE_INIT: {
-                n->state = STATE_UNINIT;
-                BPending_Unset(&n->init_job);
-                BPending_Set(&n->uninit_job);
-            } break;
-            
-            case STATE_DOWN_CLEAN:
-            case STATE_DOWN_UNCLEAN: {
-                n->state = STATE_DOWN_DIE;
-                BPending_Set(&n->die_job);
-            } break;
-            
-            case STATE_DOWN_PCLEAN: {
-                n->state = STATE_DOWN_DIE;
-                BPending_Unset(&n->clean_job);
-                BPending_Set(&n->die_job);
-            } break;
-            
-            case STATE_UP: {
-                n->state = STATE_UP_DIE;
-                BPending_Set(&n->die_job);
-            } break;
-            
-            default: ASSERT(0);
-        }
+    switch (n->state) {
+        case STATE_INIT: {
+            n->state = STATE_UNINIT;
+            BPending_Unset(&n->init_job);
+            BPending_Set(&n->uninit_job);
+        } break;
+        
+        case STATE_DOWN_CLEAN:
+        case STATE_DOWN_UNCLEAN: {
+            n->state = STATE_DOWN_DIE;
+            BPending_Set(&n->die_job);
+        } break;
+        
+        case STATE_DOWN_PCLEAN: {
+            n->state = STATE_DOWN_DIE;
+            BPending_Unset(&n->clean_job);
+            BPending_Set(&n->die_job);
+        } break;
+        
+        case STATE_UP: {
+            n->state = STATE_UP_DIE;
+            BPending_Set(&n->die_job);
+        } break;
+        
+        default: ASSERT(0);
     }
-    else if (event == NCDMODULE_TOEVENT_CLEAN) {
-        switch (n->state) {
-            case STATE_INIT:
-            case STATE_DOWN_CLEAN:
-            case STATE_DOWN_PCLEAN: {
-            } break;
-            
-            case STATE_DOWN_UNCLEAN: {
-                n->state = STATE_DOWN_PCLEAN;
-                BPending_Set(&n->clean_job);
-            } break;
-            
-            default: ASSERT(0);
-        }
+}
+
+void NCDModuleInst_Clean (NCDModuleInst *n)
+{
+    DebugObject_Access(&n->d_obj);
+    
+    switch (n->state) {
+        case STATE_INIT:
+        case STATE_DOWN_CLEAN:
+        case STATE_DOWN_PCLEAN: {
+        } break;
+        
+        case STATE_DOWN_UNCLEAN: {
+            n->state = STATE_DOWN_PCLEAN;
+            BPending_Set(&n->clean_job);
+        } break;
+        
+        default: ASSERT(0);
     }
 }
 
