@@ -43,6 +43,7 @@
 
 #include <stdlib.h>
 
+#include <misc/string_begins_with.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_call.h>
@@ -97,6 +98,26 @@ static void process_handler_event (struct instance *o, int event)
     }
 }
 
+static int process_func_getspecialvar (struct instance *o, const char *name, NCDValue *out)
+{
+    size_t p;
+    if (!(p = string_begins_with(name, "_caller."))) {
+        return 0;
+    }
+    
+    return NCDModuleInst_Backend_GetVar(o->i, name + p, out);
+}
+
+static NCDModuleInst * process_func_getspecialobj (struct instance *o, const char *name)
+{
+    size_t p;
+    if (!(p = string_begins_with(name, "_caller."))) {
+        return NULL;
+    }
+    
+    return NCDModuleInst_Backend_GetObj(o->i, name + p);
+}
+
 static void func_new (NCDModuleInst *i)
 {
     // allocate instance
@@ -135,6 +156,11 @@ static void func_new (NCDModuleInst *i)
         NCDValue_Free(&args);
         goto fail1;
     }
+    
+    // set special functions
+    NCDModuleProcess_SetSpecialFuncs(&o->process,
+                                     (NCDModuleProcess_func_getspecialvar)process_func_getspecialvar,
+                                     (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
     
     // set state working
     o->state = STATE_WORKING;
