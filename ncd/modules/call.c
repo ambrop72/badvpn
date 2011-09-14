@@ -26,6 +26,8 @@
  * Description:
  *   Module which allows using a single statement to represent multiple statements
  *   in a process template, allowing reuse of repetitive code.
+ *   The created template process can access variables and objects as seen from the
+ *   call statement via "_caller.variable".
  * 
  * Variables:
  *   Exposes variables as seen from the end of the called process template.
