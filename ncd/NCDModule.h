@@ -144,6 +144,29 @@ typedef int (*NCDModuleInst_func_initprocess) (void *user, struct NCDModuleProce
  */
 typedef void (*NCDModuleProcess_handler_event) (void *user, int event);
 
+/**
+ * Function called when the interpreter wants to resolve a special
+ * variable in the process.
+ * This function must have no side effects.
+ * 
+ * @param user as in {@link NCDModuleProcess_Init}
+ * @param name name of the variable
+ * @param out on success, should initialize the value here
+ * @return 1 on success, 0 on failure
+ */
+typedef int (*NCDModuleProcess_func_getspecialvar) (void *user, const char *name, NCDValue *out);
+
+/**
+ * Function called when the interpreter wants to resolve a special
+ * object in the process.
+ * This function must have no side effects.
+ * 
+ * @param user as in {@link NCDModuleProcess_Init}
+ * @param name name of the object
+ * @return object, or NULL on failure
+ */
+typedef struct NCDModuleInst_s * (*NCDModuleProcess_func_getspecialobj) (void *user, const char *name);
+
 #define NCDMODULEPROCESS_INTERP_EVENT_CONTINUE 1
 #define NCDMODULEPROCESS_INTERP_EVENT_TERMINATE 2
 
@@ -239,6 +262,8 @@ typedef struct NCDModuleProcess_s {
     NCDModuleInst *n;
     void *user;
     NCDModuleProcess_handler_event handler_event;
+    NCDModuleProcess_func_getspecialvar func_getspecialvar;
+    NCDModuleProcess_func_getspecialobj func_getspecialobj;
     BPending event_job;
     int state;
     void *interp_user;
@@ -437,6 +462,16 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
 void NCDModuleProcess_Free (NCDModuleProcess *o);
 
 /**
+ * Sets callback functions for providing special variables and objects within
+ * the process.
+ * 
+ * @param o the process
+ * @param func_getspecialvar function for resolving special variables, or NULL
+ * @param func_getspecialobj function for resolving special objects, or NULL
+ */
+void NCDModuleProcess_SetSpecialFuncs (NCDModuleProcess *o, NCDModuleProcess_func_getspecialvar func_getspecialvar, NCDModuleProcess_func_getspecialobj func_getspecialobj);
+
+/**
  * Continues the process after the process went down.
  * The process must be in waiting state.
  * The process enters down state.
@@ -526,6 +561,25 @@ void NCDModuleProcess_Interp_Down (NCDModuleProcess *o);
  * @param o process backend handle
  */
 void NCDModuleProcess_Interp_Terminated (NCDModuleProcess *o);
+
+/**
+ * Resolves a special process variable for the process backend.
+ * 
+ * @param o process backend handle
+ * @param name name of the variable
+ * @param out the value will be initialized here if successful
+ * @return 1 on success, 0 on failure
+ */
+int NCDModuleProcess_Interp_GetSpecialVar (NCDModuleProcess *o, const char *name, NCDValue *out) WARN_UNUSED;
+
+/**
+ * Resolves a special process object for the process backend.
+ * 
+ * @param o process backend handle
+ * @param name name of the object
+ * @return object, or NULL on failure
+ */
+NCDModuleInst * NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, const char *name) WARN_UNUSED;
 
 /**
  * Function called before any instance of any backend in a module

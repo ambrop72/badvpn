@@ -1241,6 +1241,13 @@ int process_resolve_variable (struct process *p, size_t pos, const char *varname
             return 1;
         }
         
+        // handle special variables
+        if (p->module_process) {
+            if (NCDModuleProcess_Interp_GetSpecialVar(p->module_process, varname, out)) {
+                return 1;
+            }
+        }
+        
         process_log(p, BLOG_ERROR, "unknown statement name in variable: %s", varname);
         return 0;
     }
@@ -1271,6 +1278,16 @@ struct process_statement * process_resolve_object (struct process *p, size_t pos
     }
     
     if (!rps) {
+        // handle special objects
+        if (p->module_process) {
+            NCDModuleInst *inst = NCDModuleProcess_Interp_GetSpecialObj(p->module_process, objname);
+            if (inst) {
+                struct process_statement *res_ps = UPPER_OBJECT(inst, struct process_statement, inst);
+                ASSERT(res_ps->state == SSTATE_ADULT)
+                return res_ps;
+            }
+        }
+        
         process_log(p, BLOG_ERROR, "unknown statement name in object: %s", objname);
         return NULL;
     }

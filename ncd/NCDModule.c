@@ -423,6 +423,10 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     o->user = user;
     o->handler_event = handler_event;
     
+    // set no special functions
+    o->func_getspecialvar = NULL;
+    o->func_getspecialobj = NULL;
+    
     // init event job
     BPending_Init(&o->event_job, BReactor_PendingGroup(n->reactor), (BPending_handler)process_event_job_handler, o);
     
@@ -457,6 +461,14 @@ void NCDModuleProcess_Free (NCDModuleProcess *o)
     
     // free event job
     BPending_Free(&o->event_job);
+}
+
+void NCDModuleProcess_SetSpecialFuncs (NCDModuleProcess *o, NCDModuleProcess_func_getspecialvar func_getspecialvar, NCDModuleProcess_func_getspecialobj func_getspecialobj)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    o->func_getspecialvar = func_getspecialvar;
+    o->func_getspecialobj = func_getspecialobj;
 }
 
 void NCDModuleProcess_Continue (NCDModuleProcess *o)
@@ -565,4 +577,40 @@ void NCDModuleProcess_Interp_Terminated (NCDModuleProcess *o)
     
     BPending_Set(&o->event_job);
     o->state = PROCESS_STATE_TERMINATED_PENDING;
+}
+
+int NCDModuleProcess_Interp_GetSpecialVar (NCDModuleProcess *o, const char *name, NCDValue *out)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->state == PROCESS_STATE_DOWN || o->state == PROCESS_STATE_UP_PENDING ||
+           o->state == PROCESS_STATE_DOWN_CONTINUE_PENDING || o->state == PROCESS_STATE_UP ||
+           o->state == PROCESS_STATE_DOWN_PENDING || o->state == PROCESS_STATE_DOWN_WAITING ||
+           o->state == PROCESS_STATE_TERMINATING)
+    ASSERT(name)
+    ASSERT(out)
+    
+    if (!o->func_getspecialvar) {
+        return 0;
+    }
+    
+    int res = o->func_getspecialvar(o->user, name, out);
+    ASSERT(res == 0 || res == 1)
+    
+    return res;
+}
+
+NCDModuleInst * NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, const char *name)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->state == PROCESS_STATE_DOWN || o->state == PROCESS_STATE_UP_PENDING ||
+           o->state == PROCESS_STATE_DOWN_CONTINUE_PENDING || o->state == PROCESS_STATE_UP ||
+           o->state == PROCESS_STATE_DOWN_PENDING || o->state == PROCESS_STATE_DOWN_WAITING ||
+           o->state == PROCESS_STATE_TERMINATING)
+    ASSERT(name)
+    
+    if (!o->func_getspecialobj) {
+        return NULL;
+    }
+    
+    return o->func_getspecialobj(o->user, name);
 }
