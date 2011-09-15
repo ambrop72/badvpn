@@ -22,6 +22,7 @@
 {.name = "ncd_runonce", .loglevel = 4},
 {.name = "ncd_synchronous_process", .loglevel = 4},
 {.name = "ncd_call", .loglevel = 4},
+{.name = "ncd_ref", .loglevel = 4},
 {.name = "ncd_process_manager", .loglevel = 4},
 {.name = "ncd_net_backend_waitdevice", .loglevel = 4},
 {.name = "ncd_net_backend_waitlink", .loglevel = 4},

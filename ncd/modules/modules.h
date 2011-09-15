@@ -46,6 +46,7 @@ extern const struct NCDModuleGroup ncdmodule_run;
 extern const struct NCDModuleGroup ncdmodule_runonce;
 extern const struct NCDModuleGroup ncdmodule_synchronous_process;
 extern const struct NCDModuleGroup ncdmodule_call;
+extern const struct NCDModuleGroup ncdmodule_ref;
 extern const struct NCDModuleGroup ncdmodule_process_manager;
 extern const struct NCDModuleGroup ncdmodule_net_backend_waitdevice;
 extern const struct NCDModuleGroup ncdmodule_net_backend_waitlink;
@@ -89,6 +90,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_runonce,
     &ncdmodule_synchronous_process,
     &ncdmodule_call,
+    &ncdmodule_ref,
     &ncdmodule_process_manager,
     &ncdmodule_net_backend_waitdevice,
     &ncdmodule_net_backend_waitlink,
