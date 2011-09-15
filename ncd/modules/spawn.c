@@ -1,5 +1,5 @@
 /**
- * @file synchronous_process.c
+ * @file spawn.c
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -24,7 +24,7 @@
  * Module which starts a process from a process template on initialization, and
  * stops it on deinitialization.
  * 
- * Synopsis: synchronous_process(string template_name, list args)
+ * Synopsis: spawn(string template_name, list args)
  * Description: on initialization, creates a new process from the template named
  *   template_name, with arguments args. On deinitialization, initiates termination
  *   of the process and waits for it to terminate.
@@ -34,7 +34,7 @@
 
 #include <ncd/NCDModule.h>
 
-#include <generated/blog_channel_ncd_synchronous_process.h>
+#include <generated/blog_channel_ncd_spawn.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
@@ -163,7 +163,11 @@ static void func_die (void *vo)
 
 static const struct NCDModule modules[] = {
     {
-        .type = "synchronous_process",
+        .type = "spawn",
+        .func_new = func_new,
+        .func_die = func_die
+    }, {
+        .type = "synchronous_process", // deprecated name
         .func_new = func_new,
         .func_die = func_die
     }, {
@@ -171,6 +175,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-const struct NCDModuleGroup ncdmodule_synchronous_process = {
+const struct NCDModuleGroup ncdmodule_spawn = {
     .modules = modules
 };

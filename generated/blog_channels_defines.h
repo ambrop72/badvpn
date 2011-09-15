@@ -20,7 +20,7 @@
 #define BLOG_CHANNEL_ncd_ip_in_network 19
 #define BLOG_CHANNEL_ncd_run 20
 #define BLOG_CHANNEL_ncd_runonce 21
-#define BLOG_CHANNEL_ncd_synchronous_process 22
+#define BLOG_CHANNEL_ncd_spawn 22
 #define BLOG_CHANNEL_ncd_call 23
 #define BLOG_CHANNEL_ncd_ref 24
 #define BLOG_CHANNEL_ncd_process_manager 25

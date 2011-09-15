@@ -44,7 +44,7 @@ extern const struct NCDModuleGroup ncdmodule_blocker;
 extern const struct NCDModuleGroup ncdmodule_ip_in_network;
 extern const struct NCDModuleGroup ncdmodule_run;
 extern const struct NCDModuleGroup ncdmodule_runonce;
-extern const struct NCDModuleGroup ncdmodule_synchronous_process;
+extern const struct NCDModuleGroup ncdmodule_spawn;
 extern const struct NCDModuleGroup ncdmodule_call;
 extern const struct NCDModuleGroup ncdmodule_ref;
 extern const struct NCDModuleGroup ncdmodule_process_manager;
@@ -88,7 +88,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_ip_in_network,
     &ncdmodule_run,
     &ncdmodule_runonce,
-    &ncdmodule_synchronous_process,
+    &ncdmodule_spawn,
     &ncdmodule_call,
     &ncdmodule_ref,
     &ncdmodule_process_manager,
