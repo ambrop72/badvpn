@@ -664,11 +664,18 @@ typedef void (*NCDModule_func_clean) (void *o);
  */
 struct NCDModule {
     /**
-     * Type string of the backend. This is either a plain name,
-     * or "type_name::method_name" for a method operating on a backend instance
-     * of type type_name.
+     * If this implements a plain statement, the name of the statement.
+     * If this implements a method, then "base_type::method_name".
      */
     const char *type;
+    
+    /**
+     * The base type for methods operating on instances of this backend.
+     * Any module with type of form "base_type::method_name" is considered
+     * a method of instances of this backend.
+     * If this is NULL, the base type will default to type.
+     */
+    const char *base_type;
     
     /**
      * Function called to create an new backend instance.

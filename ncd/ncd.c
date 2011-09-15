@@ -103,7 +103,7 @@ struct process_statement {
     size_t i;
     struct statement s;
     int state;
-    char *type;
+    const struct NCDModule *module;
     int have_error;
     btime_t error_until;
     NCDModuleInst inst;
@@ -1039,16 +1039,17 @@ void process_advance_job_handler (struct process *p)
     process_statement_log(ps, BLOG_INFO, "initializing");
     
     NCDModuleInst *method_object = NULL;
+    char *type;
     
     // construct type
     if (!ps->s.object_name) {
         // this is a function_call(); type is "function_call"
-        if (!(ps->type = strdup(ps->s.method_name))) {
+        if (!(type = strdup(ps->s.method_name))) {
             process_statement_log(ps, BLOG_ERROR, "strdup failed");
             goto fail0;
         }
     } else {
-        // this is a some.object.somewhere->method_call(); type is "typeof(some.object.somewhere)::method_call"
+        // this is a some.object.somewhere->method_call(); type is "base_type(some.object.somewhere)::method_call"
         
         // resolve object
         struct process_statement *obj_ps = process_resolve_object(p, p->ap, ps->s.object_name);
@@ -1058,8 +1059,11 @@ void process_advance_job_handler (struct process *p)
         }
         ASSERT(obj_ps->state == SSTATE_ADULT)
         
+        // base type defaults to type
+        const char *base_type = (obj_ps->module->base_type ? obj_ps->module->base_type : obj_ps->module->type);
+        
         // build type string
-        if (!(ps->type = concat_strings(3, obj_ps->type, "::", ps->s.method_name))) {
+        if (!(type = concat_strings(3, base_type, "::", ps->s.method_name))) {
             process_statement_log(ps, BLOG_ERROR, "concat_strings failed");
             goto fail0;
         }
@@ -1068,9 +1072,8 @@ void process_advance_job_handler (struct process *p)
     }
     
     // find module to instantiate
-    const struct NCDModule *module = find_module(ps->type);
-    if (!module) {
-        process_statement_log(ps, BLOG_ERROR, "failed to find module: %s", ps->type);
+    if (!(ps->module = find_module(type))) {
+        process_statement_log(ps, BLOG_ERROR, "failed to find module: %s", type);
         goto fail1;
     }
     
@@ -1106,7 +1109,7 @@ void process_advance_job_handler (struct process *p)
     
     // initialize module instance
     NCDModuleInst_Init(
-        &ps->inst, module, method_object, &ps->inst_args, &ss, &manager, &umanager, ps,
+        &ps->inst, ps->module, method_object, &ps->inst_args, &ss, &manager, &umanager, ps,
         (NCDModuleInst_func_event)process_statement_instance_func_event,
         (NCDModuleInst_func_getvar)process_statement_instance_func_getvar,
         (NCDModuleInst_func_getobj)process_statement_instance_func_getobj,
@@ -1123,13 +1126,15 @@ void process_advance_job_handler (struct process *p)
     // increment FP
     p->fp++;
     
+    free(type);
+    
     process_assert_pointers(p);
     return;
     
 fail2:
     NCDValue_Free(&ps->inst_args);
 fail1:
-    free(ps->type);
+    free(type);
 fail0:
     // mark error
     process_statement_set_error(ps);
@@ -1381,9 +1386,6 @@ void process_statement_instance_func_event (struct process_statement *ps, int ev
             
             // free instance arguments
             NCDValue_Free(&ps->inst_args);
-            
-            // free type
-            free(ps->type);
             
             // set state FORGOTTEN
             ps->state = SSTATE_FORGOTTEN;
