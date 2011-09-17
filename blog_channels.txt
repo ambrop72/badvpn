@@ -23,6 +23,7 @@ ncd_runonce 4
 ncd_spawn 4
 ncd_call 4
 ncd_ref 4
+ncd_index 4
 ncd_process_manager 4
 ncd_net_backend_waitdevice 4
 ncd_net_backend_waitlink 4

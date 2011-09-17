@@ -57,6 +57,7 @@ add_executable(badvpn-ncd
     modules/spawn.c
     modules/call.c
     modules/ref.c
+    modules/index.c
     modules/process_manager.c
     modules/net_backend_waitdevice.c
     modules/net_backend_waitlink.c
