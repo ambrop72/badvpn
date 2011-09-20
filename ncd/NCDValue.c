@@ -328,3 +328,48 @@ NCDValue NCDValue_ListShift (NCDValue *o)
     
     return v;
 }
+
+int NCDValue_Compare (NCDValue *o, NCDValue *v)
+{
+    if (o->type == NCDVALUE_STRING && v->type == NCDVALUE_LIST) {
+        return -1;
+    }
+    
+    if (o->type == NCDVALUE_LIST && v->type == NCDVALUE_STRING) {
+        return 1;
+    }
+    
+    if (o->type == NCDVALUE_STRING && v->type == NCDVALUE_STRING) {
+        int cmp = strcmp(o->string, v->string);
+        if (cmp < 0) {
+            return -1;
+        }
+        if (cmp > 0) {
+            return 1;
+        }
+        return 0;
+    }
+    
+    NCDValue *x = NCDValue_ListFirst(o);
+    NCDValue *y = NCDValue_ListFirst(v);
+    
+    while (1) {
+        if (!x && y) {
+            return -1;
+        }
+        if (x && !y) {
+            return 1;
+        }
+        if (!x && !y) {
+            return 0;
+        }
+        
+        int res = NCDValue_Compare(x, y);
+        if (res) {
+            return res;
+        }
+        
+        x = NCDValue_ListNext(o, x);
+        y = NCDValue_ListNext(v, y);
+    }
+}
