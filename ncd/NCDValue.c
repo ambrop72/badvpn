@@ -331,6 +331,9 @@ NCDValue NCDValue_ListShift (NCDValue *o)
 
 int NCDValue_Compare (NCDValue *o, NCDValue *v)
 {
+    value_assert(o);
+    value_assert(v);
+    
     if (o->type == NCDVALUE_STRING && v->type == NCDVALUE_LIST) {
         return -1;
     }
