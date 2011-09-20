@@ -21,13 +21,24 @@
  * 
  * @section DESCRIPTION
  * 
- * Synopsis: call(string template_name, list args)
+ * Synopsis:
+ *   callrefhere()
+ * 
+ * Description:
+ *   Exposes variables and objects to call() statements as seen from this
+ *   callrefhere() statement.
+ * 
+ * Synopsis:
+ *   call(string template_name, list args)
+ *   callhefhere::call(string template_name, list args)
  * 
  * Description:
  *   Module which allows using a single statement to represent multiple statements
  *   in a process template, allowing reuse of repetitive code.
  *   The created template process can access variables and objects as seen from the
  *   call statement via "_caller.variable".
+ *   The second form also exposes variables and objects from the corresponding
+ *   callrefhere() statement via "_ref.variable".
  * 
  * Variables:
  *   Exposes variables as seen from the end of the called process template.
@@ -46,6 +57,8 @@
 #include <stdlib.h>
 
 #include <misc/string_begins_with.h>
+#include <misc/offset.h>
+#include <structure/LinkedList0.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_call.h>
@@ -57,10 +70,17 @@
 #define STATE_WAITING 3
 #define STATE_TERMINATING 4
 
+struct callrefhere_instance {
+    NCDModuleInst *i;
+    LinkedList0 calls_list;
+};
+
 struct instance {
     NCDModuleInst *i;
     NCDModuleProcess process;
     int state;
+    struct callrefhere_instance *crh;
+    LinkedList0Node calls_list_node;
 };
 
 static void instance_free (struct instance *o);
@@ -103,21 +123,75 @@ static void process_handler_event (struct instance *o, int event)
 static int process_func_getspecialvar (struct instance *o, const char *name, NCDValue *out)
 {
     size_t p;
-    if (!(p = string_begins_with(name, "_caller."))) {
-        return 0;
+    
+    if (p = string_begins_with(name, "_caller.")) {
+        return NCDModuleInst_Backend_GetVar(o->i, name + p, out);
     }
     
-    return NCDModuleInst_Backend_GetVar(o->i, name + p, out);
+    if (o->crh && (p = string_begins_with(name, "_ref."))) {
+        return NCDModuleInst_Backend_GetVar(o->crh->i, name + p, out);
+    }
+    
+    return 0;
 }
 
 static NCDModuleInst * process_func_getspecialobj (struct instance *o, const char *name)
 {
     size_t p;
-    if (!(p = string_begins_with(name, "_caller."))) {
-        return NULL;
+    
+    if (p = string_begins_with(name, "_caller.")) {
+        return NCDModuleInst_Backend_GetObj(o->i, name + p);
     }
     
-    return NCDModuleInst_Backend_GetObj(o->i, name + p);
+    if (o->crh && (p = string_begins_with(name, "_ref."))) {
+        return NCDModuleInst_Backend_GetObj(o->crh->i, name + p);
+    }
+    
+    return NULL;
+}
+
+static void callrefhere_func_new (NCDModuleInst *i)
+{
+    // allocate instance
+    struct callrefhere_instance *o = malloc(sizeof(*o));
+    if (!o) {
+        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        goto fail0;
+    }
+    NCDModuleInst_Backend_SetUser(i, o);
+    
+    // set arguments
+    o->i = i;
+    
+    // init calls list
+    LinkedList0_Init(&o->calls_list);
+    
+    // signal up
+    NCDModuleInst_Backend_Up(o->i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void callrefhere_func_die (void *vo)
+{
+    struct callrefhere_instance *o = vo;
+    NCDModuleInst *i = o->i;
+    
+    // disconnect calls
+    while (!LinkedList0_IsEmpty(&o->calls_list)) {
+        struct instance *inst = UPPER_OBJECT(LinkedList0_GetFirst(&o->calls_list), struct instance, calls_list_node);
+        ASSERT(inst->crh == o)
+        LinkedList0_Remove(&o->calls_list, &inst->calls_list_node);
+        inst->crh = NULL;
+    }
+    
+    // free instance
+    free(o);
+    
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_new (NCDModuleInst *i)
@@ -164,6 +238,14 @@ static void func_new (NCDModuleInst *i)
                                      (NCDModuleProcess_func_getspecialvar)process_func_getspecialvar,
                                      (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
     
+    // set callrefhere
+    o->crh = (o->i->method_object ? o->i->method_object->inst_user : NULL);
+    
+    // add to callrefhere's calls list
+    if (o->crh) {
+        LinkedList0_Prepend(&o->crh->calls_list, &o->calls_list_node);
+    }
+    
     // set state working
     o->state = STATE_WORKING;
     return;
@@ -178,6 +260,11 @@ fail0:
 void instance_free (struct instance *o)
 {
     NCDModuleInst *i = o->i;
+    
+    // remove from callrefhere's calls list
+    if (o->crh) {
+        LinkedList0_Remove(&o->crh->calls_list, &o->calls_list_node);
+    }
     
     // free process
     NCDModuleProcess_Free(&o->process);
@@ -232,7 +319,18 @@ static NCDModuleInst * func_getobj (void *vo, const char *name)
 
 static const struct NCDModule modules[] = {
     {
+        .type = "callrefhere",
+        .func_new = callrefhere_func_new,
+        .func_die = callrefhere_func_die
+    }, {
         .type = "call",
+        .func_new = func_new,
+        .func_die = func_die,
+        .func_clean = func_clean,
+        .func_getvar = func_getvar,
+        .func_getobj = func_getobj
+    }, {
+        .type = "callrefhere::call",
         .func_new = func_new,
         .func_die = func_die,
         .func_clean = func_clean,
