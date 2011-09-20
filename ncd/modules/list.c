@@ -23,7 +23,15 @@
  * 
  * List construction module.
  * 
- * Synopsis: list(elem1, ..., elemN)
+ * Synopsis:
+ *   list(elem1, ..., elemN)
+ *   list listfrom(list l1, ..., list lN)
+ * 
+ * Description:
+ *   The first form creates a list with the given elements.
+ *   The second form creates a list by concatenating the given
+ *   lists.
+ * 
  * Variables:
  *   (empty) - list containing elem1, ..., elemN
  * 
@@ -81,7 +89,7 @@ struct shift_instance {
     NCDModuleInst *i;
 };
 
-static void func_new (NCDModuleInst *i)
+static void func_new_list (NCDModuleInst *i)
 {
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
@@ -95,16 +103,67 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // copy list
-    if (!NCDValue_InitCopy(&o->list, o->i->args)) {
+    if (!NCDValue_InitCopy(&o->list, i->args)) {
         ModuleLog(i, BLOG_ERROR, "NCDValue_InitCopy failed");
         goto fail1;
     }
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
-    
     return;
     
+fail1:
+    free(o);
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void func_new_listfrom (NCDModuleInst *i)
+{
+    // allocate instance
+    struct instance *o = malloc(sizeof(*o));
+    if (!o) {
+        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        goto fail0;
+    }
+    NCDModuleInst_Backend_SetUser(i, o);
+    
+    // init arguments
+    o->i = i;
+    
+    // init list
+    NCDValue_InitList(&o->list);
+    
+    // append contents of list arguments
+    for (NCDValue *arg = NCDValue_ListFirst(i->args); arg; arg = NCDValue_ListNext(i->args, arg)) {
+        // check type
+        if (NCDValue_Type(arg) != NCDVALUE_LIST) {
+            ModuleLog(i, BLOG_ERROR, "wrong type");
+            goto fail2;
+        }
+        
+        // copy list
+        NCDValue copy;
+        if (!NCDValue_InitCopy(&copy, arg)) {
+            ModuleLog(i, BLOG_ERROR, "NCDValue_InitCopy failed");
+            goto fail2;
+        }
+        
+        // append
+        if (!NCDValue_ListAppendList(&o->list, copy)) {
+            ModuleLog(i, BLOG_ERROR, "NCDValue_ListAppendList failed");
+            NCDValue_Free(&copy);
+            goto fail2;
+        }
+    }
+    
+    // signal up
+    NCDModuleInst_Backend_Up(o->i);
+    return;
+    
+fail2:
+    NCDValue_Free(&o->list);
 fail1:
     free(o);
 fail0:
@@ -471,7 +530,13 @@ static void shift_func_die (void *vo)
 static const struct NCDModule modules[] = {
     {
         .type = "list",
-        .func_new = func_new,
+        .func_new = func_new_list,
+        .func_die = func_die,
+        .func_getvar = func_getvar
+    }, {
+        .type = "listfrom",
+        .base_type = "list",
+        .func_new = func_new_listfrom,
         .func_die = func_die,
         .func_getvar = func_getvar
     }, {
