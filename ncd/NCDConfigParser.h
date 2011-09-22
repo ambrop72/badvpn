@@ -27,6 +27,6 @@
 
 #include <ncd/NCDConfig.h>
 
-int NCDConfigParser_Parse (char *config, size_t config_len, struct NCDConfig_interfaces **out_ast);
+int NCDConfigParser_Parse (char *config, size_t config_len, struct NCDConfig_processes **out_ast);
 
 #endif

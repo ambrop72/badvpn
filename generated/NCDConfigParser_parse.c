@@ -16,7 +16,7 @@
 struct parser_out {
     int out_of_memory;
     int syntax_error;
-    struct NCDConfig_interfaces *ast;
+    struct NCDConfig_processes *ast;
 };
 
 #line 23 "NCDConfigParser_parse.c"
@@ -78,10 +78,10 @@ typedef union {
   ParseTOKENTYPE yy0;
   struct NCDConfig_arguments * yy8;
   char * yy9;
-  struct NCDConfig_interfaces * yy18;
   int yy20;
   struct NCDConfig_statements * yy38;
   struct NCDConfig_strings * yy40;
+  struct NCDConfig_processes * yy41;
 } YYMINORTYPE;
 #ifndef YYSTACKDEPTH
 #define YYSTACKDEPTH 0
@@ -288,7 +288,7 @@ static const char *const yyTokenName[] = {
   "$",             "NAME",          "CURLY_OPEN",    "CURLY_CLOSE", 
   "ROUND_OPEN",    "ROUND_CLOSE",   "SEMICOLON",     "ARROW",       
   "DOT",           "STRING",        "COMMA",         "PROCESS",     
-  "TEMPLATE",      "error",         "interfaces",    "statements",  
+  "TEMPLATE",      "error",         "processes",     "statements",  
   "statement_names",  "statement_args_maybe",  "statement_args",  "name_maybe",  
   "process_or_template",  "input",       
 };
@@ -298,9 +298,9 @@ static const char *const yyTokenName[] = {
 /* For tracing reduce actions, the names of all rules are required.
 */
 static const char *const yyRuleName[] = {
- /*   0 */ "input ::= interfaces",
- /*   1 */ "interfaces ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE",
- /*   2 */ "interfaces ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE interfaces",
+ /*   0 */ "input ::= processes",
+ /*   1 */ "processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE",
+ /*   2 */ "processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes",
  /*   3 */ "statements ::= statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON",
  /*   4 */ "statements ::= statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON statements",
  /*   5 */ "statements ::= statement_names ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON",
@@ -414,10 +414,10 @@ static void yy_destructor(
 #line 415 "NCDConfigParser_parse.c"
 }
       break;
-    case 14: /* interfaces */
+    case 14: /* processes */
 {
 #line 53 "NCDConfigParser_parse.y"
- NCDConfig_free_interfaces((yypminor->yy18)); 
+ NCDConfig_free_processes((yypminor->yy41)); 
 #line 422 "NCDConfigParser_parse.c"
 }
       break;
@@ -755,22 +755,22 @@ static void yy_reduce(
   **  #line <lineno> <thisfile>
   **     break;
   */
-      case 0: /* input ::= interfaces */
+      case 0: /* input ::= processes */
 #line 73 "NCDConfigParser_parse.y"
 {
-    parser_out->ast = yymsp[0].minor.yy18;
+    parser_out->ast = yymsp[0].minor.yy41;
 
-    if (!yymsp[0].minor.yy18) {
+    if (!yymsp[0].minor.yy41) {
         parser_out->out_of_memory = 1;
     }
 }
 #line 768 "NCDConfigParser_parse.c"
         break;
-      case 1: /* interfaces ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE */
+      case 1: /* processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE */
 #line 81 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy18 = NCDConfig_make_interfaces(yymsp[-4].minor.yy20, yymsp[-3].minor.yy0, yymsp[-1].minor.yy38, 0, NULL);
-    if (!yygotominor.yy18) {
+    yygotominor.yy41 = NCDConfig_make_processes(yymsp[-4].minor.yy20, yymsp[-3].minor.yy0, yymsp[-1].minor.yy38, 0, NULL);
+    if (!yygotominor.yy41) {
         parser_out->out_of_memory = 1;
     }
   yy_destructor(yypParser,2,&yymsp[-2].minor);
@@ -778,11 +778,11 @@ static void yy_reduce(
 }
 #line 780 "NCDConfigParser_parse.c"
         break;
-      case 2: /* interfaces ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE interfaces */
+      case 2: /* processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes */
 #line 88 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy18 = NCDConfig_make_interfaces(yymsp[-5].minor.yy20, yymsp[-4].minor.yy0, yymsp[-2].minor.yy38, 1, yymsp[0].minor.yy18);
-    if (!yygotominor.yy18) {
+    yygotominor.yy41 = NCDConfig_make_processes(yymsp[-5].minor.yy20, yymsp[-4].minor.yy0, yymsp[-2].minor.yy38, 1, yymsp[0].minor.yy41);
+    if (!yygotominor.yy41) {
         parser_out->out_of_memory = 1;
     }
   yy_destructor(yypParser,2,&yymsp[-3].minor);

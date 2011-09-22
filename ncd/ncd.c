@@ -138,7 +138,7 @@ BProcessManager manager;
 NCDUdevManager umanager;
 
 // config AST
-struct NCDConfig_interfaces *config_ast;
+struct NCDConfig_processes *config_ast;
 
 // processes
 LinkedList2 processes;
@@ -151,7 +151,7 @@ static const struct NCDModule * find_module (const char *name);
 static int statement_init (struct statement *s, struct NCDConfig_statements *conf);
 static void statement_free (struct statement *s);
 static void statement_free_args (struct statement *s);
-static int process_new (struct NCDConfig_interfaces *conf, NCDModuleProcess *module_process, NCDValue args);
+static int process_new (struct NCDConfig_processes *conf, NCDModuleProcess *module_process, NCDValue args);
 static void process_free (struct process *p);
 static void process_start_terminating (struct process *p);
 static void process_free_statements (struct process *p);
@@ -306,7 +306,7 @@ int main (int argc, char **argv)
     LinkedList2_Init(&processes);
     
     // init processes
-    struct NCDConfig_interfaces *conf = config_ast;
+    struct NCDConfig_processes *conf = config_ast;
     while (conf) {
         if (!conf->is_template) {
             NCDValue args;
@@ -334,7 +334,7 @@ fail5:
         num_inited_modules--;
     }
     // free configuration
-    NCDConfig_free_interfaces(config_ast);
+    NCDConfig_free_processes(config_ast);
 fail3:
     // remove signal handler
     BSignal_Finish();
@@ -671,7 +671,7 @@ void statement_free_args (struct statement *s)
     }
 }
 
-int process_new (struct NCDConfig_interfaces *conf, NCDModuleProcess *module_process, NCDValue args)
+int process_new (struct NCDConfig_processes *conf, NCDModuleProcess *module_process, NCDValue args)
 {
     ASSERT(NCDValue_Type(&args) == NCDVALUE_LIST)
     
@@ -1443,7 +1443,7 @@ int process_statement_instance_func_initprocess (struct process_statement *ps, N
     ASSERT(NCDValue_Type(&args) == NCDVALUE_LIST)
     
     // find template
-    struct NCDConfig_interfaces *conf = config_ast;
+    struct NCDConfig_processes *conf = config_ast;
     while (conf) {
         if (conf->is_template && !strcmp(conf->name, template_name)) {
             break;

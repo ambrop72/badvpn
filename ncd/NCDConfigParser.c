@@ -139,7 +139,7 @@ static int tokenizer_output (void *user, int token, char *value, size_t position
     return 1;
 }
 
-int NCDConfigParser_Parse (char *config, size_t config_len, struct NCDConfig_interfaces **out_ast)
+int NCDConfigParser_Parse (char *config, size_t config_len, struct NCDConfig_processes **out_ast)
 {
     struct parser_state state;
     
@@ -158,7 +158,7 @@ int NCDConfigParser_Parse (char *config, size_t config_len, struct NCDConfig_int
     
     if (state.error) {
         ParseFree(state.parser, free);
-        NCDConfig_free_interfaces(state.out.ast);
+        NCDConfig_free_processes(state.out.ast);
         return 0;
     }
     

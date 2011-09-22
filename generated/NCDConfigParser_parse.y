@@ -31,7 +31,7 @@
 struct parser_out {
     int out_of_memory;
     int syntax_error;
-    struct NCDConfig_interfaces *ast;
+    struct NCDConfig_processes *ast;
 };
 
 }
@@ -42,7 +42,7 @@ struct parser_out {
 
 %token_destructor { free($$); }
 
-%type interfaces {struct NCDConfig_interfaces *}
+%type processes {struct NCDConfig_processes *}
 %type statements {struct NCDConfig_statements *}
 %type statement_names {struct NCDConfig_strings *}
 %type statement_args_maybe {struct NCDConfig_arguments *}
@@ -50,7 +50,7 @@ struct parser_out {
 %type name_maybe {char *}
 %type process_or_template {int}
 
-%destructor interfaces { NCDConfig_free_interfaces($$); }
+%destructor processes { NCDConfig_free_processes($$); }
 %destructor statements { NCDConfig_free_statements($$); }
 %destructor statement_names { NCDConfig_free_strings($$); }
 %destructor statement_args_maybe { NCDConfig_free_arguments($$); }
@@ -70,7 +70,7 @@ struct parser_out {
     }
 }
 
-input ::= interfaces(A). {
+input ::= processes(A). {
     parser_out->ast = A;
 
     if (!A) {
@@ -78,15 +78,15 @@ input ::= interfaces(A). {
     }
 }
 
-interfaces(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE. {
-    R = NCDConfig_make_interfaces(T, A, B, 0, NULL);
+processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE. {
+    R = NCDConfig_make_processes(T, A, B, 0, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
-interfaces(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE interfaces(N). {
-    R = NCDConfig_make_interfaces(T, A, B, 1, N);
+processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE processes(N). {
+    R = NCDConfig_make_processes(T, A, B, 1, N);
     if (!R) {
         parser_out->out_of_memory = 1;
     }

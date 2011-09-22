@@ -1,13 +1,13 @@
 State 0:
-          input ::= * interfaces
-          interfaces ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE
-          interfaces ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE interfaces
+          input ::= * processes
+          processes ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE
+          processes ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes
           process_or_template ::= * PROCESS
           process_or_template ::= * TEMPLATE
 
                        PROCESS shift  27
                       TEMPLATE shift  28
-                    interfaces shift  14
+                     processes shift  14
            process_or_template shift  15
                          input accept
 
@@ -50,16 +50,16 @@ State 2:
                      {default} reduce 9
 
 State 3:
-          interfaces ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE
-      (1) interfaces ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE *
-          interfaces ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE interfaces
-          interfaces ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE * interfaces
+          processes ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE
+      (1) processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE *
+          processes ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes
+          processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE * processes
           process_or_template ::= * PROCESS
           process_or_template ::= * TEMPLATE
 
                        PROCESS shift  27
                       TEMPLATE shift  28
-                    interfaces shift  26
+                     processes shift  26
            process_or_template shift  15
                      {default} reduce 1
 
@@ -92,8 +92,8 @@ State 5:
                 statement_args shift  33
 
 State 6:
-          interfaces ::= process_or_template NAME CURLY_OPEN * statements CURLY_CLOSE
-          interfaces ::= process_or_template NAME CURLY_OPEN * statements CURLY_CLOSE interfaces
+          processes ::= process_or_template NAME CURLY_OPEN * statements CURLY_CLOSE
+          processes ::= process_or_template NAME CURLY_OPEN * statements CURLY_CLOSE processes
           statements ::= * statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
           statements ::= * statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON statements
           statements ::= * statement_names ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
@@ -182,25 +182,25 @@ State 13:
                          ARROW shift  11
 
 State 14:
-      (0) input ::= interfaces *
+      (0) input ::= processes *
 
                              $ reduce 0
 
 State 15:
-          interfaces ::= process_or_template * NAME CURLY_OPEN statements CURLY_CLOSE
-          interfaces ::= process_or_template * NAME CURLY_OPEN statements CURLY_CLOSE interfaces
+          processes ::= process_or_template * NAME CURLY_OPEN statements CURLY_CLOSE
+          processes ::= process_or_template * NAME CURLY_OPEN statements CURLY_CLOSE processes
 
                           NAME shift  16
 
 State 16:
-          interfaces ::= process_or_template NAME * CURLY_OPEN statements CURLY_CLOSE
-          interfaces ::= process_or_template NAME * CURLY_OPEN statements CURLY_CLOSE interfaces
+          processes ::= process_or_template NAME * CURLY_OPEN statements CURLY_CLOSE
+          processes ::= process_or_template NAME * CURLY_OPEN statements CURLY_CLOSE processes
 
                     CURLY_OPEN shift  6
 
 State 17:
-          interfaces ::= process_or_template NAME CURLY_OPEN statements * CURLY_CLOSE
-          interfaces ::= process_or_template NAME CURLY_OPEN statements * CURLY_CLOSE interfaces
+          processes ::= process_or_template NAME CURLY_OPEN statements * CURLY_CLOSE
+          processes ::= process_or_template NAME CURLY_OPEN statements * CURLY_CLOSE processes
 
                    CURLY_CLOSE shift  3
 
@@ -256,7 +256,7 @@ State 25:
                      SEMICOLON shift  8
 
 State 26:
-      (2) interfaces ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE interfaces *
+      (2) processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes *
 
                      {default} reduce 2
 
@@ -321,7 +321,7 @@ Symbols:
    11: PROCESS
    12: TEMPLATE
    13: error:
-   14: interfaces: PROCESS TEMPLATE
+   14: processes: PROCESS TEMPLATE
    15: statements: NAME
    16: statement_names: NAME
    17: statement_args_maybe: <lambda> NAME STRING

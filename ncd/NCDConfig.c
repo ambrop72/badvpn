@@ -28,7 +28,7 @@
 
 #include <ncd/NCDConfig.h>
 
-void NCDConfig_free_interfaces (struct NCDConfig_interfaces *v)
+void NCDConfig_free_processes (struct NCDConfig_processes *v)
 {
     if (!v) {
         return;
@@ -36,7 +36,7 @@ void NCDConfig_free_interfaces (struct NCDConfig_interfaces *v)
     
     free(v->name);
     NCDConfig_free_statements(v->statements);
-    NCDConfig_free_interfaces(v->next);
+    NCDConfig_free_processes(v->next);
     
     free(v);
 }
@@ -90,13 +90,13 @@ void NCDConfig_free_strings (struct NCDConfig_strings *v)
     free(v);
 }
 
-struct NCDConfig_interfaces * NCDConfig_make_interfaces (int is_template, char *name, struct NCDConfig_statements *statements, int need_next, struct NCDConfig_interfaces *next)
+struct NCDConfig_processes * NCDConfig_make_processes (int is_template, char *name, struct NCDConfig_statements *statements, int need_next, struct NCDConfig_processes *next)
 {
     if (!name || !statements || (need_next && !next)) {
         goto fail;
     }
     
-    struct NCDConfig_interfaces *v = malloc(sizeof(*v));
+    struct NCDConfig_processes *v = malloc(sizeof(*v));
     if (!v) {
         goto fail;
     }
@@ -111,7 +111,7 @@ struct NCDConfig_interfaces * NCDConfig_make_interfaces (int is_template, char *
 fail:
     free(name);
     NCDConfig_free_statements(statements);
-    NCDConfig_free_interfaces(next);
+    NCDConfig_free_processes(next);
     return NULL;
 }
 

@@ -41,14 +41,14 @@ int main (int argc, char **argv)
     }
     
     // parse
-    struct NCDConfig_interfaces *ast;
+    struct NCDConfig_processes *ast;
     if (!NCDConfigParser_Parse(argv[1], strlen(argv[1]), &ast)) {
         DEBUG("NCDConfigParser_Parse failed");
         return 1;
     }
     
     // print
-    struct NCDConfig_interfaces *iface = ast;
+    struct NCDConfig_processes *iface = ast;
     while (iface) {
         printf("process %s\n", iface->name);
         
@@ -95,7 +95,7 @@ int main (int argc, char **argv)
         iface = iface->next;
     }
     
-    NCDConfig_free_interfaces(ast);
+    NCDConfig_free_processes(ast);
     
     return 0;
 }
