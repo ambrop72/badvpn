@@ -34,6 +34,8 @@
  *   string prefix - address prefix length ("N")
  *   string gateway - router address ("A.B.C.D")
  *   list(string) dns_servers - DNS server addresses ("A.B.C.D" ...)
+ *   string server_mac - MAC address of the DHCP server (6 two-digit caps hexadecimal values
+ *     separated with colons, e.g."AB:CD:EF:01:02:03")
  */
 
 #include <stdlib.h>
@@ -232,6 +234,21 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     fail1:
         NCDValue_Free(&list);
         return 0;
+    }
+    
+    if (!strcmp(name, "server_mac")) {
+        uint8_t mac[6];
+        BDHCPClient_GetServerMAC(&o->dhcp, mac);
+        
+        char str[18];
+        sprintf(str, "%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8,
+                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        
+        if (!NCDValue_InitString(out, str)) {
+            return 0;
+        }
+        
+        return 1;
     }
     
     return 0;
