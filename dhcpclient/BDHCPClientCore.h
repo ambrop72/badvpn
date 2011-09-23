@@ -41,6 +41,7 @@
 
 #define BDHCPCLIENTCORE_MAX_DOMAIN_NAME_SERVERS 16
 
+typedef void (*BDHCPClientCore_func_getsendermac) (void *user, uint8_t *out_mac);
 typedef void (*BDHCPClientCore_handler) (void *user, int event);
 
 typedef struct {
@@ -48,8 +49,9 @@ typedef struct {
     PacketRecvInterface *recv_if;
     uint8_t client_mac_addr[6];
     BReactor *reactor;
-    BDHCPClientCore_handler handler;
     void *user;
+    BDHCPClientCore_func_getsendermac func_getsendermac;
+    BDHCPClientCore_handler handler;
     struct dhcp_header *send_buf;
     struct dhcp_header *recv_buf;
     int sending;
@@ -73,15 +75,19 @@ typedef struct {
         uint32_t router;
         int domain_name_servers_count;
         uint32_t domain_name_servers[BDHCPCLIENTCORE_MAX_DOMAIN_NAME_SERVERS];
+        uint8_t server_mac[6];
     } acked;
     DebugObject d_obj;
 } BDHCPClientCore;
 
-int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, PacketRecvInterface *recv_if, uint8_t *client_mac_addr, BReactor *reactor, BDHCPClientCore_handler handler, void *user);
+int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, PacketRecvInterface *recv_if, uint8_t *client_mac_addr, BReactor *reactor, void *user,
+                          BDHCPClientCore_func_getsendermac func_getsendermac,
+                          BDHCPClientCore_handler handler);
 void BDHCPClientCore_Free (BDHCPClientCore *o);
 void BDHCPClientCore_GetClientIP (BDHCPClientCore *o, uint32_t *out_ip);
 void BDHCPClientCore_GetClientMask (BDHCPClientCore *o, uint32_t *out_mask);
 int BDHCPClientCore_GetRouter (BDHCPClientCore *o, uint32_t *out_router);
 int BDHCPClientCore_GetDNS (BDHCPClientCore *o, uint32_t *out_dns_servers, size_t max_dns_servers);
+void BDHCPClientCore_GetServerMAC (BDHCPClientCore *o, uint8_t *out_mac);
 
 #endif

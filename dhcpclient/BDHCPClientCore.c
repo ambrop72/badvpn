@@ -446,6 +446,7 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
         }
         o->acked.domain_name_servers_count = domain_name_servers_count;
         memcpy(o->acked.domain_name_servers, domain_name_servers, domain_name_servers_count * sizeof(uint32_t));
+        o->func_getsendermac(o->user, o->acked.server_mac);
         
         // stop request timer
         BReactor_RemoveTimer(o->reactor, &o->request_timer);
@@ -602,18 +603,23 @@ static void lease_timer_handler (BDHCPClientCore *o)
     return;
 }
 
-int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, PacketRecvInterface *recv_if, uint8_t *client_mac_addr, BReactor *reactor, BDHCPClientCore_handler handler, void *user)
+int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, PacketRecvInterface *recv_if, uint8_t *client_mac_addr, BReactor *reactor, void *user,
+                          BDHCPClientCore_func_getsendermac func_getsendermac,
+                          BDHCPClientCore_handler handler)
 {
     ASSERT(PacketPassInterface_GetMTU(send_if) == PacketRecvInterface_GetMTU(recv_if))
     ASSERT(PacketPassInterface_GetMTU(send_if) >= 576 - IP_UDP_HEADERS_SIZE)
+    ASSERT(func_getsendermac)
+    ASSERT(handler)
     
     // init arguments
     o->send_if = send_if;
     o->recv_if = recv_if;
     memcpy(o->client_mac_addr, client_mac_addr, sizeof(o->client_mac_addr));
     o->reactor = reactor;
-    o->handler = handler;
     o->user = user;
+    o->func_getsendermac = func_getsendermac;
+    o->handler = handler;
     
     // allocate buffers
     if (!(o->send_buf = BAlloc(PacketPassInterface_GetMTU(send_if)))) {
@@ -711,4 +717,12 @@ int BDHCPClientCore_GetDNS (BDHCPClientCore *o, uint32_t *out_dns_servers, size_
     
     memcpy(out_dns_servers, o->acked.domain_name_servers, num_return * sizeof(uint32_t));
     return num_return;
+}
+
+void BDHCPClientCore_GetServerMAC (BDHCPClientCore *o, uint8_t *out_mac)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->state == STATE_FINISHED || o->state == STATE_RENEWING)
+    
+    memcpy(out_mac, o->acked.server_mac, 6);
 }

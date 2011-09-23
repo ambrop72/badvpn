@@ -87,6 +87,34 @@ static void dhcp_handler (BDHCPClient *o, int event)
     }
 }
 
+static void dhcp_func_getsendermac (BDHCPClient *o, uint8_t *out_mac)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    BAddr remote_addr;
+    BIPAddr local_addr;
+    if (!BDatagram_GetLastReceiveAddrs(&o->dgram, &remote_addr, &local_addr)) {
+        BLog(BLOG_ERROR, "BDatagram_GetLastReceiveAddrs failed");
+        goto fail;
+    }
+    
+    if (remote_addr.type != BADDR_TYPE_PACKET) {
+        BLog(BLOG_ERROR, "address type invalid");
+        goto fail;
+    }
+    
+    if (remote_addr.packet.header_type != BADDR_PACKET_HEADER_TYPE_ETHERNET) {
+        BLog(BLOG_ERROR, "address header type invalid");
+        goto fail;
+    }
+    
+    memcpy(out_mac, remote_addr.packet.phys_addr, 6);
+    return;
+    
+fail:
+    memset(out_mac, 0, 6);
+}
+
 static int get_iface_info (const char *ifname, uint8_t *out_mac, int *out_mtu, int *out_ifindex)
 {
     struct ifreq ifr;
@@ -232,7 +260,10 @@ int BDHCPClient_Init (BDHCPClient *o, const char *ifname, BReactor *reactor, BDH
     }
     
     // init dhcp
-    if (!BDHCPClientCore_Init(&o->dhcp, PacketCopier_GetInput(&o->send_copier), PacketCopier_GetOutput(&o->recv_copier), if_mac, o->reactor, (BDHCPClientCore_handler)dhcp_handler, o)) {
+    if (!BDHCPClientCore_Init(&o->dhcp, PacketCopier_GetInput(&o->send_copier), PacketCopier_GetOutput(&o->recv_copier), if_mac, o->reactor, o,
+                              (BDHCPClientCore_func_getsendermac)dhcp_func_getsendermac,
+                              (BDHCPClientCore_handler)dhcp_handler
+    )) {
         BLog(BLOG_ERROR, "BDHCPClientCore_Init failed");
         goto fail4;
     }
@@ -324,4 +355,12 @@ int BDHCPClient_GetDNS (BDHCPClient *o, uint32_t *out_dns_servers, size_t max_dn
     ASSERT(o->up)
     
     return BDHCPClientCore_GetDNS(&o->dhcp, out_dns_servers, max_dns_servers);
+}
+
+void BDHCPClient_GetServerMAC (BDHCPClient *o, uint8_t *out_mac)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->up)
+    
+    BDHCPClientCore_GetServerMAC(&o->dhcp, out_mac);
 }
