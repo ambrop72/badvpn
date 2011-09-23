@@ -67,5 +67,6 @@ void BDHCPClient_GetClientIP (BDHCPClient *o, uint32_t *out_ip);
 void BDHCPClient_GetClientMask (BDHCPClient *o, uint32_t *out_mask);
 int BDHCPClient_GetRouter (BDHCPClient *o, uint32_t *out_router);
 int BDHCPClient_GetDNS (BDHCPClient *o, uint32_t *out_dns_servers, size_t max_dns_servers);
+void BDHCPClient_GetServerMAC (BDHCPClient *o, uint8_t *out_mac);
 
 #endif
