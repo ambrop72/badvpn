@@ -24,6 +24,7 @@
 #define _GNU_SOURCE
 #endif
 
+#include <stddef.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
@@ -154,6 +155,41 @@ static void addr_sys_to_socket (BAddr *out, struct sys_addr addr)
             BAddr_InitIPv6(out, addr.addr.ipv6.sin6_addr.s6_addr, addr.addr.ipv6.sin6_port);
         } break;
         
+        case AF_PACKET: {
+            if (addr.len < offsetof(struct sockaddr_ll, sll_addr) + 6) {
+                goto fail;
+            }
+            if (addr.addr.packet.sll_hatype != 1) { // linux/if_arp.h: #define ARPHRD_ETHER 1
+                goto fail;
+            }
+            int packet_type;
+            switch (addr.addr.packet.sll_pkttype) {
+                case PACKET_HOST:
+                    packet_type = BADDR_PACKET_PACKET_TYPE_HOST;
+                    break;
+                case PACKET_BROADCAST:
+                    packet_type = BADDR_PACKET_PACKET_TYPE_BROADCAST;
+                    break;
+                case PACKET_MULTICAST:
+                    packet_type = BADDR_PACKET_PACKET_TYPE_MULTICAST;
+                    break;
+                case PACKET_OTHERHOST:
+                    packet_type = BADDR_PACKET_PACKET_TYPE_OTHERHOST;
+                    break;
+                case PACKET_OUTGOING:
+                    packet_type = BADDR_PACKET_PACKET_TYPE_OUTGOING;
+                    break;
+                default:
+                    goto fail;
+            }
+            if (addr.addr.packet.sll_halen != 6) {
+                goto fail;
+            }
+            uint8_t *mac = addr.addr.packet.sll_addr;
+            BAddr_InitPacket(out, addr.addr.packet.sll_protocol, addr.addr.packet.sll_ifindex, BADDR_PACKET_HEADER_TYPE_ETHERNET, packet_type, addr.addr.packet.sll_addr);
+        } break;
+        
+        fail:
         default: {
             BAddr_InitNone(out);
         } break;
