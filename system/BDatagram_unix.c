@@ -185,7 +185,6 @@ static void addr_sys_to_socket (BAddr *out, struct sys_addr addr)
             if (addr.addr.packet.sll_halen != 6) {
                 goto fail;
             }
-            uint8_t *mac = addr.addr.packet.sll_addr;
             BAddr_InitPacket(out, addr.addr.packet.sll_protocol, addr.addr.packet.sll_ifindex, BADDR_PACKET_HEADER_TYPE_ETHERNET, packet_type, addr.addr.packet.sll_addr);
         } break;
         
