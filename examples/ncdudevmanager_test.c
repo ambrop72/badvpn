@@ -28,6 +28,7 @@
 #include <system/BReactor.h>
 #include <system/BUnixSignal.h>
 #include <system/BProcess.h>
+#include <system/BNetwork.h>
 #include <udevmonitor/NCDUdevManager.h>
 
 BReactor reactor;
@@ -41,6 +42,11 @@ static void client_handler (void *unused, char *devpath, int have_map, BStringMa
 
 int main (int argc, char **argv)
 {
+    if (!BNetwork_GlobalInit()) {
+        DEBUG("BNetwork_GlobalInit failed");
+        goto fail0;
+    }
+    
     BTime_Init();
     
     BLog_InitStdout();

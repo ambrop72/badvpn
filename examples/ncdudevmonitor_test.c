@@ -27,6 +27,7 @@
 #include <system/BReactor.h>
 #include <system/BSignal.h>
 #include <system/BProcess.h>
+#include <system/BNetwork.h>
 #include <udevmonitor/NCDUdevMonitor.h>
 
 BReactor reactor;
@@ -47,6 +48,11 @@ int main (int argc, char **argv)
     }
     
     int is_info_mode = !strcmp(argv[1], "info");
+    
+    if (!BNetwork_GlobalInit()) {
+        DEBUG("BNetwork_GlobalInit failed");
+        goto fail0;
+    }
     
     BTime_Init();
     
