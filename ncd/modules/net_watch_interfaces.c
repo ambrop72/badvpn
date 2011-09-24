@@ -31,6 +31,7 @@
  *   string event_type - what happened with the interface: "added" or "removed". This may not be
  *     consistent across events.
  *   string devname - interface name
+ *   string bus - bus location, for example "pci:0000:06:00.0", "usb:2-1.3:1.0", or "unknown"
  * 
  * Synopsis: net.watch_interfaces::nextevent()
  * Description: makes the watch_interfaces module transition down in order to report the next event.
@@ -38,10 +39,12 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <regex.h>
 
 #include <misc/debug.h>
 #include <misc/offset.h>
 #include <misc/parse_number.h>
+#include <misc/bsize.h>
 #include <structure/LinkedList1.h>
 #include <udevmonitor/NCDUdevManager.h>
 #include <ncd/NCDModule.h>
@@ -63,6 +66,7 @@ struct instance {
     NCDModuleInst *i;
     NCDUdevClient client;
     LinkedList1 devices_list;
+    regex_t preg;
     event_template templ;
 };
 
@@ -120,7 +124,7 @@ static void free_device (struct instance *o, struct device *device, int have_rem
     free(device);
 }
 
-static int make_event_map (struct instance *o, int added, const char *ifname, BStringMap *out_map)
+static int make_event_map (struct instance *o, int added, const char *ifname, const char *bus, BStringMap *out_map)
 {
     // init map
     BStringMap map;
@@ -134,6 +138,12 @@ static int make_event_map (struct instance *o, int added, const char *ifname, BS
     
     // set ifname
     if (!BStringMap_Set(&map, "devname", ifname)) {
+        ModuleLog(o->i, BLOG_ERROR, "BStringMap_Set failed");
+        goto fail1;
+    }
+    
+    // set bus
+    if (!BStringMap_Set(&map, "bus", bus)) {
         ModuleLog(o->i, BLOG_ERROR, "BStringMap_Set failed");
         goto fail1;
     }
@@ -158,7 +168,7 @@ static void queue_event (struct instance *o, BStringMap map)
     }
 }
 
-static void add_device (struct instance *o, const char *ifname, const char *devpath, uintmax_t ifindex)
+static void add_device (struct instance *o, const char *ifname, const char *devpath, uintmax_t ifindex, const char *bus)
 {
     ASSERT(!find_device_by_ifname(o, ifname))
     ASSERT(!find_device_by_devpath(o, devpath))
@@ -186,14 +196,14 @@ static void add_device (struct instance *o, const char *ifname, const char *devp
     device->ifindex = ifindex;
     
     // init removed map
-    if (!make_event_map(o, 0, ifname, &device->removed_map)) {
+    if (!make_event_map(o, 0, ifname, bus, &device->removed_map)) {
         ModuleLog(o->i, BLOG_ERROR, "make_event_map failed");
         goto fail3;
     }
     
     // init added map
     BStringMap added_map;
-    if (!make_event_map(o, 1, ifname, &added_map)) {
+    if (!make_event_map(o, 1, ifname, bus, &added_map)) {
         ModuleLog(o->i, BLOG_ERROR, "make_event_map failed");
         goto fail4;
     }
@@ -238,6 +248,41 @@ static void next_event (struct instance *o)
     }
 }
 
+static void make_bus (struct instance *o, const char *devpath, const BStringMap *map, char *out_bus, size_t bus_avail)
+{
+    const char *type = BStringMap_Get(map, "ID_BUS");
+    if (!type) {
+        goto fail;
+    }
+    size_t type_len = strlen(type);
+    
+    if (strcmp(type, "pci") && strcmp(type, "usb")) {
+        goto fail;
+    }
+    
+    regmatch_t pmatch[2];
+    if (regexec(&o->preg, devpath, 2, pmatch, 0)) {
+        goto fail;
+    }
+    
+    const char *id = devpath + pmatch[1].rm_so;
+    size_t id_len = pmatch[1].rm_eo - pmatch[1].rm_so;
+    
+    bsize_t bus_len = bsize_add(bsize_fromsize(type_len), bsize_add(bsize_fromint(1), bsize_add(bsize_fromsize(id_len), bsize_fromint(1))));
+    if (bus_len.is_overflow || bus_len.value > bus_avail) {
+        goto fail;
+    }
+    
+    memcpy(out_bus, type, type_len);
+    out_bus[type_len] = ':';
+    memcpy(out_bus + type_len + 1, id, id_len);
+    out_bus[type_len + 1 + id_len] = '\0';
+    return;
+    
+fail:
+    snprintf(out_bus, bus_avail, "%s", "unknown");
+}
+
 static void client_handler (struct instance *o, char *devpath, int have_map, BStringMap map)
 {
     // lookup existing device with this devpath
@@ -275,7 +320,10 @@ static void client_handler (struct instance *o, char *devpath, int have_map, BSt
             remove_device(o, ex_ifname_device);
         }
         
-        add_device(o, interface, devpath, ifindex);
+        char bus[128];
+        make_bus(o, devpath, cache_map, bus, sizeof(bus));
+        
+        add_device(o, interface, devpath, ifindex, bus);
     }
     
 out:
@@ -310,9 +358,16 @@ static void func_new (NCDModuleInst *i)
     // init devices list
     LinkedList1_Init(&o->devices_list);
     
+    // compile regex
+    if (regcomp(&o->preg, "/([^/]+)/net/", REG_EXTENDED)) {
+        goto fail2;
+    }
+    
     event_template_new(&o->templ, o->i, BLOG_CURRENT_CHANNEL, 3, o, (event_template_func_free)templ_func_free);
     return;
     
+fail2:
+    NCDUdevClient_Free(&o->client);
 fail1:
     free(o);
 fail0:
@@ -330,6 +385,9 @@ static void templ_func_free (struct instance *o)
         struct device *device = UPPER_OBJECT(list_node, struct device, devices_list_node);
         free_device(o, device, 1);
     }
+    
+    // free regex
+    regfree(&o->preg);
     
     // free client
     NCDUdevClient_Free(&o->client);
