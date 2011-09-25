@@ -125,7 +125,7 @@ static NCDModuleInst * refhere_func_getobj (void *vo, const char *objname)
     // We don't redirect methods, and there will never be an object
     // with empty name. Fail here so we don't report non-errors.
     if (!strcmp(objname, "")) {
-        return 0;
+        return NULL;
     }
     
     return NCDModuleInst_Backend_GetObj(o->i, objname);
@@ -215,7 +215,7 @@ static NCDModuleInst * ref_func_getobj (void *vo, const char *objname)
     // We don't redirect methods, and there will never be an object
     // with empty name. Fail here so we don't report non-errors.
     if (!strcmp(objname, "")) {
-        return 0;
+        return NULL;
     }
     
     return NCDModuleInst_Backend_GetObj(o->rh->i, objname);
