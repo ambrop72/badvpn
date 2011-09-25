@@ -122,6 +122,12 @@ static NCDModuleInst * refhere_func_getobj (void *vo, const char *objname)
 {
     struct refhere_instance *o = vo;
     
+    // We don't redirect methods, and there will never be an object
+    // with empty name. Fail here so we don't report non-errors.
+    if (!strcmp(objname, "")) {
+        return 0;
+    }
+    
     return NCDModuleInst_Backend_GetObj(o->i, objname);
 }
 
@@ -205,6 +211,12 @@ static int ref_func_getvar (void *vo, const char *varname, NCDValue *out)
 static NCDModuleInst * ref_func_getobj (void *vo, const char *objname)
 {
     struct ref_instance *o = vo;
+    
+    // We don't redirect methods, and there will never be an object
+    // with empty name. Fail here so we don't report non-errors.
+    if (!strcmp(objname, "")) {
+        return 0;
+    }
     
     return NCDModuleInst_Backend_GetObj(o->rh->i, objname);
 }
