@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include <misc/debug.h>
+#include <base/BLog.h>
 #include <ncd/NCDConfigTokenizer.h>
 
 int error;
@@ -88,6 +89,8 @@ int main (int argc, char **argv)
         printf("Usage: %s <string>\n", argv[0]);
         return 1;
     }
+    
+    BLog_InitStdout();
     
     error = 0;
     
