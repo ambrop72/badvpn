@@ -1299,17 +1299,19 @@ struct process_statement * process_resolve_object (struct process *p, size_t pos
     
     ASSERT(rps->state == SSTATE_ADULT)
     
-    if (!rest) {
-        // this is the target
-        return rps;
-    }
-    
-    // resolve object in referred statement
-    NCDModuleInst *inst = NCDModuleInst_GetObj(&rps->inst, rest);
+    // Resolve object in referred statement. If there is no rest, resolve empty string
+    // instead, or use this statement if it fails. This allows a statement to forward method
+    // calls elsewhere.
+    NCDModuleInst *inst = NCDModuleInst_GetObj(&rps->inst, (rest ? rest : ""));
     if (!inst) {
+        if (!rest) {
+            return rps;
+        }
+        
         process_log(p, BLOG_ERROR, "referred module failed to resolve object: %s", objname);
         return NULL;
     }
+    
     struct process_statement *res_ps = UPPER_OBJECT(inst, struct process_statement, inst);
     ASSERT(res_ps->state == SSTATE_ADULT)
     
