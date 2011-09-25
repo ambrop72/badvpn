@@ -66,7 +66,7 @@ int main (int argc, char **argv)
             
             printf("\n");
             
-            struct NCDConfig_arguments *arg = st->args;
+            struct NCDConfig_list *arg = st->args;
             while (arg) {
                 switch (arg->type) {
                     case NCDCONFIG_ARG_STRING:

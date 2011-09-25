@@ -49,14 +49,14 @@ void NCDConfig_free_statements (struct NCDConfig_statements *v)
     
     NCDConfig_free_strings(v->objname);
     NCDConfig_free_strings(v->names);
-    NCDConfig_free_arguments(v->args);
+    NCDConfig_free_list(v->args);
     free(v->name);
     NCDConfig_free_statements(v->next);
     
     free(v);
 }
 
-void NCDConfig_free_arguments (struct NCDConfig_arguments *v)
+void NCDConfig_free_list (struct NCDConfig_list *v)
 {
     if (!v) {
         return;
@@ -73,7 +73,7 @@ void NCDConfig_free_arguments (struct NCDConfig_arguments *v)
             ASSERT(0);
     }
     
-    NCDConfig_free_arguments(v->next);
+    NCDConfig_free_list(v->next);
     
     free(v);
 }
@@ -115,7 +115,7 @@ fail:
     return NULL;
 }
 
-struct NCDConfig_statements * NCDConfig_make_statements (struct NCDConfig_strings *objname, struct NCDConfig_strings *names, struct NCDConfig_arguments *args, char *name, struct NCDConfig_statements *next)
+struct NCDConfig_statements * NCDConfig_make_statements (struct NCDConfig_strings *objname, struct NCDConfig_strings *names, struct NCDConfig_list *args, char *name, struct NCDConfig_statements *next)
 {
     struct NCDConfig_statements *v = malloc(sizeof(*v));
     if (!v) {
@@ -132,15 +132,15 @@ struct NCDConfig_statements * NCDConfig_make_statements (struct NCDConfig_string
     
 fail:
     NCDConfig_free_strings(names);
-    NCDConfig_free_arguments(args);
+    NCDConfig_free_list(args);
     free(name);
     NCDConfig_free_statements(next);
     return NULL;
 }
 
-struct NCDConfig_arguments * NCDConfig_make_arguments_string (char *str, struct NCDConfig_arguments *next)
+struct NCDConfig_list * NCDConfig_make_list_string (char *str, struct NCDConfig_list *next)
 {
-    struct NCDConfig_arguments *v = malloc(sizeof(*v));
+    struct NCDConfig_list *v = malloc(sizeof(*v));
     if (!v) {
         goto fail;
     }
@@ -153,13 +153,13 @@ struct NCDConfig_arguments * NCDConfig_make_arguments_string (char *str, struct 
     
 fail:
     free(str);
-    NCDConfig_free_arguments(next);
+    NCDConfig_free_list(next);
     return NULL;
 }
 
-struct NCDConfig_arguments * NCDConfig_make_arguments_var (struct NCDConfig_strings *var, struct NCDConfig_arguments *next)
+struct NCDConfig_list * NCDConfig_make_list_var (struct NCDConfig_strings *var, struct NCDConfig_list *next)
 {
-    struct NCDConfig_arguments *v = malloc(sizeof(*v));
+    struct NCDConfig_list *v = malloc(sizeof(*v));
     if (!v) {
         goto fail;
     }
@@ -172,7 +172,7 @@ struct NCDConfig_arguments * NCDConfig_make_arguments_var (struct NCDConfig_stri
     
 fail:
     NCDConfig_free_strings(var);
-    NCDConfig_free_arguments(next);
+    NCDConfig_free_list(next);
     return NULL;
 }
 

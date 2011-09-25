@@ -45,16 +45,16 @@ struct parser_out {
 %type processes {struct NCDConfig_processes *}
 %type statements {struct NCDConfig_statements *}
 %type statement_names {struct NCDConfig_strings *}
-%type statement_args_maybe {struct NCDConfig_arguments *}
-%type statement_args {struct NCDConfig_arguments *}
+%type statement_args_maybe {struct NCDConfig_list *}
+%type statement_args {struct NCDConfig_list *}
 %type name_maybe {char *}
 %type process_or_template {int}
 
 %destructor processes { NCDConfig_free_processes($$); }
 %destructor statements { NCDConfig_free_statements($$); }
 %destructor statement_names { NCDConfig_free_strings($$); }
-%destructor statement_args_maybe { NCDConfig_free_arguments($$); }
-%destructor statement_args { NCDConfig_free_arguments($$); }
+%destructor statement_args_maybe { NCDConfig_free_list($$); }
+%destructor statement_args { NCDConfig_free_list($$); }
 %destructor name_maybe { free($$); }
 
 %stack_size 0
@@ -143,28 +143,28 @@ statement_args_maybe(R) ::= statement_args(A). {
 }
 
 statement_args(R) ::= STRING(A). {
-    R = NCDConfig_make_arguments_string(A, NULL);
+    R = NCDConfig_make_list_string(A, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
 statement_args(R) ::= statement_names(A). {
-    R = NCDConfig_make_arguments_var(A, NULL);
+    R = NCDConfig_make_list_var(A, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
 statement_args(R) ::= STRING(A) COMMA statement_args(N). {
-    R = NCDConfig_make_arguments_string(A, N);
+    R = NCDConfig_make_list_string(A, N);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
 statement_args(R) ::= statement_names(A) COMMA statement_args(N). {
-    R = NCDConfig_make_arguments_var(A, N);
+    R = NCDConfig_make_list_var(A, N);
     if (!R) {
         parser_out->out_of_memory = 1;
     }

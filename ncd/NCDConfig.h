@@ -25,7 +25,7 @@
 
 struct NCDConfig_processes;
 struct NCDConfig_statements;
-struct NCDConfig_arguments;
+struct NCDConfig_list;
 struct NCDConfig_strings;
 
 struct NCDConfig_processes {
@@ -38,7 +38,7 @@ struct NCDConfig_processes {
 struct NCDConfig_statements {
     struct NCDConfig_strings *objname;
     struct NCDConfig_strings *names;
-    struct NCDConfig_arguments *args;
+    struct NCDConfig_list *args;
     char *name;
     struct NCDConfig_statements *next;
 };
@@ -46,13 +46,13 @@ struct NCDConfig_statements {
 #define NCDCONFIG_ARG_STRING 1
 #define NCDCONFIG_ARG_VAR 2
 
-struct NCDConfig_arguments {
+struct NCDConfig_list {
     int type;
     union {
         char *string;
         struct NCDConfig_strings *var;
     };
-    struct NCDConfig_arguments *next;
+    struct NCDConfig_list *next;
 };
 
 struct NCDConfig_strings {
@@ -62,12 +62,12 @@ struct NCDConfig_strings {
 
 void NCDConfig_free_processes (struct NCDConfig_processes *v);
 void NCDConfig_free_statements (struct NCDConfig_statements *v);
-void NCDConfig_free_arguments (struct NCDConfig_arguments *v);
+void NCDConfig_free_list (struct NCDConfig_list *v);
 void NCDConfig_free_strings (struct NCDConfig_strings *v);
 struct NCDConfig_processes * NCDConfig_make_processes (int is_template, char *name, struct NCDConfig_statements *statements, int have_next, struct NCDConfig_processes *next);
-struct NCDConfig_statements * NCDConfig_make_statements (struct NCDConfig_strings *objname, struct NCDConfig_strings *names, struct NCDConfig_arguments *args, char *name, struct NCDConfig_statements *next);
-struct NCDConfig_arguments * NCDConfig_make_arguments_string (char *str, struct NCDConfig_arguments *next);
-struct NCDConfig_arguments * NCDConfig_make_arguments_var (struct NCDConfig_strings *var, struct NCDConfig_arguments *next);
+struct NCDConfig_statements * NCDConfig_make_statements (struct NCDConfig_strings *objname, struct NCDConfig_strings *names, struct NCDConfig_list *args, char *name, struct NCDConfig_statements *next);
+struct NCDConfig_list * NCDConfig_make_list_string (char *str, struct NCDConfig_list *next);
+struct NCDConfig_list * NCDConfig_make_list_var (struct NCDConfig_strings *var, struct NCDConfig_list *next);
 struct NCDConfig_strings * NCDConfig_make_strings (char *value, int have_next, struct NCDConfig_strings *next);
 
 int NCDConfig_statement_name_is (struct NCDConfig_statements *st, const char *needle);

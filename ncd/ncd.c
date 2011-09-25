@@ -591,7 +591,7 @@ int statement_init (struct statement *s, struct NCDConfig_statements *conf)
     
     // init arguments
     struct argument_elem **prevptr = &s->first_arg;
-    struct NCDConfig_arguments *arg = conf->args;
+    struct NCDConfig_list *arg = conf->args;
     while (arg) {
         struct argument_elem *e = malloc(sizeof(*e));
         if (!e) {
