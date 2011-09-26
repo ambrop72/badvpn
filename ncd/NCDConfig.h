@@ -45,12 +45,14 @@ struct NCDConfig_statements {
 
 #define NCDCONFIG_ARG_STRING 1
 #define NCDCONFIG_ARG_VAR 2
+#define NCDCONFIG_ARG_LIST 3
 
 struct NCDConfig_list {
     int type;
     union {
         char *string;
         struct NCDConfig_strings *var;
+        struct NCDConfig_list *list;
     };
     struct NCDConfig_list *next;
 };
@@ -68,6 +70,7 @@ struct NCDConfig_processes * NCDConfig_make_processes (int is_template, char *na
 struct NCDConfig_statements * NCDConfig_make_statements (struct NCDConfig_strings *objname, struct NCDConfig_strings *names, struct NCDConfig_list *args, char *name, struct NCDConfig_statements *next);
 struct NCDConfig_list * NCDConfig_make_list_string (char *str, struct NCDConfig_list *next);
 struct NCDConfig_list * NCDConfig_make_list_var (struct NCDConfig_strings *var, struct NCDConfig_list *next);
+struct NCDConfig_list * NCDConfig_make_list_list (struct NCDConfig_list *list, struct NCDConfig_list *next);
 struct NCDConfig_strings * NCDConfig_make_strings (char *value, int have_next, struct NCDConfig_strings *next);
 
 int NCDConfig_statement_name_is (struct NCDConfig_statements *st, const char *needle);

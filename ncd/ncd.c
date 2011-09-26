@@ -35,6 +35,7 @@
 #include <misc/string_begins_with.h>
 #include <misc/parse_number.h>
 #include <misc/open_standard_streams.h>
+#include <structure/LinkedList1.h>
 #include <structure/LinkedList2.h>
 #include <base/BLog.h>
 #include <system/BReactor.h>
@@ -57,6 +58,10 @@
 #define LOGGER_STDOUT 1
 #define LOGGER_SYSLOG 2
 
+#define ARG_VALUE_TYPE_STRING 1
+#define ARG_VALUE_TYPE_VARIABLE 2
+#define ARG_VALUE_TYPE_LIST 3
+
 #define SSTATE_CHILD 1
 #define SSTATE_ADULT 2
 #define SSTATE_DYING 3
@@ -67,20 +72,25 @@
 #define PSTATE_WAITING 3
 #define PSTATE_TERMINATING 4
 
+struct arg_value {
+    int type;
+    union {
+        char *string;
+        char *variable;
+        LinkedList1 list;
+    };
+};
+
+struct arg_list_elem {
+    LinkedList1Node list_node;
+    struct arg_value value;
+};
+
 struct statement {
     char *object_name;
     char *method_name;
-    struct argument_elem *first_arg;
+    struct arg_value args;
     char *name;
-};
-
-struct argument_elem {
-    int is_var;
-    union {
-        char *var;
-        NCDValue val;
-    };
-    struct argument_elem *next_arg;
 };
 
 struct process {
@@ -148,9 +158,14 @@ static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static const struct NCDModule * find_module (const char *name);
+static int arg_value_init_string (struct arg_value *o, const char *string);
+static int arg_value_init_variable (struct arg_value *o, const char *variable);
+static void arg_value_init_list (struct arg_value *o);
+static int arg_value_list_append (struct arg_value *o, struct arg_value v);
+static void arg_value_free (struct arg_value *o);
+static int build_arg_list_from_ast_list (struct arg_value *o, struct NCDConfig_list *list);
 static int statement_init (struct statement *s, struct NCDConfig_statements *conf);
 static void statement_free (struct statement *s);
-static void statement_free_args (struct statement *s);
 static int process_new (struct NCDConfig_processes *conf, NCDModuleProcess *module_process, NCDValue args);
 static void process_free (struct process *p);
 static void process_start_terminating (struct process *p);
@@ -170,6 +185,7 @@ static struct process_statement * process_resolve_object (struct process *p, siz
 static void process_statement_logfunc (struct process_statement *ps);
 static void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...);
 static void process_statement_set_error (struct process_statement *ps);
+static int process_statement_resolve_argument (struct process_statement *ps, struct arg_value *arg, NCDValue *out);
 static void process_statement_instance_func_event (struct process_statement *ps, int event);
 static int process_statement_instance_func_getvar (struct process_statement *ps, const char *varname, NCDValue *out);
 static NCDModuleInst * process_statement_instance_func_getobj (struct process_statement *ps, const char *objname);
@@ -560,85 +576,161 @@ const struct NCDModule * find_module (const char *name)
     return NULL;
 }
 
+int arg_value_init_string (struct arg_value *o, const char *string)
+{
+    o->type = ARG_VALUE_TYPE_STRING;
+    if (!(o->string = strdup(string))) {
+        BLog(BLOG_ERROR, "strdup failed");
+        return 0;
+    }
+    
+    return 1;
+}
+
+int arg_value_init_variable (struct arg_value *o, const char *variable)
+{
+    o->type = ARG_VALUE_TYPE_VARIABLE;
+    if (!(o->variable = strdup(variable))) {
+        BLog(BLOG_ERROR, "strdup failed");
+        return 0;
+    }
+    
+    return 1;
+}
+
+void arg_value_init_list (struct arg_value *o)
+{
+    o->type = ARG_VALUE_TYPE_LIST;
+    LinkedList1_Init(&o->list);
+}
+
+int arg_value_list_append (struct arg_value *o, struct arg_value v)
+{
+    ASSERT(o->type == ARG_VALUE_TYPE_LIST)
+    
+    struct arg_list_elem *elem = malloc(sizeof(*elem));
+    if (!elem) {
+        BLog(BLOG_ERROR, "malloc failed");
+        return 0;
+    }
+    LinkedList1_Append(&o->list, &elem->list_node);
+    elem->value = v;
+    
+    return 1;
+}
+
+void arg_value_free (struct arg_value *o)
+{
+    switch (o->type) {
+        case ARG_VALUE_TYPE_STRING: {
+            free(o->string);
+        } break;
+        
+        case ARG_VALUE_TYPE_VARIABLE: {
+            free(o->variable);
+        } break;
+        
+        case ARG_VALUE_TYPE_LIST: {
+            while (!LinkedList1_IsEmpty(&o->list)) {
+                struct arg_list_elem *elem = UPPER_OBJECT(LinkedList1_GetFirst(&o->list), struct arg_list_elem, list_node);
+                arg_value_free(&elem->value);
+                LinkedList1_Remove(&o->list, &elem->list_node);
+                free(elem);
+            }
+        } break;
+        
+        default: ASSERT(0);
+    }
+}
+
+int build_arg_list_from_ast_list (struct arg_value *o, struct NCDConfig_list *list)
+{
+    arg_value_init_list(o);
+    
+    for (struct NCDConfig_list *c = list; c; c = c->next) {
+        struct arg_value e;
+        
+        switch (c->type) {
+            case NCDCONFIG_ARG_STRING: {
+                if (!arg_value_init_string(&e, c->string)) {
+                    goto fail;
+                }
+            } break;
+            
+            case NCDCONFIG_ARG_VAR: {
+                char *variable = NCDConfig_concat_strings(c->var);
+                if (!variable) {
+                    BLog(BLOG_ERROR, "NCDConfig_concat_strings failed");
+                    goto fail;
+                }
+                
+                if (!arg_value_init_variable(&e, variable)) {
+                    free(variable);
+                    goto fail;
+                }
+                
+                free(variable);
+            } break;
+            
+            case NCDCONFIG_ARG_LIST: {
+                if (!build_arg_list_from_ast_list(&e, c->list)) {
+                    goto fail;
+                }
+            } break;
+            
+            default: ASSERT(0);
+        }
+        
+        if (!arg_value_list_append(o, e)) {
+            arg_value_free(&e);
+            goto fail;
+        }
+    }
+    
+    return 1;
+    
+fail:
+    arg_value_free(o);
+    return 0;
+}
+
 int statement_init (struct statement *s, struct NCDConfig_statements *conf)
 {
     s->object_name = NULL;
     s->method_name = NULL;
     s->name = NULL;
-    s->first_arg = NULL;
     
     // set object name
     if (conf->objname) {
         if (!(s->object_name = NCDConfig_concat_strings(conf->objname))) {
             BLog(BLOG_ERROR, "NCDConfig_concat_strings failed");
-            goto fail;
+            goto fail1;
         }
     }
     
     // set method name
     if (!(s->method_name = NCDConfig_concat_strings(conf->names))) {
         BLog(BLOG_ERROR, "NCDConfig_concat_strings failed");
-        goto fail;
+        goto fail1;
     }
     
     // init name
     if (conf->name) {
         if (!(s->name = strdup(conf->name))) {
             BLog(BLOG_ERROR, "strdup failed");
-            goto fail;
+            goto fail1;
         }
     }
     
     // init arguments
-    struct argument_elem **prevptr = &s->first_arg;
-    struct NCDConfig_list *arg = conf->args;
-    while (arg) {
-        struct argument_elem *e = malloc(sizeof(*e));
-        if (!e) {
-            BLog(BLOG_ERROR, "malloc failed");
-            goto loop_fail0;
-        }
-        
-        switch (arg->type) {
-            case NCDCONFIG_ARG_STRING: {
-                if (!NCDValue_InitString(&e->val, arg->string)) {
-                    BLog(BLOG_ERROR, "NCDValue_InitString failed");
-                    goto loop_fail1;
-                }
-                
-                e->is_var = 0;
-            } break;
-            
-            case NCDCONFIG_ARG_VAR: {
-                if (!(e->var = NCDConfig_concat_strings(arg->var))) {
-                    BLog(BLOG_ERROR, "NCDConfig_concat_strings failed");
-                    goto loop_fail1;
-                }
-                
-                e->is_var = 1;
-            } break;
-            
-            default:
-                ASSERT(0);
-        }
-        
-        *prevptr = e;
-        e->next_arg = NULL;
-        prevptr = &e->next_arg;
-        
-        arg = arg->next;
-        continue;
-        
-    loop_fail1:
-        free(e);
-    loop_fail0:
-        goto fail;
+    if (!build_arg_list_from_ast_list(&s->args, conf->args)) {
+        BLog(BLOG_ERROR, "build_arg_list_from_ast_list failed");
+        goto fail1;
     }
     
     return 1;
     
-fail:
-    statement_free_args(s);
+fail1:
     free(s->name);
     free(s->method_name);
     free(s->object_name);
@@ -648,27 +740,12 @@ fail:
 void statement_free (struct statement *s)
 {
     // free arguments
-    statement_free_args(s);
+    arg_value_free(&s->args);
     
     // free names
     free(s->name);
     free(s->method_name);
     free(s->object_name);
-}
-
-void statement_free_args (struct statement *s)
-{
-    struct argument_elem *e = s->first_arg;
-    while (e) {
-        if (e->is_var) {
-            free(e->var);
-        } else {
-            NCDValue_Free(&e->val);
-        }
-        struct argument_elem *n = e->next_arg;
-        free(e);
-        e = n;
-    }
 }
 
 int process_new (struct NCDConfig_processes *conf, NCDModuleProcess *module_process, NCDValue args)
@@ -1077,34 +1154,10 @@ void process_advance_job_handler (struct process *p)
         goto fail1;
     }
     
-    // init arguments list
-    NCDValue_InitList(&ps->inst_args);
-    
-    // build arguments
-    struct argument_elem *arg = ps->s.first_arg;
-    while (arg) {
-        // resolve argument
-        NCDValue v;
-        if (arg->is_var) {
-            if (!process_resolve_variable(p, p->ap, arg->var, &v)) {
-                process_statement_log(ps, BLOG_ERROR, "failed to resolve variable");
-                goto fail2;
-            }
-        } else {
-            if (!NCDValue_InitCopy(&v, &arg->val)) {
-                process_statement_log(ps, BLOG_ERROR, "NCDValue_InitCopy failed");
-                goto fail2;
-            }
-        }
-        
-        // move to list
-        if (!NCDValue_ListAppend(&ps->inst_args, v)) {
-            process_statement_log(ps, BLOG_ERROR, "NCDValue_ListAppend failed");
-            NCDValue_Free(&v);
-            goto fail2;
-        }
-        
-        arg = arg->next_arg;
+    // resolve arguments
+    if (!process_statement_resolve_argument(ps, &ps->s.args, &ps->inst_args)) {
+        process_statement_log(ps, BLOG_ERROR, "failed to resolve arguments");
+        goto fail1;
     }
     
     // initialize module instance
@@ -1131,8 +1184,6 @@ void process_advance_job_handler (struct process *p)
     process_assert_pointers(p);
     return;
     
-fail2:
-    NCDValue_Free(&ps->inst_args);
 fail1:
     free(type);
 fail0:
@@ -1338,6 +1389,56 @@ void process_statement_set_error (struct process_statement *ps)
     
     ps->have_error = 1;
     ps->error_until = btime_add(btime_gettime(), options.retry_time);
+}
+
+int process_statement_resolve_argument (struct process_statement *ps, struct arg_value *arg, NCDValue *out)
+{
+    ASSERT(ps->i <= process_rap(ps->p))
+    
+    switch (arg->type) {
+        case ARG_VALUE_TYPE_STRING: {
+            if (!NCDValue_InitString(out, arg->string)) {
+                process_statement_log(ps, BLOG_ERROR, "NCDValue_InitString failed");
+                return 0;
+            }
+        } break;
+        
+        case ARG_VALUE_TYPE_VARIABLE: {
+            if (!process_resolve_variable(ps->p, ps->i, arg->variable, out)) {
+                process_statement_log(ps, BLOG_ERROR, "failed to resolve variable");
+                return 0;
+            }
+        } break;
+        
+        case ARG_VALUE_TYPE_LIST: do {
+            NCDValue_InitList(out);
+            
+            for (LinkedList1Node *n = LinkedList1_GetFirst(&arg->list); n; n = LinkedList1Node_Next(n)) {
+                struct arg_list_elem *elem = UPPER_OBJECT(n, struct arg_list_elem, list_node);
+                
+                NCDValue v;
+                if (!process_statement_resolve_argument(ps, &elem->value, &v)) {
+                    goto list_fail1;
+                }
+                
+                if (!NCDValue_ListAppend(out, v)) {
+                    process_statement_log(ps, BLOG_ERROR, "NCDValue_ListAppend failed");
+                    NCDValue_Free(&v);
+                    goto list_fail1;
+                }
+            }
+            
+            break;
+            
+        list_fail1:
+            NCDValue_Free(out);
+            return 0;
+        } while (0); break;
+        
+        default: ASSERT(0);
+    }
+    
+    return 1;
 }
 
 void process_statement_instance_func_event (struct process_statement *ps, int event)

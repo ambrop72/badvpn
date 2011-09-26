@@ -46,7 +46,8 @@ struct parser_out {
 %type statements {struct NCDConfig_statements *}
 %type statement_names {struct NCDConfig_strings *}
 %type statement_args_maybe {struct NCDConfig_list *}
-%type statement_args {struct NCDConfig_list *}
+%type list_contents {struct NCDConfig_list *}
+%type list {struct NCDConfig_list *}
 %type name_maybe {char *}
 %type process_or_template {int}
 
@@ -54,7 +55,8 @@ struct parser_out {
 %destructor statements { NCDConfig_free_statements($$); }
 %destructor statement_names { NCDConfig_free_strings($$); }
 %destructor statement_args_maybe { NCDConfig_free_list($$); }
-%destructor statement_args { NCDConfig_free_list($$); }
+%destructor list_contents { NCDConfig_free_list($$); }
+%destructor list { NCDConfig_free_list($$); }
 %destructor name_maybe { free($$); }
 
 %stack_size 0
@@ -138,36 +140,58 @@ statement_args_maybe(R) ::= . {
     R = NULL;
 }
 
-statement_args_maybe(R) ::= statement_args(A). {
+statement_args_maybe(R) ::= list_contents(A). {
     R = A;
 }
 
-statement_args(R) ::= STRING(A). {
+list_contents(R) ::= STRING(A). {
     R = NCDConfig_make_list_string(A, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
-statement_args(R) ::= statement_names(A). {
+list_contents(R) ::= statement_names(A). {
     R = NCDConfig_make_list_var(A, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
-statement_args(R) ::= STRING(A) COMMA statement_args(N). {
+list_contents(R) ::= list(A). {
+    R = NCDConfig_make_list_list(A, NULL);
+    if (!R) {
+        parser_out->out_of_memory = 1;
+    }
+}
+
+list_contents(R) ::= STRING(A) COMMA list_contents(N). {
     R = NCDConfig_make_list_string(A, N);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
-statement_args(R) ::= statement_names(A) COMMA statement_args(N). {
+list_contents(R) ::= statement_names(A) COMMA list_contents(N). {
     R = NCDConfig_make_list_var(A, N);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
+}
+
+list_contents(R) ::= list(A) COMMA list_contents(N). {
+    R = NCDConfig_make_list_list(A, N);
+    if (!R) {
+        parser_out->out_of_memory = 1;
+    }
+}
+
+list(R) ::= CURLY_OPEN CURLY_CLOSE. {
+    R = NULL;
+}
+
+list(R) ::= CURLY_OPEN list_contents(A) CURLY_CLOSE. {
+    R = A;
 }
 
 name_maybe(R) ::= . {

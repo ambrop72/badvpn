@@ -30,6 +30,44 @@
 
 int error;
 
+static void print_indent (unsigned int indent)
+{
+    while (indent > 0) {
+        printf("  ");
+        indent--;
+    }
+}
+
+static void print_list (struct NCDConfig_list *l, unsigned int indent)
+{
+    while (l) {
+        print_indent(indent);
+        switch (l->type) {
+            case NCDCONFIG_ARG_STRING: {
+                printf("string: %s\n", l->string);
+            } break;
+            case NCDCONFIG_ARG_VAR: {
+                printf("var: ");
+                struct NCDConfig_strings *n = l->var;
+                printf("%s", n->value);
+                n = n->next;
+                while (n) {
+                    printf(".%s", n->value);
+                    n = n->next;
+                }
+                printf("\n");
+            } break;
+            case NCDCONFIG_ARG_LIST: {
+                printf("list\n");
+                print_list(l->list, indent + 1);
+            } break;
+            default:
+                ASSERT(0);
+        }
+        l = l->next;
+    }
+}
+
 int main (int argc, char **argv)
 {
     if (argc < 1) {
@@ -69,28 +107,7 @@ int main (int argc, char **argv)
             
             printf("\n");
             
-            struct NCDConfig_list *arg = st->args;
-            while (arg) {
-                switch (arg->type) {
-                    case NCDCONFIG_ARG_STRING:
-                        printf("    string: %s\n", arg->string);
-                        break;
-                    case NCDCONFIG_ARG_VAR:
-                        printf("    var: ");
-                        struct NCDConfig_strings *n = arg->var;
-                        printf("%s", n->value);
-                        n = n->next;
-                        while (n) {
-                            printf(".%s", n->value);
-                            n = n->next;
-                        }
-                        printf("\n");
-                        break;
-                    default:
-                        ASSERT(0);
-                }
-                arg = arg->next;
-            }
+            print_list(st->args, 2);
             
             st = st->next;
         }
