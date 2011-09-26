@@ -118,7 +118,7 @@ int parse_trying (uint8_t *data, int data_len, uint8_t *out_bssid, uint8_t **out
     // Trying to associate with AB:CD:EF:01:23:45 (SSID='Some SSID' freq=2462 MHz)
     
     int p;
-    if (!(p = data_begins_with(data, data_len, "Trying to associate with "))) {
+    if (!(p = data_begins_with((char *)data, data_len, "Trying to associate with "))) {
         return 0;
     }
     data += p;
@@ -143,7 +143,7 @@ int parse_trying (uint8_t *data, int data_len, uint8_t *out_bssid, uint8_t **out
         }
     }
     
-    if (!(p = data_begins_with(data, data_len, " (SSID='"))) {
+    if (!(p = data_begins_with((char *)data, data_len, " (SSID='"))) {
         return 0;
     }
     data += p;
@@ -172,7 +172,7 @@ int parse_trying_nobssid (uint8_t *data, int data_len, uint8_t **out_ssid, int *
     // Trying to associate with SSID 'Some SSID'
     
     int p;
-    if (!(p = data_begins_with(data, data_len, "Trying to associate with SSID '"))) {
+    if (!(p = data_begins_with((char *)data, data_len, "Trying to associate with SSID '"))) {
         return 0;
     }
     data += p;
