@@ -34,6 +34,7 @@
  * 
  * Variables:
  *   (empty) - list containing elem1, ..., elemN
+ *   length - number of elements in list
  * 
  * Synopsis: list::append(arg)
  * 
@@ -43,6 +44,7 @@
  * Synopsis: list::length()
  * Variables:
  *   (empty) - number of elements in list at the time of initialization
+ *             of this method
  * 
  * Synopsis: list::get(string index)
  * Variables:
@@ -201,6 +203,18 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     if (!strcmp(name, "")) {
         if (!NCDValue_InitCopy(out, &o->list)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
+            return 0;
+        }
+        
+        return 1;
+    }
+    
+    if (!strcmp(name, "length")) {
+        char str[50];
+        snprintf(str, sizeof(str), "%"PRIuMAX, (uintmax_t)NCDValue_ListCount(&o->list));
+        
+        if (!NCDValue_InitString(out, str)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
             return 0;
         }
         
