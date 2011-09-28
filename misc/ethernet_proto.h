@@ -30,6 +30,7 @@
 #include <stdint.h>
 
 #define ETHERTYPE_IPV4 0x0800
+#define ETHERTYPE_ARP 0x0806
 
 struct ethernet_header {
     uint8_t dest[6];
