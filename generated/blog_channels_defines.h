@@ -89,4 +89,5 @@
 #define BLOG_CHANNEL_BSSLConnection 88
 #define BLOG_CHANNEL_BDatagram 89
 #define BLOG_CHANNEL_PeerChat 90
-#define BLOG_NUM_CHANNELS 91
+#define BLOG_CHANNEL_BArpProbe 91
+#define BLOG_NUM_CHANNELS 92
