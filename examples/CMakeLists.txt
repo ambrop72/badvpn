@@ -53,3 +53,8 @@ if (BUILDING_DHCPCLIENT)
     add_executable(dhcpclient_test dhcpclient_test.c)
     target_link_libraries(dhcpclient_test dhcpclient)
 endif ()
+
+if (BUILDING_ARPPROBE)
+    add_executable(arpprobe_test arpprobe_test.c)
+    target_link_libraries(arpprobe_test arpprobe)
+endif ()
