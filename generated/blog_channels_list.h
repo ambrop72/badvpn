@@ -38,6 +38,7 @@
 {.name = "ncd_net_ipv4_addr", .loglevel = 4},
 {.name = "ncd_net_ipv4_route", .loglevel = 4},
 {.name = "ncd_net_ipv4_dhcp", .loglevel = 4},
+{.name = "ncd_net_ipv4_arp_probe", .loglevel = 4},
 {.name = "ncd_net_watch_interfaces", .loglevel = 4},
 {.name = "ncd_sys_watch_input", .loglevel = 4},
 {.name = "ncd_sys_evdev", .loglevel = 4},

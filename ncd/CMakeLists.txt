@@ -71,11 +71,12 @@ add_executable(badvpn-ncd
     modules/net_ipv4_addr.c
     modules/net_ipv4_route.c
     modules/net_ipv4_dhcp.c
+    modules/net_ipv4_arp_probe.c
     modules/net_watch_interfaces.c
     modules/sys_watch_input.c
     ${NCD_ADDITIONAL_SOURCES}
 )
-target_link_libraries(badvpn-ncd system flow flowextra dhcpclient ncdconfig udevmonitor)
+target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdconfig udevmonitor)
 
 if (BADVPN_USE_LINUX_INPUT)
     string(REPLACE " " ";" FLAGS_LIST "${CMAKE_C_FLAGS}")
