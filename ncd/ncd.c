@@ -931,7 +931,7 @@ void process_assert_pointers (struct process *p)
     
     // check AP
     for (size_t i = 0; i < p->ap; i++) {
-        if (i == p->ap - 1) {
+        if (p->ap > 0 && i == p->ap - 1) {
             ASSERT(p->statements[i].state == SSTATE_ADULT || p->statements[i].state == SSTATE_CHILD)
         } else {
             ASSERT(p->statements[i].state == SSTATE_ADULT)
