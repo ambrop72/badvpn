@@ -27,6 +27,7 @@
 {.name = "ncd_alias", .loglevel = 4},
 {.name = "ncd_process_manager", .loglevel = 4},
 {.name = "ncd_ondemand", .loglevel = 4},
+{.name = "ncd_foreach", .loglevel = 4},
 {.name = "ncd_net_backend_waitdevice", .loglevel = 4},
 {.name = "ncd_net_backend_waitlink", .loglevel = 4},
 {.name = "ncd_net_backend_badvpn", .loglevel = 4},

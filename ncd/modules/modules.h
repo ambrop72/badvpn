@@ -51,6 +51,7 @@ extern const struct NCDModuleGroup ncdmodule_index;
 extern const struct NCDModuleGroup ncdmodule_alias;
 extern const struct NCDModuleGroup ncdmodule_process_manager;
 extern const struct NCDModuleGroup ncdmodule_ondemand;
+extern const struct NCDModuleGroup ncdmodule_foreach;
 extern const struct NCDModuleGroup ncdmodule_net_backend_waitdevice;
 extern const struct NCDModuleGroup ncdmodule_net_backend_waitlink;
 extern const struct NCDModuleGroup ncdmodule_net_backend_badvpn;
@@ -99,6 +100,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_alias,
     &ncdmodule_process_manager,
     &ncdmodule_ondemand,
+    &ncdmodule_foreach,
     &ncdmodule_net_backend_waitdevice,
     &ncdmodule_net_backend_waitlink,
     &ncdmodule_net_backend_badvpn,
