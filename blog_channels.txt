@@ -28,6 +28,7 @@ ncd_alias 4
 ncd_process_manager 4
 ncd_ondemand 4
 ncd_foreach 4
+ncd_choose 4
 ncd_net_backend_waitdevice 4
 ncd_net_backend_waitlink 4
 ncd_net_backend_badvpn 4
