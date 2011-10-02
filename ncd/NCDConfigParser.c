@@ -100,23 +100,11 @@ static int tokenizer_output (void *user, int token, char *value, size_t position
         } break;
         
         case NCD_TOKEN_NAME: {
-            char *v = malloc(strlen(value) + 1);
-            if (!v) {
-                state->out.out_of_memory = 1;
-                break;
-            }
-            strcpy(v, value);
-            Parse(state->parser, NAME, v, &state->out);
+            Parse(state->parser, NAME, value, &state->out);
         } break;
         
         case NCD_TOKEN_STRING: {
-            char *v = malloc(strlen(value) + 1);
-            if (!v) {
-                state->out.out_of_memory = 1;
-                break;
-            }
-            strcpy(v, value);
-            Parse(state->parser, STRING, v, &state->out);
+            Parse(state->parser, STRING, value, &state->out);
         } break;
         
         default:

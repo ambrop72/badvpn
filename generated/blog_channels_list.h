@@ -77,6 +77,7 @@
 {.name = "LineBuffer", .loglevel = 4},
 {.name = "BTap", .loglevel = 4},
 {.name = "lwip", .loglevel = 4},
+{.name = "NCDConfigTokenizer", .loglevel = 4},
 {.name = "NCDConfigParser", .loglevel = 4},
 {.name = "nsskey", .loglevel = 4},
 {.name = "addr", .loglevel = 4},

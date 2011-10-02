@@ -68,9 +68,11 @@ static int tokenizer_output (void *user, int token, char *value, size_t pos)
             break;
         case NCD_TOKEN_NAME:
             printf("name %s\n", value);
+            free(value);
             break;
         case NCD_TOKEN_STRING:
             printf("string %s\n", value);
+            free(value);
             break;
         default:
             ASSERT(0);

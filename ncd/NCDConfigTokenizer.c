@@ -22,11 +22,17 @@
 
 #include <string.h>
 #include <stddef.h>
+#include <stdlib.h>
 
 #include <misc/debug.h>
 #include <misc/string_begins_with.h>
+#include <misc/balloc.h>
+#include <misc/expstring.h>
+#include <base/BLog.h>
 
 #include <ncd/NCDConfigTokenizer.h>
+
+#include <generated/blog_channel_NCDConfigTokenizer.h>
 
 static int is_name_char (char c)
 {
@@ -57,7 +63,6 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
         int error = 0;
         int token;
         void *token_val = NULL;
-        char dec[NCD_MAX_SIZE + 1];
         
         if (*str == '#') {
             l = 1;
@@ -92,46 +97,56 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
         }
         else if (is_name_first_char(*str)) {
             l = 1;
-            while (l < left) {
-                if (!is_name_char(str[l])) {
-                    break;
-                }
+            while (l < left && is_name_char(str[l])) {
                 l++;
             }
             
-            // check size
-            if (l > NCD_MAX_SIZE) {
+            // allocate buffer
+            bsize_t bufsize = bsize_add(bsize_fromsize(l), bsize_fromint(1));
+            char *buf;
+            if (bufsize.is_overflow || !(buf = malloc(bufsize.value))) {
+                BLog(BLOG_ERROR, "malloc failed");
                 error = 1;
                 goto out;
             }
             
             // copy and terminate
-            memcpy(dec, str, l);
-            dec[l] = '\0';
+            memcpy(buf, str, l);
+            buf[l] = '\0';
             
-            if (!strcmp(dec, "process")) {
+            if (!strcmp(buf, "process")) {
                 token = NCD_TOKEN_PROCESS;
+                free(buf);
             }
-            else if (!strcmp(dec, "template")) {
+            else if (!strcmp(buf, "template")) {
                 token = NCD_TOKEN_TEMPLATE;
+                free(buf);
             }
             else {
                 token = NCD_TOKEN_NAME;
-                token_val = dec;
+                token_val = buf;
             }
         }
-        else if (*str == '"') {
-            size_t dec_len = 0;
+        else if (*str == '"') do {
+            // init string
+            ExpString estr;
+            if (!ExpString_Init(&estr)) {
+                BLog(BLOG_ERROR, "ExpString_Init failed");
+                goto string_fail0;
+            }
             
-            // decode string on the fly
+            // skip start quote
             l = 1;
+            
+            // decode string
             while (l < left) {
                 char dec_ch;
                 
+                // get character
                 if (str[l] == '\\') {
-                    if (!(l + 1 < left)) {
-                        error = 1;
-                        goto out;
+                    if (left - l < 2) {
+                        BLog(BLOG_ERROR, "escape character found in string but nothing follows");
+                        goto string_fail1;
                     }
                     
                     dec_ch = str[l + 1];
@@ -145,31 +160,37 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
                     l++;
                 }
                 
-                // check size
-                if (dec_len == NCD_MAX_SIZE) {
-                    error = 1;
-                    goto out;
+                // string cannot contain zeros bytes
+                if (dec_ch == '\0') {
+                    BLog(BLOG_ERROR, "string contains zero byte");
+                    goto string_fail1;
                 }
                 
-                // append decoded char
-                dec[dec_len] = dec_ch;
-                dec_len++;
+                // append character to string
+                if (!ExpString_AppendChar(&estr, dec_ch)) {
+                    BLog(BLOG_ERROR, "ExpString_AppendChar failed");
+                    goto string_fail1;
+                }
             }
             
-            // make sure closing quote was found
+            // make sure ending quote was found
             if (l == left) {
-                error = 1;
-                goto out;
+                BLog(BLOG_ERROR, "missing ending quote for string");
+                goto string_fail1;
             }
             
+            // skip ending quote
             l++;
             
-            // terminate
-            dec[dec_len] = '\0';
-            
             token = NCD_TOKEN_STRING;
-            token_val = dec;
-        }
+            token_val = ExpString_Get(&estr);
+            break;
+            
+        string_fail1:
+            ExpString_Free(&estr);
+        string_fail0:
+            error = 1;
+        } while (0);
         else if (is_space_char(*str)) {
             token = 0;
             l = 1;
@@ -179,7 +200,6 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
         }
         
     out:
-        
         // report error
         if (error) {
             output(user, NCD_ERROR, NULL, position);

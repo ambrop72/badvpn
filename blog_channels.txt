@@ -77,6 +77,7 @@ SPProtoDecoder 4
 LineBuffer 4
 BTap 4
 lwip 4
+NCDConfigTokenizer 4
 NCDConfigParser 4
 nsskey 4
 addr 4
