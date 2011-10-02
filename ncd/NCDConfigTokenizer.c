@@ -196,6 +196,7 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
             l = 1;
         }
         else {
+            BLog(BLOG_ERROR, "unrecognized character");
             error = 1;
         }
         
