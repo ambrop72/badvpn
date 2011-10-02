@@ -27,6 +27,7 @@
 
 #include <misc/debug.h>
 #include <misc/exparray.h>
+#include <misc/bsize.h>
 
 typedef struct {
     struct ExpArray arr;
@@ -60,8 +61,9 @@ int ExpString_Append (ExpString *c, const char *str)
     ASSERT(str)
     
     size_t l = strlen(str);
+    bsize_t newsize = bsize_add(bsize_fromsize(c->n), bsize_add(bsize_fromsize(l), bsize_fromint(1)));
     
-    if (!ExpArray_resize(&c->arr, c->n + l + 1)) {
+    if (newsize.is_overflow || !ExpArray_resize(&c->arr, newsize.value)) {
         return 0;
     }
     
