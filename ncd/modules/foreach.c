@@ -52,6 +52,8 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
+#define RETRY_TIME 5000
+
 #define ISTATE_WORKING 1
 #define ISTATE_UP 2
 #define ISTATE_WAITING 3
@@ -402,7 +404,7 @@ static void func_new (NCDModuleInst *i)
     o->args = arg_args;
     
     // init timer
-    BTimer_Init(&o->timer, 5000, (BTimer_handler)timer_handler, o);
+    BTimer_Init(&o->timer, RETRY_TIME, (BTimer_handler)timer_handler, o);
     
     // count elements
     o->num_elems = NCDValue_ListCount(arg_list);
