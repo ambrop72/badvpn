@@ -929,6 +929,7 @@ void process_assert_pointers (struct process *p)
     ASSERT(p->fp >= p->ap)
     ASSERT(p->fp <= p->num_statements)
     
+#ifndef NDEBUG
     // check AP
     for (size_t i = 0; i < p->ap; i++) {
         if (p->ap > 0 && i == p->ap - 1) {
@@ -944,6 +945,7 @@ void process_assert_pointers (struct process *p)
         fp--;
     }
     ASSERT(p->fp == fp)
+#endif
 }
 
 void process_logfunc (struct process *p)
