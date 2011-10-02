@@ -37,6 +37,7 @@ typedef struct {
 static int ExpString_Init (ExpString *c);
 static void ExpString_Free (ExpString *c);
 static int ExpString_Append (ExpString *c, const char *str);
+static int ExpString_AppendChar (ExpString *c, char ch);
 static char * ExpString_Get (ExpString *c);
 
 int ExpString_Init (ExpString *c)
@@ -69,6 +70,23 @@ int ExpString_Append (ExpString *c, const char *str)
     
     memcpy((char *)c->arr.v + c->n, str, l);
     c->n += l;
+    ((char *)c->arr.v)[c->n] = '\0';
+    
+    return 1;
+}
+
+int ExpString_AppendChar (ExpString *c, char ch)
+{
+    ASSERT(ch != '\0')
+    
+    bszie_t newsize = bsize_add(bsize_fromsize(c->n, bsize_fromint(2)));
+    
+    if (newsize.is_overflow || !ExpArray_resize(&c->arr, newsize.value)) {
+        return 0;
+    }
+    
+    ((char *)c->arr.v)[c->n] = ch;
+    c->n++;
     ((char *)c->arr.v)[c->n] = '\0';
     
     return 1;
