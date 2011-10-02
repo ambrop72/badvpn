@@ -79,7 +79,7 @@ int ExpString_AppendChar (ExpString *c, char ch)
 {
     ASSERT(ch != '\0')
     
-    bszie_t newsize = bsize_add(bsize_fromsize(c->n, bsize_fromint(2)));
+    bsize_t newsize = bsize_add(bsize_fromsize(c->n), bsize_fromint(2));
     
     if (newsize.is_overflow || !ExpArray_resize(&c->arr, newsize.value)) {
         return 0;
