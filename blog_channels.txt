@@ -9,7 +9,6 @@ ncd_depend 4
 ncd_multidepend 4
 ncd_concat 4
 ncd_concatv 4
-ncd_concatlist 4
 ncd_if 4
 ncd_strcmp 4
 ncd_regex_match 4

@@ -9,7 +9,6 @@
 {.name = "ncd_multidepend", .loglevel = 4},
 {.name = "ncd_concat", .loglevel = 4},
 {.name = "ncd_concatv", .loglevel = 4},
-{.name = "ncd_concatlist", .loglevel = 4},
 {.name = "ncd_if", .loglevel = 4},
 {.name = "ncd_strcmp", .loglevel = 4},
 {.name = "ncd_regex_match", .loglevel = 4},

@@ -636,6 +636,12 @@ static const struct NCDModule modules[] = {
         .func_die = func_die,
         .func_getvar = func_getvar
     }, {
+        .type = "concatlist", // alias for listfrom
+        .base_type = "list",
+        .func_new = func_new_listfrom,
+        .func_die = func_die,
+        .func_getvar = func_getvar
+    }, {
         .type = "list::append",
         .func_new = append_func_new,
         .func_die = append_func_die

@@ -43,7 +43,6 @@ add_executable(badvpn-ncd
     modules/multidepend.c
     modules/concat.c
     modules/concatv.c
-    modules/concatlist.c
     modules/if.c
     modules/strcmp.c
     modules/regex_match.c
