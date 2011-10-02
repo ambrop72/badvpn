@@ -62,6 +62,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 
+#include <misc/parse_number.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_list.h>
@@ -435,7 +436,7 @@ static void get_func_new (NCDModuleInst *i)
         goto fail1;
     }
     uintmax_t index;
-    if (sscanf(NCDValue_StringValue(index_arg), "%"SCNuMAX, &index) != 1) {
+    if (!parse_unsigned_integer(NCDValue_StringValue(index_arg), &index)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong value");
         goto fail1;
     }
