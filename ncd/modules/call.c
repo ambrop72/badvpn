@@ -39,11 +39,13 @@
  *   call statement via "_caller.variable".
  *   The second form also exposes variables and objects from the corresponding
  *   callrefhere() statement via "_ref.variable".
+ *   If template_name is "<none>", then the call() is a no-op - it goes up
+ *   immediately and immediately terminates on request.
  * 
  * Variables:
  *   Exposes variables as seen from the end of the called process template.
  * 
- * Behavior in detail:
+ * Behavior in detail (assuming template_name is not "<none>"):
  *   - On initialization, creates a new process from the template named
  *     template_name, with arguments args.
  *   - When all the statements in the created process go UP, transitions UP.
@@ -55,6 +57,7 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 
 #include <misc/string_begins_with.h>
 #include <misc/offset.h>
@@ -69,6 +72,7 @@
 #define STATE_UP 2
 #define STATE_WAITING 3
 #define STATE_TERMINATING 4
+#define STATE_NONE 5
 
 struct callrefhere_instance {
     NCDModuleInst *i;
@@ -218,36 +222,46 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
+    char *template_name = NCDValue_StringValue(template_name_arg);
     
-    // copy arguments
-    NCDValue args;
-    if (!NCDValue_InitCopy(&args, args_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail1;
+    // calling none?
+    if (!strcmp(template_name, "<none>")) {
+        // signal up
+        NCDModuleInst_Backend_Up(o->i);
+        
+        // set state none
+        o->state = STATE_NONE;
+    } else {
+        // copy arguments
+        NCDValue args;
+        if (!NCDValue_InitCopy(&args, args_arg)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
+            goto fail1;
+        }
+        
+        // create process
+        if (!NCDModuleProcess_Init(&o->process, o->i, template_name, args, o, (NCDModuleProcess_handler_event)process_handler_event)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
+            NCDValue_Free(&args);
+            goto fail1;
+        }
+        
+        // set special functions
+        NCDModuleProcess_SetSpecialFuncs(&o->process,
+                                        (NCDModuleProcess_func_getspecialvar)process_func_getspecialvar,
+                                        (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
+        
+        // set callrefhere
+        o->crh = (o->i->method_object ? o->i->method_object->inst_user : NULL);
+        
+        // add to callrefhere's calls list
+        if (o->crh) {
+            LinkedList0_Prepend(&o->crh->calls_list, &o->calls_list_node);
+        }
+        
+        // set state working
+        o->state = STATE_WORKING;
     }
-    
-    // create process
-    if (!NCDModuleProcess_Init(&o->process, o->i, NCDValue_StringValue(template_name_arg), args, o, (NCDModuleProcess_handler_event)process_handler_event)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
-        NCDValue_Free(&args);
-        goto fail1;
-    }
-    
-    // set special functions
-    NCDModuleProcess_SetSpecialFuncs(&o->process,
-                                     (NCDModuleProcess_func_getspecialvar)process_func_getspecialvar,
-                                     (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
-    
-    // set callrefhere
-    o->crh = (o->i->method_object ? o->i->method_object->inst_user : NULL);
-    
-    // add to callrefhere's calls list
-    if (o->crh) {
-        LinkedList0_Prepend(&o->crh->calls_list, &o->calls_list_node);
-    }
-    
-    // set state working
-    o->state = STATE_WORKING;
     return;
     
 fail1:
@@ -261,13 +275,15 @@ void instance_free (struct instance *o)
 {
     NCDModuleInst *i = o->i;
     
-    // remove from callrefhere's calls list
-    if (o->crh) {
-        LinkedList0_Remove(&o->crh->calls_list, &o->calls_list_node);
+    if (o->state != STATE_NONE) {
+        // remove from callrefhere's calls list
+        if (o->crh) {
+            LinkedList0_Remove(&o->crh->calls_list, &o->calls_list_node);
+        }
+        
+        // free process
+        NCDModuleProcess_Free(&o->process);
     }
-    
-    // free process
-    NCDModuleProcess_Free(&o->process);
     
     // free instance
     free(o);
@@ -279,6 +295,12 @@ static void func_die (void *vo)
 {
     struct instance *o = vo;
     ASSERT(o->state != STATE_TERMINATING)
+    
+    // if none, die now
+    if (o->state == STATE_NONE) {
+        instance_free(o);
+        return;
+    }
     
     // request process to terminate
     NCDModuleProcess_Terminate(&o->process);
@@ -304,7 +326,11 @@ static void func_clean (void *vo)
 static int func_getvar (void *vo, const char *name, NCDValue *out)
 {
     struct instance *o = vo;
-    ASSERT(o->state == STATE_UP)
+    ASSERT(o->state == STATE_NONE || o->state == STATE_UP)
+    
+    if (o->state == STATE_NONE) {
+        return 0;
+    }
     
     return NCDModuleProcess_GetVar(&o->process, name, out);
 }
@@ -312,7 +338,11 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
 static NCDModuleInst * func_getobj (void *vo, const char *name)
 {
     struct instance *o = vo;
-    ASSERT(o->state == STATE_UP)
+    ASSERT(o->state == STATE_NONE || o->state == STATE_UP)
+    
+    if (o->state == STATE_NONE) {
+        return NULL;
+    }
     
     return NCDModuleProcess_GetObj(&o->process, name);
 }
