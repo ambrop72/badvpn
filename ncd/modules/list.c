@@ -210,8 +210,8 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     }
     
     if (!strcmp(name, "length")) {
-        char str[50];
-        snprintf(str, sizeof(str), "%"PRIuMAX, (uintmax_t)NCDValue_ListCount(&o->list));
+        char str[64];
+        snprintf(str, sizeof(str), "%zu", NCDValue_ListCount(&o->list));
         
         if (!NCDValue_InitString(out, str)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
@@ -397,8 +397,8 @@ static int length_func_getvar (void *vo, const char *name, NCDValue *out)
     struct length_instance *o = vo;
     
     if (!strcmp(name, "")) {
-        char str[50];
-        snprintf(str, sizeof(str), "%"PRIuMAX, (uintmax_t)o->length);
+        char str[64];
+        snprintf(str, sizeof(str), "%zu", o->length);
         
         if (!NCDValue_InitString(out, str)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
