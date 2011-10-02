@@ -56,7 +56,8 @@ static int string_equals (char *str, int str_len, char *needle)
 
 void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_output output, void *user)
 {
-    size_t position = 0;
+    size_t line = 1;
+    size_t line_char = 1;
     
     while (left > 0) {
         size_t l;
@@ -203,21 +204,30 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
     out:
         // report error
         if (error) {
-            output(user, NCD_ERROR, NULL, position);
+            output(user, NCD_ERROR, NULL, line, line_char);
             return;
         }
         
         // output token
         if (token) {
-            if (!output(user, token, token_val, position)) {
+            if (!output(user, token, token_val, line, line_char)) {
                 return;
+            }
+        }
+        
+        // update line/char counters
+        for (size_t i = 0; i < l; i++) {
+            if (str[i] == '\n') {
+                line++;
+                line_char = 1;
+            } else {
+                line_char++;
             }
         }
         
         str += l;
         left -= l;
-        position += l;
     }
     
-    output(user, NCD_EOF, NULL, position);
+    output(user, NCD_EOF, NULL, line, line_char);
 }

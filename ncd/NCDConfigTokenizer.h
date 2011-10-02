@@ -38,7 +38,7 @@
 #define NCD_TOKEN_ARROW 11
 #define NCD_TOKEN_TEMPLATE 12
 
-typedef int (*NCDConfigTokenizer_output) (void *user, int token, char *value, size_t position);
+typedef int (*NCDConfigTokenizer_output) (void *user, int token, char *value, size_t line, size_t line_char);
 
 void NCDConfigTokenizer_Tokenize (char *str, size_t str_len, NCDConfigTokenizer_output output, void *user);
 

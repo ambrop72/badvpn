@@ -41,7 +41,7 @@ struct parser_state {
     void *parser;
 };
 
-static int tokenizer_output (void *user, int token, char *value, size_t position)
+static int tokenizer_output (void *user, int token, char *value, size_t line, size_t line_char)
 {
     struct parser_state *state = (struct parser_state *)user;
     ASSERT(!state->out.out_of_memory)
@@ -49,7 +49,7 @@ static int tokenizer_output (void *user, int token, char *value, size_t position
     ASSERT(!state->error)
     
     if (token == NCD_ERROR) {
-        BLog(BLOG_ERROR, "tokenizer error at %zu", position);
+        BLog(BLOG_ERROR, "line %zu, character %zu: tokenizer error", line, line_char);
         state->error = 1;
         return 0;
     }
@@ -113,13 +113,13 @@ static int tokenizer_output (void *user, int token, char *value, size_t position
     
     // if we got syntax error, stop parsing
     if (state->out.syntax_error) {
-        BLog(BLOG_ERROR, "syntax error at %zu", position);
+        BLog(BLOG_ERROR, "line %zu, character %zu: syntax error", line, line_char);
         state->error = 1;
         return 0;
     }
     
     if (state->out.out_of_memory) {
-        BLog(BLOG_ERROR, "out of memory at %zu", position);
+        BLog(BLOG_ERROR, "line %zu, character %zu: out of memory", line, line_char);
         state->error = 1;
         return 0;
     }

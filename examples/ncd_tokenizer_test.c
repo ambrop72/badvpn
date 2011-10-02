@@ -30,10 +30,10 @@
 
 int error;
 
-static int tokenizer_output (void *user, int token, char *value, size_t pos)
+static int tokenizer_output (void *user, int token, char *value, size_t line, size_t line_char)
 {
     if (token == NCD_ERROR) {
-        printf("error at %zd\n", pos);
+        printf("line %zu, character %zu: tokenizer error\n", line, line_char);
         error = 1;
         return 0;
     }
