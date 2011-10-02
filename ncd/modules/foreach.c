@@ -100,12 +100,12 @@ static void assert_state (struct instance *o)
     ASSERT(o->ip <= o->num_elems)
     ASSERT(o->gp <= o->ip)
     
+#ifndef NDEBUG
     // check GP
     for (size_t i = 0; i < o->gp; i++) {
         if (o->gp > 0 && i == o->gp - 1) {
             ASSERT(o->elems[i].state == ESTATE_UP || o->elems[i].state == ESTATE_DOWN ||
                    o->elems[i].state == ESTATE_WAITING)
-            
         } else {
             ASSERT(o->elems[i].state == ESTATE_UP)
         }
@@ -117,6 +117,18 @@ static void assert_state (struct instance *o)
         ip--;
     }
     ASSERT(o->ip == ip)
+    
+    // check gap
+    for (size_t i = o->gp; i < o->ip; i++) {
+        if (o->ip > 0 && i == o->ip - 1) {
+            ASSERT(o->elems[i].state == ESTATE_UP || o->elems[i].state == ESTATE_DOWN ||
+                   o->elems[i].state == ESTATE_WAITING || o->elems[i].state == ESTATE_TERMINATING)
+        } else {
+            ASSERT(o->elems[i].state == ESTATE_UP || o->elems[i].state == ESTATE_DOWN ||
+                   o->elems[i].state == ESTATE_WAITING)
+        }
+    }
+#endif
 }
 
 static void work (struct instance *o)
