@@ -195,7 +195,15 @@ static void ondemand_process_handler (struct ondemand *o, int event)
             
             // if demands arrivied, restart process
             if (!LinkedList1_IsEmpty(&o->demands_list)) {
-                ondemand_start_process(o);
+                if (!ondemand_start_process(o)) {
+                    // error demands
+                    while (!LinkedList1_IsEmpty(&o->demands_list)) {
+                        struct demand *demand = UPPER_OBJECT(LinkedList1_GetFirst(&o->demands_list), struct demand, demands_list_node);
+                        ASSERT(demand->od == o)
+                        NCDModuleInst_Backend_SetError(demand->i);
+                        demand_free(demand);
+                    }
+                }
             }
         } break;
     }
