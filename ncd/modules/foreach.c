@@ -105,7 +105,7 @@ static void assert_state (struct instance *o)
 #ifndef NDEBUG
     // check GP
     for (size_t i = 0; i < o->gp; i++) {
-        if (o->gp > 0 && i == o->gp - 1) {
+        if (i == o->gp - 1) {
             ASSERT(o->elems[i].state == ESTATE_UP || o->elems[i].state == ESTATE_DOWN ||
                    o->elems[i].state == ESTATE_WAITING)
         } else {
@@ -122,7 +122,7 @@ static void assert_state (struct instance *o)
     
     // check gap
     for (size_t i = o->gp; i < o->ip; i++) {
-        if (o->ip > 0 && i == o->ip - 1) {
+        if (i == o->ip - 1) {
             ASSERT(o->elems[i].state == ESTATE_UP || o->elems[i].state == ESTATE_DOWN ||
                    o->elems[i].state == ESTATE_WAITING || o->elems[i].state == ESTATE_TERMINATING)
         } else {
