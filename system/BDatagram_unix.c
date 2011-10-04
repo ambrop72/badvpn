@@ -155,6 +155,7 @@ static void addr_sys_to_socket (BAddr *out, struct sys_addr addr)
             BAddr_InitIPv6(out, addr.addr.ipv6.sin6_addr.s6_addr, addr.addr.ipv6.sin6_port);
         } break;
         
+#ifdef BADVPN_LINUX
         case AF_PACKET: {
             if (addr.len < offsetof(struct sockaddr_ll, sll_addr) + 6) {
                 goto fail;
@@ -187,6 +188,7 @@ static void addr_sys_to_socket (BAddr *out, struct sys_addr addr)
             }
             BAddr_InitPacket(out, addr.addr.packet.sll_protocol, addr.addr.packet.sll_ifindex, BADDR_PACKET_HEADER_TYPE_ETHERNET, packet_type, addr.addr.packet.sll_addr);
         } break;
+#endif
         
         fail:
         default: {
