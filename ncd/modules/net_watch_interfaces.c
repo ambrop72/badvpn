@@ -360,6 +360,7 @@ static void func_new (NCDModuleInst *i)
     
     // compile regex
     if (regcomp(&o->preg, "/([^/]+)/net/", REG_EXTENDED)) {
+        ModuleLog(o->i, BLOG_ERROR, "regcomp failed");
         goto fail2;
     }
     
