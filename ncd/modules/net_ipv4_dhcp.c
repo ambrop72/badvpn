@@ -32,7 +32,7 @@
  * Variables:
  *   string addr - assigned IP address ("A.B.C.D")
  *   string prefix - address prefix length ("N")
- *   string gateway - router address ("A.B.C.D")
+ *   string gateway - router address ("A.B.C.D"), or "none" if not provided
  *   list(string) dns_servers - DNS server addresses ("A.B.C.D" ...)
  *   string server_mac - MAC address of the DHCP server (6 two-digit caps hexadecimal values
  *     separated with colons, e.g."AB:CD:EF:01:02:03")
@@ -192,15 +192,15 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     }
     
     if (!strcmp(name, "gateway")) {
+        char str[50];
+        
         uint32_t addr;
         if (!BDHCPClient_GetRouter(&o->dhcp, &addr)) {
-            ModuleLog(o->i, BLOG_ERROR, "no router");
-            return 0;
+            strcpy(str, "none");
+        } else {
+            uint8_t *b = (uint8_t *)&addr;
+            sprintf(str, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, b[0], b[1], b[2], b[3]);
         }
-        
-        uint8_t *b = (uint8_t *)&addr;
-        char str[50];
-        sprintf(str, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, b[0], b[1], b[2], b[3]);
         
         if (!NCDValue_InitString(out, str)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
