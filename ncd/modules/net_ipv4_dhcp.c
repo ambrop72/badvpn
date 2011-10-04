@@ -161,6 +161,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
         sprintf(str, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, b[0], b[1], b[2], b[3]);
         
         if (!NCDValue_InitString(out, str)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
             return 0;
         }
         
@@ -175,6 +176,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
         
         struct ipv4_ifaddr ifaddr;
         if (!ipaddr_ipv4_ifaddr_from_addr_mask(addr, mask, &ifaddr)) {
+            ModuleLog(o->i, BLOG_ERROR, "bad netmask");
             return 0;
         }
         
@@ -182,6 +184,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
         sprintf(str, "%d", ifaddr.prefix);
         
         if (!NCDValue_InitString(out, str)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
             return 0;
         }
         
@@ -191,6 +194,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     if (!strcmp(name, "gateway")) {
         uint32_t addr;
         if (!BDHCPClient_GetRouter(&o->dhcp, &addr)) {
+            ModuleLog(o->i, BLOG_ERROR, "no router");
             return 0;
         }
         
@@ -199,6 +203,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
         sprintf(str, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, b[0], b[1], b[2], b[3]);
         
         if (!NCDValue_InitString(out, str)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
             return 0;
         }
         
@@ -219,10 +224,12 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
             
             NCDValue server;
             if (!NCDValue_InitString(&server, str)) {
+                ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
                 goto fail1;
             }
             
             if (!NCDValue_ListAppend(&list, server)) {
+                ModuleLog(o->i, BLOG_ERROR, "NCDValue_ListAppend failed");
                 NCDValue_Free(&server);
                 goto fail1;
             }
@@ -245,6 +252,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         
         if (!NCDValue_InitString(out, str)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
             return 0;
         }
         
