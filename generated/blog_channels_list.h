@@ -93,3 +93,4 @@
 {.name = "BDatagram", .loglevel = 4},
 {.name = "PeerChat", .loglevel = 4},
 {.name = "BArpProbe", .loglevel = 4},
+{.name = "NCDModuleIndex", .loglevel = 4},

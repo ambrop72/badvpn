@@ -45,6 +45,7 @@
 #include <udevmonitor/NCDUdevManager.h>
 #include <ncd/NCDConfigParser.h>
 #include <ncd/NCDModule.h>
+#include <ncd/NCDModuleIndex.h>
 #include <ncd/modules/modules.h>
 
 #ifndef BADVPN_USE_WINAPI
@@ -147,6 +148,9 @@ BProcessManager manager;
 // udev manager
 NCDUdevManager umanager;
 
+// module index
+NCDModuleIndex mindex;
+
 // config AST
 struct NCDConfig_processes *config_ast;
 
@@ -157,7 +161,6 @@ static void print_help (const char *name);
 static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
-static const struct NCDModule * find_module (const char *name);
 static int arg_value_init_string (struct arg_value *o, const char *string);
 static int arg_value_init_variable (struct arg_value *o, const char *variable);
 static void arg_value_init_list (struct arg_value *o);
@@ -278,6 +281,17 @@ int main (int argc, char **argv)
     // init udev manager
     NCDUdevManager_Init(&umanager, &ss, &manager);
     
+    // init module index
+    NCDModuleIndex_Init(&mindex);
+    
+    // add module groups to index
+    for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
+        if (!NCDModuleIndex_AddGroup(&mindex, *g)) {
+            BLog(BLOG_ERROR, "NCDModuleIndex_AddGroup failed");
+            goto fail2;
+        }
+    }
+    
     // setup signal handler
     if (!BSignal_Init(&ss, signal_handler, NULL)) {
         BLog(BLOG_ERROR, "BSignal_Init failed");
@@ -355,6 +369,9 @@ fail3:
     // remove signal handler
     BSignal_Finish();
 fail2:
+    // free module index
+    NCDModuleIndex_Free(&mindex);
+    
     // free udev manager
     NCDUdevManager_Free(&umanager);
     
@@ -561,19 +578,6 @@ void signal_handler (void *unused)
             process_start_terminating(p);
         }
     }
-}
-
-const struct NCDModule * find_module (const char *name)
-{
-    for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
-        for (const struct NCDModule *m = (*g)->modules; m->type; m++) {
-            if (!strcmp(m->type, name)) {
-                return m;
-            }
-        }
-    }
-    
-    return NULL;
 }
 
 int arg_value_init_string (struct arg_value *o, const char *string)
@@ -1151,7 +1155,7 @@ void process_advance_job_handler (struct process *p)
     }
     
     // find module to instantiate
-    if (!(ps->module = find_module(type))) {
+    if (!(ps->module = NCDModuleIndex_FindModule(&mindex, type))) {
         process_statement_log(ps, BLOG_ERROR, "failed to find module: %s", type);
         goto fail1;
     }

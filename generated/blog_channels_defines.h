@@ -93,4 +93,5 @@
 #define BLOG_CHANNEL_BDatagram 92
 #define BLOG_CHANNEL_PeerChat 93
 #define BLOG_CHANNEL_BArpProbe 94
-#define BLOG_NUM_CHANNELS 95
+#define BLOG_CHANNEL_NCDModuleIndex 95
+#define BLOG_NUM_CHANNELS 96
