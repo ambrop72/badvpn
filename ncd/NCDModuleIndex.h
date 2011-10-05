@@ -28,7 +28,7 @@
 #include <base/DebugObject.h>
 #include <ncd/NCDModule.h>
 
-#define NCDMODULEINDEX_MAX_TYPE_LEN 64
+#define NCDMODULEINDEX_MAX_TYPE_LEN 63
 
 typedef struct {
     BAVL modules_tree;
