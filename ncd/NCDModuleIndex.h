@@ -32,6 +32,7 @@
 
 typedef struct {
     BAVL modules_tree;
+    BAVL base_types_tree;
     DebugObject d_obj;
 } NCDModuleIndex;
 
@@ -39,6 +40,12 @@ struct NCDModuleIndex_module {
     char type[NCDMODULEINDEX_MAX_TYPE_LEN + 1];
     const struct NCDModule *module;
     BAVLNode modules_tree_node;
+};
+
+struct NCDModuleIndex_base_type {
+    const char *base_type;
+    const struct NCDModuleGroup *group;
+    BAVLNode base_types_tree_node;
 };
 
 void NCDModuleIndex_Init (NCDModuleIndex *o);

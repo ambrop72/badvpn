@@ -42,6 +42,18 @@ static int string_comparator (void *user, const char *s1, const char *s2)
     return 0;
 }
 
+static int string_pointer_comparator (void *user, const char **s1, const char **s2)
+{
+    int cmp = strcmp(*s1, *s2);
+    if (cmp < 0) {
+        return -1;
+    }
+    if (cmp > 0) {
+        return 1;
+    }
+    return 0;
+}
+
 static struct NCDModuleIndex_module * find_module (NCDModuleIndex *o, const char *type)
 {
     BAVLNode *node = BAVL_LookupExact(&o->modules_tree, (void *)type);
@@ -55,10 +67,26 @@ static struct NCDModuleIndex_module * find_module (NCDModuleIndex *o, const char
     return m;
 }
 
+static struct NCDModuleIndex_base_type * find_base_type (NCDModuleIndex *o, const char *base_type)
+{
+    BAVLNode *node = BAVL_LookupExact(&o->base_types_tree, &base_type);
+    if (!node) {
+        return NULL;
+    }
+    
+    struct NCDModuleIndex_base_type *bt = UPPER_OBJECT(node, struct NCDModuleIndex_base_type, base_types_tree_node);
+    ASSERT(!strcmp(bt->base_type, base_type))
+    
+    return bt;
+}
+
 void NCDModuleIndex_Init (NCDModuleIndex *o)
 {
     // init modules tree
     BAVL_Init(&o->modules_tree, OFFSET_DIFF(struct NCDModuleIndex_module, type, modules_tree_node), (BAVL_comparator)string_comparator, NULL);
+    
+    // init base types tree
+    BAVL_Init(&o->base_types_tree, OFFSET_DIFF(struct NCDModuleIndex_base_type, base_type, base_types_tree_node), (BAVL_comparator)string_pointer_comparator, NULL);
     
     DebugObject_Init(&o->d_obj);
 }
@@ -67,6 +95,14 @@ void NCDModuleIndex_Free (NCDModuleIndex *o)
 {
     DebugObject_Free(&o->d_obj);
     
+    // free base types
+    while (!BAVL_IsEmpty(&o->base_types_tree)) {
+        struct NCDModuleIndex_base_type *bt = UPPER_OBJECT(BAVL_GetFirst(&o->base_types_tree), struct NCDModuleIndex_base_type, base_types_tree_node);
+        BAVL_Remove(&o->base_types_tree, &bt->base_types_tree_node);
+        free(bt);
+    }
+    
+    // free modules
     while (!BAVL_IsEmpty(&o->modules_tree)) {
         struct NCDModuleIndex_module *m = UPPER_OBJECT(BAVL_GetFirst(&o->modules_tree), struct NCDModuleIndex_module, modules_tree_node);
         BAVL_Remove(&o->modules_tree, &m->modules_tree_node);
@@ -81,23 +117,50 @@ int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *gro
     for (const struct NCDModule *nm = group->modules; nm->type; nm++) {
         if (find_module(o, nm->type)) {
             BLog(BLOG_ERROR, "module type '%s' already exists", nm->type);
-            return 0;
+            goto loop_fail0;
         }
         
         if (strlen(nm->type) > NCDMODULEINDEX_MAX_TYPE_LEN) {
             BLog(BLOG_ERROR, "module type '%s' is too long", nm->type);
-            return 0;
+            goto loop_fail0;
         }
         
         struct NCDModuleIndex_module *m = malloc(sizeof(*m));
         if (!m) {
             BLog(BLOG_ERROR, "malloc failed");
-            return 0;
+            goto loop_fail0;
         }
         
         strcpy(m->type, nm->type);
         m->module = nm;
         ASSERT_EXECUTE(BAVL_Insert(&o->modules_tree, &m->modules_tree_node, NULL))
+        
+        const char *base_type = (nm->base_type ? nm->base_type : nm->type);
+        
+        struct NCDModuleIndex_base_type *bt = find_base_type(o, base_type);
+        if (bt) {
+            if (bt->group != group) {
+                BLog(BLOG_ERROR, "module base type '%s' already exists in another module group", base_type);
+                goto loop_fail1;
+            }
+        } else {
+            if (!(bt = malloc(sizeof(*bt)))) {
+                BLog(BLOG_ERROR, "malloc failed");
+                goto loop_fail1;
+            }
+            
+            bt->base_type = base_type;
+            bt->group = group;
+            ASSERT_EXECUTE(BAVL_Insert(&o->base_types_tree, &bt->base_types_tree_node, NULL))
+        }
+        
+        continue;
+        
+    loop_fail1:
+        BAVL_Remove(&o->modules_tree, &m->modules_tree_node);
+        free(m);
+    loop_fail0:
+        return 0;
     }
     
     return 1;
