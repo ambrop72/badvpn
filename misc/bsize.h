@@ -29,6 +29,7 @@
 
 #include <stddef.h>
 #include <limits.h>
+#include <stdint.h>
 
 typedef struct {
     int is_overflow;
