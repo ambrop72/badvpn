@@ -498,7 +498,6 @@ int BDatagram_Init (BDatagram *o, int family, BReactor *reactor, void *user,
     // obtain WSASendMsg
     guid = (GUID)WSAID_WSASENDMSG;
     if (WSAIoctl(o->sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &o->fnWSASendMsg, sizeof(o->fnWSASendMsg), &out_bytes, NULL, NULL) != 0) {
-        BLog(BLOG_WARNING, "failed to obtain WSASendMsg");
         o->fnWSASendMsg = NULL;
     }
     
