@@ -13,68 +13,46 @@
 process events_main {
     # Volume control script, called with argument "up", "down" or "mute".
     var("/usr/local/bin/volumekey") volume_script;
+
     # Suspend command.
     list("/usr/sbin/pm-suspend") suspend_cmd;
 
-    # Provide for accessing configuration from event providers.
-    provide("events_config");
+    provide("GLOBAL");
+}
 
+process events_watcher {
+    depend("GLOBAL");
+  
     # Create process manager.
     process_manager() manager;
 
     # Wait for input device events.
     sys.watch_input("event") watcher;
 
-    # Determine if the device is of interest.
-    # Volume and power keys are reported by "key" devices.
-    strcmp(watcher.device_type, "key") interest;
+    # Dispatch.
+    concat("events_watcher_", watcher.event_type) func;
+    call(func, {});
 
-    # Determine dispatch location.
-    strcmp(watcher.event_type, "added") added;
-    and(added, interest) dispatch_added;
-    strcmp(watcher.event_type, "removed") removed;
-    and(removed, interest) dispatch_removed;
-
-    # Dispatch event.
-    provide("events_watcher_event");
-
-    # If event was not recognized, finish it here.
-    ifnot(dispatch_added);
-    ifnot(dispatch_removed);
+    # Next event.
     watcher->nextevent();
 }
 
-process events_watcher_event_added {
-    # Wait for event.
-    depend("events_watcher_event") evdep;
-    if(evdep.dispatch_added);
-
+template events_watcher_added {
     # Start event handling process for this device.
-    list(evdep.watcher.devname) args;
-    evdep.manager->start(evdep.watcher.devname, "events_input_device", args);
-
-    # Finish event.
-    evdep.watcher->nextevent();
+    _caller.manager->start(_caller.watcher.devname, "events_input_device", {_caller.watcher.devname});
 }
 
-process events_watcher_event_removed {
-    # Wait for event.
-    depend("events_watcher_event") evdep;
-    if(evdep.dispatch_removed);
-
+template events_watcher_removed {
     # Stop event handling process for this device.
-    evdep.manager->stop(evdep.watcher.devname);
-
-    # Finish event.
-    evdep.watcher->nextevent();
+    _caller.manager->stop(_caller.watcher.devname);
 }
 
 template events_input_device {
     # Alias arguments.
     var(_arg0) dev;
 
-    # Dependency for accessing configuration.
-    depend("events_config") config;
+    # Get global.
+    depend("GLOBAL") gdep;
 
     # Wait for input events.
     sys.evdev(dev) evdev;
@@ -93,65 +71,31 @@ template events_input_device {
     and(is_power, is_pressed) dispatch_power;
 
     # Dispatch event.
-    provide_event("events_input_event");
+    choose({
+        {dispatch_mute, "events_input_event_mute"},
+        {dispatch_vup, "events_input_event_vup"},
+        {dispatch_vdown, "events_input_event_vdown"},
+        {dispatch_power, "events_input_event_power"}},
+        "<none>"
+    ) func;
+    call(func, {});
 
-    # Handle unhandled event.
-    ifnot(dispatch_mute);
-    ifnot(dispatch_vup);
-    ifnot(dispatch_vdown);
-    ifnot(dispatch_power);
-
-    # Finish unhandled event.
+    # Next event.
     evdev->nextevent();
 }
 
-process events_input_event_mute {
-    # Wait for event.
-    depend("events_input_event") dep;
-    if(dep.dispatch_mute);
-
-    # Process event.
-    list(dep.config.volume_script, "mute") cmd;
-    runonce(cmd);
-
-    # Finish event.
-    dep.evdev->nextevent();
+template events_input_event_mute {
+    runonce({_caller.gdep.volume_script, "mute"});
 }
 
-process events_input_event_vup {
-    # Wait for event.
-    depend("events_input_event") dep;
-    if(dep.dispatch_vup);
-
-    # Process event.
-    list(dep.config.volume_script, "up") cmd;
-    runonce(cmd);
-
-    # Finish event.
-    dep.evdev->nextevent();
+template events_input_event_vup {
+    runonce({_caller.gdep.volume_script, "up"});
 }
 
-process events_input_event_vdown {
-    # Wait for event.
-    depend("events_input_event") dep;
-    if(dep.dispatch_vdown);
-
-    # Process event.
-    list(dep.config.volume_script, "down") cmd;
-    runonce(cmd);
-
-    # Finish event.
-    dep.evdev->nextevent();
+template events_input_event_vdown {
+    runonce({_caller.gdep.volume_script, "down"});
 }
 
-process events_input_event_power {
-    # Wait for event.
-    depend("events_input_event") dep;
-    if(dep.dispatch_power);
-
-    # Process event.
-    runonce(dep.config.suspend_cmd);
-
-    # Finish event.
-    dep.evdev->nextevent();
+template events_input_event_power {
+    runonce(_caller.gdep.suspend_cmd);
 }
