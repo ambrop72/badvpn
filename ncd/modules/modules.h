@@ -68,6 +68,7 @@ extern const struct NCDModuleGroup ncdmodule_net_ipv4_dhcp;
 extern const struct NCDModuleGroup ncdmodule_net_ipv4_arp_probe;
 extern const struct NCDModuleGroup ncdmodule_net_watch_interfaces;
 extern const struct NCDModuleGroup ncdmodule_sys_watch_input;
+extern const struct NCDModuleGroup ncdmodule_sys_watch_usb;
 #ifdef BADVPN_USE_LINUX_INPUT
 extern const struct NCDModuleGroup ncdmodule_sys_evdev;
 #endif
@@ -117,6 +118,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_net_ipv4_arp_probe,
     &ncdmodule_net_watch_interfaces,
     &ncdmodule_sys_watch_input,
+    &ncdmodule_sys_watch_usb,
 #ifdef BADVPN_USE_LINUX_INPUT
     &ncdmodule_sys_evdev,
 #endif

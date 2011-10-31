@@ -76,6 +76,7 @@ add_executable(badvpn-ncd
     modules/net_ipv4_arp_probe.c
     modules/net_watch_interfaces.c
     modules/sys_watch_input.c
+    modules/sys_watch_usb.c
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdconfig udevmonitor)

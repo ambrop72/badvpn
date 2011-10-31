@@ -42,6 +42,7 @@
 {.name = "ncd_net_ipv4_arp_probe", .loglevel = 4},
 {.name = "ncd_net_watch_interfaces", .loglevel = 4},
 {.name = "ncd_sys_watch_input", .loglevel = 4},
+{.name = "ncd_sys_watch_usb", .loglevel = 4},
 {.name = "ncd_sys_evdev", .loglevel = 4},
 {.name = "ncd_sys_watch_directory", .loglevel = 4},
 {.name = "StreamPeerIO", .loglevel = 4},
