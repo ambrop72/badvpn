@@ -27,6 +27,8 @@
 #ifndef BADVPN_BPENDING_H
 #define BADVPN_BPENDING_H
 
+#include <stdint.h>
+
 #include <misc/debugcounter.h>
 #include <structure/LinkedList1.h>
 #include <base/DebugObject.h>
@@ -58,7 +60,7 @@ typedef struct {
     BPendingGroup *g;
     BPending_handler handler;
     void *user;
-    int pending;
+    uint8_t pending;
     LinkedList1Node pending_node;
     DebugObject d_obj;
 } BPending;
