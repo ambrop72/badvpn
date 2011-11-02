@@ -68,7 +68,7 @@ typedef struct {
 typedef struct BAVLNode {
     struct BAVLNode *parent;
     struct BAVLNode *link[2];
-    int balance;
+    int8_t balance;
 } BAVLNode;
 
 /**
@@ -248,7 +248,7 @@ static void _BAVL_assert (BAVL *o)
 
 #endif
 
-static void _BAVL_rotate (BAVL *tree, BAVLNode *r, int dir)
+static void _BAVL_rotate (BAVL *tree, BAVLNode *r, uint8_t dir)
 {
     BAVLNode *nr = r->link[!dir];
     
@@ -300,7 +300,7 @@ static void _BAVL_swap_nodes (BAVL *tree, BAVLNode *n1, BAVLNode *n2)
             n2 = t;
         }
         
-        int side = (n2 == n1->link[1]);
+        uint8_t side = (n2 == n1->link[1]);
         BAVLNode *c = n1->link[!side];
         
         if (n1->link[0] = n2->link[0]) {
@@ -357,12 +357,12 @@ static void _BAVL_swap_nodes (BAVL *tree, BAVLNode *n1, BAVLNode *n2)
     }
     
     // swap balance factors
-    int b = n1->balance;
+    int8_t b = n1->balance;
     n1->balance = n2->balance;
     n2->balance = b;
 }
 
-static void _BAVL_rebalance (BAVL *o, BAVLNode *node, int side, int deltac)
+static void _BAVL_rebalance (BAVL *o, BAVLNode *node, uint8_t side, int8_t deltac)
 {
     ASSERT(side == 0 || side == 1)
     ASSERT(deltac >= -1 && deltac <= 1)
@@ -374,7 +374,7 @@ static void _BAVL_rebalance (BAVL *o, BAVLNode *node, int side, int deltac)
     }
     
     // calculate how much our height changed
-    int delta = BAVL_MAX(deltac, BAVL_OPTNEG(node->balance, side)) - BAVL_MAX(0, BAVL_OPTNEG(node->balance, side));
+    int8_t delta = BAVL_MAX(deltac, BAVL_OPTNEG(node->balance, side)) - BAVL_MAX(0, BAVL_OPTNEG(node->balance, side));
     ASSERT(delta >= -1 && delta <= 1)
     
     // update our balance factor
@@ -385,8 +385,8 @@ static void _BAVL_rebalance (BAVL *o, BAVLNode *node, int side, int deltac)
     
     // perform transformations if the balance factor is wrong
     if (node->balance == 2 || node->balance == -2) {
-        int bside;
-        int bsidef;
+        uint8_t bside;
+        int8_t bsidef;
         if (node->balance == 2) {
             bside = 1;
             bsidef = 1;
