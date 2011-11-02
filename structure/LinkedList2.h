@@ -29,6 +29,7 @@
 #define BADVPN_STRUCTURE_LINKEDLIST2_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <misc/debug.h>
 
@@ -60,7 +61,7 @@ typedef struct
 typedef struct LinkedList2Iterator_t
 {
     LinkedList2 *list;
-    int dir;
+    int8_t dir;
     struct LinkedList2Node_t *e;
     struct LinkedList2Iterator_t *pi;
     struct LinkedList2Iterator_t *ni;

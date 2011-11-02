@@ -30,6 +30,7 @@
 #define BADVPN_STRUCTURE_LINKEDLIST3_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <misc/debug.h>
 
@@ -48,7 +49,7 @@ typedef struct _LinkedList3Node {
  * Linked list iterator.
  */
 typedef struct _LinkedList3Iterator {
-    int dir;
+    int8_t dir;
     struct _LinkedList3Node *e;
     struct _LinkedList3Iterator *pi;
     struct _LinkedList3Iterator *ni;
