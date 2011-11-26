@@ -23,7 +23,13 @@
  * 
  * IPv4 route module.
  * 
- * Synopsis: net.ipv4.route(string dest, string dest_prefix, string gateway, string metric, string ifname)
+ * Synopsis:
+ *     net.ipv4.route(string dest, string dest_prefix, string gateway, string metric, string ifname)
+ * Description:
+ *     Adds an IPv4 route to the system's routing table on initiailzation, and removes it on
+ *     deinitialization.
+ *     The 'ifname' argument can be "<blackhole>" for a route which drops packets. In this case,
+ *     the 'gateway' argument is not used.
  */
 
 #include <stdlib.h>
@@ -103,9 +109,16 @@ static void func_new (NCDModuleInst *i)
     o->ifname = NCDValue_StringValue(ifname_arg);
     
     // add route
-    if (!NCDIfConfig_add_ipv4_route(o->dest, (o->have_gateway ? &o->gateway : NULL), o->metric, o->ifname)) {
-        ModuleLog(o->i, BLOG_ERROR, "failed to add route");
-        goto fail1;
+    if (!strcmp(o->ifname, "<blackhole>")) {
+        if (!NCDIfConfig_add_ipv4_blackhole_route(o->dest, o->metric)) {
+            ModuleLog(o->i, BLOG_ERROR, "failed to add blackhole route");
+            goto fail1;
+        }
+    } else {
+        if (!NCDIfConfig_add_ipv4_route(o->dest, (o->have_gateway ? &o->gateway : NULL), o->metric, o->ifname)) {
+            ModuleLog(o->i, BLOG_ERROR, "failed to add route");
+            goto fail1;
+        }
     }
     
     // signal up
@@ -126,8 +139,14 @@ static void func_die (void *vo)
     NCDModuleInst *i = o->i;
     
     // remove route
-    if (!NCDIfConfig_remove_ipv4_route(o->dest, (o->have_gateway ? &o->gateway : NULL), o->metric, o->ifname)) {
-        ModuleLog(o->i, BLOG_ERROR, "failed to remove route");
+    if (!strcmp(o->ifname, "<blackhole>")) {
+        if (!NCDIfConfig_remove_ipv4_blackhole_route(o->dest, o->metric)) {
+            ModuleLog(o->i, BLOG_ERROR, "failed to remove blackhole route");
+        }
+    } else {
+        if (!NCDIfConfig_remove_ipv4_route(o->dest, (o->have_gateway ? &o->gateway : NULL), o->metric, o->ifname)) {
+            ModuleLog(o->i, BLOG_ERROR, "failed to remove route");
+        }
     }
     
     // free instance
