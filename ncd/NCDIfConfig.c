@@ -165,14 +165,20 @@ int NCDIfConfig_remove_ipv4_addr (const char *ifname, struct ipv4_ifaddr ifaddr)
     return !run_command(cmd);
 }
 
-static int route_cmd (const char *cmdtype, struct ipv4_ifaddr dest, const uint32_t *gateway, int metric, const char *device)
+static int route_cmd (const char *cmdtype, struct ipv4_ifaddr dest, const uint32_t *gateway, int metric, const char *ifname)
 {
+    ASSERT(!strcmp(cmdtype, "add") || !strcmp(cmdtype, "del"))
     ASSERT(dest.prefix >= 0)
     ASSERT(dest.prefix <= 32)
     
+    if (strlen(ifname) >= IFNAMSIZ) {
+        BLog(BLOG_ERROR, "ifname too long");
+        return 0;
+    }
+    
     uint8_t *d_addr = (uint8_t *)&dest.addr;
     
-    char gwstr[60];
+    char gwstr[30];
     if (gateway) {
         const uint8_t *g_addr = (uint8_t *)gateway;
         sprintf(gwstr, " via %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, g_addr[0], g_addr[1], g_addr[2], g_addr[3]);
@@ -180,9 +186,9 @@ static int route_cmd (const char *cmdtype, struct ipv4_ifaddr dest, const uint32
         gwstr[0] = '\0';
     }
     
-    char cmd[100];
+    char cmd[120 + IFNAMSIZ];
     sprintf(cmd, IP_CMD" route %s %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"/%d%s metric %d dev %s",
-            cmdtype, d_addr[0], d_addr[1], d_addr[2], d_addr[3], dest.prefix, gwstr, metric, device);
+            cmdtype, d_addr[0], d_addr[1], d_addr[2], d_addr[3], dest.prefix, gwstr, metric, ifname);
     
     return !run_command(cmd);
 }
@@ -195,6 +201,31 @@ int NCDIfConfig_add_ipv4_route (struct ipv4_ifaddr dest, const uint32_t *gateway
 int NCDIfConfig_remove_ipv4_route (struct ipv4_ifaddr dest, const uint32_t *gateway, int metric, const char *device)
 {
     return route_cmd("del", dest, gateway, metric, device);
+}
+
+static int blackhole_route_cmd (const char *cmdtype, struct ipv4_ifaddr dest, int metric)
+{
+    ASSERT(!strcmp(cmdtype, "add") || !strcmp(cmdtype, "del"))
+    ASSERT(dest.prefix >= 0)
+    ASSERT(dest.prefix <= 32)
+    
+    uint8_t *d_addr = (uint8_t *)&dest.addr;
+    
+    char cmd[120];
+    sprintf(cmd, IP_CMD" route %s blackhole %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"/%d metric %d",
+            cmdtype, d_addr[0], d_addr[1], d_addr[2], d_addr[3], dest.prefix, metric);
+    
+    return !run_command(cmd);
+}
+
+int NCDIfConfig_add_ipv4_blackhole_route (struct ipv4_ifaddr dest, int metric)
+{
+    return blackhole_route_cmd("add", dest, metric);
+}
+
+int NCDIfConfig_remove_ipv4_blackhole_route (struct ipv4_ifaddr dest, int metric)
+{
+    return blackhole_route_cmd("del", dest, metric);
 }
 
 int NCDIfConfig_set_dns_servers (uint32_t *servers, size_t num_servers)
