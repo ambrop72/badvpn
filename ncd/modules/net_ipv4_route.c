@@ -28,8 +28,8 @@
  * Description:
  *     Adds an IPv4 route to the system's routing table on initiailzation, and removes it on
  *     deinitialization.
- *     The 'ifname' argument can be "<blackhole>" for a route which drops packets. In this case,
- *     the 'gateway' argument is not used.
+ *     If 'gateway' is "none", the route will only be associated with an interface.
+ *     If 'gateway' is "blackhole", the route will be a blackhole route (and 'ifname' is unused).
  */
 
 #include <stdlib.h>
@@ -42,10 +42,14 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
+#define TYPE_NORMAL 1
+#define TYPE_IFONLY 2
+#define TYPE_BLACKHOLE 3
+
 struct instance {
     NCDModuleInst *i;
     struct ipv4_ifaddr dest;
-    int have_gateway;
+    int type;
     uint32_t gateway;
     int metric;
     const char *ifname;
@@ -90,16 +94,19 @@ static void func_new (NCDModuleInst *i)
         goto fail1;
     }
     
-    // read gateway
+    // read gateway and choose type
     char *gateway_str = NCDValue_StringValue(gateway_arg);
     if (!strcmp(gateway_str, "none")) {
-        o->have_gateway = 0;
+        o->type = TYPE_IFONLY;
+    }
+    else if (!strcmp(gateway_str, "blackhole")) {
+        o->type = TYPE_BLACKHOLE;
     } else {
         if (!ipaddr_parse_ipv4_addr(gateway_str, &o->gateway)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong gateway");
             goto fail1;
         }
-        o->have_gateway = 1;
+        o->type = TYPE_NORMAL;
     }
     
     // read metric
@@ -109,16 +116,22 @@ static void func_new (NCDModuleInst *i)
     o->ifname = NCDValue_StringValue(ifname_arg);
     
     // add route
-    if (!strcmp(o->ifname, "<blackhole>")) {
-        if (!NCDIfConfig_add_ipv4_blackhole_route(o->dest, o->metric)) {
-            ModuleLog(o->i, BLOG_ERROR, "failed to add blackhole route");
-            goto fail1;
-        }
-    } else {
-        if (!NCDIfConfig_add_ipv4_route(o->dest, (o->have_gateway ? &o->gateway : NULL), o->metric, o->ifname)) {
-            ModuleLog(o->i, BLOG_ERROR, "failed to add route");
-            goto fail1;
-        }
+    int res;
+    switch (o->type) {
+        case TYPE_NORMAL:
+            res = NCDIfConfig_add_ipv4_route(o->dest, &o->gateway, o->metric, o->ifname);
+            break;
+        case TYPE_IFONLY:
+            res = NCDIfConfig_add_ipv4_route(o->dest, NULL, o->metric, o->ifname);
+            break;
+        case TYPE_BLACKHOLE:
+            res = NCDIfConfig_add_ipv4_blackhole_route(o->dest, o->metric);
+            break;
+        default: ASSERT(0);
+    }
+    if (!res) {
+        ModuleLog(o->i, BLOG_ERROR, "failed to add route");
+        goto fail1;
     }
     
     // signal up
@@ -139,14 +152,21 @@ static void func_die (void *vo)
     NCDModuleInst *i = o->i;
     
     // remove route
-    if (!strcmp(o->ifname, "<blackhole>")) {
-        if (!NCDIfConfig_remove_ipv4_blackhole_route(o->dest, o->metric)) {
-            ModuleLog(o->i, BLOG_ERROR, "failed to remove blackhole route");
-        }
-    } else {
-        if (!NCDIfConfig_remove_ipv4_route(o->dest, (o->have_gateway ? &o->gateway : NULL), o->metric, o->ifname)) {
-            ModuleLog(o->i, BLOG_ERROR, "failed to remove route");
-        }
+    int res;
+    switch (o->type) {
+        case TYPE_NORMAL:
+            res = NCDIfConfig_remove_ipv4_route(o->dest, &o->gateway, o->metric, o->ifname);
+            break;
+        case TYPE_IFONLY:
+            res = NCDIfConfig_remove_ipv4_route(o->dest, NULL, o->metric, o->ifname);
+            break;
+        case TYPE_BLACKHOLE:
+            res = NCDIfConfig_remove_ipv4_blackhole_route(o->dest, o->metric);
+            break;
+        default: ASSERT(0);
+    }
+    if (!res) {
+        ModuleLog(o->i, BLOG_ERROR, "failed to remove route");
     }
     
     // free instance
