@@ -55,6 +55,14 @@
  * Synopsis: list::contains(value)
  * Variables:
  *   (empty) - "true" if list contains value, "false" if not
+ * 
+ * Synopsis:
+ *   list::find(start_pos, value)
+ * Description:
+ *   finds the first occurance of 'value' in the list at position >='start_pos'.
+ * Variables:
+ *   pos - position of element, or "none" if not found
+ *   found - "true" if found, "false" if not
  */
 
 #include <stdlib.h>
@@ -99,6 +107,12 @@ struct shift_instance {
 struct contains_instance {
     NCDModuleInst *i;
     int contains;
+};
+
+struct find_instance {
+    NCDModuleInst *i;
+    int is_found;
+    size_t found_pos;
 };
 
 static void func_new_list (NCDModuleInst *i)
@@ -623,6 +637,110 @@ static int contains_func_getvar (void *vo, const char *name, NCDValue *out)
     return 0;
 }
 
+static void find_func_new (NCDModuleInst *i)
+{
+    // allocate instance
+    struct find_instance *o = malloc(sizeof(*o));
+    if (!o) {
+        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        goto fail0;
+    }
+    NCDModuleInst_Backend_SetUser(i, o);
+    
+    // init arguments
+    o->i = i;
+    
+    // read arguments
+    NCDValue *start_pos_arg;
+    NCDValue *value_arg;
+    if (!NCDValue_ListRead(i->args, 2, &start_pos_arg, &value_arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
+        goto fail1;
+    }
+    if (NCDValue_Type(start_pos_arg) != NCDVALUE_STRING) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong type");
+        goto fail1;
+    }
+    
+    // read start position
+    uintmax_t start_pos;
+    if (!parse_unsigned_integer(NCDValue_StringValue(start_pos_arg), &start_pos)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong start pos");
+        goto fail1;
+    }
+    
+    // get method object
+    struct instance *mo = i->method_object->inst_user;
+    
+    // search
+    o->is_found = 0;
+    size_t pos = 0;
+    for (NCDValue *v = NCDValue_ListFirst(&mo->list); v; v = NCDValue_ListNext(&mo->list, v)) {
+        if (pos >= start_pos && NCDValue_Compare(v, value_arg) == 0) {
+            o->is_found = 1;
+            o->found_pos = pos;
+            break;
+        }
+        pos++;
+    }
+    
+    // signal up
+    NCDModuleInst_Backend_Up(o->i);
+    return;
+    
+fail1:
+    free(o);
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void find_func_die (void *vo)
+{
+    struct find_instance *o = vo;
+    NCDModuleInst *i = o->i;
+    
+    // free instance
+    free(o);
+    
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static int find_func_getvar (void *vo, const char *name, NCDValue *out)
+{
+    struct find_instance *o = vo;
+    
+    if (!strcmp(name, "pos")) {
+        char value[64];
+        
+        if (o->is_found) {
+            snprintf(value, sizeof(value), "%zu", o->found_pos);
+        } else {
+            snprintf(value, sizeof(value), "none");
+        }
+        
+        if (!NCDValue_InitString(out, value)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
+            return 0;
+        }
+        
+        return 1;
+    }
+    
+    if (!strcmp(name, "found")) {
+        const char *value = (o->is_found ? "true" : "false");
+        
+        if (!NCDValue_InitString(out, value)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
+            return 0;
+        }
+        
+        return 1;
+    }
+    
+    return 0;
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "list",
@@ -668,6 +786,11 @@ static const struct NCDModule modules[] = {
         .func_new = contains_func_new,
         .func_die = contains_func_die,
         .func_getvar = contains_func_getvar
+    }, {
+        .type = "list::find",
+        .func_new = find_func_new,
+        .func_die = find_func_die,
+        .func_getvar = find_func_getvar
     }, {
         .type = NULL
     }
