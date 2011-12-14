@@ -63,6 +63,11 @@
  * Variables:
  *   pos - position of element, or "none" if not found
  *   found - "true" if found, "false" if not
+ * 
+ * Sysnopsis:
+ *   list::remove_at(remove_pos)
+ * Description:
+ *   Removes the element at position 'remove_pos', which must refer to an existing element.
  */
 
 #include <stdlib.h>
@@ -113,6 +118,10 @@ struct find_instance {
     NCDModuleInst *i;
     int is_found;
     size_t found_pos;
+};
+
+struct removeat_instance {
+    NCDModuleInst *i;
 };
 
 static void func_new_list (NCDModuleInst *i)
@@ -741,6 +750,79 @@ static int find_func_getvar (void *vo, const char *name, NCDValue *out)
     return 0;
 }
 
+static void removeat_func_new (NCDModuleInst *i)
+{
+    // allocate instance
+    struct removeat_instance *o = malloc(sizeof(*o));
+    if (!o) {
+        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        goto fail0;
+    }
+    NCDModuleInst_Backend_SetUser(i, o);
+    
+    // init arguments
+    o->i = i;
+    
+    // read arguments
+    NCDValue *remove_pos_arg;
+    if (!NCDValue_ListRead(i->args, 1, &remove_pos_arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
+        goto fail1;
+    }
+    if (NCDValue_Type(remove_pos_arg) != NCDVALUE_STRING) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong type");
+        goto fail1;
+    }
+    
+    // read position
+    uintmax_t remove_pos;
+    if (!parse_unsigned_integer(NCDValue_StringValue(remove_pos_arg), &remove_pos)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong pos");
+        goto fail1;
+    }
+    
+    // get method object
+    struct instance *mo = i->method_object->inst_user;
+    
+    // check position
+    if (remove_pos >= NCDValue_ListCount(&mo->list)) {
+        ModuleLog(o->i, BLOG_ERROR, "pos out of range");
+        goto fail1;
+    }
+    
+    // find and remove
+    size_t pos = 0;
+    for (NCDValue *v = NCDValue_ListFirst(&mo->list); v; v = NCDValue_ListNext(&mo->list, v)) {
+        if (pos == remove_pos) {
+            NCDValue removed_v = NCDValue_ListRemove(&mo->list, v);
+            NCDValue_Free(&removed_v);
+            break;
+        }
+        pos++;
+    }
+    
+    // signal up
+    NCDModuleInst_Backend_Up(o->i);
+    return;
+    
+fail1:
+    free(o);
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void removeat_func_die (void *vo)
+{
+    struct removeat_instance *o = vo;
+    NCDModuleInst *i = o->i;
+    
+    // free instance
+    free(o);
+    
+    NCDModuleInst_Backend_Dead(i);
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "list",
@@ -791,6 +873,10 @@ static const struct NCDModule modules[] = {
         .func_new = find_func_new,
         .func_die = find_func_die,
         .func_getvar = find_func_getvar
+    }, {
+        .type = "list::remove_at",
+        .func_new = removeat_func_new,
+        .func_die = removeat_func_die
     }, {
         .type = NULL
     }
