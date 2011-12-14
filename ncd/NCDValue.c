@@ -329,6 +329,23 @@ NCDValue NCDValue_ListShift (NCDValue *o)
     return v;
 }
 
+NCDValue NCDValue_ListRemove (NCDValue *o, NCDValue *ev)
+{
+    value_assert(o);
+    ASSERT(o->type == NCDVALUE_LIST)
+    ASSERT(o->list_count > 0)
+    
+    NCDListElement *e = UPPER_OBJECT(ev, NCDListElement, v);
+    
+    NCDValue v = e->v;
+    
+    LinkedList2_Remove(&o->list, &e->list_node);
+    o->list_count--;
+    free(e);
+    
+    return v;
+}
+
 int NCDValue_Compare (NCDValue *o, NCDValue *v)
 {
     value_assert(o);
