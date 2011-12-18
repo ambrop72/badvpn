@@ -326,7 +326,6 @@ static void func_clean (void *vo)
 static int func_getvar (void *vo, const char *name, NCDValue *out)
 {
     struct instance *o = vo;
-    ASSERT(o->state == STATE_NONE || o->state == STATE_UP)
     
     if (o->state == STATE_NONE) {
         return 0;
@@ -338,7 +337,6 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
 static NCDModuleInst * func_getobj (void *vo, const char *name)
 {
     struct instance *o = vo;
-    ASSERT(o->state == STATE_NONE || o->state == STATE_UP)
     
     if (o->state == STATE_NONE) {
         return NULL;
@@ -358,14 +356,16 @@ static const struct NCDModule modules[] = {
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getvar = func_getvar,
-        .func_getobj = func_getobj
+        .func_getobj = func_getobj,
+        .can_resolve_when_down = 1
     }, {
         .type = "callrefhere::call",
         .func_new = func_new,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getvar = func_getvar,
-        .func_getobj = func_getobj
+        .func_getobj = func_getobj,
+        .can_resolve_when_down = 1
     }, {
         .type = NULL
     }
