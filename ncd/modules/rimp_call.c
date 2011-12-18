@@ -44,6 +44,7 @@
 #include <stdlib.h>
 
 #include <misc/parse_number.h>
+#include <misc/string_begins_with.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_rimp_call.h>
@@ -97,6 +98,30 @@ static void process_handler_event (struct instance *o, int event)
         
         default: ASSERT(0);
     }
+}
+
+static int process_func_getspecialvar (struct instance *o, const char *name, NCDValue *out)
+{
+    ASSERT(o->state == STATE_WORKING || o->state == STATE_CLEANING)
+    
+    size_t p;
+    if (p = string_begins_with(name, "_caller.")) {
+        return NCDModuleInst_Backend_GetVar(o->i, name + p, out);
+    }
+    
+    return 0;
+}
+
+static NCDModuleInst * process_func_getspecialobj (struct instance *o, const char *name)
+{
+    ASSERT(o->state == STATE_WORKING || o->state == STATE_CLEANING)
+    
+    size_t p;
+    if (p = string_begins_with(name, "_caller.")) {
+        return NCDModuleInst_Backend_GetObj(o->i, name + p);
+    }
+    
+    return NULL;
 }
 
 static void timer_handler (struct instance *o)
@@ -237,6 +262,11 @@ static void func_die (void *vo)
         NCDValue_Free(&args);
         goto fail;
     }
+    
+    // set special functions
+    NCDModuleProcess_SetSpecialFuncs(&o->process,
+                                    (NCDModuleProcess_func_getspecialvar)process_func_getspecialvar,
+                                    (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
     
     // start timer if used
     if (o->have_timeout) {
