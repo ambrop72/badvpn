@@ -31,6 +31,7 @@ extern const struct NCDModuleGroup ncdmodule_var;
 extern const struct NCDModuleGroup ncdmodule_list;
 extern const struct NCDModuleGroup ncdmodule_depend;
 extern const struct NCDModuleGroup ncdmodule_multidepend;
+extern const struct NCDModuleGroup ncdmodule_dynamic_depend;
 extern const struct NCDModuleGroup ncdmodule_concat;
 extern const struct NCDModuleGroup ncdmodule_concatv;
 extern const struct NCDModuleGroup ncdmodule_if;
@@ -82,6 +83,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_list,
     &ncdmodule_depend,
     &ncdmodule_multidepend,
+    &ncdmodule_dynamic_depend,
     &ncdmodule_concat,
     &ncdmodule_concatv,
     &ncdmodule_if,

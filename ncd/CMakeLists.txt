@@ -42,6 +42,7 @@ add_executable(badvpn-ncd
     modules/list.c
     modules/depend.c
     modules/multidepend.c
+    modules/dynamic_depend.c
     modules/concat.c
     modules/concatv.c
     modules/if.c
