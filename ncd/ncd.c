@@ -1223,7 +1223,6 @@ void process_wait_timer_handler (struct process *p)
 struct process_statement * process_find_statement (struct process *p, size_t pos, const char *name)
 {
     process_assert_pointers(p);
-    ASSERT(pos >= 0)
     ASSERT(pos <= process_rap(p))
     
     for (size_t i = pos; i > 0; i--) {
@@ -1239,7 +1238,6 @@ struct process_statement * process_find_statement (struct process *p, size_t pos
 int process_resolve_name (struct process *p, size_t pos, const char *name, struct process_statement **first_ps, const char **rest)
 {
     process_assert_pointers(p);
-    ASSERT(pos >= 0)
     ASSERT(pos <= process_rap(p))
     ASSERT(name)
     
@@ -1269,7 +1267,6 @@ int process_resolve_name (struct process *p, size_t pos, const char *name, struc
 int process_resolve_variable (struct process *p, size_t pos, const char *varname, NCDValue *out)
 {
     process_assert_pointers(p);
-    ASSERT(pos >= 0)
     ASSERT(pos <= process_rap(p))
     ASSERT(varname)
     
@@ -1328,7 +1325,6 @@ int process_resolve_variable (struct process *p, size_t pos, const char *varname
 struct process_statement * process_resolve_object (struct process *p, size_t pos, const char *objname)
 {
     process_assert_pointers(p);
-    ASSERT(pos >= 0)
     ASSERT(pos <= process_rap(p))
     ASSERT(objname)
     
