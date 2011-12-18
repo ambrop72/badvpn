@@ -1223,7 +1223,7 @@ void process_wait_timer_handler (struct process *p)
 struct process_statement * process_find_statement (struct process *p, size_t pos, const char *name)
 {
     process_assert_pointers(p);
-    ASSERT(pos <= process_rap(p))
+    ASSERT(pos <= p->num_statements)
     
     for (size_t i = pos; i > 0; i--) {
         struct process_statement *ps = &p->statements[i - 1];
@@ -1238,7 +1238,7 @@ struct process_statement * process_find_statement (struct process *p, size_t pos
 int process_resolve_name (struct process *p, size_t pos, const char *name, struct process_statement **first_ps, const char **rest)
 {
     process_assert_pointers(p);
-    ASSERT(pos <= process_rap(p))
+    ASSERT(pos <= p->num_statements)
     ASSERT(name)
     
     char *dot = strstr(name, ".");
@@ -1267,7 +1267,7 @@ int process_resolve_name (struct process *p, size_t pos, const char *name, struc
 int process_resolve_variable (struct process *p, size_t pos, const char *varname, NCDValue *out)
 {
     process_assert_pointers(p);
-    ASSERT(pos <= process_rap(p))
+    ASSERT(pos <= p->num_statements)
     ASSERT(varname)
     
     // find referred statement and remaining name
@@ -1311,7 +1311,11 @@ int process_resolve_variable (struct process *p, size_t pos, const char *varname
         return 0;
     }
     
-    ASSERT(rps->state == SSTATE_ADULT)
+    // TODO allow resolving even if not up
+    if (rps->state != SSTATE_ADULT) {
+        process_log(p, BLOG_ERROR, "referred module is not up to resolve variable: %s", varname);
+        return 0;
+    }
     
     // resolve variable in referred statement
     if (!NCDModuleInst_GetVar(&rps->inst, (rest ? rest : ""), out)) {
@@ -1325,7 +1329,7 @@ int process_resolve_variable (struct process *p, size_t pos, const char *varname
 struct process_statement * process_resolve_object (struct process *p, size_t pos, const char *objname)
 {
     process_assert_pointers(p);
-    ASSERT(pos <= process_rap(p))
+    ASSERT(pos <= p->num_statements)
     ASSERT(objname)
     
     // find referred statement and remaining name
@@ -1350,7 +1354,11 @@ struct process_statement * process_resolve_object (struct process *p, size_t pos
         return NULL;
     }
     
-    ASSERT(rps->state == SSTATE_ADULT)
+    // TODO allow resolving even if not up
+    if (rps->state != SSTATE_ADULT) {
+        process_log(p, BLOG_ERROR, "referred module is not up to resolve object: %s", objname);
+        return NULL;
+    }
     
     // Resolve object in referred statement. If there is no rest, resolve empty string
     // instead, or use this statement if it fails. This allows a statement to forward method
@@ -1517,22 +1525,12 @@ int process_statement_instance_func_getvar (struct process_statement *ps, const 
 {
     ASSERT(ps->state != SSTATE_FORGOTTEN)
     
-    if (ps->i > process_rap(ps->p)) {
-        process_statement_log(ps, BLOG_ERROR, "tried to resolve variable %s but it's dirty", varname);
-        return 0;
-    }
-    
     return process_resolve_variable(ps->p, ps->i, varname, out);
 }
 
 NCDModuleInst * process_statement_instance_func_getobj (struct process_statement *ps, const char *objname)
 {
     ASSERT(ps->state != SSTATE_FORGOTTEN)
-    
-    if (ps->i > process_rap(ps->p)) {
-        process_statement_log(ps, BLOG_ERROR, "tried to resolve object %s but it's dirty", objname);
-        return 0;
-    }
     
     struct process_statement *rps = process_resolve_object(ps->p, ps->i, objname);
     if (!rps) {
@@ -1612,22 +1610,12 @@ int process_moduleprocess_func_getvar (struct process *p, const char *name, NCDV
 {
     ASSERT(p->module_process)
     
-    if (p->num_statements > process_rap(p)) {
-        process_log(p, BLOG_ERROR, "module process tried to resolve variable %s but it's dirty", name);
-        return 0;
-    }
-    
     return process_resolve_variable(p, p->num_statements, name, out);
 }
 
 NCDModuleInst * process_moduleprocess_func_getobj (struct process *p, const char *name)
 {
     ASSERT(p->module_process)
-    
-    if (p->num_statements > process_rap(p)) {
-        process_log(p, BLOG_ERROR, "module process tried to resolve object %s but it's dirty", name);
-        return NULL;
-    }
     
     struct process_statement *rps = process_resolve_object(p, p->num_statements, name);
     if (!rps) {
