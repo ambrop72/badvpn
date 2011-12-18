@@ -56,6 +56,7 @@ add_executable(badvpn-ncd
     modules/runonce.c
     modules/spawn.c
     modules/call.c
+    modules/rimp_call.c
     modules/ref.c
     modules/index.c
     modules/alias.c

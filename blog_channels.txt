@@ -21,6 +21,7 @@ ncd_run 4
 ncd_runonce 4
 ncd_spawn 4
 ncd_call 4
+ncd_rimp_call 4
 ncd_ref 4
 ncd_index 4
 ncd_alias 4
