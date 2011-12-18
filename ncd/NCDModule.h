@@ -331,7 +331,6 @@ void NCDModuleInst_Clean (NCDModuleInst *n);
 
 /**
  * Resolves a variable within the instance.
- * The instance must be in up state.
  * This function does not have any side effects.
  * 
  * @param n the instance
@@ -343,7 +342,6 @@ int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out) WAR
 
 /**
  * Resolves an object within the instance.
- * The instance must be in up state.
  * This function does not have any side effects.
  * 
  * @param n the instance
@@ -625,7 +623,7 @@ typedef void (*NCDModule_func_die) (void *o);
 
 /**
  * Function called to resolve a variable within a backend instance.
- * The backend instance is in up state.
+ * The backend instance is in up state, or in up or down state if can_resolve_when_down=1.
  * This function must not have any side effects.
  * 
  * @param o as in {@link NCDModuleInst_Backend_SetUser}, or NULL by default
@@ -637,7 +635,7 @@ typedef int (*NCDModule_func_getvar) (void *o, const char *name, NCDValue *out);
 
 /**
  * Function called to resolve an object within a backend instance.
- * The backend instance is in up state.
+ * The backend instance is in up state, or in up or down state if can_resolve_when_down=1.
  * This function must not have any side effects.
  * 
  * @param o as in {@link NCDModuleInst_Backend_SetUser}, or NULL by default
@@ -704,6 +702,13 @@ struct NCDModule {
      * May be NULL.
      */
     NCDModule_func_clean func_clean;
+    
+    /**
+     * Whether the interpreter is allowed to call func_getvar and func_getobj
+     * even when the backend instance is in down state (as opposed to just
+     * in up state).
+     */
+    int can_resolve_when_down;
 };
 
 /**

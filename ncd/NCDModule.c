@@ -245,13 +245,28 @@ void NCDModuleInst_Clean (NCDModuleInst *n)
     }
 }
 
+static int can_resolve (NCDModuleInst *n)
+{
+    switch (n->state) {
+        case STATE_UP:
+        case STATE_UP_DIE:
+            return 1;
+        case STATE_DOWN_CLEAN:
+        case STATE_DOWN_UNCLEAN:
+        case STATE_DOWN_PCLEAN:
+        case STATE_DOWN_DIE:
+            return n->m->can_resolve_when_down;
+        default:
+            return 0;
+    }
+}
+
 int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out)
 {
     DebugObject_Access(&n->d_obj);
-    ASSERT(n->state == STATE_UP)
     ASSERT(name)
     
-    if (!n->m->func_getvar) {
+    if (!n->m->func_getvar || !can_resolve(n)) {
         return 0;
     }
     
@@ -261,10 +276,9 @@ int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out)
 NCDModuleInst * NCDModuleInst_GetObj (NCDModuleInst *n, const char *name)
 {
     DebugObject_Access(&n->d_obj);
-    ASSERT(n->state == STATE_UP)
     ASSERT(name)
     
-    if (!n->m->func_getobj) {
+    if (!n->m->func_getobj || !can_resolve(n)) {
         return NULL;
     }
     

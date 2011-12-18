@@ -1311,9 +1311,9 @@ int process_resolve_variable (struct process *p, size_t pos, const char *varname
         return 0;
     }
     
-    // TODO allow resolving even if not up
-    if (rps->state != SSTATE_ADULT) {
-        process_log(p, BLOG_ERROR, "referred module is not up to resolve variable: %s", varname);
+    // must not be forgotten
+    if (rps->state == SSTATE_FORGOTTEN) {
+        process_log(p, BLOG_ERROR, "referred module is uninitialized and cannot resolve variable: %s", varname);
         return 0;
     }
     
@@ -1354,9 +1354,9 @@ struct process_statement * process_resolve_object (struct process *p, size_t pos
         return NULL;
     }
     
-    // TODO allow resolving even if not up
-    if (rps->state != SSTATE_ADULT) {
-        process_log(p, BLOG_ERROR, "referred module is not up to resolve object: %s", objname);
+    // must not be forgotten
+    if (rps->state == SSTATE_FORGOTTEN) {
+        process_log(p, BLOG_ERROR, "referred module is uninitialized and cannot resolve object: %s", objname);
         return NULL;
     }
     
