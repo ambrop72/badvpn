@@ -22,7 +22,6 @@
 {.name = "ncd_runonce", .loglevel = 4},
 {.name = "ncd_spawn", .loglevel = 4},
 {.name = "ncd_call", .loglevel = 4},
-{.name = "ncd_rimp_call", .loglevel = 4},
 {.name = "ncd_imperative", .loglevel = 4},
 {.name = "ncd_ref", .loglevel = 4},
 {.name = "ncd_index", .loglevel = 4},
