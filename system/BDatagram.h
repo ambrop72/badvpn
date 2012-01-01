@@ -128,6 +128,14 @@ int BDatagram_GetFd (BDatagram *o);
 #endif
 
 /**
+ * Sets the SO_REUSEADDR option for the underlying socket.
+ * 
+ * @param o the object
+ * @param reuse value of the option. Must be 0 or 1.
+ */
+int BDatagram_SetReuseAddr (BDatagram *o, int reuse);
+
+/**
  * Initializes the send interface.
  * The send interface must not be initialized.
  * 

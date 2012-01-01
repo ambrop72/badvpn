@@ -119,6 +119,8 @@ struct {
     int max_clients;
     int max_connections_for_client;
     int client_socket_sndbuf;
+    int local_udp_num_ports;
+    char *local_udp_addr;
 } options;
 
 // MTUs
@@ -128,6 +130,9 @@ int pp_mtu;
 // listen addresses
 BAddr listen_addrs[MAX_LISTEN_ADDRS];
 int num_listen_addrs;
+
+// local UDP port range, if options.local_udp_num_ports>=0
+BAddr local_udp_addr;
 
 // reactor
 BReactor ss;
@@ -326,6 +331,7 @@ void print_help (const char *name)
         "        [--max-clients <number>]\n"
         "        [--max-connections-for-client <number>]\n"
         "        [--client-socket-sndbuf <bytes / 0>]\n"
+        "        [--local-udp-addrs <addr> <num_ports>]\n"
         "Address format is a.b.c.d:port (IPv4) or [addr]:port (IPv6).\n",
         name
     );
@@ -358,6 +364,7 @@ int parse_arguments (int argc, char *argv[])
     options.max_clients = DEFAULT_MAX_CLIENTS;
     options.max_connections_for_client = DEFAULT_MAX_CONNECTIONS_FOR_CLIENT;
     options.client_socket_sndbuf = CLIENT_DEFAULT_SOCKET_SEND_BUFFER;
+    options.local_udp_num_ports = -1;
     
     int i;
     for (i = 1; i < argc; i++) {
@@ -492,6 +499,18 @@ int parse_arguments (int argc, char *argv[])
             }
             i++;
         }
+        else if (!strcmp(arg, "--local-udp-addrs")) {
+            if (2 >= argc - i) {
+                fprintf(stderr, "%s: requires two arguments\n", arg);
+                return 0;
+            }
+            options.local_udp_addr = argv[i + 1];
+            if ((options.local_udp_num_ports = atoi(argv[i + 2])) < 0) {
+                fprintf(stderr, "%s: wrong argument\n", arg);
+                return 0;
+            }
+            i += 2;
+        }
         else {
             fprintf(stderr, "unknown option: %s\n", arg);
             return 0;
@@ -515,6 +534,14 @@ int process_arguments (void)
             return 0;
         }
         num_listen_addrs++;
+    }
+    
+    // resolve local UDP address
+    if (options.local_udp_num_ports >= 0) {
+        if (!BAddr_Parse(&local_udp_addr, options.local_udp_addr, NULL, 0)) {
+            BLog(BLOG_ERROR, "local udp addr: BAddr_Parse failed");
+            return 0;
+        }
     }
     
     return 1;
@@ -820,6 +847,25 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, const u
     if (!BDatagram_Init(&con->udp_dgram, addr.type, &ss, con, (BDatagram_handler)connection_dgram_handler_event)) {
         client_log(client, BLOG_ERROR, "BDatagram_Init failed");
         goto fail2;
+    }
+    
+    if (options.local_udp_num_ports >= 0) {
+        // try binding (without SO_REUSEADDR, else we'd always end up binding to first port)
+        for (int i = 0; i < options.local_udp_num_ports; i++) {
+            BAddr addr = local_udp_addr;
+            BAddr_SetPort(&addr, hton16(ntoh16(BAddr_GetPort(&addr)) + (uint16_t)i));
+            
+            if (BDatagram_Bind(&con->udp_dgram, addr)) {
+                // set SO_REUSEADDR (we bound without it, but we don't want to take over the address)
+                if (!BDatagram_SetReuseAddr(&con->udp_dgram, 1)) {
+                    client_log(client, BLOG_ERROR, "set SO_REUSEADDR failed");
+                }
+                goto cont;
+            }
+        }
+        
+        client_log(client, BLOG_WARNING, "failed to bind to any local address; proceeding regardless");
+    cont:;
     }
     
     // set UDP dgram send address

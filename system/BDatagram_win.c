@@ -632,6 +632,18 @@ int BDatagram_GetLastReceiveAddrs (BDatagram *o, BAddr *remote_addr, BIPAddr *lo
     return 1;
 }
 
+int BDatagram_SetReuseAddr (BDatagram *o, int reuse)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(reuse == 0 || reuse == 1)
+    
+    if (setsockopt(o->sock, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse, sizeof(reuse)) < 0) {
+        return 0;
+    }
+    
+    return 1;
+}
+
 void BDatagram_SendAsync_Init (BDatagram *o, int mtu)
 {
     DebugObject_Access(&o->d_obj);

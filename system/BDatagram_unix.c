@@ -735,6 +735,18 @@ int BDatagram_GetFd (BDatagram *o)
     return o->fd;
 }
 
+int BDatagram_SetReuseAddr (BDatagram *o, int reuse)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(reuse == 0 || reuse == 1)
+    
+    if (setsockopt(o->fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+        return 0;
+    }
+    
+    return 1;
+}
+
 void BDatagram_SendAsync_Init (BDatagram *o, int mtu)
 {
     DebugObject_Access(&o->d_obj);
