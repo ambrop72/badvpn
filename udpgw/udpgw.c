@@ -82,6 +82,7 @@ struct connection {
     BAddr addr;
     const uint8_t *first_data;
     int first_data_len;
+    btime_t last_use_time;
     int closing;
     BPending first_job;
     BufferWriter *send_if;
@@ -160,6 +161,7 @@ static void client_disconnect_timer_handler (struct client *client);
 static void client_connection_handler (struct client *client, int event);
 static void client_decoder_handler_error (struct client *client);
 static void client_recv_if_handler_send (struct client *client, uint8_t *data, int data_len);
+static uint8_t * build_port_usage_array_and_find_least_used_connection (BAddr remote_addr, struct connection **out_con);
 static void connection_init (struct client *client, uint16_t conid, BAddr addr, const uint8_t *data, int data_len);
 static void connection_free (struct connection *con);
 static void connection_logfunc (struct connection *con);
@@ -805,6 +807,49 @@ void client_recv_if_handler_send (struct client *client, uint8_t *data, int data
     }
 }
 
+uint8_t * build_port_usage_array_and_find_least_used_connection (BAddr remote_addr, struct connection **out_con)
+{
+    ASSERT(options.local_udp_num_ports >= 0)
+    
+    // allocate port usage array
+    uint8_t *port_usage = BAllocSize(bsize_fromint(options.local_udp_num_ports));
+    if (!port_usage) {
+        return NULL;
+    }
+    
+    // zero array
+    memset(port_usage, 0, options.local_udp_num_ports);
+    
+    struct connection *least_con = NULL;
+    
+    // flag inappropriate ports (those with the same remote address)
+    for (LinkedList1Node *ln = LinkedList1_GetFirst(&clients_list); ln; ln = LinkedList1Node_Next(ln)) {
+        struct client *client = UPPER_OBJECT(ln, struct client, clients_list_node);
+        
+        for (LinkedList1Node *ln2 = LinkedList1_GetFirst(&client->connections_list); ln2; ln2 = LinkedList1Node_Next(ln2)) {
+            struct connection *con = UPPER_OBJECT(ln2, struct connection, connections_list_node);
+            ASSERT(con->client == client)
+            ASSERT(!con->closing)
+            ASSERT(con->local_port_index < options.local_udp_num_ports)
+            
+            if (con->local_port_index < 0) {
+                continue;
+            }
+            
+            if (BAddr_Compare(&con->addr, &remote_addr)) {
+                port_usage[con->local_port_index] = 1;
+                
+                if (!least_con || con->last_use_time < least_con->last_use_time) {
+                    least_con = con;
+                }
+            }
+        }
+    }
+    
+    *out_con = least_con;
+    return port_usage;
+}
+
 void connection_init (struct client *client, uint16_t conid, BAddr addr, const uint8_t *data, int data_len)
 {
     ASSERT(client->num_connections < options.max_connections_for_client)
@@ -827,6 +872,9 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, const u
     con->addr = addr;
     con->first_data = data;
     con->first_data_len = data_len;
+    
+    // set last use time
+    con->last_use_time = btime_gettime();
     
     // set not closing
     con->closing = 0;
@@ -854,28 +902,12 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, const u
     con->local_port_index = -1;
     
     if (options.local_udp_num_ports >= 0) {
-        // allocate port usage array
-        uint8_t *port_usage = BAllocSize(bsize_fromint(options.local_udp_num_ports));
+        // build port usage array, find least used connection
+        struct connection *least_con;
+        uint8_t *port_usage = build_port_usage_array_and_find_least_used_connection(addr, &least_con);
         if (!port_usage) {
-            client_log(client, BLOG_ERROR, "BAllocSize failed");
+            client_log(client, BLOG_ERROR, "build_port_usage_array failed");
             goto failed;
-        }
-        memset(port_usage, 0, options.local_udp_num_ports);
-        
-        // flag inappropriate ports (those with the same remote address)
-        for (LinkedList1Node *ln = LinkedList1_GetFirst(&clients_list); ln; ln = LinkedList1Node_Next(ln)) {
-            struct client *client2 = UPPER_OBJECT(ln, struct client, clients_list_node);
-            
-            for (LinkedList1Node *ln2 = LinkedList1_GetFirst(&client2->connections_list); ln2; ln2 = LinkedList1Node_Next(ln2)) {
-                struct connection *con2 = UPPER_OBJECT(ln2, struct connection, connections_list_node);
-                ASSERT(con2->client == client2)
-                ASSERT(!con2->closing)
-                ASSERT(con2->local_port_index < options.local_udp_num_ports)
-                
-                if (con2->local_port_index >= 0 && BAddr_Compare(&con2->addr, &con->addr)) {
-                    port_usage[con2->local_port_index] = 1;
-                }
-            }
         }
         
         // set SO_REUSEADDR
@@ -891,20 +923,44 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, const u
                 continue;
             }
             
-            BAddr addr = local_udp_addr;
-            BAddr_SetPort(&addr, hton16(ntoh16(BAddr_GetPort(&addr)) + (uint16_t)i));
-            
-            if (BDatagram_Bind(&con->udp_dgram, addr)) {
+            BAddr bind_addr = local_udp_addr;
+            BAddr_SetPort(&bind_addr, hton16(ntoh16(BAddr_GetPort(&bind_addr)) + (uint16_t)i));
+            if (BDatagram_Bind(&con->udp_dgram, bind_addr)) {
                 // remember which port we're using
                 con->local_port_index = i;
                 goto cont;
             }
         }
         
+        // try closing an unused connection with the same remote addr
+        if (!least_con || PacketPassFairQueueFlow_IsBusy(&least_con->send_qflow)) {
+            goto failed;
+        }
+        
+        ASSERT(least_con->local_port_index >= 0)
+        ASSERT(least_con->local_port_index < options.local_udp_num_ports)
+        ASSERT(BAddr_Compare(&least_con->addr, &addr))
+        
+        int i = least_con->local_port_index;
+        
+        BLog(BLOG_INFO, "closing connection for its remote address");
+        
+        // close the offending connection
+        connection_close(least_con);
+        
+        // try binding to its port
+        BAddr bind_addr = local_udp_addr;
+        BAddr_SetPort(&bind_addr, hton16(ntoh16(BAddr_GetPort(&bind_addr)) + (uint16_t)i));
+        if (BDatagram_Bind(&con->udp_dgram, bind_addr)) {
+            // remember which port we're using
+            con->local_port_index = i;
+            goto cont;
+        }
+        
     failed:
         client_log(client, BLOG_WARNING, "failed to bind to any local address; proceeding regardless");
     cont:;
-        free(port_usage);
+        BFree(port_usage);
     }
     
     // set UDP dgram send address
@@ -1085,6 +1141,9 @@ int connection_send_to_udp (struct connection *con, const uint8_t *data, int dat
     
     connection_log(con, BLOG_DEBUG, "from client %d bytes", data_len);
     
+    // set last use time
+    con->last_use_time = btime_gettime();
+    
     // move connection to front
     LinkedList1_Remove(&client->connections_list, &con->connections_list_node);
     LinkedList1_Append(&client->connections_list, &con->connections_list_node);
@@ -1172,6 +1231,9 @@ void connection_udp_recv_if_handler_send (struct connection *con, uint8_t *data,
     ASSERT(data_len <= options.udp_mtu)
     
     connection_log(con, BLOG_DEBUG, "from UDP %d bytes", data_len);
+    
+    // set last use time
+    con->last_use_time = btime_gettime();
     
     // move connection to front
     LinkedList1_Remove(&client->connections_list, &con->connections_list_node);
