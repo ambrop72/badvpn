@@ -35,6 +35,7 @@
 #include <misc/byteorder.h>
 #include <misc/bsize.h>
 #include <misc/open_standard_streams.h>
+#include <misc/balloc.h>
 #include <structure/LinkedList1.h>
 #include <structure/BAVL.h>
 #include <base/BLog.h>
@@ -89,6 +90,7 @@ struct connection {
     union {
         struct {
             BDatagram udp_dgram;
+            int local_port_index;
             BufferWriter udp_send_writer;
             PacketBuffer udp_send_buffer;
             SinglePacketBuffer udp_recv_buffer;
@@ -849,23 +851,60 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, const u
         goto fail2;
     }
     
+    con->local_port_index = -1;
+    
     if (options.local_udp_num_ports >= 0) {
-        // try binding (without SO_REUSEADDR, else we'd always end up binding to first port)
+        // allocate port usage array
+        uint8_t *port_usage = BAllocSize(bsize_fromint(options.local_udp_num_ports));
+        if (!port_usage) {
+            client_log(client, BLOG_ERROR, "BAllocSize failed");
+            goto failed;
+        }
+        memset(port_usage, 0, options.local_udp_num_ports);
+        
+        // flag inappropriate ports (those with the same remote address)
+        for (LinkedList1Node *ln = LinkedList1_GetFirst(&clients_list); ln; ln = LinkedList1Node_Next(ln)) {
+            struct client *client2 = UPPER_OBJECT(ln, struct client, clients_list_node);
+            
+            for (LinkedList1Node *ln2 = LinkedList1_GetFirst(&client2->connections_list); ln2; ln2 = LinkedList1Node_Next(ln2)) {
+                struct connection *con2 = UPPER_OBJECT(ln2, struct connection, connections_list_node);
+                ASSERT(con2->client == client2)
+                ASSERT(!con2->closing)
+                ASSERT(con2->local_port_index < options.local_udp_num_ports)
+                
+                if (con2->local_port_index >= 0 && BAddr_Compare(&con2->addr, &con->addr)) {
+                    port_usage[con2->local_port_index] = 1;
+                }
+            }
+        }
+        
+        // set SO_REUSEADDR
+        if (!BDatagram_SetReuseAddr(&con->udp_dgram, 1)) {
+            client_log(client, BLOG_ERROR, "set SO_REUSEADDR failed");
+            goto failed;
+        }
+        
+        // try different ports
         for (int i = 0; i < options.local_udp_num_ports; i++) {
+            // skip inappropriate ports
+            if (port_usage[i]) {
+                continue;
+            }
+            
             BAddr addr = local_udp_addr;
             BAddr_SetPort(&addr, hton16(ntoh16(BAddr_GetPort(&addr)) + (uint16_t)i));
             
             if (BDatagram_Bind(&con->udp_dgram, addr)) {
-                // set SO_REUSEADDR (we bound without it, but we don't want to take over the address)
-                if (!BDatagram_SetReuseAddr(&con->udp_dgram, 1)) {
-                    client_log(client, BLOG_ERROR, "set SO_REUSEADDR failed");
-                }
+                // remember which port we're using
+                con->local_port_index = i;
                 goto cont;
             }
         }
         
+    failed:
         client_log(client, BLOG_WARNING, "failed to bind to any local address; proceeding regardless");
     cont:;
+        free(port_usage);
     }
     
     // set UDP dgram send address
