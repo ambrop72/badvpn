@@ -839,8 +839,10 @@ uint8_t * build_port_usage_array_and_find_least_used_connection (BAddr remote_ad
             if (BAddr_Compare(&con->addr, &remote_addr)) {
                 port_usage[con->local_port_index] = 1;
                 
-                if (!least_con || con->last_use_time < least_con->last_use_time) {
-                    least_con = con;
+                if (!PacketPassFairQueueFlow_IsBusy(&con->send_qflow)) {
+                    if (!least_con || con->last_use_time < least_con->last_use_time) {
+                        least_con = con;
+                    }
                 }
             }
         }
@@ -933,13 +935,14 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, const u
         }
         
         // try closing an unused connection with the same remote addr
-        if (!least_con || PacketPassFairQueueFlow_IsBusy(&least_con->send_qflow)) {
+        if (!least_con) {
             goto failed;
         }
         
         ASSERT(least_con->local_port_index >= 0)
         ASSERT(least_con->local_port_index < options.local_udp_num_ports)
         ASSERT(BAddr_Compare(&least_con->addr, &addr))
+        ASSERT(!PacketPassFairQueueFlow_IsBusy(&least_con->send_qflow))
         
         int i = least_con->local_port_index;
         
