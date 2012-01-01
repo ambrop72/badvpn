@@ -240,6 +240,8 @@ static int BAddr_Parse2 (BAddr *addr, char *str, char *name, int name_len, int n
  */
 static int BAddr_Parse (BAddr *addr, char *str, char *name, int name_len) WARN_UNUSED;
 
+static int BAddr_Compare (BAddr *addr1, BAddr *addr2);
+
 void BIPAddr_InitInvalid (BIPAddr *addr)
 {
     addr->type = BADDR_TYPE_NONE;
@@ -664,6 +666,25 @@ int BAddr_Parse2 (BAddr *addr, char *str, char *name, int name_len, int noresolv
 int BAddr_Parse (BAddr *addr, char *str, char *name, int name_len)
 {
     return BAddr_Parse2(addr, str, name, name_len, 0);
+}
+
+int BAddr_Compare (BAddr *addr1, BAddr *addr2)
+{
+    BAddr_Assert(addr1);
+    BAddr_Assert(addr2);
+    
+    if (addr1->type != addr2->type) {
+        return 0;
+    }
+    
+    switch (addr1->type) {
+        case BADDR_TYPE_IPV4:
+            return (addr1->ipv4.ip == addr2->ipv4.ip && addr1->ipv4.port == addr2->ipv4.port);
+        case BADDR_TYPE_IPV6:
+            return (!memcmp(addr1->ipv6.ip, addr2->ipv6.ip, sizeof(addr1->ipv6.ip)) && addr1->ipv6.port == addr2->ipv6.port);
+        default:
+            return 0;
+    }
 }
 
 #endif
