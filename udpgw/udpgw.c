@@ -124,6 +124,7 @@ struct {
     int client_socket_sndbuf;
     int local_udp_num_ports;
     char *local_udp_addr;
+    int unique_local_ports;
 } options;
 
 // MTUs
@@ -336,6 +337,7 @@ void print_help (const char *name)
         "        [--max-connections-for-client <number>]\n"
         "        [--client-socket-sndbuf <bytes / 0>]\n"
         "        [--local-udp-addrs <addr> <num_ports>]\n"
+        "        [--unique-local-ports]\n"
         "Address format is a.b.c.d:port (IPv4) or [addr]:port (IPv6).\n",
         name
     );
@@ -369,6 +371,7 @@ int parse_arguments (int argc, char *argv[])
     options.max_connections_for_client = DEFAULT_MAX_CONNECTIONS_FOR_CLIENT;
     options.client_socket_sndbuf = CLIENT_DEFAULT_SOCKET_SEND_BUFFER;
     options.local_udp_num_ports = -1;
+    options.unique_local_ports = 0;
     
     int i;
     for (i = 1; i < argc; i++) {
@@ -515,6 +518,9 @@ int parse_arguments (int argc, char *argv[])
             }
             i += 2;
         }
+        else if (!strcmp(arg, "--unique-local-ports")) {
+            options.unique_local_ports = 1;
+        }
         else {
             fprintf(stderr, "unknown option: %s\n", arg);
             return 0;
@@ -544,6 +550,11 @@ int process_arguments (void)
     if (options.local_udp_num_ports >= 0) {
         if (!BAddr_Parse(&local_udp_addr, options.local_udp_addr, NULL, 0)) {
             BLog(BLOG_ERROR, "local udp addr: BAddr_Parse failed");
+            return 0;
+        }
+        
+        if (local_udp_addr.type != BADDR_TYPE_IPV4) {
+            BLog(BLOG_ERROR, "local udp addr: must be an IPv4 address");
             return 0;
         }
     }
@@ -810,6 +821,7 @@ void client_recv_if_handler_send (struct client *client, uint8_t *data, int data
 uint8_t * build_port_usage_array_and_find_least_used_connection (BAddr remote_addr, struct connection **out_con)
 {
     ASSERT(options.local_udp_num_ports >= 0)
+    ASSERT(remote_addr.type == BADDR_TYPE_IPV4)
     
     // allocate port usage array
     uint8_t *port_usage = BAllocSize(bsize_fromint(options.local_udp_num_ports));
@@ -836,13 +848,21 @@ uint8_t * build_port_usage_array_and_find_least_used_connection (BAddr remote_ad
                 continue;
             }
             
-            if (BAddr_Compare(&con->addr, &remote_addr)) {
-                port_usage[con->local_port_index] = 1;
-                
-                if (!PacketPassFairQueueFlow_IsBusy(&con->send_qflow)) {
-                    if (!least_con || con->last_use_time < least_con->last_use_time) {
-                        least_con = con;
-                    }
+            if (options.unique_local_ports) {
+                if (con->addr.ipv4.ip != remote_addr.ipv4.ip) {
+                    continue;
+                }
+            } else {
+                if (!BAddr_Compare(&con->addr, &remote_addr)) {
+                    continue;
+                }
+            }
+            
+            port_usage[con->local_port_index] = 1;
+            
+            if (!PacketPassFairQueueFlow_IsBusy(&con->send_qflow)) {
+                if (!least_con || con->last_use_time < least_con->last_use_time) {
+                    least_con = con;
                 }
             }
         }
@@ -941,7 +961,6 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, const u
         
         ASSERT(least_con->local_port_index >= 0)
         ASSERT(least_con->local_port_index < options.local_udp_num_ports)
-        ASSERT(BAddr_Compare(&least_con->addr, &addr))
         ASSERT(!PacketPassFairQueueFlow_IsBusy(&least_con->send_qflow))
         
         int i = least_con->local_port_index;
