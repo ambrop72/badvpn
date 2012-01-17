@@ -18,11 +18,10 @@ Other systems are not supported.
 
 Linux:
   - gcc
-  - clang
+  - clang, except >=3.0 (clang bug http://llvm.org/bugs/show_bug.cgi?id=11535)
 
 Windows:
   - gcc from the mingw-w64 project for 32-bit targets
-  - clang, properly built with mingw-w64, using mingw headers/libs
 
 C language features used:
   - Standard (all part of C99):
