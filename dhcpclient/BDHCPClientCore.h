@@ -44,6 +44,13 @@
 typedef void (*BDHCPClientCore_func_getsendermac) (void *user, uint8_t *out_mac);
 typedef void (*BDHCPClientCore_handler) (void *user, int event);
 
+struct BDHCPClientCore_opts {
+    const char *hostname;
+    const char *vendorclassid;
+    const uint8_t *clientid;
+    size_t clientid_len;
+};
+
 typedef struct {
     PacketPassInterface *send_if;
     PacketRecvInterface *recv_if;
@@ -52,6 +59,10 @@ typedef struct {
     void *user;
     BDHCPClientCore_func_getsendermac func_getsendermac;
     BDHCPClientCore_handler handler;
+    char *hostname;
+    char *vendorclassid;
+    uint8_t *clientid;
+    size_t clientid_len;
     struct dhcp_header *send_buf;
     struct dhcp_header *recv_buf;
     int sending;
@@ -80,7 +91,7 @@ typedef struct {
     DebugObject d_obj;
 } BDHCPClientCore;
 
-int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, PacketRecvInterface *recv_if, uint8_t *client_mac_addr, BReactor *reactor, void *user,
+int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, PacketRecvInterface *recv_if, uint8_t *client_mac_addr, struct BDHCPClientCore_opts opts, BReactor *reactor, void *user,
                           BDHCPClientCore_func_getsendermac func_getsendermac,
                           BDHCPClientCore_handler handler);
 void BDHCPClientCore_Free (BDHCPClientCore *o);

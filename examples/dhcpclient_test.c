@@ -69,7 +69,9 @@ int main (int argc, char **argv)
         goto fail2;
     }
     
-    if (!BDHCPClient_Init(&dhcp, ifname, &reactor, dhcp_handler, NULL)) {
+    struct BDHCPClient_opts opts = {};
+    
+    if (!BDHCPClient_Init(&dhcp, ifname, opts, &reactor, dhcp_handler, NULL)) {
         DEBUG("BDHCPClient_Init failed");
         goto fail3;
     }

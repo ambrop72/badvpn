@@ -166,7 +166,7 @@ fail0:
     return 0;
 }
 
-int BDHCPClient_Init (BDHCPClient *o, const char *ifname, BReactor *reactor, BDHCPClient_handler handler, void *user)
+int BDHCPClient_Init (BDHCPClient *o, const char *ifname, struct BDHCPClient_opts opts, BReactor *reactor, BDHCPClient_handler handler, void *user)
 {
     // init arguments
     o->reactor = reactor;
@@ -259,8 +259,24 @@ int BDHCPClient_Init (BDHCPClient *o, const char *ifname, BReactor *reactor, BDH
         goto fail3;
     }
     
+    // init options
+    struct BDHCPClientCore_opts core_opts;
+    core_opts.hostname = opts.hostname;
+    core_opts.vendorclassid = opts.vendorclassid;
+    core_opts.clientid = opts.clientid;
+    core_opts.clientid_len = opts.clientid_len;
+    
+    // auto-generate clientid from MAC if requested
+    uint8_t mac_cid[7];
+    if (opts.auto_clientid) {
+        mac_cid[0] = DHCP_HARDWARE_ADDRESS_TYPE_ETHERNET;
+        memcpy(mac_cid + 1, if_mac, 6);
+        core_opts.clientid = mac_cid;
+        core_opts.clientid_len = sizeof(mac_cid);
+    }
+    
     // init dhcp
-    if (!BDHCPClientCore_Init(&o->dhcp, PacketCopier_GetInput(&o->send_copier), PacketCopier_GetOutput(&o->recv_copier), if_mac, o->reactor, o,
+    if (!BDHCPClientCore_Init(&o->dhcp, PacketCopier_GetInput(&o->send_copier), PacketCopier_GetOutput(&o->recv_copier), if_mac, core_opts, o->reactor, o,
                               (BDHCPClientCore_func_getsendermac)dhcp_func_getsendermac,
                               (BDHCPClientCore_handler)dhcp_handler
     )) {

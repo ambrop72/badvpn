@@ -23,12 +23,16 @@
  * 
  * DHCP client module.
  * 
- * Synopsis: net.ipv4.dhcp(string ifname)
+ * Synopsis: net.ipv4.dhcp(string ifname, [list opts])
  * Description:
  *   Runs a DHCP client on a network interface. When an address is obtained,
  *   transitions up (but does not assign anything). If the lease times out,
  *   transitions down.
  *   The interface must already be up.
+ *   Supported options (in the opts argument):
+ *   - "hostname", (string value): send this hostname to the DHCP server
+ *   - "vendorclassid", (string value): send this vendor class identifier
+ *   - "auto_clientid": send a client identifier generated from the MAC address
  * Variables:
  *   string addr - assigned IP address ("A.B.C.D")
  *   string prefix - address prefix length ("N")
@@ -98,19 +102,61 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    NCDValue *arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &arg)) {
+    NCDValue *ifname_arg;
+    NCDValue *opts_arg = NULL;
+    if (!NCDValue_ListRead(i->args, 1, &ifname_arg) && !NCDValue_ListRead(i->args, 2, &ifname_arg, &opts_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+    if (NCDValue_Type(ifname_arg) != NCDVALUE_STRING || (opts_arg && NCDValue_Type(opts_arg) != NCDVALUE_LIST)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    char *ifname = NCDValue_StringValue(arg);
+    char *ifname = NCDValue_StringValue(ifname_arg);
+    
+    struct BDHCPClient_opts opts = {};
+    
+    // read options
+    for (NCDValue *opt = (opts_arg ? NCDValue_ListFirst(opts_arg) : NULL); opt; opt = NCDValue_ListNext(opts_arg, opt)) {
+        // read name
+        if (NCDValue_Type(opt) != NCDVALUE_STRING) {
+            ModuleLog(o->i, BLOG_ERROR, "wrong option name type");
+            goto fail1;
+        }
+        char *optname = NCDValue_StringValue(opt);
+        
+        if (!strcmp(optname, "hostname") || !strcmp(optname, "vendorclassid")) {
+            // read value
+            NCDValue *val = NCDValue_ListNext(opts_arg, opt);
+            if (!val) {
+                ModuleLog(o->i, BLOG_ERROR, "option value missing");
+                goto fail1;
+            }
+            if (NCDValue_Type(val) != NCDVALUE_STRING) {
+                ModuleLog(o->i, BLOG_ERROR, "wrong option value type");
+                goto fail1;
+            }
+            char *optval = NCDValue_StringValue(val);
+            
+            if (!strcmp(optname, "hostname")) {
+                opts.hostname = optval;
+            } else {
+                opts.vendorclassid = optval;
+            }
+            
+            opt = val;
+        }
+        else if (!strcmp(optname, "auto_clientid")) {
+            opts.auto_clientid = 1;
+        }
+        else {
+            ModuleLog(o->i, BLOG_ERROR, "unknown option name");
+            goto fail1;
+        }
+    }
     
     // init DHCP
-    if (!BDHCPClient_Init(&o->dhcp, ifname, o->i->reactor, (BDHCPClient_handler)dhcp_handler, o)) {
+    if (!BDHCPClient_Init(&o->dhcp, ifname, opts, o->i->reactor, (BDHCPClient_handler)dhcp_handler, o)) {
         ModuleLog(o->i, BLOG_ERROR, "BDHCPClient_Init failed");
         goto fail1;
     }

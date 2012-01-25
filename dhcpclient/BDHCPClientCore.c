@@ -26,6 +26,7 @@
 #include <misc/byteorder.h>
 #include <misc/minmax.h>
 #include <misc/balloc.h>
+#include <misc/bsize.h>
 #include <security/BRandom.h>
 #include <base/BLog.h>
 
@@ -127,6 +128,30 @@ static void send_message (
     ((uint8_t *)(out + 1))[2] = DHCP_OPTION_DOMAIN_NAME_SERVER;
     ((uint8_t *)(out + 1))[3] = DHCP_OPTION_IP_ADDRESS_LEASE_TIME;
     out = (void *)((uint8_t *)(out + 1) + ntoh8(out->len));
+    
+    if (o->hostname) {
+        // host name
+        out->type = hton8(DHCP_OPTION_HOST_NAME);
+        out->len = hton8(strlen(o->hostname));
+        memcpy(out + 1, o->hostname, strlen(o->hostname));
+        out = (void *)((uint8_t *)(out + 1) + ntoh8(out->len));
+    }
+    
+    if (o->vendorclassid) {
+        // vendor class identifier
+        out->type = hton8(DHCP_OPTION_VENDOR_CLASS_IDENTIFIER);
+        out->len = hton8(strlen(o->vendorclassid));
+        memcpy(out + 1, o->vendorclassid, strlen(o->vendorclassid));
+        out = (void *)((uint8_t *)(out + 1) + ntoh8(out->len));
+    }
+    
+    if (o->clientid) {
+        // client identifier
+        out->type = hton8(DHCP_OPTION_CLIENT_IDENTIFIER);
+        out->len = hton8(o->clientid_len);
+        memcpy(out + 1, o->clientid, o->clientid_len);
+        out = (void *)((uint8_t *)(out + 1) + ntoh8(out->len));
+    }
     
     // end option
     *((uint8_t *)out) = 0xFF;
@@ -603,7 +628,12 @@ static void lease_timer_handler (BDHCPClientCore *o)
     return;
 }
 
-int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, PacketRecvInterface *recv_if, uint8_t *client_mac_addr, BReactor *reactor, void *user,
+static bsize_t maybe_len (const char *str)
+{
+    return bsize_fromsize(str ? strlen(str) : 0);
+}
+
+int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, PacketRecvInterface *recv_if, uint8_t *client_mac_addr, struct BDHCPClientCore_opts opts, BReactor *reactor, void *user,
                           BDHCPClientCore_func_getsendermac func_getsendermac,
                           BDHCPClientCore_handler handler)
 {
@@ -620,6 +650,48 @@ int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, Pack
     o->user = user;
     o->func_getsendermac = func_getsendermac;
     o->handler = handler;
+    
+    o->hostname = NULL;
+    o->vendorclassid = NULL;
+    o->clientid = NULL;
+    o->clientid_len = 0;
+    
+    // copy options
+    if (opts.hostname && !(o->hostname = strdup(opts.hostname))) {
+        BLog(BLOG_ERROR, "strdup failed");
+        goto fail0;
+    }
+    if (opts.vendorclassid && !(o->vendorclassid = strdup(opts.vendorclassid))) {
+        BLog(BLOG_ERROR, "strdup failed");
+        goto fail0;
+    }
+    if (opts.clientid) {
+        if (!(o->clientid = BAlloc(opts.clientid_len))) {
+            BLog(BLOG_ERROR, "BAlloc failed");
+            goto fail0;
+        }
+        memcpy(o->clientid, opts.clientid, opts.clientid_len);
+        o->clientid_len = opts.clientid_len;
+    }
+    
+    // make sure options aren't too long
+    bsize_t opts_size = bsize_add(maybe_len(o->hostname), bsize_add(maybe_len(o->vendorclassid), bsize_fromsize(o->clientid_len)));
+    if (opts_size.is_overflow || opts_size.value > 100) {
+        BLog(BLOG_ERROR, "options too long together");
+        goto fail0;
+    }
+    if (o->hostname && strlen(o->hostname) > 255) {
+        BLog(BLOG_ERROR, "hostname too long");
+        goto fail0;
+    }
+    if (o->vendorclassid && strlen(o->vendorclassid) > 255) {
+        BLog(BLOG_ERROR, "vendorclassid too long");
+        goto fail0;
+    }
+    if (o->clientid && o->clientid_len > 255) {
+        BLog(BLOG_ERROR, "clientid too long");
+        goto fail0;
+    }
     
     // allocate buffers
     if (!(o->send_buf = BAlloc(PacketPassInterface_GetMTU(send_if)))) {
@@ -660,6 +732,9 @@ int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, Pack
 fail1:
     BFree(o->send_buf);
 fail0:
+    BFree(o->clientid);
+    free(o->vendorclassid);
+    free(o->hostname);
     return 0;
 }
 
@@ -677,6 +752,11 @@ void BDHCPClientCore_Free (BDHCPClientCore *o)
     // free buffers
     BFree(o->recv_buf);
     BFree(o->send_buf);
+    
+    // free options
+    BFree(o->clientid);
+    free(o->vendorclassid);
+    free(o->hostname);
 }
 
 void BDHCPClientCore_GetClientIP (BDHCPClientCore *o, uint32_t *out_ip)

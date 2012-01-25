@@ -60,7 +60,15 @@ typedef struct {
     DebugObject d_obj;
 } BDHCPClient;
 
-int BDHCPClient_Init (BDHCPClient *o, const char *ifname, BReactor *reactor, BDHCPClient_handler handler, void *user);
+struct BDHCPClient_opts {
+    const char *hostname;
+    const char *vendorclassid;
+    const uint8_t *clientid;
+    size_t clientid_len;
+    int auto_clientid;
+};
+
+int BDHCPClient_Init (BDHCPClient *o, const char *ifname, struct BDHCPClient_opts opts, BReactor *reactor, BDHCPClient_handler handler, void *user);
 void BDHCPClient_Free (BDHCPClient *o);
 int BDHCPClient_IsUp (BDHCPClient *o);
 void BDHCPClient_GetClientIP (BDHCPClient *o, uint32_t *out_ip);
