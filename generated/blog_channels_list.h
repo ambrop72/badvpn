@@ -20,6 +20,7 @@
 {.name = "ncd_ip_in_network", .loglevel = 4},
 {.name = "ncd_run", .loglevel = 4},
 {.name = "ncd_runonce", .loglevel = 4},
+{.name = "ncd_daemon", .loglevel = 4},
 {.name = "ncd_spawn", .loglevel = 4},
 {.name = "ncd_call", .loglevel = 4},
 {.name = "ncd_imperative", .loglevel = 4},

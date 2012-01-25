@@ -55,6 +55,7 @@ add_executable(badvpn-ncd
     modules/ip_in_network.c
     modules/run.c
     modules/runonce.c
+    modules/daemon.c
     modules/spawn.c
     modules/call.c
     modules/imperative.c
