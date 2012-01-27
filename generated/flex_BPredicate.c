@@ -466,26 +466,33 @@ static yyconst flex_int16_t yy_chk[70] =
  * 
  * @section LICENSE
  * 
- * This file is part of BadVPN.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the author nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  * 
- * BadVPN is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation.
- * 
- * BadVPN is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  * @section DESCRIPTION
  * 
  * {@link BPredicate} lexer file.
  */
-#line 28 "predicate/BPredicate.l"
+#line 35 "predicate/BPredicate.l"
 
 #include <string.h>
 #include <stdlib.h>
@@ -501,7 +508,7 @@ static yyconst flex_int16_t yy_chk[70] =
     int bytes_read = LexMemoryBufferInput_Read(yyget_extra(yyscanner), buffer, max_size); \
     res = (bytes_read == 0 ? YY_NULL : bytes_read);
 
-#line 505 "generated//flex_BPredicate.c"
+#line 512 "generated//flex_BPredicate.c"
 
 #define INITIAL 0
 
@@ -753,9 +760,9 @@ YY_DECL
 	register int yy_act;
     struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
 
-#line 47 "predicate/BPredicate.l"
+#line 54 "predicate/BPredicate.l"
 
-#line 759 "generated//flex_BPredicate.c"
+#line 766 "generated//flex_BPredicate.c"
 
     yylval = yylval_param;
 
@@ -844,47 +851,47 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 48 "predicate/BPredicate.l"
+#line 55 "predicate/BPredicate.l"
 return SPAR;
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 49 "predicate/BPredicate.l"
+#line 56 "predicate/BPredicate.l"
 return EPAR;
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 50 "predicate/BPredicate.l"
+#line 57 "predicate/BPredicate.l"
 return COMMA;
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 51 "predicate/BPredicate.l"
+#line 58 "predicate/BPredicate.l"
 return AND;
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 52 "predicate/BPredicate.l"
+#line 59 "predicate/BPredicate.l"
 return OR;
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 53 "predicate/BPredicate.l"
+#line 60 "predicate/BPredicate.l"
 return NOT;
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 54 "predicate/BPredicate.l"
+#line 61 "predicate/BPredicate.l"
 return CONSTANT_TRUE;
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 55 "predicate/BPredicate.l"
+#line 62 "predicate/BPredicate.l"
 return CONSTANT_FALSE;
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 56 "predicate/BPredicate.l"
+#line 63 "predicate/BPredicate.l"
 {
                     int l = strlen(yytext);
                     char *p = malloc(l + 1);
@@ -899,7 +906,7 @@ YY_RULE_SETUP
 case 10:
 /* rule 10 can match eol */
 YY_RULE_SETUP
-#line 66 "predicate/BPredicate.l"
+#line 73 "predicate/BPredicate.l"
 {
                     int l = strlen(yytext);
                     char *p = malloc(l - 1);
@@ -914,20 +921,20 @@ YY_RULE_SETUP
 case 11:
 /* rule 11 can match eol */
 YY_RULE_SETUP
-#line 76 "predicate/BPredicate.l"
+#line 83 "predicate/BPredicate.l"
 ;
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 77 "predicate/BPredicate.l"
+#line 84 "predicate/BPredicate.l"
 LexMemoryBufferInput_SetError(yyget_extra(yyscanner)); return 0; // remember failure and report EOF
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 78 "predicate/BPredicate.l"
+#line 85 "predicate/BPredicate.l"
 ECHO;
 	YY_BREAK
-#line 931 "generated//flex_BPredicate.c"
+#line 938 "generated//flex_BPredicate.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -2146,7 +2153,7 @@ void yyfree (void * ptr , yyscan_t yyscanner)
 
 #define YYTABLES_NAME "yytables"
 
-#line 78 "predicate/BPredicate.l"
+#line 85 "predicate/BPredicate.l"
 
 
 
