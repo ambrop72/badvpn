@@ -205,7 +205,7 @@ int tapwin32_find_device (char *device_component_id, char *device_name, char (*d
         return 0;
     }
     
-    snprintf(*device_path, sizeof(*device_path), "%s%s%s", USERMODEDEVICEDIR, net_cfg_instance_id, TAPSUFFIX);
+    snprintf(*device_path, sizeof(*device_path), "\\\\.\\Global\\%s.tap", net_cfg_instance_id);
     
     return 1;
 }
