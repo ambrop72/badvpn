@@ -4,7 +4,7 @@
 /* First off, code is included that follows the "include" declaration
 ** in the input grammar file. */
 #include <stdio.h>
-#line 23 "NCDConfigParser_parse.y"
+#line 30 "NCDConfigParser_parse.y"
 
 
 #include <string.h>
@@ -418,28 +418,28 @@ static void yy_destructor(
     case 11: /* PROCESS */
     case 12: /* TEMPLATE */
 {
-#line 43 "NCDConfigParser_parse.y"
+#line 50 "NCDConfigParser_parse.y"
  free((yypminor->yy0)); 
 #line 424 "NCDConfigParser_parse.c"
 }
       break;
     case 14: /* processes */
 {
-#line 54 "NCDConfigParser_parse.y"
+#line 61 "NCDConfigParser_parse.y"
  NCDConfig_free_processes((yypminor->yy41)); 
 #line 431 "NCDConfigParser_parse.c"
 }
       break;
     case 15: /* statements */
 {
-#line 55 "NCDConfigParser_parse.y"
+#line 62 "NCDConfigParser_parse.y"
  NCDConfig_free_statements((yypminor->yy34)); 
 #line 438 "NCDConfigParser_parse.c"
 }
       break;
     case 16: /* statement_names */
 {
-#line 56 "NCDConfigParser_parse.y"
+#line 63 "NCDConfigParser_parse.y"
  NCDConfig_free_strings((yypminor->yy10)); 
 #line 445 "NCDConfigParser_parse.c"
 }
@@ -448,14 +448,14 @@ static void yy_destructor(
     case 18: /* list_contents */
     case 19: /* list */
 {
-#line 57 "NCDConfigParser_parse.y"
+#line 64 "NCDConfigParser_parse.y"
  NCDConfig_free_list((yypminor->yy24)); 
 #line 454 "NCDConfigParser_parse.c"
 }
       break;
     case 20: /* name_maybe */
 {
-#line 60 "NCDConfigParser_parse.y"
+#line 67 "NCDConfigParser_parse.y"
  free((yypminor->yy45)); 
 #line 461 "NCDConfigParser_parse.c"
 }
@@ -630,7 +630,7 @@ static void yyStackOverflow(yyParser *yypParser, YYMINORTYPE *yypMinor){
    while( yypParser->yyidx>=0 ) yy_pop_parser_stack(yypParser);
    /* Here code is inserted which will execute if the parser
    ** stack every overflows */
-#line 69 "NCDConfigParser_parse.y"
+#line 76 "NCDConfigParser_parse.y"
 
     if (yypMinor) {
         free(yypMinor->yy0);
@@ -770,7 +770,7 @@ static void yy_reduce(
   **     break;
   */
       case 0: /* input ::= processes */
-#line 75 "NCDConfigParser_parse.y"
+#line 82 "NCDConfigParser_parse.y"
 {
     parser_out->ast = yymsp[0].minor.yy41;
 
@@ -781,7 +781,7 @@ static void yy_reduce(
 #line 782 "NCDConfigParser_parse.c"
         break;
       case 1: /* processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE */
-#line 83 "NCDConfigParser_parse.y"
+#line 90 "NCDConfigParser_parse.y"
 {
     yygotominor.yy41 = NCDConfig_make_processes(yymsp[-4].minor.yy6, yymsp[-3].minor.yy0, yymsp[-1].minor.yy34, 0, NULL);
     if (!yygotominor.yy41) {
@@ -793,7 +793,7 @@ static void yy_reduce(
 #line 794 "NCDConfigParser_parse.c"
         break;
       case 2: /* processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes */
-#line 90 "NCDConfigParser_parse.y"
+#line 97 "NCDConfigParser_parse.y"
 {
     yygotominor.yy41 = NCDConfig_make_processes(yymsp[-5].minor.yy6, yymsp[-4].minor.yy0, yymsp[-2].minor.yy34, 1, yymsp[0].minor.yy41);
     if (!yygotominor.yy41) {
@@ -805,7 +805,7 @@ static void yy_reduce(
 #line 806 "NCDConfigParser_parse.c"
         break;
       case 3: /* statements ::= statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON */
-#line 97 "NCDConfigParser_parse.y"
+#line 104 "NCDConfigParser_parse.y"
 {
     yygotominor.yy34 = NCDConfig_make_statements(NULL, yymsp[-5].minor.yy10, yymsp[-3].minor.yy24, yymsp[-1].minor.yy45, NULL);
     if (!yygotominor.yy34) {
@@ -818,7 +818,7 @@ static void yy_reduce(
 #line 819 "NCDConfigParser_parse.c"
         break;
       case 4: /* statements ::= statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON statements */
-#line 104 "NCDConfigParser_parse.y"
+#line 111 "NCDConfigParser_parse.y"
 {
     yygotominor.yy34 = NCDConfig_make_statements(NULL, yymsp[-6].minor.yy10, yymsp[-4].minor.yy24, yymsp[-2].minor.yy45, yymsp[0].minor.yy34);
     if (!yygotominor.yy34) {
@@ -831,7 +831,7 @@ static void yy_reduce(
 #line 832 "NCDConfigParser_parse.c"
         break;
       case 5: /* statements ::= statement_names ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON */
-#line 111 "NCDConfigParser_parse.y"
+#line 118 "NCDConfigParser_parse.y"
 {
     yygotominor.yy34 = NCDConfig_make_statements(yymsp[-7].minor.yy10, yymsp[-5].minor.yy10, yymsp[-3].minor.yy24, yymsp[-1].minor.yy45, NULL);
     if (!yygotominor.yy34) {
@@ -845,7 +845,7 @@ static void yy_reduce(
 #line 846 "NCDConfigParser_parse.c"
         break;
       case 6: /* statements ::= statement_names ARROW statement_names ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON statements */
-#line 118 "NCDConfigParser_parse.y"
+#line 125 "NCDConfigParser_parse.y"
 {
     yygotominor.yy34 = NCDConfig_make_statements(yymsp[-8].minor.yy10, yymsp[-6].minor.yy10, yymsp[-4].minor.yy24, yymsp[-2].minor.yy45, yymsp[0].minor.yy34);
     if (!yygotominor.yy34) {
@@ -859,7 +859,7 @@ static void yy_reduce(
 #line 860 "NCDConfigParser_parse.c"
         break;
       case 7: /* statement_names ::= NAME */
-#line 125 "NCDConfigParser_parse.y"
+#line 132 "NCDConfigParser_parse.y"
 {
     yygotominor.yy10 = NCDConfig_make_strings(yymsp[0].minor.yy0, 0, NULL);
     if (!yygotominor.yy10) {
@@ -869,7 +869,7 @@ static void yy_reduce(
 #line 870 "NCDConfigParser_parse.c"
         break;
       case 8: /* statement_names ::= NAME DOT statement_names */
-#line 132 "NCDConfigParser_parse.y"
+#line 139 "NCDConfigParser_parse.y"
 {
     yygotominor.yy10 = NCDConfig_make_strings(yymsp[-2].minor.yy0, 1, yymsp[0].minor.yy10);
     if (!yygotominor.yy10) {
@@ -880,21 +880,21 @@ static void yy_reduce(
 #line 881 "NCDConfigParser_parse.c"
         break;
       case 9: /* statement_args_maybe ::= */
-#line 139 "NCDConfigParser_parse.y"
+#line 146 "NCDConfigParser_parse.y"
 {
     yygotominor.yy24 = NULL;
 }
 #line 888 "NCDConfigParser_parse.c"
         break;
       case 10: /* statement_args_maybe ::= list_contents */
-#line 143 "NCDConfigParser_parse.y"
+#line 150 "NCDConfigParser_parse.y"
 {
     yygotominor.yy24 = yymsp[0].minor.yy24;
 }
 #line 895 "NCDConfigParser_parse.c"
         break;
       case 11: /* list_contents ::= STRING */
-#line 147 "NCDConfigParser_parse.y"
+#line 154 "NCDConfigParser_parse.y"
 {
     yygotominor.yy24 = NCDConfig_make_list_string(yymsp[0].minor.yy0, NULL);
     if (!yygotominor.yy24) {
@@ -904,7 +904,7 @@ static void yy_reduce(
 #line 905 "NCDConfigParser_parse.c"
         break;
       case 12: /* list_contents ::= statement_names */
-#line 154 "NCDConfigParser_parse.y"
+#line 161 "NCDConfigParser_parse.y"
 {
     yygotominor.yy24 = NCDConfig_make_list_var(yymsp[0].minor.yy10, NULL);
     if (!yygotominor.yy24) {
@@ -914,7 +914,7 @@ static void yy_reduce(
 #line 915 "NCDConfigParser_parse.c"
         break;
       case 13: /* list_contents ::= list */
-#line 161 "NCDConfigParser_parse.y"
+#line 168 "NCDConfigParser_parse.y"
 {
     yygotominor.yy24 = NCDConfig_make_list_list(yymsp[0].minor.yy24, NULL);
     if (!yygotominor.yy24) {
@@ -924,7 +924,7 @@ static void yy_reduce(
 #line 925 "NCDConfigParser_parse.c"
         break;
       case 14: /* list_contents ::= STRING COMMA list_contents */
-#line 168 "NCDConfigParser_parse.y"
+#line 175 "NCDConfigParser_parse.y"
 {
     yygotominor.yy24 = NCDConfig_make_list_string(yymsp[-2].minor.yy0, yymsp[0].minor.yy24);
     if (!yygotominor.yy24) {
@@ -935,7 +935,7 @@ static void yy_reduce(
 #line 936 "NCDConfigParser_parse.c"
         break;
       case 15: /* list_contents ::= statement_names COMMA list_contents */
-#line 175 "NCDConfigParser_parse.y"
+#line 182 "NCDConfigParser_parse.y"
 {
     yygotominor.yy24 = NCDConfig_make_list_var(yymsp[-2].minor.yy10, yymsp[0].minor.yy24);
     if (!yygotominor.yy24) {
@@ -946,7 +946,7 @@ static void yy_reduce(
 #line 947 "NCDConfigParser_parse.c"
         break;
       case 16: /* list_contents ::= list COMMA list_contents */
-#line 182 "NCDConfigParser_parse.y"
+#line 189 "NCDConfigParser_parse.y"
 {
     yygotominor.yy24 = NCDConfig_make_list_list(yymsp[-2].minor.yy24, yymsp[0].minor.yy24);
     if (!yygotominor.yy24) {
@@ -957,7 +957,7 @@ static void yy_reduce(
 #line 958 "NCDConfigParser_parse.c"
         break;
       case 17: /* list ::= CURLY_OPEN CURLY_CLOSE */
-#line 189 "NCDConfigParser_parse.y"
+#line 196 "NCDConfigParser_parse.y"
 {
     yygotominor.yy24 = NULL;
   yy_destructor(yypParser,2,&yymsp[-1].minor);
@@ -966,7 +966,7 @@ static void yy_reduce(
 #line 967 "NCDConfigParser_parse.c"
         break;
       case 18: /* list ::= CURLY_OPEN list_contents CURLY_CLOSE */
-#line 193 "NCDConfigParser_parse.y"
+#line 200 "NCDConfigParser_parse.y"
 {
     yygotominor.yy24 = yymsp[-1].minor.yy24;
   yy_destructor(yypParser,2,&yymsp[-2].minor);
@@ -975,21 +975,21 @@ static void yy_reduce(
 #line 976 "NCDConfigParser_parse.c"
         break;
       case 19: /* name_maybe ::= */
-#line 197 "NCDConfigParser_parse.y"
+#line 204 "NCDConfigParser_parse.y"
 {
     yygotominor.yy45 = NULL;
 }
 #line 983 "NCDConfigParser_parse.c"
         break;
       case 20: /* name_maybe ::= NAME */
-#line 201 "NCDConfigParser_parse.y"
+#line 208 "NCDConfigParser_parse.y"
 {
     yygotominor.yy45 = yymsp[0].minor.yy0;
 }
 #line 990 "NCDConfigParser_parse.c"
         break;
       case 21: /* process_or_template ::= PROCESS */
-#line 205 "NCDConfigParser_parse.y"
+#line 212 "NCDConfigParser_parse.y"
 {
     yygotominor.yy6 = 0;
   yy_destructor(yypParser,11,&yymsp[0].minor);
@@ -997,7 +997,7 @@ static void yy_reduce(
 #line 998 "NCDConfigParser_parse.c"
         break;
       case 22: /* process_or_template ::= TEMPLATE */
-#line 209 "NCDConfigParser_parse.y"
+#line 216 "NCDConfigParser_parse.y"
 {
     yygotominor.yy6 = 1;
   yy_destructor(yypParser,12,&yymsp[0].minor);
@@ -1064,7 +1064,7 @@ static void yy_syntax_error(
 ){
   ParseARG_FETCH;
 #define TOKEN (yyminor.yy0)
-#line 64 "NCDConfigParser_parse.y"
+#line 71 "NCDConfigParser_parse.y"
 
     parser_out->syntax_error = 1;
 #line 1071 "NCDConfigParser_parse.c"

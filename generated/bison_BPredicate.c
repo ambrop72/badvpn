@@ -66,7 +66,7 @@
 /* Copy the first part of user declarations.  */
 
 /* Line 268 of yacc.c  */
-#line 27 "predicate/BPredicate.y"
+#line 34 "predicate/BPredicate.y"
 
 
 #include <stdlib.h>
@@ -305,7 +305,7 @@ typedef union YYSTYPE
 {
 
 /* Line 293 of yacc.c  */
-#line 220 "predicate/BPredicate.y"
+#line 227 "predicate/BPredicate.y"
 
     char *text;
     struct predicate_node *node;
@@ -636,9 +636,9 @@ static const yytype_int8 yyrhs[] =
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint16 yyrline[] =
 {
-       0,   269,   269,   274,   274,   274,   274,   274,   274,   277,
-     281,   287,   293,   299,   305,   311,   315,   321,   325,   331,
-     335
+       0,   276,   276,   281,   281,   281,   281,   281,   281,   284,
+     288,   294,   300,   306,   312,   318,   322,   328,   332,   338,
+     342
 };
 #endif
 
@@ -1318,7 +1318,7 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
       case 3: /* "STRING" */
 
 /* Line 1391 of yacc.c  */
-#line 233 "predicate/BPredicate.y"
+#line 240 "predicate/BPredicate.y"
 	{
     free((yyvaluep->text));
 };
@@ -1329,7 +1329,7 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
       case 4: /* "NAME" */
 
 /* Line 1391 of yacc.c  */
-#line 233 "predicate/BPredicate.y"
+#line 240 "predicate/BPredicate.y"
 	{
     free((yyvaluep->text));
 };
@@ -1340,7 +1340,7 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
       case 17: /* "predicate" */
 
 /* Line 1391 of yacc.c  */
-#line 243 "predicate/BPredicate.y"
+#line 250 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->node)) {
         free_predicate_node((yyvaluep->node));
@@ -1353,7 +1353,7 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
       case 18: /* "constant" */
 
 /* Line 1391 of yacc.c  */
-#line 243 "predicate/BPredicate.y"
+#line 250 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->node)) {
         free_predicate_node((yyvaluep->node));
@@ -1366,7 +1366,7 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
       case 19: /* "parentheses" */
 
 /* Line 1391 of yacc.c  */
-#line 243 "predicate/BPredicate.y"
+#line 250 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->node)) {
         free_predicate_node((yyvaluep->node));
@@ -1379,7 +1379,7 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
       case 20: /* "neg" */
 
 /* Line 1391 of yacc.c  */
-#line 243 "predicate/BPredicate.y"
+#line 250 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->node)) {
         free_predicate_node((yyvaluep->node));
@@ -1392,7 +1392,7 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
       case 21: /* "conjunct" */
 
 /* Line 1391 of yacc.c  */
-#line 243 "predicate/BPredicate.y"
+#line 250 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->node)) {
         free_predicate_node((yyvaluep->node));
@@ -1405,7 +1405,7 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
       case 22: /* "disjunct" */
 
 /* Line 1391 of yacc.c  */
-#line 243 "predicate/BPredicate.y"
+#line 250 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->node)) {
         free_predicate_node((yyvaluep->node));
@@ -1418,7 +1418,7 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
       case 23: /* "function" */
 
 /* Line 1391 of yacc.c  */
-#line 243 "predicate/BPredicate.y"
+#line 250 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->node)) {
         free_predicate_node((yyvaluep->node));
@@ -1431,7 +1431,7 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
       case 24: /* "arguments" */
 
 /* Line 1391 of yacc.c  */
-#line 250 "predicate/BPredicate.y"
+#line 257 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->arg_node)) {
         free_arguments_node((yyvaluep->arg_node));
@@ -1444,7 +1444,7 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
       case 25: /* "argument" */
 
 /* Line 1391 of yacc.c  */
-#line 257 "predicate/BPredicate.y"
+#line 264 "predicate/BPredicate.y"
 	{
     free_argument((yyvaluep->arg_arg));
 };
@@ -1780,7 +1780,7 @@ yyreduce:
         case 2:
 
 /* Line 1806 of yacc.c  */
-#line 269 "predicate/BPredicate.y"
+#line 276 "predicate/BPredicate.y"
     {
         *result = (yyvsp[(1) - (1)].node);
     }
@@ -1789,7 +1789,7 @@ yyreduce:
   case 9:
 
 /* Line 1806 of yacc.c  */
-#line 277 "predicate/BPredicate.y"
+#line 284 "predicate/BPredicate.y"
     {
         (yyval.node) = make_constant(1);
     }
@@ -1798,7 +1798,7 @@ yyreduce:
   case 10:
 
 /* Line 1806 of yacc.c  */
-#line 281 "predicate/BPredicate.y"
+#line 288 "predicate/BPredicate.y"
     {
         (yyval.node) = make_constant(0);
     }
@@ -1807,7 +1807,7 @@ yyreduce:
   case 11:
 
 /* Line 1806 of yacc.c  */
-#line 287 "predicate/BPredicate.y"
+#line 294 "predicate/BPredicate.y"
     {
         (yyval.node) = (yyvsp[(2) - (3)].node);
     }
@@ -1816,7 +1816,7 @@ yyreduce:
   case 12:
 
 /* Line 1806 of yacc.c  */
-#line 293 "predicate/BPredicate.y"
+#line 300 "predicate/BPredicate.y"
     {
         (yyval.node) = make_negation((yyvsp[(2) - (2)].node));
     }
@@ -1825,7 +1825,7 @@ yyreduce:
   case 13:
 
 /* Line 1806 of yacc.c  */
-#line 299 "predicate/BPredicate.y"
+#line 306 "predicate/BPredicate.y"
     {
         (yyval.node) = make_conjunction((yyvsp[(1) - (3)].node), (yyvsp[(3) - (3)].node));
     }
@@ -1834,7 +1834,7 @@ yyreduce:
   case 14:
 
 /* Line 1806 of yacc.c  */
-#line 305 "predicate/BPredicate.y"
+#line 312 "predicate/BPredicate.y"
     {
         (yyval.node) = make_disjunction((yyvsp[(1) - (3)].node), (yyvsp[(3) - (3)].node));
     }
@@ -1843,7 +1843,7 @@ yyreduce:
   case 15:
 
 /* Line 1806 of yacc.c  */
-#line 311 "predicate/BPredicate.y"
+#line 318 "predicate/BPredicate.y"
     {
         (yyval.node) = make_function((yyvsp[(1) - (3)].text), NULL, 0);
     }
@@ -1852,7 +1852,7 @@ yyreduce:
   case 16:
 
 /* Line 1806 of yacc.c  */
-#line 315 "predicate/BPredicate.y"
+#line 322 "predicate/BPredicate.y"
     {
         (yyval.node) = make_function((yyvsp[(1) - (4)].text), (yyvsp[(3) - (4)].arg_node), 1);
     }
@@ -1861,7 +1861,7 @@ yyreduce:
   case 17:
 
 /* Line 1806 of yacc.c  */
-#line 321 "predicate/BPredicate.y"
+#line 328 "predicate/BPredicate.y"
     {
         (yyval.arg_node) = make_arguments((yyvsp[(1) - (1)].arg_arg), NULL, 0);
     }
@@ -1870,7 +1870,7 @@ yyreduce:
   case 18:
 
 /* Line 1806 of yacc.c  */
-#line 325 "predicate/BPredicate.y"
+#line 332 "predicate/BPredicate.y"
     {
         (yyval.arg_node) = make_arguments((yyvsp[(1) - (3)].arg_arg), (yyvsp[(3) - (3)].arg_node), 1);
     }
@@ -1879,7 +1879,7 @@ yyreduce:
   case 19:
 
 /* Line 1806 of yacc.c  */
-#line 331 "predicate/BPredicate.y"
+#line 338 "predicate/BPredicate.y"
     {
         (yyval.arg_arg) = make_argument_predicate((yyvsp[(1) - (1)].node));
     }
@@ -1888,7 +1888,7 @@ yyreduce:
   case 20:
 
 /* Line 1806 of yacc.c  */
-#line 335 "predicate/BPredicate.y"
+#line 342 "predicate/BPredicate.y"
     {
         (yyval.arg_arg) = make_argument_string((yyvsp[(1) - (1)].text));
     }
