@@ -30,13 +30,16 @@
  * 
  * Imperative program execution module. On initialization, starts the process.
  * Goes to UP state when the process terminates. When requested to die, waits for
- * the process to terminate if it's running, without sending any signals.
+ * the process to terminate if it's running, optionally sending SIGTERM.
  * 
- * Synopsis: runonce(list(string) cmd)
+ * Synopsis: runonce(list(string) cmd, [list opts])
  * Arguments:
  *   cmd - Command to run on startup. The first element is the full path
  *     to the executable, other elements are command line arguments (excluding
  *     the zeroth argument).
+ *   opts - List of options:
+ *     "term_on_deinit" - If we get a deinit request while the process is running,
+ *                        send it SIGTERM.
  * Variables:
  *   string exit_status - if the program exited normally, the non-negative exit code, otherwise -1
  */
@@ -59,6 +62,7 @@
 
 struct instance {
     NCDModuleInst *i;
+    int term_on_deinit;
     int state;
     BProcess process;
     int exit_status;
@@ -165,12 +169,32 @@ static void func_new (NCDModuleInst *i)
     
     // init arguments
     o->i = i;
+    o->term_on_deinit = 0;
     
     // read arguments
     NCDValue *cmd_arg;
-    if (!NCDValue_ListRead(i->args, 1, &cmd_arg)) {
+    NCDValue *opts_arg = NULL;
+    if (!NCDValue_ListRead(i->args, 1, &cmd_arg) && !NCDValue_ListRead(i->args, 2, &cmd_arg, &opts_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
+    }
+    
+    // read options
+    for (NCDValue *opt = (opts_arg ? NCDValue_ListFirst(opts_arg) : NULL); opt; opt = NCDValue_ListNext(opts_arg, opt)) {
+        // read name
+        if (NCDValue_Type(opt) != NCDVALUE_STRING) {
+            ModuleLog(o->i, BLOG_ERROR, "wrong option name type");
+            goto fail1;
+        }
+        char *optname = NCDValue_StringValue(opt);
+        
+        if (!strcmp(optname, "term_on_deinit")) {
+            o->term_on_deinit = 1;
+        }
+        else {
+            ModuleLog(o->i, BLOG_ERROR, "unknown option name");
+            goto fail1;
+        }
     }
     
     // build cmdline
@@ -221,6 +245,11 @@ static void func_die (void *vo)
     if (o->state == STATE_FINISHED) {
         instance_free(o);
         return;
+    }
+    
+    // send SIGTERM if requested
+    if (o->term_on_deinit) {
+        BProcess_Terminate(&o->process);
     }
     
     o->state = STATE_RUNNING_DIE;
