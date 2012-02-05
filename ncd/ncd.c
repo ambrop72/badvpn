@@ -141,6 +141,7 @@ struct {
     int loglevels[BLOG_NUM_CHANNELS];
     char *config_file;
     int retry_time;
+    int no_udev;
 } options;
 
 // reactor
@@ -286,7 +287,7 @@ int main (int argc, char **argv)
     }
     
     // init udev manager
-    NCDUdevManager_Init(&umanager, &ss, &manager);
+    NCDUdevManager_Init(&umanager, options.no_udev, &ss, &manager);
     
     // init module index
     NCDModuleIndex_Init(&mindex);
@@ -415,7 +416,8 @@ void print_help (const char *name)
         "        [--loglevel <0-5/none/error/warning/notice/info/debug>]\n"
         "        [--channel-loglevel <channel-name> <0-5/none/error/warning/notice/info/debug>] ...\n"
         "        --config-file <file>\n"
-        "        [--retry-time <ms>]\n",
+        "        [--retry-time <ms>]\n"
+        "        [--no-udev]\n",
         name
     );
 }
@@ -444,6 +446,7 @@ int parse_arguments (int argc, char *argv[])
     }
     options.config_file = NULL;
     options.retry_time = DEFAULT_RETRY_TIME;
+    options.no_udev = 0;
     
     for (int i = 1; i < argc; i++) {
         char *arg = argv[i];
@@ -538,6 +541,9 @@ int parse_arguments (int argc, char *argv[])
                 return 0;
             }
             i++;
+        }
+        else if (!strcmp(arg, "--no-udev")) {
+            options.no_udev = 1;
         }
         else {
             fprintf(stderr, "unknown option: %s\n", arg);

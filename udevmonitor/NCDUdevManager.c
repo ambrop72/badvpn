@@ -213,8 +213,10 @@ static void try_monitor (NCDUdevManager *o)
     ASSERT(!o->have_monitor)
     ASSERT(!BTimer_IsRunning(&o->restart_timer))
     
+    int mode = (o->no_udev ? NCDUDEVMONITOR_MODE_MONITOR_KERNEL : NCDUDEVMONITOR_MODE_MONITOR_UDEV);
+    
     // init monitor
-    if (!NCDUdevMonitor_Init(&o->monitor, o->reactor, o->manager, 0, o,
+    if (!NCDUdevMonitor_Init(&o->monitor, o->reactor, o->manager, mode, o,
         (NCDUdevMonitor_handler_event)monitor_handler_event,
         (NCDUdevMonitor_handler_error)monitor_handler_error
     )) {
@@ -268,7 +270,7 @@ static void monitor_handler_event (NCDUdevManager *o)
         BLog(BLOG_INFO, "monitor ready");
         
         // init info monitor
-        if (!NCDUdevMonitor_Init(&o->info_monitor, o->reactor, o->manager, 1, o,
+        if (!NCDUdevMonitor_Init(&o->info_monitor, o->reactor, o->manager, NCDUDEVMONITOR_MODE_INFO, o,
             (NCDUdevMonitor_handler_event)info_monitor_handler_event,
             (NCDUdevMonitor_handler_error)info_monitor_handler_error
         )) {
@@ -409,9 +411,12 @@ static void next_job_handler (NCDUdevClient *o)
     return;
 }
 
-void NCDUdevManager_Init (NCDUdevManager *o, BReactor *reactor, BProcessManager *manager)
+void NCDUdevManager_Init (NCDUdevManager *o, int no_udev, BReactor *reactor, BProcessManager *manager)
 {
+    ASSERT(no_udev == 0 || no_udev == 1)
+    
     // init arguments
+    o->no_udev = no_udev;
     o->reactor = reactor;
     o->manager = manager;
     

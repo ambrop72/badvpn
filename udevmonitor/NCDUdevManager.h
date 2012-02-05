@@ -40,6 +40,7 @@
 typedef void (*NCDUdevClient_handler) (void *user, char *devpath, int have_map, BStringMap map);
 
 typedef struct {
+    int no_udev;
     BReactor *reactor;
     BProcessManager *manager;
     LinkedList1 clients_list;
@@ -70,7 +71,7 @@ struct NCDUdevClient_event {
     LinkedList1Node events_list_node;
 };
 
-void NCDUdevManager_Init (NCDUdevManager *o, BReactor *reactor, BProcessManager *manager);
+void NCDUdevManager_Init (NCDUdevManager *o, int no_udev, BReactor *reactor, BProcessManager *manager);
 void NCDUdevManager_Free (NCDUdevManager *o);
 const BStringMap * NCDUdevManager_Query (NCDUdevManager *o, const char *devpath);
 

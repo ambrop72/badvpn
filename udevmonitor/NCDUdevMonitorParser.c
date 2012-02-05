@@ -141,7 +141,7 @@ static int parse_message (NCDUdevMonitorParser *o)
                 }
                 
                 // check first line
-                if (!string_begins_with(line, "UDEV ")) {
+                if (!string_begins_with(line, "UDEV  ") && !string_begins_with(line, "KERNEL")) {
                     BLog(BLOG_ERROR, "failed to parse head");
                     return 0;
                 }

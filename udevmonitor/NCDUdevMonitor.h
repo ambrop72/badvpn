@@ -36,6 +36,10 @@
 #include <system/BInputProcess.h>
 #include <udevmonitor/NCDUdevMonitorParser.h>
 
+#define NCDUDEVMONITOR_MODE_MONITOR_UDEV 0
+#define NCDUDEVMONITOR_MODE_INFO 1
+#define NCDUDEVMONITOR_MODE_MONITOR_KERNEL 2
+
 typedef void (*NCDUdevMonitor_handler_event) (void *user);
 typedef void (*NCDUdevMonitor_handler_error) (void *user, int is_error);
 
@@ -54,7 +58,7 @@ typedef struct {
     DebugError d_err;
 } NCDUdevMonitor;
 
-int NCDUdevMonitor_Init (NCDUdevMonitor *o, BReactor *reactor, BProcessManager *manager, int is_info_mode, void *user,
+int NCDUdevMonitor_Init (NCDUdevMonitor *o, BReactor *reactor, BProcessManager *manager, int mode, void *user,
                          NCDUdevMonitor_handler_event handler_event,
                          NCDUdevMonitor_handler_error handler_error) WARN_UNUSED;
 void NCDUdevMonitor_Free (NCDUdevMonitor *o);

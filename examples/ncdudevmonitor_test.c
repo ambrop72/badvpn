@@ -49,12 +49,19 @@ int main (int argc, char **argv)
 {
     int ret = 1;
     
-    if (argc < 2 || (strcmp(argv[1], "monitor") && strcmp(argv[1], "info"))) {
-        fprintf(stderr, "Usage: %s <monitor/info>\n", argv[0]);
+    if (argc < 2 || (strcmp(argv[1], "monitor_udev") && strcmp(argv[1], "monitor_kernel") && strcmp(argv[1], "info"))) {
+        fprintf(stderr, "Usage: %s <monitor_udev/monitor_kernel/info>\n", (argc > 0 ? argv[0] : NULL));
         goto fail0;
     }
     
-    int is_info_mode = !strcmp(argv[1], "info");
+    int mode;
+    if (!strcmp(argv[1], "monitor_udev")) {
+        mode = NCDUDEVMONITOR_MODE_MONITOR_UDEV;
+    } else if (!strcmp(argv[1], "monitor_kernel")) {
+        mode = NCDUDEVMONITOR_MODE_MONITOR_KERNEL;
+    } else {
+        mode = NCDUDEVMONITOR_MODE_INFO;
+    }
     
     if (!BNetwork_GlobalInit()) {
         DEBUG("BNetwork_GlobalInit failed");
@@ -80,7 +87,7 @@ int main (int argc, char **argv)
         goto fail3;
     }
     
-    if (!NCDUdevMonitor_Init(&monitor, &reactor, &manager, is_info_mode, NULL,
+    if (!NCDUdevMonitor_Init(&monitor, &reactor, &manager, mode, NULL,
         monitor_handler_event,
         monitor_handler_error
     )) {

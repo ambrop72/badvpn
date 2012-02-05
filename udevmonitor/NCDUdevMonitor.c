@@ -101,11 +101,11 @@ static void parser_handler (NCDUdevMonitor *o)
     return;
 }
 
-int NCDUdevMonitor_Init (NCDUdevMonitor *o, BReactor *reactor, BProcessManager *manager, int is_info_mode, void *user,
+int NCDUdevMonitor_Init (NCDUdevMonitor *o, BReactor *reactor, BProcessManager *manager, int mode, void *user,
                          NCDUdevMonitor_handler_event handler_event,
                          NCDUdevMonitor_handler_error handler_error)
 {
-    ASSERT(is_info_mode == 0 || is_info_mode == 1)
+    ASSERT(mode == NCDUDEVMONITOR_MODE_MONITOR_UDEV || mode == NCDUDEVMONITOR_MODE_INFO || mode == NCDUDEVMONITOR_MODE_MONITOR_KERNEL)
     
     // init arguments
     o->user = user;
@@ -113,9 +113,18 @@ int NCDUdevMonitor_Init (NCDUdevMonitor *o, BReactor *reactor, BProcessManager *
     o->handler_error = handler_error;
     
     // construct arguments
-    const char *argv_monitor[] = {STDBUF_EXEC, "-o", "L", UDEVADM_EXEC, "monitor", "--udev", "--property", NULL};
+    const char *argv_monitor_udev[] = {STDBUF_EXEC, "-o", "L", UDEVADM_EXEC, "monitor", "--udev", "--environment", NULL};
+    const char *argv_monitor_kernel[] = {STDBUF_EXEC, "-o", "L", UDEVADM_EXEC, "monitor", "--kernel", "--environment", NULL};
     const char *argv_info[] = {STDBUF_EXEC, "-o", "L", UDEVADM_EXEC, "info", "--query", "all", "--export-db", NULL};
-    const char **argv = (is_info_mode ? argv_info : argv_monitor);
+    
+    // choose arguments based on mode
+    const char **argv;
+    switch (mode) {
+        case NCDUDEVMONITOR_MODE_MONITOR_UDEV:   argv = argv_monitor_udev; break;
+        case NCDUDEVMONITOR_MODE_INFO:           argv = argv_info; break;
+        case NCDUDEVMONITOR_MODE_MONITOR_KERNEL: argv = argv_monitor_kernel; break;
+        default: ASSERT(0);
+    }
     
     // init process
     if (!BInputProcess_Init(&o->process, reactor, manager, o,
@@ -132,7 +141,7 @@ int NCDUdevMonitor_Init (NCDUdevMonitor *o, BReactor *reactor, BProcessManager *
     
     // init parser
     if (!NCDUdevMonitorParser_Init(&o->parser, StreamRecvConnector_GetOutput(&o->connector), PARSER_BUF_SIZE, PARSER_MAX_PROPERTIES,
-                                   is_info_mode, BReactor_PendingGroup(reactor), o,
+                                   (mode == NCDUDEVMONITOR_MODE_INFO), BReactor_PendingGroup(reactor), o,
                                    (NCDUdevMonitorParser_handler)parser_handler
     )) {
         BLog(BLOG_ERROR, "NCDUdevMonitorParser_Init failed");

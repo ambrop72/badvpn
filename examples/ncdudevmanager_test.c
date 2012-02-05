@@ -28,6 +28,8 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
 #include <misc/debug.h>
 #include <system/BTime.h>
@@ -49,6 +51,13 @@ static void client_handler (void *unused, char *devpath, int have_map, BStringMa
 
 int main (int argc, char **argv)
 {
+    if (!(argc == 1 || (argc == 2 && !strcmp(argv[1], "--no-udev")))) {
+        fprintf(stderr, "Usage: %s [--no-udev]\n", (argc > 0 ? argv[0] : NULL));
+        goto fail0;
+    }
+    
+    int no_udev = (argc == 2);
+    
     if (!BNetwork_GlobalInit()) {
         DEBUG("BNetwork_GlobalInit failed");
         goto fail0;
@@ -78,7 +87,7 @@ int main (int argc, char **argv)
         goto fail3;
     }
     
-    NCDUdevManager_Init(&umanager, &reactor, &manager);
+    NCDUdevManager_Init(&umanager, no_udev, &reactor, &manager);
     
     NCDUdevClient_Init(&client, &umanager, NULL, client_handler);
     
