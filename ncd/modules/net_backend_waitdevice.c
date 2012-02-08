@@ -37,6 +37,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <regex.h>
 
 #include <misc/parse_number.h>
 #include <ncd/NCDModule.h>
@@ -46,10 +47,13 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
+#define DEVPATH_REGEX "/net/[^/]+$"
+
 struct instance {
     NCDModuleInst *i;
     const char *ifname;
     NCDUdevClient client;
+    regex_t reg;
     char *devpath;
     uintmax_t ifindex;
 };
@@ -71,12 +75,12 @@ static void client_handler (struct instance *o, char *devpath, int have_map, BSt
             goto out;
         }
         
-        const char *subsystem = BStringMap_Get(cache_map, "SUBSYSTEM");
+        int match_res = regexec(&o->reg, devpath, 0, NULL, 0);
         const char *interface = BStringMap_Get(cache_map, "INTERFACE");
         const char *ifindex_str = BStringMap_Get(cache_map, "IFINDEX");
         
         uintmax_t ifindex;
-        if (!(subsystem && !strcmp(subsystem, "net") && interface && !strcmp(interface, o->ifname) && ifindex_str && parse_unsigned_integer(ifindex_str, &ifindex))) {
+        if (!(!match_res && interface && !strcmp(interface, o->ifname) && ifindex_str && parse_unsigned_integer(ifindex_str, &ifindex))) {
             goto out;
         }
         
@@ -139,11 +143,18 @@ static void func_new (NCDModuleInst *i)
     // init client
     NCDUdevClient_Init(&o->client, o->i->umanager, o, (NCDUdevClient_handler)client_handler);
     
+    // compile regex
+    if (regcomp(&o->reg, DEVPATH_REGEX, REG_EXTENDED)) {
+        ModuleLog(o->i, BLOG_ERROR, "regcomp failed");
+        goto fail2;
+    }
+    
     // set no devpath
     o->devpath = NULL;
-    
     return;
     
+fail2:
+    NCDUdevClient_Free(&o->client);
 fail1:
     free(o);
 fail0:
@@ -160,6 +171,9 @@ static void func_die (void *vo)
     if (o->devpath) {
         free(o->devpath);
     }
+    
+    // free regex
+    regfree(&o->reg);
     
     // free client
     NCDUdevClient_Free(&o->client);

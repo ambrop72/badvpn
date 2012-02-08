@@ -61,6 +61,10 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
+#define DEVPATH_REGEX "/net/[^/]+$"
+#define DEVPATH_USB_REGEX "/usb[^/]*(/[^/]+)+/([^/]+)/net/[^/]+$"
+#define DEVPATH_PCI_REGEX "/pci[^/]*/[^/]+/([^/]+)/net/[^/]+$"
+
 struct device {
     char *ifname;
     char *devpath;
@@ -73,7 +77,9 @@ struct instance {
     NCDModuleInst *i;
     NCDUdevClient client;
     LinkedList1 devices_list;
-    regex_t preg;
+    regex_t reg;
+    regex_t usb_reg;
+    regex_t pci_reg;
     event_template templ;
 };
 
@@ -257,24 +263,26 @@ static void next_event (struct instance *o)
 
 static void make_bus (struct instance *o, const char *devpath, const BStringMap *map, char *out_bus, size_t bus_avail)
 {
-    const char *type = BStringMap_Get(map, "ID_BUS");
-    if (!type) {
+    regmatch_t pmatch[3];
+    
+    const char *type;
+    const char *id;
+    size_t id_len;
+    
+    if (!regexec(&o->usb_reg, devpath, 3, pmatch, 0)) {
+        type = "usb";
+        id = devpath + pmatch[2].rm_so;
+        id_len = pmatch[2].rm_eo - pmatch[2].rm_so;
+    }
+    else if (!regexec(&o->pci_reg, devpath, 3, pmatch, 0)) {
+        type = "pci";
+        id = devpath + pmatch[1].rm_so;
+        id_len = pmatch[1].rm_eo - pmatch[1].rm_so;
+    } else {
         goto fail;
     }
+    
     size_t type_len = strlen(type);
-    
-    if (strcmp(type, "pci") && strcmp(type, "usb")) {
-        goto fail;
-    }
-    
-    regmatch_t pmatch[2];
-    if (regexec(&o->preg, devpath, 2, pmatch, 0)) {
-        goto fail;
-    }
-    
-    const char *id = devpath + pmatch[1].rm_so;
-    size_t id_len = pmatch[1].rm_eo - pmatch[1].rm_so;
-    
     bsize_t bus_len = bsize_add(bsize_fromsize(type_len), bsize_add(bsize_fromint(1), bsize_add(bsize_fromsize(id_len), bsize_fromint(1))));
     if (bus_len.is_overflow || bus_len.value > bus_avail) {
         goto fail;
@@ -304,12 +312,12 @@ static void client_handler (struct instance *o, char *devpath, int have_map, BSt
         goto out;
     }
     
-    const char *subsystem = BStringMap_Get(cache_map, "SUBSYSTEM");
+    int match_res = regexec(&o->reg, devpath, 0, NULL, 0);
     const char *interface = BStringMap_Get(cache_map, "INTERFACE");
     const char *ifindex_str = BStringMap_Get(cache_map, "IFINDEX");
     
     uintmax_t ifindex;
-    if (!(subsystem && !strcmp(subsystem, "net") && interface && ifindex_str && parse_unsigned_integer(ifindex_str, &ifindex))) {
+    if (!(!match_res && interface && ifindex_str && parse_unsigned_integer(ifindex_str, &ifindex))) {
         if (ex_device) {
             remove_device(o, ex_device);
         }
@@ -365,15 +373,27 @@ static void func_new (NCDModuleInst *i)
     // init devices list
     LinkedList1_Init(&o->devices_list);
     
-    // compile regex
-    if (regcomp(&o->preg, "/([^/]+)/net/", REG_EXTENDED)) {
+    // compile regex's
+    if (regcomp(&o->reg, DEVPATH_REGEX, REG_EXTENDED)) {
         ModuleLog(o->i, BLOG_ERROR, "regcomp failed");
         goto fail2;
+    }
+    if (regcomp(&o->usb_reg, DEVPATH_USB_REGEX, REG_EXTENDED)) {
+        ModuleLog(o->i, BLOG_ERROR, "regcomp failed");
+        goto fail3;
+    }
+    if (regcomp(&o->pci_reg, DEVPATH_PCI_REGEX, REG_EXTENDED)) {
+        ModuleLog(o->i, BLOG_ERROR, "regcomp failed");
+        goto fail4;
     }
     
     event_template_new(&o->templ, o->i, BLOG_CURRENT_CHANNEL, 3, o, (event_template_func_free)templ_func_free);
     return;
     
+fail4:
+    regfree(&o->usb_reg);
+fail3:
+    regfree(&o->reg);
 fail2:
     NCDUdevClient_Free(&o->client);
 fail1:
@@ -394,8 +414,10 @@ static void templ_func_free (struct instance *o)
         free_device(o, device, 1);
     }
     
-    // free regex
-    regfree(&o->preg);
+    // free regex's
+    regfree(&o->pci_reg);
+    regfree(&o->usb_reg);
+    regfree(&o->reg);
     
     // free client
     NCDUdevClient_Free(&o->client);
