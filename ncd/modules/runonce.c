@@ -178,6 +178,10 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
+    if (opts_arg && NCDValue_Type(opts_arg) != NCDVALUE_LIST) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail1;
+    }
     
     // read options
     for (NCDValue *opt = (opts_arg ? NCDValue_ListFirst(opts_arg) : NULL); opt; opt = NCDValue_ListNext(opts_arg, opt)) {
