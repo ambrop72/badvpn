@@ -75,6 +75,11 @@
  *   list::remove_at(remove_pos)
  * Description:
  *   Removes the element at position 'remove_pos', which must refer to an existing element.
+ * 
+ * Synopsis:
+ *   list::set(list l1, ..., list lN)
+ * Description:
+ *   Replaces the list with the concatenation of given lists.
  */
 
 #include <stdlib.h>
@@ -131,6 +136,41 @@ struct removeat_instance {
     NCDModuleInst *i;
 };
 
+struct set_instance {
+    NCDModuleInst *i;
+};
+
+static int append_list_args (NCDModuleInst *i, NCDValue *list, NCDValue *args)
+{
+    ASSERT(NCDValue_Type(list) == NCDVALUE_LIST)
+    ASSERT(NCDValue_Type(args) == NCDVALUE_LIST)
+    
+    // append contents of list arguments
+    for (NCDValue *arg = NCDValue_ListFirst(args); arg; arg = NCDValue_ListNext(args, arg)) {
+        // check type
+        if (NCDValue_Type(arg) != NCDVALUE_LIST) {
+            ModuleLog(i, BLOG_ERROR, "wrong type");
+            return 0;
+        }
+        
+        // copy list
+        NCDValue copy;
+        if (!NCDValue_InitCopy(&copy, arg)) {
+            ModuleLog(i, BLOG_ERROR, "NCDValue_InitCopy failed");
+            return 0;
+        }
+        
+        // append
+        if (!NCDValue_ListAppendList(list, copy)) {
+            ModuleLog(i, BLOG_ERROR, "NCDValue_ListAppendList failed");
+            NCDValue_Free(&copy);
+            return 0;
+        }
+    }
+    
+    return 1;
+}
+
 static void func_new_list (NCDModuleInst *i)
 {
     // allocate instance
@@ -178,26 +218,8 @@ static void func_new_listfrom (NCDModuleInst *i)
     NCDValue_InitList(&o->list);
     
     // append contents of list arguments
-    for (NCDValue *arg = NCDValue_ListFirst(i->args); arg; arg = NCDValue_ListNext(i->args, arg)) {
-        // check type
-        if (NCDValue_Type(arg) != NCDVALUE_LIST) {
-            ModuleLog(i, BLOG_ERROR, "wrong type");
-            goto fail2;
-        }
-        
-        // copy list
-        NCDValue copy;
-        if (!NCDValue_InitCopy(&copy, arg)) {
-            ModuleLog(i, BLOG_ERROR, "NCDValue_InitCopy failed");
-            goto fail2;
-        }
-        
-        // append
-        if (!NCDValue_ListAppendList(&o->list, copy)) {
-            ModuleLog(i, BLOG_ERROR, "NCDValue_ListAppendList failed");
-            NCDValue_Free(&copy);
-            goto fail2;
-        }
+    if (!append_list_args(i, &o->list, i->args)) {
+        goto fail2;
     }
     
     // signal up
@@ -830,6 +852,58 @@ static void removeat_func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
+static void set_func_new (NCDModuleInst *i)
+{
+    // allocate instance
+    struct set_instance *o = malloc(sizeof(*o));
+    if (!o) {
+        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        goto fail0;
+    }
+    NCDModuleInst_Backend_SetUser(i, o);
+    
+    // init arguments
+    o->i = i;
+    
+    // init list
+    NCDValue list;
+    NCDValue_InitList(&list);
+    
+    // append to list
+    if (!append_list_args(i, &list, i->args)) {
+        goto fail2;
+    }
+    
+    // get method object
+    struct instance *mo = i->method_object->inst_user;
+    
+    // replace list
+    NCDValue_Free(&mo->list);
+    mo->list = list;
+    
+    // signal up
+    NCDModuleInst_Backend_Up(o->i);
+    return;
+    
+fail2:
+    NCDValue_Free(&list);
+    free(o);
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void set_func_die (void *vo)
+{
+    struct set_instance *o = vo;
+    NCDModuleInst *i = o->i;
+    
+    // free instance
+    free(o);
+    
+    NCDModuleInst_Backend_Dead(i);
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "list",
@@ -884,6 +958,10 @@ static const struct NCDModule modules[] = {
         .type = "list::remove_at",
         .func_new = removeat_func_new,
         .func_die = removeat_func_die
+    }, {
+        .type = "list::set",
+        .func_new = set_func_new,
+        .func_die = set_func_die
     }, {
         .type = NULL
     }
