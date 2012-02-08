@@ -40,6 +40,8 @@
  *   opts - List of options:
  *     "term_on_deinit" - If we get a deinit request while the process is running,
  *                        send it SIGTERM.
+ *     "keep_stdout" - Start the program with the same stdout as the NCD process.
+ *     "keep_stderr" - Start the program with the same stderr as the NCD process.
  * Variables:
  *   string exit_status - if the program exited normally, the non-negative exit code, otherwise -1
  */
@@ -183,6 +185,9 @@ static void func_new (NCDModuleInst *i)
         goto fail1;
     }
     
+    int keep_stdout = 0;
+    int keep_stderr = 0;
+    
     // read options
     for (NCDValue *opt = (opts_arg ? NCDValue_ListFirst(opts_arg) : NULL); opt; opt = NCDValue_ListNext(opts_arg, opt)) {
         // read name
@@ -194,6 +199,12 @@ static void func_new (NCDModuleInst *i)
         
         if (!strcmp(optname, "term_on_deinit")) {
             o->term_on_deinit = 1;
+        }
+        else if (!strcmp(optname, "keep_stdout")) {
+            keep_stdout = 1;
+        }
+        else if (!strcmp(optname, "keep_stderr")) {
+            keep_stderr = 1;
         }
         else {
             ModuleLog(o->i, BLOG_ERROR, "unknown option name");
@@ -208,8 +219,22 @@ static void func_new (NCDModuleInst *i)
         goto fail1;
     }
     
+    // build fd mapping
+    int fds[3];
+    int fds_map[2];
+    int nfds = 0;
+    if (keep_stdout) {
+        fds[nfds] = 1;
+        fds_map[nfds++] = 1;
+    }
+    if (keep_stderr) {
+        fds[nfds] = 2;
+        fds_map[nfds++] = 2;
+    }
+    fds[nfds] = -1;
+    
     // start process
-    if (!BProcess_Init(&o->process, o->i->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), NULL)) {
+    if (!BProcess_InitWithFds(&o->process, o->i->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), NULL, fds, fds_map)) {
         ModuleLog(i, BLOG_ERROR, "BProcess_Init failed");
         CmdLine_Free(&cl);
         free(exec);
