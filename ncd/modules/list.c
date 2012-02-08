@@ -66,7 +66,7 @@
  * Synopsis:
  *   list::find(start_pos, value)
  * Description:
- *   finds the first occurance of 'value' in the list at position >='start_pos'.
+ *   finds the first occurrence of 'value' in the list at position >='start_pos'.
  * Variables:
  *   pos - position of element, or "none" if not found
  *   found - "true" if found, "false" if not
@@ -75,6 +75,11 @@
  *   list::remove_at(remove_pos)
  * Description:
  *   Removes the element at position 'remove_pos', which must refer to an existing element.
+ * 
+ * Synopsis:
+ *   list::remove(value)
+ * Description:
+ *   Removes the first occurrence of value in the list.
  * 
  * Synopsis:
  *   list::set(list l1, ..., list lN)
@@ -136,6 +141,10 @@ struct removeat_instance {
     NCDModuleInst *i;
 };
 
+struct remove_instance {
+    NCDModuleInst *i;
+};
+
 struct set_instance {
     NCDModuleInst *i;
 };
@@ -169,6 +178,19 @@ static int append_list_args (NCDModuleInst *i, NCDValue *list, NCDValue *args)
     }
     
     return 1;
+}
+
+static NCDValue * find_in_list (NCDValue *list, NCDValue *val)
+{
+    ASSERT(NCDValue_Type(list) == NCDVALUE_LIST)
+    
+    for (NCDValue *e = NCDValue_ListFirst(list); e; e = NCDValue_ListNext(list, e)) {
+        if (NCDValue_Compare(e, val) == 0) {
+            return e;
+        }
+    }
+    
+    return NULL;
 }
 
 static void func_new_list (NCDModuleInst *i)
@@ -852,6 +874,62 @@ static void removeat_func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
+static void remove_func_new (NCDModuleInst *i)
+{
+    // allocate instance
+    struct remove_instance *o = malloc(sizeof(*o));
+    if (!o) {
+        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        goto fail0;
+    }
+    NCDModuleInst_Backend_SetUser(i, o);
+    
+    // init arguments
+    o->i = i;
+    
+    // read arguments
+    NCDValue *value_arg;
+    if (!NCDValue_ListRead(i->args, 1, &value_arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
+        goto fail1;
+    }
+    
+    // get method object
+    struct instance *mo = i->method_object->inst_user;
+    
+    // find value
+    NCDValue *e = find_in_list(&mo->list, value_arg);
+    if (!e) {
+        ModuleLog(o->i, BLOG_ERROR, "value does not exist");
+        goto fail1;
+    }
+    
+    // remove it
+    NCDValue removed_v = NCDValue_ListRemove(&mo->list, e);
+    NCDValue_Free(&removed_v);
+    
+    // signal up
+    NCDModuleInst_Backend_Up(o->i);
+    return;
+    
+fail1:
+    free(o);
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void remove_func_die (void *vo)
+{
+    struct remove_instance *o = vo;
+    NCDModuleInst *i = o->i;
+    
+    // free instance
+    free(o);
+    
+    NCDModuleInst_Backend_Dead(i);
+}
+
 static void set_func_new (NCDModuleInst *i)
 {
     // allocate instance
@@ -958,6 +1036,10 @@ static const struct NCDModule modules[] = {
         .type = "list::remove_at",
         .func_new = removeat_func_new,
         .func_die = removeat_func_die
+    }, {
+        .type = "list::remove",
+        .func_new = remove_func_new,
+        .func_die = remove_func_die
     }, {
         .type = "list::set",
         .func_new = set_func_new,
