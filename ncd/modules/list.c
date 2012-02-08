@@ -79,7 +79,7 @@
  * Synopsis:
  *   list::remove(value)
  * Description:
- *   Removes the first occurrence of value in the list.
+ *   Removes the first occurrence of value in the list, which must be in the list.
  * 
  * Synopsis:
  *   list::set(list l1, ..., list lN)
