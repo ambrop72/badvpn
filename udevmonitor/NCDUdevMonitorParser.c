@@ -112,6 +112,11 @@ static int parse_message (NCDUdevMonitorParser *o)
         *line_end = '\0';
         
         if (o->is_info_mode) {
+            // ignore W: entries with missing space
+            if (string_begins_with(line, "W:")) {
+                goto nextline;
+            }
+            
             // parse prefix
             if (strlen(line) < 3 || line[1] != ':' || line[2] != ' ') {
                 BLog(BLOG_ERROR, "failed to parse head");
@@ -151,6 +156,7 @@ static int parse_message (NCDUdevMonitorParser *o)
                 }
             }
         }
+    nextline:
         
         first_line = 0;
         line = line_end + 1;
