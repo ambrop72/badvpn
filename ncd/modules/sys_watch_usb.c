@@ -250,7 +250,7 @@ static void remove_device (struct instance *o, struct device *device)
 
 static void next_event (struct instance *o)
 {
-    event_template_assert_enabled(&o->templ);
+    ASSERT(event_template_is_enabled(&o->templ))
     
     // order template to finish the current event
     int is_empty;
@@ -408,7 +408,12 @@ static void nextevent_func_new (NCDModuleInst *i)
     
     // get method object
     struct instance *mo = i->method_object->inst_user;
-    event_template_assert_enabled(&mo->templ);
+    
+    // make sure we are currently reporting an event
+    if (!event_template_is_enabled(&mo->templ)) {
+        ModuleLog(o->i, BLOG_ERROR, "not reporting an event");
+        goto fail1;
+    }
     
     // signal up.
     // Do it before finishing the event so our process does not advance any further if

@@ -498,7 +498,11 @@ static void unlock_func_new (NCDModuleInst *i)
         goto fail1;
     }
     
-    ASSERT(lock->state == LOCK_STATE_LOCKED)
+    // make sure lock is locked
+    if (lock->state != LOCK_STATE_LOCKED) {
+        BLog(BLOG_ERROR, "lock is not locked");
+        goto fail1;
+    }
     
     // set lock
     o->lock = lock;

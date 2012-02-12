@@ -59,6 +59,6 @@ void event_template_die (event_template *o);
 int event_template_getvar (event_template *o, const char *name, NCDValue *out);
 void event_template_queue (event_template *o, BStringMap map, int *out_was_empty);
 void event_template_dequeue (event_template *o, int *out_is_empty);
-void event_template_assert_enabled (event_template *o);
+int event_template_is_enabled (event_template *o);
 
 #endif

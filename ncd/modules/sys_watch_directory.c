@@ -406,7 +406,12 @@ static void nextevent_func_new (NCDModuleInst *i)
     
     // get method object
     struct instance *mo = i->method_object->inst_user;
-    ASSERT(mo->processing)
+    
+    // make sure we are currently reporting an event
+    if (!mo->processing) {
+        ModuleLog(o->i, BLOG_ERROR, "not reporting an event");
+        goto fail1;
+    }
     
     // signal up.
     // Do it before finishing the event so our process does not advance any further if

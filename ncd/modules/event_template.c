@@ -183,7 +183,7 @@ void event_template_dequeue (event_template *o, int *out_is_empty)
     }
 }
 
-void event_template_assert_enabled (event_template *o)
+int event_template_is_enabled (event_template *o)
 {
-    ASSERT(o->enabled)
+    return o->enabled;
 }
