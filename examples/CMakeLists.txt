@@ -31,6 +31,9 @@ if (BUILD_NCD)
 
     add_executable(ncd_parser_test ncd_parser_test.c)
     target_link_libraries(ncd_parser_test ncdconfig)
+
+    add_executable(ncd_value_parser_test ncd_value_parser_test.c)
+    target_link_libraries(ncd_value_parser_test ncdvalue)
 endif ()
 
 if (BUILDING_UDEVMONITOR)

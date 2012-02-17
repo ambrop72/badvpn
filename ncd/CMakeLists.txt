@@ -28,9 +28,14 @@ add_library(ncdconfig
 )
 target_link_libraries(ncdconfig base)
 
+add_library(ncdvalue
+    NCDValue.c
+    NCDValueParser.c
+)
+target_link_libraries(ncdvalue ncdconfig)
+
 add_executable(badvpn-ncd
     ncd.c
-    NCDValue.c
     NCDModule.c
     NCDModuleIndex.c
     NCDIfConfig.c
@@ -82,7 +87,7 @@ add_executable(badvpn-ncd
     modules/sys_watch_usb.c
     ${NCD_ADDITIONAL_SOURCES}
 )
-target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdconfig udevmonitor)
+target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdconfig ncdvalue udevmonitor)
 
 if (BADVPN_USE_LINUX_INPUT)
     string(REPLACE " " ";" FLAGS_LIST "${CMAKE_C_FLAGS}")
