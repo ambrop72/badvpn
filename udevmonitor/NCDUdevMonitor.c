@@ -30,13 +30,12 @@
 #include <stddef.h>
 
 #include <base/BLog.h>
+#include <misc/find_program.h>
 
 #include <udevmonitor/NCDUdevMonitor.h>
 
 #include <generated/blog_channel_NCDUdevMonitor.h>
 
-#define STDBUF_EXEC "/usr/bin/stdbuf"
-#define UDEVADM_EXEC "/sbin/udevadm"
 #define PARSER_BUF_SIZE 16384
 #define PARSER_MAX_PROPERTIES 256
 
@@ -112,10 +111,22 @@ int NCDUdevMonitor_Init (NCDUdevMonitor *o, BReactor *reactor, BProcessManager *
     o->handler_event = handler_event;
     o->handler_error = handler_error;
     
+    // find programs
+    char *stdbuf_exec = badvpn_find_program("stdbuf");
+    char *udevadm_exec = badvpn_find_program("udevadm");
+    if (!stdbuf_exec) {
+        BLog(BLOG_ERROR, "failed to find stdbuf program");
+        goto fail0;
+    }
+    if (!udevadm_exec) {
+        BLog(BLOG_ERROR, "failed to find udevadm program");
+        goto fail0;
+    }
+    
     // construct arguments
-    const char *argv_monitor_udev[] = {STDBUF_EXEC, "-o", "L", UDEVADM_EXEC, "monitor", "--udev", "--environment", NULL};
-    const char *argv_monitor_kernel[] = {STDBUF_EXEC, "-o", "L", UDEVADM_EXEC, "monitor", "--kernel", "--environment", NULL};
-    const char *argv_info[] = {STDBUF_EXEC, "-o", "L", UDEVADM_EXEC, "info", "--query", "all", "--export-db", NULL};
+    const char *argv_monitor_udev[] = {stdbuf_exec, "-o", "L", udevadm_exec, "monitor", "--udev", "--environment", NULL};
+    const char *argv_monitor_kernel[] = {stdbuf_exec, "-o", "L", udevadm_exec, "monitor", "--kernel", "--environment", NULL};
+    const char *argv_info[] = {stdbuf_exec, "-o", "L", udevadm_exec, "info", "--query", "all", "--export-db", NULL};
     
     // choose arguments based on mode
     const char **argv;
@@ -149,7 +160,7 @@ int NCDUdevMonitor_Init (NCDUdevMonitor *o, BReactor *reactor, BProcessManager *
     }
     
     // start process
-    if (!BInputProcess_Start(&o->process, STDBUF_EXEC, (char **)argv, NULL)) {
+    if (!BInputProcess_Start(&o->process, stdbuf_exec, (char **)argv, NULL)) {
         BLog(BLOG_ERROR, "BInputProcess_Start failed");
         goto fail2;
     }
@@ -157,6 +168,9 @@ int NCDUdevMonitor_Init (NCDUdevMonitor *o, BReactor *reactor, BProcessManager *
     // set process running, input running
     o->process_running = 1;
     o->input_running = 1;
+    
+    free(udevadm_exec);
+    free(stdbuf_exec);
     
     DebugError_Init(&o->d_err, BReactor_PendingGroup(reactor));
     DebugObject_Init(&o->d_obj);
@@ -168,6 +182,8 @@ fail1:
     StreamRecvConnector_Free(&o->connector);
     BInputProcess_Free(&o->process);
 fail0:
+    free(udevadm_exec);
+    free(stdbuf_exec);
     return 0;
 }
 
