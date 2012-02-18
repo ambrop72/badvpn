@@ -40,6 +40,7 @@
 #include <string.h>
 
 #include <misc/concat_strings.h>
+#include <misc/balloc.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_alias.h>
@@ -48,8 +49,70 @@
 
 struct instance {
     NCDModuleInst *i;
-    char *target;
+    char **target;
 };
+
+static char ** split_string (const char *str, char del)
+{
+    size_t len = strlen(str);
+    
+    // count parts
+    size_t num_parts = 0;
+    size_t i = 0;
+    while (1) {
+        size_t j = i;
+        while (j < len && str[j] != del) j++;
+        if (j == i) {
+            goto fail0;
+        }
+        
+        num_parts++;
+        if (j == len) {
+            break;
+        }
+        i = j + 1;
+    }
+    
+    // allocate array for part pointers
+    char **result = BAllocArray(num_parts + 1, sizeof(*result));
+    if (!result) {
+        goto fail0;
+    }
+    
+    num_parts = 0;
+    i = 0;
+    while (1) {
+        size_t j = i;
+        while (j < len && str[j] != del) j++;
+        if (j == i) {
+            goto fail1;
+        }
+        
+        if (!(result[num_parts] = malloc(j - i + 1))) {
+            goto fail1;
+        }
+        memcpy(result[num_parts], str + i, j - i);
+        result[num_parts][j - i] = '\0';
+        
+        num_parts++;
+        if (j == len) {
+            break;
+        }
+        i = j + 1;
+    }
+    
+    result[num_parts] = NULL;
+    
+    return result;
+    
+fail1:
+    while (num_parts-- > 0) {
+        free(result[num_parts]);
+    }
+    BFree(result);
+fail0:
+    return NULL;
+}
 
 static void func_new (NCDModuleInst *i)
 {
@@ -59,14 +122,12 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
     o->i = i;
+    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValue *target_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &target_arg)) {
+    if (!NCDValue_ListRead(i->args, 1, &target_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
@@ -74,7 +135,12 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->target = NCDValue_StringValue(target_arg);
+    
+    // split target into components
+    if (!(o->target = split_string(NCDValue_StringValue(target_arg), '.'))) {
+        ModuleLog(o->i, BLOG_ERROR, "bad target");
+        goto fail1;
+    }
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
@@ -92,52 +158,40 @@ static void func_die (void *vo)
     struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
+    // free target
+    char **str = o->target;
+    while (*str) {
+        free(*str);
+        str++;
+    }
+    free(o->target);
+    
     // free instance
     free(o);
     
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getobj (void *vo, const char *name, NCDObject *out_object)
 {
     struct instance *o = vo;
     
-    if (!strcmp(name, "")) {
-        return NCDModuleInst_Backend_GetVar(o->i, o->target, out);
-    }
-    
-    char *target_name = concat_strings(3, o->target, ".", name);
-    if (!target_name) {
-        ModuleLog(o->i, BLOG_ERROR, "concat_strings failed");
+    NCDObject object;
+    if (!NCDModuleInst_Backend_GetObj(o->i, o->target[0], &object)) {
         return 0;
     }
     
-    int res = NCDModuleInst_Backend_GetVar(o->i, target_name, out);
-    
-    free(target_name);
-    
-    return res;
-}
-
-static NCDModuleInst * func_getobj (void *vo, const char *name)
-{
-    struct instance *o = vo;
+    NCDObject obj2;
+    if (!NCDObject_ResolveObjExpr(&object, o->target + 1, &obj2)) {
+        return 0;
+    }
     
     if (!strcmp(name, "")) {
-        return NCDModuleInst_Backend_GetObj(o->i, o->target);
+        *out_object = obj2;
+        return 1;
     }
     
-    char *target_name = concat_strings(3, o->target, ".", name);
-    if (!target_name) {
-        ModuleLog(o->i, BLOG_ERROR, "concat_strings failed");
-        return NULL;
-    }
-    
-    NCDModuleInst *res = NCDModuleInst_Backend_GetObj(o->i, target_name);
-    
-    free(target_name);
-    
-    return res;
+    return NCDObject_GetObj(&obj2, name, out_object);
 }
 
 static const struct NCDModule modules[] = {
@@ -145,7 +199,6 @@ static const struct NCDModule modules[] = {
         .type = "alias",
         .func_new = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar,
         .func_getobj = func_getobj
     }, {
         .type = NULL

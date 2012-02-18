@@ -496,7 +496,7 @@ static void depend_func_clean (void *vo)
     name_continue_resetting(n);
 }
 
-static int depend_func_getvar (void *vo, const char *varname, NCDValue *out)
+static int depend_func_getobj (void *vo, const char *objname, NCDObject *out_object)
 {
     struct depend *o = vo;
     struct name *n = o->n;
@@ -506,20 +506,7 @@ static int depend_func_getvar (void *vo, const char *varname, NCDValue *out)
         return 0;
     }
     
-    return NCDModuleInst_Backend_GetVar(n->cur_p->i, varname, out);
-}
-
-static NCDModuleInst * depend_func_getobj (void *vo, const char *objname)
-{
-    struct depend *o = vo;
-    struct name *n = o->n;
-    ASSERT(!o->is_bound || n->cur_p)
-    
-    if (!o->is_bound) {
-        return NULL;
-    }
-    
-    return NCDModuleInst_Backend_GetObj(n->cur_p->i, objname);
+    return NCDModuleInst_Backend_GetObj(n->cur_p->i, objname, out_object);
 }
 
 static const struct NCDModule modules[] = {
@@ -532,7 +519,6 @@ static const struct NCDModule modules[] = {
         .func_new = depend_func_new,
         .func_die = depend_func_die,
         .func_clean = depend_func_clean,
-        .func_getvar = depend_func_getvar,
         .func_getobj = depend_func_getobj,
         .can_resolve_when_down = 1
     }, {

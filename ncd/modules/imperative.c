@@ -80,8 +80,8 @@ static int start_process (struct instance *o, const char *templ, NCDValue *args,
 static void go_deinit (struct instance *o);
 static void init_process_handler_event (struct instance *o, int event);
 static void deinit_process_handler_event (struct instance *o, int event);
-static int process_func_getspecialvar (struct instance *o, const char *name, NCDValue *out);
-static NCDModuleInst * process_func_getspecialobj (struct instance *o, const char *name);
+static int process_func_getspecialobj (struct instance *o, const char *name, NCDObject *out_object);
+static int process_caller_object_func_getobj (struct instance *o, const char *name, NCDObject *out_object);
 static void deinit_timer_handler (struct instance *o);
 static void instance_free (struct instance *o);
 
@@ -102,9 +102,7 @@ static int start_process (struct instance *o, const char *templ, NCDValue *args,
     }
     
     // set special functions
-    NCDModuleProcess_SetSpecialFuncs(&o->process,
-                                    (NCDModuleProcess_func_getspecialvar)process_func_getspecialvar,
-                                    (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
+    NCDModuleProcess_SetSpecialFuncs(&o->process, (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
     return 1;
     
 fail:
@@ -203,28 +201,23 @@ static void deinit_process_handler_event (struct instance *o, int event)
     }
 }
 
-static int process_func_getspecialvar (struct instance *o, const char *name, NCDValue *out)
+static int process_func_getspecialobj (struct instance *o, const char *name, NCDObject *out_object)
 {
     ASSERT(o->state != STATE_UP)
     
-    size_t p;
-    if (p = string_begins_with(name, "_caller.")) {
-        return NCDModuleInst_Backend_GetVar(o->i, name + p, out);
+    if (!strcmp(name, "_caller")) {
+        *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)process_caller_object_func_getobj);
+        return 1;
     }
     
     return 0;
 }
 
-static NCDModuleInst * process_func_getspecialobj (struct instance *o, const char *name)
+static int process_caller_object_func_getobj (struct instance *o, const char *name, NCDObject *out_object)
 {
     ASSERT(o->state != STATE_UP)
     
-    size_t p;
-    if (p = string_begins_with(name, "_caller.")) {
-        return NCDModuleInst_Backend_GetObj(o->i, name + p);
-    }
-    
-    return NULL;
+    return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
 }
 
 static void deinit_timer_handler (struct instance *o)

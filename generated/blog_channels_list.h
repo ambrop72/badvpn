@@ -99,3 +99,4 @@
 {.name = "PeerChat", .loglevel = 4},
 {.name = "BArpProbe", .loglevel = 4},
 {.name = "NCDModuleIndex", .loglevel = 4},
+{.name = "NCDModuleProcess", .loglevel = 4},

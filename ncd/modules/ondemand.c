@@ -321,7 +321,7 @@ static void demand_func_new (NCDModuleInst *i)
     }
     
     // set ondemand
-    o->od = i->method_object->inst_user;
+    o->od = ((NCDModuleInst *)i->method_user)->inst_user;
     
     // add to ondemand's demands list
     LinkedList1_Append(&o->od->demands_list, &o->demands_list_node);
@@ -376,22 +376,13 @@ static void demand_func_die (void *vo)
     demand_free(o);
 }
 
-static int demand_func_getvar (void *vo, const char *varname, NCDValue *out)
+static int demand_func_getobj (void *vo, const char *objname, NCDObject *out_object)
 {
     struct demand *o = vo;
     ASSERT(o->od->have_process)
     ASSERT(o->od->process_up)
     
-    return NCDModuleProcess_GetVar(&o->od->process, varname, out);
-}
-
-static NCDModuleInst * demand_func_getobj (void *vo, const char *objname)
-{
-    struct demand *o = vo;
-    ASSERT(o->od->have_process)
-    ASSERT(o->od->process_up)
-    
-    return NCDModuleProcess_GetObj(&o->od->process, objname);
+    return NCDModuleProcess_GetObj(&o->od->process, objname, out_object);
 }
 
 static const struct NCDModule modules[] = {
@@ -403,7 +394,6 @@ static const struct NCDModule modules[] = {
         .type = "ondemand::demand",
         .func_new = demand_func_new,
         .func_die = demand_func_die,
-        .func_getvar = demand_func_getvar,
         .func_getobj = demand_func_getobj
     }, {
         .type = NULL

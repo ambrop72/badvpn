@@ -144,7 +144,7 @@ static void set_func_new (NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = i->method_object->inst_user;
+    struct instance *mo = ((NCDModuleInst * )i->method_user)->inst_user;
     
     // set
     NCDValue v;

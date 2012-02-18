@@ -99,8 +99,10 @@ static void work (struct instance *o);
 static void advance (struct instance *o);
 static void timer_handler (struct instance *o);
 static void element_process_handler_event (struct element *e, int event);
-static int element_process_func_getspecialvar (struct element *e, const char *name, NCDValue *out);
-static NCDModuleInst * element_process_func_getspecialobj (struct element *e, const char *name);
+static int element_process_func_getspecialobj (struct element *e, const char *name, NCDObject *out_object);
+static int element_caller_object_func_getobj (struct element *e, const char *name, NCDObject *out_object);
+static int element_index_object_func_getvar (struct element *e, const char *name, NCDValue *out_value);
+static int element_elem_object_func_getvar (struct element *e, const char *name, NCDValue *out_value);
 static void instance_free (struct instance *o);
 
 static void assert_state (struct instance *o)
@@ -243,9 +245,7 @@ static void advance (struct instance *o)
     }
     
     // set special functions
-    NCDModuleProcess_SetSpecialFuncs(&e->process,
-                                     (NCDModuleProcess_func_getspecialvar)element_process_func_getspecialvar,
-                                     (NCDModuleProcess_func_getspecialobj)element_process_func_getspecialobj);
+    NCDModuleProcess_SetSpecialFuncs(&e->process, (NCDModuleProcess_func_getspecialobj)element_process_func_getspecialobj);
     
     // set element state down
     e->state = ESTATE_DOWN;
@@ -323,61 +323,72 @@ static void element_process_handler_event (struct element *e, int event)
     return;
 }
 
-static int element_process_func_getspecialvar (struct element *e, const char *name, NCDValue *out)
+static int element_process_func_getspecialobj (struct element *e, const char *name, NCDObject *out_object)
 {
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
     
-    if (e->i >= o->gp) {
-        BLog(BLOG_ERROR, "tried to resolve variable %s but it's dirty", name);
-        return 0;
+    if (!strcmp(name, "_caller")) {
+        *out_object = NCDObject_Build(NULL, e, NULL, (NCDObject_func_getobj)element_caller_object_func_getobj);
+        return 1;
     }
     
     if (!strcmp(name, "_index")) {
-        char str[64];
-        snprintf(str, sizeof(str), "%zu", e->i);
-        
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
-        }
-        
+        *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_index_object_func_getvar, NULL);
         return 1;
     }
     
     if (!strcmp(name, "_elem")) {
-        if (!NCDValue_InitCopy(out, e->value)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-            return 0;
-        }
-        
+        *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_elem_object_func_getvar, NULL);
         return 1;
-    }
-    
-    size_t p;
-    if (p = string_begins_with(name, "_caller.")) {
-        return NCDModuleInst_Backend_GetVar(o->i, name + p, out);
     }
     
     return 0;
 }
 
-static NCDModuleInst * element_process_func_getspecialobj (struct element *e, const char *name)
+static int element_caller_object_func_getobj (struct element *e, const char *name, NCDObject *out_object)
 {
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
     
-    if (e->i >= o->gp) {
-        BLog(BLOG_ERROR, "tried to resolve object %s but it's dirty", name);
-        return NULL;
+    return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
+}
+
+static int element_index_object_func_getvar (struct element *e, const char *name, NCDValue *out_value)
+{
+    struct instance *o = e->inst;
+    ASSERT(e->state != ESTATE_FORGOTTEN)
+    
+    if (strcmp(name, "")) {
+        return 0;
     }
     
-    size_t p;
-    if (p = string_begins_with(name, "_caller.")) {
-        return NCDModuleInst_Backend_GetObj(o->i, name + p);
+    char str[64];
+    snprintf(str, sizeof(str), "%zu", e->i);
+    
+    if (!NCDValue_InitString(out_value, str)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
+        return 0;
     }
     
-    return NULL;
+    return 1;
+}
+
+static int element_elem_object_func_getvar (struct element *e, const char *name, NCDValue *out_value)
+{
+    struct instance *o = e->inst;
+    ASSERT(e->state != ESTATE_FORGOTTEN)
+    
+    if (strcmp(name, "")) {
+        return 0;
+    }
+    
+    if (!NCDValue_InitCopy(out_value, e->value)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
+        return 0;
+    }
+    
+    return 1;
 }
 
 static void func_new (NCDModuleInst *i)

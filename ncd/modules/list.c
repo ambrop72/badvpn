@@ -320,7 +320,7 @@ static void append_func_new (NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = i->method_object->inst_user;
+    struct instance *mo = ((NCDModuleInst * )i->method_user)->inst_user;
     
     // append
     NCDValue v;
@@ -382,7 +382,7 @@ static void appendv_func_new (NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = i->method_object->inst_user;
+    struct instance *mo = ((NCDModuleInst * )i->method_user)->inst_user;
     
     // append
     NCDValue l;
@@ -439,7 +439,7 @@ static void length_func_new (NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = i->method_object->inst_user;
+    struct instance *mo = ((NCDModuleInst * )i->method_user)->inst_user;
     
     // remember length
     o->length = NCDValue_ListCount(&mo->list);
@@ -516,7 +516,7 @@ static void get_func_new (NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = i->method_object->inst_user;
+    struct instance *mo = ((NCDModuleInst * )i->method_user)->inst_user;
     
     // check index
     if (index >= NCDValue_ListCount(&mo->list)) {
@@ -592,7 +592,7 @@ static void shift_func_new (NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = i->method_object->inst_user;
+    struct instance *mo = ((NCDModuleInst * )i->method_user)->inst_user;
     
     // shift
     if (!NCDValue_ListFirst(&mo->list)) {
@@ -646,7 +646,7 @@ static void contains_func_new (NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = i->method_object->inst_user;
+    struct instance *mo = ((NCDModuleInst * )i->method_user)->inst_user;
     
     // search
     o->contains = 0;
@@ -730,7 +730,7 @@ static void find_func_new (NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = i->method_object->inst_user;
+    struct instance *mo = ((NCDModuleInst * )i->method_user)->inst_user;
     
     // search
     o->is_found = 0;
@@ -833,7 +833,7 @@ static void removeat_func_new (NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = i->method_object->inst_user;
+    struct instance *mo = ((NCDModuleInst * )i->method_user)->inst_user;
     
     // check position
     if (remove_pos >= NCDValue_ListCount(&mo->list)) {
@@ -895,7 +895,7 @@ static void remove_func_new (NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = i->method_object->inst_user;
+    struct instance *mo = ((NCDModuleInst * )i->method_user)->inst_user;
     
     // find value
     NCDValue *e = find_in_list(&mo->list, value_arg);
@@ -953,7 +953,7 @@ static void set_func_new (NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = i->method_object->inst_user;
+    struct instance *mo = ((NCDModuleInst * )i->method_user)->inst_user;
     
     // replace list
     NCDValue_Free(&mo->list);

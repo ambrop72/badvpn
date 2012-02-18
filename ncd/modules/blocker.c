@@ -163,7 +163,7 @@ static void updown_func_new_templ (NCDModuleInst *i, int up)
     NCDModuleInst_Backend_Up(o->i);
     
     // get method object
-    struct instance *mo = i->method_object->inst_user;
+    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
     
     if (mo->up != up) {
         // change up state
@@ -234,7 +234,7 @@ static void use_func_new (NCDModuleInst *i)
     }
     
     // set blocker
-    o->blocker = i->method_object->inst_user;
+    o->blocker = ((NCDModuleInst *)i->method_user)->inst_user;
     
     // add to blocker's list
     LinkedList2_Append(&o->blocker->users, &o->blocker_node);

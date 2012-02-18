@@ -95,6 +95,8 @@ struct instance {
 };
 
 static void instance_free (struct instance *o);
+static int caller_obj_func_getobj (struct instance *o, const char *name, NCDObject *out_object);
+static int ref_obj_func_getobj (struct instance *o, const char *name, NCDObject *out_object);
 
 static void process_handler_event (struct instance *o, int event)
 {
@@ -131,34 +133,19 @@ static void process_handler_event (struct instance *o, int event)
     }
 }
 
-static int process_func_getspecialvar (struct instance *o, const char *name, NCDValue *out)
-{
-    size_t p;
-    
-    if (p = string_begins_with(name, "_caller.")) {
-        return NCDModuleInst_Backend_GetVar(o->i, name + p, out);
+static int process_func_getspecialobj (struct instance *o, const char *name, NCDObject *out_object)
+{     
+    if (!strcmp(name, "_caller")) {
+        *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)caller_obj_func_getobj);
+        return 1;
     }
     
-    if (o->crh && (p = string_begins_with(name, "_ref."))) {
-        return NCDModuleInst_Backend_GetVar(o->crh->i, name + p, out);
+    if (!strcmp(name, "_ref")) {
+        *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)ref_obj_func_getobj);
+        return 1;
     }
     
     return 0;
-}
-
-static NCDModuleInst * process_func_getspecialobj (struct instance *o, const char *name)
-{
-    size_t p;
-    
-    if (p = string_begins_with(name, "_caller.")) {
-        return NCDModuleInst_Backend_GetObj(o->i, name + p);
-    }
-    
-    if (o->crh && (p = string_begins_with(name, "_ref."))) {
-        return NCDModuleInst_Backend_GetObj(o->crh->i, name + p);
-    }
-    
-    return NULL;
 }
 
 static void callrefhere_func_new (NCDModuleInst *i)
@@ -255,11 +242,10 @@ static void func_new (NCDModuleInst *i)
         
         // set special functions
         NCDModuleProcess_SetSpecialFuncs(&o->process,
-                                        (NCDModuleProcess_func_getspecialvar)process_func_getspecialvar,
                                         (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
         
         // set callrefhere
-        o->crh = (o->i->method_object ? o->i->method_object->inst_user : NULL);
+        o->crh = (o->i->method_user ? ((NCDModuleInst *)i->method_user)->inst_user : NULL);
         
         // add to callrefhere's calls list
         if (o->crh) {
@@ -330,7 +316,7 @@ static void func_clean (void *vo)
     o->state = STATE_WORKING;
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getobj (void *vo, const char *name, NCDObject *out_object)
 {
     struct instance *o = vo;
     
@@ -338,18 +324,21 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
         return 0;
     }
     
-    return NCDModuleProcess_GetVar(&o->process, name, out);
+    return NCDModuleProcess_GetObj(&o->process, name, out_object);
 }
 
-static NCDModuleInst * func_getobj (void *vo, const char *name)
+static int caller_obj_func_getobj (struct instance *o, const char *name, NCDObject *out_object)
 {
-    struct instance *o = vo;
-    
-    if (o->state == STATE_NONE) {
-        return NULL;
+    return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
+}
+
+static int ref_obj_func_getobj (struct instance *o, const char *name, NCDObject *out_object)
+{
+    if (!o->crh) {
+        return 0;
     }
     
-    return NCDModuleProcess_GetObj(&o->process, name);
+    return NCDModuleInst_Backend_GetObj(o->crh->i, name, out_object);
 }
 
 static const struct NCDModule modules[] = {
@@ -362,7 +351,6 @@ static const struct NCDModule modules[] = {
         .func_new = func_new,
         .func_die = func_die,
         .func_clean = func_clean,
-        .func_getvar = func_getvar,
         .func_getobj = func_getobj,
         .can_resolve_when_down = 1
     }, {
@@ -370,7 +358,6 @@ static const struct NCDModule modules[] = {
         .func_new = func_new,
         .func_die = func_die,
         .func_clean = func_clean,
-        .func_getvar = func_getvar,
         .func_getobj = func_getobj,
         .can_resolve_when_down = 1
     }, {

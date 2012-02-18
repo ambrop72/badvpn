@@ -478,7 +478,7 @@ static void start_func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(o->i);
     
     // get method object
-    struct instance *mo = i->method_object->inst_user;
+    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
     
     if (mo->dying) {
         ModuleLog(o->i, BLOG_INFO, "manager is dying, not creating process %s", name);
@@ -540,7 +540,7 @@ static void stop_func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(o->i);
     
     // get method object
-    struct instance *mo = i->method_object->inst_user;
+    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
     
     if (mo->dying) {
         ModuleLog(o->i, BLOG_INFO, "manager is dying, not stopping process %s", name);

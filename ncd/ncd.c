@@ -42,6 +42,7 @@
 #include <misc/string_begins_with.h>
 #include <misc/parse_number.h>
 #include <misc/open_standard_streams.h>
+#include <misc/expstring.h>
 #include <structure/LinkedList1.h>
 #include <structure/LinkedList2.h>
 #include <base/BLog.h>
@@ -84,7 +85,7 @@ struct arg_value {
     int type;
     union {
         char *string;
-        char *variable;
+        char **variable_names;
         LinkedList1 list;
     };
 };
@@ -95,7 +96,7 @@ struct arg_list_elem {
 };
 
 struct statement {
-    char *object_name;
+    char **object_names;
     char *method_name;
     struct arg_value args;
     char *name;
@@ -103,7 +104,6 @@ struct statement {
 
 struct process {
     NCDModuleProcess *module_process;
-    NCDValue args;
     char *name;
     size_t num_statements;
     struct process_statement *statements;
@@ -170,14 +170,18 @@ static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static int arg_value_init_string (struct arg_value *o, const char *string);
-static int arg_value_init_variable (struct arg_value *o, const char *variable);
+static int arg_value_init_variable (struct arg_value *o, struct NCDConfig_strings *ast_names);
 static void arg_value_init_list (struct arg_value *o);
 static int arg_value_list_append (struct arg_value *o, struct arg_value v);
 static void arg_value_free (struct arg_value *o);
 static int build_arg_list_from_ast_list (struct arg_value *o, struct NCDConfig_list *list);
+static char ** names_new (struct NCDConfig_strings *ast_names);
+static size_t names_count (char **names);
+static char * names_tostring (char **names);
+static void names_free (char **names);
 static int statement_init (struct statement *s, struct NCDConfig_statements *conf);
 static void statement_free (struct statement *s);
-static int process_new (struct NCDConfig_processes *conf, NCDModuleProcess *module_process, NCDValue args);
+static int process_new (struct NCDConfig_processes *conf, NCDModuleProcess *module_process);
 static void process_free (struct process *p);
 static void process_start_terminating (struct process *p);
 static void process_free_statements (struct process *p);
@@ -189,22 +193,19 @@ static void process_schedule_work (struct process *p);
 static void process_work_job_handler (struct process *p);
 static void process_advance_job_handler (struct process *p);
 static void process_wait_timer_handler (struct process *p);
-static struct process_statement * process_find_statement (struct process *p, size_t pos, const char *name);
-static int process_resolve_name (struct process *p, size_t pos, const char *name, struct process_statement **first_ps, const char **rest);
-static int process_resolve_variable (struct process *p, size_t pos, const char *varname, NCDValue *out);
-static struct process_statement * process_resolve_object (struct process *p, size_t pos, const char *objname);
+static int process_find_object (struct process *p, size_t pos, const char *name, NCDObject *out_object);
+static int process_resolve_object_expr (struct process *p, size_t pos, char **names, NCDObject *out_object);
+static int process_resolve_variable_expr (struct process *p, size_t pos, char **names, NCDValue *out_value);
 static void process_statement_logfunc (struct process_statement *ps);
 static void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...);
 static void process_statement_set_error (struct process_statement *ps);
 static int process_statement_resolve_argument (struct process_statement *ps, struct arg_value *arg, NCDValue *out);
 static void process_statement_instance_func_event (struct process_statement *ps, int event);
-static int process_statement_instance_func_getvar (struct process_statement *ps, const char *varname, NCDValue *out);
-static NCDModuleInst * process_statement_instance_func_getobj (struct process_statement *ps, const char *objname);
-static int process_statement_instance_func_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name, NCDValue args);
+static int process_statement_instance_func_getobj (struct process_statement *ps, const char *objname, NCDObject *out_object);
+static int process_statement_instance_func_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name);
 static void process_statement_instance_logfunc (struct process_statement *ps);
 static void process_moduleprocess_func_event (struct process *p, int event);
-static int process_moduleprocess_func_getvar (struct process *p, const char *name, NCDValue *out);
-static NCDModuleInst * process_moduleprocess_func_getobj (struct process *p, const char *name);
+static int process_moduleprocess_func_getobj (struct process *p, const char *name, NCDObject *out_object);
 
 int main (int argc, char **argv)
 {
@@ -347,11 +348,7 @@ int main (int argc, char **argv)
     struct NCDConfig_processes *conf = config_ast;
     while (conf) {
         if (!conf->is_template) {
-            NCDValue args;
-            NCDValue_InitList(&args);
-            if (!process_new(conf, NULL, args)) {
-                NCDValue_Free(&args);
-            }
+            process_new(conf, NULL);
         }
         conf = conf->next;
     }
@@ -604,11 +601,12 @@ int arg_value_init_string (struct arg_value *o, const char *string)
     return 1;
 }
 
-int arg_value_init_variable (struct arg_value *o, const char *variable)
+int arg_value_init_variable (struct arg_value *o, struct NCDConfig_strings *ast_names)
 {
+    ASSERT(ast_names)
+    
     o->type = ARG_VALUE_TYPE_VARIABLE;
-    if (!(o->variable = strdup(variable))) {
-        BLog(BLOG_ERROR, "strdup failed");
+    if (!(o->variable_names = names_new(ast_names))) {
         return 0;
     }
     
@@ -644,7 +642,7 @@ void arg_value_free (struct arg_value *o)
         } break;
         
         case ARG_VALUE_TYPE_VARIABLE: {
-            free(o->variable);
+            names_free(o->variable_names);
         } break;
         
         case ARG_VALUE_TYPE_LIST: {
@@ -675,18 +673,9 @@ int build_arg_list_from_ast_list (struct arg_value *o, struct NCDConfig_list *li
             } break;
             
             case NCDCONFIG_ARG_VAR: {
-                char *variable = NCDConfig_concat_strings(c->var);
-                if (!variable) {
-                    BLog(BLOG_ERROR, "NCDConfig_concat_strings failed");
+                if (!arg_value_init_variable(&e, c->var)) {
                     goto fail;
                 }
-                
-                if (!arg_value_init_variable(&e, variable)) {
-                    free(variable);
-                    goto fail;
-                }
-                
-                free(variable);
             } break;
             
             case NCDCONFIG_ARG_LIST: {
@@ -711,18 +700,101 @@ fail:
     return 0;
 }
 
-int statement_init (struct statement *s, struct NCDConfig_statements *conf)
+static char ** names_new (struct NCDConfig_strings *ast_names)
 {
-    s->object_name = NULL;
-    s->method_name = NULL;
-    s->name = NULL;
+    ASSERT(ast_names)
     
-    // set object name
-    if (conf->objname) {
-        if (!(s->object_name = NCDConfig_concat_strings(conf->objname))) {
-            BLog(BLOG_ERROR, "NCDConfig_concat_strings failed");
+    bsize_t size = bsize_fromsize(1);
+    for (struct NCDConfig_strings *n = ast_names; n; n = n->next) {
+        size = bsize_add(size, bsize_fromsize(1));
+    }
+    
+    char **names;
+    if (size.is_overflow || !(names = BAllocArray(size.value, sizeof(names[0])))) {
+        BLog(BLOG_ERROR, "BAllocArray failed");
+        goto fail0;
+    }
+    
+    size_t i = 0;
+    for (struct NCDConfig_strings *n = ast_names; n; n = n->next) {
+        if (!(names[i] = strdup(n->value))) {
+            BLog(BLOG_ERROR, "strdup failed");
             goto fail1;
         }
+        i++;
+    }
+    
+    names[i] = NULL;
+    
+    return names;
+    
+fail1:
+    while (i-- > 0) {
+        free(names[i]);
+    }
+    BFree(names);
+fail0:
+    return NULL;
+}
+
+static size_t names_count (char **names)
+{
+    ASSERT(names)
+    
+    size_t i;
+    for (i = 0; names[i]; i++);
+    
+    return i;
+}
+
+static char * names_tostring (char **names)
+{
+    ASSERT(names)
+    
+    ExpString str;
+    if (!ExpString_Init(&str)) {
+        goto fail0;
+    }
+    
+    for (size_t i = 0; names[i]; i++) {
+        if (i > 0 && !ExpString_AppendChar(&str, '.')) {
+            goto fail1;
+        }
+        if (!ExpString_Append(&str, names[i])) {
+            goto fail1;
+        }
+    }
+    
+    return ExpString_Get(&str);
+    
+fail1:
+    ExpString_Free(&str);
+fail0:
+    return NULL;
+}
+
+static void names_free (char **names)
+{
+    ASSERT(names)
+    
+    size_t i = names_count(names);
+    
+    while (i-- > 0) {
+        free(names[i]);
+    }
+    
+    BFree(names);
+}
+
+int statement_init (struct statement *s, struct NCDConfig_statements *conf)
+{
+    // set object names
+    if (conf->objname) {
+        if (!(s->object_names = names_new(conf->objname))) {
+            goto fail0;
+        }
+    } else {
+        s->object_names = NULL;
     }
     
     // set method name
@@ -735,22 +807,29 @@ int statement_init (struct statement *s, struct NCDConfig_statements *conf)
     if (conf->name) {
         if (!(s->name = strdup(conf->name))) {
             BLog(BLOG_ERROR, "strdup failed");
-            goto fail1;
+            goto fail2;
         }
+    } else {
+        s->name = NULL;
     }
     
     // init arguments
     if (!build_arg_list_from_ast_list(&s->args, conf->args)) {
         BLog(BLOG_ERROR, "build_arg_list_from_ast_list failed");
-        goto fail1;
+        goto fail3;
     }
     
     return 1;
     
-fail1:
+fail3:
     free(s->name);
+fail2:
     free(s->method_name);
-    free(s->object_name);
+fail1:
+    if (s->object_names) {
+        names_free(s->object_names);
+    }
+fail0:
     return 0;
 }
 
@@ -759,16 +838,20 @@ void statement_free (struct statement *s)
     // free arguments
     arg_value_free(&s->args);
     
-    // free names
+    // free name
     free(s->name);
+    
+    // free method name
     free(s->method_name);
-    free(s->object_name);
+    
+    // free object names
+    if (s->object_names) {
+        names_free(s->object_names);
+    }
 }
 
-int process_new (struct NCDConfig_processes *conf, NCDModuleProcess *module_process, NCDValue args)
+int process_new (struct NCDConfig_processes *conf, NCDModuleProcess *module_process)
 {
-    ASSERT(NCDValue_Type(&args) == NCDVALUE_LIST)
-    
     // allocate strucure
     struct process *p = malloc(sizeof(*p));
     if (!p) {
@@ -783,12 +866,8 @@ int process_new (struct NCDConfig_processes *conf, NCDModuleProcess *module_proc
     if (p->module_process) {
         NCDModuleProcess_Interp_SetHandlers(p->module_process, p,
                                             (NCDModuleProcess_interp_func_event)process_moduleprocess_func_event,
-                                            (NCDModuleProcess_interp_func_getvar)process_moduleprocess_func_getvar,
                                             (NCDModuleProcess_interp_func_getobj)process_moduleprocess_func_getobj);
     }
-    
-    // set arguments
-    p->args = args;
     
     // init name
     if (!(p->name = strdup(conf->name))) {
@@ -900,9 +979,6 @@ void process_free (struct process *p)
     
     // free name
     free(p->name);
-    
-    // free arguments
-    NCDValue_Free(&p->args);
     
     // free strucure
     free(p);
@@ -1134,56 +1210,54 @@ void process_advance_job_handler (struct process *p)
     
     process_statement_log(ps, BLOG_INFO, "initializing");
     
-    NCDModuleInst *method_object = NULL;
+    NCDObject object;
+    NCDObject *object_ptr = NULL;
     char *type;
+    int free_type = 0;
     
-    // construct type
-    if (!ps->s.object_name) {
+    if (!ps->s.object_names) {
         // this is a function_call(); type is "function_call"
-        if (!(type = strdup(ps->s.method_name))) {
-            process_statement_log(ps, BLOG_ERROR, "strdup failed");
-            goto fail0;
-        }
+        type = ps->s.method_name;
     } else {
         // this is a some.object.somewhere->method_call(); type is "base_type(some.object.somewhere)::method_call"
         
-        // resolve object
-        struct process_statement *obj_ps = process_resolve_object(p, p->ap, ps->s.object_name);
-        if (!obj_ps) {
-            process_statement_log(ps, BLOG_ERROR, "failed to resolve object %s for method call", ps->s.object_name);
-            goto fail0;
+        // get object
+        if (!process_resolve_object_expr(p, p->ap, ps->s.object_names, &object)) {
+            goto fail;
         }
-        ASSERT(obj_ps->state == SSTATE_ADULT)
+        object_ptr = &object;
         
-        // base type defaults to type
-        const char *base_type = (obj_ps->module->base_type ? obj_ps->module->base_type : obj_ps->module->type);
+        // get object type
+        const char *object_type = NCDObject_Type(&object);
+        if (!object_type) {
+            process_statement_log(ps, BLOG_ERROR, "cannot call method on object with no type");
+            goto fail;
+        }
         
         // build type string
-        if (!(type = concat_strings(3, base_type, "::", ps->s.method_name))) {
+        if (!(type = concat_strings(3, object_type, "::", ps->s.method_name))) {
             process_statement_log(ps, BLOG_ERROR, "concat_strings failed");
-            goto fail0;
+            goto fail;
         }
-        
-        method_object = &obj_ps->inst;
+        free_type = 1;
     }
     
     // find module to instantiate
     if (!(ps->module = NCDModuleIndex_FindModule(&mindex, type))) {
         process_statement_log(ps, BLOG_ERROR, "failed to find module: %s", type);
-        goto fail1;
+        goto fail;
     }
     
     // resolve arguments
     if (!process_statement_resolve_argument(ps, &ps->s.args, &ps->inst_args)) {
         process_statement_log(ps, BLOG_ERROR, "failed to resolve arguments");
-        goto fail1;
+        goto fail;
     }
     
     // initialize module instance
     NCDModuleInst_Init(
-        &ps->inst, ps->module, method_object, &ps->inst_args, &ss, &manager, &umanager, ps,
+        &ps->inst, ps->module, object_ptr, &ps->inst_args, &ss, &manager, &umanager, ps,
         (NCDModuleInst_func_event)process_statement_instance_func_event,
-        (NCDModuleInst_func_getvar)process_statement_instance_func_getvar,
         (NCDModuleInst_func_getobj)process_statement_instance_func_getobj,
         (NCDModuleInst_func_initprocess)process_statement_instance_func_initprocess,
         (BLog_logfunc)process_statement_instance_logfunc
@@ -1198,14 +1272,18 @@ void process_advance_job_handler (struct process *p)
     // increment FP
     p->fp++;
     
-    free(type);
+    if (free_type) {
+        free(type);
+    }
     
     process_assert_pointers(p);
     return;
     
-fail1:
-    free(type);
-fail0:
+fail:
+    if (free_type) {
+        free(type);
+    }
+    
     // mark error
     process_statement_set_error(ps);
     
@@ -1233,163 +1311,81 @@ void process_wait_timer_handler (struct process *p)
     BPending_Set(&p->work_job);
 }
 
-struct process_statement * process_find_statement (struct process *p, size_t pos, const char *name)
+int process_find_object (struct process *p, size_t pos, const char *name, NCDObject *out_object)
 {
-    process_assert_pointers(p);
     ASSERT(pos <= p->num_statements)
+    ASSERT(name)
+    ASSERT(out_object)
     
     for (size_t i = pos; i > 0; i--) {
         struct process_statement *ps = &p->statements[i - 1];
         if (ps->s.name && !strcmp(ps->s.name, name)) {
-            return ps;
+            if (ps->state == SSTATE_FORGOTTEN) {
+                process_log(p, BLOG_ERROR, "statement (%zu) is uninitialized", i - 1);
+                goto fail;
+            }
+            
+            *out_object = NCDModuleInst_Object(&ps->inst);
+            return 1;
         }
     }
     
-    return NULL;
+    if (p->module_process && NCDModuleProcess_Interp_GetSpecialObj(p->module_process, name, out_object)) {
+        return 1;
+    }
+    
+fail:
+    return 0;
 }
 
-int process_resolve_name (struct process *p, size_t pos, const char *name, struct process_statement **first_ps, const char **rest)
+int process_resolve_object_expr (struct process *p, size_t pos, char **names, NCDObject *out_object)
 {
-    process_assert_pointers(p);
     ASSERT(pos <= p->num_statements)
-    ASSERT(name)
+    ASSERT(names)
+    ASSERT(names_count(names) > 0)
+    ASSERT(out_object)
     
-    char *dot = strstr(name, ".");
-    if (!dot) {
-        *first_ps = process_find_statement(p, pos, name);
-        *rest = NULL;
-    } else {
-        // copy modname and terminate
-        char *modname = malloc((dot - name) + 1);
-        if (!modname) {
-            process_log(p, BLOG_ERROR, "malloc failed");
-            return 0;
-        }
-        memcpy(modname, name, dot - name);
-        modname[dot - name] = '\0';
-        
-        *first_ps = process_find_statement(p, pos, modname);
-        *rest = dot + 1;
-        
-        free(modname);
+    NCDObject object;
+    if (!process_find_object(p, pos, names[0], &object)) {
+        goto fail;
+    }
+    
+    if (!NCDObject_ResolveObjExpr(&object, names + 1, out_object)) {
+        goto fail;
     }
     
     return 1;
+    
+fail:;
+    char *name = names_tostring(names);
+    process_log(p, BLOG_ERROR, "failed to resolve object (%s) from position %zu", (name ? name : ""), pos);
+    free(name);
+    return 0;
 }
 
-int process_resolve_variable (struct process *p, size_t pos, const char *varname, NCDValue *out)
+int process_resolve_variable_expr (struct process *p, size_t pos, char **names, NCDValue *out_value)
 {
-    process_assert_pointers(p);
     ASSERT(pos <= p->num_statements)
-    ASSERT(varname)
+    ASSERT(names)
+    ASSERT(names_count(names) > 0)
+    ASSERT(out_value)
     
-    // find referred statement and remaining name
-    struct process_statement *rps;
-    const char *rest;
-    if (!process_resolve_name(p, pos, varname, &rps, &rest)) {
-        return 0;
+    NCDObject object;
+    if (!process_find_object(p, pos, names[0], &object)) {
+        goto fail;
     }
     
-    if (!rps) {
-        // handle _args
-        if (!strcmp(varname, "_args")) {
-            if (!NCDValue_InitCopy(out, &p->args)) {
-                process_log(p, BLOG_ERROR, "NCDValue_InitCopy failed");
-                return 0;
-            }
-            
-            return 1;
-        }
-        
-        // handle _argN
-        size_t len;
-        uintmax_t n;
-        if ((len = string_begins_with(varname, "_arg")) && parse_unsigned_integer(varname + len, &n) && n < NCDValue_ListCount(&p->args)) {
-            if (!NCDValue_InitCopy(out, NCDValue_ListGet(&p->args, n))) {
-                process_log(p, BLOG_ERROR, "NCDValue_InitCopy failed");
-                return 0;
-            }
-            
-            return 1;
-        }
-        
-        // handle special variables
-        if (p->module_process) {
-            if (NCDModuleProcess_Interp_GetSpecialVar(p->module_process, varname, out)) {
-                return 1;
-            }
-        }
-        
-        process_log(p, BLOG_ERROR, "unknown statement name in variable: %s", varname);
-        return 0;
-    }
-    
-    // must not be forgotten
-    if (rps->state == SSTATE_FORGOTTEN) {
-        process_log(p, BLOG_ERROR, "referred module is uninitialized and cannot resolve variable: %s", varname);
-        return 0;
-    }
-    
-    // resolve variable in referred statement
-    if (!NCDModuleInst_GetVar(&rps->inst, (rest ? rest : ""), out)) {
-        process_log(p, BLOG_ERROR, "referred module failed to resolve variable: %s", varname);
-        return 0;
+    if (!NCDObject_ResolveVarExpr(&object, names + 1, out_value)) {
+        goto fail;
     }
     
     return 1;
-}
-
-struct process_statement * process_resolve_object (struct process *p, size_t pos, const char *objname)
-{
-    process_assert_pointers(p);
-    ASSERT(pos <= p->num_statements)
-    ASSERT(objname)
     
-    // find referred statement and remaining name
-    struct process_statement *rps;
-    const char *rest;
-    if (!process_resolve_name(p, pos, objname, &rps, &rest)) {
-        return NULL;
-    }
-    
-    if (!rps) {
-        // handle special objects
-        if (p->module_process) {
-            NCDModuleInst *inst = NCDModuleProcess_Interp_GetSpecialObj(p->module_process, objname);
-            if (inst) {
-                struct process_statement *res_ps = UPPER_OBJECT(inst, struct process_statement, inst);
-                ASSERT(res_ps->state == SSTATE_ADULT)
-                return res_ps;
-            }
-        }
-        
-        process_log(p, BLOG_ERROR, "unknown statement name in object: %s", objname);
-        return NULL;
-    }
-    
-    // must not be forgotten
-    if (rps->state == SSTATE_FORGOTTEN) {
-        process_log(p, BLOG_ERROR, "referred module is uninitialized and cannot resolve object: %s", objname);
-        return NULL;
-    }
-    
-    // Resolve object in referred statement. If there is no rest, resolve empty string
-    // instead, or use this statement if it fails. This allows a statement to forward method
-    // calls elsewhere.
-    NCDModuleInst *inst = NCDModuleInst_GetObj(&rps->inst, (rest ? rest : ""));
-    if (!inst) {
-        if (!rest) {
-            return rps;
-        }
-        
-        process_log(p, BLOG_ERROR, "referred module failed to resolve object: %s", objname);
-        return NULL;
-    }
-    
-    struct process_statement *res_ps = UPPER_OBJECT(inst, struct process_statement, inst);
-    ASSERT(res_ps->state == SSTATE_ADULT)
-    
-    return res_ps;
+fail:;
+    char *name = names_tostring(names);
+    process_log(p, BLOG_ERROR, "failed to resolve variable (%s) from position %zu", (name ? name : ""), pos);
+    free(name);
+    return 0;
 }
 
 void process_statement_logfunc (struct process_statement *ps)
@@ -1417,6 +1413,8 @@ void process_statement_set_error (struct process_statement *ps)
 int process_statement_resolve_argument (struct process_statement *ps, struct arg_value *arg, NCDValue *out)
 {
     ASSERT(ps->i <= process_rap(ps->p))
+    ASSERT(arg)
+    ASSERT(out)
     
     switch (arg->type) {
         case ARG_VALUE_TYPE_STRING: {
@@ -1427,8 +1425,7 @@ int process_statement_resolve_argument (struct process_statement *ps, struct arg
         } break;
         
         case ARG_VALUE_TYPE_VARIABLE: {
-            if (!process_resolve_variable(ps->p, ps->i, arg->variable, out)) {
-                process_statement_log(ps, BLOG_ERROR, "failed to resolve variable");
+            if (!process_resolve_variable_expr(ps->p, ps->i, arg->variable_names, out)) {
                 return 0;
             }
         } break;
@@ -1534,29 +1531,16 @@ void process_statement_instance_func_event (struct process_statement *ps, int ev
     }
 }
 
-int process_statement_instance_func_getvar (struct process_statement *ps, const char *varname, NCDValue *out)
+int process_statement_instance_func_getobj (struct process_statement *ps, const char *objname, NCDObject *out_object)
 {
     ASSERT(ps->state != SSTATE_FORGOTTEN)
     
-    return process_resolve_variable(ps->p, ps->i, varname, out);
+    return process_find_object(ps->p, ps->i, objname, out_object);
 }
 
-NCDModuleInst * process_statement_instance_func_getobj (struct process_statement *ps, const char *objname)
+int process_statement_instance_func_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name)
 {
     ASSERT(ps->state != SSTATE_FORGOTTEN)
-    
-    struct process_statement *rps = process_resolve_object(ps->p, ps->i, objname);
-    if (!rps) {
-        return NULL;
-    }
-    
-    return &rps->inst;
-}
-
-int process_statement_instance_func_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name, NCDValue args)
-{
-    ASSERT(ps->state != SSTATE_FORGOTTEN)
-    ASSERT(NCDValue_Type(&args) == NCDVALUE_LIST)
     
     // find template
     struct NCDConfig_processes *conf = config_ast;
@@ -1573,7 +1557,7 @@ int process_statement_instance_func_initprocess (struct process_statement *ps, N
     }
     
     // create process
-    if (!process_new(conf, mp, args)) {
+    if (!process_new(conf, mp)) {
         process_statement_log(ps, BLOG_ERROR, "failed to create process from template %s", template_name);
         return 0;
     }
@@ -1619,21 +1603,9 @@ void process_moduleprocess_func_event (struct process *p, int event)
     }
 }
 
-int process_moduleprocess_func_getvar (struct process *p, const char *name, NCDValue *out)
+int process_moduleprocess_func_getobj (struct process *p, const char *name, NCDObject *out_object)
 {
     ASSERT(p->module_process)
     
-    return process_resolve_variable(p, p->num_statements, name, out);
-}
-
-NCDModuleInst * process_moduleprocess_func_getobj (struct process *p, const char *name)
-{
-    ASSERT(p->module_process)
-    
-    struct process_statement *rps = process_resolve_object(p, p->num_statements, name);
-    if (!rps) {
-        return NULL;
-    }
-    
-    return &rps->inst;
+    return process_find_object(p, p->num_statements, name, out_object);
 }

@@ -118,24 +118,17 @@ static void refhere_func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int refhere_func_getvar (void *vo, const char *varname, NCDValue *out)
-{
-    struct refhere_instance *o = vo;
-    
-    return NCDModuleInst_Backend_GetVar(o->i, varname, out);
-}
-
-static NCDModuleInst * refhere_func_getobj (void *vo, const char *objname)
+static int refhere_func_getobj (void *vo, const char *objname, NCDObject *out_object)
 {
     struct refhere_instance *o = vo;
     
     // We don't redirect methods, and there will never be an object
     // with empty name. Fail here so we don't report non-errors.
     if (!strcmp(objname, "")) {
-        return NULL;
+        return 0;
     }
     
-    return NCDModuleInst_Backend_GetObj(o->i, objname);
+    return NCDModuleInst_Backend_GetObj(o->i, objname, out_object);
 }
 
 static void ref_func_new_templ (NCDModuleInst *i, struct refhere_instance *rh)
@@ -176,14 +169,14 @@ fail0:
 
 static void ref_func_new_from_refhere (NCDModuleInst *i)
 {
-    struct refhere_instance *rh = i->method_object->inst_user;
+    struct refhere_instance *rh = ((NCDModuleInst *)i->method_user)->inst_user;
     
     return ref_func_new_templ(i, rh);
 }
 
 static void ref_func_new_from_ref (NCDModuleInst *i)
 {
-    struct ref_instance *ref = i->method_object->inst_user;
+    struct ref_instance *ref = ((NCDModuleInst *)i->method_user)->inst_user;
     
     return ref_func_new_templ(i, ref->rh);
 }
@@ -208,24 +201,17 @@ static void ref_func_die (void *vo)
     ref_instance_free(o);
 }
 
-static int ref_func_getvar (void *vo, const char *varname, NCDValue *out)
-{
-    struct ref_instance *o = vo;
-    
-    return NCDModuleInst_Backend_GetVar(o->rh->i, varname, out);
-}
-
-static NCDModuleInst * ref_func_getobj (void *vo, const char *objname)
+static int ref_func_getobj (void *vo, const char *objname, NCDObject *out_object)
 {
     struct ref_instance *o = vo;
     
     // We don't redirect methods, and there will never be an object
     // with empty name. Fail here so we don't report non-errors.
     if (!strcmp(objname, "")) {
-        return NULL;
+        return 0;
     }
     
-    return NCDModuleInst_Backend_GetObj(o->rh->i, objname);
+    return NCDModuleInst_Backend_GetObj(o->rh->i, objname, out_object);
 }
 
 static const struct NCDModule modules[] = {
@@ -233,21 +219,18 @@ static const struct NCDModule modules[] = {
         .type = "refhere",
         .func_new = refhere_func_new,
         .func_die = refhere_func_die,
-        .func_getvar = refhere_func_getvar,
         .func_getobj = refhere_func_getobj
     }, {
         .type = "refhere::ref",
         .base_type = "ref",
         .func_new = ref_func_new_from_refhere,
         .func_die = ref_func_die,
-        .func_getvar = ref_func_getvar,
         .func_getobj = ref_func_getobj
     }, {
         .type = "ref::ref",
         .base_type = "ref",
         .func_new = ref_func_new_from_ref,
         .func_die = ref_func_die,
-        .func_getvar = ref_func_getvar,
         .func_getobj = ref_func_getobj
     }, {
         .type = NULL

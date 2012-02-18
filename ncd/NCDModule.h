@@ -37,6 +37,7 @@
 #include <system/BProcess.h>
 #include <udevmonitor/NCDUdevManager.h>
 #include <ncd/NCDValue.h>
+#include <ncd/NCDObject.h>
 
 #define NCDMODULE_EVENT_UP 1
 #define NCDMODULE_EVENT_DOWN 2
@@ -77,28 +78,16 @@ typedef void (*NCDModuleInst_func_event) (void *user, int event);
 
 /**
  * Function called when the module instance wants the interpreter to
- * resolve a variable from the point of view of its statement.
- * The instance will not be in dead state.
- * This function must not have any side effects.
- * 
- * @param user as in {@link NCDModuleInst_Init}
- * @param name name of the variable
- * @param out on success, the interpreter should initialize the value here
- * @return 1 on success, 0 on failure
- */
-typedef int (*NCDModuleInst_func_getvar) (void *user, const char *name, NCDValue *out);
-
-/**
- * Function called when the module instance wants the interpreter to
  * resolve an object from the point of view of its statement.
  * The instance will not be in dead state.
  * This function must not have any side effects.
  * 
  * @param user as in {@link NCDModuleInst_Init}
  * @param name name of the object
- * @return object, or NULL on failure
+ * @param out_object the object will be returned here
+ * @return 1 on success, 0 on failure
  */
-typedef struct NCDModuleInst_s * (*NCDModuleInst_func_getobj) (void *user, const char *name);
+typedef int (*NCDModuleInst_func_getobj) (void *user, const char *name, NCDObject *out_object);
 
 /**
  * Function called when the module instance wants the interpreter to
@@ -116,12 +105,9 @@ typedef struct NCDModuleInst_s * (*NCDModuleInst_func_getobj) (void *user, const
  * @param user as in {@link NCDModuleInst_Init}
  * @param p handle for the new process backend
  * @param template_name name of the template to create the process from
- * @param args process arguments. On success, the arguments become owned
- *             by the interpreter. On failure, the interpreter must leave
- *             them unchanged.
  * @return 1 on success, 0 on failure
  */
-typedef int (*NCDModuleInst_func_initprocess) (void *user, struct NCDModuleProcess_s *p, const char *template_name, NCDValue args);
+typedef int (*NCDModuleInst_func_initprocess) (void *user, struct NCDModuleProcess_s *p, const char *template_name);
 
 #define NCDMODULEPROCESS_EVENT_UP 1
 #define NCDMODULEPROCESS_EVENT_DOWN 2
@@ -153,26 +139,15 @@ typedef void (*NCDModuleProcess_handler_event) (void *user, int event);
 
 /**
  * Function called when the interpreter wants to resolve a special
- * variable in the process.
- * This function must have no side effects.
- * 
- * @param user as in {@link NCDModuleProcess_Init}
- * @param name name of the variable
- * @param out on success, should initialize the value here
- * @return 1 on success, 0 on failure
- */
-typedef int (*NCDModuleProcess_func_getspecialvar) (void *user, const char *name, NCDValue *out);
-
-/**
- * Function called when the interpreter wants to resolve a special
  * object in the process.
  * This function must have no side effects.
  * 
  * @param user as in {@link NCDModuleProcess_Init}
  * @param name name of the object
- * @return object, or NULL on failure
+ * @param out_object the object will be returned here
+ * @return 1 on success, 0 on failure
  */
-typedef struct NCDModuleInst_s * (*NCDModuleProcess_func_getspecialobj) (void *user, const char *name);
+typedef int (*NCDModuleProcess_func_getspecialobj) (void *user, const char *name, NCDObject *out_object);
 
 #define NCDMODULEPROCESS_INTERP_EVENT_CONTINUE 1
 #define NCDMODULEPROCESS_INTERP_EVENT_TERMINATE 2
@@ -202,27 +177,16 @@ typedef struct NCDModuleInst_s * (*NCDModuleProcess_func_getspecialobj) (void *u
 typedef void (*NCDModuleProcess_interp_func_event) (void *user, int event);
 
 /**
- * Function called to have the interpreter resolve a variable within the process
- * of a process backend.
- * This function must not have any side effects.
- * 
- * @param user as in {@link NCDModuleProcess_Interp_SetHandlers}
- * @param name name of the variable
- * @param out on success, the interpreter should initialize the value here
- * @return 1 on success, 0 on failure
- */
-typedef int (*NCDModuleProcess_interp_func_getvar) (void *user, const char *name, NCDValue *out);
-
-/**
  * Function called to have the interpreter resolve an object within the process
  * of a process backend.
  * This function must not have any side effects.
  * 
  * @param user as in {@link NCDModuleProcess_Interp_SetHandlers}
  * @param name name of the object
- * @return object, or NULL on failure
+ * @param out_object the object will be returned here
+ * @return 1 on success, 0 in failure
  */
-typedef struct NCDModuleInst_s * (*NCDModuleProcess_interp_func_getobj) (void *user, const char *name);
+typedef int (*NCDModuleProcess_interp_func_getobj) (void *user, const char *name, NCDObject *out_object);
 
 struct NCDModule;
 
@@ -240,14 +204,13 @@ struct NCDModuleInitParams {
  */
 typedef struct NCDModuleInst_s {
     const struct NCDModule *m;
-    struct NCDModuleInst_s *method_object;
+    void *method_user;
     NCDValue *args;
     BReactor *reactor;
     BProcessManager *manager;
     NCDUdevManager *umanager;
     void *user;
     NCDModuleInst_func_event func_event;
-    NCDModuleInst_func_getvar func_getvar;
     NCDModuleInst_func_getobj func_getobj;
     NCDModuleInst_func_initprocess func_initprocess;
     BLog_logfunc logfunc;
@@ -267,15 +230,14 @@ typedef struct NCDModuleInst_s {
  */
 typedef struct NCDModuleProcess_s {
     NCDModuleInst *n;
+    NCDValue args;
     void *user;
     NCDModuleProcess_handler_event handler_event;
-    NCDModuleProcess_func_getspecialvar func_getspecialvar;
     NCDModuleProcess_func_getspecialobj func_getspecialobj;
     BPending event_job;
     int state;
     void *interp_user;
     NCDModuleProcess_interp_func_event interp_func_event;
-    NCDModuleProcess_interp_func_getvar interp_func_getvar;
     NCDModuleProcess_interp_func_getobj interp_func_getobj;
     DebugObject d_obj;
 } NCDModuleProcess;
@@ -290,8 +252,8 @@ typedef struct NCDModuleProcess_s {
  * 
  * @param n the instance
  * @param m structure of module functions implementing the module backend
- * @param method_object the base module if the module being initialized is a method, otherwise NULL.
- *                      The caller must ensure that this module is of the type expected by the module
+ * @param method_object the base object if the module being initialized is a method, otherwise NULL.
+ *                      The caller must ensure that this object is of the type expected by the module
  *                      being initialized.
  * @param args arguments to the module. Must be a NCDVALUE_LIST value. Must be available as long as
  *             the instance is freed.
@@ -300,13 +262,11 @@ typedef struct NCDModuleProcess_s {
  * @param umanager udev manager
  * @param user argument to callback functions
  * @param func_event callback to report state changes
- * @param func_getvar callback to resolve variables from the viewpoint of the instance
  * @param func_getobj callback to resolve objects from the viewpoint of the instance
  * @param logfunc log function which appends a log prefix with {@link BLog_Append}
  */
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, NCDModuleInst *method_object, NCDValue *args, BReactor *reactor, BProcessManager *manager, NCDUdevManager *umanager, void *user,
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValue *args, BReactor *reactor, BProcessManager *manager, NCDUdevManager *umanager, void *user,
                          NCDModuleInst_func_event func_event,
-                         NCDModuleInst_func_getvar func_getvar,
                          NCDModuleInst_func_getobj func_getobj,
                          NCDModuleInst_func_initprocess func_initprocess,
                          BLog_logfunc logfunc);
@@ -337,25 +297,14 @@ void NCDModuleInst_Die (NCDModuleInst *n);
 void NCDModuleInst_Clean (NCDModuleInst *n);
 
 /**
- * Resolves a variable within the instance.
- * This function does not have any side effects.
+ * Returns an {@link NCDObject} which can be used to resolve variables and objects
+ * within this instance, as well as call its methods. The resulting object may only
+ * be used immediately, and becomes invalid when the instance is freed.
  * 
  * @param n the instance
- * @param name name of the variable to resolve
- * @param out the value will be initialized here if successful
- * @return 1 on success, 0 on failure
+ * @return an NCDObject for this instance
  */
-int NCDModuleInst_GetVar (NCDModuleInst *n, const char *name, NCDValue *out) WARN_UNUSED;
-
-/**
- * Resolves an object within the instance.
- * This function does not have any side effects.
- * 
- * @param n the instance
- * @param name name of the object to resolve
- * @return module instance, or NULL on failure
- */
-NCDModuleInst * NCDModuleInst_GetObj (NCDModuleInst *n, const char *name) WARN_UNUSED;
+NCDObject NCDModuleInst_Object (NCDModuleInst *n);
 
 /**
  * Checks whether the module terminated unsuccessfully.
@@ -402,25 +351,15 @@ void NCDModuleInst_Backend_Down (NCDModuleInst *n);
 void NCDModuleInst_Backend_Dead (NCDModuleInst *n);
 
 /**
- * Resolves a variable for a backend instance, from the point of the instance's
- * statement in the containing process.
- * 
- * @param n backend instance handle
- * @param name name of the variable to resolve
- * @param out the value will be initialized here if successful
- * @return 1 on success, 0 on failure
- */
-int NCDModuleInst_Backend_GetVar (NCDModuleInst *n, const char *name, NCDValue *out) WARN_UNUSED;
-
-/**
  * Resolves an object for a backend instance, from the point of the instance's
  * statement in the containing process.
  * 
  * @param n backend instance handle
  * @param name name of the object to resolve
- * @return module instance, or NULL on failure
+ * @param out_object the object will be returned here
+ * @return 1 on success, 0 on failure
  */
-NCDModuleInst * NCDModuleInst_Backend_GetObj (NCDModuleInst *n, const char *name) WARN_UNUSED;
+int NCDModuleInst_Backend_GetObj (NCDModuleInst *n, const char *name, NCDObject *out_object) WARN_UNUSED;
 
 /**
  * Logs a backend instance message.
@@ -467,14 +406,12 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
 void NCDModuleProcess_Free (NCDModuleProcess *o);
 
 /**
- * Sets callback functions for providing special variables and objects within
- * the process.
+ * Sets callback functions for providing special objects within the process.
  * 
  * @param o the process
- * @param func_getspecialvar function for resolving special variables, or NULL
  * @param func_getspecialobj function for resolving special objects, or NULL
  */
-void NCDModuleProcess_SetSpecialFuncs (NCDModuleProcess *o, NCDModuleProcess_func_getspecialvar func_getspecialvar, NCDModuleProcess_func_getspecialobj func_getspecialobj);
+void NCDModuleProcess_SetSpecialFuncs (NCDModuleProcess *o, NCDModuleProcess_func_getspecialobj func_getspecialobj);
 
 /**
  * Continues the process after the process went down.
@@ -495,27 +432,16 @@ void NCDModuleProcess_Continue (NCDModuleProcess *o);
 void NCDModuleProcess_Terminate (NCDModuleProcess *o);
 
 /**
- * Resolves a variable within the process from the point
- * at the end of the process.
- * This function has no side effects.
- * 
- * @param o the process
- * @param name name of the variable to resolve
- * @param out the value will be initialized here if successful
- * @return 1 on success, 0 on failure
- */
-int NCDModuleProcess_GetVar (NCDModuleProcess *o, const char *name, NCDValue *out) WARN_UNUSED;
-
-/**
  * Resolves an object within the process from the point
  * at the end of the process.
  * This function has no side effects.
  * 
  * @param o the process
  * @param name name of the object to resolve
- * @return module instance, or NULL on failure
+ * @param out_object the object will be returned here
+ * @return 1 on success, 0 on failure
  */
-NCDModuleInst * NCDModuleProcess_GetObj (NCDModuleProcess *o, const char *name) WARN_UNUSED;
+int NCDModuleProcess_GetObj (NCDModuleProcess *o, const char *name, NCDObject *out_object) WARN_UNUSED;
 
 /**
  * Sets callback functions for the interpreter to implement the
@@ -526,12 +452,10 @@ NCDModuleInst * NCDModuleProcess_GetObj (NCDModuleProcess *o, const char *name) 
  * @param o process backend handle, as in {@link NCDModuleInst_func_initprocess}
  * @param interp_user argument to callback functions
  * @param interp_func_event function for reporting continue/terminate requests
- * @param interp_func_getvar function for resolving variables within the process
  * @param interp_func_getobj function for resolving objects within the process
  */
 void NCDModuleProcess_Interp_SetHandlers (NCDModuleProcess *o, void *interp_user,
                                           NCDModuleProcess_interp_func_event interp_func_event,
-                                          NCDModuleProcess_interp_func_getvar interp_func_getvar,
                                           NCDModuleProcess_interp_func_getobj interp_func_getobj);
 
 /**
@@ -568,23 +492,14 @@ void NCDModuleProcess_Interp_Down (NCDModuleProcess *o);
 void NCDModuleProcess_Interp_Terminated (NCDModuleProcess *o);
 
 /**
- * Resolves a special process variable for the process backend.
- * 
- * @param o process backend handle
- * @param name name of the variable
- * @param out the value will be initialized here if successful
- * @return 1 on success, 0 on failure
- */
-int NCDModuleProcess_Interp_GetSpecialVar (NCDModuleProcess *o, const char *name, NCDValue *out) WARN_UNUSED;
-
-/**
  * Resolves a special process object for the process backend.
  * 
  * @param o process backend handle
  * @param name name of the object
- * @return object, or NULL on failure
+ * @param out_object the object will be returned here
+ * @return 1 on success, 0 on failure
  */
-NCDModuleInst * NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, const char *name) WARN_UNUSED;
+int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, const char *name, NCDObject *out_object) WARN_UNUSED;
 
 /**
  * Function called before any instance of any backend in a module
@@ -647,9 +562,10 @@ typedef int (*NCDModule_func_getvar) (void *o, const char *name, NCDValue *out);
  * 
  * @param o as in {@link NCDModuleInst_Backend_SetUser}, or NULL by default
  * @param name name of the object to resolve
- * @return object, or NULL on failure
+ * @param out_object the object will be returned here
+ * @return 1 on success, 0 on failure
  */
-typedef NCDModuleInst * (*NCDModule_func_getobj) (void *o, const char *name);
+typedef int (*NCDModule_func_getobj) (void *o, const char *name, NCDObject *out_object);
 
 /**
  * Handler called when the module instance is in a clean state.
