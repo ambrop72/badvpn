@@ -187,7 +187,7 @@ void process_free (struct process *p)
     LinkedList2_Remove(&o->processes_list, &p->processes_list_node);
     
     // free timer
-    BReactor_RemoveTimer(o->i->reactor, &p->retry_timer);
+    BReactor_RemoveTimer(o->i->params->reactor, &p->retry_timer);
     
     // free name
     free(p->name);
@@ -334,7 +334,7 @@ void process_try (struct process *p)
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         
         // set timer
-        BReactor_SetTimer(o->i->reactor, &p->retry_timer);
+        BReactor_SetTimer(o->i->params->reactor, &p->retry_timer);
         
         // set state
         p->state = PROCESS_STATE_RETRYING;

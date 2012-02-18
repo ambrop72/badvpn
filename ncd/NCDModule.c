@@ -66,7 +66,7 @@ static int process_arg_object_func_getvar2 (NCDModuleProcess *o, NCDValue *arg, 
 
 static void frontend_event (NCDModuleInst *n, int event)
 {
-    n->func_event(n->user, event);
+    n->params->func_event(n->user, event);
 }
 
 static void init_job_handler (NCDModuleInst *n)
@@ -151,37 +151,29 @@ static void process_event_job_handler (NCDModuleProcess *o)
     }
 }
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValue *args, BReactor *reactor, BProcessManager *manager, NCDUdevManager *umanager, void *user,
-                         NCDModuleInst_func_event func_event,
-                         NCDModuleInst_func_getobj func_getobj,
-                         NCDModuleInst_func_initprocess func_initprocess,
-                         BLog_logfunc logfunc)
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValue *args, void *user, const struct NCDModuleInst_params *params)
 {
+    ASSERT(m)
     ASSERT(args)
     ASSERT(NCDValue_Type(args) == NCDVALUE_LIST)
-    ASSERT(func_event)
-    ASSERT(func_getobj)
-    ASSERT(func_initprocess)
-    ASSERT(logfunc)
+    ASSERT(params)
+    ASSERT(params->func_event)
+    ASSERT(params->func_getobj)
+    ASSERT(params->func_initprocess)
+    ASSERT(params->logfunc)
     
     // init arguments
     n->m = m;
     n->method_user = (method_object ? method_object->user : NULL);
     n->args = args;
-    n->reactor = reactor;
-    n->manager = manager;
-    n->umanager = umanager;
     n->user = user;
-    n->func_event = func_event;
-    n->func_getobj = func_getobj;
-    n->func_initprocess = func_initprocess;
-    n->logfunc = logfunc;
+    n->params = params;
     
     // init jobs
-    BPending_Init(&n->init_job, BReactor_PendingGroup(n->reactor), (BPending_handler)init_job_handler, n);
-    BPending_Init(&n->uninit_job, BReactor_PendingGroup(n->reactor), (BPending_handler)uninit_job_handler, n);
-    BPending_Init(&n->die_job, BReactor_PendingGroup(n->reactor), (BPending_handler)die_job_handler, n);
-    BPending_Init(&n->clean_job, BReactor_PendingGroup(n->reactor), (BPending_handler)clean_job_handler, n);
+    BPending_Init(&n->init_job, BReactor_PendingGroup(params->reactor), (BPending_handler)init_job_handler, n);
+    BPending_Init(&n->uninit_job, BReactor_PendingGroup(params->reactor), (BPending_handler)uninit_job_handler, n);
+    BPending_Init(&n->die_job, BReactor_PendingGroup(params->reactor), (BPending_handler)die_job_handler, n);
+    BPending_Init(&n->clean_job, BReactor_PendingGroup(params->reactor), (BPending_handler)clean_job_handler, n);
     
     // set initial state
     n->state = STATE_INIT;
@@ -412,7 +404,7 @@ int NCDModuleInst_Backend_GetObj (NCDModuleInst *n, const char *name, NCDObject 
     ASSERT(name)
     ASSERT(out_object)
     
-    int res = n->func_getobj(n->user, name, out_object);
+    int res = n->params->func_getobj(n->user, name, out_object);
     ASSERT(res == 0 || res == 1)
     
     return res;
@@ -424,7 +416,7 @@ void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const 
     
     va_list vl;
     va_start(vl, fmt);
-    BLog_LogViaFuncVarArg(n->logfunc, n->user, channel, level, fmt, vl);
+    BLog_LogViaFuncVarArg(n->params->logfunc, n->user, channel, level, fmt, vl);
     va_end(vl);
 }
 
@@ -459,7 +451,7 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     o->func_getspecialobj = NULL;
     
     // init event job
-    BPending_Init(&o->event_job, BReactor_PendingGroup(n->reactor), (BPending_handler)process_event_job_handler, o);
+    BPending_Init(&o->event_job, BReactor_PendingGroup(n->params->reactor), (BPending_handler)process_event_job_handler, o);
     
     // set state
     o->state = PROCESS_STATE_INIT;
@@ -469,7 +461,7 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     o->interp_func_getobj = NULL;
     
     // init interpreter part
-    if (!(n->func_initprocess(n->user, o, template_name))) {
+    if (!(n->params->func_initprocess(n->user, o, template_name))) {
         goto fail1;
     }
     

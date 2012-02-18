@@ -175,7 +175,7 @@ static void func_new (NCDModuleInst *i)
     }
     
     // init monitor
-    if (!NCDRfkillMonitor_Init(&o->monitor, o->i->reactor, (NCDRfkillMonitor_handler)monitor_handler, o)) {
+    if (!NCDRfkillMonitor_Init(&o->monitor, o->i->params->reactor, (NCDRfkillMonitor_handler)monitor_handler, o)) {
         ModuleLog(o->i, BLOG_ERROR, "monitor failed");
         goto fail1;
     }

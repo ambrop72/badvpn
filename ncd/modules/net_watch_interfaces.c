@@ -303,7 +303,7 @@ static void client_handler (struct instance *o, char *devpath, int have_map, BSt
     // lookup existing device with this devpath
     struct device *ex_device = find_device_by_devpath(o, devpath);
     // lookup cache entry
-    const BStringMap *cache_map = NCDUdevManager_Query(o->i->umanager, devpath);
+    const BStringMap *cache_map = NCDUdevManager_Query(o->i->params->umanager, devpath);
     
     if (!cache_map) {
         if (ex_device) {
@@ -368,7 +368,7 @@ static void func_new (NCDModuleInst *i)
     }
     
     // init client
-    NCDUdevClient_Init(&o->client, o->i->umanager, o, (NCDUdevClient_handler)client_handler);
+    NCDUdevClient_Init(&o->client, o->i->params->umanager, o, (NCDUdevClient_handler)client_handler);
     
     // init devices list
     LinkedList1_Init(&o->devices_list);

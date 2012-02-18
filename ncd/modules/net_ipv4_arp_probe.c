@@ -153,7 +153,7 @@ static void func_new (NCDModuleInst *i)
     }
     
     // init arpprobe
-    if (!BArpProbe_Init(&o->arpprobe, ifname, addr, i->reactor, o, (BArpProbe_handler)arpprobe_handler)) {
+    if (!BArpProbe_Init(&o->arpprobe, ifname, addr, i->params->reactor, o, (BArpProbe_handler)arpprobe_handler)) {
         ModuleLog(o->i, BLOG_ERROR, "BArpProbe_Init failed");
         goto fail1;
     }

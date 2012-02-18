@@ -94,7 +94,7 @@ static void func_new (NCDModuleInst *i)
     o->ifname = NCDValue_StringValue(arg);
     
     // init monitor
-    if (!NCDInterfaceMonitor_Init(&o->monitor, o->i->reactor, (NCDInterfaceMonitor_handler)monitor_handler, o)) {
+    if (!NCDInterfaceMonitor_Init(&o->monitor, o->i->params->reactor, (NCDInterfaceMonitor_handler)monitor_handler, o)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDInterfaceMonitor_Init failed");
         goto fail1;
     }

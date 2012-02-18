@@ -111,7 +111,7 @@ static void next_dir_event (struct instance *o)
             o->dir_handle = NULL;
             
             // start receiving inotify events
-            BReactor_SetFileDescriptorEvents(o->i->reactor, &o->bfd, BREACTOR_READ);
+            BReactor_SetFileDescriptorEvents(o->i->params->reactor, &o->bfd, BREACTOR_READ);
             return;
         }
     } while (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."));
@@ -173,7 +173,7 @@ static void next_inotify_event (struct instance *o)
     
     if (o->events_index == o->events_count) {
         // wait for more events
-        BReactor_SetFileDescriptorEvents(o->i->reactor, &o->bfd, BREACTOR_READ);
+        BReactor_SetFileDescriptorEvents(o->i->params->reactor, &o->bfd, BREACTOR_READ);
         return;
     }
     
@@ -202,7 +202,7 @@ static void inotify_fd_handler (struct instance *o, int events)
     }
     
     // stop waiting for inotify events
-    BReactor_SetFileDescriptorEvents(o->i->reactor, &o->bfd, 0);
+    BReactor_SetFileDescriptorEvents(o->i->params->reactor, &o->bfd, 0);
     
     ASSERT(res <= sizeof(o->events))
     ASSERT(res % sizeof(o->events[0]) == 0)
@@ -279,7 +279,7 @@ static void func_new (NCDModuleInst *i)
     
     // init BFileDescriptor
     BFileDescriptor_Init(&o->bfd, o->inotify_fd, (BFileDescriptor_handler)inotify_fd_handler, o);
-    if (!BReactor_AddFileDescriptor(o->i->reactor, &o->bfd)) {
+    if (!BReactor_AddFileDescriptor(o->i->params->reactor, &o->bfd)) {
         ModuleLog(o->i, BLOG_ERROR, "BReactor_AddFileDescriptor failed");
         goto fail2;
     }
@@ -299,7 +299,7 @@ static void func_new (NCDModuleInst *i)
     
 fail3:
     // free BFileDescriptor
-    BReactor_RemoveFileDescriptor(o->i->reactor, &o->bfd);
+    BReactor_RemoveFileDescriptor(o->i->params->reactor, &o->bfd);
 fail2:
     ASSERT_FORCE(close(o->inotify_fd) == 0)
 fail1:
@@ -321,7 +321,7 @@ void instance_free (struct instance *o, int is_error)
     }
     
     // free BFileDescriptor
-    BReactor_RemoveFileDescriptor(o->i->reactor, &o->bfd);
+    BReactor_RemoveFileDescriptor(o->i->params->reactor, &o->bfd);
     
     // close inotify
     ASSERT_FORCE(close(o->inotify_fd) == 0)

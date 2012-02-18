@@ -234,7 +234,7 @@ static void func_new (NCDModuleInst *i)
     fds[nfds] = -1;
     
     // start process
-    if (!BProcess_InitWithFds(&o->process, o->i->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), NULL, fds, fds_map)) {
+    if (!BProcess_InitWithFds(&o->process, o->i->params->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), NULL, fds, fds_map)) {
         ModuleLog(i, BLOG_ERROR, "BProcess_Init failed");
         CmdLine_Free(&cl);
         free(exec);

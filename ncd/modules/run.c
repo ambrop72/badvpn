@@ -146,7 +146,7 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // init dummy event lock
-    BEventLock_Init(&o->lock, BReactor_PendingGroup(i->reactor));
+    BEventLock_Init(&o->lock, BReactor_PendingGroup(i->params->reactor));
     
     command_template_new(&o->cti, i, build_cmdline, template_free_func, o, BLOG_CURRENT_CHANNEL, &o->lock);
     return;

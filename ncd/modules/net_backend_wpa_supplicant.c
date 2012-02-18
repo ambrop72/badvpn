@@ -434,7 +434,7 @@ static void func_new (NCDModuleInst *i)
     }
     
     // init process
-    if (!BInputProcess_Init(&o->process, o->i->reactor, o->i->manager, o,
+    if (!BInputProcess_Init(&o->process, o->i->params->reactor, o->i->params->manager, o,
                             (BInputProcess_handler_terminated)process_handler_terminated,
                             (BInputProcess_handler_closed)process_handler_closed
     )) {
@@ -443,7 +443,7 @@ static void func_new (NCDModuleInst *i)
     }
     
     // init input interface
-    PacketPassInterface_Init(&o->pipe_input, MAX_LINE_LEN, (PacketPassInterface_handler_send)process_pipe_handler_send, o, BReactor_PendingGroup(o->i->reactor));
+    PacketPassInterface_Init(&o->pipe_input, MAX_LINE_LEN, (PacketPassInterface_handler_send)process_pipe_handler_send, o, BReactor_PendingGroup(o->i->params->reactor));
     
     // init buffer
     if (!LineBuffer_Init(&o->pipe_buffer, BInputProcess_GetInput(&o->process), &o->pipe_input, MAX_LINE_LEN, '\n')) {

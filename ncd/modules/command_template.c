@@ -51,7 +51,7 @@ static void lock_handler (command_template_instance *o)
     
     if (o->state == STATE_ADDING_LOCK) {
         // start process
-        if (!BProcess_Init(&o->process, o->i->manager, (BProcess_handler)process_handler, o, o->do_exec, CmdLine_Get(&o->do_cmdline), NULL)) {
+        if (!BProcess_Init(&o->process, o->i->params->manager, (BProcess_handler)process_handler, o, o->do_exec, CmdLine_Get(&o->do_cmdline), NULL)) {
             NCDModuleInst_Backend_Log(o->i, o->blog_channel, BLOG_ERROR, "BProcess_Init failed");
             free_template(o, 1);
             return;
@@ -64,7 +64,7 @@ static void lock_handler (command_template_instance *o)
         o->state = STATE_ADDING;
     } else {
         // start process
-        if (!BProcess_Init(&o->process, o->i->manager, (BProcess_handler)process_handler, o, o->undo_exec, CmdLine_Get(&o->undo_cmdline), NULL)) {
+        if (!BProcess_Init(&o->process, o->i->params->manager, (BProcess_handler)process_handler, o, o->undo_exec, CmdLine_Get(&o->undo_cmdline), NULL)) {
             NCDModuleInst_Backend_Log(o->i, o->blog_channel, BLOG_ERROR, "BProcess_Init failed");
             free_template(o, 1);
             return;

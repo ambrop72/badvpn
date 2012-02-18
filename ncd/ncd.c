@@ -162,6 +162,9 @@ NCDModuleIndex mindex;
 // config AST
 struct NCDConfig_processes *config_ast;
 
+// common module parameters
+struct NCDModuleInst_params module_params;
+
 // processes
 LinkedList2 processes;
 
@@ -340,6 +343,15 @@ int main (int argc, char **argv)
         }
         num_inited_modules++;
     }
+    
+    // init common module params
+    module_params.reactor = &ss;
+    module_params.manager = &manager;
+    module_params.umanager = &umanager;
+    module_params.func_event = (NCDModuleInst_func_event)process_statement_instance_func_event;
+    module_params.func_getobj = (NCDModuleInst_func_getobj)process_statement_instance_func_getobj;
+    module_params.func_initprocess = (NCDModuleInst_func_initprocess)process_statement_instance_func_initprocess;
+    module_params.logfunc = (BLog_logfunc)process_statement_instance_logfunc;
     
     // init processes list
     LinkedList2_Init(&processes);
@@ -1255,13 +1267,7 @@ void process_advance_job_handler (struct process *p)
     }
     
     // initialize module instance
-    NCDModuleInst_Init(
-        &ps->inst, ps->module, object_ptr, &ps->inst_args, &ss, &manager, &umanager, ps,
-        (NCDModuleInst_func_event)process_statement_instance_func_event,
-        (NCDModuleInst_func_getobj)process_statement_instance_func_getobj,
-        (NCDModuleInst_func_initprocess)process_statement_instance_func_initprocess,
-        (BLog_logfunc)process_statement_instance_logfunc
-    );
+    NCDModuleInst_Init(&ps->inst, ps->module, object_ptr, &ps->inst_args, ps, &module_params);
     
     // set statement state CHILD
     ps->state = SSTATE_CHILD;

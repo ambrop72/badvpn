@@ -197,6 +197,40 @@ struct NCDModuleInitParams {
 };
 
 /**
+ * Contains parameters to {@link NCDModuleInst_Init} that are passed indirectly.
+ */
+struct NCDModuleInst_params {
+    /**
+     * Reactor we live in.
+     */
+    BReactor *reactor;
+    /**
+     * Process manager.
+     */
+    BProcessManager *manager;
+    /**
+     * Udev manager.
+     */
+    NCDUdevManager *umanager;
+    /**
+     * Callback to report state changes.
+     */
+    NCDModuleInst_func_event func_event;
+    /**
+     * Callback to resolve objects from the viewpoint of the instance.
+     */
+    NCDModuleInst_func_getobj func_getobj;
+    /**
+     * Callback to create a new template process.
+     */
+    NCDModuleInst_func_initprocess func_initprocess;
+    /**
+     * Log function which appends a log prefix with {@link BLog_Append}.
+     */
+    BLog_logfunc logfunc;
+};
+
+/**
  * Module instance.
  * The module instance is initialized by the interpreter by calling
  * {@link NCDModuleInst_Init}. It is implemented by a module backend
@@ -206,14 +240,8 @@ typedef struct NCDModuleInst_s {
     const struct NCDModule *m;
     void *method_user;
     NCDValue *args;
-    BReactor *reactor;
-    BProcessManager *manager;
-    NCDUdevManager *umanager;
     void *user;
-    NCDModuleInst_func_event func_event;
-    NCDModuleInst_func_getobj func_getobj;
-    NCDModuleInst_func_initprocess func_initprocess;
-    BLog_logfunc logfunc;
+    const struct NCDModuleInst_params *params;
     BPending init_job;
     BPending uninit_job;
     BPending die_job;
@@ -257,19 +285,12 @@ typedef struct NCDModuleProcess_s {
  *                      being initialized.
  * @param args arguments to the module. Must be a NCDVALUE_LIST value. Must be available as long as
  *             the instance is freed.
- * @param reactor reactor we live in
- * @param manager process manager
- * @param umanager udev manager
  * @param user argument to callback functions
- * @param func_event callback to report state changes
- * @param func_getobj callback to resolve objects from the viewpoint of the instance
- * @param logfunc log function which appends a log prefix with {@link BLog_Append}
+ * @param params remaining parameters, see {@link NCDModuleInst_params}. These are passed indirectly
+ *               because they are usually always the same, to reduce memory usage, and the number of
+ *               arguments to this function.
  */
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValue *args, BReactor *reactor, BProcessManager *manager, NCDUdevManager *umanager, void *user,
-                         NCDModuleInst_func_event func_event,
-                         NCDModuleInst_func_getobj func_getobj,
-                         NCDModuleInst_func_initprocess func_initprocess,
-                         BLog_logfunc logfunc);
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValue *args, void *user, const struct NCDModuleInst_params *params);
 
 /**
  * Frees the instance.

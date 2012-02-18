@@ -163,7 +163,7 @@ static void func_new (NCDModuleInst *i)
     }
     
     // init DHCP
-    if (!BDHCPClient_Init(&o->dhcp, ifname, opts, o->i->reactor, (BDHCPClient_handler)dhcp_handler, o)) {
+    if (!BDHCPClient_Init(&o->dhcp, ifname, opts, o->i->params->reactor, (BDHCPClient_handler)dhcp_handler, o)) {
         ModuleLog(o->i, BLOG_ERROR, "BDHCPClient_Init failed");
         goto fail1;
     }
