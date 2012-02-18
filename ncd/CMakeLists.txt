@@ -40,6 +40,7 @@ add_executable(badvpn-ncd
     NCDModuleIndex.c
     NCDIfConfig.c
     NCDInterfaceMonitor.c
+    NCDObject.c
     BEventLock.c
     modules/command_template.c
     modules/event_template.c
