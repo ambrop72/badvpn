@@ -31,6 +31,7 @@ target_link_libraries(ncdconfig base)
 add_library(ncdvalue
     NCDValue.c
     NCDValueParser.c
+    NCDValueGenerator.c
 )
 target_link_libraries(ncdvalue ncdconfig)
 

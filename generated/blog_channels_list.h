@@ -100,3 +100,4 @@
 {.name = "BArpProbe", .loglevel = 4},
 {.name = "NCDModuleIndex", .loglevel = 4},
 {.name = "NCDModuleProcess", .loglevel = 4},
+{.name = "NCDValueGenerator", .loglevel = 4},

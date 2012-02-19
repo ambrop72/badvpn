@@ -100,3 +100,4 @@ PeerChat 4
 BArpProbe 4
 NCDModuleIndex 4
 NCDModuleProcess 4
+NCDValueGenerator 4

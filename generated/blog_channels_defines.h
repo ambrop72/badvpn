@@ -100,4 +100,5 @@
 #define BLOG_CHANNEL_BArpProbe 99
 #define BLOG_CHANNEL_NCDModuleIndex 100
 #define BLOG_CHANNEL_NCDModuleProcess 101
-#define BLOG_NUM_CHANNELS 102
+#define BLOG_CHANNEL_NCDValueGenerator 102
+#define BLOG_NUM_CHANNELS 103
