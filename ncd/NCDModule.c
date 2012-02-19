@@ -98,6 +98,11 @@ static void die_job_handler (NCDModuleInst *n)
     
     n->state = STATE_DYING;
     
+    if (!n->m->func_die) {
+        NCDModuleInst_Backend_Dead(n);
+        return;
+    }
+    
     n->m->func_die(n->inst_user);
     return;
 }

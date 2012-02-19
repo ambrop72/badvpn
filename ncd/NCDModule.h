@@ -626,6 +626,7 @@ struct NCDModule {
     
     /**
      * Function called to request termination of a backend instance.
+     * May be NULL, in which case the default is to call NCDModuleInst_Backend_Dead().
      */
     NCDModule_func_die func_die;
     
