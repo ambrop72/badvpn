@@ -34,6 +34,7 @@
 #include <misc/debug.h>
 #include <base/BLog.h>
 #include <ncd/NCDValueParser.h>
+#include <ncd/NCDValueGenerator.h>
 
 static void print_indent (unsigned int indent)
 {
@@ -64,9 +65,11 @@ static void print_value (NCDValue *val, unsigned int indent)
 
 int main (int argc, char **argv)
 {
+    int res = 1;
+    
     if (argc != 2) {
         printf("Usage: %s <string>\n", (argc > 0 ? argv[0] : ""));
-        return 1;
+        goto fail0;
     }
     
     BLog_InitStdout();
@@ -75,13 +78,29 @@ int main (int argc, char **argv)
     NCDValue val;
     if (!NCDValueParser_Parse(argv[1], strlen(argv[1]), &val)) {
         DEBUG("NCDConfigParser_Parse failed");
-        return 1;
+        goto fail1;
     }
     
-    // print
+    // print tree-based
     print_value(&val, 0);
     
-    NCDValue_Free(&val);
+    // generate value string
+    char *str = NCDValueGenerator_Generate(&val);
+    if (!str) {
+        DEBUG("NCDValueGenerator_Generate failed");
+        goto fail2;
+    }
     
-    return 0;
+    // print value string
+    printf("%s\n", str);
+    
+    res = 0;
+    
+    free(str);
+fail2:
+    NCDValue_Free(&val);
+fail1:
+    BLog_Free();
+fail0:
+    return res;
 }
