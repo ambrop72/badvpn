@@ -416,7 +416,7 @@ void NCDModuleInst_Backend_SetError (NCDModuleInst *n);
  *                      interpreter
  * @return 1 on success, 0 on failure
  */
-int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValue args, void *user, NCDModuleProcess_handler_event handler_event);
+int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValue args, void *user, NCDModuleProcess_handler_event handler_event) WARN_UNUSED;
 
 /**
  * Frees the process.
