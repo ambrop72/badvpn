@@ -8,3 +8,8 @@ install(
     TARGETS badvpn-tun2socks
     RUNTIME DESTINATION bin
 )
+
+install(
+    FILES badvpn-tun2socks.8
+    DESTINATION share/man/man8
+)
