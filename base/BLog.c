@@ -51,14 +51,24 @@ static char *level_names[] = {
 
 static void stdout_log (int channel, int level, const char *msg)
 {
-    printf("%s(%s): %s\n", level_names[level], blog_global.channels[channel].name, msg);
+    fprintf(stdout, "%s(%s): %s\n", level_names[level], blog_global.channels[channel].name, msg);
 }
 
-static void stdout_free (void)
+static void stderr_log (int channel, int level, const char *msg)
+{
+    fprintf(stderr, "%s(%s): %s\n", level_names[level], blog_global.channels[channel].name, msg);
+}
+
+static void stdout_stderr_free (void)
 {
 }
 
 void BLog_InitStdout (void)
 {
-    BLog_Init(stdout_log, stdout_free);
+    BLog_Init(stdout_log, stdout_stderr_free);
+}
+
+void BLog_InitStderr (void)
+{
+    BLog_Init(stderr_log, stdout_stderr_free);
 }

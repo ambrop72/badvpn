@@ -89,6 +89,7 @@ static void BLog_LogViaFuncVarArg (BLog_logfunc func, void *arg, int channel, in
 static void BLog_LogViaFunc (BLog_logfunc func, void *arg, int channel, int level, const char *fmt, ...);
 
 void BLog_InitStdout (void);
+void BLog_InitStderr (void);
 
 int BLogGlobal_GetChannelByName (const char *channel_name)
 {
