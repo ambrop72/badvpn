@@ -45,7 +45,10 @@ static int ExpString_Init (ExpString *c);
 static void ExpString_Free (ExpString *c);
 static int ExpString_Append (ExpString *c, const char *str);
 static int ExpString_AppendChar (ExpString *c, char ch);
+static int ExpString_AppendBinary (ExpString *c, const uint8_t *data, size_t len);
+static int ExpString_AppendZeros (ExpString *c, size_t len);
 static char * ExpString_Get (ExpString *c);
+static size_t ExpString_Length (ExpString *c);
 
 int ExpString_Init (ExpString *c)
 {
@@ -99,9 +102,44 @@ int ExpString_AppendChar (ExpString *c, char ch)
     return 1;
 }
 
+int ExpString_AppendBinary (ExpString *c, const uint8_t *data, size_t len)
+{
+    bsize_t newsize = bsize_add(bsize_fromsize(c->n), bsize_add(bsize_fromsize(len), bsize_fromint(1)));
+    
+    if (newsize.is_overflow || !ExpArray_resize(&c->arr, newsize.value)) {
+        return 0;
+    }
+    
+    memcpy((char *)c->arr.v + c->n, data, len);
+    c->n += len;
+    ((char *)c->arr.v)[c->n] = '\0';
+    
+    return 1;
+}
+
+int ExpString_AppendZeros (ExpString *c, size_t len)
+{
+    bsize_t newsize = bsize_add(bsize_fromsize(c->n), bsize_add(bsize_fromsize(len), bsize_fromint(1)));
+    
+    if (newsize.is_overflow || !ExpArray_resize(&c->arr, newsize.value)) {
+        return 0;
+    }
+    
+    memset((char *)c->arr.v + c->n, 0, len);
+    c->n += len;
+    ((char *)c->arr.v)[c->n] = '\0';
+    
+    return 1;
+}
+
 char * ExpString_Get (ExpString *c)
 {
     return (char *)c->arr.v;
+}
+
+size_t ExpString_Length (ExpString *c)
+{
+    return c->n;
 }
 
 #endif
