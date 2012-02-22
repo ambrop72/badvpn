@@ -26,5 +26,6 @@ add_library(flow
     SingleStreamReceiver.c
     StreamPacketSender.c
     StreamPassConnector.c
+    PacketPassFifoQueue.c
 )
 target_link_libraries(flow base)
