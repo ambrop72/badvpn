@@ -129,3 +129,11 @@ fail1:
 fail0:
     return NULL;
 }
+
+int NCDValueGenerator_AppendGenerate (NCDValue *value, ExpString *str)
+{
+    NCDValue_Type(value);
+    ASSERT(str)
+    
+    return generate_value(value, str);
+}

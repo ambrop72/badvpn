@@ -30,8 +30,11 @@
 #ifndef BADVPN_NCDVALUEGENERATOR_H
 #define BADVPN_NCDVALUEGENERATOR_H
 
+#include <misc/debug.h>
+#include <misc/expstring.h>
 #include <ncd/NCDValue.h>
 
 char * NCDValueGenerator_Generate (NCDValue *value);
+int NCDValueGenerator_AppendGenerate (NCDValue *value, ExpString *str) WARN_UNUSED;
 
 #endif
