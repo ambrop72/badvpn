@@ -101,3 +101,5 @@
 {.name = "NCDModuleIndex", .loglevel = 4},
 {.name = "NCDModuleProcess", .loglevel = 4},
 {.name = "NCDValueGenerator", .loglevel = 4},
+{.name = "ncd_from_string", .loglevel = 4},
+{.name = "ncd_to_string", .loglevel = 4},
