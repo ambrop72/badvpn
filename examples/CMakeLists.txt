@@ -11,6 +11,8 @@ endif ()
 add_executable(fairqueue_test fairqueue_test.c)
 target_link_libraries(fairqueue_test system flow)
 
+add_executable(indexedlist_test indexedlist_test.c)
+
 if (BUILDING_SECURITY)
     add_executable(fairqueue_test2 fairqueue_test2.c)
     target_link_libraries(fairqueue_test2 system flow security)
