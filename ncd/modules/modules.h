@@ -64,6 +64,7 @@ extern const struct NCDModuleGroup ncdmodule_foreach;
 extern const struct NCDModuleGroup ncdmodule_choose;
 extern const struct NCDModuleGroup ncdmodule_from_string;
 extern const struct NCDModuleGroup ncdmodule_to_string;
+extern const struct NCDModuleGroup ncdmodule_value;
 extern const struct NCDModuleGroup ncdmodule_net_backend_waitdevice;
 extern const struct NCDModuleGroup ncdmodule_net_backend_waitlink;
 extern const struct NCDModuleGroup ncdmodule_net_backend_badvpn;
@@ -119,6 +120,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_choose,
     &ncdmodule_from_string,
     &ncdmodule_to_string,
+    &ncdmodule_value,
     &ncdmodule_net_backend_waitdevice,
     &ncdmodule_net_backend_waitlink,
     &ncdmodule_net_backend_badvpn,
