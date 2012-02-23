@@ -144,6 +144,22 @@ typedef void (*BConnector_handler) (void *user, int is_error);
 int BConnector_Init (BConnector *o, BAddr addr, BReactor *reactor, void *user,
                      BConnector_handler handler) WARN_UNUSED;
 
+#ifndef BADVPN_USE_WINAPI
+/**
+ * Initializes the object for connecting to a Unix socket.
+ * {@link BNetwork_GlobalInit} must have been done.
+ * 
+ * @param o the object
+ * @param socket_path socket path for connecting
+ * @param reactor reactor we live in
+ * @param user argument to handler
+ * @param handler handler called when the connection attempt finishes
+ * @return 1 on success, 0 on failure
+ */
+int BConnector_InitUnix (BConnector *o, const char *socket_path, BReactor *reactor, void *user,
+                         BConnector_handler handler) WARN_UNUSED;
+#endif
+
 /**
  * Frees the object.
  * 

@@ -652,6 +652,85 @@ fail1:
     return 0;
 }
 
+int BConnector_InitUnix (BConnector *o, const char *socket_path, BReactor *reactor, void *user,
+                         BConnector_handler handler)
+{
+    ASSERT(socket_path)
+    ASSERT(handler)
+    BNetwork_Assert();
+    
+    // init arguments
+    o->reactor = reactor;
+    o->user = user;
+    o->handler = handler;
+    
+    // build address
+    struct unix_addr addr;
+    if (!build_unix_address(&addr, socket_path)) {
+        BLog(BLOG_ERROR, "build_unix_address failed");
+        goto fail0;
+    }
+    
+    // init job
+    BPending_Init(&o->job, BReactor_PendingGroup(o->reactor), (BPending_handler)connector_job_handler, o);
+    
+    // init fd
+    if ((o->fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        BLog(BLOG_ERROR, "socket failed");
+        goto fail1;
+    }
+    
+    // set fd non-blocking
+    if (!badvpn_set_nonblocking(o->fd)) {
+        BLog(BLOG_ERROR, "badvpn_set_nonblocking failed");
+        goto fail2;
+    }
+    
+    // connect fd
+    int res = connect(o->fd, (struct sockaddr *)&addr.u.addr, addr.len);
+    if (res < 0 && errno != EINPROGRESS) {
+        BLog(BLOG_ERROR, "connect failed");
+        goto fail2;
+    }
+    
+    // set not connected
+    o->connected = 0;
+    
+    // set have no BFileDescriptor
+    o->have_bfd = 0;
+    
+    if (res < 0) {
+        // init BFileDescriptor
+        BFileDescriptor_Init(&o->bfd, o->fd, (BFileDescriptor_handler)connector_fd_handler, o);
+        if (!BReactor_AddFileDescriptor(o->reactor, &o->bfd)) {
+            BLog(BLOG_ERROR, "BReactor_AddFileDescriptor failed");
+            goto fail2;
+        }
+        BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, BREACTOR_WRITE);
+        
+        // set have BFileDescriptor
+        o->have_bfd = 1;
+    } else {
+        // set connected
+        o->connected = 1;
+        
+        // set job
+        BPending_Set(&o->job);
+    }
+    
+    DebugObject_Init(&o->d_obj);
+    return 1;
+    
+fail2:
+    if (close(o->fd) < 0) {
+        BLog(BLOG_ERROR, "close failed");
+    }
+fail1:
+    BPending_Free(&o->job);
+fail0:
+    return 0;
+}
+
 void BConnector_Free (BConnector *o)
 {
     DebugObject_Free(&o->d_obj);
