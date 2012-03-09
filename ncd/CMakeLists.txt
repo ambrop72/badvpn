@@ -76,6 +76,7 @@ add_executable(badvpn-ncd
     modules/from_string.c
     modules/to_string.c
     modules/value.c
+    modules/try.c
     modules/net_backend_waitdevice.c
     modules/net_backend_waitlink.c
     modules/net_backend_badvpn.c

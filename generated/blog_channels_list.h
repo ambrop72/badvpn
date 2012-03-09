@@ -104,3 +104,4 @@
 {.name = "ncd_from_string", .loglevel = 4},
 {.name = "ncd_to_string", .loglevel = 4},
 {.name = "ncd_value", .loglevel = 4},
+{.name = "ncd_try", .loglevel = 4},
