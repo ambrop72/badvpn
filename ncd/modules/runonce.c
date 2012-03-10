@@ -187,6 +187,7 @@ static void func_new (NCDModuleInst *i)
     
     int keep_stdout = 0;
     int keep_stderr = 0;
+    int do_setsid = 0;
     
     // read options
     for (NCDValue *opt = (opts_arg ? NCDValue_ListFirst(opts_arg) : NULL); opt; opt = NCDValue_ListNext(opts_arg, opt)) {
@@ -205,6 +206,9 @@ static void func_new (NCDModuleInst *i)
         }
         else if (!strcmp(optname, "keep_stderr")) {
             keep_stderr = 1;
+        }
+        else if (!strcmp(optname, "do_setsid")) {
+            do_setsid = 1;
         }
         else {
             ModuleLog(o->i, BLOG_ERROR, "unknown option name");
@@ -233,8 +237,15 @@ static void func_new (NCDModuleInst *i)
     }
     fds[nfds] = -1;
     
+    // build params
+    struct BProcess_params params;
+    params.username = NULL;
+    params.fds = fds;
+    params.fds_map = fds_map;
+    params.do_setsid = do_setsid;
+    
     // start process
-    if (!BProcess_InitWithFds(&o->process, o->i->params->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), NULL, fds, fds_map)) {
+    if (!BProcess_Init2(&o->process, o->i->params->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), params)) {
         ModuleLog(i, BLOG_ERROR, "BProcess_Init failed");
         CmdLine_Free(&cl);
         free(exec);

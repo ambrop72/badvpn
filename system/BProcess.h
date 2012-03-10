@@ -98,6 +98,38 @@ int BProcessManager_Init (BProcessManager *o, BReactor *reactor) WARN_UNUSED;
  */
 void BProcessManager_Free (BProcessManager *o);
 
+struct BProcess_params {
+    const char *username;
+    const int *fds;
+    const int *fds_map;
+    int do_setsid;
+};
+
+/**
+ * Initializes the process.
+ * 'file', 'argv', 'username', 'fds' and 'fds_map' arguments are only used during this
+ * function call.
+ * If no file descriptor is mapped to a standard stream (file descriptors 0, 1, 2),
+ * then /dev/null will be opened in the child for that standard stream.
+ * 
+ * @param o the object
+ * @param m process manager
+ * @param handler handler called when the process terminates
+ * @param user argument to handler
+ * @param file path to executable file
+ * @param argv arguments array, including the zeroth argument, terminated with a NULL pointer
+ * @param params.username user account to run the program as, or NULL to not switch user
+ * @param params.fds array of file descriptors in the parent to map to file descriptors in the child,
+ *            terminated with -1
+ * @param params.fds_map array of file descriptors in the child that file descriptors in 'fds' will
+ *                be mapped to, in the same order. Must contain the same number of file descriptors
+ *                as the 'fds' argument, and does not have to be terminated with -1.
+ * @param params.do_setsid if set to non-zero, will make the child call setsid() before exec'ing.
+ *                         Failure of setsid() will be ignored.
+ * @return 1 on success, 0 on failure
+ */
+int BProcess_Init2 (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[], struct BProcess_params params) WARN_UNUSED;
+
 /**
  * Initializes the process.
  * 'file', 'argv', 'username', 'fds' and 'fds_map' arguments are only used during this

@@ -185,7 +185,7 @@ static int fds_contains (const int *fds, int fd, size_t *pos)
     return 0;
 }
 
-int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[], const char *username, const int *fds, const int *fds_map)
+int BProcess_Init2 (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[], struct BProcess_params params)
 {
     // init arguments
     o->m = m;
@@ -194,7 +194,7 @@ int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler hand
     
     // count fds
     size_t num_fds;
-    for (num_fds = 0; fds[num_fds] >= 0; num_fds++);
+    for (num_fds = 0; params.fds[num_fds] >= 0; num_fds++);
     
     // block signals
     // needed to prevent parent's signal handlers from being called
@@ -234,7 +234,7 @@ int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler hand
         if (!fds2) {
             abort();
         }
-        memcpy(fds2, fds, (num_fds + 1) * sizeof(fds2[0]));
+        memcpy(fds2, params.fds, (num_fds + 1) * sizeof(fds2[0]));
         
         // find maximum file descriptors
         int max_fd = sysconf(_SC_OPEN_MAX);
@@ -252,13 +252,13 @@ int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler hand
             close(i);
         }
         
-        const int *orig_fds_map = fds_map;
+        const int *orig_fds_map = params.fds_map;
         
         // map fds to requested fd numbers
         while (*fds2 >= 0) {
             // resolve possible conflict
             size_t cpos;
-            if (fds_contains(fds2 + 1, *fds_map, &cpos)) {
+            if (fds_contains(fds2 + 1, *params.fds_map, &cpos)) {
                 // dup() the fd to a new number; the old one will be closed
                 // in the following dup2()
                 if ((fds2[1 + cpos] = dup(fds2[1 + cpos])) < 0) {
@@ -266,9 +266,9 @@ int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler hand
                 }
             }
             
-            if (*fds2 != *fds_map) {
+            if (*fds2 != *params.fds_map) {
                 // dup fd
-                if (dup2(*fds2, *fds_map) < 0) {
+                if (dup2(*fds2, *params.fds_map) < 0) {
                     abort();
                 }
                 
@@ -277,14 +277,19 @@ int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler hand
             }
             
             fds2++;
-            fds_map++;
+            params.fds_map++;
         }
         
         // make sure standard streams are open
         open_standard_streams();
         
+        // make session leader if requested
+        if (params.do_setsid) {
+            setsid();
+        }
+        
         // assume identity of username, if requested
-        if (username) {
+        if (params.username) {
             long bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
             if (bufsize < 0) {
                 bufsize = 16384;
@@ -297,12 +302,12 @@ int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler hand
             
             struct passwd pwd;
             struct passwd *res;
-            getpwnam_r(username, &pwd, buf, bufsize, &res);
+            getpwnam_r(params.username, &pwd, buf, bufsize, &res);
             if (!res) {
                 abort();
             }
             
-            if (initgroups(username, pwd.pw_gid) < 0) {
+            if (initgroups(params.username, pwd.pw_gid) < 0) {
                 abort();
             }
             
@@ -341,6 +346,17 @@ int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler hand
     
 fail0:
     return 0;
+}
+
+int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[], const char *username, const int *fds, const int *fds_map)
+{
+    struct BProcess_params params;
+    params.username = username;
+    params.fds = fds;
+    params.fds_map = fds_map;
+    params.do_setsid = 0;
+    
+    return BProcess_Init2(o, m, handler, user, file, argv, params);
 }
 
 int BProcess_Init (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[], const char *username)
