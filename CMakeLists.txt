@@ -273,6 +273,7 @@ endif ()
 # ncd
 if (BUILD_NCD)
     add_subdirectory(ncd)
+    add_subdirectory(ncd-request)
 endif ()
 
 message(STATUS "Building components:")

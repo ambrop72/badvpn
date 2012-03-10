@@ -35,6 +35,11 @@ add_library(ncdvalue
 )
 target_link_libraries(ncdvalue ncdconfig)
 
+add_library(ncdrequest
+    NCDRequest.c
+)
+target_link_libraries(ncdrequest base system ncdvalue)
+
 add_executable(badvpn-ncd
     ncd.c
     NCDModule.c
@@ -91,6 +96,7 @@ add_executable(badvpn-ncd
     modules/net_watch_interfaces.c
     modules/sys_watch_input.c
     modules/sys_watch_usb.c
+    modules/sys_request_server.c
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdconfig ncdvalue udevmonitor)

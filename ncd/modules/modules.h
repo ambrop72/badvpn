@@ -89,6 +89,7 @@ extern const struct NCDModuleGroup ncdmodule_sys_evdev;
 #ifdef BADVPN_USE_INOTIFY
 extern const struct NCDModuleGroup ncdmodule_sys_watch_directory;
 #endif
+extern const struct NCDModuleGroup ncdmodule_sys_request_server;
 
 static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_var,
@@ -146,6 +147,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
 #ifdef BADVPN_USE_INOTIFY
     &ncdmodule_sys_watch_directory,
 #endif
+    &ncdmodule_sys_request_server,
     NULL
 };
 

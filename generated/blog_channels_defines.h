@@ -105,4 +105,6 @@
 #define BLOG_CHANNEL_ncd_to_string 104
 #define BLOG_CHANNEL_ncd_value 105
 #define BLOG_CHANNEL_ncd_try 106
-#define BLOG_NUM_CHANNELS 107
+#define BLOG_CHANNEL_ncd_sys_request_server 107
+#define BLOG_CHANNEL_NCDRequest 108
+#define BLOG_NUM_CHANNELS 109
