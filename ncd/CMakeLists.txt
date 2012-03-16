@@ -101,6 +101,7 @@ add_executable(badvpn-ncd
     modules/sys_watch_input.c
     modules/sys_watch_usb.c
     modules/sys_request_server.c
+    modules/net_ipv6_wait_dynamic_addr.c
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdconfig ncdvalue udevmonitor ncdinterfacemonitor)

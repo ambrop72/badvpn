@@ -90,6 +90,7 @@ extern const struct NCDModuleGroup ncdmodule_sys_evdev;
 extern const struct NCDModuleGroup ncdmodule_sys_watch_directory;
 #endif
 extern const struct NCDModuleGroup ncdmodule_sys_request_server;
+extern const struct NCDModuleGroup ncdmodule_net_ipv6_wait_dynamic_addr;
 
 static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_var,
@@ -148,6 +149,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_sys_watch_directory,
 #endif
     &ncdmodule_sys_request_server,
+    &ncdmodule_net_ipv6_wait_dynamic_addr,
     NULL
 };
 
