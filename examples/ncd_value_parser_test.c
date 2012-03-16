@@ -77,7 +77,7 @@ int main (int argc, char **argv)
     // parse
     NCDValue val;
     if (!NCDValueParser_Parse(argv[1], strlen(argv[1]), &val)) {
-        DEBUG("NCDConfigParser_Parse failed");
+        DEBUG("NCDValueParser_Parse failed");
         goto fail1;
     }
     
