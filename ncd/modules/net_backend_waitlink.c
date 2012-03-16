@@ -36,6 +36,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <misc/get_iface_info.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDIfConfig.h>
 #include <ncd/NCDInterfaceMonitor.h>
@@ -46,19 +47,18 @@
 
 struct instance {
     NCDModuleInst *i;
-    const char *ifname;
     NCDInterfaceMonitor monitor;
     int up;
 };
 
-static void monitor_handler (struct instance *o, const char *ifname, int if_flags)
+static void instance_free (struct instance *o);
+
+static void monitor_handler (struct instance *o, struct NCDInterfaceMonitor_event event)
 {
-    if (strcmp(ifname, o->ifname)) {
-        return;
-    }
+    ASSERT(event.event == NCDIFMONITOR_EVENT_LINK_UP || event.event == NCDIFMONITOR_EVENT_LINK_DOWN)
     
     int was_up = o->up;
-    o->up = !!(if_flags & NCDIFCONFIG_FLAG_RUNNING);
+    o->up = (event.event == NCDIFMONITOR_EVENT_LINK_UP);
     
     if (o->up && !was_up) {
         NCDModuleInst_Backend_Up(o->i);
@@ -66,6 +66,14 @@ static void monitor_handler (struct instance *o, const char *ifname, int if_flag
     else if (!o->up && was_up) {
         NCDModuleInst_Backend_Down(o->i);
     }
+}
+
+static void monitor_handler_error (struct instance *o)
+{
+    ModuleLog(o->i, BLOG_ERROR, "monitor error");
+    
+    NCDModuleInst_Backend_SetError(o->i);
+    instance_free(o);
 }
 
 static void func_new (NCDModuleInst *i)
@@ -76,10 +84,8 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
     o->i = i;
+    NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
     NCDValue *arg;
@@ -91,22 +97,23 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->ifname = NCDValue_StringValue(arg);
+    char *ifname = NCDValue_StringValue(arg);
+    
+    // get interface index
+    int ifindex;
+    if (!get_iface_info(ifname, NULL, NULL, &ifindex)) {
+        ModuleLog(o->i, BLOG_ERROR, "failed to get interface index");
+        goto fail1;
+    }
     
     // init monitor
-    if (!NCDInterfaceMonitor_Init(&o->monitor, o->i->params->reactor, (NCDInterfaceMonitor_handler)monitor_handler, o)) {
+    if (!NCDInterfaceMonitor_Init(&o->monitor, ifindex, NCDIFMONITOR_WATCH_LINK, i->params->reactor, o, (NCDInterfaceMonitor_handler)monitor_handler, (NCDInterfaceMonitor_handler_error)monitor_handler_error)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDInterfaceMonitor_Init failed");
         goto fail1;
     }
     
-    // query initial state
-    o->up = !!(NCDIfConfig_query(o->ifname) & NCDIFCONFIG_FLAG_RUNNING);
-    
-    // signal up if needed
-    if (o->up) {
-        NCDModuleInst_Backend_Up(o->i);
-    }
-    
+    // set not up
+    o->up = 0;
     return;
     
 fail1:
@@ -116,9 +123,8 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_die (void *vo)
+static void instance_free (struct instance *o)
 {
-    struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
     // free monitor
@@ -128,6 +134,12 @@ static void func_die (void *vo)
     free(o);
     
     NCDModuleInst_Backend_Dead(i);
+}
+
+static void func_die (void *vo)
+{
+    struct instance *o = vo;
+    instance_free(o);
 }
 
 static const struct NCDModule modules[] = {
