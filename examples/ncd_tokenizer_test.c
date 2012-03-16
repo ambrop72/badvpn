@@ -81,6 +81,12 @@ static int tokenizer_output (void *user, int token, char *value, size_t line, si
             printf("string %s\n", value);
             free(value);
             break;
+        case NCD_TOKEN_ARROW:
+            printf("arrow\n");
+            break;
+        case NCD_TOKEN_TEMPLATE:
+            printf("template\n");
+            break;
         default:
             ASSERT(0);
     }
