@@ -57,9 +57,11 @@ struct parser_out {
 
 %type list_contents {struct NCDConfig_list *}
 %type list {struct NCDConfig_list *}
+%type value {struct NCDConfig_list *}
 
 %destructor list_contents { NCDConfig_free_list($$); }
 %destructor list { NCDConfig_free_list($$); }
+%destructor value { NCDConfig_free_list($$); }
 
 %stack_size 0
 
@@ -88,32 +90,18 @@ input ::= list(A). {
     parser_out->ast_type = AST_TYPE_LIST;
 }
 
-list_contents(R) ::= STRING(A). {
-    R = NCDConfig_make_list_string(A, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
+list_contents(R) ::= value(A). {
+    R = A;
 }
 
-list_contents(R) ::= list(A). {
-    R = NCDConfig_make_list_list(A, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
+list_contents(R) ::= value(A) COMMA list_contents(N). {
+    if (!A) {
+        NCDConfig_free_list(N);
+    } else {
+        ASSERT(!A->next)
+        A->next = N;
     }
-}
-
-list_contents(R) ::= STRING(A) COMMA list_contents(N). {
-    R = NCDConfig_make_list_string(A, N);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
-}
-
-list_contents(R) ::= list(A) COMMA list_contents(N). {
-    R = NCDConfig_make_list_list(A, N);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
+    R = A;
 }
 
 list(R) ::= CURLY_OPEN CURLY_CLOSE. {
@@ -122,4 +110,18 @@ list(R) ::= CURLY_OPEN CURLY_CLOSE. {
 
 list(R) ::= CURLY_OPEN list_contents(A) CURLY_CLOSE. {
     R = A;
+}
+
+value(R) ::= STRING(A). {
+    R = NCDConfig_make_list_string(A, NULL);
+    if (!R) {
+        parser_out->out_of_memory = 1;
+    }
+}
+
+value(R) ::= list(A). {
+    R = NCDConfig_make_list_list(A, NULL);
+    if (!R) {
+        parser_out->out_of_memory = 1;
+    }
 }

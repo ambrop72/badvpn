@@ -4,103 +4,89 @@ State 0:
           list ::= * CURLY_OPEN CURLY_CLOSE
           list ::= * CURLY_OPEN list_contents CURLY_CLOSE
 
-                        STRING shift  4
+                        STRING shift  3
                     CURLY_OPEN shift  1
-                          list shift  5
+                          list shift  4
                          input accept
 
 State 1:
-          list_contents ::= * STRING
-          list_contents ::= * list
-          list_contents ::= * STRING COMMA list_contents
-          list_contents ::= * list COMMA list_contents
+          list_contents ::= * value
+          list_contents ::= * value COMMA list_contents
           list ::= * CURLY_OPEN CURLY_CLOSE
           list ::= CURLY_OPEN * CURLY_CLOSE
           list ::= * CURLY_OPEN list_contents CURLY_CLOSE
           list ::= CURLY_OPEN * list_contents CURLY_CLOSE
+          value ::= * STRING
+          value ::= * list
 
-                        STRING shift  6
+                        STRING shift  8
                     CURLY_OPEN shift  1
-                   CURLY_CLOSE shift  11
-                 list_contents shift  8
-                          list shift  7
+                   CURLY_CLOSE shift  10
+                 list_contents shift  6
+                          list shift  9
+                         value shift  5
 
 State 2:
-          list_contents ::= * STRING
-          list_contents ::= * list
-          list_contents ::= * STRING COMMA list_contents
-          list_contents ::= STRING COMMA * list_contents
-          list_contents ::= * list COMMA list_contents
+          list_contents ::= * value
+          list_contents ::= * value COMMA list_contents
+          list_contents ::= value COMMA * list_contents
           list ::= * CURLY_OPEN CURLY_CLOSE
           list ::= * CURLY_OPEN list_contents CURLY_CLOSE
+          value ::= * STRING
+          value ::= * list
 
-                        STRING shift  6
+                        STRING shift  8
                     CURLY_OPEN shift  1
-                 list_contents shift  10
-                          list shift  7
+                 list_contents shift  7
+                          list shift  9
+                         value shift  5
 
 State 3:
-          list_contents ::= * STRING
-          list_contents ::= * list
-          list_contents ::= * STRING COMMA list_contents
-          list_contents ::= * list COMMA list_contents
-          list_contents ::= list COMMA * list_contents
-          list ::= * CURLY_OPEN CURLY_CLOSE
-          list ::= * CURLY_OPEN list_contents CURLY_CLOSE
-
-                        STRING shift  6
-                    CURLY_OPEN shift  1
-                 list_contents shift  9
-                          list shift  7
-
-State 4:
       (0) input ::= STRING *
 
                              $ reduce 0
 
-State 5:
+State 4:
       (1) input ::= list *
 
                              $ reduce 1
 
-State 6:
-      (2) list_contents ::= STRING *
-          list_contents ::= STRING * COMMA list_contents
+State 5:
+      (2) list_contents ::= value *
+          list_contents ::= value * COMMA list_contents
 
                          COMMA shift  2
                      {default} reduce 2
 
-State 7:
-      (3) list_contents ::= list *
-          list_contents ::= list * COMMA list_contents
+State 6:
+          list ::= CURLY_OPEN list_contents * CURLY_CLOSE
 
-                         COMMA shift  3
+                   CURLY_CLOSE shift  11
+
+State 7:
+      (3) list_contents ::= value COMMA list_contents *
+
                      {default} reduce 3
 
 State 8:
-          list ::= CURLY_OPEN list_contents * CURLY_CLOSE
+      (6) value ::= STRING *
 
-                   CURLY_CLOSE shift  12
+                     {default} reduce 6
 
 State 9:
-      (5) list_contents ::= list COMMA list_contents *
+      (7) value ::= list *
 
-                     {default} reduce 5
+                     {default} reduce 7
 
 State 10:
-      (4) list_contents ::= STRING COMMA list_contents *
+      (4) list ::= CURLY_OPEN CURLY_CLOSE *
 
                      {default} reduce 4
 
 State 11:
-      (6) list ::= CURLY_OPEN CURLY_CLOSE *
+      (5) list ::= CURLY_OPEN list_contents CURLY_CLOSE *
 
-                     {default} reduce 6
-
-State 12:
-      (7) list ::= CURLY_OPEN list_contents CURLY_CLOSE *
-
-                     {default} reduce 7
+                     {default} reduce 5
 
 ----------------------------------------------------
 Symbols:
@@ -112,4 +98,5 @@ Symbols:
     5: error:
     6: list_contents: STRING CURLY_OPEN
     7: list: CURLY_OPEN
-    8: input: STRING CURLY_OPEN
+    8: value: STRING CURLY_OPEN
+    9: input: STRING CURLY_OPEN
