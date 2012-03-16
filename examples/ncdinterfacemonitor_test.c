@@ -79,7 +79,7 @@ int main (int argc, char **argv)
         goto fail2;
     }
     
-    int watch_flags = NCDIFMONITOR_WATCH_LINK;
+    int watch_flags = NCDIFMONITOR_WATCH_LINK|NCDIFMONITOR_WATCH_IPV4_ADDR|NCDIFMONITOR_WATCH_IPV6_ADDR;
     
     if (!NCDInterfaceMonitor_Init(&monitor, ifindex, watch_flags, &reactor, NULL, monitor_handler, monitor_handler_error)) {
         DEBUG("NCDInterfaceMonitor_Init failed");
