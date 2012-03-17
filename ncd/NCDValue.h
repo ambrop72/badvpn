@@ -34,9 +34,11 @@
 
 #include <misc/debug.h>
 #include <structure/LinkedList2.h>
+#include <structure/BAVL.h>
 
 #define NCDVALUE_STRING 1
 #define NCDVALUE_LIST 2
+#define NCDVALUE_MAP 3
 
 typedef struct {
     int type;
@@ -46,6 +48,10 @@ typedef struct {
             LinkedList2 list;
             size_t list_count;
         };
+        struct {
+            BAVL map_tree;
+            size_t map_count;
+        };
     };
 } NCDValue;
 
@@ -53,6 +59,12 @@ typedef struct {
     LinkedList2Node list_node;
     NCDValue v;
 } NCDListElement;
+
+typedef struct {
+    BAVLNode map_tree_node;
+    NCDValue key;
+    NCDValue val;
+} NCDMapElement;
 
 int NCDValue_InitCopy (NCDValue *o, NCDValue *v) WARN_UNUSED;
 void NCDValue_Free (NCDValue *o);
@@ -72,6 +84,15 @@ int NCDValue_ListReadHead (NCDValue *o, int num, ...) WARN_UNUSED;
 NCDValue * NCDValue_ListGet (NCDValue *o, size_t pos);
 NCDValue NCDValue_ListShift (NCDValue *o);
 NCDValue NCDValue_ListRemove (NCDValue *o, NCDValue *ev);
+
+void NCDValue_InitMap (NCDValue *o);
+size_t NCDValue_MapCount (NCDValue *o);
+NCDValue * NCDValue_MapFirstKey (NCDValue *o);
+NCDValue * NCDValue_MapNextKey (NCDValue *o, NCDValue *ekey);
+NCDValue * NCDValue_MapKeyValue (NCDValue *o, NCDValue *ekey);
+NCDValue * NCDValue_MapFindKey (NCDValue *o, NCDValue *key);
+NCDValue * NCDValue_MapInsert (NCDValue *o, NCDValue key, NCDValue val) WARN_UNUSED;
+void NCDValue_MapRemove (NCDValue *o, NCDValue *ekey, NCDValue *out_key, NCDValue *out_val);
 
 int NCDValue_Compare (NCDValue *o, NCDValue *v);
 

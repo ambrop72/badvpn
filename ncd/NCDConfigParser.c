@@ -114,6 +114,18 @@ static int tokenizer_output (void *user, int token, char *value, size_t line, si
             Parse(state->parser, STRING, value, &state->out);
         } break;
         
+        case NCD_TOKEN_COLON: {
+            Parse(state->parser, COLON, NULL, &state->out);
+        } break;
+        
+        case NCD_TOKEN_BRACKET_OPEN: {
+            Parse(state->parser, BRACKET_OPEN, NULL, &state->out);
+        } break;
+        
+        case NCD_TOKEN_BRACKET_CLOSE: {
+            Parse(state->parser, BRACKET_CLOSE, NULL, &state->out);
+        } break;
+        
         default:
             ASSERT(0);
     }

@@ -100,6 +100,15 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
         else if (l = data_begins_with(str, left, ",")) {
             token = NCD_TOKEN_COMMA;
         }
+        else if (l = data_begins_with(str, left, ":")) {
+            token = NCD_TOKEN_COLON;
+        }
+        else if (l = data_begins_with(str, left, "[")) {
+            token = NCD_TOKEN_BRACKET_OPEN;
+        }
+        else if (l = data_begins_with(str, left, "]")) {
+            token = NCD_TOKEN_BRACKET_CLOSE;
+        }
         else if (l = data_begins_with(str, left, "->")) {
             token = NCD_TOKEN_ARROW;
         }

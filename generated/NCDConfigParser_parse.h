@@ -7,6 +7,9 @@
 #define ARROW                           7
 #define DOT                             8
 #define COMMA                           9
-#define STRING                         10
-#define PROCESS                        11
-#define TEMPLATE                       12
+#define COLON                          10
+#define BRACKET_OPEN                   11
+#define BRACKET_CLOSE                  12
+#define STRING                         13
+#define PROCESS                        14
+#define TEMPLATE                       15

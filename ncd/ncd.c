@@ -70,6 +70,7 @@
 #define ARG_VALUE_TYPE_STRING 1
 #define ARG_VALUE_TYPE_VARIABLE 2
 #define ARG_VALUE_TYPE_LIST 3
+#define ARG_VALUE_TYPE_MAP 4
 
 #define SSTATE_CHILD 1
 #define SSTATE_ADULT 2
@@ -87,12 +88,19 @@ struct arg_value {
         char *string;
         char **variable_names;
         LinkedList1 list;
+        LinkedList1 maplist;
     };
 };
 
 struct arg_list_elem {
     LinkedList1Node list_node;
     struct arg_value value;
+};
+
+struct arg_map_elem {
+    LinkedList1Node maplist_node;
+    struct arg_value key;
+    struct arg_value val;
 };
 
 struct statement {
@@ -176,8 +184,12 @@ static int arg_value_init_string (struct arg_value *o, const char *string);
 static int arg_value_init_variable (struct arg_value *o, struct NCDConfig_strings *ast_names);
 static void arg_value_init_list (struct arg_value *o);
 static int arg_value_list_append (struct arg_value *o, struct arg_value v);
+static void arg_value_init_map (struct arg_value *o);
+static int arg_value_map_append (struct arg_value *o, struct arg_value key, struct arg_value val);
 static void arg_value_free (struct arg_value *o);
+static int build_arg_from_ast (struct arg_value *o, struct NCDConfig_list *ast);
 static int build_arg_list_from_ast_list (struct arg_value *o, struct NCDConfig_list *list);
+static int build_arg_map_from_ast_list (struct arg_value *o, struct NCDConfig_list *list);
 static char ** names_new (struct NCDConfig_strings *ast_names);
 static size_t names_count (char **names);
 static char * names_tostring (char **names);
@@ -646,6 +658,28 @@ int arg_value_list_append (struct arg_value *o, struct arg_value v)
     return 1;
 }
 
+void arg_value_init_map (struct arg_value *o)
+{
+    o->type = ARG_VALUE_TYPE_MAP;
+    LinkedList1_Init(&o->maplist);
+}
+
+int arg_value_map_append (struct arg_value *o, struct arg_value key, struct arg_value val)
+{
+    ASSERT(o->type == ARG_VALUE_TYPE_MAP)
+    
+    struct arg_map_elem *elem = malloc(sizeof(*elem));
+    if (!elem) {
+        BLog(BLOG_ERROR, "malloc failed");
+        return 0;
+    }
+    LinkedList1_Append(&o->maplist, &elem->maplist_node);
+    elem->key = key;
+    elem->val = val;
+    
+    return 1;
+}
+
 void arg_value_free (struct arg_value *o)
 {
     switch (o->type) {
@@ -666,8 +700,51 @@ void arg_value_free (struct arg_value *o)
             }
         } break;
         
+        case ARG_VALUE_TYPE_MAP: {
+            while (!LinkedList1_IsEmpty(&o->maplist)) {
+                struct arg_map_elem *elem = UPPER_OBJECT(LinkedList1_GetFirst(&o->maplist), struct arg_map_elem, maplist_node);
+                arg_value_free(&elem->key);
+                arg_value_free(&elem->val);
+                LinkedList1_Remove(&o->maplist, &elem->maplist_node);
+                free(elem);
+            }
+        } break;
+        
         default: ASSERT(0);
     }
+}
+
+int build_arg_from_ast (struct arg_value *o, struct NCDConfig_list *ast)
+{
+    switch (ast->type) {
+        case NCDCONFIG_ARG_STRING: {
+            if (!arg_value_init_string(o, ast->string)) {
+                return 0;
+            }
+        } break;
+        
+        case NCDCONFIG_ARG_VAR: {
+            if (!arg_value_init_variable(o, ast->var)) {
+                return 0;
+            }
+        } break;
+        
+        case NCDCONFIG_ARG_LIST: {
+            if (!build_arg_list_from_ast_list(o, ast->list)) {
+                return 0;
+            }
+        } break;
+        
+        case NCDCONFIG_ARG_MAPLIST: {
+            if (!build_arg_map_from_ast_list(o, ast->list)) {
+                return 0;
+            }
+        } break;
+        
+        default: ASSERT(0);
+    }
+    
+    return 1;
 }
 
 int build_arg_list_from_ast_list (struct arg_value *o, struct NCDConfig_list *list)
@@ -677,30 +754,45 @@ int build_arg_list_from_ast_list (struct arg_value *o, struct NCDConfig_list *li
     for (struct NCDConfig_list *c = list; c; c = c->next) {
         struct arg_value e;
         
-        switch (c->type) {
-            case NCDCONFIG_ARG_STRING: {
-                if (!arg_value_init_string(&e, c->string)) {
-                    goto fail;
-                }
-            } break;
-            
-            case NCDCONFIG_ARG_VAR: {
-                if (!arg_value_init_variable(&e, c->var)) {
-                    goto fail;
-                }
-            } break;
-            
-            case NCDCONFIG_ARG_LIST: {
-                if (!build_arg_list_from_ast_list(&e, c->list)) {
-                    goto fail;
-                }
-            } break;
-            
-            default: ASSERT(0);
+        if (!build_arg_from_ast(&e, c)) {
+            goto fail;
         }
         
         if (!arg_value_list_append(o, e)) {
             arg_value_free(&e);
+            goto fail;
+        }
+    }
+    
+    return 1;
+    
+fail:
+    arg_value_free(o);
+    return 0;
+}
+
+int build_arg_map_from_ast_list (struct arg_value *o, struct NCDConfig_list *list)
+{
+    arg_value_init_map(o);
+    
+    for (struct NCDConfig_list *c = list; c; c = c->next->next) {
+        ASSERT(c->next)
+        
+        struct arg_value key;
+        struct arg_value val;
+        
+        if (!build_arg_from_ast(&key, c)) {
+            goto fail;
+        }
+        
+        if (!build_arg_from_ast(&val, c->next)) {
+            arg_value_free(&key);
+            goto fail;
+        }
+        
+        if (!arg_value_map_append(o, key, val)) {
+            arg_value_free(&key);
+            arg_value_free(&val);
             goto fail;
         }
     }
@@ -1457,6 +1549,46 @@ int process_statement_resolve_argument (struct process_statement *ps, struct arg
             break;
             
         list_fail1:
+            NCDValue_Free(out);
+            return 0;
+        } while (0); break;
+        
+        case ARG_VALUE_TYPE_MAP: do {
+            NCDValue_InitMap(out);
+            
+            for (LinkedList1Node *n = LinkedList1_GetFirst(&arg->maplist); n; n = LinkedList1Node_Next(n)) {
+                struct arg_map_elem *elem = UPPER_OBJECT(n, struct arg_map_elem, maplist_node);
+                
+                NCDValue key;
+                NCDValue val;
+                
+                if (!process_statement_resolve_argument(ps, &elem->key, &key)) {
+                    goto map_fail;
+                }
+                
+                if (!process_statement_resolve_argument(ps, &elem->val, &val)) {
+                    NCDValue_Free(&key);
+                    goto map_fail;
+                }
+                
+                if (NCDValue_MapFindKey(out, &key)) {
+                    process_statement_log(ps, BLOG_ERROR, "duplicate map keys");
+                    NCDValue_Free(&key);
+                    NCDValue_Free(&val);
+                    goto map_fail;
+                }
+                
+                if (!NCDValue_MapInsert(out, key, val)) {
+                    process_statement_log(ps, BLOG_ERROR, "NCDValue_MapInsert failed");
+                    NCDValue_Free(&key);
+                    NCDValue_Free(&val);
+                    goto map_fail;
+                }
+            }
+            
+            break;
+            
+        map_fail:
             NCDValue_Free(out);
             return 0;
         } while (0); break;

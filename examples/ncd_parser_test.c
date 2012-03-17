@@ -68,6 +68,10 @@ static void print_list (struct NCDConfig_list *l, unsigned int indent)
                 printf("list\n");
                 print_list(l->list, indent + 1);
             } break;
+            case NCDCONFIG_ARG_MAPLIST: {
+                printf("maplist\n");
+                print_list(l->list, indent + 1);
+            } break;
             default:
                 ASSERT(0);
         }

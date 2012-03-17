@@ -55,6 +55,8 @@ struct parser_out {
 %type statement_args_maybe {struct NCDConfig_list *}
 %type list_contents {struct NCDConfig_list *}
 %type list {struct NCDConfig_list *}
+%type map_contents {struct NCDConfig_list *}
+%type map {struct NCDConfig_list *}
 %type value {struct NCDConfig_list *}
 %type name_maybe {char *}
 %type process_or_template {int}
@@ -65,6 +67,8 @@ struct parser_out {
 %destructor statement_args_maybe { NCDConfig_free_list($$); }
 %destructor list_contents { NCDConfig_free_list($$); }
 %destructor list { NCDConfig_free_list($$); }
+%destructor map_contents { NCDConfig_free_list($$); }
+%destructor map { NCDConfig_free_list($$); }
 %destructor value { NCDConfig_free_list($$); }
 %destructor name_maybe { free($$); }
 
@@ -175,6 +179,42 @@ list(R) ::= CURLY_OPEN list_contents(A) CURLY_CLOSE. {
     R = A;
 }
 
+map_contents(R) ::= value(A) COLON value(B). {
+    if (!A || !B) {
+        NCDConfig_free_list(A);
+        NCDConfig_free_list(B);
+        R = NULL;
+    } else {
+        ASSERT(!A->next)
+        ASSERT(!B->next)
+        A->next = B;
+        R = A;
+    }
+}
+
+map_contents(R) ::= value(A) COLON value(B) COMMA map_contents(N). {
+    if (!A || !B) {
+        NCDConfig_free_list(A);
+        NCDConfig_free_list(B);
+        NCDConfig_free_list(N);
+        R = NULL;
+    } else {
+        ASSERT(!A->next)
+        ASSERT(!B->next)
+        A->next = B;
+        B->next = N;
+        R = A;
+    }
+}
+
+map(R) ::= BRACKET_OPEN BRACKET_CLOSE. {
+    R = NULL;
+}
+
+map(R) ::= BRACKET_OPEN map_contents(A) BRACKET_CLOSE. {
+    R = A;
+}
+
 value(R) ::= STRING(A). {
     R = NCDConfig_make_list_string(A, NULL);
     if (!R) {
@@ -191,6 +231,13 @@ value(R) ::= statement_names(A). {
 
 value(R) ::= list(A). {
     R = NCDConfig_make_list_list(A, NULL);
+    if (!R) {
+        parser_out->out_of_memory = 1;
+    }
+}
+
+value(R) ::= map(A). {
+    R = NCDConfig_make_list_maplist(A, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }

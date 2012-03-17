@@ -46,6 +46,9 @@
 #define NCD_TOKEN_STRING 10
 #define NCD_TOKEN_ARROW 11
 #define NCD_TOKEN_TEMPLATE 12
+#define NCD_TOKEN_COLON 13
+#define NCD_TOKEN_BRACKET_OPEN 14
+#define NCD_TOKEN_BRACKET_CLOSE 15
 
 typedef int (*NCDConfigTokenizer_output) (void *user, int token, char *value, size_t line, size_t line_char);
 

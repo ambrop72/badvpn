@@ -77,6 +77,7 @@ void NCDConfig_free_list (struct NCDConfig_list *v)
             NCDConfig_free_strings(v->var);
             break;
         case NCDCONFIG_ARG_LIST:
+        case NCDCONFIG_ARG_MAPLIST:
             NCDConfig_free_list(v->list);
             break;
         default:
@@ -194,6 +195,25 @@ struct NCDConfig_list * NCDConfig_make_list_list (struct NCDConfig_list *list, s
     }
     
     v->type = NCDCONFIG_ARG_LIST;
+    v->list = list;
+    v->next = next;
+    
+    return v;
+    
+fail:
+    NCDConfig_free_list(list);
+    NCDConfig_free_list(next);
+    return NULL;
+}
+
+struct NCDConfig_list * NCDConfig_make_list_maplist (struct NCDConfig_list *list, struct NCDConfig_list *next)
+{
+    struct NCDConfig_list *v = malloc(sizeof(*v));
+    if (!v) {
+        goto fail;
+    }
+    
+    v->type = NCDCONFIG_ARG_MAPLIST;
     v->list = list;
     v->next = next;
     

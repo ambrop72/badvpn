@@ -38,6 +38,7 @@
 #define AST_TYPE_NONE 0
 #define AST_TYPE_STRING 1
 #define AST_TYPE_LIST 2
+#define AST_TYPE_MAP 3
 
 struct parser_out {
     int out_of_memory;
@@ -57,10 +58,14 @@ struct parser_out {
 
 %type list_contents {struct NCDConfig_list *}
 %type list {struct NCDConfig_list *}
+%type map_contents {struct NCDConfig_list *}
+%type map {struct NCDConfig_list *}
 %type value {struct NCDConfig_list *}
 
 %destructor list_contents { NCDConfig_free_list($$); }
 %destructor list { NCDConfig_free_list($$); }
+%destructor map_contents { NCDConfig_free_list($$); }
+%destructor map { NCDConfig_free_list($$); }
 %destructor value { NCDConfig_free_list($$); }
 
 %stack_size 0
@@ -90,6 +95,13 @@ input ::= list(A). {
     parser_out->ast_type = AST_TYPE_LIST;
 }
 
+input ::= map(A). {
+    ASSERT(parser_out->ast_type == AST_TYPE_NONE)
+
+    parser_out->ast_list = A;
+    parser_out->ast_type = AST_TYPE_MAP;
+}
+
 list_contents(R) ::= value(A). {
     R = A;
 }
@@ -104,11 +116,47 @@ list_contents(R) ::= value(A) COMMA list_contents(N). {
     R = A;
 }
 
+map_contents(R) ::= value(A) COLON value(B). {
+    if (!A || !B) {
+        NCDConfig_free_list(A);
+        NCDConfig_free_list(B);
+        R = NULL;
+    } else {
+        ASSERT(!A->next)
+        ASSERT(!B->next)
+        A->next = B;
+        R = A;
+    }
+}
+
+map_contents(R) ::= value(A) COLON value(B) COMMA map_contents(N). {
+    if (!A || !B) {
+        NCDConfig_free_list(A);
+        NCDConfig_free_list(B);
+        NCDConfig_free_list(N);
+        R = NULL;
+    } else {
+        ASSERT(!A->next)
+        ASSERT(!B->next)
+        A->next = B;
+        B->next = N;
+        R = A;
+    }
+}
+
 list(R) ::= CURLY_OPEN CURLY_CLOSE. {
     R = NULL;
 }
 
 list(R) ::= CURLY_OPEN list_contents(A) CURLY_CLOSE. {
+    R = A;
+}
+
+map(R) ::= BRACKET_OPEN BRACKET_CLOSE. {
+    R = NULL;
+}
+
+map(R) ::= BRACKET_OPEN map_contents(A) BRACKET_CLOSE. {
     R = A;
 }
 
@@ -121,6 +169,13 @@ value(R) ::= STRING(A). {
 
 value(R) ::= list(A). {
     R = NCDConfig_make_list_list(A, NULL);
+    if (!R) {
+        parser_out->out_of_memory = 1;
+    }
+}
+
+value(R) ::= map(A). {
+    R = NCDConfig_make_list_maplist(A, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }

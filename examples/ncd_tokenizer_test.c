@@ -87,6 +87,15 @@ static int tokenizer_output (void *user, int token, char *value, size_t line, si
         case NCD_TOKEN_TEMPLATE:
             printf("template\n");
             break;
+        case NCD_TOKEN_COLON:
+            printf("colon\n");
+            break;
+        case NCD_TOKEN_BRACKET_OPEN:
+            printf("bracket open\n");
+            break;
+        case NCD_TOKEN_BRACKET_CLOSE:
+            printf("bracket close\n");
+            break;
         default:
             ASSERT(0);
     }

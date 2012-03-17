@@ -56,6 +56,11 @@ struct parser_state {
     void *parser;
 };
 
+static int tokenizer_output (void *user, int token, char *value, size_t line, size_t line_char);
+static int build_value (struct NCDConfig_list *ast, NCDValue *out);
+static int build_list_value (struct NCDConfig_list *list, NCDValue *out);
+static int build_map_value (struct NCDConfig_list *list, NCDValue *out);
+
 static int tokenizer_output (void *user, int token, char *value, size_t line, size_t line_char)
 {
     struct parser_state *state = (struct parser_state *)user;
@@ -103,6 +108,18 @@ static int tokenizer_output (void *user, int token, char *value, size_t line, si
             Parse(state->parser, STRING, value, &state->out);
         } break;
         
+        case NCD_TOKEN_COLON: {
+            Parse(state->parser, COLON, NULL, &state->out);
+        } break;
+        
+        case NCD_TOKEN_BRACKET_OPEN: {
+            Parse(state->parser, BRACKET_OPEN, NULL, &state->out);
+        } break;
+        
+        case NCD_TOKEN_BRACKET_CLOSE: {
+            Parse(state->parser, BRACKET_CLOSE, NULL, &state->out);
+        } break;
+        
         default:
             ASSERT(0);
     }
@@ -124,6 +141,34 @@ fail:
     return 0;
 }
 
+static int build_value (struct NCDConfig_list *ast, NCDValue *out)
+{
+    switch (ast->type) {
+        case NCDCONFIG_ARG_STRING: {
+            if (!NCDValue_InitString(out, ast->string)) {
+                BLog(BLOG_ERROR, "NCDValue_InitString failed");
+                return 0;
+            }
+        } break;
+        
+        case NCDCONFIG_ARG_LIST: {
+            if (!build_list_value(ast->list, out)) {
+                return 0;
+            }
+        } break;
+        
+        case NCDCONFIG_ARG_MAPLIST: {
+            if (!build_map_value(ast->list, out)) {
+                return 0;
+            }
+        } break;
+        
+        default: ASSERT(0);
+    }
+    
+    return 1;
+}
+
 static int build_list_value (struct NCDConfig_list *list, NCDValue *out)
 {
     NCDValue list_val;
@@ -132,19 +177,8 @@ static int build_list_value (struct NCDConfig_list *list, NCDValue *out)
     for (struct NCDConfig_list *elem = list; elem; elem = elem->next) {
         NCDValue v;
         
-        if (elem->type == NCDCONFIG_ARG_STRING) {
-            if (!NCDValue_InitString(&v, elem->string)) {
-                BLog(BLOG_ERROR, "NCDValue_InitString failed");
-                goto fail;
-            }
-        }
-        else if (elem->type == NCDCONFIG_ARG_LIST) {
-            if (!build_list_value(elem->list, &v)) {
-                goto fail;
-            }
-        }
-        else {
-            ASSERT(0)
+        if (!build_value(elem, &v)) {
+            goto fail;
         }
         
         if (!NCDValue_ListAppend(&list_val, v)) {
@@ -159,6 +193,49 @@ static int build_list_value (struct NCDConfig_list *list, NCDValue *out)
     
 fail:
     NCDValue_Free(&list_val);
+    return 0;
+}
+
+static int build_map_value (struct NCDConfig_list *list, NCDValue *out)
+{
+    NCDValue map_val;
+    NCDValue_InitMap(&map_val);
+    
+    for (struct NCDConfig_list *elem = list; elem; elem = elem->next->next) {
+        ASSERT(elem->next)
+        
+        NCDValue key;
+        NCDValue val;
+        
+        if (!build_value(elem, &key)) {
+            goto fail;
+        }
+        
+        if (!build_value(elem->next, &val)) {
+            NCDValue_Free(&key);
+            goto fail;
+        }
+        
+        if (NCDValue_MapFindKey(&map_val, &key)) {
+            BLog(BLOG_ERROR, "duplicate map keys");
+            NCDValue_Free(&key);
+            NCDValue_Free(&val);
+            goto fail;
+        }
+        
+        if (!NCDValue_MapInsert(&map_val, key, val)) {
+            BLog(BLOG_ERROR, "NCDValue_MapInsert failed");
+            NCDValue_Free(&key);
+            NCDValue_Free(&val);
+            goto fail;
+        }
+    }
+    
+    *out = map_val;
+    return 1;
+    
+fail:
+    NCDValue_Free(&map_val);
     return 0;
 }
 
@@ -189,19 +266,30 @@ int NCDValueParser_Parse (const char *str, size_t str_len, NCDValue *out_value)
         goto out;
     }
     
-    ASSERT(state.out.ast_type == AST_TYPE_STRING || state.out.ast_type == AST_TYPE_LIST)
+    ASSERT(state.out.ast_type == AST_TYPE_STRING || state.out.ast_type == AST_TYPE_LIST ||
+           state.out.ast_type == AST_TYPE_MAP)
     
     // convert AST to value
     NCDValue val;
-    if (state.out.ast_type == AST_TYPE_STRING) {
-        if (!NCDValue_InitString(&val, state.out.ast_string)) {
-            BLog(BLOG_ERROR, "NCDValue_InitString failed");
-            goto out;
-        }
-    } else {
-        if (!build_list_value(state.out.ast_list, &val)) {
-            goto out;
-        }
+    switch (state.out.ast_type) {
+        case AST_TYPE_STRING: {
+            if (!NCDValue_InitString(&val, state.out.ast_string)) {
+                BLog(BLOG_ERROR, "NCDValue_InitString failed");
+                goto out;
+            }
+        } break;
+        
+        case AST_TYPE_LIST: {
+            if (!build_list_value(state.out.ast_list, &val)) {
+                goto out;
+            }
+        } break;
+        
+        case AST_TYPE_MAP: {
+            if (!build_map_value(state.out.ast_list, &val)) {
+                goto out;
+            }
+        } break;
     }
     
     *out_value = val;

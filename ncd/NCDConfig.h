@@ -53,6 +53,7 @@ struct NCDConfig_statements {
 #define NCDCONFIG_ARG_STRING 1
 #define NCDCONFIG_ARG_VAR 2
 #define NCDCONFIG_ARG_LIST 3
+#define NCDCONFIG_ARG_MAPLIST 4
 
 struct NCDConfig_list {
     int type;
@@ -78,6 +79,7 @@ struct NCDConfig_statements * NCDConfig_make_statements (struct NCDConfig_string
 struct NCDConfig_list * NCDConfig_make_list_string (char *str, struct NCDConfig_list *next);
 struct NCDConfig_list * NCDConfig_make_list_var (struct NCDConfig_strings *var, struct NCDConfig_list *next);
 struct NCDConfig_list * NCDConfig_make_list_list (struct NCDConfig_list *list, struct NCDConfig_list *next);
+struct NCDConfig_list * NCDConfig_make_list_maplist (struct NCDConfig_list *list, struct NCDConfig_list *next);
 struct NCDConfig_strings * NCDConfig_make_strings (char *value, int have_next, struct NCDConfig_strings *next);
 
 int NCDConfig_statement_name_is (struct NCDConfig_statements *st, const char *needle);

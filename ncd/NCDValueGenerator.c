@@ -99,6 +99,46 @@ static int generate_value (NCDValue *value, ExpString *out_str)
             }
         } break;
         
+        case NCDVALUE_MAP: {
+            if (!ExpString_AppendChar(out_str, '[')) {
+                BLog(BLOG_ERROR, "ExpString_AppendChar failed");
+                goto fail;
+            }
+            
+            int is_first = 1;
+            
+            for (NCDValue *ekey = NCDValue_MapFirstKey(value); ekey; ekey = NCDValue_MapNextKey(value, ekey)) {
+                NCDValue *eval = NCDValue_MapKeyValue(value, ekey);
+                
+                if (!is_first) {
+                    if (!ExpString_Append(out_str, ", ")) {
+                        BLog(BLOG_ERROR, "ExpString_Append failed");
+                        goto fail;
+                    }
+                }
+                
+                if (!generate_value(ekey, out_str)) {
+                    goto fail;
+                }
+                
+                if (!ExpString_AppendChar(out_str, ':')) {
+                    BLog(BLOG_ERROR, "ExpString_AppendChar failed");
+                    goto fail;
+                }
+                
+                if (!generate_value(eval, out_str)) {
+                    goto fail;
+                }
+                
+                is_first = 0;
+            }
+            
+            if (!ExpString_AppendChar(out_str, ']')) {
+                BLog(BLOG_ERROR, "ExpString_AppendChar failed");
+                goto fail;
+            }
+        } break;
+        
         default: ASSERT(0);
     }
     
