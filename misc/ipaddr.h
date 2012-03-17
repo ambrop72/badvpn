@@ -53,7 +53,7 @@ static int ipaddr_parse_ipv4_prefix_bin (char *str, size_t str_len, int *num);
 static int ipaddr_parse_ipv4_prefix (char *str, int *num);
 static int ipaddr_parse_ipv4_ifaddr (char *str, struct ipv4_ifaddr *out);
 static int ipaddr_ipv4_ifaddr_from_addr_mask (uint32_t addr, uint32_t mask, struct ipv4_ifaddr *out);
-static int ipaddr_ipv4_mask_from_prefix (int prefix);
+static uint32_t ipaddr_ipv4_mask_from_prefix (int prefix);
 static int ipaddr_ipv4_addrs_in_network (uint32_t addr1, uint32_t addr2, int netprefix);
 
 int ipaddr_parse_ipv4_addr_bin (char *name, size_t name_len, uint32_t *out_addr)
@@ -154,7 +154,7 @@ int ipaddr_ipv4_ifaddr_from_addr_mask (uint32_t addr, uint32_t mask, struct ipv4
     return 1;
 }
 
-int ipaddr_ipv4_mask_from_prefix (int prefix)
+uint32_t ipaddr_ipv4_mask_from_prefix (int prefix)
 {
     ASSERT(prefix >= 0)
     ASSERT(prefix <= 32)
