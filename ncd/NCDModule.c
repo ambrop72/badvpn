@@ -496,6 +496,12 @@ void NCDModuleProcess_Free (NCDModuleProcess *o)
     NCDValue_Free(&o->args);
 }
 
+void NCDModuleProcess_AssertFree (NCDModuleProcess *o)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->state == PROCESS_STATE_TERMINATED)
+}
+
 void NCDModuleProcess_SetSpecialFuncs (NCDModuleProcess *o, NCDModuleProcess_func_getspecialobj func_getspecialobj)
 {
     DebugObject_Access(&o->d_obj);

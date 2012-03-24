@@ -427,6 +427,14 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
 void NCDModuleProcess_Free (NCDModuleProcess *o);
 
 /**
+ * Does nothing.
+ * The process must be in terminated state.
+ * 
+ * @param o the process
+ */
+void NCDModuleProcess_AssertFree (NCDModuleProcess *o);
+
+/**
  * Sets callback functions for providing special objects within the process.
  * 
  * @param o the process
