@@ -361,7 +361,7 @@ static int request_init (struct connection *c, uint32_t request_id, const uint8_
     
     LinkedList0_Prepend(&c->requests_list, &r->requests_list_node);
     
-    if (!NCDValueParser_Parse(data, data_len, &r->request_data)) {
+    if (!NCDValueParser_Parse((const char *)data, data_len, &r->request_data)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDValueParser_Parse failed");
         goto fail1;
     }
@@ -533,7 +533,7 @@ static struct reply * reply_init (struct connection *c, uint32_t request_id, uin
         goto fail2;
     }
     
-    r->send_buf = ExpString_Get(&str);
+    r->send_buf = (uint8_t *)ExpString_Get(&str);
     
     struct reply_header *header = (void *)r->send_buf;
     header->pp.len = htol16(len - sizeof(header->pp));

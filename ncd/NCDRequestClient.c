@@ -205,7 +205,7 @@ static void recv_if_handler_send (NCDRequestClient *o, uint8_t *data, int data_l
                 case RSTATE_READY: {
                     // parse payload
                     NCDValue payload_value;
-                    if (!NCDValueParser_Parse(payload, payload_len, &payload_value)) {
+                    if (!NCDValueParser_Parse((char *)payload, payload_len, &payload_value)) {
                         BLog(BLOG_ERROR, "failed to parse reply payload");
                         goto fail;
                     }
@@ -330,7 +330,7 @@ static int build_requestproto_packet (uint32_t request_id, uint32_t type, NCDVal
         goto fail1;
     }
     
-    uint8_t *packet = ExpString_Get(&str);
+    uint8_t *packet = (uint8_t *)ExpString_Get(&str);
     
     struct header *header = (void *)packet;
     header->pp.len = htol16(len - sizeof(struct packetproto_header));

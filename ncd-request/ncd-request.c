@@ -145,10 +145,10 @@ static void request_handler_reply (void *user, NCDValue reply_data)
         goto fail0;
     }
     
-    if (!write_all(1, str, strlen(str))) {
+    if (!write_all(1, (uint8_t *)str, strlen(str))) {
         goto fail1;
     }
-    if (!write_all(1, "\n", 1)) {
+    if (!write_all(1, (const uint8_t *)"\n", 1)) {
         goto fail1;
     }
     
