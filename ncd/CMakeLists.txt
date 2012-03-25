@@ -36,7 +36,7 @@ add_library(ncdvalue
 target_link_libraries(ncdvalue ncdconfig)
 
 add_library(ncdrequest
-    NCDRequest.c
+    NCDRequestClient.c
 )
 target_link_libraries(ncdrequest base system ncdvalue)
 
@@ -104,7 +104,7 @@ add_executable(badvpn-ncd
     modules/net_ipv6_wait_dynamic_addr.c
     ${NCD_ADDITIONAL_SOURCES}
 )
-target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdconfig ncdvalue udevmonitor ncdinterfacemonitor)
+target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdconfig ncdvalue udevmonitor ncdinterfacemonitor ncdrequest)
 
 if (BADVPN_USE_LINUX_INPUT)
     string(REPLACE " " ";" FLAGS_LIST "${CMAKE_C_FLAGS}")

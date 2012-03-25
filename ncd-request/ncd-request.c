@@ -38,14 +38,22 @@
 #include <system/BReactor.h>
 #include <ncd/NCDValueParser.h>
 #include <ncd/NCDValueGenerator.h>
-#include <ncd/NCDRequest.h>
+#include <ncd/NCDRequestClient.h>
 
-static void request_handler_finished (void *user, int is_error);
+#include <generated/blog_channel_ncd_request.h>
+
+static void client_handler_error (void *user);
+static void client_handler_connected (void *user);
+static void request_handler_sent (void *user);
 static void request_handler_reply (void *user, NCDValue reply_data);
+static void request_handler_finished (void *user, int is_error);
 static int write_all (int fd, const uint8_t *data, size_t len);
 
+NCDValue request_payload;
 BReactor reactor;
-NCDRequest request;
+NCDRequestClient client;
+NCDRequestClientRequest request;
+int have_request;
 
 int main (int argc, char *argv[])
 {
@@ -63,34 +71,38 @@ int main (int argc, char *argv[])
     
     BTime_Init();
     
+    if (!NCDValueParser_Parse(request_payload_string, strlen(request_payload_string), &request_payload)) {
+        BLog(BLOG_ERROR, "BReactor_Init failed");
+        goto fail1;
+    }
+    
     if (!BNetwork_GlobalInit()) {
         BLog(BLOG_ERROR, "BNetwork_Init failed");
-        goto fail1;
+        goto fail2;
     }
     
     if (!BReactor_Init(&reactor)) {
         BLog(BLOG_ERROR, "BReactor_Init failed");
-        goto fail1;
-    }
-    
-    NCDValue request_payload;
-    if (!NCDValueParser_Parse(request_payload_string, strlen(request_payload_string), &request_payload)) {
-        BLog(BLOG_ERROR, "BReactor_Init failed");
         goto fail2;
     }
     
-    if (!NCDRequest_Init(&request, socket_path, &request_payload, &reactor, NULL, request_handler_finished, request_handler_reply)) {
-        BLog(BLOG_ERROR, "NCDRequest_Init failed");
-        NCDValue_Free(&request_payload);
-        goto fail2;
+    if (!NCDRequestClient_Init(&client, socket_path, &reactor, NULL, client_handler_error, client_handler_connected)) {
+        BLog(BLOG_ERROR, "NCDRequestClient_Init failed");
+        goto fail3;
     }
-    NCDValue_Free(&request_payload);
+    
+    have_request = 0;
     
     res = BReactor_Exec(&reactor);
     
-    NCDRequest_Free(&request);
-fail2:
+    if (have_request) {
+        NCDRequestClientRequest_Free(&request);
+    }
+    NCDRequestClient_Free(&client);
+fail3:
     BReactor_Free(&reactor);
+fail2:
+    NCDValue_Free(&request_payload);
 fail1:
     BLog_Free();
 fail0:
@@ -98,19 +110,35 @@ fail0:
     return res;
 }
 
-static void request_handler_finished (void *user, int is_error)
+static void client_handler_error (void *user)
 {
-    if (is_error) {
-        BLog(BLOG_ERROR, "error");
+    BLog(BLOG_ERROR, "client error");
+    
+    BReactor_Quit(&reactor, 1);
+}
+
+static void client_handler_connected (void *user)
+{
+    ASSERT(!have_request)
+    
+    if (!NCDRequestClientRequest_Init(&request, &client, &request_payload, NULL, request_handler_sent, request_handler_reply, request_handler_finished)) {
+        BLog(BLOG_ERROR, "NCDRequestClientRequest_Init failed");
         BReactor_Quit(&reactor, 1);
         return;
     }
     
-    BReactor_Quit(&reactor, 0);
+    have_request = 1;
+}
+
+static void request_handler_sent (void *user)
+{
+    ASSERT(have_request)
 }
 
 static void request_handler_reply (void *user, NCDValue reply_data)
 {
+    ASSERT(have_request)
+    
     char *str = NCDValueGenerator_Generate(&reply_data);
     if (!str) {
         BLog(BLOG_ERROR, "NCDValueGenerator_Generate failed");
@@ -124,8 +152,6 @@ static void request_handler_reply (void *user, NCDValue reply_data)
         goto fail1;
     }
     
-    NCDRequest_Next(&request);
-    
     free(str);
     NCDValue_Free(&reply_data);
     return;
@@ -135,6 +161,17 @@ fail1:
 fail0:
     NCDValue_Free(&reply_data);
     BReactor_Quit(&reactor, 1);
+}
+
+static void request_handler_finished (void *user, int is_error)
+{
+    if (is_error) {
+        BLog(BLOG_ERROR, "request error");
+        BReactor_Quit(&reactor, 1);
+        return;
+    }
+    
+    BReactor_Quit(&reactor, 0);
 }
 
 static int write_all (int fd, const uint8_t *data, size_t len)

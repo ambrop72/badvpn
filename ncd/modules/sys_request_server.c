@@ -115,8 +115,7 @@ struct request {
     LinkedList0Node requests_list_node;
     NCDValue request_data;
     NCDModuleProcess process;
-    BPending finish_job;
-    int finished;
+    int terminating;
 };
 
 struct reply {
@@ -136,11 +135,13 @@ static void connection_recv_decoder_handler_error (struct connection *c);
 static void connection_recv_if_handler_send (struct connection *c, uint8_t *data, int data_len);
 static int request_init (struct connection *c, uint32_t request_id, const uint8_t *data, int data_len);
 static void request_free (struct request *r);
+static struct request * find_request (struct connection *c, uint32_t request_id);
 static void request_process_handler_event (struct request *r, int event);
 static int request_process_func_getspecialobj (struct request *r, const char *name, NCDObject *out_object);
 static int request_process_request_obj_func_getvar (struct request *r, const char *name, NCDValue *out_value);
-static void request_finish_job_handler (struct request *r);
-static int reply_init (struct connection *c, uint32_t request_id, uint32_t flags, NCDValue *reply_data);
+static void request_terminate (struct request *r);
+static struct reply * reply_init (struct connection *c, uint32_t request_id, uint32_t type, NCDValue *reply_data);
+static void reply_start (struct reply *r);
 static void reply_free (struct reply *r);
 static void reply_send_qflow_if_handler_done (struct reply *r);
 static void instance_free (struct instance *o);
@@ -245,10 +246,9 @@ static void connection_terminate (struct connection *c)
     for (LinkedList0Node *ln = LinkedList0_GetFirst(&c->requests_list); ln; ln = LinkedList0Node_Next(ln)) {
         struct request *r = UPPER_OBJECT(ln, struct request, requests_list_node);
         
-        if (!r->finished) {
-            NCDModuleProcess_Terminate(&r->process);
+        if (!r->terminating) {
+            request_terminate(r);
         }
-        BPending_Unset(&r->finish_job);
     }
     
     connection_free_link(c);
@@ -276,7 +276,7 @@ static void connection_recv_decoder_handler_error (struct connection *c)
     struct instance *o = c->inst;
     ASSERT(c->state == CONNECTION_STATE_RUNNING)
     
-    ModuleLog(o->i, BLOG_INFO, "decoder error");
+    ModuleLog(o->i, BLOG_ERROR, "decoder error");
     
     connection_terminate(c);
 }
@@ -291,26 +291,62 @@ static void connection_recv_if_handler_send (struct connection *c, uint8_t *data
     PacketPassInterface_Done(&c->recv_if);
     
     if (data_len < sizeof(struct requestproto_header)) {
-        ModuleLog(o->i, BLOG_INFO, "missing requestproto header");
-        return;
+        ModuleLog(o->i, BLOG_ERROR, "missing requestproto header");
+        goto fail;
     }
     
-    struct requestproto_header *header = (struct requestproto_header *)data;
+    struct requestproto_header *header = (void *)data;
     uint32_t request_id = ltoh32(header->request_id);
-    uint32_t flags = ltoh32(header->flags);
+    uint32_t type = ltoh32(header->type);
     
-    if (flags != REQUESTPROTO_REQUEST_FLAG) {
-        ModuleLog(o->i, BLOG_INFO, "invalid requestproto flags");
-        return;
+    switch (type) {
+        case REQUESTPROTO_TYPE_CLIENT_REQUEST: {
+            if (find_request(c, request_id)) {
+                ModuleLog(o->i, BLOG_ERROR, "request with the same ID already exists");
+                goto fail;
+            }
+            
+            if (!request_init(c, request_id, data + sizeof(*header), data_len - sizeof(*header))) {
+                goto fail;
+            }
+        } break;
+        
+        case REQUESTPROTO_TYPE_CLIENT_ABORT: {
+            struct request *r = find_request(c, request_id);
+            if (!r) {
+                // this is expected if we finish before we get the abort
+                return;
+            }
+            
+            if (!r->terminating) {
+                struct reply *rpl = reply_init(c, r->request_id, REQUESTPROTO_TYPE_SERVER_ERROR, NULL);
+                if (!rpl) {
+                    ModuleLog(o->i, BLOG_ERROR, "failed to submit error");
+                    goto fail;
+                }
+                
+                // send reply first!
+                request_terminate(r);
+                reply_start(rpl);
+            }
+        } break;
+        
+        default:
+            ModuleLog(o->i, BLOG_ERROR, "invalid requestproto type");
+            goto fail;
     }
     
-    request_init(c, request_id, data + sizeof(*header), data_len - sizeof(*header));
+    return;
+    
+fail:
+    connection_terminate(c);
 }
 
 static int request_init (struct connection *c, uint32_t request_id, const uint8_t *data, int data_len)
 {
     struct instance *o = c->inst;
     ASSERT(c->state == CONNECTION_STATE_RUNNING)
+    ASSERT(!find_request(c, request_id))
     ASSERT(data_len >= 0)
     ASSERT(data_len <= RECV_PAYLOAD_MTU)
     
@@ -344,9 +380,7 @@ static int request_init (struct connection *c, uint32_t request_id, const uint8_
     
     NCDModuleProcess_SetSpecialFuncs(&r->process, (NCDModuleProcess_func_getspecialobj)request_process_func_getspecialobj);
     
-    BPending_Init(&r->finish_job, BReactor_PendingGroup(o->i->params->reactor), (BPending_handler)request_finish_job_handler, r);
-    
-    r->finished = 0;
+    r->terminating = 0;
     
     ModuleLog(o->i, BLOG_INFO, "request initialized");
     return 1;
@@ -363,12 +397,24 @@ fail0:
 static void request_free (struct request *r)
 {
     struct connection *c = r->con;
+    NCDModuleProcess_AssertFree(&r->process);
     
-    BPending_Free(&r->finish_job);
     NCDModuleProcess_Free(&r->process);
     NCDValue_Free(&r->request_data);
     LinkedList0_Remove(&c->requests_list, &r->requests_list_node);
     free(r);
+}
+
+static struct request * find_request (struct connection *c, uint32_t request_id)
+{
+    for (LinkedList0Node *ln = LinkedList0_GetFirst(&c->requests_list); ln; ln = LinkedList0Node_Next(ln)) {
+        struct request *r = UPPER_OBJECT(ln, struct request, requests_list_node);
+        if (!r->terminating && r->request_id == request_id) {
+            return r;
+        }
+    }
+    
+    return NULL;
 }
 
 static void request_process_handler_event (struct request *r, int event)
@@ -378,15 +424,17 @@ static void request_process_handler_event (struct request *r, int event)
     
     switch (event) {
         case NCDMODULEPROCESS_EVENT_UP: {
-            ASSERT(c->state == CONNECTION_STATE_RUNNING)
+            ASSERT(!r->terminating)
         } break;
         
         case NCDMODULEPROCESS_EVENT_DOWN: {
+            ASSERT(!r->terminating)
+            
             NCDModuleProcess_Continue(&r->process);
         } break;
         
         case NCDMODULEPROCESS_EVENT_TERMINATED: {
-            ASSERT(r->finished || c->state == CONNECTION_STATE_TERMINATING)
+            ASSERT(r->terminating)
             
             request_free(r);
             
@@ -429,18 +477,16 @@ static int request_process_request_obj_func_getvar (struct request *r, const cha
     return 0;
 }
 
-static void request_finish_job_handler (struct request *r)
+static void request_terminate (struct request *r)
 {
-    struct connection *c = r->con;
-    ASSERT(c->state == CONNECTION_STATE_RUNNING)
-    ASSERT(!r->finished)
+    ASSERT(!r->terminating)
     
     NCDModuleProcess_Terminate(&r->process);
     
-    r->finished = 1;
+    r->terminating = 1;
 }
 
-static int reply_init (struct connection *c, uint32_t request_id, uint32_t flags, NCDValue *reply_data)
+static struct reply * reply_init (struct connection *c, uint32_t request_id, uint32_t type, NCDValue *reply_data)
 {
     struct instance *o = c->inst;
     ASSERT(c->state == CONNECTION_STATE_RUNNING)
@@ -463,7 +509,7 @@ static int reply_init (struct connection *c, uint32_t request_id, uint32_t flags
     struct reply_header {
         struct packetproto_header pp;
         struct requestproto_header rp;
-    };
+    } __attribute__((packed));
     
     ExpString str;
     if (!ExpString_Init(&str)) {
@@ -489,13 +535,12 @@ static int reply_init (struct connection *c, uint32_t request_id, uint32_t flags
     
     r->send_buf = ExpString_Get(&str);
     
-    struct reply_header *header = (struct reply_header *)r->send_buf;
-    header->pp.len = htol16(len - sizeof(struct packetproto_header));
+    struct reply_header *header = (void *)r->send_buf;
+    header->pp.len = htol16(len - sizeof(header->pp));
     header->rp.request_id = htol32(request_id);
-    header->rp.flags = htol32(flags);
+    header->rp.type = htol32(type);
     
-    PacketPassInterface_Sender_Send(r->send_qflow_if, r->send_buf, len);
-    return 1;
+    return r;
     
 fail2:
     ExpString_Free(&str);
@@ -504,7 +549,14 @@ fail1:
     LinkedList0_Remove(&c->replies_list, &r->replies_list_node);
     free(r);
 fail0:
-    return 0;
+    return NULL;
+}
+
+static void reply_start (struct reply *r)
+{
+    int len = ltoh16(((struct packetproto_header *)r->send_buf)->len) + sizeof(struct packetproto_header);
+    
+    PacketPassInterface_Sender_Send(r->send_qflow_if, r->send_buf, len);
 }
 
 static void reply_free (struct reply *r)
@@ -640,21 +692,18 @@ static void reply_func_new (NCDModuleInst *i)
     struct request *r = i->method_user;
     struct connection *c = r->con;
     
-    if (c->state != CONNECTION_STATE_RUNNING) {
-        ModuleLog(i, BLOG_ERROR, "connection is terminating, cannot submit reply");
+    if (r->terminating) {
+        ModuleLog(i, BLOG_ERROR, "request is dying, cannot submit reply");
         goto fail;
     }
     
-    if (r->finished || BPending_IsSet(&r->finish_job)) {
-        ModuleLog(i, BLOG_ERROR, "request is already finished, cannot submit reply");
-        goto fail;
-    }
-    
-    if (!reply_init(c, r->request_id, REQUESTPROTO_REPLY_FLAG_DATA, reply_data)) {
+    struct reply *rpl = reply_init(c, r->request_id, REQUESTPROTO_TYPE_SERVER_REPLY, reply_data);
+    if (!rpl) {
         ModuleLog(i, BLOG_ERROR, "failed to submit reply");
         goto fail;
     }
     
+    reply_start(rpl);
     return;
     
 fail:
@@ -674,24 +723,19 @@ static void finish_func_new (NCDModuleInst *i)
     struct request *r = i->method_user;
     struct connection *c = r->con;
     
-    if (c->state != CONNECTION_STATE_RUNNING) {
-        ModuleLog(i, BLOG_ERROR, "connection is terminating, cannot submit reply");
+    if (r->terminating) {
+        ModuleLog(i, BLOG_ERROR, "request is dying, cannot submit finished");
         goto fail;
     }
     
-    if (r->finished || BPending_IsSet(&r->finish_job)) {
-        ModuleLog(i, BLOG_ERROR, "request is already finished, cannot submit reply");
+    struct reply *rpl = reply_init(c, r->request_id, REQUESTPROTO_TYPE_SERVER_FINISHED, NULL);
+    if (!rpl) {
+        ModuleLog(i, BLOG_ERROR, "failed to submit finished");
         goto fail;
     }
     
-    BPending_Set(&r->finish_job);
-    
-    if (!reply_init(c, r->request_id, REQUESTPROTO_REPLY_FLAG_END, NULL)) {
-        ModuleLog(i, BLOG_ERROR, "failed to submit reply");
-        BPending_Unset(&r->finish_job); // don't terminate request process!
-        goto fail;
-    }
-    
+    request_terminate(r);
+    reply_start(rpl);
     return;
     
 fail:

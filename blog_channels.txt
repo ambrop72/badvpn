@@ -108,3 +108,5 @@ ncd_try 4
 ncd_sys_request_server 4
 NCDRequest 4
 ncd_net_ipv6_wait_dynamic_addr 4
+NCDRequestClient 4
+ncd_request 4

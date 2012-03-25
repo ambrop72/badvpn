@@ -108,4 +108,6 @@
 #define BLOG_CHANNEL_ncd_sys_request_server 107
 #define BLOG_CHANNEL_NCDRequest 108
 #define BLOG_CHANNEL_ncd_net_ipv6_wait_dynamic_addr 109
-#define BLOG_NUM_CHANNELS 110
+#define BLOG_CHANNEL_NCDRequestClient 110
+#define BLOG_CHANNEL_ncd_request 111
+#define BLOG_NUM_CHANNELS 112

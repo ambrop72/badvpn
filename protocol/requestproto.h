@@ -32,13 +32,15 @@
 
 #include <stdint.h>
 
-#define REQUESTPROTO_REQUEST_FLAG (1 << 0)
-#define REQUESTPROTO_REPLY_FLAG_DATA (1 << 1)
-#define REQUESTPROTO_REPLY_FLAG_END (1 << 2)
+#define REQUESTPROTO_TYPE_CLIENT_REQUEST 1
+#define REQUESTPROTO_TYPE_CLIENT_ABORT 2
+#define REQUESTPROTO_TYPE_SERVER_REPLY 3
+#define REQUESTPROTO_TYPE_SERVER_FINISHED 4
+#define REQUESTPROTO_TYPE_SERVER_ERROR 5
 
 struct requestproto_header {
     uint32_t request_id;
-    uint32_t flags;
+    uint32_t type;
 } __attribute__((packed));
 
 #endif
