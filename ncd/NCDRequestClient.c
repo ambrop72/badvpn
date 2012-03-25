@@ -71,6 +71,8 @@ static struct NCDRequestClient_req * find_req (NCDRequestClient *o, uint32_t req
 static int get_free_request_id (NCDRequestClient *o, uint32_t *out);
 static int build_requestproto_packet (uint32_t request_id, uint32_t type, NCDValue *payload_value, uint8_t **out_data, int *out_len);
 static void build_nodata_packet (uint32_t request_id, uint32_t type, uint8_t *data, int *out_len);
+static int req_is_aborted (struct NCDRequestClient_req *req);
+static void req_abort (struct NCDRequestClient_req *req);
 static void req_free (struct NCDRequestClient_req *req);
 static void req_send_abort (struct NCDRequestClient_req *req);
 static void req_qflow_send_iface_handler_done (struct NCDRequestClient_req *req);
@@ -359,10 +361,39 @@ static void build_nodata_packet (uint32_t request_id, uint32_t type, uint8_t *da
     *out_len = sizeof(*header);
 }
 
+static int req_is_aborted (struct NCDRequestClient_req *req)
+{
+    switch (req->state) {
+        case RSTATE_SENDING_REQUEST:
+        case RSTATE_READY:
+            return 0;
+        default:
+            return 1;
+    }
+}
+
+static void req_abort (struct NCDRequestClient_req *req)
+{
+    ASSERT(!req_is_aborted(req))
+    
+    switch (req->state) {
+        case RSTATE_SENDING_REQUEST: {
+            req->state = RSTATE_SENDING_REQUEST_ABORT;
+        } break;
+        
+        case RSTATE_READY: {
+            req_send_abort(req);
+        } break;
+        
+        default: ASSERT(0);
+    }
+}
+
 static void req_free (struct NCDRequestClient_req *req)
 {
     NCDRequestClient *client = req->client;
     PacketPassFifoQueueFlow_AssertFree(&req->send_qflow);
+    ASSERT(!req->creq)
     
     // free queue flow
     PacketPassFifoQueueFlow_Free(&req->send_qflow);
@@ -575,16 +606,12 @@ void NCDRequestClientRequest_Free (NCDRequestClientRequest *o)
     if (req) {
         ASSERT(req->creq == o)
         
+        // remove reference to us
         req->creq = NULL;
         
-        switch (req->state) {
-            case RSTATE_SENDING_REQUEST: {
-                req->state = RSTATE_SENDING_REQUEST_ABORT;
-            } break;
-            
-            case RSTATE_READY: {
-                req_send_abort(req);
-            } break;
+        // abort req if not already
+        if (!req_is_aborted(req)) {
+            req_abort(req);
         }
     }
 }
@@ -594,19 +621,10 @@ void NCDRequestClientRequest_Abort (NCDRequestClientRequest *o)
     struct NCDRequestClient_req *req = o->req;
     DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
-    
     ASSERT(req)
     ASSERT(req->creq == o)
+    ASSERT(!req_is_aborted(req))
     
-    switch (req->state) {
-        case RSTATE_SENDING_REQUEST: {
-            req->state = RSTATE_SENDING_REQUEST_ABORT;
-        } break;
-        
-        case RSTATE_READY: {
-            req_send_abort(req);
-        } break;
-        
-        default: ASSERT(0);
-    }
+    // abort req
+    req_abort(req);
 }
