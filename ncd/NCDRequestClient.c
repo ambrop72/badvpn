@@ -358,6 +358,8 @@ static void build_nodata_packet (uint32_t request_id, uint32_t type, uint8_t *da
     header->pp.len = htol16(sizeof(header->rp));
     header->rp.request_id = htol32(request_id);
     header->rp.type = htol32(type);
+    
+    *out_len = sizeof(*header);
 }
 
 static void req_free (struct NCDRequestClient_req *req)
