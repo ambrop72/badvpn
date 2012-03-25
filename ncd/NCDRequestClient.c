@@ -232,34 +232,31 @@ static void recv_if_handler_send (NCDRequestClient *o, uint8_t *data, int data_l
                 goto fail;
             }
             
+            NCDRequestClientRequest *creq = req->creq;
+            req->creq = NULL;
+            
             switch (req->state) {
                 case RSTATE_SENDING_ABORT: {
                     // set state dying send
                     req->state = RSTATE_DEAD_SENDING;
-                    return;
                 } break;
                 
-                case RSTATE_WAITING_END: {
-                    // free req
-                    req_free(req);
-                    return;
-                } break;
-                
+                case RSTATE_WAITING_END:
                 case RSTATE_READY: {
-                    NCDRequestClientRequest *creq = req->creq;
-                    
                     // free req
                     req_free(req);
-                    
-                    // report finished
-                    request_report_finished(creq, type == REQUESTPROTO_TYPE_SERVER_ERROR);
-                    return;
                 } break;
                 
                 default:
                     BLog(BLOG_ERROR, "received unexpected finished/aborted");
                     goto fail;
             }
+            
+            // report finished
+            if (creq) {
+                request_report_finished(creq, type == REQUESTPROTO_TYPE_SERVER_ERROR);
+            }
+            return;
         } break;
         
         default:
@@ -475,6 +472,7 @@ void NCDRequestClient_Free (NCDRequestClient *o)
         BAVLNode *tn;
         while (tn = BAVL_GetFirst(&o->reqs_tree)) {
             struct NCDRequestClient_req *req = UPPER_OBJECT(tn, struct NCDRequestClient_req, reqs_tree_node);
+            ASSERT(!req->creq)
             ASSERT(req->state != RSTATE_SENDING_REQUEST)
             ASSERT(req->state != RSTATE_READY)
             req_free(req);
@@ -569,13 +567,16 @@ fail0:
 
 void NCDRequestClientRequest_Free (NCDRequestClientRequest *o)
 {
-    NCDRequestClient *client = o->client;
     struct NCDRequestClient_req *req = o->req;
     DebugObject_Free(&o->d_obj);
     DebugError_Free(&o->d_err);
-    DebugCounter_Decrement(&client->d_reqests_ctr);
+    DebugCounter_Decrement(&o->client->d_reqests_ctr);
     
     if (req) {
+        ASSERT(req->creq == o)
+        
+        req->creq = NULL;
+        
         switch (req->state) {
             case RSTATE_SENDING_REQUEST: {
                 req->state = RSTATE_SENDING_REQUEST_ABORT;
@@ -584,8 +585,28 @@ void NCDRequestClientRequest_Free (NCDRequestClientRequest *o)
             case RSTATE_READY: {
                 req_send_abort(req);
             } break;
-            
-            default: ASSERT(0);
         }
+    }
+}
+
+void NCDRequestClientRequest_Abort (NCDRequestClientRequest *o)
+{
+    struct NCDRequestClient_req *req = o->req;
+    DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
+    
+    ASSERT(req)
+    ASSERT(req->creq == o)
+    
+    switch (req->state) {
+        case RSTATE_SENDING_REQUEST: {
+            req->state = RSTATE_SENDING_REQUEST_ABORT;
+        } break;
+        
+        case RSTATE_READY: {
+            req_send_abort(req);
+        } break;
+        
+        default: ASSERT(0);
     }
 }

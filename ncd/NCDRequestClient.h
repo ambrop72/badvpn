@@ -104,5 +104,6 @@ int NCDRequestClientRequest_Init (NCDRequestClientRequest *o, NCDRequestClient *
                                   NCDRequestClientRequest_handler_reply handler_reply,
                                   NCDRequestClientRequest_handler_finished handler_finished) WARN_UNUSED;
 void NCDRequestClientRequest_Free (NCDRequestClientRequest *o);
+void NCDRequestClientRequest_Abort (NCDRequestClientRequest *o);
 
 #endif
