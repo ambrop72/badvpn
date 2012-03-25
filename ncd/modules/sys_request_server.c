@@ -96,6 +96,8 @@ struct instance {
 #define CONNECTION_STATE_RUNNING 1
 #define CONNECTION_STATE_TERMINATING 2
 
+struct reply;
+
 struct connection {
     struct instance *inst;
     LinkedList0Node connections_list_node;
@@ -114,8 +116,10 @@ struct request {
     uint32_t request_id;
     LinkedList0Node requests_list_node;
     NCDValue request_data;
+    struct reply *end_reply;
     NCDModuleProcess process;
     int terminating;
+    int got_finished;
 };
 
 struct reply {
@@ -140,8 +144,8 @@ static void request_process_handler_event (struct request *r, int event);
 static int request_process_func_getspecialobj (struct request *r, const char *name, NCDObject *out_object);
 static int request_process_request_obj_func_getvar (struct request *r, const char *name, NCDValue *out_value);
 static void request_terminate (struct request *r);
-static struct reply * reply_init (struct connection *c, uint32_t request_id, uint32_t type, NCDValue *reply_data);
-static void reply_start (struct reply *r);
+static struct reply * reply_init (struct connection *c, uint32_t request_id, NCDValue *reply_data);
+static void reply_start (struct reply *r, uint32_t type);
 static void reply_free (struct reply *r);
 static void reply_send_qflow_if_handler_done (struct reply *r);
 static void instance_free (struct instance *o);
@@ -319,15 +323,7 @@ static void connection_recv_if_handler_send (struct connection *c, uint8_t *data
             }
             
             if (!r->terminating) {
-                struct reply *rpl = reply_init(c, r->request_id, REQUESTPROTO_TYPE_SERVER_ERROR, NULL);
-                if (!rpl) {
-                    ModuleLog(o->i, BLOG_ERROR, "failed to submit error");
-                    goto fail;
-                }
-                
-                // send reply first!
                 request_terminate(r);
-                reply_start(rpl);
             }
         } break;
         
@@ -366,25 +362,32 @@ static int request_init (struct connection *c, uint32_t request_id, const uint8_
         goto fail1;
     }
     
+    if (!(r->end_reply = reply_init(c, request_id, NULL))) {
+        goto fail2;
+    }
+    
     NCDValue args;
     if (!NCDValue_InitCopy(&args, o->args)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail2;
+        goto fail3;
     }
     
     if (!NCDModuleProcess_Init(&r->process, o->i, o->request_handler_template, args, r, (NCDModuleProcess_handler_event)request_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         NCDValue_Free(&args);
-        goto fail2;
+        goto fail3;
     }
     
     NCDModuleProcess_SetSpecialFuncs(&r->process, (NCDModuleProcess_func_getspecialobj)request_process_func_getspecialobj);
     
     r->terminating = 0;
+    r->got_finished = 0;
     
     ModuleLog(o->i, BLOG_INFO, "request initialized");
     return 1;
     
+fail3:
+    reply_free(r->end_reply);
 fail2:
     NCDValue_Free(&r->request_data);
 fail1:
@@ -398,6 +401,11 @@ static void request_free (struct request *r)
 {
     struct connection *c = r->con;
     NCDModuleProcess_AssertFree(&r->process);
+    
+    if (c->state != CONNECTION_STATE_TERMINATING) {
+        uint32_t type = r->got_finished ? REQUESTPROTO_TYPE_SERVER_FINISHED : REQUESTPROTO_TYPE_SERVER_ERROR;
+        reply_start(r->end_reply, type);
+    }
     
     NCDModuleProcess_Free(&r->process);
     NCDValue_Free(&r->request_data);
@@ -486,7 +494,7 @@ static void request_terminate (struct request *r)
     r->terminating = 1;
 }
 
-static struct reply * reply_init (struct connection *c, uint32_t request_id, uint32_t type, NCDValue *reply_data)
+static struct reply * reply_init (struct connection *c, uint32_t request_id, NCDValue *reply_data)
 {
     struct instance *o = c->inst;
     ASSERT(c->state == CONNECTION_STATE_RUNNING)
@@ -538,7 +546,6 @@ static struct reply * reply_init (struct connection *c, uint32_t request_id, uin
     struct reply_header *header = (void *)r->send_buf;
     header->pp.len = htol16(len - sizeof(header->pp));
     header->rp.request_id = htol32(request_id);
-    header->rp.type = htol32(type);
     
     return r;
     
@@ -552,9 +559,16 @@ fail0:
     return NULL;
 }
 
-static void reply_start (struct reply *r)
+static void reply_start (struct reply *r, uint32_t type)
 {
-    int len = ltoh16(((struct packetproto_header *)r->send_buf)->len) + sizeof(struct packetproto_header);
+    struct reply_header {
+        struct packetproto_header pp;
+        struct requestproto_header rp;
+    } __attribute__((packed));
+    
+    struct reply_header *header = (void *)r->send_buf;
+    header->rp.type = htol32(type);
+    int len = ltoh16(header->pp.len) + sizeof(struct packetproto_header);
     
     PacketPassInterface_Sender_Send(r->send_qflow_if, r->send_buf, len);
 }
@@ -697,13 +711,13 @@ static void reply_func_new (NCDModuleInst *i)
         goto fail;
     }
     
-    struct reply *rpl = reply_init(c, r->request_id, REQUESTPROTO_TYPE_SERVER_REPLY, reply_data);
+    struct reply *rpl = reply_init(c, r->request_id, reply_data);
     if (!rpl) {
         ModuleLog(i, BLOG_ERROR, "failed to submit reply");
         goto fail;
     }
     
-    reply_start(rpl);
+    reply_start(rpl, REQUESTPROTO_TYPE_SERVER_REPLY);
     return;
     
 fail:
@@ -728,14 +742,9 @@ static void finish_func_new (NCDModuleInst *i)
         goto fail;
     }
     
-    struct reply *rpl = reply_init(c, r->request_id, REQUESTPROTO_TYPE_SERVER_FINISHED, NULL);
-    if (!rpl) {
-        ModuleLog(i, BLOG_ERROR, "failed to submit finished");
-        goto fail;
-    }
+    r->got_finished = 1;
     
     request_terminate(r);
-    reply_start(rpl);
     return;
     
 fail:
