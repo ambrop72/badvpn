@@ -111,3 +111,5 @@
 {.name = "NCDRequestClient", .loglevel = 4},
 {.name = "ncd_request", .loglevel = 4},
 {.name = "ncd_sys_request_client", .loglevel = 4},
+{.name = "ncd_exit", .loglevel = 4},
+{.name = "ncd_getargs", .loglevel = 4},
