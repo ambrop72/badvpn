@@ -94,7 +94,24 @@ struct NCDRequestClient_req {
     int state;
 };
 
-int NCDRequestClient_Init (NCDRequestClient *o, const char *socket_path, BReactor *reactor, void *user,
+#define NCDREQUESTCLIENT_ADDR_TYPE_UNIX 1
+#define NCDREQUESTCLIENT_ADDR_TYPE_TCP 2
+
+struct NCDRequestClient_addr {
+    int type;
+    union {
+        const char *unix_socket_path;
+        BAddr tcp_baddr;
+    } u;
+};
+
+#define NCDREQUESTCLIENT_UNIX_ADDR(socket_path) \
+  (struct NCDRequestClient_addr){.type = NCDREQUESTCLIENT_ADDR_TYPE_UNIX, .u.unix_socket_path = (socket_path)}
+
+#define NCDREQUESTCLIENT_TCP_ADDR(baddr) \
+  (struct NCDRequestClient_addr){.type = NCDREQUESTCLIENT_ADDR_TYPE_TCP, .u.tcp_baddr = (baddr)}
+
+int NCDRequestClient_Init (NCDRequestClient *o, struct NCDRequestClient_addr addr, BReactor *reactor, void *user,
                            NCDRequestClient_handler_error handler_error,
                            NCDRequestClient_handler_connected handler_connected) WARN_UNUSED;
 void NCDRequestClient_Free (NCDRequestClient *o);

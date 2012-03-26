@@ -86,7 +86,7 @@ int main (int argc, char *argv[])
         goto fail2;
     }
     
-    if (!NCDRequestClient_Init(&client, socket_path, &reactor, NULL, client_handler_error, client_handler_connected)) {
+    if (!NCDRequestClient_Init(&client, NCDREQUESTCLIENT_UNIX_ADDR(socket_path), &reactor, NULL, client_handler_error, client_handler_connected)) {
         BLog(BLOG_ERROR, "NCDRequestClient_Init failed");
         goto fail3;
     }

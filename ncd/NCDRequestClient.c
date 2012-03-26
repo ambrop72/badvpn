@@ -451,11 +451,10 @@ static void req_qflow_send_iface_handler_done (struct NCDRequestClient_req *req)
     }
 }
 
-int NCDRequestClient_Init (NCDRequestClient *o, const char *socket_path, BReactor *reactor, void *user,
+int NCDRequestClient_Init (NCDRequestClient *o, struct NCDRequestClient_addr addr, BReactor *reactor, void *user,
                            NCDRequestClient_handler_error handler_error,
                            NCDRequestClient_handler_connected handler_connected)
 {
-    ASSERT(socket_path)
     ASSERT(handler_error)
     ASSERT(handler_connected)
     
@@ -466,9 +465,26 @@ int NCDRequestClient_Init (NCDRequestClient *o, const char *socket_path, BReacto
     o->handler_connected = handler_connected;
     
     // init connector
-    if (!BConnector_InitUnix(&o->connector, socket_path, reactor, o, (BConnector_handler)connector_handler)) {
-        BLog(BLOG_ERROR, "BConnector_InitUnix failed");
-        goto fail0;
+    switch (addr.type) {
+        case NCDREQUESTCLIENT_ADDR_TYPE_UNIX: {
+            ASSERT(addr.u.unix_socket_path)
+            
+            if (!BConnector_InitUnix(&o->connector, addr.u.unix_socket_path, reactor, o, (BConnector_handler)connector_handler)) {
+                BLog(BLOG_ERROR, "BConnector_InitUnix failed");
+                goto fail0;
+            }
+        } break;
+        
+        case NCDREQUESTCLIENT_ADDR_TYPE_TCP: {
+            BAddr_Assert(&addr.u.tcp_baddr);
+            
+            if (!BConnector_Init(&o->connector, addr.u.tcp_baddr, reactor, o, (BConnector_handler)connector_handler)) {
+                BLog(BLOG_ERROR, "BConnector_InitUnix failed");
+                goto fail0;
+            }
+        } break;
+        
+        default: ASSERT(0);
     }
     
     // init reqs tree

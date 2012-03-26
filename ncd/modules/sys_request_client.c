@@ -488,7 +488,7 @@ static void func_new (NCDModuleInst *i)
     char *socket_path = NCDValue_StringValue(socket_path_arg);
     
     // init client
-    if (!NCDRequestClient_Init(&o->client, socket_path, i->params->reactor, o,
+    if (!NCDRequestClient_Init(&o->client, NCDREQUESTCLIENT_UNIX_ADDR(socket_path), i->params->reactor, o,
         (NCDRequestClient_handler_error)client_handler_error,
         (NCDRequestClient_handler_connected)client_handler_connected)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDRequestClient_Init failed");
