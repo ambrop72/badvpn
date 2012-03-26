@@ -35,7 +35,7 @@
  *   (empty) - list of extra command line arguments that were passed to the intrepreter
  */
 
-#include <stdlib.h>
+#include <string.h>
 
 #include <ncd/NCDModule.h>
 
@@ -43,66 +43,32 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-struct instance {
-    NCDModuleInst *i;
-    NCDValue args;
-};
-
 static void func_new (NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
+    NCDModuleInst_Backend_SetUser(i, i);
     
     // check arguments
     if (!NCDValue_ListRead(i->args, 0)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
-    }
-    
-    // read cmdline
-    if (!NCDModuleInst_Backend_InterpGetArgs(i, &o->args)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDModuleInst_Backend_InterpGetArgs failed");
-        goto fail1;
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
     }
     
     // signal up
-    NCDModuleInst_Backend_Up(o->i);
+    NCDModuleInst_Backend_Up(i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_die (void *vo)
+static int func_getvar (void *vo, const char *name, NCDValue *out_value)
 {
-    struct instance *o = vo;
-    NCDModuleInst *i = o->i;
-    
-    // free cmdline
-    NCDValue_Free(&o->args);
-    
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
-}
-
-static int func_getvar (void *vo, const char *name, NCDValue *out)
-{
-    struct instance *o = vo;
+    NCDModuleInst *i = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitCopy(out, &o->args)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
+        if (!NCDModuleInst_Backend_InterpGetArgs(i, out_value)) {
+            ModuleLog(i, BLOG_ERROR, "NCDModuleInst_Backend_InterpGetArgs failed");
             return 0;
         }
         return 1;
@@ -115,7 +81,6 @@ static const struct NCDModule modules[] = {
     {
         .type = "getargs",
         .func_new = func_new,
-        .func_die = func_die,
         .func_getvar = func_getvar
     }, {
         .type = NULL
