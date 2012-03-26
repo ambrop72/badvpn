@@ -431,7 +431,6 @@ int BConnection_AddressSupported (BAddr addr)
 int BListener_Init (BListener *o, BAddr addr, BReactor *reactor, void *user,
                     BListener_handler handler)
 {
-    ASSERT(BConnection_AddressSupported(addr))
     ASSERT(handler)
     BNetwork_Assert();
     
@@ -439,6 +438,12 @@ int BListener_Init (BListener *o, BAddr addr, BReactor *reactor, void *user,
     o->reactor = reactor;
     o->user = user;
     o->handler = handler;
+    
+    // check address
+    if (!BConnection_AddressSupported(addr)) {
+        BLog(BLOG_ERROR, "address not supported");
+        goto fail0;
+    }
     
     // convert address
     struct sys_addr sysaddr;
@@ -580,7 +585,6 @@ void BListener_Free (BListener *o)
 int BConnector_Init (BConnector *o, BAddr addr, BReactor *reactor, void *user,
                      BConnector_handler handler)
 {
-    ASSERT(BConnection_AddressSupported(addr))
     ASSERT(handler)
     BNetwork_Assert();
     
@@ -588,6 +592,12 @@ int BConnector_Init (BConnector *o, BAddr addr, BReactor *reactor, void *user,
     o->reactor = reactor;
     o->user = user;
     o->handler = handler;
+    
+    // check address
+    if (!BConnection_AddressSupported(addr)) {
+        BLog(BLOG_ERROR, "address not supported");
+        goto fail0;
+    }
     
     // convert address
     struct sys_addr sysaddr;
@@ -649,6 +659,7 @@ fail2:
     }
 fail1:
     BPending_Free(&o->job);
+fail0:
     return 0;
 }
 

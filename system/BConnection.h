@@ -75,7 +75,7 @@ typedef void (*BListener_handler) (void *user);
  * {@link BNetwork_GlobalInit} must have been done.
  * 
  * @param o the object
- * @param addr address to listen on. Must be supported according to {@link BConnection_AddressSupported}.
+ * @param addr address to listen on
  * @param reactor reactor we live in
  * @param user argument to handler
  * @param handler handler called when a connection can be accepted
@@ -135,7 +135,7 @@ typedef void (*BConnector_handler) (void *user, int is_error);
  * {@link BNetwork_GlobalInit} must have been done.
  * 
  * @param o the object
- * @param addr address to connect to. Must be supported according to {@link BConnection_AddressSupported}.
+ * @param addr address to connect to
  * @param reactor reactor we live in
  * @param user argument to handler
  * @param handler handler called when the connection attempt finishes
