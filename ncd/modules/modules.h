@@ -94,6 +94,7 @@ extern const struct NCDModuleGroup ncdmodule_net_ipv6_wait_dynamic_addr;
 extern const struct NCDModuleGroup ncdmodule_sys_request_client;
 extern const struct NCDModuleGroup ncdmodule_exit;
 extern const struct NCDModuleGroup ncdmodule_getargs;
+extern const struct NCDModuleGroup ncdmodule_arithmetic;
 
 static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_var,
@@ -156,6 +157,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_sys_request_client,
     &ncdmodule_exit,
     &ncdmodule_getargs,
+    &ncdmodule_arithmetic,
     NULL
 };
 

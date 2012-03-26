@@ -105,6 +105,7 @@ add_executable(badvpn-ncd
     modules/sys_request_client.c
     modules/exit.c
     modules/getargs.c
+    modules/arithmetic.c
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdconfig ncdvalue udevmonitor ncdinterfacemonitor ncdrequest)
