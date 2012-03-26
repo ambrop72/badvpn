@@ -150,6 +150,8 @@ static void BAddr_InitIPv4 (BAddr *addr, uint32_t ip, uint16_t port);
  */
 static void BAddr_InitIPv6 (BAddr *addr, uint8_t *ip, uint16_t port);
 
+static void BAddr_InitFromIpaddrAndPort (BAddr *addr, BIPAddr ipaddr, uint16_t port);
+
 /**
  * Initializes a packet socket (data link layer) address.
  * Only Ethernet addresses are supported.
@@ -475,6 +477,24 @@ void BAddr_InitIPv6 (BAddr *addr, uint8_t *ip, uint16_t port)
     addr->type = BADDR_TYPE_IPV6;
     memcpy(addr->ipv6.ip, ip, 16);
     addr->ipv6.port = port;
+}
+
+void BAddr_InitFromIpaddrAndPort (BAddr *addr, BIPAddr ipaddr, uint16_t port)
+{
+    BIPAddr_Assert(&ipaddr);
+    
+    switch (ipaddr.type) {
+        case BADDR_TYPE_NONE:
+            BAddr_InitNone(addr);
+            break;
+        case BADDR_TYPE_IPV4:
+            BAddr_InitIPv4(addr, ipaddr.ipv4, port);
+            break;
+        case BADDR_TYPE_IPV6:
+            BAddr_InitIPv6(addr, ipaddr.ipv6, port);
+            break;
+        default: ASSERT(0);
+    }
 }
 
 #ifdef BADVPN_LINUX
