@@ -156,6 +156,13 @@ static void process_event_job_handler (NCDModuleProcess *o)
     }
 }
 
+static void inst_assert_backend (NCDModuleInst *n)
+{
+    ASSERT(n->state == STATE_DOWN_PCLEAN || n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
+           n->state == STATE_UP || n->state == STATE_DOWN_DIE || n->state == STATE_UP_DIE ||
+           n->state == STATE_DYING)
+}
+
 void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValue *args, void *user, const struct NCDModuleInst_params *params)
 {
     ASSERT(m)
@@ -434,6 +441,27 @@ void NCDModuleInst_Backend_SetError (NCDModuleInst *n)
     ASSERT(!n->is_error)
     
     n->is_error = 1;
+}
+
+void NCDModuleInst_Backend_InterpExit (NCDModuleInst *n, int exit_code)
+{
+    DebugObject_Access(&n->d_obj);
+    inst_assert_backend(n);
+    
+    n->params->func_interp_exit(n->user, exit_code);
+}
+
+int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValue *out_value)
+{
+    DebugObject_Access(&n->d_obj);
+    inst_assert_backend(n);
+    ASSERT(out_value)
+    
+    int res = n->params->func_interp_getargs(n->user, out_value);
+    ASSERT(res == 0 || res == 1)
+    ASSERT(!res || (NCDValue_Type(out_value), 1))
+    
+    return res;
 }
 
 int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValue args, void *user, NCDModuleProcess_handler_event handler_event)

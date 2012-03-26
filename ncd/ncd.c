@@ -150,6 +150,8 @@ struct {
     char *config_file;
     int retry_time;
     int no_udev;
+    char **extra_args;
+    int num_extra_args;
 } options;
 
 // reactor
@@ -157,6 +159,7 @@ BReactor ss;
 
 // are we terminating
 int terminating;
+int main_exit_code;
 
 // process manager
 BProcessManager manager;
@@ -180,6 +183,7 @@ static void print_help (const char *name);
 static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
+static void start_terminate (int exit_code);
 static int arg_value_init_string (struct arg_value *o, const char *string);
 static int arg_value_init_variable (struct arg_value *o, struct NCDConfig_strings *ast_names);
 static void arg_value_init_list (struct arg_value *o);
@@ -219,6 +223,8 @@ static void process_statement_instance_func_event (struct process_statement *ps,
 static int process_statement_instance_func_getobj (struct process_statement *ps, const char *objname, NCDObject *out_object);
 static int process_statement_instance_func_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name);
 static void process_statement_instance_logfunc (struct process_statement *ps);
+static void process_statement_instance_func_interp_exit (struct process_statement *ps, int exit_code);
+static int process_statement_instance_func_interp_getargs (struct process_statement *ps, NCDValue *out_value);
 static void process_moduleprocess_func_event (struct process *p, int event);
 static int process_moduleprocess_func_getobj (struct process *p, const char *name, NCDObject *out_object);
 
@@ -227,6 +233,9 @@ int main (int argc, char **argv)
     if (argc <= 0) {
         return 1;
     }
+    
+    // set exit code
+    main_exit_code = 1;
     
     // open standard streams
     open_standard_streams();
@@ -364,6 +373,8 @@ int main (int argc, char **argv)
     module_params.func_getobj = (NCDModuleInst_func_getobj)process_statement_instance_func_getobj;
     module_params.func_initprocess = (NCDModuleInst_func_initprocess)process_statement_instance_func_initprocess;
     module_params.logfunc = (BLog_logfunc)process_statement_instance_logfunc;
+    module_params.func_interp_exit = (NCDModuleInst_func_interp_exit)process_statement_instance_func_interp_exit;
+    module_params.func_interp_getargs = (NCDModuleInst_func_interp_getargs)process_statement_instance_func_interp_getargs;
     
     // init processes list
     LinkedList2_Init(&processes);
@@ -417,7 +428,7 @@ fail0:
     // finish objects
     DebugObjectGlobal_Finish();
     
-    return 1;
+    return main_exit_code;
 }
 
 void print_help (const char *name)
@@ -438,7 +449,8 @@ void print_help (const char *name)
         "        [--channel-loglevel <channel-name> <0-5/none/error/warning/notice/info/debug>] ...\n"
         "        --config-file <file>\n"
         "        [--retry-time <ms>]\n"
-        "        [--no-udev]\n",
+        "        [--no-udev]\n"
+        "        [-- [<extra_arg>] ...]\n",
         name
     );
 }
@@ -468,6 +480,8 @@ int parse_arguments (int argc, char *argv[])
     options.config_file = NULL;
     options.retry_time = DEFAULT_RETRY_TIME;
     options.no_udev = 0;
+    options.extra_args = NULL;
+    options.num_extra_args = 0;
     
     for (int i = 1; i < argc; i++) {
         char *arg = argv[i];
@@ -566,6 +580,11 @@ int parse_arguments (int argc, char *argv[])
         else if (!strcmp(arg, "--no-udev")) {
             options.no_udev = 1;
         }
+        else if (!strcmp(arg, "--")) {
+            options.extra_args = &argv[i + 1];
+            options.num_extra_args = argc - i - 1;
+            i += options.num_extra_args;
+        }
         else {
             fprintf(stderr, "unknown option: %s\n", arg);
             return 0;
@@ -588,6 +607,13 @@ void signal_handler (void *unused)
 {
     BLog(BLOG_NOTICE, "termination requested");
     
+    start_terminate(1);
+}
+
+void start_terminate (int exit_code)
+{
+    main_exit_code = exit_code;
+    
     if (terminating) {
         return;
     }
@@ -595,7 +621,7 @@ void signal_handler (void *unused)
     terminating = 1;
     
     if (LinkedList2_IsEmpty(&processes)) {
-        BReactor_Quit(&ss, 1);
+        BReactor_Quit(&ss, 0);
         return;
     }
     
@@ -1189,7 +1215,7 @@ void process_work_job_handler (struct process *p)
             
             // if program is terminating amd there are no more processes, exit program
             if (terminating && LinkedList2_IsEmpty(&processes)) {
-                BReactor_Quit(&ss, 1);
+                BReactor_Quit(&ss, 0);
             }
             return;
         }
@@ -1711,6 +1737,40 @@ void process_statement_instance_logfunc (struct process_statement *ps)
     
     process_statement_logfunc(ps);
     BLog_Append("module: ");
+}
+
+void process_statement_instance_func_interp_exit (struct process_statement *ps, int exit_code)
+{
+    ASSERT(ps->state != SSTATE_FORGOTTEN)
+    
+    start_terminate(exit_code);
+}
+
+int process_statement_instance_func_interp_getargs (struct process_statement *ps, NCDValue *out_value)
+{
+    ASSERT(ps->state != SSTATE_FORGOTTEN)
+    
+    NCDValue_InitList(out_value);
+    
+    for (int i = 0; i < options.num_extra_args; i++) {
+        NCDValue arg;
+        if (!NCDValue_InitString(&arg, options.extra_args[i])) {
+             process_statement_log(ps, BLOG_ERROR, "NCDValue_InitString failed");
+             goto fail1;
+        }
+        
+        if (!NCDValue_ListAppend(out_value, arg)) {
+            process_statement_log(ps, BLOG_ERROR, "NCDValue_ListAppend failed");
+            NCDValue_Free(&arg);
+            goto fail1;
+        }
+    }
+    
+    return 1;
+    
+fail1:
+    NCDValue_Free(out_value);
+    return 0;
 }
 
 void process_moduleprocess_func_event (struct process *p, int event)

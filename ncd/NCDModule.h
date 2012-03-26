@@ -109,6 +109,29 @@ typedef int (*NCDModuleInst_func_getobj) (void *user, const char *name, NCDObjec
  */
 typedef int (*NCDModuleInst_func_initprocess) (void *user, struct NCDModuleProcess_s *p, const char *template_name);
 
+/**
+ * Function called when the module instance wants the interpreter to
+ * initiate termination, as if it received an external terminatio request (signal).
+ * 
+ * @param user as in {@link NCDModuleInst_Init}
+ * @param exit_code exit code to return the the operating system. This overrides any previously
+ *                  set exit code, and will be overriden by a signal to the value 1.
+ *   
+ */
+typedef void (*NCDModuleInst_func_interp_exit) (void *user, int exit_code);
+
+/**
+ * Function called when the module instance wants the interpreter to
+ * provide its extra command line arguments.
+ * 
+ * @param user as in {@link NCDModuleInst_Init}
+ * @param out_value on success, the interpreter will write the list of extra command
+ *                  line arguments here
+ * @return 1 on success, 0 on failure
+ *   
+ */
+typedef int (*NCDModuleInst_func_interp_getargs) (void *user, NCDValue *out_value);
+
 #define NCDMODULEPROCESS_EVENT_UP 1
 #define NCDMODULEPROCESS_EVENT_DOWN 2
 #define NCDMODULEPROCESS_EVENT_TERMINATED 3
@@ -228,6 +251,14 @@ struct NCDModuleInst_params {
      * Log function which appends a log prefix with {@link BLog_Append}.
      */
     BLog_logfunc logfunc;
+    /**
+     * Callback to request interpreter termination.
+     */
+    NCDModuleInst_func_interp_exit func_interp_exit;
+    /**
+     * Callback to get extra command line arguments.
+     */
+    NCDModuleInst_func_interp_getargs func_interp_getargs;
 };
 
 /**
@@ -400,6 +431,25 @@ void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const 
  * @param n backend instance handle
  */
 void NCDModuleInst_Backend_SetError (NCDModuleInst *n);
+
+/**
+ * Initiates interpreter termination.
+ * 
+ * @param n backend instance handle
+ * @param exit_code exit code to return to the operating system. This overrides
+ *                  any previously set exit code, and will be overriden by a
+ *                  termination signal to the value 1.
+ */
+void NCDModuleInst_Backend_InterpExit (NCDModuleInst *n, int exit_code);
+
+/**
+ * Retrieves extra command line arguments passed to the interpreter.
+ * 
+ * @param n backend instance handle
+ * @param out_value the arguments will be written here on success as a list value
+ * @return 1 on success, 0 on failure
+ */
+int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValue *out_value);
 
 /**
  * Initializes a process in the interpreter from a process template.
