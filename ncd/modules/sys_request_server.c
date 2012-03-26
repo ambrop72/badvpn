@@ -31,7 +31,7 @@
  * A simple a IPC interface for NCD to talk to other processes over a Unix socket.
  * 
  * Synopsis:
- *   sys.request_server(string socket_path, string request_handler_template, list args)
+ *   sys.request_server(listen_address, string request_handler_template, list args)
  * 
  * Description:
  *   Initializes a request server on the given socket path. Requests are served by
@@ -44,6 +44,13 @@
  *   should be called to indicate that no further replies will be sent. Calling
  *   finish() will immediately initiate termination of the handler process.
  *   Requests can be sent to NCD using the badvpn-ncd-request program.
+ * 
+ *   The listen_address argument must be one of:
+ *   - {"unix", socket_path}
+ *     Listens on a Unix socket.
+ *   - {"tcp", ip_address, port_number}
+ *     Listens on a TCP socket. The address must be numeric and not a name.
+ *     For IPv6, the address must be enclosed in [].
  * 
  * Synopsis:
  *   sys.request_server.request::reply(reply_data)
@@ -62,10 +69,12 @@
 #include <misc/offset.h>
 #include <misc/debug.h>
 #include <misc/byteorder.h>
+#include <misc/parse_number.h>
 #include <protocol/packetproto.h>
 #include <protocol/requestproto.h>
 #include <structure/LinkedList0.h>
 #include <system/BConnection.h>
+#include <system/BAddr.h>
 #include <flow/PacketProtoDecoder.h>
 #include <flow/PacketStreamSender.h>
 #include <flow/PacketPassFifoQueue.h>
@@ -85,7 +94,7 @@
 
 struct instance {
     NCDModuleInst *i;
-    char *socket_path;
+    char *unix_socket_path;
     char *request_handler_template;
     NCDValue *args;
     BListener listener;
@@ -148,6 +157,7 @@ static struct reply * reply_init (struct connection *c, uint32_t request_id, NCD
 static void reply_start (struct reply *r, uint32_t type);
 static void reply_free (struct reply *r);
 static void reply_send_qflow_if_handler_done (struct reply *r);
+static int init_listen (struct instance *o, NCDValue *listen_addr_arg);
 static void instance_free (struct instance *o);
 
 static void listener_handler (struct instance *o)
@@ -589,6 +599,90 @@ static void reply_send_qflow_if_handler_done (struct reply *r)
     reply_free(r);
 }
 
+static int init_listen (struct instance *o, NCDValue *listen_addr_arg)
+{
+    if (NCDValue_Type(listen_addr_arg) != NCDVALUE_LIST) {
+        goto bad;
+    }
+    
+    if (NCDValue_ListCount(listen_addr_arg) < 1) {
+        goto bad;
+    }
+    NCDValue *type_arg = NCDValue_ListFirst(listen_addr_arg);
+    
+    if (NCDValue_Type(type_arg) != NCDVALUE_STRING) {
+        goto bad;
+    }
+    const char *type = NCDValue_StringValue(type_arg);
+    
+    o->unix_socket_path = NULL;
+    
+    if (!strcmp(type, "unix")) {
+        NCDValue *socket_path_arg;
+        if (!NCDValue_ListRead(listen_addr_arg, 2, &type_arg, &socket_path_arg)) {
+            goto bad;
+        }
+        
+        if (NCDValue_Type(socket_path_arg) != NCDVALUE_STRING) {
+            goto bad;
+        }
+        
+        // remember socket path
+        o->unix_socket_path = NCDValue_StringValue(socket_path_arg);
+        
+        // make sure socket file doesn't exist
+        if (unlink(o->unix_socket_path) < 0 && errno != ENOENT) {
+            ModuleLog(o->i, BLOG_ERROR, "unlink failed");
+            return 0;
+        }
+        
+        // init listener
+        if (!BListener_InitUnix(&o->listener, o->unix_socket_path, o->i->params->reactor, o, (BListener_handler)listener_handler)) {
+            ModuleLog(o->i, BLOG_ERROR, "BListener_InitUnix failed");
+            return 0;
+        }
+    }
+    else if (!strcmp(type, "tcp")) {
+        NCDValue *ip_address_arg;
+        NCDValue *port_number_arg;
+        if (!NCDValue_ListRead(listen_addr_arg, 3, &type_arg, &ip_address_arg, &port_number_arg)) {
+            goto bad;
+        }
+        
+        if (NCDValue_Type(ip_address_arg) != NCDVALUE_STRING || NCDValue_Type(port_number_arg) != NCDVALUE_STRING) {
+            goto bad;
+        }
+        
+        BIPAddr ipaddr;
+        if (!BIPAddr_Resolve(&ipaddr, NCDValue_StringValue(ip_address_arg), 1)) {
+            goto bad;
+        }
+        
+        uintmax_t port;
+        if (!parse_unsigned_integer(NCDValue_StringValue(port_number_arg), &port) || port > UINT16_MAX) {
+            goto bad;
+        }
+        
+        BAddr addr;
+        BAddr_InitFromIpaddrAndPort(&addr, ipaddr, hton16(port));
+        
+        // init listener
+        if (!BListener_Init(&o->listener, addr, o->i->params->reactor, o, (BListener_handler)listener_handler)) {
+            ModuleLog(o->i, BLOG_ERROR, "BListener_InitUnix failed");
+            return 0;
+        }
+    }
+    else {
+        goto bad;
+    }
+    
+    return 1;
+    
+bad:
+    ModuleLog(o->i, BLOG_ERROR, "bad listen address argument");
+    return 0;
+}
+
 static void func_new (NCDModuleInst *i)
 {
     // allocate structure
@@ -601,31 +695,22 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
-    NCDValue *socket_path_arg;
+    NCDValue *listen_addr_arg;
     NCDValue *request_handler_template_arg;
     NCDValue *args_arg;
-    if (!NCDValue_ListRead(i->args, 3, &socket_path_arg, &request_handler_template_arg, &args_arg)) {
+    if (!NCDValue_ListRead(i->args, 3, &listen_addr_arg, &request_handler_template_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(socket_path_arg) != NCDVALUE_STRING || NCDValue_Type(request_handler_template_arg) != NCDVALUE_STRING ||
-        NCDValue_Type(args_arg) != NCDVALUE_LIST) {
+    if (NCDValue_Type(request_handler_template_arg) != NCDVALUE_STRING || NCDValue_Type(args_arg) != NCDVALUE_LIST) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->socket_path = NCDValue_StringValue(socket_path_arg);
     o->request_handler_template = NCDValue_StringValue(request_handler_template_arg);
     o->args = args_arg;
     
-    // make sure socket file doesn't exist
-    if (unlink(o->socket_path) < 0 && errno != ENOENT) {
-        ModuleLog(o->i, BLOG_ERROR, "unlink failed");
-        goto fail1;
-    }
-    
     // init listener
-    if (!BListener_InitUnix(&o->listener, o->socket_path, i->params->reactor, o, (BListener_handler)listener_handler)) {
-        ModuleLog(o->i, BLOG_ERROR, "BListener_InitUnix failed");
+    if (!init_listen(o, listen_addr_arg)) {
         goto fail1;
     }
     
@@ -667,9 +752,11 @@ static void func_die (void *vo)
     // free listener
     BListener_Free(&o->listener);
     
-    // remove socket file
-    if (unlink(o->socket_path)) {
-        ModuleLog(o->i, BLOG_ERROR, "unlink failed");
+    if (o->unix_socket_path) {
+        // remove socket file
+        if (unlink(o->unix_socket_path)) {
+            ModuleLog(o->i, BLOG_ERROR, "unlink failed");
+        }
     }
     
     // terminate connections
