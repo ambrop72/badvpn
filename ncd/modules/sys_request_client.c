@@ -29,12 +29,19 @@
  * @section DESCRIPTION
  * 
  * Synopsis:
- *   sys.request_client(string socket_path)
+ *   sys.request_client(string connect_addr)
  * 
  * Description:
- *   Connects to a request server (sys.request_server()) over a Unix socket.
+ *   Connects to a request server (sys.request_server()).
  *   Goes up when the connection, and dies with error when it is broken.
  *   When requested to die, dies immediately, breaking the connection.
+ * 
+ *   The connect_addr argument must be one of:
+ *   - {"unix", socket_path}
+ *     Connects to a Unix socket.
+ *   - {"tcp", ip_address, port_number}
+ *     Connects to a TCP server. The address must be numeric and not a name.
+ *     For IPv6, the address must be enclosed in [].
  * 
  * Synopsis:
  *   sys.request_client::request(request_data, string reply_handler, string finished_handler, list args)
@@ -75,10 +82,14 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
+#include <limits.h>
 
 #include <misc/offset.h>
+#include <misc/parse_number.h>
 #include <structure/LinkedList0.h>
 #include <structure/LinkedList1.h>
+#include <system/BAddr.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDRequestClient.h>
 
@@ -146,6 +157,7 @@ static void request_die (struct request_instance *o, int is_error);
 static void request_free_reply (struct request_instance *o, struct reply *r, int have_value);
 static int request_init_reply_process (struct request_instance *o, NCDValue reply_data);
 static int request_init_finished_process (struct request_instance *o);
+static int get_connect_addr (struct instance *o, NCDValue *connect_addr_arg, struct NCDRequestClient_addr *out_addr);
 static void instance_free (struct instance *o, int with_error);
 static void request_instance_free (struct request_instance *o, int with_error);
 
@@ -464,6 +476,71 @@ fail0:
     return 0;
 }
 
+static int get_connect_addr (struct instance *o, NCDValue *connect_addr_arg, struct NCDRequestClient_addr *out_addr)
+{
+    if (NCDValue_Type(connect_addr_arg) != NCDVALUE_LIST) {
+        goto bad;
+    }
+    
+    if (NCDValue_ListCount(connect_addr_arg) < 1) {
+        goto bad;
+    }
+    NCDValue *type_arg = NCDValue_ListFirst(connect_addr_arg);
+    
+    if (NCDValue_Type(type_arg) != NCDVALUE_STRING) {
+        goto bad;
+    }
+    const char *type = NCDValue_StringValue(type_arg);
+    
+    if (!strcmp(type, "unix")) {
+        NCDValue *socket_path_arg;
+        if (!NCDValue_ListRead(connect_addr_arg, 2, &type_arg, &socket_path_arg)) {
+            goto bad;
+        }
+        
+        if (NCDValue_Type(socket_path_arg) != NCDVALUE_STRING) {
+            goto bad;
+        }
+        
+        *out_addr = NCDREQUESTCLIENT_UNIX_ADDR(NCDValue_StringValue(socket_path_arg));
+    }
+    else if (!strcmp(type, "tcp")) {
+        NCDValue *ip_address_arg;
+        NCDValue *port_number_arg;
+        if (!NCDValue_ListRead(connect_addr_arg, 3, &type_arg, &ip_address_arg, &port_number_arg)) {
+            goto bad;
+        }
+        
+        if (NCDValue_Type(ip_address_arg) != NCDVALUE_STRING || NCDValue_Type(port_number_arg) != NCDVALUE_STRING) {
+            goto bad;
+        }
+        
+        BIPAddr ipaddr;
+        if (!BIPAddr_Resolve(&ipaddr, NCDValue_StringValue(ip_address_arg), 1)) {
+            goto bad;
+        }
+        
+        uintmax_t port;
+        if (!parse_unsigned_integer(NCDValue_StringValue(port_number_arg), &port) || port > UINT16_MAX) {
+            goto bad;
+        }
+        
+        BAddr addr;
+        BAddr_InitFromIpaddrAndPort(&addr, ipaddr, hton16(port));
+        
+        *out_addr = NCDREQUESTCLIENT_TCP_ADDR(addr);
+    }
+    else {
+        goto bad;
+    }
+    
+    return 1;
+    
+bad:
+    ModuleLog(o->i, BLOG_ERROR, "bad connect address argument");
+    return 0;
+}
+
 static void func_new (NCDModuleInst *i)
 {
     // allocate structure
@@ -476,19 +553,20 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
-    NCDValue *socket_path_arg;
-    if (!NCDValue_ListRead(i->args, 1, &socket_path_arg)) {
+    NCDValue *connect_addr_arg;
+    if (!NCDValue_ListRead(i->args, 1, &connect_addr_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(socket_path_arg) != NCDVALUE_STRING) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong type");
+    
+    // get address
+    struct NCDRequestClient_addr addr;
+    if (!get_connect_addr(o, connect_addr_arg, &addr)) {
         goto fail1;
     }
-    char *socket_path = NCDValue_StringValue(socket_path_arg);
     
     // init client
-    if (!NCDRequestClient_Init(&o->client, NCDREQUESTCLIENT_UNIX_ADDR(socket_path), i->params->reactor, o,
+    if (!NCDRequestClient_Init(&o->client, addr, i->params->reactor, o,
         (NCDRequestClient_handler_error)client_handler_error,
         (NCDRequestClient_handler_connected)client_handler_connected)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDRequestClient_Init failed");
