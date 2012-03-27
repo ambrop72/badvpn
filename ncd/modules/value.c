@@ -34,6 +34,7 @@
  *   value value::try_get(where)
  *   value value::getpath(list path)
  *   value value::insert(where, what)
+ *   value value::insert_remove(where, what)
  * 
  * Description:
  *   Value objects allow examining and manipulating values.
@@ -64,6 +65,10 @@
  *   of the list to append to it.
  *   For maps, 'where' is the key to insert under. If the key already exists in the
  *   map, its value is replaced; any references to the old value however remain valid.
+ * 
+ *   value::insert_remove(where, what) is like value::insert(), except that it
+ *   also removes the value that was inserted on deinitialization (except if it
+ *   was removed externally, or deleted entirely).
  * 
  * Variables:
  *   (empty) - the value stored in the value object
@@ -114,6 +119,7 @@ struct instance {
     NCDModuleInst *i;
     struct value *v;
     LinkedList0Node refs_list_node;
+    int remove_on_deinit;
 };
 
 struct value {
@@ -148,6 +154,7 @@ static int ncdvalue_comparator (void *unused, void *vv1, void *vv2);
 static const char * get_type_str (int type);
 static void value_cleanup (struct value *v);
 static void value_delete (struct value *v);
+static void value_remove_from_parent (struct value *v);
 static struct value * value_init_string (NCDModuleInst *i, const char *str);
 static struct value * value_init_list (NCDModuleInst *i);
 static size_t value_list_len (struct value *v);
@@ -264,6 +271,21 @@ static void value_delete (struct value *v)
     }
     
     free(v);
+}
+
+static void value_remove_from_parent (struct value *v)
+{
+    ASSERT(v->parent)
+    
+    switch (v->parent->type) {
+        case NCDVALUE_LIST: {
+            value_list_remove(v->parent, v);
+        } break;
+        case NCDVALUE_MAP: {
+            value_map_remove(v->parent, v);
+        } break;
+        default: ASSERT(0);
+    }
 }
 
 static struct value * value_init_string (NCDModuleInst *i, const char *str)
@@ -760,7 +782,7 @@ fail:
     return 0;
 }
 
-static void func_new_common (NCDModuleInst *i, struct value *v)
+static void func_new_common (NCDModuleInst *i, struct value *v, int remove_on_deinit)
 {
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
@@ -778,6 +800,9 @@ static void func_new_common (NCDModuleInst *i, struct value *v)
         // add reference
         LinkedList0_Prepend(&o->v->refs_list, &o->refs_list_node);
     }
+    
+    // set remove on deinit flag
+    o->remove_on_deinit = remove_on_deinit;
     
     NCDModuleInst_Backend_Up(i);
     return;
@@ -798,6 +823,11 @@ static void func_die (void *vo)
     if (o->v) {
         // remove reference
         LinkedList0_Remove(&o->v->refs_list, &o->refs_list_node);
+        
+        // remove value from parent if requested
+        if (o->remove_on_deinit && o->v->parent) {
+            value_remove_from_parent(o->v);
+        }
         
         // cleanup after removing reference
         value_cleanup(o->v);
@@ -913,7 +943,7 @@ static void func_new_value (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_common(i, v);
+    func_new_common(i, v, 0);
     return;
     
 fail0:
@@ -941,7 +971,7 @@ static void func_new_get (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_common(i, v);
+    func_new_common(i, v, 0);
     return;
     
 fail0:
@@ -966,7 +996,7 @@ static void func_new_try_get (NCDModuleInst *i)
     
     struct value *v = value_get(i, mo->v, where_arg, 1);
     
-    func_new_common(i, v);
+    func_new_common(i, v, 0);
     return;
     
 fail0:
@@ -998,7 +1028,7 @@ static void func_new_getpath (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_common(i, v);
+    func_new_common(i, v, 0);
     return;
     
 fail0:
@@ -1027,7 +1057,36 @@ static void func_new_insert (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_common(i, v);
+    func_new_common(i, v, 0);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void func_new_insert_remove (NCDModuleInst *i)
+{
+    NCDValue *where_arg;
+    NCDValue *what_arg;
+    if (!NCDValue_ListRead(i->args, 2, &where_arg, &what_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    
+    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    
+    if (!mo->v) {
+        ModuleLog(i, BLOG_ERROR, "value was deleted");
+        goto fail0;
+    }
+    
+    struct value *v = value_insert(i, mo->v, where_arg, what_arg);
+    if (!v) {
+        goto fail0;
+    }
+    
+    func_new_common(i, v, 1);
     return;
     
 fail0:
@@ -1114,6 +1173,12 @@ static const struct NCDModule modules[] = {
         .type = "value::insert",
         .base_type = "value",
         .func_new = func_new_insert,
+        .func_die = func_die,
+        .func_getvar = func_getvar
+    }, {
+        .type = "value::insert_remove",
+        .base_type = "value",
+        .func_new = func_new_insert_remove,
         .func_die = func_die,
         .func_getvar = func_getvar
     }, {
