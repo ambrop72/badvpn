@@ -171,7 +171,7 @@ static void new_templ (NCDModuleInst *i, compute_func cfunc)
 {
     struct instance *o = malloc(sizeof(*o));
     if (!o) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong type");
+        ModuleLog(i, BLOG_ERROR, "malloc failed");
         goto fail0;
     }
     o->i = i;
