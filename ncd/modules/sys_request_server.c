@@ -52,6 +52,15 @@
  *     Listens on a TCP socket. The address must be numeric and not a name.
  *     For IPv6, the address must be enclosed in [].
  * 
+ * Predefined variables in request_handler_template:
+ *   _request.data - the request payload as sent by the client
+ *   _request.client_addr_type - type of client address; "none", "ipv4" or "ipv6"
+ *   _request.client_addr - client IP address. IPv4 addresses are standard dotted-decimal
+ *     without leading zeros, e.g. "14.6.0.251". IPv6 addresses are full 8
+ *     lower-case-hexadecimal numbers separated by 7 colons, without leading zeros,
+ *     e.g. "61:71a4:81f:98aa:57:0:5efa:17". If client_addr_type=="none", this too
+ *     is "none".
+ * 
  * Synopsis:
  *   sys.request_server.request::reply(reply_data)
  * 
@@ -111,6 +120,7 @@ struct connection {
     struct instance *inst;
     LinkedList0Node connections_list_node;
     BConnection con;
+    BAddr addr;
     PacketProtoDecoder recv_decoder;
     PacketPassInterface recv_if;
     PacketPassFifoQueue send_queue;
@@ -177,7 +187,7 @@ static void listener_handler (struct instance *o)
     
     LinkedList0_Prepend(&o->connections_list, &c->connections_list_node);
     
-    if (!BConnection_Init(&c->con, BCONNECTION_SOURCE_LISTENER(&o->listener, NULL), reactor, c, (BConnection_handler)connection_con_handler)) {
+    if (!BConnection_Init(&c->con, BCONNECTION_SOURCE_LISTENER(&o->listener, &c->addr), reactor, c, (BConnection_handler)connection_con_handler)) {
         ModuleLog(o->i, BLOG_ERROR, "BConnection_Init failed");
         goto fail1;
     }
@@ -487,6 +497,43 @@ static int request_process_request_obj_func_getvar (struct request *r, const cha
     if (!strcmp(name, "data")) {
         if (!NCDValue_InitCopy(out_value, &r->request_data)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
+            return 0;
+        }
+        return 1;
+    }
+    
+    if (!strcmp(name, "client_addr_type")) {
+        const char *str = "none";
+        switch (r->con->addr.type) {
+            case BADDR_TYPE_IPV4:
+                str = "ipv4";
+                break;
+            case BADDR_TYPE_IPV6:
+                str = "ipv6";
+                break;
+        }
+        
+        if (!NCDValue_InitString(out_value, str)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
+            return 0;
+        }
+        return 1;
+    }
+    
+    if (!strcmp(name, "client_addr")) {
+        char str[BIPADDR_MAX_PRINT_LEN] = "none";
+        
+        switch (r->con->addr.type) {
+            case BADDR_TYPE_IPV4:
+            case BADDR_TYPE_IPV6: {
+                BIPAddr ipaddr;
+                BAddr_GetIPAddr(&r->con->addr, &ipaddr);
+                BIPAddr_Print(&ipaddr, str);
+            } break;
+        }
+        
+        if (!NCDValue_InitString(out_value, str)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
             return 0;
         }
         return 1;
