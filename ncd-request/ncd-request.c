@@ -32,10 +32,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <misc/string_begins_with.h>
 #include <base/BLog.h>
 #include <base/DebugObject.h>
 #include <system/BNetwork.h>
 #include <system/BReactor.h>
+#include <system/BAddr.h>
 #include <ncd/NCDValueParser.h>
 #include <ncd/NCDValueGenerator.h>
 #include <ncd/NCDRequestClient.h>
@@ -48,6 +50,7 @@ static void request_handler_sent (void *user);
 static void request_handler_reply (void *user, NCDValue reply_data);
 static void request_handler_finished (void *user, int is_error);
 static int write_all (int fd, const uint8_t *data, size_t len);
+static int make_connect_addr (const char *str, struct NCDRequestClient_addr *out_addr);
 
 NCDValue request_payload;
 BReactor reactor;
@@ -60,11 +63,11 @@ int main (int argc, char *argv[])
     int res = 1;
     
     if (argc != 3) {
-        fprintf(stderr, "Usage: %s <socket_path> <request_payload>\n", (argc > 0 ? argv[0] : ""));
+        fprintf(stderr, "Usage: %s < unix:<socket_path> / tcp:<address>:<port> > <request_payload>\n", (argc > 0 ? argv[0] : ""));
         goto fail0;
     }
     
-    char *socket_path = argv[1];
+    char *connect_address = argv[1];
     char *request_payload_string = argv[2];
     
     BLog_InitStderr();
@@ -86,7 +89,12 @@ int main (int argc, char *argv[])
         goto fail2;
     }
     
-    if (!NCDRequestClient_Init(&client, NCDREQUESTCLIENT_UNIX_ADDR(socket_path), &reactor, NULL, client_handler_error, client_handler_connected)) {
+    struct NCDRequestClient_addr addr;
+    if (!make_connect_addr(connect_address, &addr)) {
+        goto fail3;
+    }
+    
+    if (!NCDRequestClient_Init(&client, addr, &reactor, NULL, client_handler_error, client_handler_connected)) {
         BLog(BLOG_ERROR, "NCDRequestClient_Init failed");
         goto fail3;
     }
@@ -108,6 +116,30 @@ fail1:
 fail0:
     DebugObjectGlobal_Finish();
     return res;
+}
+
+static int make_connect_addr (const char *str, struct NCDRequestClient_addr *out_addr)
+{
+    size_t i;
+    
+    if (i = string_begins_with(str, "unix:")) {
+        *out_addr = NCDREQUESTCLIENT_UNIX_ADDR(str + i);
+    }
+    else if (i = string_begins_with(str, "tcp:")) {
+        BAddr baddr;
+        if (!BAddr_Parse2(&baddr, (char *)str + i, NULL, 0, 1)) {
+            BLog(BLOG_ERROR, "failed to parse tcp address");
+            return 0;
+        }
+        
+        *out_addr = NCDREQUESTCLIENT_TCP_ADDR(baddr);
+    }
+    else {
+        BLog(BLOG_ERROR, "address must start with unix: or tcp:");
+        return 0;
+    }
+    
+    return 1;
 }
 
 static void client_handler_error (void *user)
