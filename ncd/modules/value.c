@@ -30,7 +30,7 @@
  * 
  * Synopsis:
  *   value(value)
- *   value value::get(what)
+ *   value value::get(where)
  *   value value::getpath(list path)
  * 
  * Description:
@@ -38,8 +38,8 @@
  * 
  *   value(value) constructs a new value object from the given value.
  * 
- *   value::get(what) constructs a value object for the element at position 'what'
- *   (for a list), or the value corresponding to key 'what' (for a map). It is an
+ *   value::get(where) constructs a value object for the element at position 'where'
+ *   (for a list), or the value corresponding to key 'where' (for a map). It is an
  *   error if the base value is not a list or a map, the index is out of bounds of
  *   the list, or the key does not exist in the map.
  *   The resulting value object is NOT a copy, and shares (part of) the same
@@ -139,7 +139,7 @@ static int value_map_insert (struct value *map, struct value *v, NCDValue key, N
 static void value_map_remove (struct value *map, struct value *v);
 static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValue *value);
 static int value_to_value (NCDModuleInst *i, struct value *v, NCDValue *out_value);
-static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *what);
+static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *where);
 static struct value * value_get_path (NCDModuleInst *i, struct value *v, NCDValue *path);
 
 static int ncdvalue_comparator (void *unused, void *vv1, void *vv2)
@@ -547,7 +547,7 @@ fail0:
     return 0;
 }
 
-static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *what)
+static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *where)
 {
     switch (v->type) {
         case NCDVALUE_STRING: {
@@ -556,13 +556,13 @@ static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *wh
         } break;
         
         case NCDVALUE_LIST: {
-            if (NCDValue_Type(what) != NCDVALUE_STRING) {
+            if (NCDValue_Type(where) != NCDVALUE_STRING) {
                 ModuleLog(i, BLOG_ERROR, "index is not a string (resolving into list)");
                 goto fail;
             }
             
             uintmax_t index;
-            if (!parse_unsigned_integer(NCDValue_StringValue(what), &index)) {
+            if (!parse_unsigned_integer(NCDValue_StringValue(where), &index)) {
                 ModuleLog(i, BLOG_ERROR, "index is not a valid number (resolving into list)");
                 goto fail;
             }
@@ -576,7 +576,7 @@ static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *wh
         } break;
         
         case NCDVALUE_MAP: {
-            v = value_map_find(v, what);
+            v = value_map_find(v, where);
             if (!v) {
                 ModuleLog(i, BLOG_ERROR, "key does not exist (resolving into map)");
                 goto fail;
@@ -762,8 +762,8 @@ fail0:
 
 static void func_new_get (NCDModuleInst *i)
 {
-    NCDValue *what_arg;
-    if (!NCDValue_ListRead(i->args, 1, &what_arg)) {
+    NCDValue *where_arg;
+    if (!NCDValue_ListRead(i->args, 1, &where_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -775,7 +775,7 @@ static void func_new_get (NCDModuleInst *i)
         goto fail0;
     }
     
-    struct value *v = value_get(i, mo->v, what_arg);
+    struct value *v = value_get(i, mo->v, where_arg);
     if (!v) {
         goto fail0;
     }
