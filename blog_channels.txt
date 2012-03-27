@@ -114,3 +114,4 @@ ncd_sys_request_client 4
 ncd_exit 4
 ncd_getargs 4
 ncd_arithmetic 4
+ncd_parse 4

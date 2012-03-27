@@ -114,4 +114,5 @@
 #define BLOG_CHANNEL_ncd_exit 113
 #define BLOG_CHANNEL_ncd_getargs 114
 #define BLOG_CHANNEL_ncd_arithmetic 115
-#define BLOG_NUM_CHANNELS 116
+#define BLOG_CHANNEL_ncd_parse 116
+#define BLOG_NUM_CHANNELS 117

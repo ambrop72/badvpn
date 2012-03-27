@@ -114,3 +114,4 @@
 {.name = "ncd_exit", .loglevel = 4},
 {.name = "ncd_getargs", .loglevel = 4},
 {.name = "ncd_arithmetic", .loglevel = 4},
+{.name = "ncd_parse", .loglevel = 4},
