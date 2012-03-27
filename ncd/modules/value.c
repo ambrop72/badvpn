@@ -32,6 +32,7 @@
  *   value(value)
  *   value value::get(where)
  *   value value::getpath(list path)
+ *   value value::insert(where, what)
  * 
  * Description:
  *   Value objects allow examining and manipulating values.
@@ -50,6 +51,13 @@
  *   consecutive resolutions. Also, if the path is an empty list, it performs
  *   no resulution at all.
  * 
+ *   value::insert(where, what) constructs a value object by inserting into an
+ *   existing value object.
+ *   For lists, 'where' is the index of the element to insert before, or the length
+ *   of the list to append to it.
+ *   For maps, 'where' is the key to insert under. If the key already exists in the
+ *   map, its value is replaced; any references to the old value however remain valid.
+ * 
  * Variables:
  *   (empty) - the value stored in the value object
  *   type - type of the value; "string", "list" or "map"
@@ -58,12 +66,18 @@
  *   keys - a list of keys in the map (only if the value is a map)
  * 
  * Synopsis:
+ *   value::remove(where)
  *   value::delete()
  * 
  * Description:
- *   Deletes the underlying value data of this value object. After delection,
- *   the value object enters a deleted state, which will cause any operation
- *   on it to fail. Any other value objects which referred to the same value
+ *   value::remove(where) removes from an existing value object.
+ *   For lists, 'where' is the index of the element to remove, and must be in range.
+ *   For maps, 'where' is the key to remove, and must be an existing key.
+ *   In any case, any references to the removed value remain valid.
+ * 
+ *   value::delete() deletes the underlying value data of this value object.
+ *   After delection, the value object enters a deleted state, which will cause any
+ *   operation on it to fail. Any other value objects which referred to the same value
  *   or parts of it will too enter deleted state. If the value was an element
  *   in a list or map, is is removed from it.
  */
@@ -141,6 +155,8 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValue *value);
 static int value_to_value (NCDModuleInst *i, struct value *v, NCDValue *out_value);
 static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *where);
 static struct value * value_get_path (NCDModuleInst *i, struct value *v, NCDValue *path);
+static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue *where, NCDValue *what);
+static int value_remove (NCDModuleInst *i, struct value *v, NCDValue *where);
 
 static int ncdvalue_comparator (void *unused, void *vv1, void *vv2)
 {
@@ -608,6 +624,133 @@ fail:
     return NULL;
 }
 
+static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue *where, NCDValue *what)
+{
+    struct value *nv;
+    
+    switch (v->type) {
+        case NCDVALUE_STRING: {
+            ModuleLog(i, BLOG_ERROR, "cannot insert into a string");
+            goto fail;
+        } break;
+        
+        case NCDVALUE_LIST: {
+            if (NCDValue_Type(where) != NCDVALUE_STRING) {
+                ModuleLog(i, BLOG_ERROR, "index is not a string (inserting into list)");
+                goto fail;
+            }
+            
+            uintmax_t index;
+            if (!parse_unsigned_integer(NCDValue_StringValue(where), &index)) {
+                ModuleLog(i, BLOG_ERROR, "index is not a valid number (inserting into list)");
+                goto fail;
+            }
+            
+            if (index > value_list_len(v)) {
+                ModuleLog(i, BLOG_ERROR, "index is out of bounds (inserting into list)");
+                goto fail;
+            }
+            
+            nv = value_init_fromvalue(i, what);
+            if (!nv) {
+                goto fail;
+            }
+            
+            if (!value_list_insert(i, v, nv, index)) {
+                value_cleanup(nv);
+                goto fail;
+            }
+        } break;
+        
+        case NCDVALUE_MAP: {
+            struct value *ov = value_map_find(v, where);
+            
+            if (!ov && value_map_len(v) == SIZE_MAX) {
+                ModuleLog(i, BLOG_ERROR, "map has too many elements");
+                goto fail;
+            }
+            
+            NCDValue key;
+            if (!NCDValue_InitCopy(&key, where)) {
+                ModuleLog(i, BLOG_ERROR, "NCDValue_InitCopy failed");
+                goto fail;
+            }
+            
+            nv = value_init_fromvalue(i, what);
+            if (!nv) {
+                NCDValue_Free(&key);
+                goto fail;
+            }
+            
+            if (ov) {
+                value_map_remove(v, ov);
+                value_cleanup(ov);
+            }
+            
+            int res = value_map_insert(v, nv, key, i);
+            ASSERT(res)
+        } break;
+        
+        default: ASSERT(0);
+    }
+    
+    return nv;
+    
+fail:
+    return NULL;
+}
+
+static int value_remove (NCDModuleInst *i, struct value *v, NCDValue *where)
+{
+    switch (v->type) {
+        case NCDVALUE_STRING: {
+            ModuleLog(i, BLOG_ERROR, "cannot remove from a string");
+            goto fail;
+        } break;
+        
+        case NCDVALUE_LIST: {
+            if (NCDValue_Type(where) != NCDVALUE_STRING) {
+                ModuleLog(i, BLOG_ERROR, "index is not a string (removing from list)");
+                goto fail;
+            }
+            
+            uintmax_t index;
+            if (!parse_unsigned_integer(NCDValue_StringValue(where), &index)) {
+                ModuleLog(i, BLOG_ERROR, "index is not a valid number (removing from list)");
+                goto fail;
+            }
+            
+            if (index >= value_list_len(v)) {
+                ModuleLog(i, BLOG_ERROR, "index is out of bounds (removing from list)");
+                goto fail;
+            }
+            
+            struct value *ov = value_list_at(v, index);
+            
+            value_list_remove(v, ov);
+            value_cleanup(ov);
+        } break;
+        
+        case NCDVALUE_MAP: {
+            struct value *ov = value_map_find(v, where);
+            if (!ov) {
+                ModuleLog(i, BLOG_ERROR, "key does not exist (removing from map)");
+                goto fail;
+            }
+            
+            value_map_remove(v, ov);
+            value_cleanup(ov);
+        } break;
+        
+        default: ASSERT(0);
+    }
+    
+    return 1;
+    
+fail:
+    return 0;
+}
+
 static void func_new_common (NCDModuleInst *i, struct value *v)
 {
     ASSERT(v)
@@ -820,6 +963,62 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
+static void func_new_insert (NCDModuleInst *i)
+{
+    NCDValue *where_arg;
+    NCDValue *what_arg;
+    if (!NCDValue_ListRead(i->args, 2, &where_arg, &what_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    
+    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    
+    if (!mo->v) {
+        ModuleLog(i, BLOG_ERROR, "value was deleted");
+        goto fail0;
+    }
+    
+    struct value *v = value_insert(i, mo->v, where_arg, what_arg);
+    if (!v) {
+        goto fail0;
+    }
+    
+    func_new_common(i, v);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void remove_func_new (NCDModuleInst *i)
+{
+    NCDValue *where_arg;
+    if (!NCDValue_ListRead(i->args, 1, &where_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    
+    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    
+    if (!mo->v) {
+        ModuleLog(i, BLOG_ERROR, "value was deleted");
+        goto fail0;
+    }
+    
+    if (!value_remove(i, mo->v, where_arg)) {
+        goto fail0;
+    }
+    
+    NCDModuleInst_Backend_Up(i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
 static void delete_func_new (NCDModuleInst *i)
 {
     if (!NCDValue_ListRead(i->args, 0)) {
@@ -862,6 +1061,15 @@ static const struct NCDModule modules[] = {
         .func_new = func_new_getpath,
         .func_die = func_die,
         .func_getvar = func_getvar
+    }, {
+        .type = "value::insert",
+        .base_type = "value",
+        .func_new = func_new_insert,
+        .func_die = func_die,
+        .func_getvar = func_getvar
+    }, {
+        .type = "value::remove",
+        .func_new = remove_func_new
     }, {
         .type = "value::delete",
         .func_new = delete_func_new
