@@ -31,6 +31,7 @@
  * Synopsis:
  *   value(value)
  *   value value::get(where)
+ *   value value::try_get(where)
  *   value value::getpath(list path)
  *   value value::insert(where, what)
  * 
@@ -46,6 +47,12 @@
  *   The resulting value object is NOT a copy, and shares (part of) the same
  *   underlying value structure as the base value object. Deleting it will remove
  *   it from the list or map it is part of.
+ * 
+ *   value::try_get(where) is like get(), except that if any restriction on 'where'
+ *   is violated, no error is triggered; instead, the value object is constructed
+ *   as being deleted; this state is exposed via the 'exists' variable.
+ *   This can be used to check for the presence of a key in a map, and in case it
+ *   exists, allow access to the corresponding value without another get() statement.
  * 
  *   value::getpath(path) is like get(), except that it performs multiple
  *   consecutive resolutions. Also, if the path is an empty list, it performs
@@ -64,6 +71,8 @@
  *   length - number of elements in the list or map (only if the value if a list
  *            or a map)
  *   keys - a list of keys in the map (only if the value is a map)
+ *   exists - "true" or "false", reflecting whether the value object holds a value
+ *            (is not in deleted state)
  * 
  * Synopsis:
  *   value::remove(where)
@@ -153,7 +162,7 @@ static int value_map_insert (struct value *map, struct value *v, NCDValue key, N
 static void value_map_remove (struct value *map, struct value *v);
 static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValue *value);
 static int value_to_value (NCDModuleInst *i, struct value *v, NCDValue *out_value);
-static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *where);
+static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *where, int no_error);
 static struct value * value_get_path (NCDModuleInst *i, struct value *v, NCDValue *path);
 static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue *where, NCDValue *what);
 static int value_remove (NCDModuleInst *i, struct value *v, NCDValue *where);
@@ -563,28 +572,28 @@ fail0:
     return 0;
 }
 
-static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *where)
+static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *where, int no_error)
 {
     switch (v->type) {
         case NCDVALUE_STRING: {
-            ModuleLog(i, BLOG_ERROR, "cannot resolve into a string");
+            if (!no_error) ModuleLog(i, BLOG_ERROR, "cannot resolve into a string");
             goto fail;
         } break;
         
         case NCDVALUE_LIST: {
             if (NCDValue_Type(where) != NCDVALUE_STRING) {
-                ModuleLog(i, BLOG_ERROR, "index is not a string (resolving into list)");
+                if (!no_error) ModuleLog(i, BLOG_ERROR, "index is not a string (resolving into list)");
                 goto fail;
             }
             
             uintmax_t index;
             if (!parse_unsigned_integer(NCDValue_StringValue(where), &index)) {
-                ModuleLog(i, BLOG_ERROR, "index is not a valid number (resolving into list)");
+                if (!no_error) ModuleLog(i, BLOG_ERROR, "index is not a valid number (resolving into list)");
                 goto fail;
             }
             
             if (index >= value_list_len(v)) {
-                ModuleLog(i, BLOG_ERROR, "index is out of bounds (resolving into list)");
+                if (!no_error) ModuleLog(i, BLOG_ERROR, "index is out of bounds (resolving into list)");
                 goto fail;
             }
             
@@ -594,7 +603,7 @@ static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *wh
         case NCDVALUE_MAP: {
             v = value_map_find(v, where);
             if (!v) {
-                ModuleLog(i, BLOG_ERROR, "key does not exist (resolving into map)");
+                if (!no_error) ModuleLog(i, BLOG_ERROR, "key does not exist (resolving into map)");
                 goto fail;
             }
         } break;
@@ -613,7 +622,7 @@ static struct value * value_get_path (NCDModuleInst *i, struct value *v, NCDValu
     ASSERT(NCDValue_Type(path) == NCDVALUE_LIST)
     
     for (NCDValue *ev = NCDValue_ListFirst(path); ev; ev = NCDValue_ListNext(path, ev)) {
-        if (!(v = value_get(i, v, ev))) {
+        if (!(v = value_get(i, v, ev, 0))) {
             goto fail;
         }
     }
@@ -753,8 +762,6 @@ fail:
 
 static void func_new_common (NCDModuleInst *i, struct value *v)
 {
-    ASSERT(v)
-    
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
     if (!o) {
@@ -767,8 +774,10 @@ static void func_new_common (NCDModuleInst *i, struct value *v)
     // set value
     o->v = v;
     
-    // add reference
-    LinkedList0_Prepend(&o->v->refs_list, &o->refs_list_node);
+    if (v) {
+        // add reference
+        LinkedList0_Prepend(&o->v->refs_list, &o->refs_list_node);
+    }
     
     NCDModuleInst_Backend_Up(i);
     return;
@@ -803,6 +812,15 @@ static void func_die (void *vo)
 static int func_getvar (void *vo, const char *name, NCDValue *out_value)
 {
     struct instance *o = vo;
+    
+    if (!strcmp(name, "exists")) {
+        const char *str = o->v ? "true" : "false";
+        if (!NCDValue_InitString(out_value, str)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
+            return 0;
+        }
+        return 1;
+    }
     
     if (strcmp(name, "type") && strcmp(name, "length") && strcmp(name, "keys") && strcmp(name, "")) {
         return 0;
@@ -918,10 +936,35 @@ static void func_new_get (NCDModuleInst *i)
         goto fail0;
     }
     
-    struct value *v = value_get(i, mo->v, where_arg);
+    struct value *v = value_get(i, mo->v, where_arg, 0);
     if (!v) {
         goto fail0;
     }
+    
+    func_new_common(i, v);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void func_new_try_get (NCDModuleInst *i)
+{
+    NCDValue *where_arg;
+    if (!NCDValue_ListRead(i->args, 1, &where_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    
+    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    
+    if (!mo->v) {
+        ModuleLog(i, BLOG_ERROR, "value was deleted");
+        goto fail0;
+    }
+    
+    struct value *v = value_get(i, mo->v, where_arg, 1);
     
     func_new_common(i, v);
     return;
@@ -1053,6 +1096,12 @@ static const struct NCDModule modules[] = {
         .type = "value::get",
         .base_type = "value",
         .func_new = func_new_get,
+        .func_die = func_die,
+        .func_getvar = func_getvar
+    }, {
+        .type = "value::try_get",
+        .base_type = "value",
+        .func_new = func_new_try_get,
         .func_die = func_die,
         .func_getvar = func_getvar
     }, {
