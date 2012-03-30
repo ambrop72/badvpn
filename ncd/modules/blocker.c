@@ -33,13 +33,22 @@
  * 
  * Synopsis: blocker()
  * Description: provides blocking operations. Initially the blocking state is down (but this statement
- * does not block).
+ *              does not block). On deinitialization, waits for all corresponding use() statements
+ *              to die before dying itself.
  * 
  * Synopsis: blocker::up()
  * Description: sets the blocking state to up.
+ *              The immediate effects of corresponding use() statements going up are processed before
+ *              this statement goes up; but this statement statement still goes up immediately,
+ *              assuming the effects mentioned haven't resulted in the intepreter scheduling this
+ *              very statement for destruction.
  * 
  * Synopsis: blocker::down()
  * Description: sets the blocking state to down.
+ *              The immediate effects of corresponding use() statements going up are processed before
+ *              this statement goes up; but this statement statement still goes up immediately,
+ *              assuming the effects mentioned haven't resulted in the intepreter scheduling this
+ *              very statement for destruction.
  * 
  * Synopsis: blocker::downup()
  * Description: atomically sets the blocker to down state (if it was up), then (back) to up state.
@@ -48,6 +57,12 @@
  *              going down as a result of having called down() and will only later execute the up()
  *              statement. In fact, it is possible that the effects of down() will prevent up() from
  *              executing, which may leave the program in an undesirable state.
+ * 
+ * Synopsis: blocker::rdownup()
+ * Description: on deinitialization, atomically sets the blocker to down state (if it was up), then
+ *              (back) to up state.
+ *              The immediate effects of corresponding use() statements changing state are processed
+ *              *after* the immediate effects of this statement dying (in contrast to downup()).
  * 
  * Synopsis: blocker::use()
  * Description: blocks on the blocker. This module is in up state if and only if the blocking state of
@@ -59,6 +74,8 @@
 
 #include <misc/offset.h>
 #include <misc/debug.h>
+#include <structure/LinkedList2.h>
+#include <structure/LinkedList0.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_blocker.h>
@@ -68,8 +85,15 @@
 struct instance {
     NCDModuleInst *i;
     LinkedList2 users;
+    LinkedList0 rdownups_list;
     int up;
     int dying;
+};
+
+struct rdownup_instance {
+    NCDModuleInst *i;
+    struct instance *blocker;
+    LinkedList0Node rdownups_list_node;
 };
 
 struct use_instance {
@@ -100,6 +124,9 @@ static void func_new (NCDModuleInst *i)
     // init users list
     LinkedList2_Init(&o->users);
     
+    // init rdownups list
+    LinkedList0_Init(&o->rdownups_list);
+    
     // set not up
     o->up = 0;
     
@@ -122,6 +149,15 @@ static void instance_free (struct instance *o)
 {
     ASSERT(LinkedList2_IsEmpty(&o->users))
     NCDModuleInst *i = o->i;
+    
+    // break any rdownups
+    LinkedList0Node *ln;
+    while (ln = LinkedList0_GetFirst(&o->rdownups_list)) {
+        struct rdownup_instance *rdu = UPPER_OBJECT(ln, struct rdownup_instance, rdownups_list_node);
+        ASSERT(rdu->blocker == o)
+        LinkedList0_Remove(&o->rdownups_list, &rdu->rdownups_list_node);
+        rdu->blocker = NULL;
+    }
     
     // free instance
     free(o);
@@ -204,6 +240,74 @@ static void downup_func_new (NCDModuleInst *i)
     updown_func_new_templ(i, 1, 1);
 }
 
+static void rdownup_func_new (NCDModuleInst *i)
+{
+    // allocate structure
+    struct rdownup_instance *o = malloc(sizeof(*o));
+    if (!o) {
+        ModuleLog(i, BLOG_ERROR, "malloc failed");
+        goto fail0;
+    }
+    o->i = i;
+    NCDModuleInst_Backend_SetUser(i, o);
+    
+    // check arguments
+    if (!NCDValue_ListRead(i->args, 0)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail1;
+    }
+    
+    // get blocker
+    struct instance *blk = ((NCDModuleInst *)i->method_user)->inst_user;
+    
+    // set blocker
+    o->blocker = blk;
+    
+    // insert to rdownups list
+    LinkedList0_Prepend(&blk->rdownups_list, &o->rdownups_list_node);
+    
+    // signal up
+    NCDModuleInst_Backend_Up(i);
+    return;
+    
+fail1:
+    free(o);
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void rdownup_func_die (void *vo)
+{
+    struct rdownup_instance *o = vo;
+    NCDModuleInst *i = o->i;
+    
+    struct instance *blk = o->blocker;
+    
+    if (blk) {
+        // remove from rdownups list
+        LinkedList0_Remove(&blk->rdownups_list, &o->rdownups_list_node);
+        
+        // downup users
+        for (LinkedList2Node *ln = LinkedList2_GetFirst(&blk->users); ln; ln = LinkedList2Node_Next(ln)) {
+            struct use_instance *user = UPPER_OBJECT(ln, struct use_instance, blocker_node);
+            ASSERT(user->blocker == blk)
+            if (blk->up) {
+                NCDModuleInst_Backend_Down(user->i);
+            }
+            NCDModuleInst_Backend_Up(user->i);
+        }
+        
+        // set up
+        blk->up = 1;
+    }
+    
+    // free instance
+    free(o);
+    
+    NCDModuleInst_Backend_Dead(i);
+}
+
 static void use_func_new (NCDModuleInst *i)
 {
     // allocate instance
@@ -276,6 +380,10 @@ static const struct NCDModule modules[] = {
     }, {
         .type = "blocker::downup",
         .func_new = downup_func_new
+    }, {
+        .type = "blocker::rdownup",
+        .func_new = rdownup_func_new,
+        .func_die = rdownup_func_die
     }, {
         .type = "blocker::use",
         .func_new = use_func_new,
