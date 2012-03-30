@@ -64,10 +64,6 @@ struct instance {
     int dying;
 };
 
-struct updown_instance {
-    NCDModuleInst *i;
-};
-
 struct use_instance {
     NCDModuleInst *i;
     struct instance *blocker;
@@ -142,25 +138,14 @@ static void func_die (void *vo)
 
 static void updown_func_new_templ (NCDModuleInst *i, int up)
 {
-    // allocate instance
-    struct updown_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
-    o->i = i;
-    
     // check arguments
-    if (!NCDValue_ListRead(o->i->args, 0)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+    if (!NCDValue_ListRead(i->args, 0)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
     }
     
     // signal up
-    NCDModuleInst_Backend_Up(o->i);
+    NCDModuleInst_Backend_Up(i);
     
     // get method object
     struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
@@ -186,8 +171,6 @@ static void updown_func_new_templ (NCDModuleInst *i, int up)
     
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -201,17 +184,6 @@ static void up_func_new (NCDModuleInst *i)
 static void down_func_new (NCDModuleInst *i)
 {
     updown_func_new_templ(i, 0);
-}
-
-static void updown_func_die (void *vo)
-{
-    struct updown_instance *o = vo;
-    NCDModuleInst *i = o->i;
-    
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
 }
 
 static void use_func_new (NCDModuleInst *i)
@@ -279,12 +251,10 @@ static const struct NCDModule modules[] = {
         .func_die = func_die
     }, {
         .type = "blocker::up",
-        .func_new = up_func_new,
-        .func_die = updown_func_die,
+        .func_new = up_func_new
     }, {
         .type = "blocker::down",
-        .func_new = down_func_new,
-        .func_die = updown_func_die,
+        .func_new = down_func_new
     }, {
         .type = "blocker::use",
         .func_new = use_func_new,
