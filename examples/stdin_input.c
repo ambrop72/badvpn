@@ -35,7 +35,7 @@
 #include <stddef.h>
 
 #include <base/DebugObject.h>
-#include <system/BReactor.c>
+#include <system/BReactor.h>
 #include <system/BNetwork.h>
 #include <system/BConnection.h>
 #include <system/BUnixSignal.h>
