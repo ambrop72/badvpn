@@ -82,10 +82,6 @@ struct process {
     int state;
 };
 
-struct startstop_instance {
-    NCDModuleInst *i;
-};
-
 static struct process * find_process (struct instance *o, const char *name);
 static int process_new (struct instance *o, const char *name, const char *template_name, NCDValue *args);
 static void process_free (struct process *p);
@@ -446,56 +442,45 @@ static void func_die (void *vo)
 
 static void start_func_new (NCDModuleInst *i)
 {
-    // allocate instance
-    struct startstop_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
-    o->i = i;
-    
     // check arguments
     NCDValue *name_arg;
     NCDValue *template_name_arg;
     NCDValue *args_arg;
-    if (!NCDValue_ListRead(o->i->args, 3, &name_arg, &template_name_arg, &args_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+    if (!NCDValue_ListRead(i->args, 3, &name_arg, &template_name_arg, &args_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
     }
     if (NCDValue_Type(name_arg) != NCDVALUE_STRING || NCDValue_Type(template_name_arg) != NCDVALUE_STRING ||
         NCDValue_Type(args_arg) != NCDVALUE_LIST) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
     }
     char *name = NCDValue_StringValue(name_arg);
     char *template_name = NCDValue_StringValue(template_name_arg);
     
     // signal up.
     // Do it before creating the process so that the process starts initializing before our own process continues.
-    NCDModuleInst_Backend_Up(o->i);
+    NCDModuleInst_Backend_Up(i);
     
     // get method object
     struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
     
     if (mo->dying) {
-        ModuleLog(o->i, BLOG_INFO, "manager is dying, not creating process %s", name);
+        ModuleLog(i, BLOG_INFO, "manager is dying, not creating process %s", name);
     } else {
         struct process *p = find_process(mo, name);
         if (p && p->state != PROCESS_STATE_STOPPING) {
-            ModuleLog(o->i, BLOG_INFO, "process %s already started", name);
+            ModuleLog(i, BLOG_INFO, "process %s already started", name);
         } else {
             if (p) {
                 if (!process_restart(p, template_name, args_arg)) {
-                    ModuleLog(o->i, BLOG_ERROR, "failed to restart process %s", name);
-                    goto fail1;
+                    ModuleLog(i, BLOG_ERROR, "failed to restart process %s", name);
+                    goto fail0;
                 }
             } else {
                 if (!process_new(mo, name, template_name, args_arg)) {
-                    ModuleLog(o->i, BLOG_ERROR, "failed to create process %s", name);
-                    goto fail1;
+                    ModuleLog(i, BLOG_ERROR, "failed to create process %s", name);
+                    goto fail0;
                 }
             }
         }
@@ -503,8 +488,6 @@ static void start_func_new (NCDModuleInst *i)
     
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -512,42 +495,31 @@ fail0:
 
 static void stop_func_new (NCDModuleInst *i)
 {
-    // allocate instance
-    struct startstop_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
-    o->i = i;
-    
     // check arguments
     NCDValue *name_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &name_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+    if (!NCDValue_ListRead(i->args, 1, &name_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
     }
     if (NCDValue_Type(name_arg) != NCDVALUE_STRING) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
     }
     char *name = NCDValue_StringValue(name_arg);
     
     // signal up.
     // Do it before stopping the process so that the process starts terminating before our own process continues.
-    NCDModuleInst_Backend_Up(o->i);
+    NCDModuleInst_Backend_Up(i);
     
     // get method object
     struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
     
     if (mo->dying) {
-        ModuleLog(o->i, BLOG_INFO, "manager is dying, not stopping process %s", name);
+        ModuleLog(i, BLOG_INFO, "manager is dying, not stopping process %s", name);
     } else {
         struct process *p = find_process(mo, name);
         if (!(p && p->state != PROCESS_STATE_STOPPING)) {
-            ModuleLog(o->i, BLOG_INFO, "process %s already stopped", name);
+            ModuleLog(i, BLOG_INFO, "process %s already stopped", name);
         } else {
             process_stop(p);
         }
@@ -555,21 +527,8 @@ static void stop_func_new (NCDModuleInst *i)
     
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
-}
-
-static void startstop_func_die (void *vo)
-{
-    struct startstop_instance *o = vo;
-    NCDModuleInst *i = o->i;
-    
-    // free instance
-    free(o);
-    
     NCDModuleInst_Backend_Dead(i);
 }
 
@@ -580,12 +539,10 @@ static const struct NCDModule modules[] = {
         .func_die = func_die
     }, {
         .type = "process_manager::start",
-        .func_new = start_func_new,
-        .func_die = startstop_func_die
+        .func_new = start_func_new
     }, {
         .type = "process_manager::stop",
-        .func_new = stop_func_new,
-        .func_die = startstop_func_die
+        .func_new = stop_func_new
     }, {
         .type = NULL
     }
