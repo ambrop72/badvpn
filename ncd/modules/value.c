@@ -115,11 +115,16 @@
 
 struct value;
 
-struct instance {
-    NCDModuleInst *i;
+struct valref {
     struct value *v;
     LinkedList0Node refs_list_node;
-    int remove_on_deinit;
+};
+
+struct instance {
+    NCDModuleInst *i;
+    struct valref ref;
+    struct valref restore_ref;
+    int restore_on_deinit;
 };
 
 struct value {
@@ -154,11 +159,11 @@ static int ncdvalue_comparator (void *unused, void *vv1, void *vv2);
 static const char * get_type_str (int type);
 static void value_cleanup (struct value *v);
 static void value_delete (struct value *v);
-static void value_remove_from_parent (struct value *v);
 static struct value * value_init_string (NCDModuleInst *i, const char *str);
 static struct value * value_init_list (NCDModuleInst *i);
 static size_t value_list_len (struct value *v);
 static struct value * value_list_at (struct value *v, size_t index);
+static size_t value_list_indexof (struct value *v, struct value *ev);
 static int value_list_insert (NCDModuleInst *i, struct value *list, struct value *v, size_t index);
 static void value_list_remove (struct value *list, struct value *v);
 static struct value * value_init_map (NCDModuleInst *i);
@@ -167,12 +172,17 @@ static struct value * value_map_at (struct value *map, size_t index);
 static struct value * value_map_find (struct value *map, NCDValue *key);
 static int value_map_insert (struct value *map, struct value *v, NCDValue key, NCDModuleInst *i);
 static void value_map_remove (struct value *map, struct value *v);
+static void value_map_remove2 (struct value *map, struct value *v, NCDValue *out_key);
 static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValue *value);
 static int value_to_value (NCDModuleInst *i, struct value *v, NCDValue *out_value);
 static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *where, int no_error);
 static struct value * value_get_path (NCDModuleInst *i, struct value *v, NCDValue *path);
 static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue *where, NCDValue *what);
 static int value_remove (NCDModuleInst *i, struct value *v, NCDValue *where);
+static void valref_init (struct valref *r, struct value *v);
+static void valref_free (struct valref *r);
+static struct value * valref_val (struct valref *r);
+static void valref_break (struct valref *r);
 
 static int ncdvalue_comparator (void *unused, void *vv1, void *vv2)
 {
@@ -242,10 +252,9 @@ static void value_delete (struct value *v)
     
     LinkedList0Node *ln;
     while (ln = LinkedList0_GetFirst(&v->refs_list)) {
-        struct instance *inst = UPPER_OBJECT(ln, struct instance, refs_list_node);
-        ASSERT(inst->v == v)
-        LinkedList0_Remove(&v->refs_list, &inst->refs_list_node);
-        inst->v = NULL;
+        struct valref *r = UPPER_OBJECT(ln, struct valref, refs_list_node);
+        ASSERT(r->v == v)
+        valref_break(r);
     }
     
     switch (v->type) {
@@ -271,21 +280,6 @@ static void value_delete (struct value *v)
     }
     
     free(v);
-}
-
-static void value_remove_from_parent (struct value *v)
-{
-    ASSERT(v->parent)
-    
-    switch (v->parent->type) {
-        case NCDVALUE_LIST: {
-            value_list_remove(v->parent, v);
-        } break;
-        case NCDVALUE_MAP: {
-            value_map_remove(v->parent, v);
-        } break;
-        default: ASSERT(0);
-    }
 }
 
 static struct value * value_init_string (NCDModuleInst *i, const char *str)
@@ -349,6 +343,17 @@ static struct value * value_list_at (struct value *v, size_t index)
     ASSERT(e->parent == v)
     
     return e;
+}
+
+static size_t value_list_indexof (struct value *v, struct value *ev)
+{
+    ASSERT(v->type == NCDVALUE_LIST)
+    ASSERT(ev->parent == v)
+    
+    uint64_t index = IndexedList_IndexOf(&v->list.list_contents_il, &ev->list_parent.list_contents_il_node);
+    ASSERT(index < value_list_len(v))
+    
+    return index;
 }
 
 static int value_list_insert (NCDModuleInst *i, struct value *list, struct value *v, size_t index)
@@ -457,6 +462,17 @@ static void value_map_remove (struct value *map, struct value *v)
     
     BCountAVL_Remove(&map->map.map_contents_tree, &v->map_parent.map_contents_tree_node);
     NCDValue_Free(&v->map_parent.key);
+    v->parent = NULL;
+}
+
+static void value_map_remove2 (struct value *map, struct value *v, NCDValue *out_key)
+{
+    ASSERT(map->type == NCDVALUE_MAP)
+    ASSERT(v->parent == map)
+    ASSERT(out_key)
+    
+    BCountAVL_Remove(&map->map.map_contents_tree, &v->map_parent.map_contents_tree_node);
+    *out_key = v->map_parent.key;
     v->parent = NULL;
 }
 
@@ -782,8 +798,41 @@ fail:
     return 0;
 }
 
-static void func_new_common (NCDModuleInst *i, struct value *v, int remove_on_deinit)
+static void valref_init (struct valref *r, struct value *v)
 {
+    r->v = v;
+    
+    if (v) {
+        LinkedList0_Prepend(&v->refs_list, &r->refs_list_node);
+    }
+}
+
+static void valref_free (struct valref *r)
+{
+    if (r->v) {
+        LinkedList0_Remove(&r->v->refs_list, &r->refs_list_node);
+        value_cleanup(r->v);
+    }
+}
+
+static struct value * valref_val (struct valref *r)
+{
+    return r->v;
+}
+
+static void valref_break (struct valref *r)
+{
+    ASSERT(r->v)
+    
+    LinkedList0_Remove(&r->v->refs_list, &r->refs_list_node);
+    r->v = NULL;
+}
+
+static void func_new_common (NCDModuleInst *i, struct value *v, int restore_on_deinit, struct value *restore_v)
+{
+    ASSERT(!(!restore_on_deinit) || !restore_v)
+    ASSERT(!(restore_v) || !restore_v->parent)
+    
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
     if (!o) {
@@ -793,16 +842,12 @@ static void func_new_common (NCDModuleInst *i, struct value *v, int remove_on_de
     o->i = i;
     NCDModuleInst_Backend_SetUser(i, o);
     
-    // set value
-    o->v = v;
+    // init value references
+    valref_init(&o->ref, v);
+    valref_init(&o->restore_ref, restore_v);
     
-    if (v) {
-        // add reference
-        LinkedList0_Prepend(&o->v->refs_list, &o->refs_list_node);
-    }
-    
-    // set remove on deinit flag
-    o->remove_on_deinit = remove_on_deinit;
+    // set restore on deinit flag
+    o->restore_on_deinit = restore_on_deinit;
     
     NCDModuleInst_Backend_Up(i);
     return;
@@ -820,18 +865,40 @@ static void func_die (void *vo)
     struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
-    if (o->v) {
-        // remove reference
-        LinkedList0_Remove(&o->v->refs_list, &o->refs_list_node);
+    struct value *v = valref_val(&o->ref);
+    
+    if (o->restore_on_deinit && v && v->parent) {
+        // get restore value
+        struct value *rv = valref_val(&o->restore_ref);
+        ASSERT(!rv || !rv->parent)
         
-        // remove value from parent if requested
-        if (o->remove_on_deinit && o->v->parent) {
-            value_remove_from_parent(o->v);
+        // remove this value from parent and restore saved one (or none)
+        switch (v->parent->type) {
+            case NCDVALUE_LIST: {
+                size_t index = value_list_indexof(v->parent, v);
+                value_list_remove(v->parent, v);
+                if (rv) {
+                    int res = value_list_insert(i, v->parent, rv, index);
+                    ASSERT(res)
+                }
+            } break;
+            case NCDVALUE_MAP: {
+                NCDValue key;
+                value_map_remove2(v->parent, v, &key);
+                if (rv) {
+                    int res = value_map_insert(v->parent, rv, key, i);
+                    ASSERT(res)
+                } else {
+                    NCDValue_Free(&key);
+                }
+            } break;
+            default: ASSERT(0);
         }
-        
-        // cleanup after removing reference
-        value_cleanup(o->v);
     }
+    
+    // free value references
+    valref_free(&o->ref);
+    valref_free(&o->restore_ref);
     
     // free instance
     free(o);
@@ -842,9 +909,10 @@ static void func_die (void *vo)
 static int func_getvar (void *vo, const char *name, NCDValue *out_value)
 {
     struct instance *o = vo;
+    struct value *v = valref_val(&o->ref);
     
     if (!strcmp(name, "exists")) {
-        const char *str = o->v ? "true" : "false";
+        const char *str = v ? "true" : "false";
         if (!NCDValue_InitString(out_value, str)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
             return 0;
@@ -856,25 +924,25 @@ static int func_getvar (void *vo, const char *name, NCDValue *out_value)
         return 0;
     }
     
-    if (!o->v) {
+    if (!v) {
         ModuleLog(o->i, BLOG_ERROR, "value was deleted");
         return 0;
     }
     
     if (!strcmp(name, "type")) {
-        if (!NCDValue_InitString(out_value, get_type_str(o->v->type))) {
+        if (!NCDValue_InitString(out_value, get_type_str(v->type))) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
             return 0;
         }
     }
     else if (!strcmp(name, "length")) {
         size_t len;
-        switch (o->v->type) {
+        switch (v->type) {
             case NCDVALUE_LIST:
-                len = value_list_len(o->v);
+                len = value_list_len(v);
                 break;
             case NCDVALUE_MAP:
-                len = value_map_len(o->v);
+                len = value_map_len(v);
                 break;
             default:
                 ModuleLog(o->i, BLOG_ERROR, "value is not a list or map");
@@ -889,15 +957,15 @@ static int func_getvar (void *vo, const char *name, NCDValue *out_value)
         }
     }
     else if (!strcmp(name, "keys")) {
-        if (o->v->type != NCDVALUE_MAP) {
+        if (v->type != NCDVALUE_MAP) {
             ModuleLog(o->i, BLOG_ERROR, "value is not a map (reading keys variable)");
             return 0;
         }
         
         NCDValue_InitList(out_value);
         
-        for (size_t i = 0; i < value_map_len(o->v); i++) {
-            struct value *ev = value_map_at(o->v, i);
+        for (size_t i = 0; i < value_map_len(v); i++) {
+            struct value *ev = value_map_at(v, i);
             
             NCDValue key;
             if (!NCDValue_InitCopy(&key, &ev->map_parent.key)) {
@@ -919,7 +987,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out_value)
         return 0;
     }
     else if (!strcmp(name, "")) {
-        if (!value_to_value(o->i, o->v, out_value)) {
+        if (!value_to_value(o->i, v, out_value)) {
             return 0;
         }
     }
@@ -943,7 +1011,7 @@ static void func_new_value (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_common(i, v, 0);
+    func_new_common(i, v, 0, NULL);
     return;
     
 fail0:
@@ -960,18 +1028,19 @@ static void func_new_get (NCDModuleInst *i)
     }
     
     struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct value *mov = valref_val(&mo->ref);
     
-    if (!mo->v) {
+    if (!mov) {
         ModuleLog(i, BLOG_ERROR, "value was deleted");
         goto fail0;
     }
     
-    struct value *v = value_get(i, mo->v, where_arg, 0);
+    struct value *v = value_get(i, mov, where_arg, 0);
     if (!v) {
         goto fail0;
     }
     
-    func_new_common(i, v, 0);
+    func_new_common(i, v, 0, NULL);
     return;
     
 fail0:
@@ -988,15 +1057,16 @@ static void func_new_try_get (NCDModuleInst *i)
     }
     
     struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct value *mov = valref_val(&mo->ref);
     
-    if (!mo->v) {
+    if (!mov) {
         ModuleLog(i, BLOG_ERROR, "value was deleted");
         goto fail0;
     }
     
-    struct value *v = value_get(i, mo->v, where_arg, 1);
+    struct value *v = value_get(i, mov, where_arg, 1);
     
-    func_new_common(i, v, 0);
+    func_new_common(i, v, 0, NULL);
     return;
     
 fail0:
@@ -1017,18 +1087,19 @@ static void func_new_getpath (NCDModuleInst *i)
     }
     
     struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct value *mov = valref_val(&mo->ref);
     
-    if (!mo->v) {
+    if (!mov) {
         ModuleLog(i, BLOG_ERROR, "value was deleted");
         goto fail0;
     }
     
-    struct value *v = value_get_path(i, mo->v, path_arg);
+    struct value *v = value_get_path(i, mov, path_arg);
     if (!v) {
         goto fail0;
     }
     
-    func_new_common(i, v, 0);
+    func_new_common(i, v, 0, NULL);
     return;
     
 fail0:
@@ -1046,18 +1117,19 @@ static void func_new_insert (NCDModuleInst *i)
     }
     
     struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct value *mov = valref_val(&mo->ref);
     
-    if (!mo->v) {
+    if (!mov) {
         ModuleLog(i, BLOG_ERROR, "value was deleted");
         goto fail0;
     }
     
-    struct value *v = value_insert(i, mo->v, where_arg, what_arg);
+    struct value *v = value_insert(i, mov, where_arg, what_arg);
     if (!v) {
         goto fail0;
     }
     
-    func_new_common(i, v, 0);
+    func_new_common(i, v, 0, NULL);
     return;
     
 fail0:
@@ -1075,18 +1147,19 @@ static void func_new_insert_remove (NCDModuleInst *i)
     }
     
     struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct value *mov = valref_val(&mo->ref);
     
-    if (!mo->v) {
+    if (!mov) {
         ModuleLog(i, BLOG_ERROR, "value was deleted");
         goto fail0;
     }
     
-    struct value *v = value_insert(i, mo->v, where_arg, what_arg);
+    struct value *v = value_insert(i, mov, where_arg, what_arg);
     if (!v) {
         goto fail0;
     }
     
-    func_new_common(i, v, 1);
+    func_new_common(i, v, 1, NULL);
     return;
     
 fail0:
@@ -1103,13 +1176,14 @@ static void remove_func_new (NCDModuleInst *i)
     }
     
     struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct value *mov = valref_val(&mo->ref);
     
-    if (!mo->v) {
+    if (!mov) {
         ModuleLog(i, BLOG_ERROR, "value was deleted");
         goto fail0;
     }
     
-    if (!value_remove(i, mo->v, where_arg)) {
+    if (!value_remove(i, mov, where_arg)) {
         goto fail0;
     }
     
@@ -1129,13 +1203,14 @@ static void delete_func_new (NCDModuleInst *i)
     }
     
     struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct value *mov = valref_val(&mo->ref);
     
-    if (!mo->v) {
+    if (!mov) {
         ModuleLog(i, BLOG_ERROR, "value was deleted");
         goto fail0;
     }
     
-    value_delete(mo->v);
+    value_delete(mov);
     
     NCDModuleInst_Backend_Up(i);
     return;
