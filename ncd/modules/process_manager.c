@@ -39,6 +39,7 @@
  *   identified by name within the process manager. If a process with this name already exists
  *   and is not being terminated, does nothing. If it is being terminated, it will be restarted
  *   using the given parameters after it terminates.
+ *   The process can access objects as seen from the process_manager() statement via _caller.
  * 
  * Synopsis: process_manager::stop(string name)
  * Description: initiates termination of the process identified by name within the process manager.
@@ -86,7 +87,9 @@ static struct process * find_process (struct instance *o, const char *name);
 static int process_new (struct instance *o, const char *name, const char *template_name, NCDValue *args);
 static void process_free (struct process *p);
 static void process_retry_timer_handler (struct process *p);
-static void process_module_process_handler_dead (struct process *p);
+static void process_module_process_handler_event (struct process *p, int event);
+static int process_module_process_func_getspecialobj (struct process *p, const char *name, NCDObject *out_object);
+static int process_module_process_caller_obj_func_getobj (struct process *p, const char *name, NCDObject *out_object);
 static void process_stop (struct process *p);
 static int process_restart (struct process *p, const char *template_name, NCDValue *args);
 static void process_try (struct process *p);
@@ -249,6 +252,26 @@ void process_module_process_handler_event (struct process *p, int event)
     }
 }
 
+int process_module_process_func_getspecialobj (struct process *p, const char *name, NCDObject *out_object)
+{
+    ASSERT(p->have_module_process)
+    
+    if (!strcmp(name, "_caller")) {
+        *out_object = NCDObject_Build(NULL, p, NULL, (NCDObject_func_getobj)process_module_process_caller_obj_func_getobj);
+        return 1;
+    }
+    
+    return 0;
+}
+
+int process_module_process_caller_obj_func_getobj (struct process *p, const char *name, NCDObject *out_object)
+{
+    struct instance *o = p->manager;
+    ASSERT(p->have_module_process)
+    
+    return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
+}
+
 void process_stop (struct process *p)
 {
     switch (p->state) {
@@ -337,6 +360,9 @@ void process_try (struct process *p)
         
         return;
     }
+    
+    // set special objects function
+    NCDModuleProcess_SetSpecialFuncs(&p->module_process, (NCDModuleProcess_func_getspecialobj)process_module_process_func_getspecialobj);
     
     // free params
     free(p->params_template_name);
