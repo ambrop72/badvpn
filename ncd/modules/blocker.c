@@ -41,6 +41,14 @@
  * Synopsis: blocker::down()
  * Description: sets the blocking state to down.
  * 
+ * Synopsis: blocker::downup()
+ * Description: atomically sets the blocker to down state (if it was up), then (back) to up state.
+ *              Note that this is not equivalent to calling down() and immediately up(); in that case,
+ *              the interpreter will first handle the immediate effects of any use() statements
+ *              going down as a result of having called down() and will only later execute the up()
+ *              statement. In fact, it is possible that the effects of down() will prevent up() from
+ *              executing, which may leave the program in an undesirable state.
+ * 
  * Synopsis: blocker::use()
  * Description: blocks on the blocker. This module is in up state if and only if the blocking state of
  * the blocker is up. Multiple use statements may be used with the same blocker.
@@ -136,8 +144,10 @@ static void func_die (void *vo)
     o->dying = 1;
 }
 
-static void updown_func_new_templ (NCDModuleInst *i, int up)
+static void updown_func_new_templ (NCDModuleInst *i, int up, int first_down)
 {
+    ASSERT(!first_down || up)
+    
     // check arguments
     if (!NCDValue_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
@@ -150,10 +160,7 @@ static void updown_func_new_templ (NCDModuleInst *i, int up)
     // get method object
     struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
     
-    if (mo->up != up) {
-        // change up state
-        mo->up = up;
-        
+    if (first_down || mo->up != up) {
         // signal users
         LinkedList2Iterator it;
         LinkedList2Iterator_InitForward(&it, &mo->users);
@@ -161,12 +168,18 @@ static void updown_func_new_templ (NCDModuleInst *i, int up)
         while (node = LinkedList2Iterator_Next(&it)) {
             struct use_instance *user = UPPER_OBJECT(node, struct use_instance, blocker_node);
             ASSERT(user->blocker == mo)
+            if (first_down && mo->up) {
+                NCDModuleInst_Backend_Down(user->i);
+            }
             if (up) {
                 NCDModuleInst_Backend_Up(user->i);
             } else {
                 NCDModuleInst_Backend_Down(user->i);
             }
         }
+        
+        // change up state
+        mo->up = up;
     }
     
     return;
@@ -178,12 +191,17 @@ fail0:
 
 static void up_func_new (NCDModuleInst *i)
 {
-    updown_func_new_templ(i, 1);
+    updown_func_new_templ(i, 1, 0);
 }
 
 static void down_func_new (NCDModuleInst *i)
 {
-    updown_func_new_templ(i, 0);
+    updown_func_new_templ(i, 0, 0);
+}
+
+static void downup_func_new (NCDModuleInst *i)
+{
+    updown_func_new_templ(i, 1, 1);
 }
 
 static void use_func_new (NCDModuleInst *i)
@@ -255,6 +273,9 @@ static const struct NCDModule modules[] = {
     }, {
         .type = "blocker::down",
         .func_new = down_func_new
+    }, {
+        .type = "blocker::downup",
+        .func_new = downup_func_new
     }, {
         .type = "blocker::use",
         .func_new = use_func_new,
