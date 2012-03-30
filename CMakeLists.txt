@@ -53,12 +53,32 @@ if (BUILD_SERVER OR BUILD_CLIENT OR BUILD_FLOODER)
     find_package(NSS REQUIRED)
 endif ()
 
+# choose reactor
+if (DEFINED BREACTOR_BACKEND)
+    if (NOT (BREACTOR_BACKEND STREQUAL "badvpn" OR BREACTOR_BACKEND STREQUAL "glib"))
+        message(FATAL_ERROR "unknown reactor backend specified")
+    endif ()
+else ()
+    set(BREACTOR_BACKEND "badvpn")
+endif ()
+
+if (BREACTOR_BACKEND STREQUAL "badvpn")
+    add_definitions(-DBADVPN_BREACTOR_BADVPN)
+elseif (BREACTOR_BACKEND STREQUAL "glib")
+    if (NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+        message(FATAL_ERROR "GLib reactor backend is only available on Linux")
+    endif ()
+    find_package(GLIB2 REQUIRED)
+    add_definitions(-DBADVPN_BREACTOR_GLIB)
+endif ()
+
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${LIBCRYPTO_INCLUDE_DIRS}
     ${NSPR_INCLUDE_DIRS}
     ${NSS_INCLUDE_DIRS}
     ${FUSE_INCLUDE_DIRS}
+    ${GLIB2_INCLUDE_DIR}
     lwip/custom
     lwip/src/include
     lwip/src/include/ipv4

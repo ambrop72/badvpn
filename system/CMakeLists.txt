@@ -19,8 +19,14 @@ if (NOT WIN32)
     )
 endif ()
 
+if (BREACTOR_BACKEND STREQUAL "badvpn")
+    list(APPEND BSYSTEM_ADDITIONAL_SOURCES BReactor_badvpn.c)
+elseif (BREACTOR_BACKEND STREQUAL "glib")
+    list(APPEND BSYSTEM_ADDITIONAL_SOURCES BReactor_glib.c)
+    list(APPEND BSYSTEM_ADDITIONAL_LIBS ${GLIB2_LIBRARIES})
+endif ()
+
 add_library(system
-    BReactor.c
     BSignal.c
     BTime.c
     BNetwork.c

@@ -1,5 +1,5 @@
 /**
- * @file BReactor.c
+ * @file BReactor_badvpn.c
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
