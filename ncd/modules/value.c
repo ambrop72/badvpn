@@ -35,6 +35,7 @@
  *   value value::getpath(list path)
  *   value value::insert(where, what)
  *   value value::insert_remove(where, what)
+ *   value value::insert_insert(where, what, restore_what)
  * 
  * Description:
  *   Value objects allow examining and manipulating values.
@@ -66,9 +67,14 @@
  *   For maps, 'where' is the key to insert under. If the key already exists in the
  *   map, its value is replaced; any references to the old value however remain valid.
  * 
- *   value::insert_remove(where, what) is like value::insert(), except that it
- *   also removes the value that was inserted on deinitialization (except if it
- *   was removed externally, or deleted entirely).
+ *   value::insert_remove(where, what) is like value::insert(), except that,
+ *   on deinitialization, it removes the value that was inserted from its parent
+ *   value, whatever this is at that time (if that is possible, i.e. the value object
+ *   was not deleted and still has a parent).
+ *   
+ *   value::insert_insert(where, what, restore_what) is like value::insert_remove(),
+ *   except that, on deinitialization, it not only removes the value from its parent,
+ *   but also atomically inserts a new value in its place (same list index or map key).
  * 
  * Variables:
  *   (empty) - the value stored in the value object
@@ -872,21 +878,24 @@ static void func_die (void *vo)
         struct value *rv = valref_val(&o->restore_ref);
         ASSERT(!rv || !rv->parent)
         
+        // get parent
+        struct value *parent = v->parent;
+        
         // remove this value from parent and restore saved one (or none)
-        switch (v->parent->type) {
+        switch (parent->type) {
             case NCDVALUE_LIST: {
-                size_t index = value_list_indexof(v->parent, v);
-                value_list_remove(v->parent, v);
+                size_t index = value_list_indexof(parent, v);
+                value_list_remove(parent, v);
                 if (rv) {
-                    int res = value_list_insert(i, v->parent, rv, index);
+                    int res = value_list_insert(i, parent, rv, index);
                     ASSERT(res)
                 }
             } break;
             case NCDVALUE_MAP: {
                 NCDValue key;
-                value_map_remove2(v->parent, v, &key);
+                value_map_remove2(parent, v, &key);
                 if (rv) {
-                    int res = value_map_insert(v->parent, rv, key, i);
+                    int res = value_map_insert(parent, rv, key, i);
                     ASSERT(res)
                 } else {
                     NCDValue_Free(&key);
@@ -1167,6 +1176,44 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
+static void func_new_insert_insert (NCDModuleInst *i)
+{
+    NCDValue *where_arg;
+    NCDValue *what_arg;
+    NCDValue *restore_what_arg;
+    if (!NCDValue_ListRead(i->args, 3, &where_arg, &what_arg, &restore_what_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    
+    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct value *mov = valref_val(&mo->ref);
+    
+    if (!mov) {
+        ModuleLog(i, BLOG_ERROR, "value was deleted");
+        goto fail0;
+    }
+    
+    struct value *restore_v = value_init_fromvalue(i, restore_what_arg);
+    if (!restore_v) {
+        goto fail0;
+    }
+    
+    struct value *v = value_insert(i, mov, where_arg, what_arg);
+    if (!v) {
+        goto fail1;
+    }
+    
+    func_new_common(i, v, 1, restore_v);
+    return;
+    
+fail1:
+    value_cleanup(restore_v);
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
 static void remove_func_new (NCDModuleInst *i)
 {
     NCDValue *where_arg;
@@ -1254,6 +1301,12 @@ static const struct NCDModule modules[] = {
         .type = "value::insert_remove",
         .base_type = "value",
         .func_new = func_new_insert_remove,
+        .func_die = func_die,
+        .func_getvar = func_getvar
+    }, {
+        .type = "value::insert_insert",
+        .base_type = "value",
+        .func_new = func_new_insert_insert,
         .func_die = func_die,
         .func_getvar = func_getvar
     }, {
