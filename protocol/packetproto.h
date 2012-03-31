@@ -45,8 +45,6 @@
 #include <stdint.h>
 #include <limits.h>
 
-#include <misc/balign.h>
-
 /**
  * PacketProto packet header.
  * Wraps a single uint16_t in a packed struct for easy access.
