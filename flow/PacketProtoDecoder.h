@@ -38,7 +38,6 @@
 
 #include <protocol/packetproto.h>
 #include <misc/debug.h>
-#include <misc/balign.h>
 #include <base/DebugObject.h>
 #include <flow/StreamRecvInterface.h>
 #include <flow/PacketPassInterface.h>
