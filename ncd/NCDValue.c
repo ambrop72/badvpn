@@ -536,6 +536,24 @@ void NCDValue_MapRemove (NCDValue *o, NCDValue *ekey, NCDValue *out_key, NCDValu
     free(e);
 }
 
+NCDValue * NCDValue_MapFindValueByString (NCDValue *o, const char *key_str)
+{
+    value_assert(o);
+    ASSERT(o->type == NCDVALUE_MAP)
+    ASSERT(key_str)
+    
+    NCDValue key;
+    key.type = NCDVALUE_STRING;
+    key.string = (char *)key_str;
+    
+    NCDValue *ekey = NCDValue_MapFindKey(o, &key);
+    if (!ekey) {
+        return NULL;
+    }
+    
+    return NCDValue_MapKeyValue(o, ekey);
+}
+
 int NCDValue_Compare (NCDValue *o, NCDValue *v)
 {
     value_assert(o);

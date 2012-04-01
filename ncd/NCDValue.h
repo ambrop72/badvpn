@@ -93,6 +93,7 @@ NCDValue * NCDValue_MapKeyValue (NCDValue *o, NCDValue *ekey);
 NCDValue * NCDValue_MapFindKey (NCDValue *o, NCDValue *key);
 NCDValue * NCDValue_MapInsert (NCDValue *o, NCDValue key, NCDValue val) WARN_UNUSED;
 void NCDValue_MapRemove (NCDValue *o, NCDValue *ekey, NCDValue *out_key, NCDValue *out_val);
+NCDValue * NCDValue_MapFindValueByString (NCDValue *o, const char *key_str);
 
 int NCDValue_Compare (NCDValue *o, NCDValue *v);
 
