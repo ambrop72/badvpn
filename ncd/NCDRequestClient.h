@@ -66,6 +66,7 @@ typedef struct {
     BAVL reqs_tree;
     uint32_t next_request_id;
     int state;
+    int is_error;
     DebugCounter d_reqests_ctr;
     DebugError d_err;
     DebugObject d_obj;

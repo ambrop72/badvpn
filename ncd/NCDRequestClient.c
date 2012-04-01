@@ -86,6 +86,9 @@ static int uint32_comparator (void *unused, void *vv1, void *vv2)
 
 static void report_error (NCDRequestClient *o)
 {
+    ASSERT(!o->is_error)
+    
+    o->is_error = 1;
     DEBUGERROR(&o->d_err, o->handler_error(o->user))
 }
 
@@ -99,6 +102,7 @@ static void request_report_finished (NCDRequestClientRequest *o, int is_error)
 static void connector_handler (NCDRequestClient *o, int is_error)
 {
     DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
     ASSERT(o->state == CSTATE_CONNECTING)
     
     // check error
@@ -155,6 +159,7 @@ fail0:
 static void connection_handler (NCDRequestClient *o, int event)
 {
     DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
     ASSERT(o->state == CSTATE_CONNECTED)
     
     BLog(BLOG_ERROR, "connection error");
@@ -165,6 +170,7 @@ static void connection_handler (NCDRequestClient *o, int event)
 static void decoder_handler_error (NCDRequestClient *o)
 {
     DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
     ASSERT(o->state == CSTATE_CONNECTED)
     
     BLog(BLOG_ERROR, "decoder error");
@@ -175,6 +181,7 @@ static void decoder_handler_error (NCDRequestClient *o)
 static void recv_if_handler_send (NCDRequestClient *o, uint8_t *data, int data_len)
 {
     DebugObject_Access(&o->d_obj);
+    DebugError_AssertNoError(&o->d_err);
     ASSERT(o->state == CSTATE_CONNECTED)
     ASSERT(data_len >= 0)
     ASSERT(data_len <= RECV_MTU)
@@ -375,6 +382,7 @@ static int req_is_aborted (struct NCDRequestClient_req *req)
 static void req_abort (struct NCDRequestClient_req *req)
 {
     ASSERT(!req_is_aborted(req))
+    ASSERT(!req->client->is_error)
     
     switch (req->state) {
         case RSTATE_SENDING_REQUEST: {
@@ -496,6 +504,9 @@ int NCDRequestClient_Init (NCDRequestClient *o, struct NCDRequestClient_addr add
     // set state connecting
     o->state = CSTATE_CONNECTING;
     
+    // set is not error
+    o->is_error = 0;
+    
     DebugCounter_Init(&o->d_reqests_ctr);
     DebugError_Init(&o->d_err, BReactor_PendingGroup(reactor));
     DebugObject_Init(&o->d_obj);
@@ -520,8 +531,6 @@ void NCDRequestClient_Free (NCDRequestClient *o)
         while (tn = BAVL_GetFirst(&o->reqs_tree)) {
             struct NCDRequestClient_req *req = UPPER_OBJECT(tn, struct NCDRequestClient_req, reqs_tree_node);
             ASSERT(!req->creq)
-            ASSERT(req->state != RSTATE_SENDING_REQUEST)
-            ASSERT(req->state != RSTATE_READY)
             req_free(req);
         }
         
@@ -626,7 +635,7 @@ void NCDRequestClientRequest_Free (NCDRequestClientRequest *o)
         req->creq = NULL;
         
         // abort req if not already
-        if (!req_is_aborted(req)) {
+        if (!req->client->is_error && !req_is_aborted(req)) {
             req_abort(req);
         }
     }
@@ -637,6 +646,7 @@ void NCDRequestClientRequest_Abort (NCDRequestClientRequest *o)
     struct NCDRequestClient_req *req = o->req;
     DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
+    DebugError_AssertNoError(&o->client->d_err);
     ASSERT(req)
     ASSERT(req->creq == o)
     ASSERT(!req_is_aborted(req))
