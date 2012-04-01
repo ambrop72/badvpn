@@ -473,6 +473,7 @@ NCDValue * NCDValue_MapFindKey (NCDValue *o, NCDValue *key)
 {
     value_assert(o);
     ASSERT(o->type == NCDVALUE_MAP)
+    value_assert(key);
     
     BAVLNode *tn = BAVL_LookupExact(&o->map_tree, key);
     if (!tn) {
