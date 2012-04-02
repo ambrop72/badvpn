@@ -34,8 +34,7 @@
  *   value value::try_get(where)
  *   value value::getpath(list path)
  *   value value::insert(where, what)
- *   value value::insert_remove(where, what)
- *   value value::insert_insert(where, what, restore_what)
+ *   value value::insert_undo(where, what)
  * 
  * Description:
  *   Value objects allow examining and manipulating values.
@@ -67,14 +66,13 @@
  *   For maps, 'where' is the key to insert under. If the key already exists in the
  *   map, its value is replaced; any references to the old value however remain valid.
  * 
- *   value::insert_remove(where, what) is like value::insert(), except that,
- *   on deinitialization, it removes the value that was inserted from its parent
- *   value, whatever this is at that time (if that is possible, i.e. the value object
- *   was not deleted and still has a parent).
- *   
- *   value::insert_insert(where, what, restore_what) is like value::insert_remove(),
- *   except that, on deinitialization, it not only removes the value from its parent,
- *   but also atomically inserts a new value in its place (same list index or map key).
+ *   value::insert_undo(where, what) is like insert(), except that, on
+ *   deinitialization, it attempts to revert the value to the original state.
+ *   It does this by taking a reference to the old value at 'where' (if any) and
+ *   before inserting the new value 'what' to that location. On deinitialization,
+ *   it removes the value that it inserted from its parent and inserts the stored
+ *   referenced value in its place, assuming this is possible (the inserted value
+ *   has not been deleted and has a parent at deinitialization time).
  * 
  * Variables:
  *   (empty) - the value stored in the value object
@@ -126,11 +124,13 @@ struct valref {
     LinkedList0Node refs_list_node;
 };
 
+typedef void (*value_deinit_func) (void *deinit_data, NCDModuleInst *i);
+
 struct instance {
     NCDModuleInst *i;
     struct valref ref;
-    struct valref restore_ref;
-    int restore_on_deinit;
+    value_deinit_func deinit_func;
+    void *deinit_data;
 };
 
 struct value {
@@ -183,7 +183,7 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValue *value);
 static int value_to_value (NCDModuleInst *i, struct value *v, NCDValue *out_value);
 static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *where, int no_error);
 static struct value * value_get_path (NCDModuleInst *i, struct value *v, NCDValue *path);
-static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue *where, NCDValue *what);
+static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue *where, NCDValue *what, struct value **out_oldv);
 static int value_remove (NCDModuleInst *i, struct value *v, NCDValue *where);
 static void valref_init (struct valref *r, struct value *v);
 static void valref_free (struct valref *r);
@@ -677,67 +677,63 @@ fail:
     return NULL;
 }
 
-static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue *where, NCDValue *what)
+static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue *where, NCDValue *what, struct value **out_oldv)
 {
-    struct value *nv;
+    ASSERT(v)
+    NCDValue_Type(where);
+    NCDValue_Type(what);
+    
+    struct value *nv = value_init_fromvalue(i, what);
+    if (!nv) {
+        goto fail0;
+    }
+    
+    struct value *oldv = NULL;
     
     switch (v->type) {
         case NCDVALUE_STRING: {
             ModuleLog(i, BLOG_ERROR, "cannot insert into a string");
-            goto fail;
+            goto fail1;
         } break;
         
         case NCDVALUE_LIST: {
             if (NCDValue_Type(where) != NCDVALUE_STRING) {
                 ModuleLog(i, BLOG_ERROR, "index is not a string (inserting into list)");
-                goto fail;
+                goto fail1;
             }
             
             uintmax_t index;
             if (!parse_unsigned_integer(NCDValue_StringValue(where), &index)) {
                 ModuleLog(i, BLOG_ERROR, "index is not a valid number (inserting into list)");
-                goto fail;
+                goto fail1;
             }
             
             if (index > value_list_len(v)) {
                 ModuleLog(i, BLOG_ERROR, "index is out of bounds (inserting into list)");
-                goto fail;
-            }
-            
-            nv = value_init_fromvalue(i, what);
-            if (!nv) {
-                goto fail;
+                goto fail1;
             }
             
             if (!value_list_insert(i, v, nv, index)) {
-                value_cleanup(nv);
-                goto fail;
+                goto fail1;
             }
         } break;
         
         case NCDVALUE_MAP: {
-            struct value *ov = value_map_find(v, where);
+            oldv = value_map_find(v, where);
             
-            if (!ov && value_map_len(v) == SIZE_MAX) {
+            if (!oldv && value_map_len(v) == SIZE_MAX) {
                 ModuleLog(i, BLOG_ERROR, "map has too many elements");
-                goto fail;
+                goto fail1;
             }
             
             NCDValue key;
             if (!NCDValue_InitCopy(&key, where)) {
                 ModuleLog(i, BLOG_ERROR, "NCDValue_InitCopy failed");
-                goto fail;
+                goto fail1;
             }
             
-            nv = value_init_fromvalue(i, what);
-            if (!nv) {
-                NCDValue_Free(&key);
-                goto fail;
-            }
-            
-            if (ov) {
-                value_map_remove(v, ov);
-                value_cleanup(ov);
+            if (oldv) {
+                value_map_remove(v, oldv);
             }
             
             int res = value_map_insert(v, nv, key, i);
@@ -747,9 +743,18 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue 
         default: ASSERT(0);
     }
     
+    if (out_oldv) {
+        *out_oldv = oldv;
+    }
+    else if (oldv) {
+        value_cleanup(oldv);
+    }
+    
     return nv;
     
-fail:
+fail1:
+    value_cleanup(nv);
+fail0:
     return NULL;
 }
 
@@ -834,11 +839,8 @@ static void valref_break (struct valref *r)
     r->v = NULL;
 }
 
-static void func_new_common (NCDModuleInst *i, struct value *v, int restore_on_deinit, struct value *restore_v)
+static void func_new_common (NCDModuleInst *i, struct value *v, value_deinit_func deinit_func, void *deinit_data)
 {
-    ASSERT(!(!restore_on_deinit) || !restore_v)
-    ASSERT(!(restore_v) || !restore_v->parent)
-    
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
     if (!o) {
@@ -850,18 +852,19 @@ static void func_new_common (NCDModuleInst *i, struct value *v, int restore_on_d
     
     // init value references
     valref_init(&o->ref, v);
-    valref_init(&o->restore_ref, restore_v);
     
-    // set restore on deinit flag
-    o->restore_on_deinit = restore_on_deinit;
+    // remember deinit
+    o->deinit_func = deinit_func;
+    o->deinit_data = deinit_data;
     
     NCDModuleInst_Backend_Up(i);
     return;
     
-fail1:
-    free(o);
 fail0:
     value_cleanup(v);
+    if (deinit_func) {
+        deinit_func(deinit_data, i);
+    }
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
 }
@@ -871,43 +874,13 @@ static void func_die (void *vo)
     struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
-    struct value *v = valref_val(&o->ref);
-    
-    if (o->restore_on_deinit && v && v->parent) {
-        // get restore value
-        struct value *rv = valref_val(&o->restore_ref);
-        ASSERT(!rv || !rv->parent)
-        
-        // get parent
-        struct value *parent = v->parent;
-        
-        // remove this value from parent and restore saved one (or none)
-        switch (parent->type) {
-            case NCDVALUE_LIST: {
-                size_t index = value_list_indexof(parent, v);
-                value_list_remove(parent, v);
-                if (rv) {
-                    int res = value_list_insert(i, parent, rv, index);
-                    ASSERT(res)
-                }
-            } break;
-            case NCDVALUE_MAP: {
-                NCDValue key;
-                value_map_remove2(parent, v, &key);
-                if (rv) {
-                    int res = value_map_insert(parent, rv, key, i);
-                    ASSERT(res)
-                } else {
-                    NCDValue_Free(&key);
-                }
-            } break;
-            default: ASSERT(0);
-        }
+    // deinit
+    if (o->deinit_func) {
+        o->deinit_func(o->deinit_data, i);
     }
     
-    // free value references
+    // free value reference
     valref_free(&o->ref);
-    valref_free(&o->restore_ref);
     
     // free instance
     free(o);
@@ -1020,7 +993,7 @@ static void func_new_value (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_common(i, v, 0, NULL);
+    func_new_common(i, v, NULL, NULL);
     return;
     
 fail0:
@@ -1049,7 +1022,7 @@ static void func_new_get (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_common(i, v, 0, NULL);
+    func_new_common(i, v, NULL, NULL);
     return;
     
 fail0:
@@ -1075,7 +1048,7 @@ static void func_new_try_get (NCDModuleInst *i)
     
     struct value *v = value_get(i, mov, where_arg, 1);
     
-    func_new_common(i, v, 0, NULL);
+    func_new_common(i, v, NULL, NULL);
     return;
     
 fail0:
@@ -1108,7 +1081,7 @@ static void func_new_getpath (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_common(i, v, 0, NULL);
+    func_new_common(i, v, NULL, NULL);
     return;
     
 fail0:
@@ -1133,12 +1106,12 @@ static void func_new_insert (NCDModuleInst *i)
         goto fail0;
     }
     
-    struct value *v = value_insert(i, mov, where_arg, what_arg);
+    struct value *v = value_insert(i, mov, where_arg, what_arg, NULL);
     if (!v) {
         goto fail0;
     }
     
-    func_new_common(i, v, 0, NULL);
+    func_new_common(i, v, NULL, NULL);
     return;
     
 fail0:
@@ -1146,7 +1119,52 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_insert_remove (NCDModuleInst *i)
+struct insert_undo_deinit_data {
+    struct valref val_ref;
+    struct valref oldval_ref;
+};
+
+static void insert_undo_deinit_func (struct insert_undo_deinit_data *data, NCDModuleInst *i)
+{
+    struct value *val = valref_val(&data->val_ref);
+    struct value *oldval = valref_val(&data->oldval_ref);
+    
+    if (val && val->parent && (!oldval || !oldval->parent)) {
+        // get parent
+        struct value *parent = val->parent;
+        
+        // remove this value from parent and restore saved one (or none)
+        switch (parent->type) {
+            case NCDVALUE_LIST: {
+                size_t index = value_list_indexof(parent, val);
+                value_list_remove(parent, val);
+                if (oldval) {
+                    int res = value_list_insert(i, parent, oldval, index);
+                    ASSERT(res)
+                }
+            } break;
+            
+            case NCDVALUE_MAP: {
+                NCDValue key;
+                value_map_remove2(parent, val, &key);
+                if (oldval) {
+                    int res = value_map_insert(parent, oldval, key, i);
+                    ASSERT(res)
+                } else {
+                    NCDValue_Free(&key);
+                }
+            } break;
+            
+            default: ASSERT(0);
+        }
+    }
+    
+    valref_free(&data->oldval_ref);
+    valref_free(&data->val_ref);
+    free(data);
+}
+
+static void func_new_insert_undo (NCDModuleInst *i)
 {
     NCDValue *where_arg;
     NCDValue *what_arg;
@@ -1163,52 +1181,26 @@ static void func_new_insert_remove (NCDModuleInst *i)
         goto fail0;
     }
     
-    struct value *v = value_insert(i, mov, where_arg, what_arg);
-    if (!v) {
+    struct insert_undo_deinit_data *data = malloc(sizeof(*data));
+    if (!data) {
+        ModuleLog(i, BLOG_ERROR, "malloc failed");
         goto fail0;
     }
     
-    func_new_common(i, v, 1, NULL);
-    return;
-    
-fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
-}
-
-static void func_new_insert_insert (NCDModuleInst *i)
-{
-    NCDValue *where_arg;
-    NCDValue *what_arg;
-    NCDValue *restore_what_arg;
-    if (!NCDValue_ListRead(i->args, 3, &where_arg, &what_arg, &restore_what_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail0;
-    }
-    
-    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
-    struct value *mov = valref_val(&mo->ref);
-    
-    if (!mov) {
-        ModuleLog(i, BLOG_ERROR, "value was deleted");
-        goto fail0;
-    }
-    
-    struct value *restore_v = value_init_fromvalue(i, restore_what_arg);
-    if (!restore_v) {
-        goto fail0;
-    }
-    
-    struct value *v = value_insert(i, mov, where_arg, what_arg);
+    struct value *oldv;
+    struct value *v = value_insert(i, mov, where_arg, what_arg, &oldv);
     if (!v) {
         goto fail1;
     }
     
-    func_new_common(i, v, 1, restore_v);
+    valref_init(&data->val_ref, v);
+    valref_init(&data->oldval_ref, oldv);
+    
+    func_new_common(i, v, (value_deinit_func)insert_undo_deinit_func, data);
     return;
     
 fail1:
-    value_cleanup(restore_v);
+    free(data);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -1298,15 +1290,9 @@ static const struct NCDModule modules[] = {
         .func_die = func_die,
         .func_getvar = func_getvar
     }, {
-        .type = "value::insert_remove",
+        .type = "value::insert_undo",
         .base_type = "value",
-        .func_new = func_new_insert_remove,
-        .func_die = func_die,
-        .func_getvar = func_getvar
-    }, {
-        .type = "value::insert_insert",
-        .base_type = "value",
-        .func_new = func_new_insert_insert,
+        .func_new = func_new_insert_undo,
         .func_die = func_die,
         .func_getvar = func_getvar
     }, {
