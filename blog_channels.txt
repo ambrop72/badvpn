@@ -115,3 +115,4 @@ ncd_exit 4
 ncd_getargs 4
 ncd_arithmetic 4
 ncd_parse 4
+ncd_valuemetic 4
