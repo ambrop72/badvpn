@@ -560,31 +560,14 @@ int NCDValue_Compare (NCDValue *o, NCDValue *v)
     value_assert(o);
     value_assert(v);
     
-    if (o->type == NCDVALUE_STRING && v->type == NCDVALUE_LIST) {
-        return -1;
+    int cmp = (o->type > v->type) - (o->type < v->type);
+    if (cmp) {
+        return cmp;
     }
     
-    if (o->type == NCDVALUE_LIST && v->type == NCDVALUE_STRING) {
-        return 1;
-    }
+    ASSERT(o->type == v->type)
     
-    if (o->type == NCDVALUE_STRING && v->type == NCDVALUE_MAP) {
-        return -1;
-    }
-    
-    if (o->type == NCDVALUE_MAP && v->type == NCDVALUE_STRING) {
-        return 1;
-    }
-    
-    if (o->type == NCDVALUE_LIST && v->type == NCDVALUE_MAP) {
-        return -1;
-    }
-    
-    if (o->type == NCDVALUE_MAP && v->type == NCDVALUE_LIST) {
-        return 1;
-    }
-    
-    if (o->type == NCDVALUE_STRING && v->type == NCDVALUE_STRING) {
+    if (o->type == NCDVALUE_STRING) {
         int cmp = strcmp(o->string, v->string);
         if (cmp < 0) {
             return -1;
@@ -595,7 +578,7 @@ int NCDValue_Compare (NCDValue *o, NCDValue *v)
         return 0;
     }
     
-    if (o->type == NCDVALUE_LIST && v->type == NCDVALUE_LIST) {
+    if (o->type == NCDVALUE_LIST) {
         NCDValue *x = NCDValue_ListFirst(o);
         NCDValue *y = NCDValue_ListFirst(v);
         
@@ -620,7 +603,7 @@ int NCDValue_Compare (NCDValue *o, NCDValue *v)
         }
     }
     
-    if (o->type == NCDVALUE_MAP && v->type == NCDVALUE_MAP) {
+    if (o->type == NCDVALUE_MAP) {
         NCDValue *key1 = NCDValue_MapFirstKey(o);
         NCDValue *key2 = NCDValue_MapFirstKey(v);
         
