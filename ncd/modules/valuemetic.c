@@ -46,11 +46,11 @@
  *   1. Values of different types have the following order: strings, lists, maps.
  *   2. String values are ordered lexicographically, with respect to the numeric values
  *      of their bytes.
- *   3. List values are ordered lexicographically, where the elements are compared by
+ *   3. List values are ordered lexicographically, where the order of the elements is
+ *      defined by recursive application of these rules.
+ *   4. Map values are ordered lexicographically, as if a map was a list of (key, value)
+ *      pairs ordered by key, where the order of both keys and values is defined by
  *      recursive application of these rules.
- *   4. Map values are ordered lexicographically, as if a map was as list of (key, value)
- *      pairs, where both the keys and values are compared by recursive application of
- *      these rules.
  */
 
 #include <stdlib.h>
