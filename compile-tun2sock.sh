@@ -38,7 +38,7 @@ fi
 
 CFLAGS="${CFLAGS} -std=gnu99"
 INCLUDES=( "-I${SRCDIR}" "-I${SRCDIR}/lwip/src/include/ipv4" "-I${SRCDIR}/lwip/src/include" "-I${SRCDIR}/lwip/custom" )
-DEFS=( -DBADVPN_THREADWORK_USE_PTHREAD -DBADVPN_LINUX -D_GNU_SOURCE )
+DEFS=( -DBADVPN_THREADWORK_USE_PTHREAD -DBADVPN_LINUX -DBADVPN_BREACTOR_BADVPN -D_GNU_SOURCE )
 
 [[ $KERNEL = "2.4" ]] && DEFS=( "${DEFS[@]}" -DBADVPN_USE_SELFPIPE -DBADVPN_USE_POLL ) || DEFS=( "${DEFS[@]}" -DBADVPN_USE_SIGNALFD -DBADVPN_USE_EPOLL )
 
@@ -46,7 +46,7 @@ DEFS=( -DBADVPN_THREADWORK_USE_PTHREAD -DBADVPN_LINUX -D_GNU_SOURCE )
     
 SOURCES="
 base/BLog_syslog.c
-system/BReactor.c
+system/BReactor_badvpn.c
 system/BSignal.c
 system/BConnection_unix.c
 system/BTime.c
