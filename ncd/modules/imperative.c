@@ -255,9 +255,9 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(init_template_arg) != NCDVALUE_STRING || NCDValue_Type(init_args) != NCDVALUE_LIST ||
-        NCDValue_Type(deinit_template_arg) != NCDVALUE_STRING || NCDValue_Type(o->deinit_args) != NCDVALUE_LIST ||
-        NCDValue_Type(deinit_timeout_arg) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(init_template_arg) || NCDValue_Type(init_args) != NCDVALUE_LIST ||
+        !NCDValue_IsStringNoNulls(deinit_template_arg) || NCDValue_Type(o->deinit_args) != NCDVALUE_LIST ||
+        !NCDValue_IsStringNoNulls(deinit_timeout_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }

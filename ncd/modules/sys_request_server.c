@@ -657,7 +657,7 @@ static int init_listen (struct instance *o, NCDValue *listen_addr_arg)
     }
     NCDValue *type_arg = NCDValue_ListFirst(listen_addr_arg);
     
-    if (NCDValue_Type(type_arg) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(type_arg)) {
         goto bad;
     }
     const char *type = NCDValue_StringValue(type_arg);
@@ -670,7 +670,7 @@ static int init_listen (struct instance *o, NCDValue *listen_addr_arg)
             goto bad;
         }
         
-        if (NCDValue_Type(socket_path_arg) != NCDVALUE_STRING) {
+        if (!NCDValue_IsStringNoNulls(socket_path_arg)) {
             goto bad;
         }
         
@@ -696,7 +696,7 @@ static int init_listen (struct instance *o, NCDValue *listen_addr_arg)
             goto bad;
         }
         
-        if (NCDValue_Type(ip_address_arg) != NCDVALUE_STRING || NCDValue_Type(port_number_arg) != NCDVALUE_STRING) {
+        if (!NCDValue_IsStringNoNulls(ip_address_arg) || !NCDValue_IsStringNoNulls(port_number_arg)) {
             goto bad;
         }
         
@@ -749,7 +749,7 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(request_handler_template_arg) != NCDVALUE_STRING || NCDValue_Type(args_arg) != NCDVALUE_LIST) {
+    if (!NCDValue_IsStringNoNulls(request_handler_template_arg) || NCDValue_Type(args_arg) != NCDVALUE_LIST) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }

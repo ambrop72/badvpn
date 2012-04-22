@@ -79,7 +79,7 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(input_arg) != NCDVALUE_STRING || NCDValue_Type(regex_arg) != NCDVALUE_STRING) {
+    if (NCDValue_Type(input_arg) != NCDVALUE_STRING || !NCDValue_IsStringNoNulls(regex_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
@@ -95,7 +95,12 @@ static void func_new (NCDModuleInst *i)
     }
     
     // execute match
-    o->succeeded = (regexec(&preg, o->input, MAX_MATCHES, o->matches, 0) == 0);
+    if (NCDValue_StringHasNulls(input_arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "string has nulls");
+        o->succeeded = 0;
+    } else {
+        o->succeeded = (regexec(&preg, o->input, MAX_MATCHES, o->matches, 0) == 0);
+    }
     
     // free regex
     regfree(&preg);

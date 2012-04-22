@@ -70,7 +70,20 @@ static void do_print (NCDModuleInst *i, int ln)
 {
     for (NCDValue *arg = NCDValue_ListFirst(i->args); arg; arg = NCDValue_ListNext(i->args, arg)) {
         ASSERT(NCDValue_Type(arg) == NCDVALUE_STRING)
-        printf("%s", NCDValue_StringValue(arg));
+        
+        const char *str = NCDValue_StringValue(arg);
+        size_t len = NCDValue_StringLength(arg);
+        size_t pos = 0;
+        
+        while (pos < len) {
+            ssize_t res = fwrite(str + pos, 1, len - pos, stdout);
+            if (res <= 0) {
+                break;
+            }
+            
+            pos += res;
+            len -= res;
+        }
     }
     
     if (ln) {

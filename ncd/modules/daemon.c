@@ -86,7 +86,7 @@ static int build_cmdline (NCDModuleInst *i, NCDValue *cmd_arg, char **exec, CmdL
         ModuleLog(i, BLOG_ERROR, "missing executable name");
         goto fail0;
     }
-    if (NCDValue_Type(exec_arg) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(exec_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
@@ -110,7 +110,7 @@ static int build_cmdline (NCDModuleInst *i, NCDValue *cmd_arg, char **exec, CmdL
     // add additional arguments
     NCDValue *arg = exec_arg;
     while (arg = NCDValue_ListNext(cmd_arg, arg)) {
-        if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+        if (!NCDValue_IsStringNoNulls(arg)) {
             ModuleLog(i, BLOG_ERROR, "wrong type");
             goto fail2;
         }

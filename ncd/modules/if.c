@@ -77,7 +77,7 @@ static void new_templ (NCDModuleInst *i, int not)
     }
     
     // compute logical value of argument
-    int c = !strcmp(NCDValue_StringValue(arg), "true");
+    int c = NCDValue_StringEquals(arg, "true");
     
     // signal up if needed
     if ((not && !c) || (!not && c)) {

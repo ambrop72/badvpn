@@ -412,7 +412,7 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(arg_list) != NCDVALUE_LIST || NCDValue_Type(arg_template) != NCDVALUE_STRING ||
+    if (NCDValue_Type(arg_list) != NCDVALUE_LIST || !NCDValue_IsStringNoNulls(arg_template) ||
         NCDValue_Type(arg_args) != NCDVALUE_LIST
     ) {
         ModuleLog(i, BLOG_ERROR, "wrong type");

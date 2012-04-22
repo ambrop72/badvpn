@@ -138,7 +138,7 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(arg_ifname) != NCDVALUE_STRING || NCDValue_Type(arg_addr) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(arg_ifname) || !NCDValue_IsStringNoNulls(arg_addr)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }

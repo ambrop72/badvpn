@@ -101,7 +101,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
-        const char *v = (!strcmp(NCDValue_StringValue(o->arg1), NCDValue_StringValue(o->arg2)) ? "true" : "false");
+        const char *v = !NCDValue_Compare(o->arg1, o->arg2) ? "true" : "false";
         
         if (!NCDValue_InitString(out, v)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");

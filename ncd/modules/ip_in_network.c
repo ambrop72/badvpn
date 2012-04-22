@@ -72,7 +72,7 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(arg_addr1) != NCDVALUE_STRING || NCDValue_Type(arg_addr2) != NCDVALUE_STRING || NCDValue_Type(arg_netprefix) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(arg_addr1) || !NCDValue_IsStringNoNulls(arg_addr2) || !NCDValue_IsStringNoNulls(arg_netprefix)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }

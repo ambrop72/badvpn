@@ -133,7 +133,12 @@ static void new_templ (NCDModuleInst *i, parse_func pfunc)
     }
     
     // parse
-    o->succeeded = pfunc(i, NCDValue_StringValue(str_arg), &o->value);
+    if (NCDValue_StringHasNulls(str_arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "string has nulls");
+        o->succeeded = 0;
+    } else {
+        o->succeeded = pfunc(i, NCDValue_StringValue(str_arg), &o->value);
+    }
     
     // signal up
     NCDModuleInst_Backend_Up(i);

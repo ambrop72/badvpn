@@ -476,7 +476,7 @@ static void start_func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (NCDValue_Type(name_arg) != NCDVALUE_STRING || NCDValue_Type(template_name_arg) != NCDVALUE_STRING ||
+    if (!NCDValue_IsStringNoNulls(name_arg) || !NCDValue_IsStringNoNulls(template_name_arg) ||
         NCDValue_Type(args_arg) != NCDVALUE_LIST) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
@@ -527,7 +527,7 @@ static void stop_func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (NCDValue_Type(name_arg) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(name_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }

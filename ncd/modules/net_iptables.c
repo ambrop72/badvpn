@@ -141,7 +141,7 @@ static int build_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdL
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (NCDValue_Type(table_arg) != NCDVALUE_STRING || NCDValue_Type(chain_arg) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(table_arg) || !NCDValue_IsStringNoNulls(chain_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
@@ -175,7 +175,7 @@ static int build_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdL
     // add additional arguments
     NCDValue *arg = NCDValue_ListNext(i->args, chain_arg);
     while (arg) {
-        if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+        if (!NCDValue_IsStringNoNulls(arg)) {
             ModuleLog(i, BLOG_ERROR, "wrong type");
             goto fail2;
         }
@@ -215,8 +215,8 @@ static int build_policy_cmdline (NCDModuleInst *i, int remove, char **exec, CmdL
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (NCDValue_Type(table_arg) != NCDVALUE_STRING || NCDValue_Type(chain_arg) != NCDVALUE_STRING ||
-        NCDValue_Type(target_arg) != NCDVALUE_STRING || NCDValue_Type(revert_target_arg) != NCDVALUE_STRING
+    if (!NCDValue_IsStringNoNulls(table_arg) || !NCDValue_IsStringNoNulls(chain_arg) ||
+        !NCDValue_IsStringNoNulls(target_arg) || !NCDValue_IsStringNoNulls(revert_target_arg)
     ) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
@@ -275,7 +275,7 @@ static int build_newchain_cmdline (NCDModuleInst *i, int remove, char **exec, Cm
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (NCDValue_Type(chain_arg) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(chain_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }

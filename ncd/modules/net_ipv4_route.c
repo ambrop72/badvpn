@@ -85,8 +85,8 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(dest_arg) != NCDVALUE_STRING || NCDValue_Type(dest_prefix_arg) != NCDVALUE_STRING || NCDValue_Type(gateway_arg) != NCDVALUE_STRING ||
-        NCDValue_Type(metric_arg) != NCDVALUE_STRING || NCDValue_Type(ifname_arg) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(dest_arg) || !NCDValue_IsStringNoNulls(dest_prefix_arg) || !NCDValue_IsStringNoNulls(gateway_arg) ||
+        !NCDValue_IsStringNoNulls(metric_arg) || !NCDValue_IsStringNoNulls(ifname_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }

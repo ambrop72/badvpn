@@ -46,7 +46,8 @@
 
 struct instance {
     NCDModuleInst *i;
-    char *string;
+    uint8_t *string;
+    size_t len;
 };
 
 static void func_new (NCDModuleInst *i)
@@ -77,7 +78,7 @@ static void func_new (NCDModuleInst *i)
             goto fail2;
         }
         
-        if (!ExpString_Append(&s, NCDValue_StringValue(arg))) {
+        if (!ExpString_AppendBinary(&s, (const uint8_t *)NCDValue_StringValue(arg), NCDValue_StringLength(arg))) {
             ModuleLog(i, BLOG_ERROR, "ExpString_Append failed");
             goto fail2;
         }
@@ -86,7 +87,8 @@ static void func_new (NCDModuleInst *i)
     }
     
     // set string
-    o->string = ExpString_Get(&s);
+    o->string = (uint8_t *)ExpString_Get(&s);
+    o->len = ExpString_Length(&s);
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
@@ -121,7 +123,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitString(out, o->string)) {
+        if (!NCDValue_InitStringBin(out, o->string, o->len)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
             return 0;
         }

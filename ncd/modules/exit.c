@@ -54,7 +54,7 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (NCDValue_Type(exit_code_arg) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(exit_code_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }

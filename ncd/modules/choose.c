@@ -103,7 +103,7 @@ static void func_new (NCDModuleInst *i)
         }
         
         // update result
-        if (!o->result && !strcmp(NCDValue_StringValue(c_cond), "true")) {
+        if (!o->result && NCDValue_StringEquals(c_cond, "true")) {
             o->result = c_result;
         }
     }

@@ -174,7 +174,7 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(template_name_arg) != NCDVALUE_STRING || NCDValue_Type(args_arg) != NCDVALUE_LIST) {
+    if (!NCDValue_IsStringNoNulls(template_name_arg) || NCDValue_Type(args_arg) != NCDVALUE_LIST) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
@@ -270,7 +270,6 @@ static void assert_func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    char *cond = NCDValue_StringValue(cond_arg);
     
     // get instance
     struct instance *mo = i->method_user;
@@ -279,7 +278,7 @@ static void assert_func_new (NCDModuleInst *i)
     // signal up
     NCDModuleInst_Backend_Up(i);
     
-    if (strcmp(cond, "true")) {
+    if (!NCDValue_StringEquals(cond_arg, "true")) {
         // mark not succeeded
         mo->succeeded = 0;
         

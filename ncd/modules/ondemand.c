@@ -236,7 +236,7 @@ static void ondemand_func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(arg_template_name) != NCDVALUE_STRING || NCDValue_Type(arg_args) != NCDVALUE_LIST) {
+    if (!NCDValue_IsStringNoNulls(arg_template_name) || NCDValue_Type(arg_args) != NCDVALUE_LIST) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }

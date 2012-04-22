@@ -173,7 +173,7 @@ static void provide_func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(name_arg) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(name_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
@@ -286,7 +286,7 @@ static void depend_func_new (NCDModuleInst *i)
     // check names list
     NCDValue *e = NCDValue_ListFirst(o->names);
     while (e) {
-        if (NCDValue_Type(e) != NCDVALUE_STRING) {
+        if (!NCDValue_IsStringNoNulls(e)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong type");
             goto fail1;
         }

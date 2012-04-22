@@ -82,7 +82,7 @@ static void func_new (NCDModuleInst *i, int not, int or)
             goto fail1;
         }
         
-        o->value = !!strcmp(NCDValue_StringValue(arg), "true");
+        o->value = !NCDValue_StringEquals(arg, "true");
     } else {
         o->value = (or ? 0 : 1);
         
@@ -93,7 +93,7 @@ static void func_new (NCDModuleInst *i, int not, int or)
                 goto fail1;
             }
             
-            int this_value = !strcmp(NCDValue_StringValue(arg), "true");
+            int this_value = NCDValue_StringEquals(arg, "true");
             if (or) {
                 o->value = o->value || this_value;
             } else {

@@ -104,6 +104,7 @@
 #include <string.h>
 #include <stddef.h>
 #include <limits.h>
+#include <stdint.h>
 
 #include <misc/offset.h>
 #include <misc/debug.h>
@@ -150,7 +151,8 @@ struct value {
     int type;
     union {
         struct {
-            char *string;
+            uint8_t *string;
+            size_t length;
         } string;
         struct {
             IndexedList list_contents_il;
@@ -165,7 +167,7 @@ static int ncdvalue_comparator (void *unused, void *vv1, void *vv2);
 static const char * get_type_str (int type);
 static void value_cleanup (struct value *v);
 static void value_delete (struct value *v);
-static struct value * value_init_string (NCDModuleInst *i, const char *str);
+static struct value * value_init_string (NCDModuleInst *i, const uint8_t *str, size_t len);
 static struct value * value_init_list (NCDModuleInst *i);
 static size_t value_list_len (struct value *v);
 static struct value * value_list_at (struct value *v, size_t index);
@@ -288,7 +290,7 @@ static void value_delete (struct value *v)
     free(v);
 }
 
-static struct value * value_init_string (NCDModuleInst *i, const char *str)
+static struct value * value_init_string (NCDModuleInst *i, const uint8_t *str, size_t len)
 {
     struct value *v = malloc(sizeof(*v));
     if (!v) {
@@ -300,10 +302,14 @@ static struct value * value_init_string (NCDModuleInst *i, const char *str)
     v->parent = NULL;
     v->type = NCDVALUE_STRING;
     
-    if (!(v->string.string = strdup(str))) {
-        ModuleLog(i, BLOG_ERROR, "strdup failed");
+    if (!(v->string.string = malloc(len))) {
+        ModuleLog(i, BLOG_ERROR, "malloc failed");
         goto fail1;
     }
+    
+    memcpy(v->string.string, str, len);
+    
+    v->string.length = len;
     
     return v;
     
@@ -488,7 +494,7 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValue *value)
     
     switch (NCDValue_Type(value)) {
         case NCDVALUE_STRING: {
-            if (!(v = value_init_string(i, NCDValue_StringValue(value)))) {
+            if (!(v = value_init_string(i, (const uint8_t *)NCDValue_StringValue(value), NCDValue_StringLength(value)))) {
                 goto fail0;
             }
         } break;
@@ -554,7 +560,7 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValue *out_valu
 {
     switch (v->type) {
         case NCDVALUE_STRING: {
-            if (!(NCDValue_InitString(out_value, v->string.string))) {
+            if (!(NCDValue_InitStringBin(out_value, v->string.string, v->string.length))) {
                 ModuleLog(i, BLOG_ERROR, "NCDValue_InitString failed");
                 goto fail0;
             }
@@ -631,7 +637,7 @@ static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *wh
             }
             
             uintmax_t index;
-            if (!parse_unsigned_integer(NCDValue_StringValue(where), &index)) {
+            if (NCDValue_StringHasNulls(where) || !parse_unsigned_integer(NCDValue_StringValue(where), &index)) {
                 if (!no_error) ModuleLog(i, BLOG_ERROR, "index is not a valid number (resolving into list)");
                 goto fail;
             }
@@ -703,7 +709,7 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue 
             }
             
             uintmax_t index;
-            if (!parse_unsigned_integer(NCDValue_StringValue(where), &index)) {
+            if (NCDValue_StringHasNulls(where) || !parse_unsigned_integer(NCDValue_StringValue(where), &index)) {
                 ModuleLog(i, BLOG_ERROR, "index is not a valid number (inserting into list)");
                 goto fail1;
             }
@@ -773,7 +779,7 @@ static int value_remove (NCDModuleInst *i, struct value *v, NCDValue *where)
             }
             
             uintmax_t index;
-            if (!parse_unsigned_integer(NCDValue_StringValue(where), &index)) {
+            if (NCDValue_StringHasNulls(where) || !parse_unsigned_integer(NCDValue_StringValue(where), &index)) {
                 ModuleLog(i, BLOG_ERROR, "index is not a valid number (removing from list)");
                 goto fail;
             }

@@ -505,7 +505,7 @@ static void get_func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(index_arg) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(index_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
@@ -717,7 +717,7 @@ static void find_func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(start_pos_arg) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(start_pos_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
@@ -820,7 +820,7 @@ static void removeat_func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(remove_pos_arg) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(remove_pos_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }

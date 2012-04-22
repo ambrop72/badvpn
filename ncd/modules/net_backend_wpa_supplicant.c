@@ -218,7 +218,7 @@ int build_cmdline (struct instance *o, CmdLine *c)
     // append user arguments
     NCDValue *arg = NCDValue_ListFirst(o->args);
     while (arg) {
-        if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+        if (!NCDValue_IsStringNoNulls(arg)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong type");
             goto fail1;
         }
@@ -410,8 +410,8 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(ifname_arg) != NCDVALUE_STRING || NCDValue_Type(conf_arg) != NCDVALUE_STRING ||
-        NCDValue_Type(exec_arg) != NCDVALUE_STRING || NCDValue_Type(args_arg) != NCDVALUE_LIST) {
+    if (!NCDValue_IsStringNoNulls(ifname_arg) || !NCDValue_IsStringNoNulls(conf_arg)  ||
+        !NCDValue_IsStringNoNulls(exec_arg) || NCDValue_Type(args_arg) != NCDVALUE_LIST) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }

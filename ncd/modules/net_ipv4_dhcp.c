@@ -115,7 +115,7 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(ifname_arg) != NCDVALUE_STRING || (opts_arg && NCDValue_Type(opts_arg) != NCDVALUE_LIST)) {
+    if (!NCDValue_IsStringNoNulls(ifname_arg) || (opts_arg && NCDValue_Type(opts_arg) != NCDVALUE_LIST)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
@@ -126,7 +126,7 @@ static void func_new (NCDModuleInst *i)
     // read options
     for (NCDValue *opt = (opts_arg ? NCDValue_ListFirst(opts_arg) : NULL); opt; opt = NCDValue_ListNext(opts_arg, opt)) {
         // read name
-        if (NCDValue_Type(opt) != NCDVALUE_STRING) {
+        if (!NCDValue_IsStringNoNulls(opt)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong option name type");
             goto fail1;
         }
@@ -139,7 +139,7 @@ static void func_new (NCDModuleInst *i)
                 ModuleLog(o->i, BLOG_ERROR, "option value missing");
                 goto fail1;
             }
-            if (NCDValue_Type(val) != NCDVALUE_STRING) {
+            if (!NCDValue_IsStringNoNulls(val)) {
                 ModuleLog(o->i, BLOG_ERROR, "wrong option value type");
                 goto fail1;
             }

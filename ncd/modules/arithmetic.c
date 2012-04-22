@@ -183,7 +183,7 @@ static void new_templ (NCDModuleInst *i, compute_func cfunc)
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(n1_arg) != NCDVALUE_STRING || NCDValue_Type(n2_arg) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(n1_arg) || !NCDValue_IsStringNoNulls(n2_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }

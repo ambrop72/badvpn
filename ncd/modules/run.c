@@ -81,7 +81,7 @@ static int build_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl
     
     // read exec
     NCDValue *exec_arg = NCDValue_ListFirst(list);
-    if (NCDValue_Type(exec_arg) != NCDVALUE_STRING) {
+    if (!NCDValue_IsStringNoNulls(exec_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
@@ -105,7 +105,7 @@ static int build_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl
     // add additional arguments
     NCDValue *arg = exec_arg;
     while (arg = NCDValue_ListNext(list, arg)) {
-        if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+        if (!NCDValue_IsStringNoNulls(arg)) {
             ModuleLog(i, BLOG_ERROR, "wrong type");
             goto fail2;
         }
