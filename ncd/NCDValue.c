@@ -211,6 +211,20 @@ size_t NCDValue_StringLength (NCDValue *o)
     return o->string_len;
 }
 
+int NCDValue_StringHasNoNulls (NCDValue *o)
+{
+    ASSERT(o->type == NCDVALUE_STRING)
+    
+    return strlen((char *)o->string) == o->string_len;
+}
+
+int NCDValue_StringEquals (NCDValue *o, const char *str)
+{
+    ASSERT(o->type == NCDVALUE_STRING)
+    
+    return NCDValue_StringHasNoNulls(o) && !strcmp(o->string, str);
+}
+
 void NCDValue_InitList (NCDValue *o)
 {
     LinkedList2_Init(&o->list);
