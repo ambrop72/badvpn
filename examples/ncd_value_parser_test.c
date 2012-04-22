@@ -51,6 +51,7 @@ static void print_value (NCDValue *val, unsigned int indent)
             print_indent(indent);
             printf("string: '%s'\n", NCDValue_StringValue(val));
         } break;
+        
         case NCDVALUE_LIST: {
             print_indent(indent);
             printf("list:\n");
@@ -59,6 +60,24 @@ static void print_value (NCDValue *val, unsigned int indent)
                 print_value(e, indent + 1);
             }
         } break;
+        
+        case NCDVALUE_MAP: {
+            print_indent(indent);
+            printf("map:\n");
+            
+            for (NCDValue *ekey = NCDValue_MapFirstKey(val); ekey; ekey = NCDValue_MapNextKey(val, ekey)) {
+                NCDValue *eval = NCDValue_MapKeyValue(val, ekey);
+                
+                print_indent(indent + 1);
+                printf("key:\n");
+                print_value(ekey, indent + 2);
+                
+                print_indent(indent + 1);
+                printf("val:\n");
+                print_value(eval, indent + 2);
+            }
+        } break;
+        
         default: ASSERT(0);
     }
 }
