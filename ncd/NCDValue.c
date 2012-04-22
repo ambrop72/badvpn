@@ -63,7 +63,7 @@ int NCDValue_InitCopy (NCDValue *o, NCDValue *v)
     
     switch (v->type) {
         case NCDVALUE_STRING: {
-            return NCDValue_InitString(o, v->string);
+            return NCDValue_InitStringBin(o, v->string, v->string_len);
         } break;
         
         case NCDVALUE_LIST: {
@@ -175,7 +175,14 @@ int NCDValue_Type (NCDValue *o)
 
 int NCDValue_InitString (NCDValue *o, const char *str)
 {
-    size_t len = strlen(str);
+    return NCDValue_InitStringBin(o, (const uint8_t *)str, strlen(str));
+}
+
+int NCDValue_InitStringBin (NCDValue *o, const uint8_t *str, size_t len)
+{
+    if (len == SIZE_MAX) {
+        return 0;
+    }
     
     if (!(o->string = malloc(len + 1))) {
         return 0;
@@ -183,6 +190,7 @@ int NCDValue_InitString (NCDValue *o, const char *str)
     
     memcpy(o->string, str, len);
     o->string[len] = '\0';
+    o->string_len = len;
     
     o->type = NCDVALUE_STRING;
     
@@ -193,7 +201,14 @@ char * NCDValue_StringValue (NCDValue *o)
 {
     ASSERT(o->type == NCDVALUE_STRING)
     
-    return o->string;
+    return (char *)o->string;
+}
+
+size_t NCDValue_StringLength (NCDValue *o)
+{
+    ASSERT(o->type == NCDVALUE_STRING)
+    
+    return o->string_len;
 }
 
 void NCDValue_InitList (NCDValue *o)
@@ -568,14 +583,14 @@ int NCDValue_Compare (NCDValue *o, NCDValue *v)
     ASSERT(o->type == v->type)
     
     if (o->type == NCDVALUE_STRING) {
-        int cmp = strcmp(o->string, v->string);
-        if (cmp < 0) {
-            return -1;
+        size_t min_len = o->string_len < v->string_len ? o->string_len : v->string_len;
+        
+        int cmp = memcmp(o->string, v->string, min_len);
+        if (cmp) {
+            return (cmp > 0) - (cmp < 0);
         }
-        if (cmp > 0) {
-            return 1;
-        }
-        return 0;
+        
+        return (o->string_len > v->string_len) - (o->string_len < v->string_len);
     }
     
     if (o->type == NCDVALUE_LIST) {
