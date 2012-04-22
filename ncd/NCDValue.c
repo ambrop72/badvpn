@@ -218,6 +218,13 @@ int NCDValue_StringHasNoNulls (NCDValue *o)
     return strlen((char *)o->string) == o->string_len;
 }
 
+int NCDValue_StringHasNulls (NCDValue *o)
+{
+    ASSERT(o->type == NCDVALUE_STRING)
+    
+    return !NCDValue_StringHasNoNulls(o);
+}
+
 int NCDValue_StringEquals (NCDValue *o, const char *str)
 {
     ASSERT(o->type == NCDVALUE_STRING)

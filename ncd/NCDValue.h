@@ -79,6 +79,7 @@ int NCDValue_InitStringBin (NCDValue *o, const uint8_t *str, size_t len) WARN_UN
 char * NCDValue_StringValue (NCDValue *o);
 size_t NCDValue_StringLength (NCDValue *o);
 int NCDValue_StringHasNoNulls (NCDValue *o);
+int NCDValue_StringHasNulls (NCDValue *o);
 int NCDValue_StringEquals (NCDValue *o, const char *str);
 
 void NCDValue_InitList (NCDValue *o);
