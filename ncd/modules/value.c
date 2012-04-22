@@ -77,8 +77,8 @@
  * Variables:
  *   (empty) - the value stored in the value object
  *   type - type of the value; "string", "list" or "map"
- *   length - number of elements in the list or map (only if the value if a list
- *            or a map)
+ *   length - number of elements in the list or map, or the number of bytes in a
+ *            string
  *   keys - a list of keys in the map (only if the value is a map)
  *   exists - "true" or "false", reflecting whether the value object holds a value
  *            (is not in deleted state)
@@ -932,9 +932,11 @@ static int func_getvar (void *vo, const char *name, NCDValue *out_value)
             case NCDVALUE_MAP:
                 len = value_map_len(v);
                 break;
+            case NCDVALUE_STRING:
+                len = v->string.length;
+                break;
             default:
-                ModuleLog(o->i, BLOG_ERROR, "value is not a list or map");
-                return 0;
+                ASSERT(0);
         }
         
         char str[64];
