@@ -63,7 +63,7 @@ static int build_map_value (struct NCDConfig_list *list, NCDValue *out);
 
 static int tokenizer_output (void *user, int token, char *value, size_t value_len, size_t line, size_t line_char)
 {
-    struct parser_state *state = (struct parser_state *)user;
+    struct parser_state *state = user;
     ASSERT(!state->out.out_of_memory)
     ASSERT(!state->out.syntax_error)
     ASSERT(!state->error)
@@ -150,7 +150,7 @@ static int build_value (struct NCDConfig_list *ast, NCDValue *out)
     switch (ast->type) {
         case NCDCONFIG_ARG_STRING: {
             if (!NCDValue_InitStringBin(out, ast->string, ast->string_len)) {
-                BLog(BLOG_ERROR, "NCDValue_InitString failed");
+                BLog(BLOG_ERROR, "NCDValue_InitStringBin failed");
                 return 0;
             }
         } break;
@@ -278,7 +278,7 @@ int NCDValueParser_Parse (const char *str, size_t str_len, NCDValue *out_value)
     switch (state.out.ast_type) {
         case AST_TYPE_STRING: {
             if (!NCDValue_InitStringBin(&val, state.out.ast_string.str, state.out.ast_string.len)) {
-                BLog(BLOG_ERROR, "NCDValue_InitString failed");
+                BLog(BLOG_ERROR, "NCDValue_InitStringBin failed");
                 goto out;
             }
         } break;

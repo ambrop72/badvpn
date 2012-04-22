@@ -135,7 +135,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     
     if (!strcmp(name, "")) {
         if (!NCDValue_InitStringBin(out, o->string, o->len)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
+            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitStringBin failed");
             return 0;
         }
         

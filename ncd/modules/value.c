@@ -561,7 +561,7 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValue *out_valu
     switch (v->type) {
         case NCDVALUE_STRING: {
             if (!(NCDValue_InitStringBin(out_value, v->string.string, v->string.length))) {
-                ModuleLog(i, BLOG_ERROR, "NCDValue_InitString failed");
+                ModuleLog(i, BLOG_ERROR, "NCDValue_InitStringBin failed");
                 goto fail0;
             }
         } break;
