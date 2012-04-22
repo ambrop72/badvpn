@@ -85,7 +85,10 @@
 struct arg_value {
     int type;
     union {
-        char *string;
+        struct {
+            char *string;
+            size_t string_len;
+        };
         char **variable_names;
         LinkedList1 list;
         LinkedList1 maplist;
@@ -184,7 +187,7 @@ static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static void start_terminate (int exit_code);
-static int arg_value_init_string (struct arg_value *o, const char *string);
+static int arg_value_init_string (struct arg_value *o, const char *string, size_t len);
 static int arg_value_init_variable (struct arg_value *o, struct NCDConfig_strings *ast_names);
 static void arg_value_init_list (struct arg_value *o);
 static int arg_value_list_append (struct arg_value *o, struct arg_value v);
@@ -640,13 +643,17 @@ void start_terminate (int exit_code)
     }
 }
 
-int arg_value_init_string (struct arg_value *o, const char *string)
+int arg_value_init_string (struct arg_value *o, const char *string, size_t len)
 {
     o->type = ARG_VALUE_TYPE_STRING;
-    if (!(o->string = strdup(string))) {
-        BLog(BLOG_ERROR, "strdup failed");
+    
+    if (!(o->string = malloc(len))) {
+        BLog(BLOG_ERROR, "malloc failed");
         return 0;
     }
+    memcpy(o->string, string, len);
+    
+    o->string_len = len;
     
     return 1;
 }
@@ -744,7 +751,7 @@ int build_arg_from_ast (struct arg_value *o, struct NCDConfig_list *ast)
 {
     switch (ast->type) {
         case NCDCONFIG_ARG_STRING: {
-            if (!arg_value_init_string(o, ast->string)) {
+            if (!arg_value_init_string(o, ast->string, ast->string_len)) {
                 return 0;
             }
         } break;
@@ -1542,8 +1549,8 @@ int process_statement_resolve_argument (struct process_statement *ps, struct arg
     
     switch (arg->type) {
         case ARG_VALUE_TYPE_STRING: {
-            if (!NCDValue_InitString(out, arg->string)) {
-                process_statement_log(ps, BLOG_ERROR, "NCDValue_InitString failed");
+            if (!NCDValue_InitStringBin(out, arg->string, arg->string_len)) {
+                process_statement_log(ps, BLOG_ERROR, "NCDValue_InitStringBin failed");
                 return 0;
             }
         } break;
