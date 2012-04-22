@@ -50,7 +50,7 @@
 #define NCD_TOKEN_BRACKET_OPEN 14
 #define NCD_TOKEN_BRACKET_CLOSE 15
 
-typedef int (*NCDConfigTokenizer_output) (void *user, int token, char *value, size_t line, size_t line_char);
+typedef int (*NCDConfigTokenizer_output) (void *user, int token, char *value, size_t value_len, size_t line, size_t line_char);
 
 void NCDConfigTokenizer_Tokenize (char *str, size_t str_len, NCDConfigTokenizer_output output, void *user);
 

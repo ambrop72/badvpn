@@ -48,9 +48,9 @@ struct parser_state {
     void *parser;
 };
 
-static int tokenizer_output (void *user, int token, char *value, size_t line, size_t line_char)
+static int tokenizer_output (void *user, int token, char *value, size_t value_len, size_t line, size_t line_char)
 {
-    struct parser_state *state = (struct parser_state *)user;
+    struct parser_state *state = user;
     ASSERT(!state->out.out_of_memory)
     ASSERT(!state->out.syntax_error)
     ASSERT(!state->error)
@@ -61,69 +61,73 @@ static int tokenizer_output (void *user, int token, char *value, size_t line, si
         return 0;
     }
     
+    struct parser_minor minor;
+    minor.str = value;
+    minor.len = value_len;
+    
     switch (token) {
         case NCD_EOF: {
-            Parse(state->parser, 0, NULL, &state->out);
+            Parse(state->parser, 0, minor, &state->out);
         } break;
         
         case NCD_TOKEN_CURLY_OPEN: {
-            Parse(state->parser, CURLY_OPEN, NULL, &state->out);
+            Parse(state->parser, CURLY_OPEN, minor, &state->out);
         } break;
         
         case NCD_TOKEN_CURLY_CLOSE: {
-            Parse(state->parser, CURLY_CLOSE, NULL, &state->out);
+            Parse(state->parser, CURLY_CLOSE, minor, &state->out);
         } break;
         
         case NCD_TOKEN_ROUND_OPEN: {
-            Parse(state->parser, ROUND_OPEN, NULL, &state->out);
+            Parse(state->parser, ROUND_OPEN, minor, &state->out);
         } break;
         
         case NCD_TOKEN_ROUND_CLOSE: {
-            Parse(state->parser, ROUND_CLOSE, NULL, &state->out);
+            Parse(state->parser, ROUND_CLOSE, minor, &state->out);
         } break;
         
         case NCD_TOKEN_SEMICOLON: {
-            Parse(state->parser, SEMICOLON, NULL, &state->out);
+            Parse(state->parser, SEMICOLON, minor, &state->out);
         } break;
         
         case NCD_TOKEN_DOT: {
-            Parse(state->parser, DOT, NULL, &state->out);
+            Parse(state->parser, DOT, minor, &state->out);
         } break;
         
         case NCD_TOKEN_COMMA: {
-            Parse(state->parser, COMMA, NULL, &state->out);
+            Parse(state->parser, COMMA, minor, &state->out);
         } break;
         
         case NCD_TOKEN_ARROW: {
-            Parse(state->parser, ARROW, NULL, &state->out);
+            Parse(state->parser, ARROW, minor, &state->out);
         } break;
         
         case NCD_TOKEN_PROCESS: {
-            Parse(state->parser, PROCESS, NULL, &state->out);
+            Parse(state->parser, PROCESS, minor, &state->out);
         } break;
         
         case NCD_TOKEN_TEMPLATE: {
-            Parse(state->parser, TEMPLATE, NULL, &state->out);
+            Parse(state->parser, TEMPLATE, minor, &state->out);
         } break;
         
         case NCD_TOKEN_NAME: {
-            Parse(state->parser, NAME, value, &state->out);
+            Parse(state->parser, NAME, minor, &state->out);
         } break;
         
         case NCD_TOKEN_STRING: {
-            Parse(state->parser, STRING, value, &state->out);
+            Parse(state->parser, STRING, minor, &state->out);
         } break;
         
         case NCD_TOKEN_COLON: {
-            Parse(state->parser, COLON, NULL, &state->out);
+            Parse(state->parser, COLON, minor, &state->out);
         } break;
         
         case NCD_TOKEN_BRACKET_OPEN: {
-            Parse(state->parser, BRACKET_OPEN, NULL, &state->out);
+            Parse(state->parser, BRACKET_OPEN, minor, &state->out);
         } break;
         
         case NCD_TOKEN_BRACKET_CLOSE: {
-            Parse(state->parser, BRACKET_CLOSE, NULL, &state->out);
+            Parse(state->parser, BRACKET_CLOSE, minor, &state->out);
         } break;
         
         default:

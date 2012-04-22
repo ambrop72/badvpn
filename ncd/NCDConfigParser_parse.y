@@ -35,6 +35,11 @@
 #include <misc/debug.h>
 #include <ncd/NCDConfig.h>
 
+struct parser_minor {
+    char *str;
+    size_t len;
+};
+
 struct parser_out {
     int out_of_memory;
     int syntax_error;
@@ -45,9 +50,9 @@ struct parser_out {
 
 %extra_argument {struct parser_out *parser_out}
 
-%token_type {void *}
+%token_type {struct parser_minor}
 
-%token_destructor { free($$); }
+%token_destructor { free($$.str); }
 
 %type processes {struct NCDConfig_processes *}
 %type statements {struct NCDConfig_statements *}
@@ -81,7 +86,7 @@ struct parser_out {
 // workaroud Lemon bug: if the stack overflows, the token that caused the overflow will be leaked
 %stack_overflow {
     if (yypMinor) {
-        free(yypMinor->yy0);
+        free(yypMinor->yy0.str);
     }
 }
 
@@ -94,14 +99,14 @@ input ::= processes(A). {
 }
 
 processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE. {
-    R = NCDConfig_make_processes(T, A, B, 0, NULL);
+    R = NCDConfig_make_processes(T, A.str, B, 0, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
 processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE processes(N). {
-    R = NCDConfig_make_processes(T, A, B, 1, N);
+    R = NCDConfig_make_processes(T, A.str, B, 1, N);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
@@ -136,14 +141,14 @@ statements(R) ::= statement_names(M) ARROW statement_names(A) ROUND_OPEN stateme
 }
 
 statement_names(R) ::= NAME(A). {
-    R = NCDConfig_make_strings(A, 0, NULL);
+    R = NCDConfig_make_strings(A.str, 0, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
 statement_names(R) ::= NAME(A) DOT statement_names(N). {
-    R = NCDConfig_make_strings(A, 1, N);
+    R = NCDConfig_make_strings(A.str, 1, N);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
@@ -216,7 +221,7 @@ map(R) ::= BRACKET_OPEN map_contents(A) BRACKET_CLOSE. {
 }
 
 value(R) ::= STRING(A). {
-    R = NCDConfig_make_list_string(A, NULL);
+    R = NCDConfig_make_list_string(A.str, A.len, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
@@ -248,7 +253,7 @@ name_maybe(R) ::= . {
 }
 
 name_maybe(R) ::= NAME(A). {
-    R = A;
+    R = A.str;
 }
 
 process_or_template(R) ::= PROCESS. {

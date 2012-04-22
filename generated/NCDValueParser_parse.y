@@ -40,11 +40,16 @@
 #define AST_TYPE_LIST 2
 #define AST_TYPE_MAP 3
 
+struct parser_minor {
+    char *str;
+    size_t len;
+};
+
 struct parser_out {
     int out_of_memory;
     int syntax_error;
     int ast_type;
-    char *ast_string;
+    struct parser_minor ast_string;
     struct NCDConfig_list *ast_list;
 };
 
@@ -52,9 +57,9 @@ struct parser_out {
 
 %extra_argument {struct parser_out *parser_out}
 
-%token_type {void *}
+%token_type {struct parser_minor}
 
-%token_destructor { free($$); }
+%token_destructor { free($$.str); }
 
 %type list_contents {struct NCDConfig_list *}
 %type list {struct NCDConfig_list *}
@@ -77,7 +82,7 @@ struct parser_out {
 // workaroud Lemon bug: if the stack overflows, the token that caused the overflow will be leaked
 %stack_overflow {
     if (yypMinor) {
-        free(yypMinor->yy0);
+        free(yypMinor->yy0.str);
     }
 }
 
@@ -161,7 +166,7 @@ map(R) ::= BRACKET_OPEN map_contents(A) BRACKET_CLOSE. {
 }
 
 value(R) ::= STRING(A). {
-    R = NCDConfig_make_list_string(A, NULL);
+    R = NCDConfig_make_list_string(A.str, A.len, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }

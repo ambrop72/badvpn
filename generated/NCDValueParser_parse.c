@@ -18,15 +18,20 @@
 #define AST_TYPE_LIST 2
 #define AST_TYPE_MAP 3
 
+struct parser_minor {
+    char *str;
+    size_t len;
+};
+
 struct parser_out {
     int out_of_memory;
     int syntax_error;
     int ast_type;
-    char *ast_string;
+    struct parser_minor ast_string;
     struct NCDConfig_list *ast_list;
 };
 
-#line 30 "NCDValueParser_parse.c"
+#line 35 "NCDValueParser_parse.c"
 /* Next is all token values, in a form suitable for use by makeheaders.
 ** This section will be null unless lemon is run with the -m switch.
 */
@@ -79,7 +84,7 @@ struct parser_out {
 #define YYCODETYPE unsigned char
 #define YYNOCODE 16
 #define YYACTIONTYPE unsigned char
-#define ParseTOKENTYPE void *
+#define ParseTOKENTYPE struct parser_minor
 typedef union {
   int yyinit;
   ParseTOKENTYPE yy0;
@@ -396,9 +401,9 @@ static void yy_destructor(
     case 6: /* BRACKET_OPEN */
     case 7: /* BRACKET_CLOSE */
 {
-#line 57 "NCDValueParser_parse.y"
- free((yypminor->yy0)); 
-#line 402 "NCDValueParser_parse.c"
+#line 62 "NCDValueParser_parse.y"
+ free((yypminor->yy0).str); 
+#line 407 "NCDValueParser_parse.c"
 }
       break;
     case 9: /* list_contents */
@@ -407,9 +412,9 @@ static void yy_destructor(
     case 12: /* map */
     case 13: /* value */
 {
-#line 65 "NCDValueParser_parse.y"
+#line 70 "NCDValueParser_parse.y"
  NCDConfig_free_list((yypminor->yy14)); 
-#line 413 "NCDValueParser_parse.c"
+#line 418 "NCDValueParser_parse.c"
 }
       break;
     default:  break;   /* If no destructor action specified: do nothing */
@@ -582,12 +587,12 @@ static void yyStackOverflow(yyParser *yypParser, YYMINORTYPE *yypMinor){
    while( yypParser->yyidx>=0 ) yy_pop_parser_stack(yypParser);
    /* Here code is inserted which will execute if the parser
    ** stack every overflows */
-#line 78 "NCDValueParser_parse.y"
+#line 83 "NCDValueParser_parse.y"
 
     if (yypMinor) {
-        free(yypMinor->yy0);
+        free(yypMinor->yy0.str);
     }
-#line 591 "NCDValueParser_parse.c"
+#line 596 "NCDValueParser_parse.c"
    ParseARG_STORE; /* Suppress warning about unused %extra_argument var */
 }
 
@@ -713,44 +718,44 @@ static void yy_reduce(
   **     break;
   */
       case 0: /* input ::= STRING */
-#line 84 "NCDValueParser_parse.y"
+#line 89 "NCDValueParser_parse.y"
 {
     ASSERT(parser_out->ast_type == AST_TYPE_NONE)
 
     parser_out->ast_string = yymsp[0].minor.yy0;
     parser_out->ast_type = AST_TYPE_STRING;
 }
-#line 724 "NCDValueParser_parse.c"
+#line 729 "NCDValueParser_parse.c"
         break;
       case 1: /* input ::= list */
-#line 91 "NCDValueParser_parse.y"
+#line 96 "NCDValueParser_parse.y"
 {
     ASSERT(parser_out->ast_type == AST_TYPE_NONE)
 
     parser_out->ast_list = yymsp[0].minor.yy14;
     parser_out->ast_type = AST_TYPE_LIST;
 }
-#line 734 "NCDValueParser_parse.c"
+#line 739 "NCDValueParser_parse.c"
         break;
       case 2: /* input ::= map */
-#line 98 "NCDValueParser_parse.y"
+#line 103 "NCDValueParser_parse.y"
 {
     ASSERT(parser_out->ast_type == AST_TYPE_NONE)
 
     parser_out->ast_list = yymsp[0].minor.yy14;
     parser_out->ast_type = AST_TYPE_MAP;
 }
-#line 744 "NCDValueParser_parse.c"
+#line 749 "NCDValueParser_parse.c"
         break;
       case 3: /* list_contents ::= value */
-#line 105 "NCDValueParser_parse.y"
+#line 110 "NCDValueParser_parse.y"
 {
     yygotominor.yy14 = yymsp[0].minor.yy14;
 }
-#line 751 "NCDValueParser_parse.c"
+#line 756 "NCDValueParser_parse.c"
         break;
       case 4: /* list_contents ::= value COMMA list_contents */
-#line 109 "NCDValueParser_parse.y"
+#line 114 "NCDValueParser_parse.y"
 {
     if (!yymsp[-2].minor.yy14) {
         NCDConfig_free_list(yymsp[0].minor.yy14);
@@ -761,10 +766,10 @@ static void yy_reduce(
     yygotominor.yy14 = yymsp[-2].minor.yy14;
   yy_destructor(yypParser,2,&yymsp[-1].minor);
 }
-#line 765 "NCDValueParser_parse.c"
+#line 770 "NCDValueParser_parse.c"
         break;
       case 5: /* map_contents ::= value COLON value */
-#line 119 "NCDValueParser_parse.y"
+#line 124 "NCDValueParser_parse.y"
 {
     if (!yymsp[-2].minor.yy14 || !yymsp[0].minor.yy14) {
         NCDConfig_free_list(yymsp[-2].minor.yy14);
@@ -778,10 +783,10 @@ static void yy_reduce(
     }
   yy_destructor(yypParser,3,&yymsp[-1].minor);
 }
-#line 782 "NCDValueParser_parse.c"
+#line 787 "NCDValueParser_parse.c"
         break;
       case 6: /* map_contents ::= value COLON value COMMA map_contents */
-#line 132 "NCDValueParser_parse.y"
+#line 137 "NCDValueParser_parse.y"
 {
     if (!yymsp[-4].minor.yy14 || !yymsp[-2].minor.yy14) {
         NCDConfig_free_list(yymsp[-4].minor.yy14);
@@ -798,73 +803,73 @@ static void yy_reduce(
   yy_destructor(yypParser,3,&yymsp[-3].minor);
   yy_destructor(yypParser,2,&yymsp[-1].minor);
 }
-#line 802 "NCDValueParser_parse.c"
+#line 807 "NCDValueParser_parse.c"
         break;
       case 7: /* list ::= CURLY_OPEN CURLY_CLOSE */
-#line 147 "NCDValueParser_parse.y"
+#line 152 "NCDValueParser_parse.y"
 {
     yygotominor.yy14 = NULL;
   yy_destructor(yypParser,4,&yymsp[-1].minor);
   yy_destructor(yypParser,5,&yymsp[0].minor);
 }
-#line 811 "NCDValueParser_parse.c"
+#line 816 "NCDValueParser_parse.c"
         break;
       case 8: /* list ::= CURLY_OPEN list_contents CURLY_CLOSE */
-#line 151 "NCDValueParser_parse.y"
+#line 156 "NCDValueParser_parse.y"
 {
     yygotominor.yy14 = yymsp[-1].minor.yy14;
   yy_destructor(yypParser,4,&yymsp[-2].minor);
   yy_destructor(yypParser,5,&yymsp[0].minor);
 }
-#line 820 "NCDValueParser_parse.c"
+#line 825 "NCDValueParser_parse.c"
         break;
       case 9: /* map ::= BRACKET_OPEN BRACKET_CLOSE */
-#line 155 "NCDValueParser_parse.y"
+#line 160 "NCDValueParser_parse.y"
 {
     yygotominor.yy14 = NULL;
   yy_destructor(yypParser,6,&yymsp[-1].minor);
   yy_destructor(yypParser,7,&yymsp[0].minor);
 }
-#line 829 "NCDValueParser_parse.c"
+#line 834 "NCDValueParser_parse.c"
         break;
       case 10: /* map ::= BRACKET_OPEN map_contents BRACKET_CLOSE */
-#line 159 "NCDValueParser_parse.y"
+#line 164 "NCDValueParser_parse.y"
 {
     yygotominor.yy14 = yymsp[-1].minor.yy14;
   yy_destructor(yypParser,6,&yymsp[-2].minor);
   yy_destructor(yypParser,7,&yymsp[0].minor);
 }
-#line 838 "NCDValueParser_parse.c"
+#line 843 "NCDValueParser_parse.c"
         break;
       case 11: /* value ::= STRING */
-#line 163 "NCDValueParser_parse.y"
+#line 168 "NCDValueParser_parse.y"
 {
-    yygotominor.yy14 = NCDConfig_make_list_string(yymsp[0].minor.yy0, NULL);
+    yygotominor.yy14 = NCDConfig_make_list_string(yymsp[0].minor.yy0.str, yymsp[0].minor.yy0.len, NULL);
     if (!yygotominor.yy14) {
         parser_out->out_of_memory = 1;
     }
 }
-#line 848 "NCDValueParser_parse.c"
+#line 853 "NCDValueParser_parse.c"
         break;
       case 12: /* value ::= list */
-#line 170 "NCDValueParser_parse.y"
+#line 175 "NCDValueParser_parse.y"
 {
     yygotominor.yy14 = NCDConfig_make_list_list(yymsp[0].minor.yy14, NULL);
     if (!yygotominor.yy14) {
         parser_out->out_of_memory = 1;
     }
 }
-#line 858 "NCDValueParser_parse.c"
+#line 863 "NCDValueParser_parse.c"
         break;
       case 13: /* value ::= map */
-#line 177 "NCDValueParser_parse.y"
+#line 182 "NCDValueParser_parse.y"
 {
     yygotominor.yy14 = NCDConfig_make_list_maplist(yymsp[0].minor.yy14, NULL);
     if (!yygotominor.yy14) {
         parser_out->out_of_memory = 1;
     }
 }
-#line 868 "NCDValueParser_parse.c"
+#line 873 "NCDValueParser_parse.c"
         break;
       default:
         break;
@@ -926,10 +931,10 @@ static void yy_syntax_error(
 ){
   ParseARG_FETCH;
 #define TOKEN (yyminor.yy0)
-#line 73 "NCDValueParser_parse.y"
+#line 78 "NCDValueParser_parse.y"
 
     parser_out->syntax_error = 1;
-#line 933 "NCDValueParser_parse.c"
+#line 938 "NCDValueParser_parse.c"
   ParseARG_STORE; /* Suppress warning about unused %extra_argument variable */
 }
 

@@ -30,6 +30,8 @@
 #ifndef BADVPN_NCDCONFIG_NCDCONFIG_H
 #define BADVPN_NCDCONFIG_NCDCONFIG_H
 
+#include <stddef.h>
+
 struct NCDConfig_processes;
 struct NCDConfig_statements;
 struct NCDConfig_list;
@@ -58,7 +60,10 @@ struct NCDConfig_statements {
 struct NCDConfig_list {
     int type;
     union {
-        char *string;
+        struct {
+            char *string;
+            size_t string_len;
+        };
         struct NCDConfig_strings *var;
         struct NCDConfig_list *list;
     };
@@ -76,7 +81,7 @@ void NCDConfig_free_list (struct NCDConfig_list *v);
 void NCDConfig_free_strings (struct NCDConfig_strings *v);
 struct NCDConfig_processes * NCDConfig_make_processes (int is_template, char *name, struct NCDConfig_statements *statements, int have_next, struct NCDConfig_processes *next);
 struct NCDConfig_statements * NCDConfig_make_statements (struct NCDConfig_strings *objname, struct NCDConfig_strings *names, struct NCDConfig_list *args, char *name, struct NCDConfig_statements *next);
-struct NCDConfig_list * NCDConfig_make_list_string (char *str, struct NCDConfig_list *next);
+struct NCDConfig_list * NCDConfig_make_list_string (char *str, size_t len, struct NCDConfig_list *next);
 struct NCDConfig_list * NCDConfig_make_list_var (struct NCDConfig_strings *var, struct NCDConfig_list *next);
 struct NCDConfig_list * NCDConfig_make_list_list (struct NCDConfig_list *list, struct NCDConfig_list *next);
 struct NCDConfig_list * NCDConfig_make_list_maplist (struct NCDConfig_list *list, struct NCDConfig_list *next);

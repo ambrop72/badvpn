@@ -56,12 +56,12 @@ struct parser_state {
     void *parser;
 };
 
-static int tokenizer_output (void *user, int token, char *value, size_t line, size_t line_char);
+static int tokenizer_output (void *user, int token, char *value, size_t value_len, size_t line, size_t line_char);
 static int build_value (struct NCDConfig_list *ast, NCDValue *out);
 static int build_list_value (struct NCDConfig_list *list, NCDValue *out);
 static int build_map_value (struct NCDConfig_list *list, NCDValue *out);
 
-static int tokenizer_output (void *user, int token, char *value, size_t line, size_t line_char)
+static int tokenizer_output (void *user, int token, char *value, size_t value_len, size_t line, size_t line_char)
 {
     struct parser_state *state = (struct parser_state *)user;
     ASSERT(!state->out.out_of_memory)
@@ -87,37 +87,41 @@ static int tokenizer_output (void *user, int token, char *value, size_t line, si
         goto fail;
     }
     
+    struct parser_minor minor;
+    minor.str = value;
+    minor.len = value_len;
+    
     switch (token) {
         case NCD_EOF: {
-            Parse(state->parser, 0, NULL, &state->out);
+            Parse(state->parser, 0, minor, &state->out);
         } break;
         
         case NCD_TOKEN_CURLY_OPEN: {
-            Parse(state->parser, CURLY_OPEN, NULL, &state->out);
+            Parse(state->parser, CURLY_OPEN, minor, &state->out);
         } break;
         
         case NCD_TOKEN_CURLY_CLOSE: {
-            Parse(state->parser, CURLY_CLOSE, NULL, &state->out);
+            Parse(state->parser, CURLY_CLOSE, minor, &state->out);
         } break;
         
         case NCD_TOKEN_COMMA: {
-            Parse(state->parser, COMMA, NULL, &state->out);
+            Parse(state->parser, COMMA, minor, &state->out);
         } break;
         
         case NCD_TOKEN_STRING: {
-            Parse(state->parser, STRING, value, &state->out);
+            Parse(state->parser, STRING, minor, &state->out);
         } break;
         
         case NCD_TOKEN_COLON: {
-            Parse(state->parser, COLON, NULL, &state->out);
+            Parse(state->parser, COLON, minor, &state->out);
         } break;
         
         case NCD_TOKEN_BRACKET_OPEN: {
-            Parse(state->parser, BRACKET_OPEN, NULL, &state->out);
+            Parse(state->parser, BRACKET_OPEN, minor, &state->out);
         } break;
         
         case NCD_TOKEN_BRACKET_CLOSE: {
-            Parse(state->parser, BRACKET_CLOSE, NULL, &state->out);
+            Parse(state->parser, BRACKET_CLOSE, minor, &state->out);
         } break;
         
         default:
@@ -145,7 +149,7 @@ static int build_value (struct NCDConfig_list *ast, NCDValue *out)
 {
     switch (ast->type) {
         case NCDCONFIG_ARG_STRING: {
-            if (!NCDValue_InitString(out, ast->string)) {
+            if (!NCDValue_InitStringBin(out, ast->string, ast->string_len)) {
                 BLog(BLOG_ERROR, "NCDValue_InitString failed");
                 return 0;
             }
@@ -248,7 +252,7 @@ int NCDValueParser_Parse (const char *str, size_t str_len, NCDValue *out_value)
     state.out.out_of_memory = 0;
     state.out.syntax_error = 0;
     state.out.ast_type = AST_TYPE_NONE;
-    state.out.ast_string = NULL;
+    state.out.ast_string.str = NULL;
     state.out.ast_list = NULL;
     state.error = 0;
     
@@ -273,7 +277,7 @@ int NCDValueParser_Parse (const char *str, size_t str_len, NCDValue *out_value)
     NCDValue val;
     switch (state.out.ast_type) {
         case AST_TYPE_STRING: {
-            if (!NCDValue_InitString(&val, state.out.ast_string)) {
+            if (!NCDValue_InitStringBin(&val, state.out.ast_string.str, state.out.ast_string.len)) {
                 BLog(BLOG_ERROR, "NCDValue_InitString failed");
                 goto out;
             }
@@ -299,7 +303,7 @@ out:
     if (state.parser) {
         ParseFree(state.parser, free);
     }
-    free(state.out.ast_string);
+    free(state.out.ast_string.str);
     NCDConfig_free_list(state.out.ast_list);
     return res;
 }

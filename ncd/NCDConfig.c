@@ -32,6 +32,7 @@
 
 #include <misc/string_begins_with.h>
 #include <misc/expstring.h>
+#include <misc/debug.h>
 
 #include <ncd/NCDConfig.h>
 
@@ -149,8 +150,10 @@ fail:
     return NULL;
 }
 
-struct NCDConfig_list * NCDConfig_make_list_string (char *str, struct NCDConfig_list *next)
+struct NCDConfig_list * NCDConfig_make_list_string (char *str, size_t len, struct NCDConfig_list *next)
 {
+    ASSERT(str[len] == '\0')
+    
     struct NCDConfig_list *v = malloc(sizeof(*v));
     if (!v) {
         goto fail;
@@ -158,6 +161,7 @@ struct NCDConfig_list * NCDConfig_make_list_string (char *str, struct NCDConfig_
     
     v->type = NCDCONFIG_ARG_STRING;
     v->string = str;
+    v->string_len = len;
     v->next = next;
     
     return v;

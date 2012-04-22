@@ -71,6 +71,7 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
         int error = 0;
         int token;
         void *token_val = NULL;
+        size_t token_len = 0;
         
         if (*str == '#') {
             l = 1;
@@ -142,6 +143,7 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
             else {
                 token = NCD_TOKEN_NAME;
                 token_val = buf;
+                token_len = l;
             }
         }
         else if (*str == '"') do {
@@ -157,7 +159,7 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
             
             // decode string
             while (l < left) {
-                char dec_ch;
+                uint8_t dec_ch;
                 
                 // get character
                 if (str[l] == '\\') {
@@ -184,7 +186,7 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
                 }
                 
                 // append character to string
-                if (!ExpString_AppendChar(&estr, dec_ch)) {
+                if (!ExpString_AppendByte(&estr, dec_ch)) {
                     BLog(BLOG_ERROR, "ExpString_AppendChar failed");
                     goto string_fail1;
                 }
@@ -201,6 +203,7 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
             
             token = NCD_TOKEN_STRING;
             token_val = ExpString_Get(&estr);
+            token_len = ExpString_Length(&estr);
             break;
             
         string_fail1:
@@ -220,13 +223,13 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
     out:
         // report error
         if (error) {
-            output(user, NCD_ERROR, NULL, line, line_char);
+            output(user, NCD_ERROR, NULL, 0, line, line_char);
             return;
         }
         
         // output token
         if (token) {
-            if (!output(user, token, token_val, line, line_char)) {
+            if (!output(user, token, token_val, token_len, line, line_char)) {
                 return;
             }
         }
@@ -245,5 +248,5 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
         left -= l;
     }
     
-    output(user, NCD_EOF, NULL, line, line_char);
+    output(user, NCD_EOF, NULL, 0, line, line_char);
 }
