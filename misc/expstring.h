@@ -45,6 +45,7 @@ static int ExpString_Init (ExpString *c);
 static void ExpString_Free (ExpString *c);
 static int ExpString_Append (ExpString *c, const char *str);
 static int ExpString_AppendChar (ExpString *c, char ch);
+static int ExpString_AppendByte (ExpString *c, uint8_t x);
 static int ExpString_AppendBinary (ExpString *c, const uint8_t *data, size_t len);
 static int ExpString_AppendZeros (ExpString *c, size_t len);
 static char * ExpString_Get (ExpString *c);
@@ -96,6 +97,21 @@ int ExpString_AppendChar (ExpString *c, char ch)
     }
     
     ((char *)c->arr.v)[c->n] = ch;
+    c->n++;
+    ((char *)c->arr.v)[c->n] = '\0';
+    
+    return 1;
+}
+
+int ExpString_AppendByte (ExpString *c, uint8_t x)
+{
+    bsize_t newsize = bsize_add(bsize_fromsize(c->n), bsize_fromint(2));
+    
+    if (newsize.is_overflow || !ExpArray_resize(&c->arr, newsize.value)) {
+        return 0;
+    }
+    
+    ((uint8_t *)c->arr.v)[c->n] = x;
     c->n++;
     ((char *)c->arr.v)[c->n] = '\0';
     
