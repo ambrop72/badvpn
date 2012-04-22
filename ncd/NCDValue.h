@@ -74,6 +74,8 @@ int NCDValue_InitCopy (NCDValue *o, NCDValue *v) WARN_UNUSED;
 void NCDValue_Free (NCDValue *o);
 int NCDValue_Type (NCDValue *o);
 
+int NCDValue_IsString (NCDValue *o);
+int NCDValue_IsStringNoNulls (NCDValue *o);
 int NCDValue_InitString (NCDValue *o, const char *str) WARN_UNUSED;
 int NCDValue_InitStringBin (NCDValue *o, const uint8_t *str, size_t len) WARN_UNUSED;
 char * NCDValue_StringValue (NCDValue *o);
@@ -82,6 +84,7 @@ int NCDValue_StringHasNoNulls (NCDValue *o);
 int NCDValue_StringHasNulls (NCDValue *o);
 int NCDValue_StringEquals (NCDValue *o, const char *str);
 
+int NCDValue_IsList (NCDValue *o);
 void NCDValue_InitList (NCDValue *o);
 int NCDValue_ListAppend (NCDValue *o, NCDValue v) WARN_UNUSED;
 int NCDValue_ListAppendList (NCDValue *o, NCDValue l) WARN_UNUSED;
@@ -94,6 +97,7 @@ NCDValue * NCDValue_ListGet (NCDValue *o, size_t pos);
 NCDValue NCDValue_ListShift (NCDValue *o);
 NCDValue NCDValue_ListRemove (NCDValue *o, NCDValue *ev);
 
+int NCDValue_IsMap (NCDValue *o);
 void NCDValue_InitMap (NCDValue *o);
 size_t NCDValue_MapCount (NCDValue *o);
 NCDValue * NCDValue_MapFirstKey (NCDValue *o);

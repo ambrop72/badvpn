@@ -173,6 +173,18 @@ int NCDValue_Type (NCDValue *o)
     return o->type;
 }
 
+int NCDValue_IsString (NCDValue *o)
+{
+    value_assert(o);
+    
+    return o->type == NCDVALUE_STRING;
+}
+
+int NCDValue_IsStringNoNulls (NCDValue *o)
+{
+    return NCDValue_IsString(o) && NCDValue_StringHasNoNulls(o);
+}
+
 int NCDValue_InitString (NCDValue *o, const char *str)
 {
     return NCDValue_InitStringBin(o, (const uint8_t *)str, strlen(str));
@@ -230,6 +242,13 @@ int NCDValue_StringEquals (NCDValue *o, const char *str)
     ASSERT(o->type == NCDVALUE_STRING)
     
     return NCDValue_StringHasNoNulls(o) && !strcmp(o->string, str);
+}
+
+int NCDValue_IsList (NCDValue *o)
+{
+    value_assert(o);
+    
+    return o->type == NCDVALUE_LIST;
 }
 
 void NCDValue_InitList (NCDValue *o)
@@ -438,6 +457,13 @@ NCDValue NCDValue_ListRemove (NCDValue *o, NCDValue *ev)
     free(e);
     
     return v;
+}
+
+int NCDValue_IsMap (NCDValue *o)
+{
+    value_assert(o);
+    
+    return o->type == NCDVALUE_MAP;
 }
 
 void NCDValue_InitMap (NCDValue *o)
