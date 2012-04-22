@@ -98,13 +98,24 @@
  *   operation on it to fail. Any other value objects which referred to the same value
  *   or parts of it will too enter deleted state. If the value was an element
  *   in a list or map, is is removed from it.
+ * 
+ * Synopsis:
+ *   value value::substr(string start [, string length])
+ * 
+ * Description:
+ *   Constructs a string value by extracting a part of a string.
+ *   'start' specifies the index of the character (from zero) where the substring to
+ *   extract starts, and must be <= the length of the string.
+ *   'length' specifies the maximum number of characters to extract, if given.
+ *   The newly constructed value is a copy of the extracted substring.
+ *   The value must be a string value.
  */
 
 #include <stdlib.h>
 #include <string.h>
 #include <stddef.h>
 #include <limits.h>
-#include <stdint.h>
+#include <inttypes.h>
 
 #include <misc/offset.h>
 #include <misc/debug.h>
@@ -1214,6 +1225,66 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
+static void func_new_substr (NCDModuleInst *i)
+{
+    NCDValue *start_arg;
+    NCDValue *length_arg = NULL;
+    if (!NCDValue_ListRead(i->args, 1, &start_arg) &&
+        !NCDValue_ListRead(i->args, 2, &start_arg, &length_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (!NCDValue_IsStringNoNulls(start_arg) || (length_arg && !NCDValue_IsStringNoNulls(length_arg))) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    
+    uintmax_t start;
+    if (!parse_unsigned_integer(NCDValue_StringValue(start_arg), &start)) {
+        ModuleLog(i, BLOG_ERROR, "start is not a number");
+        goto fail0;
+    }
+    
+    uintmax_t length = UINTMAX_MAX;
+    if (length_arg && !parse_unsigned_integer(NCDValue_StringValue(length_arg), &length)) {
+        ModuleLog(i, BLOG_ERROR, "length is not a number");
+        goto fail0;
+    }
+    
+    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct value *mov = valref_val(&mo->ref);
+    
+    if (!mov) {
+        ModuleLog(i, BLOG_ERROR, "value was deleted");
+        goto fail0;
+    }
+    
+    if (mov->type != NCDVALUE_STRING) {
+        ModuleLog(i, BLOG_ERROR, "value is not a string");
+        goto fail0;
+    }
+    
+    if (start > mov->string.length) {
+        ModuleLog(i, BLOG_ERROR, "start is out of range");
+        goto fail0;
+    }
+    
+    size_t remain = mov->string.length - start;
+    size_t amount = length < remain ? length : remain;
+    
+    struct value *v = value_init_string(i, mov->string.string + start, amount);
+    if (!v) {
+        goto fail0;
+    }
+    
+    func_new_common(i, v, NULL, NULL);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
 static void remove_func_new (NCDModuleInst *i)
 {
     NCDValue *where_arg;
@@ -1309,6 +1380,12 @@ static const struct NCDModule modules[] = {
     }, {
         .type = "value::delete",
         .func_new = delete_func_new
+    }, {
+        .type = "value::substr",
+        .base_type = "value",
+        .func_new = func_new_substr,
+        .func_die = func_die,
+        .func_getvar = func_getvar
     }, {
         .type = NULL
     }
