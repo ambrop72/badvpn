@@ -35,6 +35,7 @@
 #include <misc/string_begins_with.h>
 #include <misc/balloc.h>
 #include <misc/expstring.h>
+#include <misc/parse_number.h>
 #include <base/BLog.h>
 
 #include <ncd/NCDConfigTokenizer.h>
@@ -168,8 +169,55 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
                         goto string_fail1;
                     }
                     
-                    dec_ch = str[l + 1];
-                    l += 2;
+                    size_t extra = 0;
+                    
+                    switch (str[l + 1]) {
+                        case '\'':
+                        case '\"':
+                        case '\\':
+                        case '\?':
+                            dec_ch = str[l + 1]; break;
+                        
+                        case 'a':
+                            dec_ch = '\a'; break;
+                        case 'b':
+                            dec_ch = '\b'; break;
+                        case 'f':
+                            dec_ch = '\f'; break;
+                        case 'n':
+                            dec_ch = '\n'; break;
+                        case 'r':
+                            dec_ch = '\r'; break;
+                        case 't':
+                            dec_ch = '\t'; break;
+                        case 'v':
+                            dec_ch = '\v'; break;
+                        
+                        case '0':
+                            dec_ch = 0; break;
+                        
+                        case 'x': {
+                            if (left - l < 4) {
+                                BLog(BLOG_ERROR, "hexadecimal escape found in string but too little characters follow");
+                                goto string_fail1;
+                            }
+                            
+                            uintmax_t hex_val;
+                            if (!parse_unsigned_hex_integer_bin(&str[l + 2], 2, &hex_val)) {
+                                BLog(BLOG_ERROR, "hexadecimal escape found in string but two hex characters don't follow");
+                                goto string_fail1;
+                            }
+                            
+                            dec_ch = hex_val;
+                            extra = 2;
+                        } break;
+                        
+                        default:
+                            BLog(BLOG_ERROR, "bad escape sequence in string");
+                            goto string_fail1;
+                    }
+                    
+                    l += 2 + extra;
                 }
                 else if (str[l] == '"') {
                     break;
@@ -177,12 +225,6 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
                 else {
                     dec_ch = str[l];
                     l++;
-                }
-                
-                // string cannot contain zeros bytes
-                if (dec_ch == '\0') {
-                    BLog(BLOG_ERROR, "string contains zero byte");
-                    goto string_fail1;
                 }
                 
                 // append character to string
