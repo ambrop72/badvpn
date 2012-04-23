@@ -608,6 +608,7 @@ NCDValue * NCDValue_MapFindValueByString (NCDValue *o, const char *key_str)
     NCDValue key;
     key.type = NCDVALUE_STRING;
     key.string = (char *)key_str;
+    key.string_len = strlen(key_str);
     
     NCDValue *ekey = NCDValue_MapFindKey(o, &key);
     if (!ekey) {
