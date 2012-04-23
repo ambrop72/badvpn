@@ -51,10 +51,6 @@ struct instance {
     NCDValue value;
 };
 
-struct set_instance {
-    NCDModuleInst *i;
-};
-
 static void func_new (NCDModuleInst *i)
 {
     // allocate instance
@@ -125,56 +121,33 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
 
 static void set_func_new (NCDModuleInst *i)
 {
-    // allocate instance
-    struct set_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
-    o->i = i;
-    
     // read argument
     NCDValue *value_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &value_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+    if (!NCDValue_ListRead(i->args, 1, &value_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
     }
     
     // get method object
     struct instance *mo = ((NCDModuleInst * )i->method_user)->inst_user;
     
-    // set
+    // copy value
     NCDValue v;
     if (!NCDValue_InitCopy(&v, value_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail1;
+        ModuleLog(i, BLOG_ERROR, "NCDValue_InitCopy failed");
+        goto fail0;
     }
+    
+    // replace value in var
     NCDValue_Free(&mo->value);
     mo->value = v;
     
     // signal up
-    NCDModuleInst_Backend_Up(o->i);
-    
+    NCDModuleInst_Backend_Up(i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
-}
-
-static void set_func_die (void *vo)
-{
-    struct set_instance *o = vo;
-    NCDModuleInst *i = o->i;
-    
-    // free instance
-    free(o);
-    
     NCDModuleInst_Backend_Dead(i);
 }
 
@@ -186,8 +159,7 @@ static const struct NCDModule modules[] = {
         .func_getvar = func_getvar
     }, {
         .type = "var::set",
-        .func_new = set_func_new,
-        .func_die = set_func_die
+        .func_new = set_func_new
     }, {
         .type = NULL
     }

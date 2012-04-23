@@ -48,32 +48,17 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-struct instance {
-    NCDModuleInst *i;
-};
-
 static void new_templ (NCDModuleInst *i, int not)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
-    o->i = i;
-    
     // check arguments
     NCDValue *arg;
     if (!NCDValue_ListRead(i->args, 1, &arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
     }
     if (NCDValue_Type(arg) != NCDVALUE_STRING) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
     }
     
     // compute logical value of argument
@@ -81,13 +66,11 @@ static void new_templ (NCDModuleInst *i, int not)
     
     // signal up if needed
     if ((not && !c) || (!not && c)) {
-        NCDModuleInst_Backend_Up(o->i);
+        NCDModuleInst_Backend_Up(i);
     }
     
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -103,26 +86,13 @@ static void func_new_not (NCDModuleInst *i)
     new_templ(i, 1);
 }
 
-static void func_die (void *vo)
-{
-    struct instance *o = vo;
-    NCDModuleInst *i = o->i;
-    
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
-}
-
 static const struct NCDModule modules[] = {
     {
         .type = "if",
-        .func_new = func_new,
-        .func_die = func_die
+        .func_new = func_new
     }, {
         .type = "ifnot",
-        .func_new = func_new_not,
-        .func_die = func_die
+        .func_new = func_new_not
     }, {
         .type = NULL
     }

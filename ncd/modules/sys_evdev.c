@@ -75,10 +75,6 @@ struct instance {
     struct input_event event;
 };
 
-struct nextevent_instance {
-    NCDModuleInst *i;
-};
-
 static void instance_free (struct instance *o, int is_error);
 
 #define MAKE_LOOKUP_FUNC(_name_) \
@@ -315,21 +311,10 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
 
 static void nextevent_func_new (NCDModuleInst *i)
 {
-    // allocate instance
-    struct nextevent_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
-    o->i = i;
-    
     // check arguments
-    if (!NCDValue_ListRead(o->i->args, 0)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+    if (!NCDValue_ListRead(i->args, 0)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
     }
     
     // get method object
@@ -337,35 +322,21 @@ static void nextevent_func_new (NCDModuleInst *i)
     
     // make sure we are currently reporting an event
     if (!mo->processing) {
-        ModuleLog(o->i, BLOG_ERROR, "not reporting an event");
-        goto fail1;
+        ModuleLog(i, BLOG_ERROR, "not reporting an event");
+        goto fail0;
     }
     
     // signal up.
     // Do it before finishing the event so our process does not advance any further if
     // we would be killed the event provider going down.
-    NCDModuleInst_Backend_Up(o->i);
+    NCDModuleInst_Backend_Up(i);
     
     // wait for next event
     device_nextevent(mo);
-    
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
-}
-
-static void nextevent_func_die (void *vo)
-{
-    struct nextevent_instance *o = vo;
-    NCDModuleInst *i = o->i;
-    
-    // free instance
-    free(o);
-    
     NCDModuleInst_Backend_Dead(i);
 }
 
@@ -377,8 +348,7 @@ static const struct NCDModule modules[] = {
         .func_getvar = func_getvar
     }, {
         .type = "sys.evdev::nextevent",
-        .func_new = nextevent_func_new,
-        .func_die = nextevent_func_die
+        .func_new = nextevent_func_new
     }, {
         .type = NULL
     }
