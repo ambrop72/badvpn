@@ -43,7 +43,6 @@
 #include <misc/open_standard_streams.h>
 #include <misc/expstring.h>
 #include <structure/LinkedList1.h>
-#include <structure/LinkedList2.h>
 #include <base/BLog.h>
 #include <base/BLog_syslog.h>
 #include <system/BReactor.h>
@@ -121,7 +120,7 @@ struct process {
     BTimer wait_timer;
     BPending advance_job;
     BPending work_job;
-    LinkedList2Node list_node; // node in processes
+    LinkedList1Node list_node; // node in processes
 };
 
 struct process_statement {
@@ -174,7 +173,7 @@ struct NCDConfig_processes *config_ast;
 struct NCDModuleInst_params module_params;
 
 // processes
-LinkedList2 processes;
+LinkedList1 processes;
 
 static void print_help (const char *name);
 static void print_version (void);
@@ -375,7 +374,7 @@ int main (int argc, char **argv)
     module_params.func_interp_getargs = (NCDModuleInst_func_interp_getargs)process_statement_instance_func_interp_getargs;
     
     // init processes list
-    LinkedList2_Init(&processes);
+    LinkedList1_Init(&processes);
     
     // init processes
     struct NCDConfig_processes *conf = config_ast;
@@ -390,7 +389,7 @@ int main (int argc, char **argv)
     BLog(BLOG_NOTICE, "entering event loop");
     BReactor_Exec(&ss);
     
-    ASSERT(LinkedList2_IsEmpty(&processes))
+    ASSERT(LinkedList1_IsEmpty(&processes))
     
 fail5:
     // free modules
@@ -613,17 +612,14 @@ void start_terminate (int exit_code)
     
     terminating = 1;
     
-    if (LinkedList2_IsEmpty(&processes)) {
+    if (LinkedList1_IsEmpty(&processes)) {
         BReactor_Quit(&ss, 0);
         return;
     }
     
     // start terminating non-template processes
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &processes);
-    LinkedList2Node *n;
-    while (n = LinkedList2Iterator_Next(&it)) {
-        struct process *p = UPPER_OBJECT(n, struct process, list_node);
+    for (LinkedList1Node *ln = LinkedList1_GetFirst(&processes); ln; ln = LinkedList1Node_Next(ln)) {
+        struct process *p = UPPER_OBJECT(ln, struct process, list_node);
         if (p->module_process) {
             continue;
         }
@@ -1060,7 +1056,7 @@ int process_new (struct NCDConfig_processes *conf, NCDModuleProcess *module_proc
     BPending_Init(&p->work_job, BReactor_PendingGroup(&ss), (BPending_handler)process_work_job_handler, p);
     
     // insert to processes list
-    LinkedList2_Append(&processes, &p->list_node);
+    LinkedList1_Append(&processes, &p->list_node);
     
     // schedule work
     BPending_Set(&p->work_job);
@@ -1090,7 +1086,7 @@ void process_free (struct process *p)
     }
     
     // remove from processes list
-    LinkedList2_Remove(&processes, &p->list_node);
+    LinkedList1_Remove(&processes, &p->list_node);
     
     // free work job
     BPending_Free(&p->work_job);
@@ -1211,7 +1207,7 @@ void process_work_job_handler (struct process *p)
             process_free(p);
             
             // if program is terminating amd there are no more processes, exit program
-            if (terminating && LinkedList2_IsEmpty(&processes)) {
+            if (terminating && LinkedList1_IsEmpty(&processes)) {
                 BReactor_Quit(&ss, 0);
             }
             return;
