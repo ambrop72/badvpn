@@ -129,7 +129,6 @@ struct process_statement {
     size_t i;
     struct statement s;
     int state;
-    const struct NCDModule *module;
     int have_error;
     btime_t error_until;
     NCDModuleInst inst;
@@ -1371,7 +1370,8 @@ void process_advance_job_handler (struct process *p)
     }
     
     // find module to instantiate
-    if (!(ps->module = NCDModuleIndex_FindModule(&mindex, type))) {
+    const struct NCDModule *module = NCDModuleIndex_FindModule(&mindex, type);
+    if (!module) {
         process_statement_log(ps, BLOG_ERROR, "failed to find module: %s", type);
         goto fail;
     }
@@ -1383,7 +1383,7 @@ void process_advance_job_handler (struct process *p)
     }
     
     // initialize module instance
-    NCDModuleInst_Init(&ps->inst, ps->module, object_ptr, &ps->inst_args, ps, &module_params);
+    NCDModuleInst_Init(&ps->inst, module, object_ptr, &ps->inst_args, ps, &module_params);
     
     // set statement state CHILD
     ps->state = SSTATE_CHILD;
