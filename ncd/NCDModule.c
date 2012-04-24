@@ -475,7 +475,6 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     ASSERT(handler_event)
     
     // init arguments
-    o->n = n;
     o->args = args;
     o->user = user;
     o->handler_event = handler_event;

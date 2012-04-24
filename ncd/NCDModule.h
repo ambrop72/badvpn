@@ -288,7 +288,6 @@ typedef struct NCDModuleInst_s {
  * instance, implemented by the interpreter.
  */
 typedef struct NCDModuleProcess_s {
-    NCDModuleInst *n;
     NCDValue args;
     void *user;
     NCDModuleProcess_handler_event handler_event;
