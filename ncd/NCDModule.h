@@ -375,6 +375,16 @@ int NCDModuleInst_HaveError (NCDModuleInst *n);
 void NCDModuleInst_Backend_SetUser (NCDModuleInst *n, void *user);
 
 /**
+ * Retuns the argument passed to handlers of a module backend instance,
+ * i.e. what was set in {@link NCDModuleInst_Backend_SetUser} (or NULL
+ * by default).
+ * 
+ * @param n backend instance handle
+ * @return argument passed to handlers
+ */
+void * NCDModuleInst_Backend_GetUser (NCDModuleInst *n);
+
+/**
  * Puts the backend instance into up state.
  * The instance must be in down state.
  * The instance enters up state.

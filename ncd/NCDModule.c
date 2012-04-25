@@ -334,6 +334,16 @@ void NCDModuleInst_Backend_SetUser (NCDModuleInst *n, void *user)
     n->inst_user = user;
 }
 
+void * NCDModuleInst_Backend_GetUser (NCDModuleInst *n)
+{
+    DebugObject_Access(&n->d_obj);
+    ASSERT(n->state == STATE_DOWN_PCLEAN || n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
+           n->state == STATE_UP || n->state == STATE_DOWN_DIE || n->state == STATE_UP_DIE ||
+           n->state == STATE_DYING)
+    
+    return n->inst_user;
+}
+
 void NCDModuleInst_Backend_Up (NCDModuleInst *n)
 {
     DebugObject_Access(&n->d_obj);
