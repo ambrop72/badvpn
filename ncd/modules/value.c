@@ -1028,7 +1028,7 @@ static void func_new_get (NCDModuleInst *i)
         goto fail0;
     }
     
-    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1057,7 +1057,7 @@ static void func_new_try_get (NCDModuleInst *i)
         goto fail0;
     }
     
-    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1087,7 +1087,7 @@ static void func_new_getpath (NCDModuleInst *i)
         goto fail0;
     }
     
-    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1117,7 +1117,7 @@ static void func_new_insert (NCDModuleInst *i)
         goto fail0;
     }
     
-    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1192,7 +1192,7 @@ static void func_new_insert_undo (NCDModuleInst *i)
         goto fail0;
     }
     
-    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1251,7 +1251,7 @@ static void func_new_substr (NCDModuleInst *i)
         goto fail0;
     }
     
-    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1293,7 +1293,7 @@ static void remove_func_new (NCDModuleInst *i)
         goto fail0;
     }
     
-    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1320,7 +1320,7 @@ static void delete_func_new (NCDModuleInst *i)
         goto fail0;
     }
     
-    struct instance *mo = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {

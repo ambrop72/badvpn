@@ -648,7 +648,7 @@ static void request_func_new (NCDModuleInst *i)
     o->args = args_arg;
     
     // get client
-    struct instance *client = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct instance *client = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     o->client = client;
     
     // check client state

@@ -245,7 +245,7 @@ static void func_new (NCDModuleInst *i)
                                         (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
         
         // set callrefhere
-        o->crh = (o->i->method_user ? ((NCDModuleInst *)i->method_user)->inst_user : NULL);
+        o->crh = (o->i->method_user ? NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user) : NULL);
         
         // add to callrefhere's calls list
         if (o->crh) {

@@ -169,14 +169,14 @@ fail0:
 
 static void ref_func_new_from_refhere (NCDModuleInst *i)
 {
-    struct refhere_instance *rh = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct refhere_instance *rh = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
     return ref_func_new_templ(i, rh);
 }
 
 static void ref_func_new_from_ref (NCDModuleInst *i)
 {
-    struct ref_instance *ref = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct ref_instance *ref = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
     return ref_func_new_templ(i, ref->rh);
 }

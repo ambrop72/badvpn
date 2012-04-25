@@ -119,7 +119,7 @@ fail0:
 
 static void func_new_from_index (NCDModuleInst *i)
 {
-    struct instance *index = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct instance *index = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
     // check overflow
     if (index->value == SIZE_MAX) {

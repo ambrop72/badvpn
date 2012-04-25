@@ -321,7 +321,7 @@ static void demand_func_new (NCDModuleInst *i)
     }
     
     // set ondemand
-    o->od = ((NCDModuleInst *)i->method_user)->inst_user;
+    o->od = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
     // add to ondemand's demands list
     LinkedList1_Append(&o->od->demands_list, &o->demands_list_node);

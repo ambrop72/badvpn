@@ -490,7 +490,7 @@ static void unlock_func_new (NCDModuleInst *i)
     o->i = i;
     
     // get lock lock
-    struct lock_instance *lock = ((NCDModuleInst *)i->method_user)->inst_user;
+    struct lock_instance *lock = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
     // make sure lock doesn't already have an unlock
     if (lock->unlock) {
