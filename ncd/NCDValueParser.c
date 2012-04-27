@@ -48,7 +48,6 @@
 
 #include "../generated/NCDValueParser_parse.c"
 #include "../generated/NCDValueParser_parse.h"
-#include <sys/stat.h>
 
 struct parser_state {
     struct parser_out out;
