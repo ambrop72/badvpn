@@ -171,6 +171,7 @@ struct NCDConfig_processes *config_ast;
 
 // common module parameters
 struct NCDModuleInst_params module_params;
+struct NCDModuleInst_iparams module_iparams;
 
 // processes
 LinkedList1 processes;
@@ -363,15 +364,15 @@ int main (int argc, char **argv)
     }
     
     // init common module params
-    module_params.reactor = &ss;
-    module_params.manager = &manager;
-    module_params.umanager = &umanager;
     module_params.func_event = (NCDModuleInst_func_event)process_statement_instance_func_event;
     module_params.func_getobj = (NCDModuleInst_func_getobj)process_statement_instance_func_getobj;
-    module_params.func_initprocess = (NCDModuleInst_func_initprocess)process_statement_instance_func_initprocess;
     module_params.logfunc = (BLog_logfunc)process_statement_instance_logfunc;
-    module_params.func_interp_exit = (NCDModuleInst_func_interp_exit)process_statement_instance_func_interp_exit;
-    module_params.func_interp_getargs = (NCDModuleInst_func_interp_getargs)process_statement_instance_func_interp_getargs;
+    module_iparams.reactor = &ss;
+    module_iparams.manager = &manager;
+    module_iparams.umanager = &umanager;
+    module_iparams.func_initprocess = (NCDModuleInst_func_initprocess)process_statement_instance_func_initprocess;
+    module_iparams.func_interp_exit = (NCDModuleInst_func_interp_exit)process_statement_instance_func_interp_exit;
+    module_iparams.func_interp_getargs = (NCDModuleInst_func_interp_getargs)process_statement_instance_func_interp_getargs;
     
     // init processes list
     LinkedList1_Init(&processes);
@@ -1379,7 +1380,7 @@ void process_advance_job_handler (struct process *p)
     }
     
     // initialize module instance
-    NCDModuleInst_Init(&ps->inst, module, object_ptr, &ps->inst_args, ps, &module_params);
+    NCDModuleInst_Init(&ps->inst, module, object_ptr, &ps->inst_args, ps, &module_params, &module_iparams);
     
     // set statement state CHILD
     ps->state = SSTATE_CHILD;

@@ -96,7 +96,7 @@ void try_process (struct instance *o)
     }
     
     // start process
-    if (!BProcess_Init(&o->process, o->i->params->manager, (BProcess_handler)process_handler, o, ((char **)c.arr.v)[0], (char **)c.arr.v, o->user)) {
+    if (!BProcess_Init(&o->process, o->i->iparams->manager, (BProcess_handler)process_handler, o, ((char **)c.arr.v)[0], (char **)c.arr.v, o->user)) {
         ModuleLog(o->i, BLOG_ERROR, "BProcess_Init failed");
         goto fail1;
     }
@@ -113,7 +113,7 @@ fail1:
 fail0:
     // retry
     o->started = 0;
-    BReactor_SetTimer(o->i->params->reactor, &o->timer);
+    BReactor_SetTimer(o->i->iparams->reactor, &o->timer);
 }
 
 void process_handler (struct instance *o, int normally, uint8_t normally_exit_status)
@@ -134,7 +134,7 @@ void process_handler (struct instance *o, int normally, uint8_t normally_exit_st
     }
     
     // set timer
-    BReactor_SetTimer(o->i->params->reactor, &o->timer);
+    BReactor_SetTimer(o->i->iparams->reactor, &o->timer);
 }
 
 void timer_handler (struct instance *o)
@@ -232,7 +232,7 @@ void instance_free (struct instance *o)
     NCDModuleInst *i = o->i;
     
     // free timer
-    BReactor_RemoveTimer(o->i->params->reactor, &o->timer);
+    BReactor_RemoveTimer(o->i->iparams->reactor, &o->timer);
     
     // set device down
     if (!NCDIfConfig_set_down(o->ifname)) {

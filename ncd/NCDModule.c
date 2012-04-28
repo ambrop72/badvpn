@@ -163,7 +163,7 @@ static void inst_assert_backend (NCDModuleInst *n)
            n->state == STATE_DYING)
 }
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValue *args, void *user, const struct NCDModuleInst_params *params)
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValue *args, void *user, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams)
 {
     ASSERT(m)
     ASSERT(args)
@@ -171,8 +171,11 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDO
     ASSERT(params)
     ASSERT(params->func_event)
     ASSERT(params->func_getobj)
-    ASSERT(params->func_initprocess)
     ASSERT(params->logfunc)
+    ASSERT(iparams)
+    ASSERT(iparams->func_initprocess)
+    ASSERT(iparams->func_interp_exit)
+    ASSERT(iparams->func_interp_getargs)
     
     // init arguments
     n->m = m;
@@ -180,12 +183,13 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDO
     n->args = args;
     n->user = user;
     n->params = params;
+    n->iparams = iparams;
     
     // init jobs
-    BPending_Init(&n->init_job, BReactor_PendingGroup(params->reactor), (BPending_handler)init_job_handler, n);
-    BPending_Init(&n->uninit_job, BReactor_PendingGroup(params->reactor), (BPending_handler)uninit_job_handler, n);
-    BPending_Init(&n->die_job, BReactor_PendingGroup(params->reactor), (BPending_handler)die_job_handler, n);
-    BPending_Init(&n->clean_job, BReactor_PendingGroup(params->reactor), (BPending_handler)clean_job_handler, n);
+    BPending_Init(&n->init_job, BReactor_PendingGroup(iparams->reactor), (BPending_handler)init_job_handler, n);
+    BPending_Init(&n->uninit_job, BReactor_PendingGroup(iparams->reactor), (BPending_handler)uninit_job_handler, n);
+    BPending_Init(&n->die_job, BReactor_PendingGroup(iparams->reactor), (BPending_handler)die_job_handler, n);
+    BPending_Init(&n->clean_job, BReactor_PendingGroup(iparams->reactor), (BPending_handler)clean_job_handler, n);
     
     // set initial state
     n->state = STATE_INIT;
@@ -458,7 +462,7 @@ void NCDModuleInst_Backend_InterpExit (NCDModuleInst *n, int exit_code)
     DebugObject_Access(&n->d_obj);
     inst_assert_backend(n);
     
-    n->params->func_interp_exit(n->user, exit_code);
+    n->iparams->func_interp_exit(n->user, exit_code);
 }
 
 int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValue *out_value)
@@ -467,7 +471,7 @@ int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValue *out_value)
     inst_assert_backend(n);
     ASSERT(out_value)
     
-    int res = n->params->func_interp_getargs(n->user, out_value);
+    int res = n->iparams->func_interp_getargs(n->user, out_value);
     ASSERT(res == 0 || res == 1)
     ASSERT(!res || (NCDValue_Type(out_value), 1))
     
@@ -493,7 +497,7 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     o->func_getspecialobj = NULL;
     
     // init event job
-    BPending_Init(&o->event_job, BReactor_PendingGroup(n->params->reactor), (BPending_handler)process_event_job_handler, o);
+    BPending_Init(&o->event_job, BReactor_PendingGroup(n->iparams->reactor), (BPending_handler)process_event_job_handler, o);
     
     // set state
     o->state = PROCESS_STATE_INIT;
@@ -503,7 +507,7 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     o->interp_func_getobj = NULL;
     
     // init interpreter part
-    if (!(n->params->func_initprocess(n->user, o, template_name))) {
+    if (!(n->iparams->func_initprocess(n->user, o, template_name))) {
         goto fail1;
     }
     

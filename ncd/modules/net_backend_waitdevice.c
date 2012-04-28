@@ -60,7 +60,7 @@ struct instance {
 
 static void client_handler (struct instance *o, char *devpath, int have_map, BStringMap map)
 {
-    if (o->devpath && !strcmp(devpath, o->devpath) && !NCDUdevManager_Query(o->i->params->umanager, o->devpath)) {
+    if (o->devpath && !strcmp(devpath, o->devpath) && !NCDUdevManager_Query(o->i->iparams->umanager, o->devpath)) {
         // free devpath
         free(o->devpath);
         
@@ -70,7 +70,7 @@ static void client_handler (struct instance *o, char *devpath, int have_map, BSt
         // signal down
         NCDModuleInst_Backend_Down(o->i);
     } else {
-        const BStringMap *cache_map = NCDUdevManager_Query(o->i->params->umanager, devpath);
+        const BStringMap *cache_map = NCDUdevManager_Query(o->i->iparams->umanager, devpath);
         if (!cache_map) {
             goto out;
         }
@@ -141,7 +141,7 @@ static void func_new (NCDModuleInst *i)
     o->ifname = NCDValue_StringValue(arg);
     
     // init client
-    NCDUdevClient_Init(&o->client, o->i->params->umanager, o, (NCDUdevClient_handler)client_handler);
+    NCDUdevClient_Init(&o->client, o->i->iparams->umanager, o, (NCDUdevClient_handler)client_handler);
     
     // compile regex
     if (regcomp(&o->reg, DEVPATH_REGEX, REG_EXTENDED)) {

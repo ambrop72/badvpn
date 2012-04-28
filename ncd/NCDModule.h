@@ -221,8 +221,29 @@ struct NCDModuleInitParams {
 
 /**
  * Contains parameters to {@link NCDModuleInst_Init} that are passed indirectly.
+ * This only contains parameters related to communication between the backend
+ * and the creator of the module instance.
  */
 struct NCDModuleInst_params {
+    /**
+     * Callback to report state changes.
+     */
+    NCDModuleInst_func_event func_event;
+    /**
+     * Callback to resolve objects from the viewpoint of the instance.
+     */
+    NCDModuleInst_func_getobj func_getobj;
+    /**
+     * Log function which appends a log prefix with {@link BLog_Append}.
+     */
+    BLog_logfunc logfunc;
+};
+
+/**
+ * Contains parameters to {@link NCDModuleInst_Init} that are passed indirectly.
+ * This only contains parameters related to services provided by the interpreter.
+ */
+struct NCDModuleInst_iparams {
     /**
      * Reactor we live in.
      */
@@ -236,21 +257,9 @@ struct NCDModuleInst_params {
      */
     NCDUdevManager *umanager;
     /**
-     * Callback to report state changes.
-     */
-    NCDModuleInst_func_event func_event;
-    /**
-     * Callback to resolve objects from the viewpoint of the instance.
-     */
-    NCDModuleInst_func_getobj func_getobj;
-    /**
      * Callback to create a new template process.
      */
     NCDModuleInst_func_initprocess func_initprocess;
-    /**
-     * Log function which appends a log prefix with {@link BLog_Append}.
-     */
-    BLog_logfunc logfunc;
     /**
      * Callback to request interpreter termination.
      */
@@ -273,6 +282,7 @@ typedef struct NCDModuleInst_s {
     NCDValue *args;
     void *user;
     const struct NCDModuleInst_params *params;
+    const struct NCDModuleInst_iparams *iparams;
     BPending init_job;
     BPending uninit_job;
     BPending die_job;
@@ -316,11 +326,10 @@ typedef struct NCDModuleProcess_s {
  * @param args arguments to the module. Must be a NCDVALUE_LIST value. Must be available as long as
  *             the instance is freed.
  * @param user argument to callback functions
- * @param params remaining parameters, see {@link NCDModuleInst_params}. These are passed indirectly
- *               because they are usually always the same, to reduce memory usage, and the number of
- *               arguments to this function.
+ * @param params more parameters, see {@link NCDModuleInst_params}
+ * @param iparams more parameters, see {@link NCDModuleInst_iparams}
  */
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValue *args, void *user, const struct NCDModuleInst_params *params);
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValue *args, void *user, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams);
 
 /**
  * Frees the instance.

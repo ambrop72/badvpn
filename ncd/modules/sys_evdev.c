@@ -114,7 +114,7 @@ static void device_handler (struct instance *o, int events)
     }
     
     // stop reading
-    BReactor_SetFileDescriptorEvents(o->i->params->reactor, &o->bfd, 0);
+    BReactor_SetFileDescriptorEvents(o->i->iparams->reactor, &o->bfd, 0);
     
     // set processing
     o->processing = 1;
@@ -128,7 +128,7 @@ static void device_nextevent (struct instance *o)
     ASSERT(o->processing)
     
     // start reading
-    BReactor_SetFileDescriptorEvents(o->i->params->reactor, &o->bfd, BREACTOR_READ);
+    BReactor_SetFileDescriptorEvents(o->i->iparams->reactor, &o->bfd, BREACTOR_READ);
     
     // set not processing
     o->processing = 0;
@@ -175,11 +175,11 @@ static void func_new (NCDModuleInst *i)
     
     // init BFileDescriptor
     BFileDescriptor_Init(&o->bfd, o->evdev_fd, (BFileDescriptor_handler)device_handler, o);
-    if (!BReactor_AddFileDescriptor(o->i->params->reactor, &o->bfd)) {
+    if (!BReactor_AddFileDescriptor(o->i->iparams->reactor, &o->bfd)) {
         ModuleLog(o->i, BLOG_ERROR, "BReactor_AddFileDescriptor failed");
         goto fail2;
     }
-    BReactor_SetFileDescriptorEvents(o->i->params->reactor, &o->bfd, BREACTOR_READ);
+    BReactor_SetFileDescriptorEvents(o->i->iparams->reactor, &o->bfd, BREACTOR_READ);
     
     // set not processing
     o->processing = 0;
@@ -200,7 +200,7 @@ void instance_free (struct instance *o, int is_error)
     NCDModuleInst *i = o->i;
     
     // free BFileDescriptor
-    BReactor_RemoveFileDescriptor(o->i->params->reactor, &o->bfd);
+    BReactor_RemoveFileDescriptor(o->i->iparams->reactor, &o->bfd);
     
     // close device.
     // Ignore close error which happens if the device is removed.

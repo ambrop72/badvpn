@@ -566,7 +566,7 @@ static void func_new (NCDModuleInst *i)
     }
     
     // init client
-    if (!NCDRequestClient_Init(&o->client, addr, i->params->reactor, o,
+    if (!NCDRequestClient_Init(&o->client, addr, i->iparams->reactor, o,
         (NCDRequestClient_handler_error)client_handler_error,
         (NCDRequestClient_handler_connected)client_handler_connected)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDRequestClient_Init failed");

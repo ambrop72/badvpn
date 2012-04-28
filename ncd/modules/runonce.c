@@ -245,7 +245,7 @@ static void func_new (NCDModuleInst *i)
     params.do_setsid = do_setsid;
     
     // start process
-    if (!BProcess_Init2(&o->process, o->i->params->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), params)) {
+    if (!BProcess_Init2(&o->process, o->i->iparams->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), params)) {
         ModuleLog(i, BLOG_ERROR, "BProcess_Init failed");
         CmdLine_Free(&cl);
         free(exec);
