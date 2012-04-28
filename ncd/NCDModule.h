@@ -132,6 +132,15 @@ typedef void (*NCDModuleInst_func_interp_exit) (void *user, int exit_code);
  */
 typedef int (*NCDModuleInst_func_interp_getargs) (void *user, NCDValue *out_value);
 
+/**
+ * Function called when the module instance wants the interpreter to
+ * provide its retry time.
+ * 
+ * @param user as in {@link NCDModuleInst_Init}
+ * @return retry time in milliseconds
+ */
+typedef btime_t (*NCDModuleInst_func_interp_getretrytime) (void *user);
+
 #define NCDMODULEPROCESS_EVENT_UP 1
 #define NCDMODULEPROCESS_EVENT_DOWN 2
 #define NCDMODULEPROCESS_EVENT_TERMINATED 3
@@ -268,6 +277,10 @@ struct NCDModuleInst_iparams {
      * Callback to get extra command line arguments.
      */
     NCDModuleInst_func_interp_getargs func_interp_getargs;
+    /**
+     * Callback to get retry time.
+     */
+    NCDModuleInst_func_interp_getretrytime func_interp_getretrytime;
 };
 
 /**
@@ -468,6 +481,14 @@ void NCDModuleInst_Backend_InterpExit (NCDModuleInst *n, int exit_code);
  * @return 1 on success, 0 on failure
  */
 int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValue *out_value);
+
+/**
+ * Returns the retry time of the intepreter.
+ * 
+ * @param n backend instance handle
+ * @return retry time in milliseconds
+ */
+btime_t NCDModuleInst_Backend_InterpGetRetryTime (NCDModuleInst *n);
 
 /**
  * Initializes a process in the interpreter from a process template.

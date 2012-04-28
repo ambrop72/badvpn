@@ -222,6 +222,7 @@ static int process_statement_instance_func_initprocess (struct process_statement
 static void process_statement_instance_logfunc (struct process_statement *ps);
 static void process_statement_instance_func_interp_exit (struct process_statement *ps, int exit_code);
 static int process_statement_instance_func_interp_getargs (struct process_statement *ps, NCDValue *out_value);
+static btime_t process_statement_instance_func_interp_getretrytime (struct process_statement *ps);
 static void process_moduleprocess_func_event (struct process *p, int event);
 static int process_moduleprocess_func_getobj (struct process *p, const char *name, NCDObject *out_object);
 
@@ -373,6 +374,7 @@ int main (int argc, char **argv)
     module_iparams.func_initprocess = (NCDModuleInst_func_initprocess)process_statement_instance_func_initprocess;
     module_iparams.func_interp_exit = (NCDModuleInst_func_interp_exit)process_statement_instance_func_interp_exit;
     module_iparams.func_interp_getargs = (NCDModuleInst_func_interp_getargs)process_statement_instance_func_interp_getargs;
+    module_iparams.func_interp_getretrytime = (NCDModuleInst_func_interp_getretrytime)process_statement_instance_func_interp_getretrytime;
     
     // init processes list
     LinkedList1_Init(&processes);
@@ -1766,6 +1768,13 @@ int process_statement_instance_func_interp_getargs (struct process_statement *ps
 fail1:
     NCDValue_Free(out_value);
     return 0;
+}
+
+btime_t process_statement_instance_func_interp_getretrytime (struct process_statement *ps)
+{
+    ASSERT(ps->state != SSTATE_FORGOTTEN)
+    
+    return options.retry_time;
 }
 
 void process_moduleprocess_func_event (struct process *p, int event)

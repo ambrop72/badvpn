@@ -176,6 +176,7 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDO
     ASSERT(iparams->func_initprocess)
     ASSERT(iparams->func_interp_exit)
     ASSERT(iparams->func_interp_getargs)
+    ASSERT(iparams->func_interp_getretrytime)
     
     // init arguments
     n->m = m;
@@ -476,6 +477,14 @@ int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValue *out_value)
     ASSERT(!res || (NCDValue_Type(out_value), 1))
     
     return res;
+}
+
+btime_t NCDModuleInst_Backend_InterpGetRetryTime (NCDModuleInst *n)
+{
+    DebugObject_Access(&n->d_obj);
+    inst_assert_backend(n);
+    
+    return n->iparams->func_interp_getretrytime(n->user);
 }
 
 int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValue args, void *user, NCDModuleProcess_handler_event handler_event)
