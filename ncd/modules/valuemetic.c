@@ -36,6 +36,7 @@
  *   val_lesser_equal(v1, v2)
  *   val_greater_equal(v1, v2)
  *   val_equal(v1, v2)
+ *   val_different(v1, v2)
  * 
  * Variables:
  *   (empty) - "true" or "false", reflecting the value of the relation in question
@@ -92,6 +93,11 @@ static int compute_greater_equal (NCDValue *v1, NCDValue *v2)
 static int compute_equal (NCDValue *v1, NCDValue *v2)
 {
     return NCDValue_Compare(v1, v2) == 0;
+}
+
+static int compute_different (NCDValue *v1, NCDValue *v2)
+{
+    return NCDValue_Compare(v1, v2) != 0;
 }
 
 static void new_templ (NCDModuleInst *i, compute_func cfunc)
@@ -176,6 +182,11 @@ static void func_new_equal (NCDModuleInst *i)
     new_templ(i, compute_equal);
 }
 
+static void func_new_different (NCDModuleInst *i)
+{
+    new_templ(i, compute_different);
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "val_lesser",
@@ -200,6 +211,11 @@ static const struct NCDModule modules[] = {
     }, {
         .type = "val_equal",
         .func_new = func_new_equal,
+        .func_die = func_die,
+        .func_getvar = func_getvar
+    }, {
+        .type = "val_different",
+        .func_new = func_new_different,
         .func_die = func_die,
         .func_getvar = func_getvar
     }, {
