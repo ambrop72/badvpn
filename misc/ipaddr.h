@@ -54,6 +54,7 @@ static int ipaddr_parse_ipv4_prefix (char *str, int *num);
 static int ipaddr_parse_ipv4_ifaddr (char *str, struct ipv4_ifaddr *out);
 static int ipaddr_ipv4_ifaddr_from_addr_mask (uint32_t addr, uint32_t mask, struct ipv4_ifaddr *out);
 static uint32_t ipaddr_ipv4_mask_from_prefix (int prefix);
+static int ipaddr_ipv4_prefix_from_mask (uint32_t mask, int *out_prefix);
 static int ipaddr_ipv4_addrs_in_network (uint32_t addr1, uint32_t addr2, int netprefix);
 
 int ipaddr_parse_ipv4_addr_bin (char *name, size_t name_len, uint32_t *out_addr)
@@ -134,23 +135,13 @@ int ipaddr_parse_ipv4_ifaddr (char *str, struct ipv4_ifaddr *out)
 
 int ipaddr_ipv4_ifaddr_from_addr_mask (uint32_t addr, uint32_t mask, struct ipv4_ifaddr *out)
 {
-    // check mask
-    uint32_t t = 0;
-    int i;
-    for (i = 0; i <= 32; i++) {
-        if (ntoh32(mask) == t) {
-            break;
-        }
-        if (i < 32) {
-            t |= (1 << (32 - i - 1));
-        }
-    }
-    if (!(i <= 32)) {
+    int prefix;
+    if (!ipaddr_ipv4_prefix_from_mask(mask, &prefix)) {
         return 0;
     }
     
     out->addr = addr;
-    out->prefix = i;
+    out->prefix = prefix;
     return 1;
 }
 
@@ -165,6 +156,26 @@ uint32_t ipaddr_ipv4_mask_from_prefix (int prefix)
     }
     
     return hton32(t);
+}
+
+int ipaddr_ipv4_prefix_from_mask (uint32_t mask, int *out_prefix)
+{
+    uint32_t t = 0;
+    int i;
+    for (i = 0; i <= 32; i++) {
+        if (ntoh32(mask) == t) {
+            break;
+        }
+        if (i < 32) {
+            t |= (1 << (32 - i - 1));
+        }
+    }
+    if (!(i <= 32)) {
+        return 0;
+    }
+    
+    *out_prefix = i;
+    return 1;
 }
 
 int ipaddr_ipv4_addrs_in_network (uint32_t addr1, uint32_t addr2, int netprefix)
