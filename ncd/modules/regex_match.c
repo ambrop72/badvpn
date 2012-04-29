@@ -30,15 +30,27 @@
  * 
  * Regular expression matching module.
  * 
- * Synopsis: regex_match(string input, string regex)
+ * Synopsis:
+ *   regex_match(string input, string regex)
+ * 
  * Variables:
  *   succeeded - "true" or "false", indicating whether input matched regex
  *   matchN - for N=0,1,2,..., the matching data for the N-th subexpression
  *     (match0 = whole match)
+ * 
+ * Description:
+ *   Matches 'input' with the POSIX extended regular expression 'regex'.
+ *   'regex' must be a string without null bytes, but 'input' can contain null bytes.
+ *   However, it's difficult, if not impossible, to actually match nulls with the regular
+ *   expression.
+ *   The input and regex strings are interpreted according to the POSIX regex functions
+ *   (regcomp(), regexec()); in particular, the current locale setting affects the
+ *   interpretation.
  */
 
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include <regex.h>
 
 #include <misc/string_begins_with.h>
@@ -54,6 +66,7 @@
 struct instance {
     NCDModuleInst *i;
     char *input;
+    size_t input_len;
     int succeeded;
     int num_matches;
     regmatch_t matches[MAX_MATCHES];
@@ -84,7 +97,14 @@ static void func_new (NCDModuleInst *i)
         goto fail1;
     }
     o->input = NCDValue_StringValue(input_arg);
+    o->input_len = NCDValue_StringLength(input_arg);
     char *regex = NCDValue_StringValue(regex_arg);
+    
+    // make sure we don't overflow regoff_t
+    if (o->input_len > INT_MAX) {
+        ModuleLog(o->i, BLOG_ERROR, "input string too long");
+        goto fail1;
+    }
     
     // compile regex
     regex_t preg;
@@ -95,12 +115,9 @@ static void func_new (NCDModuleInst *i)
     }
     
     // execute match
-    if (NCDValue_StringHasNulls(input_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "string has nulls");
-        o->succeeded = 0;
-    } else {
-        o->succeeded = (regexec(&preg, o->input, MAX_MATCHES, o->matches, 0) == 0);
-    }
+    o->matches[0].rm_so = 0;
+    o->matches[0].rm_eo = o->input_len;
+    o->succeeded = (regexec(&preg, o->input, MAX_MATCHES, o->matches, REG_STARTEND) == 0);
     
     // free regex
     regfree(&preg);
@@ -147,28 +164,16 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
         if (o->succeeded && n < MAX_MATCHES && o->matches[n].rm_so >= 0) {
             regmatch_t *m = &o->matches[n];
             
-            ASSERT(m->rm_so <= strlen(o->input))
+            ASSERT(m->rm_so <= o->input_len)
             ASSERT(m->rm_eo >= m->rm_so)
-            ASSERT(m->rm_eo <= strlen(o->input))
+            ASSERT(m->rm_eo <= o->input_len)
             
             size_t len = m->rm_eo - m->rm_so;
             
-            char *str = malloc(len + 1);
-            if (!str) {
-                ModuleLog(o->i, BLOG_ERROR, "malloc failed");
+            if (!NCDValue_InitStringBin(out, o->input + m->rm_so, len)) {
+                ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitStringBin failed");
                 return 0;
             }
-            
-            memcpy(str, o->input + m->rm_so, len);
-            str[len] = '\0';
-            
-            if (!NCDValue_InitString(out, str)) {
-                ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-                free(str);
-                return 0;
-            }
-            
-            free(str);
             
             return 1;
         }
