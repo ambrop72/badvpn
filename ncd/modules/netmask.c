@@ -40,6 +40,13 @@
  * 
  * Variables:
  *   string (empty) - mask, converted to prefix length
+ * 
+ * Synopsis:
+ *   ipv4_net_from_addr_and_prefix(string addr, string prefix)
+ * 
+ * Variables:
+ *   string (empty) - network part of the address, according to given prefix
+ *                    length, in dotted decimal format without leading zeros
  */
 
 #include <stdlib.h>
@@ -102,8 +109,8 @@ static void prefix_to_mask_func_init (NCDModuleInst *i)
     }
     
     // parse prefix
-    uintmax_t prefix;
-    if (!parse_unsigned_integer(NCDValue_StringValue(prefix_arg), &prefix) || prefix > 32) {
+    int prefix;
+    if (!ipaddr_parse_ipv4_prefix(NCDValue_StringValue(prefix_arg), &prefix)) {
         ModuleLog(i, BLOG_ERROR, "bad prefix");
         goto fail0;
     }
@@ -112,6 +119,45 @@ static void prefix_to_mask_func_init (NCDModuleInst *i)
     uint32_t mask = ipaddr_ipv4_mask_from_prefix(prefix);
     
     addr_func_init_templ(i, mask);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void ipv4_net_from_addr_and_prefix_func_init (NCDModuleInst *i)
+{
+    // read arguments
+    NCDValue *addr_arg;
+    NCDValue *prefix_arg;
+    if (!NCDValue_ListRead(i->args, 2, &addr_arg, &prefix_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (!NCDValue_IsStringNoNulls(addr_arg) || !NCDValue_IsStringNoNulls(prefix_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    
+    // parse addr
+    uint32_t addr;
+    if (!ipaddr_parse_ipv4_addr(NCDValue_StringValue(addr_arg), &addr)) {
+        ModuleLog(i, BLOG_ERROR, "bad addr");
+        goto fail0;
+    }
+    
+    // parse prefix
+    int prefix;
+    if (!ipaddr_parse_ipv4_prefix(NCDValue_StringValue(prefix_arg), &prefix)) {
+        ModuleLog(i, BLOG_ERROR, "bad prefix");
+        goto fail0;
+    }
+    
+    // make network
+    uint32_t network = (addr & ipaddr_ipv4_mask_from_prefix(prefix));
+    
+    addr_func_init_templ(i, network);
     return;
     
 fail0:
@@ -237,6 +283,11 @@ static const struct NCDModule modules[] = {
         .func_new = mask_to_prefix_func_init,
         .func_die = prefix_func_die,
         .func_getvar = prefix_func_getvar
+    }, {
+        .type = "ipv4_net_from_addr_and_prefix",
+        .func_new = ipv4_net_from_addr_and_prefix_func_init,
+        .func_die = addr_func_die,
+        .func_getvar = addr_func_getvar
     }, {
         .type = NULL
     }
