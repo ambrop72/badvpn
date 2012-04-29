@@ -99,6 +99,7 @@ extern const struct NCDModuleGroup ncdmodule_parse;
 extern const struct NCDModuleGroup ncdmodule_valuemetic;
 extern const struct NCDModuleGroup ncdmodule_file;
 extern const struct NCDModuleGroup ncdmodule_netmask;
+extern const struct NCDModuleGroup ncdmodule_implode;
 
 static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_var,
@@ -166,6 +167,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_valuemetic,
     &ncdmodule_file,
     &ncdmodule_netmask,
+    &ncdmodule_implode,
     NULL
 };
 

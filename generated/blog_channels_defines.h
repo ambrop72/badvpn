@@ -118,4 +118,5 @@
 #define BLOG_CHANNEL_ncd_valuemetic 117
 #define BLOG_CHANNEL_ncd_file 118
 #define BLOG_CHANNEL_ncd_netmask 119
-#define BLOG_NUM_CHANNELS 120
+#define BLOG_CHANNEL_ncd_implode 120
+#define BLOG_NUM_CHANNELS 121
