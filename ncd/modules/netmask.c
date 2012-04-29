@@ -30,10 +30,16 @@
  * 
  * Synopsis:
  *   ipv4_prefix_to_mask(string prefix)
+ * 
+ * Variables:
+ *   string (empty) - prefix, converted to dotted decimal format without leading
+ *                    zeros
+ * 
+ * Synopsis:
  *   ipv4_mask_to_prefix(string mask)
  * 
  * Variables:
- *   string (empty) - converted
+ *   string (empty) - mask, converted to prefix length
  */
 
 #include <stdlib.h>
@@ -49,20 +55,20 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-struct prefix_to_mask_instance {
+struct addr_instance {
     NCDModuleInst *i;
-    uint32_t mask;
+    uint32_t addr;
 };
 
-struct mask_to_prefix_instance {
+struct prefix_instance {
     NCDModuleInst *i;
     int prefix;
 };
 
-static void prefix_to_mask_func_init (NCDModuleInst *i)
+static void addr_func_init_templ (NCDModuleInst *i, uint32_t addr)
 {
     // allocate structure
-    struct prefix_to_mask_instance *o = malloc(sizeof(*o));
+    struct addr_instance *o = malloc(sizeof(*o));
     if (!o) {
         ModuleLog(i, BLOG_ERROR, "malloc failed");
         goto fail0;
@@ -70,41 +76,52 @@ static void prefix_to_mask_func_init (NCDModuleInst *i)
     o->i = i;
     NCDModuleInst_Backend_SetUser(i, o);
     
+    // remember address
+    o->addr = addr;
+    
+    // signal up
+    NCDModuleInst_Backend_Up(i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void prefix_to_mask_func_init (NCDModuleInst *i)
+{
     // read arguments
     NCDValue *prefix_arg;
     if (!NCDValue_ListRead(i->args, 1, &prefix_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDValue_IsStringNoNulls(prefix_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     
     // parse prefix
     uintmax_t prefix;
     if (!parse_unsigned_integer(NCDValue_StringValue(prefix_arg), &prefix) || prefix > 32) {
         ModuleLog(i, BLOG_ERROR, "bad prefix");
-        goto fail1;
+        goto fail0;
     }
     
-    // build mask
-    o->mask = ipaddr_ipv4_mask_from_prefix(prefix);
+    // make mask
+    uint32_t mask = ipaddr_ipv4_mask_from_prefix(prefix);
     
-    // signal up
-    NCDModuleInst_Backend_Up(i);
+    addr_func_init_templ(i, mask);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void prefix_to_mask_func_die (void *vo)
+static void addr_func_die (void *vo)
 {
-    struct prefix_to_mask_instance *o = vo;
+    struct addr_instance *o = vo;
     NCDModuleInst *i = o->i;
     
     // free structure
@@ -113,12 +130,12 @@ static void prefix_to_mask_func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int prefix_to_mask_func_getvar (void *vo, const char *name, NCDValue *out_value)
+static int addr_func_getvar (void *vo, const char *name, NCDValue *out_value)
 {
-    struct prefix_to_mask_instance *o = vo;
+    struct addr_instance *o = vo;
     
     if (!strcmp(name, "")) {
-        uint8_t *x = (void *)&o->mask;
+        uint8_t *x = (void *)&o->addr;
         char buf[20];
         sprintf(buf, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, x[0], x[1], x[2], x[3]);
         
@@ -136,7 +153,7 @@ static int prefix_to_mask_func_getvar (void *vo, const char *name, NCDValue *out
 static void mask_to_prefix_func_init (NCDModuleInst *i)
 {
     // allocate structure
-    struct mask_to_prefix_instance *o = malloc(sizeof(*o));
+    struct prefix_instance *o = malloc(sizeof(*o));
     if (!o) {
         ModuleLog(i, BLOG_ERROR, "malloc failed");
         goto fail0;
@@ -179,9 +196,9 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void mask_to_prefix_func_die (void *vo)
+static void prefix_func_die (void *vo)
 {
-    struct mask_to_prefix_instance *o = vo;
+    struct prefix_instance *o = vo;
     NCDModuleInst *i = o->i;
     
     // free structure
@@ -190,9 +207,9 @@ static void mask_to_prefix_func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int mask_to_prefix_func_getvar (void *vo, const char *name, NCDValue *out_value)
+static int prefix_func_getvar (void *vo, const char *name, NCDValue *out_value)
 {
-    struct mask_to_prefix_instance *o = vo;
+    struct prefix_instance *o = vo;
     
     if (!strcmp(name, "")) {
         char buf[6];
@@ -213,13 +230,13 @@ static const struct NCDModule modules[] = {
     {
         .type = "ipv4_prefix_to_mask",
         .func_new = prefix_to_mask_func_init,
-        .func_die = prefix_to_mask_func_die,
-        .func_getvar = prefix_to_mask_func_getvar
+        .func_die = addr_func_die,
+        .func_getvar = addr_func_getvar
     }, {
         .type = "ipv4_mask_to_prefix",
         .func_new = mask_to_prefix_func_init,
-        .func_die = mask_to_prefix_func_die,
-        .func_getvar = mask_to_prefix_func_getvar
+        .func_die = prefix_func_die,
+        .func_getvar = prefix_func_getvar
     }, {
         .type = NULL
     }
