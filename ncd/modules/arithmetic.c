@@ -36,6 +36,7 @@
  *   num_lesser_equal(string n1, string n2)
  *   num_greater_equal(string n1, string n2)
  *   num_equal(string n1, string n2)
+ *   num_different(string n1, string n2)
  * 
  * Variables:
  *   (empty) - "true" or "false", reflecting the value of the relation in question
@@ -109,6 +110,12 @@ static int compute_greater_equal (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, 
 static int compute_equal (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str)
 {
     strcpy(out_str, (n1 == n2) ? "true" : "false");
+    return 1;
+}
+
+static int compute_different (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str)
+{
+    strcpy(out_str, (n1 != n2) ? "true" : "false");
     return 1;
 }
 
@@ -260,6 +267,11 @@ static void func_new_equal (NCDModuleInst *i)
     new_templ(i, compute_equal);
 }
 
+static void func_new_different (NCDModuleInst *i)
+{
+    new_templ(i, compute_different);
+}
+
 static void func_new_add (NCDModuleInst *i)
 {
     new_templ(i, compute_add);
@@ -309,6 +321,11 @@ static const struct NCDModule modules[] = {
     }, {
         .type = "num_equal",
         .func_new = func_new_equal,
+        .func_die = func_die,
+        .func_getvar = func_getvar
+    }, {
+        .type = "num_different",
+        .func_new = func_new_different,
         .func_die = func_die,
         .func_getvar = func_getvar
     }, {
