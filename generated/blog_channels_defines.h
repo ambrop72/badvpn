@@ -116,4 +116,5 @@
 #define BLOG_CHANNEL_ncd_arithmetic 115
 #define BLOG_CHANNEL_ncd_parse 116
 #define BLOG_CHANNEL_ncd_valuemetic 117
-#define BLOG_NUM_CHANNELS 118
+#define BLOG_CHANNEL_ncd_file 118
+#define BLOG_NUM_CHANNELS 119

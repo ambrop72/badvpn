@@ -97,6 +97,7 @@ extern const struct NCDModuleGroup ncdmodule_getargs;
 extern const struct NCDModuleGroup ncdmodule_arithmetic;
 extern const struct NCDModuleGroup ncdmodule_parse;
 extern const struct NCDModuleGroup ncdmodule_valuemetic;
+extern const struct NCDModuleGroup ncdmodule_file;
 
 static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_var,
@@ -162,6 +163,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_arithmetic,
     &ncdmodule_parse,
     &ncdmodule_valuemetic,
+    &ncdmodule_file,
     NULL
 };
 
