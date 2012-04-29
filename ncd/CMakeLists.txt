@@ -109,6 +109,7 @@ add_executable(badvpn-ncd
     modules/parse.c
     modules/valuemetic.c
     modules/file.c
+    modules/netmask.c
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdconfig ncdvalue udevmonitor ncdinterfacemonitor ncdrequest)

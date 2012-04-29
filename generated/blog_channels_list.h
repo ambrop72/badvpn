@@ -117,3 +117,4 @@
 {.name = "ncd_parse", .loglevel = 4},
 {.name = "ncd_valuemetic", .loglevel = 4},
 {.name = "ncd_file", .loglevel = 4},
+{.name = "ncd_netmask", .loglevel = 4},
