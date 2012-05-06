@@ -46,7 +46,6 @@
 #define STATE_DOWN_DIE 8
 #define STATE_UP_DIE 9
 #define STATE_DYING 10
-#define STATE_UNDEAD 11
 
 #define PROCESS_STATE_INIT 1
 #define PROCESS_STATE_DOWN 2
@@ -85,7 +84,7 @@ static void uninit_job_handler (NCDModuleInst *n)
     DebugObject_Access(&n->d_obj);
     ASSERT(n->state == STATE_UNINIT)
     
-    n->state = STATE_UNDEAD;
+    n->state = STATE_DEAD;
     
     frontend_event(n, NCDMODULE_EVENT_DEAD);
     return;
@@ -208,7 +207,7 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDO
 void NCDModuleInst_Free (NCDModuleInst *n)
 {
     DebugObject_Free(&n->d_obj);
-    ASSERT(n->state == STATE_DEAD || n->state == STATE_UNDEAD)
+    ASSERT(n->state == STATE_DEAD)
     
     // free jobs
     BPending_Free(&n->clean_job);
@@ -324,7 +323,7 @@ static int object_func_getobj (NCDModuleInst *n, const char *name, NCDObject *ou
 int NCDModuleInst_HaveError (NCDModuleInst *n)
 {
     DebugObject_Access(&n->d_obj);
-    ASSERT(n->state == STATE_DEAD || n->state == STATE_UNDEAD)
+    ASSERT(n->state == STATE_DEAD)
     
     return n->is_error;
 }
