@@ -380,12 +380,14 @@ int main (int argc, char **argv)
     LinkedList1_Init(&processes);
     
     // init processes
-    struct NCDConfig_processes *conf = config_ast;
-    while (conf) {
-        if (!conf->is_template) {
-            process_new(conf, NULL);
+    for (struct NCDConfig_processes *conf = config_ast; conf; conf = conf->next) {
+        if (conf->is_template) {
+            continue;
         }
-        conf = conf->next;
+        if (!process_new(conf, NULL)) {
+            BLog(BLOG_ERROR, "failed to initialize process, exiting");
+            goto fail6;
+        }
     }
     
     // enter event loop
@@ -394,6 +396,12 @@ int main (int argc, char **argv)
     
     ASSERT(LinkedList1_IsEmpty(&processes))
     
+fail6:;
+    LinkedList1Node *ln;
+    while (ln = LinkedList1_GetFirst(&processes)) {
+        struct process *p = UPPER_OBJECT(ln, struct process, list_node);
+        process_free(p);
+    }
 fail5:
     // free modules
     while (num_inited_modules > 0) {
@@ -1081,7 +1089,6 @@ void process_free (struct process *p)
 {
     ASSERT(p->ap == 0)
     ASSERT(p->fp == 0)
-    ASSERT(p->state == PSTATE_TERMINATING)
     
     // inform module process that the process is terminated
     if (p->module_process) {
