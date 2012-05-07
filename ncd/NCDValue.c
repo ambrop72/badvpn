@@ -241,7 +241,7 @@ int NCDValue_StringEquals (NCDValue *o, const char *str)
 {
     ASSERT(o->type == NCDVALUE_STRING)
     
-    return NCDValue_StringHasNoNulls(o) && !strcmp(o->string, str);
+    return NCDValue_StringHasNoNulls(o) && !strcmp((const char *)o->string, str);
 }
 
 int NCDValue_IsList (NCDValue *o)
@@ -607,7 +607,7 @@ NCDValue * NCDValue_MapFindValueByString (NCDValue *o, const char *key_str)
     
     NCDValue key;
     key.type = NCDVALUE_STRING;
-    key.string = (char *)key_str;
+    key.string = (uint8_t *)key_str;
     key.string_len = strlen(key_str);
     
     NCDValue *ekey = NCDValue_MapFindKey(o, &key);

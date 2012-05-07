@@ -148,7 +148,7 @@ static int build_value (struct NCDConfig_list *ast, NCDValue *out)
 {
     switch (ast->type) {
         case NCDCONFIG_ARG_STRING: {
-            if (!NCDValue_InitStringBin(out, ast->string, ast->string_len)) {
+            if (!NCDValue_InitStringBin(out, (uint8_t *)ast->string, ast->string_len)) {
                 BLog(BLOG_ERROR, "NCDValue_InitStringBin failed");
                 return 0;
             }
@@ -276,7 +276,7 @@ int NCDValueParser_Parse (const char *str, size_t str_len, NCDValue *out_value)
     NCDValue val;
     switch (state.out.ast_type) {
         case AST_TYPE_STRING: {
-            if (!NCDValue_InitStringBin(&val, state.out.ast_string.str, state.out.ast_string.len)) {
+            if (!NCDValue_InitStringBin(&val, (uint8_t *)state.out.ast_string.str, state.out.ast_string.len)) {
                 BLog(BLOG_ERROR, "NCDValue_InitStringBin failed");
                 goto out;
             }

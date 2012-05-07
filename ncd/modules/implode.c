@@ -91,14 +91,14 @@ static void func_new (NCDModuleInst *i)
         
         // append glue
         if (piece != NCDValue_ListFirst(pieces_arg)) {
-            if (!ExpString_AppendBinary(&str, NCDValue_StringValue(glue_arg), NCDValue_StringLength(glue_arg))) {
+            if (!ExpString_AppendBinary(&str, (const uint8_t *)NCDValue_StringValue(glue_arg), NCDValue_StringLength(glue_arg))) {
                 ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
                 goto fail2;
             }
         }
         
         // append piece
-        if (!ExpString_AppendBinary(&str, NCDValue_StringValue(piece), NCDValue_StringLength(piece))) {
+        if (!ExpString_AppendBinary(&str, (const uint8_t *)NCDValue_StringValue(piece), NCDValue_StringLength(piece))) {
             ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
             goto fail2;
         }
@@ -140,7 +140,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out_value)
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitStringBin(out_value, o->result, o->result_len)) {
+        if (!NCDValue_InitStringBin(out_value, (uint8_t *)o->result, o->result_len)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitStringBin failed");
             return 0;
         }

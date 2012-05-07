@@ -1539,7 +1539,7 @@ int process_statement_resolve_argument (struct process_statement *ps, struct arg
     
     switch (arg->type) {
         case ARG_VALUE_TYPE_STRING: {
-            if (!NCDValue_InitStringBin(out, arg->string, arg->string_len)) {
+            if (!NCDValue_InitStringBin(out, (uint8_t *)arg->string, arg->string_len)) {
                 process_statement_log(ps, BLOG_ERROR, "NCDValue_InitStringBin failed");
                 return 0;
             }

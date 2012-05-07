@@ -133,13 +133,13 @@ static int regex_replace (const char *input, size_t input_len, const char *regex
         ASSERT(matches[0].rm_eo <= input_len)
         
         // append data before match
-        if (!ExpString_AppendBinary(&str, input, matches[0].rm_so)) {
+        if (!ExpString_AppendBinary(&str, (const uint8_t *)input, matches[0].rm_so)) {
             ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
             goto fail2;
         }
         
         // append replace data
-        if (!ExpString_AppendBinary(&str, replace, replace_len)) {
+        if (!ExpString_AppendBinary(&str, (const uint8_t *)replace, replace_len)) {
             ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
             goto fail2;
         }
@@ -150,7 +150,7 @@ static int regex_replace (const char *input, size_t input_len, const char *regex
     }
     
     // append remaining data
-    if (!ExpString_AppendBinary(&str, input, input_len)) {
+    if (!ExpString_AppendBinary(&str, (const uint8_t *)input, input_len)) {
         ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
         goto fail2;
     }
@@ -268,7 +268,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
             
             size_t len = m->rm_eo - m->rm_so;
             
-            if (!NCDValue_InitStringBin(out, o->input + m->rm_so, len)) {
+            if (!NCDValue_InitStringBin(out, (uint8_t *)o->input + m->rm_so, len)) {
                 ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitStringBin failed");
                 return 0;
             }
@@ -385,7 +385,7 @@ static int replace_func_getvar (void *vo, const char *name, NCDValue *out)
     struct replace_instance *o = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitStringBin(out, o->output, o->output_len)) {
+        if (!NCDValue_InitStringBin(out, (uint8_t *)o->output, o->output_len)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitStringBin failed");
             return 0;
         }

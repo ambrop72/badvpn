@@ -161,7 +161,7 @@ static void write_func_new (NCDModuleInst *i)
     }
     
     // write file
-    if (!write_file(NCDValue_StringValue(filename_arg), NCDValue_StringValue(contents_arg), NCDValue_StringLength(contents_arg))) {
+    if (!write_file(NCDValue_StringValue(filename_arg), (const uint8_t *)NCDValue_StringValue(contents_arg), NCDValue_StringLength(contents_arg))) {
         ModuleLog(i, BLOG_ERROR, "failed to write file");
         goto fail0;
     }
