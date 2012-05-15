@@ -62,6 +62,10 @@ $ make
 If you want to install it, run as root:
 # make install
 
+If you only want NCD or tun2socks and not the VPN system, you can avoid the NSS dependency by passing
+the following to the cmake command:
+-DBUILD_NCD=1 -DBUILD_TUN2SOCKS=1 -DBUILD_NOTHING_BY_DEFAULT=1
+
 2.2 Compiling for Windows
 
 See the file INSTALL-WINDOWS for detailed instructions.
