@@ -339,6 +339,15 @@ void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len)
         return;
     }
     
+    // strip "interface: " from beginning of line. Older wpa_supplicant versions (<1.0) don't add this
+    // prefix, so don't fail if there isn't one.
+    size_t l1;
+    size_t l2;
+    if ((l1 = data_begins_with(data, data_len, o->ifname)) && (l2 = data_begins_with(data + l1, data_len - l1, ": "))) {
+        data += l1 + l2;
+        data_len -= l1 + l2;
+    }
+    
     int have_bssid = 1;
     uint8_t bssid[6];
     uint8_t *ssid;
