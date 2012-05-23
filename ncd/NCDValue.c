@@ -700,4 +700,5 @@ int NCDValue_Compare (NCDValue *o, NCDValue *v)
     }
     
     ASSERT(0)
+    return 0;
 }
