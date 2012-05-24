@@ -251,54 +251,6 @@ fail:
     return NULL;
 }
 
-int NCDConfig_statement_name_is (struct NCDConfig_statements *st, const char *needle)
-{
-    ASSERT(st->names)
-    
-    size_t l;
-    
-    struct NCDConfig_strings *name = st->names;
-    if (!(l = string_begins_with(needle, name->value))) {
-        return 0;
-    }
-    needle += l;
-    
-    name = name->next;
-    
-    while (name) {
-        if (!(l = string_begins_with(needle, "."))) {
-            return 0;
-        }
-        needle += l;
-        
-        if (!(l = string_begins_with(needle, name->value))) {
-            return 0;
-        }
-        needle += l;
-        
-        name = name->next;
-    }
-    
-    if (*needle) {
-        return 0;
-    }
-    
-    return 1;
-}
-
-struct NCDConfig_statements * NCDConfig_find_statement (struct NCDConfig_statements *st, const char *needle)
-{
-    while (st) {
-        if (NCDConfig_statement_name_is(st, needle)) {
-            return st;
-        }
-        
-        st = st->next;
-    }
-    
-    return NULL;
-}
-
 char * NCDConfig_concat_strings (struct NCDConfig_strings *s)
 {
     ExpString str;
