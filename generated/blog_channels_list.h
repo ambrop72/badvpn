@@ -119,3 +119,4 @@
 {.name = "ncd_file", .loglevel = 4},
 {.name = "ncd_netmask", .loglevel = 4},
 {.name = "ncd_implode", .loglevel = 4},
+{.name = "ncd_call2", .loglevel = 4},
