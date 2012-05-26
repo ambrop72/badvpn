@@ -317,6 +317,7 @@ typedef struct NCDModuleProcess_s {
     NCDModuleProcess_func_getspecialobj func_getspecialobj;
     BPending event_job;
     int state;
+    int no_args;
     void *interp_user;
     NCDModuleProcess_interp_func_event interp_func_event;
     NCDModuleProcess_interp_func_getobj interp_func_getobj;
@@ -530,6 +531,15 @@ void NCDModuleProcess_AssertFree (NCDModuleProcess *o);
  * @param func_getspecialobj function for resolving special objects, or NULL
  */
 void NCDModuleProcess_SetSpecialFuncs (NCDModuleProcess *o, NCDModuleProcess_func_getspecialobj func_getspecialobj);
+
+/**
+ * Makes the process itself not resolve the _args and _argN special objects.
+ * After calling this, the only special objects the interpreter can resolve
+ * are those provided by the creator of the process via {@link NCDModuleProcess_SetSpecialFuncs}.
+ * 
+ * @param o the process
+ */
+void NCDModuleProcess_SetNoArgs (NCDModuleProcess *o);
 
 /**
  * Continues the process after the process went down.

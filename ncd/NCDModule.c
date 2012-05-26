@@ -510,6 +510,9 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     // set state
     o->state = PROCESS_STATE_INIT;
     
+    // set not no args
+    o->no_args = 0;
+    
     // clear interp functions so we can assert they were set
     o->interp_func_event = NULL;
     o->interp_func_getobj = NULL;
@@ -556,6 +559,13 @@ void NCDModuleProcess_SetSpecialFuncs (NCDModuleProcess *o, NCDModuleProcess_fun
     DebugObject_Access(&o->d_obj);
     
     o->func_getspecialobj = func_getspecialobj;
+}
+
+void NCDModuleProcess_SetNoArgs (NCDModuleProcess *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    o->no_args = 1;
 }
 
 void NCDModuleProcess_Continue (NCDModuleProcess *o)
@@ -669,16 +679,18 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, const char *name
     ASSERT(name)
     ASSERT(out_object)
     
-    if (!strcmp(name, "_args")) {
-        *out_object = NCDObject_Build(NULL, o, (NCDObject_func_getvar)process_args_object_func_getvar, NULL);
-        return 1;
-    }
-    
-    size_t len;
-    uintmax_t n;
-    if ((len = string_begins_with(name, "_arg")) && parse_unsigned_integer(name + len, &n) && n < NCDValue_ListCount(&o->args)) {
-        *out_object = NCDObject_Build2(NULL, o, NCDValue_ListGet(&o->args, n), (NCDObject_func_getvar2)process_arg_object_func_getvar2, NULL);
-        return 1;
+    if (!o->no_args) {
+        if (!strcmp(name, "_args")) {
+            *out_object = NCDObject_Build(NULL, o, (NCDObject_func_getvar)process_args_object_func_getvar, NULL);
+            return 1;
+        }
+        
+        size_t len;
+        uintmax_t n;
+        if ((len = string_begins_with(name, "_arg")) && parse_unsigned_integer(name + len, &n) && n < NCDValue_ListCount(&o->args)) {
+            *out_object = NCDObject_Build2(NULL, o, NCDValue_ListGet(&o->args, n), (NCDObject_func_getvar2)process_arg_object_func_getvar2, NULL);
+            return 1;
+        }
     }
     
     if (!o->func_getspecialobj) {
