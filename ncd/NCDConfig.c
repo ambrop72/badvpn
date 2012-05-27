@@ -102,12 +102,8 @@ void NCDConfig_free_strings (struct NCDConfig_strings *v)
     free(v);
 }
 
-struct NCDConfig_processes * NCDConfig_make_processes (int is_template, char *name, struct NCDConfig_statements *statements, int need_next, struct NCDConfig_processes *next)
+struct NCDConfig_processes * NCDConfig_make_processes (int is_template, char *name, struct NCDConfig_statements *statements, struct NCDConfig_processes *next)
 {
-    if (!name || !statements || (need_next && !next)) {
-        goto fail;
-    }
-    
     struct NCDConfig_processes *v = malloc(sizeof(*v));
     if (!v) {
         goto fail;

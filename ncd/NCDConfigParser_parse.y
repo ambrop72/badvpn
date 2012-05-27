@@ -99,14 +99,14 @@ input ::= processes(A). {
 }
 
 processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE. {
-    R = NCDConfig_make_processes(T, A.str, B, 0, NULL);
+    R = NCDConfig_make_processes(T, A.str, B, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
 processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE processes(N). {
-    R = NCDConfig_make_processes(T, A.str, B, 1, N);
+    R = NCDConfig_make_processes(T, A.str, B, N);
     if (!R) {
         parser_out->out_of_memory = 1;
     }

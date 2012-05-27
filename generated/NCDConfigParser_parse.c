@@ -811,7 +811,7 @@ static void yy_reduce(
       case 1: /* processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE */
 #line 101 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy45 = NCDConfig_make_processes(yymsp[-4].minor.yy46, yymsp[-3].minor.yy0.str, yymsp[-1].minor.yy16, 0, NULL);
+    yygotominor.yy45 = NCDConfig_make_processes(yymsp[-4].minor.yy46, yymsp[-3].minor.yy0.str, yymsp[-1].minor.yy16, NULL);
     if (!yygotominor.yy45) {
         parser_out->out_of_memory = 1;
     }
@@ -823,7 +823,7 @@ static void yy_reduce(
       case 2: /* processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes */
 #line 108 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy45 = NCDConfig_make_processes(yymsp[-5].minor.yy46, yymsp[-4].minor.yy0.str, yymsp[-2].minor.yy16, 1, yymsp[0].minor.yy45);
+    yygotominor.yy45 = NCDConfig_make_processes(yymsp[-5].minor.yy46, yymsp[-4].minor.yy0.str, yymsp[-2].minor.yy16, yymsp[0].minor.yy45);
     if (!yygotominor.yy45) {
         parser_out->out_of_memory = 1;
     }
