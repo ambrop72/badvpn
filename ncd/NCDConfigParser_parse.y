@@ -55,6 +55,7 @@ struct parser_out {
 %token_destructor { free($$.str); }
 
 %type processes {struct NCDConfig_processes *}
+%type statement {struct NCDConfig_statements *}
 %type statements {struct NCDConfig_statements *}
 %type statement_names {struct NCDConfig_strings *}
 %type statement_args_maybe {struct NCDConfig_list *}
@@ -67,6 +68,7 @@ struct parser_out {
 %type process_or_template {int}
 
 %destructor processes { NCDConfig_free_processes($$); }
+%destructor statement { NCDConfig_free_statements($$); }
 %destructor statements { NCDConfig_free_statements($$); }
 %destructor statement_names { NCDConfig_free_strings($$); }
 %destructor statement_args_maybe { NCDConfig_free_list($$); }
@@ -112,32 +114,32 @@ processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_C
     }
 }
 
-statements(R) ::= statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
+statement(R) ::= statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
     R = NCDConfig_make_statements(NULL, A, B, C, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
-statements(R) ::= statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON statements(N). {
-    R = NCDConfig_make_statements(NULL, A, B, C, N);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
-}
-
-statements(R) ::= statement_names(M) ARROW statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
+statement(R) ::= statement_names(M) ARROW statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
     R = NCDConfig_make_statements(M, A, B, C, NULL);
     if (!R) {
         parser_out->out_of_memory = 1;
     }
 }
 
-statements(R) ::= statement_names(M) ARROW statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON statements(N). {
-    R = NCDConfig_make_statements(M, A, B, C, N);
-    if (!R) {
-        parser_out->out_of_memory = 1;
+statements(R) ::= statement(A). {
+    R = A;
+}
+
+statements(R) ::= statement(A) statements(N). {
+    if (!A) {
+        NCDConfig_free_statements(N);
+    } else {
+        ASSERT(!A->next)
+        A->next = N;
     }
+    R = A;
 }
 
 statement_names(R) ::= NAME(A). {
