@@ -29,6 +29,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include <misc/debug.h>
 #include <misc/expstring.h>
@@ -43,7 +44,7 @@ static int generate_value (NCDValue *value, ExpString *out_str)
     switch (NCDValue_Type(value)) {
         case NCDVALUE_STRING: {
             const char *str = NCDValue_StringValue(value);
-            size_t len = strlen(str);
+            size_t len = NCDValue_StringLength(value);
             
             if (!ExpString_AppendChar(out_str, '"')) {
                 BLog(BLOG_ERROR, "ExpString_AppendChar failed");
@@ -51,6 +52,18 @@ static int generate_value (NCDValue *value, ExpString *out_str)
             }
             
             for (size_t i = 0; i < len; i++) {
+                if (str[i] == '\0') {
+                    char buf[5];
+                    snprintf(buf, sizeof(buf), "\\x%02"PRIx8, (uint8_t)str[i]);
+                    
+                    if (!ExpString_Append(out_str, buf)) {
+                        BLog(BLOG_ERROR, "ExpString_Append failed");
+                        goto fail;
+                    }
+                    
+                    continue;
+                }
+                
                 if (str[i] == '"' || str[i] == '\\') {
                     if (!ExpString_AppendChar(out_str, '\\')) {
                         BLog(BLOG_ERROR, "ExpString_AppendChar failed");
