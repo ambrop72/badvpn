@@ -51,6 +51,7 @@ static void value_assert (NCDValue *o)
         case NCDVALUE_STRING:
         case NCDVALUE_LIST:
         case NCDVALUE_MAP:
+        case NCDVALUE_VAR:
             return;
         default:
             ASSERT(0);
@@ -124,6 +125,10 @@ int NCDValue_InitCopy (NCDValue *o, NCDValue *v)
             return 0;
         } break;
         
+        case NCDVALUE_VAR: {
+            return NCDValue_InitVar(o, v->var_name);
+        } break;
+        
         default:
             ASSERT(0);
     }
@@ -159,6 +164,10 @@ void NCDValue_Free (NCDValue *o)
                 NCDValue_Free(&e->val);
                 free(e);
             }
+        } break;
+        
+        case NCDVALUE_VAR: {
+            free(o->var_name);
         } break;
         
         default:
@@ -640,6 +649,34 @@ NCDValue * NCDValue_MapFindValueByString (NCDValue *o, const char *key_str)
     return NCDValue_MapKeyValue(o, ekey);
 }
 
+int NCDValue_IsVar (NCDValue *o)
+{
+    value_assert(o);
+    
+    return o->type == NCDVALUE_VAR;
+}
+
+int NCDValue_InitVar (NCDValue *o, const char *var_name)
+{
+    ASSERT(var_name)
+    
+    if (!(o->var_name = strdup(var_name))) {
+        return 0;
+    }
+    
+    o->type = NCDVALUE_VAR;
+    
+    return 1;
+}
+
+const char * NCDValue_VarName (NCDValue *o)
+{
+    value_assert(o);
+    ASSERT(o->type == NCDVALUE_VAR)
+    
+    return o->var_name;
+}
+
 int NCDValue_Compare (NCDValue *o, NCDValue *v)
 {
     value_assert(o);
@@ -719,6 +756,12 @@ int NCDValue_Compare (NCDValue *o, NCDValue *v)
             key1 = NCDValue_MapNextKey(o, key1);
             key2 = NCDValue_MapNextKey(v, key2);
         }
+    }
+    
+    if (o->type == NCDVALUE_VAR) {
+        int res = strcmp(o->var_name, v->var_name);
+        
+        return (res > 0) - (res < 0);
     }
     
     ASSERT(0)

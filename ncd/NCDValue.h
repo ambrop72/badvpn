@@ -40,6 +40,7 @@
 #define NCDVALUE_STRING 1
 #define NCDVALUE_LIST 2
 #define NCDVALUE_MAP 3
+#define NCDVALUE_VAR 4
 
 /**
  * Holds an NCD "value", which is used in the NCD programming when passing arguments to
@@ -71,6 +72,9 @@ typedef struct {
         struct {
             BAVL map_tree;
             size_t map_count;
+        };
+        struct {
+            char *var_name;
         };
     };
 } NCDValue;
@@ -429,6 +433,34 @@ void NCDValue_MapRemove (NCDValue *o, NCDValue *ekey, NCDValue *out_key, NCDValu
  * @return pointer to value, or NULL if there is no such key
  */
 NCDValue * NCDValue_MapFindValueByString (NCDValue *o, const char *key_str);
+
+/**
+ * Checks if the value is a variable value.
+ * 
+ * @param o the value
+ * @return 1 if variable, 0 if not
+ */
+int NCDValue_IsVar (NCDValue *o);
+
+/**
+ * Initializes a variable value.
+ * WARNING: variable values are only used internally by NCD as part of
+ * the AST, and must never be used as statement or template arguments
+ * during program execution.
+ * 
+ * @param o value structure to initialize
+ * @param var_name name of the variable
+ * @return 1 on success, 0 on failure
+ */
+int NCDValue_InitVar (NCDValue *o, const char *var_name) WARN_UNUSED;
+
+/**
+ * Returns the name of the variable.
+ * 
+ * @param o variable value
+ * @return variable name
+ */
+const char * NCDValue_VarName (NCDValue *o);
 
 /**
  * Compares a value with another value.
