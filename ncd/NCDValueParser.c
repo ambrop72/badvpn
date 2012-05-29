@@ -67,20 +67,6 @@ static int tokenizer_output (void *user, int token, char *value, size_t value_le
     ASSERT(!state->out.syntax_error)
     ASSERT(!state->error)
     
-    // some tokens are only valid in NCD scripts and not value strings
-    switch (token) {
-        case NCD_TOKEN_NAME:
-        case NCD_TOKEN_ROUND_OPEN:
-        case NCD_TOKEN_ROUND_CLOSE:
-        case NCD_TOKEN_SEMICOLON:
-        case NCD_TOKEN_DOT:
-        case NCD_TOKEN_ARROW:
-        case NCD_TOKEN_PROCESS:
-        case NCD_TOKEN_TEMPLATE:
-            token = NCD_ERROR;
-            free(value);
-    }
-    
     if (token == NCD_ERROR) {
         BLog(BLOG_ERROR, "line %zu, character %zu: tokenizer error", line, line_char);
         goto fail;
@@ -124,7 +110,9 @@ static int tokenizer_output (void *user, int token, char *value, size_t value_le
         } break;
         
         default:
-            ASSERT(0);
+            BLog(BLOG_ERROR, "line %zu, character %zu: invalid token", line, line_char);
+            free(minor.str);
+            goto fail;
     }
     
     if (state->out.syntax_error) {

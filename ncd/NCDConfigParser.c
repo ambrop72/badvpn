@@ -131,7 +131,10 @@ static int tokenizer_output (void *user, int token, char *value, size_t value_le
         } break;
         
         default:
-            ASSERT(0);
+            BLog(BLOG_ERROR, "line %zu, character %zu: invalid token", line, line_char);
+            free(minor.str);
+            state->error = 1;
+            return 0;
     }
     
     // if we got syntax error, stop parsing
