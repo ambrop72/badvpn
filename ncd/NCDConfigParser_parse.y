@@ -33,50 +33,90 @@
 #include <stddef.h>
 
 #include <misc/debug.h>
-#include <ncd/NCDConfig.h>
-
-struct parser_minor {
-    char *str;
-    size_t len;
-};
+#include <misc/concat_strings.h>
+#include <ncd/NCDAst.h>
 
 struct parser_out {
     int out_of_memory;
     int syntax_error;
-    struct NCDConfig_processes *ast;
+    int have_ast;
+    NCDProgram ast;
 };
+
+struct token {
+    char *str;
+    size_t len;
+};
+
+struct program {
+    int have;
+    NCDProgram v;
+};
+
+struct block {
+    int have;
+    NCDBlock v;
+};
+
+struct statement {
+    int have;
+    NCDStatement v;
+};
+
+struct ifblock {
+    int have;
+    NCDIfBlock v;
+};
+
+struct value {
+    int have;
+    NCDValue v;
+};
+
+static void free_token (struct token o) { free(o.str); }
+static void free_program (struct program o) { if (o.have) NCDProgram_Free(&o.v); }
+static void free_block (struct block o) { if (o.have) NCDBlock_Free(&o.v); }
+static void free_statement (struct statement o) { if (o.have) NCDStatement_Free(&o.v); }
+static void free_ifblock (struct ifblock o) { if (o.have) NCDIfBlock_Free(&o.v); }
+static void free_value (struct value o) { if (o.have) NCDValue_Free(&o.v); }
 
 }
 
-%extra_argument {struct parser_out *parser_out}
+%extra_argument { struct parser_out *parser_out }
 
-%token_type {struct parser_minor}
+%token_type { struct token }
 
-%token_destructor { free($$.str); }
+%token_destructor { free_token($$); }
 
-%type processes {struct NCDConfig_processes *}
-%type statement {struct NCDConfig_statements *}
-%type statements {struct NCDConfig_statements *}
-%type statement_names {struct NCDConfig_strings *}
-%type statement_args_maybe {struct NCDConfig_list *}
-%type list_contents {struct NCDConfig_list *}
-%type list {struct NCDConfig_list *}
-%type map_contents {struct NCDConfig_list *}
-%type map {struct NCDConfig_list *}
-%type value {struct NCDConfig_list *}
-%type name_maybe {char *}
-%type process_or_template {int}
+%type processes { struct program }
+%type statement { struct statement }
+%type elif_maybe { struct ifblock }
+%type elif { struct ifblock }
+%type else_maybe { struct block }
+%type statements { struct block }
+%type dotted_name { char * }
+%type statement_args_maybe { struct value }
+%type list_contents { struct value }
+%type list { struct value }
+%type map_contents { struct value }
+%type map  { struct value }
+%type value  { struct value }
+%type name_maybe { char * }
+%type process_or_template { int }
 
-%destructor processes { NCDConfig_free_processes($$); }
-%destructor statement { NCDConfig_free_statements($$); }
-%destructor statements { NCDConfig_free_statements($$); }
-%destructor statement_names { NCDConfig_free_strings($$); }
-%destructor statement_args_maybe { NCDConfig_free_list($$); }
-%destructor list_contents { NCDConfig_free_list($$); }
-%destructor list { NCDConfig_free_list($$); }
-%destructor map_contents { NCDConfig_free_list($$); }
-%destructor map { NCDConfig_free_list($$); }
-%destructor value { NCDConfig_free_list($$); }
+%destructor processes { free_program($$); }
+%destructor statement { free_statement($$); }
+%destructor elif_maybe { free_ifblock($$); }
+%destructor elif { free_ifblock($$); }
+%destructor else_maybe { free_block($$); }
+%destructor statements { free_block($$); }
+%destructor dotted_name { free($$); }
+%destructor statement_args_maybe { free_value($$); }
+%destructor list_contents { free_value($$); }
+%destructor list { free_value($$); }
+%destructor map_contents { free_value($$); }
+%destructor map { free_value($$); }
+%destructor value { free_value($$); }
 %destructor name_maybe { free($$); }
 
 %stack_size 0
@@ -88,76 +128,324 @@ struct parser_out {
 // workaroud Lemon bug: if the stack overflows, the token that caused the overflow will be leaked
 %stack_overflow {
     if (yypMinor) {
-        free(yypMinor->yy0.str);
+        free_token(yypMinor->yy0);
     }
 }
 
 input ::= processes(A). {
-    parser_out->ast = A;
+    ASSERT(!parser_out->have_ast)
 
-    if (!A) {
-        parser_out->out_of_memory = 1;
+    if (A.have) {
+        parser_out->have_ast = 1;
+        parser_out->ast = A.v;
     }
 }
 
 processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE. {
-    R = NCDConfig_make_processes(T, A.str, B, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
+    ASSERT(A.str)
+    if (!B.have) {
+        goto failA0;
     }
+
+    NCDProcess proc;
+    if (!NCDProcess_Init(&proc, T, A.str, B.v)) {
+        goto failA0;
+    }
+    B.have = 0;
+
+    NCDProgram prog;
+    NCDProgram_Init(&prog);
+
+    if (!NCDProgram_PrependProcess(&prog, proc)) {
+        goto failA1;
+    }
+
+    R.have = 1;
+    R.v = prog;
+    goto doneA;
+
+failA1:
+    NCDProgram_Free(&prog);
+    NCDProcess_Free(&proc);
+failA0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneA:
+    free_token(A);
+    free_block(B);
 }
 
 processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE processes(N). {
-    R = NCDConfig_make_processes(T, A.str, B, N);
-    if (!R) {
-        parser_out->out_of_memory = 1;
+    ASSERT(A.str)
+    if (!B.have || !N.have) {
+        goto failB0;
     }
+
+    NCDProcess proc;
+    if (!NCDProcess_Init(&proc, T, A.str, B.v)) {
+        goto failB0;
+    }
+    B.have = 0;
+
+    if (!NCDProgram_PrependProcess(&N.v, proc)) {
+        goto failB1;
+    }
+
+    R.have = 1;
+    R.v = N.v;
+    N.have = 0;
+    goto doneB;
+
+failB1:
+    NCDProcess_Free(&proc);
+failB0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneB:
+    free_token(A);
+    free_block(B);
+    free_program(N);
 }
 
-statement(R) ::= statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
-    R = NCDConfig_make_statements(NULL, A, B, C, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
+statement(R) ::= dotted_name(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
+    if (!A || !B.have) {
+        goto failC0;
     }
+
+    if (!NCDStatement_InitReg(&R.v, C, NULL, A, B.v)) {
+        goto failC0;
+    }
+    B.have = 0;
+
+    R.have = 1;
+    goto doneC;
+
+failC0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneC:
+    free(A);
+    free_value(B);
+    free(C);
 }
 
-statement(R) ::= statement_names(M) ARROW statement_names(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
-    R = NCDConfig_make_statements(M, A, B, C, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
+statement(R) ::= dotted_name(M) ARROW dotted_name(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
+    if (!M || !A || !B.have) {
+        goto failD0;
     }
+
+    if (!NCDStatement_InitReg(&R.v, C, M, A, B.v)) {
+        goto failD0;
+    }
+    B.have = 0;
+
+    R.have = 1;
+    goto doneD;
+
+failD0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneD:
+    free(M);
+    free(A);
+    free_value(B);
+    free(C);
+}
+
+statement(R) ::= IF ROUND_OPEN value(A) ROUND_CLOSE CURLY_OPEN statements(B) CURLY_CLOSE elif_maybe(I) else_maybe(E) name_maybe(C) SEMICOLON. {
+    if (!A.have || !B.have || !I.have) {
+        goto failE0;
+    }
+
+    NCDIf ifc;
+    NCDIf_Init(&ifc, A.v, B.v);
+    A.have = 0;
+    B.have = 0;
+
+    if (!NCDIfBlock_PrependIf(&I.v, ifc)) {
+        NCDIf_Free(&ifc);
+        goto failE0;
+    }
+
+    if (!NCDStatement_InitIf(&R.v, C, I.v)) {
+        goto failE0;
+    }
+    I.have = 0;
+
+    if (E.have) {
+        NCDStatement_IfAddElse(&R.v, E.v);
+        E.have = 0;
+    }
+
+    R.have = 1;
+    goto doneE;
+
+failE0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneE:
+    free_value(A);
+    free_block(B);
+    free_ifblock(I);
+    free_block(E);
+    free(C);
+}
+
+elif_maybe(R) ::= . {
+    NCDIfBlock_Init(&R.v);
+    R.have = 1;
+}
+
+elif_maybe(R) ::= elif(A). {
+    R = A;
+}
+
+elif(R) ::= ELIF ROUND_OPEN value(A) ROUND_CLOSE CURLY_OPEN statements(B) CURLY_CLOSE. {
+    if (!A.have || !B.have) {
+        goto failF0;
+    }
+
+    NCDIfBlock_Init(&R.v);
+
+    NCDIf ifc;
+    NCDIf_Init(&ifc, A.v, B.v);
+    A.have = 0;
+    B.have = 0;
+
+    if (!NCDIfBlock_PrependIf(&R.v, ifc)) {
+        goto failF1;
+    }
+
+    R.have = 1;
+    goto doneF0;
+
+failF1:
+    NCDIf_Free(&ifc);
+    NCDIfBlock_Free(&R.v);
+failF0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneF0:
+    free_value(A);
+    free_block(B);
+}
+
+elif(R) ::= ELIF ROUND_OPEN value(A) ROUND_CLOSE CURLY_OPEN statements(B) CURLY_CLOSE elif(N). {
+    if (!A.have || !B.have || !N.have) {
+        goto failG0;
+    }
+
+    NCDIf ifc;
+    NCDIf_Init(&ifc, A.v, B.v);
+    A.have = 0;
+    B.have = 0;
+
+    if (!NCDIfBlock_PrependIf(&N.v, ifc)) {
+        goto failG1;
+    }
+
+    R.have = 1;
+    R.v = N.v;
+    N.have = 0;
+    goto doneG0;
+
+failG1:
+    NCDIf_Free(&ifc);
+failG0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneG0:
+    free_value(A);
+    free_block(B);
+    free_ifblock(N);
+}
+
+else_maybe(R) ::= . {
+    R.have = 0;
+}
+
+else_maybe(R) ::= ELSE CURLY_OPEN statements(B) CURLY_CLOSE. {
+    R = B;
 }
 
 statements(R) ::= statement(A). {
-    R = A;
+    if (!A.have) {
+        goto failH0;
+    }
+
+    NCDBlock_Init(&R.v);
+
+    if (!NCDBlock_PrependStatement(&R.v, A.v)) {
+        goto failH1;
+    }
+    A.have = 0;
+
+    R.have = 1;
+    goto doneH;
+
+failH1:
+    NCDBlock_Free(&R.v);
+failH0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneH:
+    free_statement(A);
 }
 
 statements(R) ::= statement(A) statements(N). {
-    if (!A) {
-        NCDConfig_free_statements(N);
-    } else {
-        ASSERT(!A->next)
-        A->next = N;
+    if (!A.have || !N.have) {
+        goto failI0;
     }
-    R = A;
+
+    if (!NCDBlock_PrependStatement(&N.v, A.v)) {
+        goto failI1;
+    }
+    A.have = 0;
+
+    R.have = 1;
+    R.v = N.v;
+    N.have = 0;
+    goto doneI;
+
+failI1:
+    NCDBlock_Free(&R.v);
+failI0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneI:
+    free_statement(A);
+    free_block(N);
 }
 
-statement_names(R) ::= NAME(A). {
-    R = NCDConfig_make_strings(A.str, 0, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
+dotted_name(R) ::= NAME(A). {
+    ASSERT(A.str)
+
+    R = A.str;
 }
 
-statement_names(R) ::= NAME(A) DOT statement_names(N). {
-    R = NCDConfig_make_strings(A.str, 1, N);
-    if (!R) {
-        parser_out->out_of_memory = 1;
+dotted_name(R) ::= NAME(A) DOT dotted_name(N). {
+    ASSERT(A.str)
+    if (!N) {
+        goto failJ0;
     }
+
+    if (!(R = concat_strings(3, A.str, ".", N))) {
+        goto failJ0;
+    }
+
+    goto doneJ;
+
+failJ0:
+    R = NULL;
+    parser_out->out_of_memory = 1;
+doneJ:
+    free_token(A);
+    free(N);
 }
 
 statement_args_maybe(R) ::= . {
-    R = NULL;
+    R.have = 1;
+    NCDValue_InitList(&R.v);
 }
 
 statement_args_maybe(R) ::= list_contents(A). {
@@ -165,21 +453,55 @@ statement_args_maybe(R) ::= list_contents(A). {
 }
 
 list_contents(R) ::= value(A). {
-    R = A;
+    if (!A.have) {
+        goto failL0;
+    }
+
+    NCDValue_InitList(&R.v);
+
+    if (!NCDValue_ListPrepend(&R.v, A.v)) {
+        goto failL1;
+    }
+    A.have = 0;
+
+    R.have = 1;
+    goto doneL;
+
+failL1:
+    NCDValue_Free(&R.v);
+failL0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneL:
+    free_value(A);
 }
 
 list_contents(R) ::= value(A) COMMA list_contents(N). {
-    if (!A) {
-        NCDConfig_free_list(N);
-    } else {
-        ASSERT(!A->next)
-        A->next = N;
+    if (!A.have || !N.have) {
+        goto failM0;
     }
-    R = A;
+
+    if (!NCDValue_ListPrepend(&N.v, A.v)) {
+        goto failM0;
+    }
+    A.have = 0;
+
+    R.have = 1;
+    R.v = N.v;
+    N.have = 0;
+    goto doneM;
+
+failM0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneM:
+    free_value(A);
+    free_value(N);
 }
 
 list(R) ::= CURLY_OPEN CURLY_CLOSE. {
-    R = NULL;
+    R.have = 1;
+    NCDValue_InitList(&R.v);
 }
 
 list(R) ::= CURLY_OPEN list_contents(A) CURLY_CLOSE. {
@@ -187,35 +509,66 @@ list(R) ::= CURLY_OPEN list_contents(A) CURLY_CLOSE. {
 }
 
 map_contents(R) ::= value(A) COLON value(B). {
-    if (!A || !B) {
-        NCDConfig_free_list(A);
-        NCDConfig_free_list(B);
-        R = NULL;
-    } else {
-        ASSERT(!A->next)
-        ASSERT(!B->next)
-        A->next = B;
-        R = A;
+    if (!A.have || !B.have) {
+        goto failS0;
     }
+
+    NCDValue_InitMap(&R.v);
+
+    if (!NCDValue_MapInsert(&R.v, A.v, B.v)) {
+        goto failS1;
+    }
+    A.have = 0;
+    B.have = 0;
+
+    R.have = 1;
+    goto doneS;
+
+failS1:
+    NCDValue_Free(&R.v);
+failS0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneS:
+    free_value(A);
+    free_value(B);
 }
 
 map_contents(R) ::= value(A) COLON value(B) COMMA map_contents(N). {
-    if (!A || !B) {
-        NCDConfig_free_list(A);
-        NCDConfig_free_list(B);
-        NCDConfig_free_list(N);
-        R = NULL;
-    } else {
-        ASSERT(!A->next)
-        ASSERT(!B->next)
-        A->next = B;
-        B->next = N;
-        R = A;
+    if (!A.have || !B.have || !N.have) {
+        goto failT0;
     }
+
+    if (NCDValue_MapFindKey(&N.v, &A.v)) {
+        BLog(BLOG_ERROR, "duplicate key in map");
+        R.have = 0;
+        parser_out->syntax_error = 1;
+        goto doneT;
+    }
+
+    if (!NCDValue_MapInsert(&N.v, A.v, B.v)) {
+        goto failT0;
+    }
+    A.have = 0;
+    B.have = 0;
+
+    R.have = 1;
+    R.v = N.v;
+    N.have = 0;
+    goto doneT;
+
+failT0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneT:
+    free_value(A);
+    free_value(B);
+    free_value(N);
 }
 
 map(R) ::= BRACKET_OPEN BRACKET_CLOSE. {
-    R = NULL;
+    R.have = 1;
+    NCDValue_InitMap(&R.v);
 }
 
 map(R) ::= BRACKET_OPEN map_contents(A) BRACKET_CLOSE. {
@@ -223,31 +576,47 @@ map(R) ::= BRACKET_OPEN map_contents(A) BRACKET_CLOSE. {
 }
 
 value(R) ::= STRING(A). {
-    R = NCDConfig_make_list_string(A.str, A.len, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
+    ASSERT(A.str)
+
+    if (!NCDValue_InitStringBin(&R.v, A.str, A.len)) {
+        goto failU0;
     }
+
+    R.have = 1;
+    goto doneU;
+
+failU0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneU:
+    free_token(A);
 }
 
-value(R) ::= statement_names(A). {
-    R = NCDConfig_make_list_var(A, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
+value(R) ::= dotted_name(A). {
+    if (!A) {
+        goto failV0;
     }
+
+    if (!NCDValue_InitVar(&R.v, A)) {
+        goto failV0;
+    }
+
+    R.have = 1;
+    goto doneV;
+
+failV0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneV:
+    free(A);
 }
 
 value(R) ::= list(A). {
-    R = NCDConfig_make_list_list(A, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
+    R = A;
 }
 
 value(R) ::= map(A). {
-    R = NCDConfig_make_list_maplist(A, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
+    R = A;
 }
 
 name_maybe(R) ::= . {
@@ -255,6 +624,8 @@ name_maybe(R) ::= . {
 }
 
 name_maybe(R) ::= NAME(A). {
+    ASSERT(A.str)
+
     R = A.str;
 }
 

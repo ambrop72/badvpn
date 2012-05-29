@@ -29,13 +29,13 @@ endif ()
 
 if (BUILD_NCD)
     add_executable(ncd_tokenizer_test ncd_tokenizer_test.c)
-    target_link_libraries(ncd_tokenizer_test ncdconfig)
+    target_link_libraries(ncd_tokenizer_test ncdtokenizer)
 
     add_executable(ncd_parser_test ncd_parser_test.c)
-    target_link_libraries(ncd_parser_test ncdconfig)
+    target_link_libraries(ncd_parser_test ncdconfigparser ncdvaluegenerator)
 
     add_executable(ncd_value_parser_test ncd_value_parser_test.c)
-    target_link_libraries(ncd_value_parser_test ncdvalue)
+    target_link_libraries(ncd_value_parser_test ncdvalueparser ncdvaluegenerator)
 
     add_executable(ncdinterfacemonitor_test ncdinterfacemonitor_test.c)
     target_link_libraries(ncdinterfacemonitor_test ncdinterfacemonitor)

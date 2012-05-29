@@ -42,6 +42,7 @@
 #include <misc/parse_number.h>
 #include <misc/open_standard_streams.h>
 #include <misc/expstring.h>
+#include <misc/split_string.h>
 #include <structure/LinkedList1.h>
 #include <base/BLog.h>
 #include <base/BLog_syslog.h>
@@ -53,6 +54,7 @@
 #include <ncd/NCDConfigParser.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDModuleIndex.h>
+#include <ncd/NCDSugar.h>
 #include <ncd/modules/modules.h>
 
 #include <ncd/ncd.h>
@@ -166,8 +168,8 @@ NCDUdevManager umanager;
 // module index
 NCDModuleIndex mindex;
 
-// config AST
-struct NCDConfig_processes *config_ast;
+// program AST
+NCDProgram program;
 
 // common module parameters
 struct NCDModuleInst_params module_params;
@@ -182,22 +184,20 @@ static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static void start_terminate (int exit_code);
 static int arg_value_init_string (struct arg_value *o, const char *string, size_t len);
-static int arg_value_init_variable (struct arg_value *o, struct NCDConfig_strings *ast_names);
+static int arg_value_init_variable (struct arg_value *o, const char *name);
 static void arg_value_init_list (struct arg_value *o);
 static int arg_value_list_append (struct arg_value *o, struct arg_value v);
 static void arg_value_init_map (struct arg_value *o);
 static int arg_value_map_append (struct arg_value *o, struct arg_value key, struct arg_value val);
 static void arg_value_free (struct arg_value *o);
-static int build_arg_from_ast (struct arg_value *o, struct NCDConfig_list *ast);
-static int build_arg_list_from_ast_list (struct arg_value *o, struct NCDConfig_list *list);
-static int build_arg_map_from_ast_list (struct arg_value *o, struct NCDConfig_list *list);
-static char ** names_new (struct NCDConfig_strings *ast_names);
+static int build_arg_from_ast (struct arg_value *o, NCDValue *val_ast);
+static char ** names_new (const char *name);
 static size_t names_count (char **names);
 static char * names_tostring (char **names);
 static void names_free (char **names);
-static int statement_init (struct statement *s, struct NCDConfig_statements *conf);
+static int statement_init (struct statement *s, NCDStatement *stmt_ast);
 static void statement_free (struct statement *s);
-static int process_new (struct NCDConfig_processes *conf, NCDModuleProcess *module_process);
+static int process_new (NCDProcess *proc_ast, NCDModuleProcess *module_process);
 static void process_free (struct process *p);
 static void process_start_terminating (struct process *p);
 static void process_free_statements (struct process *p);
@@ -339,7 +339,7 @@ int main (int argc, char **argv)
     }
     
     // parse config file
-    if (!NCDConfigParser_Parse((char *)file, file_len, &config_ast)) {
+    if (!NCDConfigParser_Parse((char *)file, file_len, &program)) {
         BLog(BLOG_ERROR, "NCDConfigParser_Parse failed");
         free(file);
         goto fail3;
@@ -347,6 +347,12 @@ int main (int argc, char **argv)
     
     // fee config file memory
     free(file);
+    
+    // desugar
+    if (!NCDSugar_Desugar(&program)) {
+        BLog(BLOG_ERROR, "NCDSugar_Desugar failed");
+        goto fail4;
+    }
     
     // init module params
     struct NCDModuleInitParams params;
@@ -380,11 +386,11 @@ int main (int argc, char **argv)
     LinkedList1_Init(&processes);
     
     // init processes
-    for (struct NCDConfig_processes *conf = config_ast; conf; conf = conf->next) {
-        if (conf->is_template) {
+    for (NCDProcess *p = NCDProgram_FirstProcess(&program); p; p = NCDProgram_NextProcess(&program, p)) {
+        if (NCDProcess_IsTemplate(p)) {
             continue;
         }
-        if (!process_new(conf, NULL)) {
+        if (!process_new(p, NULL)) {
             BLog(BLOG_ERROR, "failed to initialize process, exiting");
             goto fail6;
         }
@@ -411,8 +417,9 @@ fail5:
         }
         num_inited_modules--;
     }
-    // free configuration
-    NCDConfig_free_processes(config_ast);
+fail4:
+    // free program AST
+    NCDProgram_Free(&program);
 fail3:
     // remove signal handler
     BSignal_Finish();
@@ -655,12 +662,12 @@ int arg_value_init_string (struct arg_value *o, const char *string, size_t len)
     return 1;
 }
 
-int arg_value_init_variable (struct arg_value *o, struct NCDConfig_strings *ast_names)
+int arg_value_init_variable (struct arg_value *o, const char *name)
 {
-    ASSERT(ast_names)
+    ASSERT(name)
     
     o->type = ARG_VALUE_TYPE_VARIABLE;
-    if (!(o->variable_names = names_new(ast_names))) {
+    if (!(o->variable_names = names_new(name))) {
         return 0;
     }
     
@@ -744,31 +751,74 @@ void arg_value_free (struct arg_value *o)
     }
 }
 
-int build_arg_from_ast (struct arg_value *o, struct NCDConfig_list *ast)
+int build_arg_from_ast (struct arg_value *o, NCDValue *val_ast)
 {
-    switch (ast->type) {
-        case NCDCONFIG_ARG_STRING: {
-            if (!arg_value_init_string(o, ast->string, ast->string_len)) {
+    switch (NCDValue_Type(val_ast)) {
+        case NCDVALUE_STRING: {
+            if (!arg_value_init_string(o, NCDValue_StringValue(val_ast), NCDValue_StringLength(val_ast))) {
                 return 0;
             }
         } break;
         
-        case NCDCONFIG_ARG_VAR: {
-            if (!arg_value_init_variable(o, ast->var)) {
+        case NCDVALUE_VAR: {
+            if (!arg_value_init_variable(o, NCDValue_VarName(val_ast))) {
                 return 0;
             }
         } break;
         
-        case NCDCONFIG_ARG_LIST: {
-            if (!build_arg_list_from_ast_list(o, ast->list)) {
-                return 0;
+        case NCDVALUE_LIST: {
+            arg_value_init_list(o);
+            
+            for (NCDValue *ve = NCDValue_ListFirst(val_ast); ve; ve = NCDValue_ListNext(val_ast, ve)) {
+                struct arg_value e;
+                
+                if (!build_arg_from_ast(&e, ve)) {
+                    goto fail_list;
+                }
+                
+                if (!arg_value_list_append(o, e)) {
+                    arg_value_free(&e);
+                    goto fail_list;
+                }
             }
+            
+            break;
+            
+        fail_list:
+            arg_value_free(o);
+            return 0;
         } break;
         
-        case NCDCONFIG_ARG_MAPLIST: {
-            if (!build_arg_map_from_ast_list(o, ast->list)) {
-                return 0;
+        case NCDVALUE_MAP: {
+            arg_value_init_map(o);
+            
+            for (NCDValue *ekey = NCDValue_MapFirstKey(val_ast); ekey; ekey = NCDValue_MapNextKey(val_ast, ekey)) {
+                NCDValue *eval = NCDValue_MapKeyValue(val_ast, ekey);
+                
+                struct arg_value key;
+                struct arg_value val;
+                
+                if (!build_arg_from_ast(&key, ekey)) {
+                    goto fail_map;
+                }
+                
+                if (!build_arg_from_ast(&val, eval)) {
+                    arg_value_free(&key);
+                    goto fail_map;
+                }
+                
+                if (!arg_value_map_append(o, key, val)) {
+                    arg_value_free(&key);
+                    arg_value_free(&val);
+                    goto fail_map;
+                }
             }
+            
+            break;
+            
+        fail_map:
+            arg_value_free(o);
+            return 0;
         } break;
         
         default: ASSERT(0);
@@ -777,98 +827,11 @@ int build_arg_from_ast (struct arg_value *o, struct NCDConfig_list *ast)
     return 1;
 }
 
-int build_arg_list_from_ast_list (struct arg_value *o, struct NCDConfig_list *list)
+static char ** names_new (const char *name)
 {
-    arg_value_init_list(o);
+    ASSERT(name)
     
-    for (struct NCDConfig_list *c = list; c; c = c->next) {
-        struct arg_value e;
-        
-        if (!build_arg_from_ast(&e, c)) {
-            goto fail;
-        }
-        
-        if (!arg_value_list_append(o, e)) {
-            arg_value_free(&e);
-            goto fail;
-        }
-    }
-    
-    return 1;
-    
-fail:
-    arg_value_free(o);
-    return 0;
-}
-
-int build_arg_map_from_ast_list (struct arg_value *o, struct NCDConfig_list *list)
-{
-    arg_value_init_map(o);
-    
-    for (struct NCDConfig_list *c = list; c; c = c->next->next) {
-        ASSERT(c->next)
-        
-        struct arg_value key;
-        struct arg_value val;
-        
-        if (!build_arg_from_ast(&key, c)) {
-            goto fail;
-        }
-        
-        if (!build_arg_from_ast(&val, c->next)) {
-            arg_value_free(&key);
-            goto fail;
-        }
-        
-        if (!arg_value_map_append(o, key, val)) {
-            arg_value_free(&key);
-            arg_value_free(&val);
-            goto fail;
-        }
-    }
-    
-    return 1;
-    
-fail:
-    arg_value_free(o);
-    return 0;
-}
-
-static char ** names_new (struct NCDConfig_strings *ast_names)
-{
-    ASSERT(ast_names)
-    
-    bsize_t size = bsize_fromsize(1);
-    for (struct NCDConfig_strings *n = ast_names; n; n = n->next) {
-        size = bsize_add(size, bsize_fromsize(1));
-    }
-    
-    char **names;
-    if (size.is_overflow || !(names = BAllocArray(size.value, sizeof(names[0])))) {
-        BLog(BLOG_ERROR, "BAllocArray failed");
-        goto fail0;
-    }
-    
-    size_t i = 0;
-    for (struct NCDConfig_strings *n = ast_names; n; n = n->next) {
-        if (!(names[i] = strdup(n->value))) {
-            BLog(BLOG_ERROR, "strdup failed");
-            goto fail1;
-        }
-        i++;
-    }
-    
-    names[i] = NULL;
-    
-    return names;
-    
-fail1:
-    while (i-- > 0) {
-        free(names[i]);
-    }
-    BFree(names);
-fail0:
-    return NULL;
+    return split_string(name, '.');
 }
 
 static size_t names_count (char **names)
@@ -920,11 +883,13 @@ static void names_free (char **names)
     BFree(names);
 }
 
-int statement_init (struct statement *s, struct NCDConfig_statements *conf)
+int statement_init (struct statement *s, NCDStatement *stmt_ast)
 {
+    ASSERT(NCDStatement_Type(stmt_ast) == NCDSTATEMENT_REG)
+    
     // set object names
-    if (conf->objname) {
-        if (!(s->object_names = names_new(conf->objname))) {
+    if (NCDStatement_RegObjName(stmt_ast)) {
+        if (!(s->object_names = names_new(NCDStatement_RegObjName(stmt_ast)))) {
             goto fail0;
         }
     } else {
@@ -932,14 +897,14 @@ int statement_init (struct statement *s, struct NCDConfig_statements *conf)
     }
     
     // set method name
-    if (!(s->method_name = NCDConfig_concat_strings(conf->names))) {
-        BLog(BLOG_ERROR, "NCDConfig_concat_strings failed");
+    if (!(s->method_name = strdup(NCDStatement_RegCmdName(stmt_ast)))) {
+        BLog(BLOG_ERROR, "strdup failed");
         goto fail1;
     }
     
     // init name
-    if (conf->name) {
-        if (!(s->name = strdup(conf->name))) {
+    if (NCDStatement_Name(stmt_ast)) {
+        if (!(s->name = strdup(NCDStatement_Name(stmt_ast)))) {
             BLog(BLOG_ERROR, "strdup failed");
             goto fail2;
         }
@@ -948,8 +913,8 @@ int statement_init (struct statement *s, struct NCDConfig_statements *conf)
     }
     
     // init arguments
-    if (!build_arg_list_from_ast_list(&s->args, conf->args)) {
-        BLog(BLOG_ERROR, "build_arg_list_from_ast_list failed");
+    if (!build_arg_from_ast(&s->args, NCDStatement_RegArgs(stmt_ast))) {
+        BLog(BLOG_ERROR, "build_arg_from_ast failed");
         goto fail3;
     }
     
@@ -984,7 +949,7 @@ void statement_free (struct statement *s)
     }
 }
 
-int process_new (struct NCDConfig_processes *conf, NCDModuleProcess *module_process)
+int process_new (NCDProcess *proc_ast, NCDModuleProcess *module_process)
 {
     // allocate strucure
     struct process *p = malloc(sizeof(*p));
@@ -1004,32 +969,22 @@ int process_new (struct NCDConfig_processes *conf, NCDModuleProcess *module_proc
     }
     
     // init name
-    if (!(p->name = strdup(conf->name))) {
+    if (!(p->name = strdup(NCDProcess_Name(proc_ast)))) {
         BLog(BLOG_ERROR, "strdup failed");
         goto fail1;
     }
     
-    // count statements
-    size_t num_st = 0;
-    struct NCDConfig_statements *st = conf->statements;
-    while (st) {
-        if (num_st == SIZE_MAX) {
-            BLog(BLOG_ERROR, "too many statements");
-            goto fail2;
-        }
-        num_st++;
-        st = st->next;
-    }
+    // get block
+    NCDBlock *block = NCDProcess_Block(proc_ast);
     
     // allocate statements array
-    if (!(p->statements = BAllocArray(num_st, sizeof(p->statements[0])))) {
+    if (!(p->statements = BAllocArray(NCDBlock_NumStatements(block), sizeof(p->statements[0])))) {
         goto fail2;
     }
     p->num_statements = 0;
     
     // init statements
-    st = conf->statements;
-    while (st) {
+    for (NCDStatement *st = NCDBlock_FirstStatement(block); st; st = NCDBlock_NextStatement(block, st)) {
         struct process_statement *ps = &p->statements[p->num_statements];
         
         ps->p = p;
@@ -1044,8 +999,6 @@ int process_new (struct NCDConfig_processes *conf, NCDModuleProcess *module_proc
         ps->have_error = 0;
         
         p->num_statements++;
-        
-        st = st->next;
     }
     
     // set state working
@@ -1081,7 +1034,7 @@ fail2:
 fail1:
     free(p);
 fail0:
-    BLog(BLOG_ERROR, "failed to initialize process %s", conf->name);
+    BLog(BLOG_ERROR, "failed to initialize process %s", NCDProcess_Name(proc_ast));
     return 0;
 }
 
@@ -1711,21 +1664,20 @@ int process_statement_instance_func_initprocess (struct process_statement *ps, N
     ASSERT(ps->state != SSTATE_FORGOTTEN)
     
     // find template
-    struct NCDConfig_processes *conf = config_ast;
-    while (conf) {
-        if (conf->is_template && !strcmp(conf->name, template_name)) {
+    NCDProcess *p_ast;
+    for (p_ast = NCDProgram_FirstProcess(&program); p_ast; p_ast = NCDProgram_NextProcess(&program, p_ast)) {
+        if (NCDProcess_IsTemplate(p_ast) && !strcmp(NCDProcess_Name(p_ast), template_name)) {
             break;
         }
-        conf = conf->next;
     }
     
-    if (!conf) {
+    if (!p_ast) {
         process_statement_log(ps, BLOG_ERROR, "no template named %s", template_name);
         return 0;
     }
     
     // create process
-    if (!process_new(conf, mp)) {
+    if (!process_new(p_ast, mp)) {
         process_statement_log(ps, BLOG_ERROR, "failed to create process from template %s", template_name);
         return 0;
     }

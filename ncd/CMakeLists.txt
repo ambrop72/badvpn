@@ -21,24 +21,40 @@ if (BADVPN_USE_INOTIFY)
     )
 endif ()
 
-add_library(ncdconfig
-    NCDConfig.c
+add_library(ncdtokenizer
     NCDConfigTokenizer.c
-    NCDConfigParser.c
 )
-target_link_libraries(ncdconfig base)
+target_link_libraries(ncdtokenizer base)
 
 add_library(ncdvalue
     NCDValue.c
-    NCDValueParser.c
+)
+
+add_library(ncdvaluegenerator
     NCDValueGenerator.c
 )
-target_link_libraries(ncdvalue ncdconfig)
+target_link_libraries(ncdvaluegenerator base ncdvalue)
+
+add_library(ncdvalueparser
+    NCDConfig.c
+    NCDValueParser.c
+)
+target_link_libraries(ncdvalueparser base ncdvalue ncdtokenizer)
+
+add_library(ncdast
+    NCDAst.c
+)
+target_link_libraries(ncdast ncdvalue)
+
+add_library(ncdconfigparser
+    NCDConfigParser.c
+)
+target_link_libraries(ncdconfigparser base ncdtokenizer ncdast)
 
 add_library(ncdrequest
     NCDRequestClient.c
 )
-target_link_libraries(ncdrequest base system ncdvalue)
+target_link_libraries(ncdrequest base system ncdvalue ncdvaluegenerator ncdvalueparser)
 
 add_library(ncdinterfacemonitor
     NCDInterfaceMonitor.c
@@ -51,6 +67,7 @@ add_executable(badvpn-ncd
     NCDModuleIndex.c
     NCDIfConfig.c
     NCDObject.c
+    NCDSugar.c
     BEventLock.c
     modules/command_template.c
     modules/event_template.c
@@ -114,7 +131,7 @@ add_executable(badvpn-ncd
     modules/call2.c
     ${NCD_ADDITIONAL_SOURCES}
 )
-target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdconfig ncdvalue udevmonitor ncdinterfacemonitor ncdrequest)
+target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdvalue ncdvaluegenerator ncdvalueparser ncdconfigparser udevmonitor ncdinterfacemonitor ncdrequest)
 
 if (BADVPN_USE_LINUX_INPUT)
     string(REPLACE " " ";" FLAGS_LIST "${CMAKE_C_FLAGS}")

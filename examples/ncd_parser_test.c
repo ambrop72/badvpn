@@ -30,10 +30,12 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include <misc/debug.h>
 #include <base/BLog.h>
 #include <ncd/NCDConfigParser.h>
+#include <ncd/NCDValueGenerator.h>
 
 int error;
 
@@ -45,37 +47,64 @@ static void print_indent (unsigned int indent)
     }
 }
 
-static void print_list (struct NCDConfig_list *l, unsigned int indent)
+static void print_value (NCDValue *v, unsigned int indent)
 {
-    while (l) {
-        print_indent(indent);
-        switch (l->type) {
-            case NCDCONFIG_ARG_STRING: {
-                printf("string: %s\n", l->string);
+    char *str = NCDValueGenerator_Generate(v);
+    if (!str) {
+        DEBUG("NCDValueGenerator_Generate failed");
+        exit(1);
+    }
+    
+    print_indent(indent);
+    printf("%s\n", str);
+    
+    free(str);
+}
+
+static void print_block (NCDBlock *block, unsigned int indent)
+{
+    for (NCDStatement *st = NCDBlock_FirstStatement(block); st; st = NCDBlock_NextStatement(block, st)) {
+        const char *name = NCDStatement_Name(st) ? NCDStatement_Name(st) : "";
+        
+        switch (NCDStatement_Type(st)) {
+            case NCDSTATEMENT_REG: {
+                const char *objname = NCDStatement_RegObjName(st) ? NCDStatement_RegObjName(st) : "";
+                const char *cmdname = NCDStatement_RegCmdName(st);
+                
+                print_indent(indent);
+                printf("reg name=%s objname=%s cmdname=%s args:\n", name, objname, cmdname);
+                
+                print_value(NCDStatement_RegArgs(st), indent + 2);
             } break;
-            case NCDCONFIG_ARG_VAR: {
-                printf("var: ");
-                struct NCDConfig_strings *n = l->var;
-                printf("%s", n->value);
-                n = n->next;
-                while (n) {
-                    printf(".%s", n->value);
-                    n = n->next;
+            
+            case NCDSTATEMENT_IF: {
+                print_indent(indent);
+                printf("if name=%s\n", name);
+                
+                NCDIfBlock *ifb = NCDStatement_IfBlock(st);
+                
+                for (NCDIf *ifc = NCDIfBlock_FirstIf(ifb); ifc; ifc = NCDIfBlock_NextIf(ifb, ifc)) {
+                    print_indent(indent + 2);
+                    printf("if\n");
+                    
+                    print_value(NCDIf_Cond(ifc), indent + 4);
+                    
+                    print_indent(indent + 2);
+                    printf("then\n");
+                    
+                    print_block(NCDIf_Block(ifc), indent + 4);
                 }
-                printf("\n");
+                
+                if (NCDStatement_IfElse(st)) {
+                    print_indent(indent + 2);
+                    printf("else\n");
+                    
+                    print_block(NCDStatement_IfElse(st), indent + 4);
+                }
             } break;
-            case NCDCONFIG_ARG_LIST: {
-                printf("list\n");
-                print_list(l->list, indent + 1);
-            } break;
-            case NCDCONFIG_ARG_MAPLIST: {
-                printf("maplist\n");
-                print_list(l->list, indent + 1);
-            } break;
-            default:
-                ASSERT(0);
+            
+            default: ASSERT(0);
         }
-        l = l->next;
     }
 }
 
@@ -93,40 +122,19 @@ int main (int argc, char **argv)
     BLog_InitStdout();
     
     // parse
-    struct NCDConfig_processes *ast;
-    if (!NCDConfigParser_Parse(argv[1], strlen(argv[1]), &ast)) {
+    NCDProgram prog;
+    if (!NCDConfigParser_Parse(argv[1], strlen(argv[1]), &prog)) {
         DEBUG("NCDConfigParser_Parse failed");
         return 1;
     }
     
     // print
-    struct NCDConfig_processes *iface = ast;
-    while (iface) {
-        printf("process %s\n", iface->name);
-        
-        struct NCDConfig_statements *st = iface->statements;
-        while (st) {
-            struct NCDConfig_strings *name = st->names;
-            ASSERT(name)
-            printf("  %s", name->value);
-            name = name->next;
-            
-            while (name) {
-                printf(".%s", name->value);
-                name = name->next;
-            }
-            
-            printf("\n");
-            
-            print_list(st->args, 2);
-            
-            st = st->next;
-        }
-        
-        iface = iface->next;
+    for (NCDProcess *p = NCDProgram_FirstProcess(&prog); p; p = NCDProgram_NextProcess(&prog, p)) {
+        printf("process name=%s is_template=%d\n", NCDProcess_Name(p), NCDProcess_IsTemplate(p));
+        print_block(NCDProcess_Block(p), 2);
     }
     
-    NCDConfig_free_processes(ast);
+    NCDProgram_Free(&prog);
     
     return 0;
 }

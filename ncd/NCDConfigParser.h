@@ -32,8 +32,9 @@
 
 #include <stddef.h>
 
-#include <ncd/NCDConfig.h>
+#include <misc/debug.h>
+#include <ncd/NCDAst.h>
 
-int NCDConfigParser_Parse (char *config, size_t config_len, struct NCDConfig_processes **out_ast);
+int NCDConfigParser_Parse (char *config, size_t config_len, NCDProgram *out_ast) WARN_UNUSED;
 
 #endif

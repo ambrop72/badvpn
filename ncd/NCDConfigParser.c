@@ -35,7 +35,7 @@
 #include <base/BLog.h>
 #include <ncd/NCDConfigTokenizer.h>
 
-#include <ncd/NCDConfigParser.h>
+#include "ncd/NCDConfigParser.h"
 
 #include <generated/blog_channel_NCDConfigParser.h>
 
@@ -61,7 +61,7 @@ static int tokenizer_output (void *user, int token, char *value, size_t value_le
         return 0;
     }
     
-    struct parser_minor minor;
+    struct token minor;
     minor.str = value;
     minor.len = value_len;
     
@@ -130,6 +130,18 @@ static int tokenizer_output (void *user, int token, char *value, size_t value_le
             Parse(state->parser, BRACKET_CLOSE, minor, &state->out);
         } break;
         
+        case NCD_TOKEN_IF: {
+            Parse(state->parser, IF, minor, &state->out);
+        } break;
+        
+        case NCD_TOKEN_ELIF: {
+            Parse(state->parser, ELIF, minor, &state->out);
+        } break;
+        
+        case NCD_TOKEN_ELSE: {
+            Parse(state->parser, ELSE, minor, &state->out);
+        } break;
+        
         default:
             BLog(BLOG_ERROR, "line %zu, character %zu: invalid token", line, line_char);
             free(minor.str);
@@ -153,13 +165,13 @@ static int tokenizer_output (void *user, int token, char *value, size_t value_le
     return 1;
 }
 
-int NCDConfigParser_Parse (char *config, size_t config_len, struct NCDConfig_processes **out_ast)
+int NCDConfigParser_Parse (char *config, size_t config_len, NCDProgram *out_ast)
 {
     struct parser_state state;
     
     state.out.out_of_memory = 0;
     state.out.syntax_error = 0;
-    state.out.ast = NULL;
+    state.out.have_ast = 0;
     state.error = 0;
     
     if (!(state.parser = ParseAlloc(malloc))) {
@@ -170,13 +182,16 @@ int NCDConfigParser_Parse (char *config, size_t config_len, struct NCDConfig_pro
     // tokenize and parse
     NCDConfigTokenizer_Tokenize(config, config_len, tokenizer_output, &state);
     
+    ParseFree(state.parser, free);
+    
     if (state.error) {
-        ParseFree(state.parser, free);
-        NCDConfig_free_processes(state.out.ast);
+        if (state.out.have_ast) {
+            NCDProgram_Free(&state.out.ast);
+        }
         return 0;
     }
     
-    ParseFree(state.parser, free);
+    ASSERT(state.out.have_ast)
     
     *out_ast = state.out.ast;
     return 1;
