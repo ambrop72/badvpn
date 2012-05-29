@@ -220,6 +220,17 @@ void NCDValue_InitList (NCDValue *o);
 int NCDValue_ListAppend (NCDValue *o, NCDValue v) WARN_UNUSED;
 
 /**
+ * Prepends a value to the beginning of a list.
+ * On success, the value that was passed for insertion must be assumed freed;
+ * on failure, it is unaffected.
+ * 
+ * @param o list value
+ * @param v value to prepend
+ * @return 1 on success, 0 on failure
+ */
+int NCDValue_ListPrepend (NCDValue *o, NCDValue v) WARN_UNUSED;
+
+/**
  * Appends values from a list to the end of a list.
  * On success, the list value that was passed with elements for insertion must be
  * assumed freed; on failure, it is unaffected.

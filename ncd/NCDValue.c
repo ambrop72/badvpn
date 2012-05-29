@@ -281,6 +281,28 @@ int NCDValue_ListAppend (NCDValue *o, NCDValue v)
     return 1;
 }
 
+int NCDValue_ListPrepend (NCDValue *o, NCDValue v)
+{
+    value_assert(o);
+    value_assert(&v);
+    ASSERT(o->type == NCDVALUE_LIST)
+    
+    if (o->list_count == SIZE_MAX) {
+        return 0;
+    }
+    
+    NCDListElement *e = malloc(sizeof(*e));
+    if (!e) {
+        return 0;
+    }
+    
+    LinkedList2_Prepend(&o->list, &e->list_node);
+    o->list_count++;
+    e->v = v;
+    
+    return 1;
+}
+
 int NCDValue_ListAppendList (NCDValue *o, NCDValue l)
 {
     value_assert(o);
