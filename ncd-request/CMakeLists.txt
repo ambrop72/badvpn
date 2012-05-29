@@ -1,7 +1,7 @@
 add_executable(badvpn-ncd-request
     ncd-request.c
 )
-target_link_libraries(badvpn-ncd-request ncdrequest)
+target_link_libraries(badvpn-ncd-request ncdrequest ncdvaluegenerator ncdvalueparser)
 
 install(
     TARGETS badvpn-ncd-request
