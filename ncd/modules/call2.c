@@ -35,6 +35,7 @@
  *   embcall2(string template)
  *   embcall2_if(string cond, string template)
  *   embcall2_ifelse(string cond, string template, string else_template)
+ *   embcall2_multif(string cond1, string template1, ..., [string else_template])
  */
 
 #include <stdlib.h>
@@ -355,6 +356,45 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
+static void func_new_embcall_multif (NCDModuleInst *i)
+{
+    const char *template_name = NULL;
+    
+    NCDValue *arg = NCDValue_ListFirst(i->args);
+    
+    while (arg) {
+        NCDValue *arg2 = NCDValue_ListNext(i->args, arg);
+        if (!arg2) {
+            if (!NCDValue_IsStringNoNulls(arg)) {
+                ModuleLog(i, BLOG_ERROR, "bad arguments");
+                goto fail0;
+            }
+            
+            template_name = NCDValue_StringValue(arg);
+            break;
+        }
+        
+        if (!NCDValue_IsString(arg) || !NCDValue_IsStringNoNulls(arg2)) {
+            ModuleLog(i, BLOG_ERROR, "bad arguments");
+            goto fail0;
+        }
+        
+        if (NCDValue_StringEquals(arg, "true")) {
+            template_name = NCDValue_StringValue(arg2);
+            break;
+        }
+        
+        arg = NCDValue_ListNext(i->args, arg2);
+    }
+    
+    func_new_templ(i, template_name, NULL, 1);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
 static void func_die (void *vo)
 {
     struct instance *o = vo;
@@ -437,6 +477,13 @@ static const struct NCDModule modules[] = {
     }, {
         .type = "embcall2_ifelse",
         .func_new = func_new_embcall_ifelse,
+        .func_die = func_die,
+        .func_clean = func_clean,
+        .func_getobj = func_getobj,
+        .can_resolve_when_down = 1
+    }, {
+        .type = "embcall2_multif",
+        .func_new = func_new_embcall_multif,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
