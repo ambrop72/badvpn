@@ -139,6 +139,13 @@ static int generate_value (NCDValue *value, ExpString *out_str)
             }
         } break;
         
+        case NCDVALUE_VAR: {
+            if (!ExpString_Append(out_str, NCDValue_VarName(value))) {
+                BLog(BLOG_ERROR, "ExpString_AppendChar failed");
+                goto fail;
+            }
+        } break;
+        
         default: ASSERT(0);
     }
     
