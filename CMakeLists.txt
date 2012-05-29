@@ -107,7 +107,7 @@ if (NOT (SIZE_SIZE GREATER INT_SIZE OR SIZE_SIZE EQUAL INT_SIZE))
     message(FATAL_ERROR "size_t must be greater or equal than int")
 endif ()
 
-add_definitions(-std=gnu99 -Werror=implicit-function-declaration -Wno-unused-value -Wno-parentheses -Wno-switch-enum -Wredundant-decls)
+add_definitions(-std=gnu99 -Werror=implicit-function-declaration -Wno-unused-value -Wno-parentheses -Wno-switch-enum -Wno-switch -Wredundant-decls)
 
 # platform-specific stuff
 if (WIN32)

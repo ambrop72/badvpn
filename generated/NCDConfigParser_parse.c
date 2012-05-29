@@ -1444,7 +1444,7 @@ doneT:
 {
     ASSERT(yymsp[0].minor.yy0.str)
 
-    if (!NCDValue_InitStringBin(&yygotominor.yy43.v, yymsp[0].minor.yy0.str, yymsp[0].minor.yy0.len)) {
+    if (!NCDValue_InitStringBin(&yygotominor.yy43.v, (uint8_t *)yymsp[0].minor.yy0.str, yymsp[0].minor.yy0.len)) {
         goto failU0;
     }
 

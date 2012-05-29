@@ -578,7 +578,7 @@ map(R) ::= BRACKET_OPEN map_contents(A) BRACKET_CLOSE. {
 value(R) ::= STRING(A). {
     ASSERT(A.str)
 
-    if (!NCDValue_InitStringBin(&R.v, A.str, A.len)) {
+    if (!NCDValue_InitStringBin(&R.v, (uint8_t *)A.str, A.len)) {
         goto failU0;
     }
 
