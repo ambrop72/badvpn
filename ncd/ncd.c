@@ -107,16 +107,14 @@ struct arg_map_elem {
 
 struct statement {
     char **object_names;
-    char *method_name;
+    const char *method_name;
     struct arg_value args;
-    char *name;
 };
 
 struct process {
     NCDProcess *proc_ast;
     NCDInterpBlock *iblock;
     NCDModuleProcess *module_process;
-    char *name;
     size_t num_statements;
     struct process_statement *statements;
     int state;
@@ -919,33 +917,16 @@ int statement_init (struct statement *s, NCDStatement *stmt_ast)
     }
     
     // set method name
-    if (!(s->method_name = strdup(NCDStatement_RegCmdName(stmt_ast)))) {
-        BLog(BLOG_ERROR, "strdup failed");
-        goto fail1;
-    }
-    
-    // init name
-    if (NCDStatement_Name(stmt_ast)) {
-        if (!(s->name = strdup(NCDStatement_Name(stmt_ast)))) {
-            BLog(BLOG_ERROR, "strdup failed");
-            goto fail2;
-        }
-    } else {
-        s->name = NULL;
-    }
+    s->method_name = NCDStatement_RegCmdName(stmt_ast);
     
     // init arguments
     if (!build_arg_from_ast(&s->args, NCDStatement_RegArgs(stmt_ast))) {
         BLog(BLOG_ERROR, "build_arg_from_ast failed");
-        goto fail3;
+        goto fail1;
     }
     
     return 1;
     
-fail3:
-    free(s->name);
-fail2:
-    free(s->method_name);
 fail1:
     if (s->object_names) {
         names_free(s->object_names);
@@ -958,12 +939,6 @@ void statement_free (struct statement *s)
 {
     // free arguments
     arg_value_free(&s->args);
-    
-    // free name
-    free(s->name);
-    
-    // free method name
-    free(s->method_name);
     
     // free object names
     if (s->object_names) {
@@ -990,12 +965,6 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
         NCDModuleProcess_Interp_SetHandlers(p->module_process, p,
                                             (NCDModuleProcess_interp_func_event)process_moduleprocess_func_event,
                                             (NCDModuleProcess_interp_func_getobj)process_moduleprocess_func_getobj);
-    }
-    
-    // init name
-    if (!(p->name = strdup(NCDProcess_Name(proc_ast)))) {
-        BLog(BLOG_ERROR, "strdup failed");
-        goto fail1;
     }
     
     // get block
@@ -1054,8 +1023,6 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
 fail3:
     process_free_statements(p);
 fail2:
-    free(p->name);
-fail1:
     free(p);
 fail0:
     BLog(BLOG_ERROR, "failed to initialize process %s", NCDProcess_Name(proc_ast));
@@ -1086,9 +1053,6 @@ void process_free (struct process *p)
     
     // free statements
     process_free_statements(p);
-    
-    // free name
-    free(p->name);
     
     // free strucure
     free(p);
@@ -1153,7 +1117,7 @@ void process_assert_pointers (struct process *p)
 
 void process_logfunc (struct process *p)
 {
-    BLog_Append("process %s: ", p->name);
+    BLog_Append("process %s: ", NCDProcess_Name(p->proc_ast));
 }
 
 void process_log (struct process *p, int level, const char *fmt, ...)
@@ -1327,7 +1291,7 @@ void process_advance_job_handler (struct process *p)
     
     if (!ps->s.object_names) {
         // this is a function_call(); type is "function_call"
-        type = ps->s.method_name;
+        type = (char *)ps->s.method_name;
     } else {
         // this is a some.object.somewhere->method_call(); type is "base_type(some.object.somewhere)::method_call"
         
