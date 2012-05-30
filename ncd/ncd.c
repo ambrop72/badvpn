@@ -1390,7 +1390,6 @@ int process_find_object (struct process *p, size_t pos, const char *name, NCDObj
     if (i >= 0) {
         struct process_statement *ps = &p->statements[i];
         ASSERT(i < p->num_statements)
-        ASSERT(!strcmp(ps->s.name, name))
         
         if (ps->state == SSTATE_FORGOTTEN) {
             process_log(p, BLOG_ERROR, "statement (%d) is uninitialized", i);
