@@ -132,7 +132,7 @@ int NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name, NCDProcess **
     
     NCDInterpProg__HashRef ref = NCDInterpProg__Hash_Lookup(&o->hash, o->procs, name);
     if (ref.link == NCDInterpProg__HashNullLink()) {
-        return -1;
+        return 0;
     }
     
     ASSERT(!strcmp(ref.ptr->name, name))
