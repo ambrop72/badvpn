@@ -43,6 +43,7 @@ typedef struct NCDIf_s NCDIf;
 
 struct NCDProgram_s {
     LinkedList1 processes_list;
+    size_t num_processes;
 };
 
 struct NCDBlock_s {
@@ -107,6 +108,7 @@ void NCDProgram_Free (NCDProgram *o);
 NCDProcess * NCDProgram_PrependProcess (NCDProgram *o, NCDProcess p) WARN_UNUSED;
 NCDProcess * NCDProgram_FirstProcess (NCDProgram *o);
 NCDProcess * NCDProgram_NextProcess (NCDProgram *o, NCDProcess *ep);
+size_t NCDProgram_NumProcesses (NCDProgram *o);
 
 int NCDProcess_Init (NCDProcess *o, int is_template, const char *name, NCDBlock block) WARN_UNUSED;
 void NCDProcess_Free (NCDProcess *o);

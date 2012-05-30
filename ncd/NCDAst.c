@@ -37,6 +37,7 @@
 void NCDProgram_Init (NCDProgram *o)
 {
     LinkedList1_Init(&o->processes_list);
+    o->num_processes = 0;
 }
 
 void NCDProgram_Free (NCDProgram *o)
@@ -52,6 +53,10 @@ void NCDProgram_Free (NCDProgram *o)
 
 NCDProcess * NCDProgram_PrependProcess (NCDProgram *o, NCDProcess p)
 {
+    if (o->num_processes == SIZE_MAX) {
+        return NULL;
+    }
+    
     struct ProgramProcess *e = malloc(sizeof(*e));
     if (!e) {
         return NULL;
@@ -59,6 +64,8 @@ NCDProcess * NCDProgram_PrependProcess (NCDProgram *o, NCDProcess p)
     
     LinkedList1_Prepend(&o->processes_list, &e->processes_list_node);
     e->p = p;
+    
+    o->num_processes++;
     
     return &e->p;
 }
@@ -89,6 +96,11 @@ NCDProcess * NCDProgram_NextProcess (NCDProgram *o, NCDProcess *ep)
     struct ProgramProcess *e = UPPER_OBJECT(ln, struct ProgramProcess, processes_list_node);
     
     return &e->p;
+}
+
+size_t NCDProgram_NumProcesses (NCDProgram *o)
+{
+    return o->num_processes;
 }
 
 int NCDProcess_Init (NCDProcess *o, int is_template, const char *name, NCDBlock block)
