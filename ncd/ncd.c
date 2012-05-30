@@ -56,6 +56,7 @@
 #include <ncd/NCDModuleIndex.h>
 #include <ncd/NCDSugar.h>
 #include <ncd/NCDInterpProg.h>
+#include <ncd/NCDInterpValue.h>
 #include <ncd/modules/modules.h>
 
 #include <ncd/ncd.h>
@@ -66,11 +67,6 @@
 #define LOGGER_STDERR 2
 #define LOGGER_SYSLOG 3
 
-#define ARG_VALUE_TYPE_STRING 1
-#define ARG_VALUE_TYPE_VARIABLE 2
-#define ARG_VALUE_TYPE_LIST 3
-#define ARG_VALUE_TYPE_MAP 4
-
 #define SSTATE_CHILD 1
 #define SSTATE_ADULT 2
 #define SSTATE_DYING 3
@@ -80,30 +76,6 @@
 #define PSTATE_UP 2
 #define PSTATE_WAITING 3
 #define PSTATE_TERMINATING 4
-
-struct arg_value {
-    int type;
-    union {
-        struct {
-            char *string;
-            size_t string_len;
-        };
-        char **variable_names;
-        LinkedList1 list;
-        LinkedList1 maplist;
-    };
-};
-
-struct arg_list_elem {
-    LinkedList1Node list_node;
-    struct arg_value value;
-};
-
-struct arg_map_elem {
-    LinkedList1Node maplist_node;
-    struct arg_value key;
-    struct arg_value val;
-};
 
 struct process {
     NCDProcess *proc_ast;
@@ -123,7 +95,7 @@ struct process {
 struct process_statement {
     struct process *p;
     size_t i;
-    struct arg_value args;
+    NCDInterpValue args;
     int state;
     int have_error;
     btime_t error_until;
@@ -181,18 +153,7 @@ static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static void start_terminate (int exit_code);
-static int arg_value_init_string (struct arg_value *o, const char *string, size_t len);
-static int arg_value_init_variable (struct arg_value *o, const char *name);
-static void arg_value_init_list (struct arg_value *o);
-static int arg_value_list_append (struct arg_value *o, struct arg_value v);
-static void arg_value_init_map (struct arg_value *o);
-static int arg_value_map_append (struct arg_value *o, struct arg_value key, struct arg_value val);
-static void arg_value_free (struct arg_value *o);
-static int build_arg_from_ast (struct arg_value *o, NCDValue *val_ast);
-static char ** names_new (const char *name);
-static size_t names_count (char **names);
 static char * names_tostring (char **names);
-static void names_free (char **names);
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process);
 static void process_free (struct process *p);
 static void process_start_terminating (struct process *p);
@@ -211,7 +172,7 @@ static int process_resolve_variable_expr (struct process *p, size_t pos, char **
 static void process_statement_logfunc (struct process_statement *ps);
 static void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...);
 static void process_statement_set_error (struct process_statement *ps);
-static int process_statement_resolve_argument (struct process_statement *ps, struct arg_value *arg, NCDValue *out);
+static int process_statement_resolve_argument (struct process_statement *ps, NCDInterpValue *arg, NCDValue *out);
 static void process_statement_instance_func_event (struct process_statement *ps, int event);
 static int process_statement_instance_func_getobj (struct process_statement *ps, const char *objname, NCDObject *out_object);
 static int process_statement_instance_func_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name);
@@ -659,203 +620,6 @@ void start_terminate (int exit_code)
     }
 }
 
-int arg_value_init_string (struct arg_value *o, const char *string, size_t len)
-{
-    o->type = ARG_VALUE_TYPE_STRING;
-    
-    if (!(o->string = malloc(len))) {
-        BLog(BLOG_ERROR, "malloc failed");
-        return 0;
-    }
-    memcpy(o->string, string, len);
-    
-    o->string_len = len;
-    
-    return 1;
-}
-
-int arg_value_init_variable (struct arg_value *o, const char *name)
-{
-    ASSERT(name)
-    
-    o->type = ARG_VALUE_TYPE_VARIABLE;
-    if (!(o->variable_names = names_new(name))) {
-        return 0;
-    }
-    
-    return 1;
-}
-
-void arg_value_init_list (struct arg_value *o)
-{
-    o->type = ARG_VALUE_TYPE_LIST;
-    LinkedList1_Init(&o->list);
-}
-
-int arg_value_list_append (struct arg_value *o, struct arg_value v)
-{
-    ASSERT(o->type == ARG_VALUE_TYPE_LIST)
-    
-    struct arg_list_elem *elem = malloc(sizeof(*elem));
-    if (!elem) {
-        BLog(BLOG_ERROR, "malloc failed");
-        return 0;
-    }
-    LinkedList1_Append(&o->list, &elem->list_node);
-    elem->value = v;
-    
-    return 1;
-}
-
-void arg_value_init_map (struct arg_value *o)
-{
-    o->type = ARG_VALUE_TYPE_MAP;
-    LinkedList1_Init(&o->maplist);
-}
-
-int arg_value_map_append (struct arg_value *o, struct arg_value key, struct arg_value val)
-{
-    ASSERT(o->type == ARG_VALUE_TYPE_MAP)
-    
-    struct arg_map_elem *elem = malloc(sizeof(*elem));
-    if (!elem) {
-        BLog(BLOG_ERROR, "malloc failed");
-        return 0;
-    }
-    LinkedList1_Append(&o->maplist, &elem->maplist_node);
-    elem->key = key;
-    elem->val = val;
-    
-    return 1;
-}
-
-void arg_value_free (struct arg_value *o)
-{
-    switch (o->type) {
-        case ARG_VALUE_TYPE_STRING: {
-            free(o->string);
-        } break;
-        
-        case ARG_VALUE_TYPE_VARIABLE: {
-            names_free(o->variable_names);
-        } break;
-        
-        case ARG_VALUE_TYPE_LIST: {
-            while (!LinkedList1_IsEmpty(&o->list)) {
-                struct arg_list_elem *elem = UPPER_OBJECT(LinkedList1_GetFirst(&o->list), struct arg_list_elem, list_node);
-                arg_value_free(&elem->value);
-                LinkedList1_Remove(&o->list, &elem->list_node);
-                free(elem);
-            }
-        } break;
-        
-        case ARG_VALUE_TYPE_MAP: {
-            while (!LinkedList1_IsEmpty(&o->maplist)) {
-                struct arg_map_elem *elem = UPPER_OBJECT(LinkedList1_GetFirst(&o->maplist), struct arg_map_elem, maplist_node);
-                arg_value_free(&elem->key);
-                arg_value_free(&elem->val);
-                LinkedList1_Remove(&o->maplist, &elem->maplist_node);
-                free(elem);
-            }
-        } break;
-        
-        default: ASSERT(0);
-    }
-}
-
-int build_arg_from_ast (struct arg_value *o, NCDValue *val_ast)
-{
-    switch (NCDValue_Type(val_ast)) {
-        case NCDVALUE_STRING: {
-            if (!arg_value_init_string(o, NCDValue_StringValue(val_ast), NCDValue_StringLength(val_ast))) {
-                return 0;
-            }
-        } break;
-        
-        case NCDVALUE_VAR: {
-            if (!arg_value_init_variable(o, NCDValue_VarName(val_ast))) {
-                return 0;
-            }
-        } break;
-        
-        case NCDVALUE_LIST: {
-            arg_value_init_list(o);
-            
-            for (NCDValue *ve = NCDValue_ListFirst(val_ast); ve; ve = NCDValue_ListNext(val_ast, ve)) {
-                struct arg_value e;
-                
-                if (!build_arg_from_ast(&e, ve)) {
-                    goto fail_list;
-                }
-                
-                if (!arg_value_list_append(o, e)) {
-                    arg_value_free(&e);
-                    goto fail_list;
-                }
-            }
-            
-            break;
-            
-        fail_list:
-            arg_value_free(o);
-            return 0;
-        } break;
-        
-        case NCDVALUE_MAP: {
-            arg_value_init_map(o);
-            
-            for (NCDValue *ekey = NCDValue_MapFirstKey(val_ast); ekey; ekey = NCDValue_MapNextKey(val_ast, ekey)) {
-                NCDValue *eval = NCDValue_MapKeyValue(val_ast, ekey);
-                
-                struct arg_value key;
-                struct arg_value val;
-                
-                if (!build_arg_from_ast(&key, ekey)) {
-                    goto fail_map;
-                }
-                
-                if (!build_arg_from_ast(&val, eval)) {
-                    arg_value_free(&key);
-                    goto fail_map;
-                }
-                
-                if (!arg_value_map_append(o, key, val)) {
-                    arg_value_free(&key);
-                    arg_value_free(&val);
-                    goto fail_map;
-                }
-            }
-            
-            break;
-            
-        fail_map:
-            arg_value_free(o);
-            return 0;
-        } break;
-        
-        default: ASSERT(0);
-    }
-    
-    return 1;
-}
-
-static char ** names_new (const char *name)
-{
-    ASSERT(name)
-    
-    return split_string(name, '.');
-}
-
-static size_t names_count (char **names)
-{
-    ASSERT(names)
-    
-    size_t i;
-    for (i = 0; names[i]; i++);
-    
-    return i;
-}
-
 static char * names_tostring (char **names)
 {
     ASSERT(names)
@@ -880,19 +644,6 @@ fail1:
     ExpString_Free(&str);
 fail0:
     return NULL;
-}
-
-static void names_free (char **names)
-{
-    ASSERT(names)
-    
-    size_t i = names_count(names);
-    
-    while (i-- > 0) {
-        free(names[i]);
-    }
-    
-    BFree(names);
 }
 
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process)
@@ -935,7 +686,7 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
         ps->state = SSTATE_FORGOTTEN;
         ps->have_error = 0;
         
-        if (!build_arg_from_ast(&ps->args, NCDStatement_RegArgs(st))) {
+        if (!NCDInterpValue_Init(&ps->args, NCDStatement_RegArgs(st))) {
             BLog(BLOG_ERROR, "build_arg_from_ast failed");
             goto fail3;
         }
@@ -1031,7 +782,7 @@ void process_free_statements (struct process *p)
 {
     // free statments
     while (p->num_statements > 0) {
-        arg_value_free(&p->statements[p->num_statements - 1].args);
+        NCDInterpValue_Free(&p->statements[p->num_statements - 1].args);
         p->num_statements--;
     }
     
@@ -1363,7 +1114,7 @@ int process_resolve_object_expr (struct process *p, size_t pos, char **names, NC
 {
     ASSERT(pos <= p->num_statements)
     ASSERT(names)
-    ASSERT(names_count(names) > 0)
+    ASSERT(count_strings(names) > 0)
     ASSERT(out_object)
     
     NCDObject object;
@@ -1388,7 +1139,7 @@ int process_resolve_variable_expr (struct process *p, size_t pos, char **names, 
 {
     ASSERT(pos <= p->num_statements)
     ASSERT(names)
-    ASSERT(names_count(names) > 0)
+    ASSERT(count_strings(names) > 0)
     ASSERT(out_value)
     
     NCDObject object;
@@ -1431,31 +1182,31 @@ void process_statement_set_error (struct process_statement *ps)
     ps->error_until = btime_add(btime_gettime(), options.retry_time);
 }
 
-int process_statement_resolve_argument (struct process_statement *ps, struct arg_value *arg, NCDValue *out)
+int process_statement_resolve_argument (struct process_statement *ps, NCDInterpValue *arg, NCDValue *out)
 {
     ASSERT(ps->i <= process_rap(ps->p))
     ASSERT(arg)
     ASSERT(out)
     
     switch (arg->type) {
-        case ARG_VALUE_TYPE_STRING: {
+        case NCDVALUE_STRING: {
             if (!NCDValue_InitStringBin(out, (uint8_t *)arg->string, arg->string_len)) {
                 process_statement_log(ps, BLOG_ERROR, "NCDValue_InitStringBin failed");
                 return 0;
             }
         } break;
         
-        case ARG_VALUE_TYPE_VARIABLE: {
+        case NCDVALUE_VAR: {
             if (!process_resolve_variable_expr(ps->p, ps->i, arg->variable_names, out)) {
                 return 0;
             }
         } break;
         
-        case ARG_VALUE_TYPE_LIST: do {
+        case NCDVALUE_LIST: do {
             NCDValue_InitList(out);
             
             for (LinkedList1Node *n = LinkedList1_GetFirst(&arg->list); n; n = LinkedList1Node_Next(n)) {
-                struct arg_list_elem *elem = UPPER_OBJECT(n, struct arg_list_elem, list_node);
+                struct NCDInterpValueListElem *elem = UPPER_OBJECT(n, struct NCDInterpValueListElem, list_node);
                 
                 NCDValue v;
                 if (!process_statement_resolve_argument(ps, &elem->value, &v)) {
@@ -1476,11 +1227,11 @@ int process_statement_resolve_argument (struct process_statement *ps, struct arg
             return 0;
         } while (0); break;
         
-        case ARG_VALUE_TYPE_MAP: do {
+        case NCDVALUE_MAP: do {
             NCDValue_InitMap(out);
             
             for (LinkedList1Node *n = LinkedList1_GetFirst(&arg->maplist); n; n = LinkedList1Node_Next(n)) {
-                struct arg_map_elem *elem = UPPER_OBJECT(n, struct arg_map_elem, maplist_node);
+                struct NCDInterpValueMapElem *elem = UPPER_OBJECT(n, struct NCDInterpValueMapElem, maplist_node);
                 
                 NCDValue key;
                 NCDValue val;
