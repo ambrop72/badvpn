@@ -42,7 +42,7 @@ static size_t djb2_hash (const unsigned char *str)
 {
     size_t hash = 5381;
     int c;
-
+    
     while (c = *str++) {
         hash = ((hash << 5) + hash) + c;
     }
@@ -118,10 +118,15 @@ int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char 
     
     NCDInterpBlock__HashRef ref = NCDInterpBlock__Hash_Lookup(&o->hash, o->stmts, name);
     while (ref.link != NCDInterpBlock__HashNullLink()) {
+        ASSERT(ref.link >= 0)
+        ASSERT(ref.link < o->num_stmts)
+        ASSERT(ref.ptr == &o->stmts[ref.link])
         ASSERT(!strcmp(ref.ptr->name, name))
+        
         if (ref.link < from_index) {
             return ref.link;
         }
+        
         ref = NCDInterpBlock__Hash_GetNextEqual(&o->hash, o->stmts, ref);
     }
     
