@@ -105,10 +105,6 @@ struct arg_map_elem {
     struct arg_value val;
 };
 
-struct statement {
-    struct arg_value args;
-};
-
 struct process {
     NCDProcess *proc_ast;
     NCDInterpBlock *iblock;
@@ -127,7 +123,7 @@ struct process {
 struct process_statement {
     struct process *p;
     size_t i;
-    struct statement s;
+    struct arg_value args;
     int state;
     int have_error;
     btime_t error_until;
@@ -197,8 +193,6 @@ static char ** names_new (const char *name);
 static size_t names_count (char **names);
 static char * names_tostring (char **names);
 static void names_free (char **names);
-static int statement_init (struct statement *s, NCDStatement *stmt_ast);
-static void statement_free (struct statement *s);
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process);
 static void process_free (struct process *p);
 static void process_start_terminating (struct process *p);
@@ -901,28 +895,6 @@ static void names_free (char **names)
     BFree(names);
 }
 
-int statement_init (struct statement *s, NCDStatement *stmt_ast)
-{
-    ASSERT(NCDStatement_Type(stmt_ast) == NCDSTATEMENT_REG)
-    
-    // init arguments
-    if (!build_arg_from_ast(&s->args, NCDStatement_RegArgs(stmt_ast))) {
-        BLog(BLOG_ERROR, "build_arg_from_ast failed");
-        goto fail1;
-    }
-    
-    return 1;
-    
-fail1:
-    return 0;
-}
-
-void statement_free (struct statement *s)
-{
-    // free arguments
-    arg_value_free(&s->args);
-}
-
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process)
 {
     // allocate strucure
@@ -955,18 +927,18 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
     
     // init statements
     for (NCDStatement *st = NCDBlock_FirstStatement(block); st; st = NCDBlock_NextStatement(block, st)) {
+        ASSERT(NCDStatement_Type(st) == NCDSTATEMENT_REG)
         struct process_statement *ps = &p->statements[p->num_statements];
         
         ps->p = p;
         ps->i = p->num_statements;
+        ps->state = SSTATE_FORGOTTEN;
+        ps->have_error = 0;
         
-        if (!statement_init(&ps->s, st)) {
+        if (!build_arg_from_ast(&ps->args, NCDStatement_RegArgs(st))) {
+            BLog(BLOG_ERROR, "build_arg_from_ast failed");
             goto fail3;
         }
-        
-        ps->state = SSTATE_FORGOTTEN;
-        
-        ps->have_error = 0;
         
         p->num_statements++;
     }
@@ -1059,7 +1031,7 @@ void process_free_statements (struct process *p)
 {
     // free statments
     while (p->num_statements > 0) {
-        statement_free(&p->statements[p->num_statements - 1].s);
+        arg_value_free(&p->statements[p->num_statements - 1].args);
         p->num_statements--;
     }
     
@@ -1304,7 +1276,7 @@ void process_advance_job_handler (struct process *p)
     }
     
     // resolve arguments
-    if (!process_statement_resolve_argument(ps, &ps->s.args, &ps->inst_args)) {
+    if (!process_statement_resolve_argument(ps, &ps->args, &ps->inst_args)) {
         process_statement_log(ps, BLOG_ERROR, "failed to resolve arguments");
         goto fail;
     }
