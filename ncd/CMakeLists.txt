@@ -68,6 +68,8 @@ add_executable(badvpn-ncd
     NCDIfConfig.c
     NCDObject.c
     NCDSugar.c
+    NCDInterpBlock.c
+    NCDInterpProg.c
     BEventLock.c
     modules/command_template.c
     modules/event_template.c
