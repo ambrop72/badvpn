@@ -7,6 +7,7 @@
 #include <limits.h>
 
 #include <misc/balloc.h>
+#include <misc/debug.h>
 
 static char ** split_string (const char *str, char del)
 {
@@ -70,6 +71,29 @@ fail1:
     BFree(result);
 fail0:
     return NULL;
+}
+
+static size_t count_strings (char **names)
+{
+    ASSERT(names)
+    
+    size_t i;
+    for (i = 0; names[i]; i++);
+    
+    return i;
+}
+
+static void free_strings (char **names)
+{
+    ASSERT(names)
+    
+    size_t i = count_strings(names);
+    
+    while (i-- > 0) {
+        free(names[i]);
+    }
+    
+    BFree(names);
 }
 
 #endif
