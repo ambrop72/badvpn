@@ -106,8 +106,6 @@ struct arg_map_elem {
 };
 
 struct statement {
-    char **object_names;
-    const char *method_name;
     struct arg_value args;
 };
 
@@ -907,18 +905,6 @@ int statement_init (struct statement *s, NCDStatement *stmt_ast)
 {
     ASSERT(NCDStatement_Type(stmt_ast) == NCDSTATEMENT_REG)
     
-    // set object names
-    if (NCDStatement_RegObjName(stmt_ast)) {
-        if (!(s->object_names = names_new(NCDStatement_RegObjName(stmt_ast)))) {
-            goto fail0;
-        }
-    } else {
-        s->object_names = NULL;
-    }
-    
-    // set method name
-    s->method_name = NCDStatement_RegCmdName(stmt_ast);
-    
     // init arguments
     if (!build_arg_from_ast(&s->args, NCDStatement_RegArgs(stmt_ast))) {
         BLog(BLOG_ERROR, "build_arg_from_ast failed");
@@ -928,10 +914,6 @@ int statement_init (struct statement *s, NCDStatement *stmt_ast)
     return 1;
     
 fail1:
-    if (s->object_names) {
-        names_free(s->object_names);
-    }
-fail0:
     return 0;
 }
 
@@ -939,11 +921,6 @@ void statement_free (struct statement *s)
 {
     // free arguments
     arg_value_free(&s->args);
-    
-    // free object names
-    if (s->object_names) {
-        names_free(s->object_names);
-    }
 }
 
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process)
@@ -1289,14 +1266,17 @@ void process_advance_job_handler (struct process *p)
     char *type;
     int free_type = 0;
     
-    if (!ps->s.object_names) {
+    char **object_names = NCDInterpBlock_StatementObjNames(p->iblock, p->ap);
+    const char *method_name = NCDInterpBlock_StatementCmdName(p->iblock, p->ap);
+    
+    if (!object_names) {
         // this is a function_call(); type is "function_call"
-        type = (char *)ps->s.method_name;
+        type = (char *)method_name;
     } else {
         // this is a some.object.somewhere->method_call(); type is "base_type(some.object.somewhere)::method_call"
         
         // get object
-        if (!process_resolve_object_expr(p, p->ap, ps->s.object_names, &object)) {
+        if (!process_resolve_object_expr(p, p->ap, object_names, &object)) {
             goto fail;
         }
         object_ptr = &object;
@@ -1309,7 +1289,7 @@ void process_advance_job_handler (struct process *p)
         }
         
         // build type string
-        if (!(type = concat_strings(3, object_type, "::", ps->s.method_name))) {
+        if (!(type = concat_strings(3, object_type, "::", method_name))) {
             process_statement_log(ps, BLOG_ERROR, "concat_strings failed");
             goto fail;
         }
