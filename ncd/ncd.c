@@ -55,6 +55,7 @@
 #include <ncd/NCDModule.h>
 #include <ncd/NCDModuleIndex.h>
 #include <ncd/NCDSugar.h>
+#include <ncd/NCDInterpProg.h>
 #include <ncd/modules/modules.h>
 
 #include <ncd/ncd.h>
@@ -112,6 +113,8 @@ struct statement {
 };
 
 struct process {
+    NCDProcess *proc_ast;
+    NCDInterpBlock *iblock;
     NCDModuleProcess *module_process;
     char *name;
     size_t num_statements;
@@ -171,6 +174,9 @@ NCDModuleIndex mindex;
 // program AST
 NCDProgram program;
 
+// structure for efficient interpretation
+NCDInterpProg iprogram;
+
 // common module parameters
 struct NCDModuleInst_params module_params;
 struct NCDModuleInst_iparams module_iparams;
@@ -197,7 +203,7 @@ static char * names_tostring (char **names);
 static void names_free (char **names);
 static int statement_init (struct statement *s, NCDStatement *stmt_ast);
 static void statement_free (struct statement *s);
-static int process_new (NCDProcess *proc_ast, NCDModuleProcess *module_process);
+static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process);
 static void process_free (struct process *p);
 static void process_start_terminating (struct process *p);
 static void process_free_statements (struct process *p);
@@ -354,6 +360,12 @@ int main (int argc, char **argv)
         goto fail4;
     }
     
+    // init interp program
+    if (!NCDInterpProg_Init(&iprogram, &program)) {
+        BLog(BLOG_ERROR, "NCDInterpProg_Init failed");
+        goto fail4;
+    }
+    
     // init module params
     struct NCDModuleInitParams params;
     params.reactor = &ss;
@@ -390,7 +402,15 @@ int main (int argc, char **argv)
         if (NCDProcess_IsTemplate(p)) {
             continue;
         }
-        if (!process_new(p, NULL)) {
+        
+        // find iblock
+        NCDProcess *f_proc;
+        NCDInterpBlock *iblock;
+        int res = NCDInterpProg_FindProcess(&iprogram, NCDProcess_Name(p), &f_proc, &iblock);
+        ASSERT(res)
+        ASSERT(f_proc == p)
+        
+        if (!process_new(p, iblock, NULL)) {
             BLog(BLOG_ERROR, "failed to initialize process, exiting");
             goto fail6;
         }
@@ -417,6 +437,8 @@ fail5:
         }
         num_inited_modules--;
     }
+    // free interp program
+    NCDInterpProg_Free(&iprogram);
 fail4:
     // free program AST
     NCDProgram_Free(&program);
@@ -949,7 +971,7 @@ void statement_free (struct statement *s)
     }
 }
 
-int process_new (NCDProcess *proc_ast, NCDModuleProcess *module_process)
+static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process)
 {
     // allocate strucure
     struct process *p = malloc(sizeof(*p));
@@ -958,7 +980,9 @@ int process_new (NCDProcess *proc_ast, NCDModuleProcess *module_process)
         goto fail0;
     }
     
-    // set module process
+    // init arguments
+    p->proc_ast = proc_ast;
+    p->iblock = iblock;
     p->module_process = module_process;
     
     // set module process handlers
@@ -1398,24 +1422,25 @@ int process_find_object (struct process *p, size_t pos, const char *name, NCDObj
     ASSERT(name)
     ASSERT(out_object)
     
-    for (size_t i = pos; i > 0; i--) {
-        struct process_statement *ps = &p->statements[i - 1];
-        if (ps->s.name && !strcmp(ps->s.name, name)) {
-            if (ps->state == SSTATE_FORGOTTEN) {
-                process_log(p, BLOG_ERROR, "statement (%zu) is uninitialized", i - 1);
-                goto fail;
-            }
-            
-            *out_object = NCDModuleInst_Object(&ps->inst);
-            return 1;
+    int i = NCDInterpBlock_FindStatement(p->iblock, pos, name);
+    if (i >= 0) {
+        struct process_statement *ps = &p->statements[i];
+        ASSERT(i < p->num_statements)
+        ASSERT(!strcmp(ps->s.name, name))
+        
+        if (ps->state == SSTATE_FORGOTTEN) {
+            process_log(p, BLOG_ERROR, "statement (%d) is uninitialized", i);
+            return 0;
         }
+        
+        *out_object = NCDModuleInst_Object(&ps->inst);
+        return 1;
     }
     
     if (p->module_process && NCDModuleProcess_Interp_GetSpecialObj(p->module_process, name, out_object)) {
         return 1;
     }
     
-fail:
     return 0;
 }
 
@@ -1665,19 +1690,14 @@ int process_statement_instance_func_initprocess (struct process_statement *ps, N
     
     // find template
     NCDProcess *p_ast;
-    for (p_ast = NCDProgram_FirstProcess(&program); p_ast; p_ast = NCDProgram_NextProcess(&program, p_ast)) {
-        if (NCDProcess_IsTemplate(p_ast) && !strcmp(NCDProcess_Name(p_ast), template_name)) {
-            break;
-        }
-    }
-    
-    if (!p_ast) {
+    NCDInterpBlock *iblock;
+    if (!NCDInterpProg_FindProcess(&iprogram, template_name, &p_ast, &iblock) || !NCDProcess_IsTemplate(p_ast)) {
         process_statement_log(ps, BLOG_ERROR, "no template named %s", template_name);
         return 0;
     }
     
     // create process
-    if (!process_new(p_ast, mp)) {
+    if (!process_new(p_ast, iblock, mp)) {
         process_statement_log(ps, BLOG_ERROR, "failed to create process from template %s", template_name);
         return 0;
     }
