@@ -30,8 +30,10 @@
 #include <stdint.h>
 #include <limits.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include <misc/balloc.h>
+#include <misc/split_string.h>
 #include <base/BLog.h>
 
 #include "NCDInterpBlock.h"
@@ -74,9 +76,17 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block)
     o->num_stmts = 0;
     
     for (NCDStatement *s = NCDBlock_FirstStatement(block); s; s = NCDBlock_NextStatement(block, s)) {
+        ASSERT(NCDStatement_Type(s) == NCDSTATEMENT_REG)
         struct NCDInterpBlock__stmt *e = &o->stmts[o->num_stmts];
         
         e->name = NCDStatement_Name(s);
+        e->cmdname = NCDStatement_RegCmdName(s);
+        e->objnames = NULL;
+        
+        if (NCDStatement_RegObjName(s) && !(e->objnames = split_string(NCDStatement_RegObjName(s), '.'))) {
+            BLog(BLOG_ERROR, "split_string failed");
+            goto fail2;
+        }
         
         if (e->name) {
             NCDInterpBlock__HashRef ref = NCDInterpBlock__Hash_Deref(o->stmts, o->num_stmts);
@@ -91,6 +101,12 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block)
     DebugObject_Init(&o->d_obj);
     return 1;
     
+fail2:
+    while (o->num_stmts-- > 0) {
+        if (o->stmts[o->num_stmts].objnames) {
+            free_strings(o->stmts[o->num_stmts].objnames);
+        }
+    }
 fail1:
     BFree(o->stmts);
 fail0:
@@ -100,6 +116,12 @@ fail0:
 void NCDInterpBlock_Free (NCDInterpBlock *o)
 {
     DebugObject_Free(&o->d_obj);
+    
+    while (o->num_stmts-- > 0) {
+        if (o->stmts[o->num_stmts].objnames) {
+            free_strings(o->stmts[o->num_stmts].objnames);
+        }
+    }
     
     NCDInterpBlock__Hash_Free(&o->hash);
     
@@ -131,4 +153,22 @@ int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char 
     }
     
     return -1;
+}
+
+const char * NCDInterpBlock_StatementCmdName (NCDInterpBlock *o, int i)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(i >= 0)
+    ASSERT(i < o->num_stmts)
+    
+    return o->stmts[i].cmdname;
+}
+
+char ** NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(i >= 0)
+    ASSERT(i < o->num_stmts)
+    
+    return o->stmts[i].objnames;
 }

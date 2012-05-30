@@ -37,6 +37,8 @@
 
 struct NCDInterpBlock__stmt {
     const char *name;
+    const char *cmdname;
+    char **objnames;
     int hash_next;
 };
 
@@ -57,5 +59,7 @@ typedef struct {
 int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block) WARN_UNUSED;
 void NCDInterpBlock_Free (NCDInterpBlock *o);
 int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char *name);
+const char * NCDInterpBlock_StatementCmdName (NCDInterpBlock *o, int i);
+char ** NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i);
 
 #endif
