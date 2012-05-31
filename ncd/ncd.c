@@ -76,20 +76,7 @@
 #define PSTATE_WAITING 3
 #define PSTATE_TERMINATING 4
 
-struct process {
-    NCDProcess *proc_ast;
-    NCDInterpBlock *iblock;
-    NCDModuleProcess *module_process;
-    struct process_statement *statements;
-    BTimer wait_timer;
-    BPending advance_job;
-    BPending work_job;
-    LinkedList1Node list_node; // node in processes
-    int state;
-    int ap;
-    int fp;
-    int num_statements;
-};
+struct process;
 
 struct process_statement {
     struct process *p;
@@ -99,6 +86,21 @@ struct process_statement {
     int i;
     int state;
     int have_error;
+};
+
+struct process {
+    NCDProcess *proc_ast;
+    NCDInterpBlock *iblock;
+    NCDModuleProcess *module_process;
+    BTimer wait_timer;
+    BPending advance_job;
+    BPending work_job;
+    LinkedList1Node list_node; // node in processes
+    int state;
+    int ap;
+    int fp;
+    int num_statements;
+    struct process_statement statements[];
 };
 
 // command-line options
@@ -648,17 +650,27 @@ fail0:
 
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process)
 {
+    // get block
+    NCDBlock *block = NCDProcess_Block(proc_ast);
+    
+    // get num statements
+    int num_statements = NCDBlock_NumStatements(block);
+    
+    // calculate allocation size
+    bsize_t alloc_size = bsize_add(bsize_fromsize(sizeof(struct process)), bsize_mul(bsize_fromsize(num_statements), bsize_fromsize(sizeof(struct process_statement))));
+    
     // allocate strucure
-    struct process *p = malloc(sizeof(*p));
+    struct process *p = BAllocSize(alloc_size);
     if (!p) {
-        BLog(BLOG_ERROR, "malloc failed");
+        BLog(BLOG_ERROR, "BAllocSize failed");
         goto fail0;
     }
     
-    // init arguments
+    // set some stuff
     p->proc_ast = proc_ast;
     p->iblock = iblock;
     p->module_process = module_process;
+    p->num_statements = num_statements;
     
     // set module process handlers
     if (p->module_process) {
@@ -667,26 +679,13 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
                                             (NCDModuleProcess_interp_func_getobj)process_moduleprocess_func_getobj);
     }
     
-    // get block
-    NCDBlock *block = NCDProcess_Block(proc_ast);
-    
-    // allocate statements array
-    if (!(p->statements = BAllocArray(NCDBlock_NumStatements(block), sizeof(p->statements[0])))) {
-        goto fail2;
-    }
-    p->num_statements = 0;
-    
     // init statements
-    for (NCDStatement *st = NCDBlock_FirstStatement(block); st; st = NCDBlock_NextStatement(block, st)) {
-        ASSERT(NCDStatement_Type(st) == NCDSTATEMENT_REG)
-        struct process_statement *ps = &p->statements[p->num_statements];
-        
+    for (int i = 0; i < num_statements; i++) {
+        struct process_statement *ps = &p->statements[i];
         ps->p = p;
-        ps->i = p->num_statements;
+        ps->i = i;
         ps->state = SSTATE_FORGOTTEN;
         ps->have_error = 0;
-        
-        p->num_statements++;
     }
     
     // set state working
@@ -715,10 +714,6 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
     
     return 1;
     
-fail3:
-    free(p->statements);
-fail2:
-    free(p);
 fail0:
     BLog(BLOG_ERROR, "failed to initialize process %s", NCDProcess_Name(proc_ast));
     return 0;
@@ -746,11 +741,8 @@ void process_free (struct process *p)
     // free timer
     BReactor_RemoveTimer(&ss, &p->wait_timer);
     
-    // free statements
-    free(p->statements);
-    
     // free strucure
-    free(p);
+    BFree(p);
 }
 
 void process_start_terminating (struct process *p)
