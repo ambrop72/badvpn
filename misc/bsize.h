@@ -50,6 +50,7 @@ static int bsize_tosize (bsize_t s, size_t *out);
 static int bsize_toint (bsize_t s, int *out);
 static bsize_t bsize_add (bsize_t s1, bsize_t s2);
 static bsize_t bsize_max (bsize_t s1, bsize_t s2);
+static bsize_t bsize_mul (bsize_t s1, bsize_t s2);
 
 bsize_t bsize_fromsize (size_t v)
 {
@@ -134,6 +135,20 @@ bsize_t bsize_max (bsize_t s1, bsize_t s2)
         if (s.value < s2.value) {
             s.value = s2.value;
         }
+    }
+    
+    return s;
+}
+
+bsize_t bsize_mul (bsize_t s1, bsize_t s2)
+{
+    bsize_t s;
+    
+    if (s1.is_overflow || s2.is_overflow || s2.value > SIZE_MAX / s1.value) {
+        s.is_overflow = 1;
+    } else {
+        s.is_overflow = 0;
+        s.value = s1.value * s2.value;
     }
     
     return s;
