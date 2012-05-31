@@ -83,9 +83,14 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block)
         e->cmdname = NCDStatement_RegCmdName(s);
         e->objnames = NULL;
         
+        if (!NCDInterpValue_Init(&e->ivalue, NCDStatement_RegArgs(s))) {
+            BLog(BLOG_ERROR, "NCDInterpValue_Init failed");
+            goto loop_fail0;
+        }
+        
         if (NCDStatement_RegObjName(s) && !(e->objnames = split_string(NCDStatement_RegObjName(s), '.'))) {
             BLog(BLOG_ERROR, "split_string failed");
-            goto fail2;
+            goto loop_fail1;
         }
         
         if (e->name) {
@@ -94,6 +99,12 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block)
         }
         
         o->num_stmts++;
+        continue;
+        
+    loop_fail1:
+        NCDInterpValue_Free(&e->ivalue);
+    loop_fail0:
+        goto fail2;
     }
     
     ASSERT(o->num_stmts == num_stmts)
@@ -103,9 +114,11 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block)
     
 fail2:
     while (o->num_stmts-- > 0) {
-        if (o->stmts[o->num_stmts].objnames) {
-            free_strings(o->stmts[o->num_stmts].objnames);
+        struct NCDInterpBlock__stmt *e = &o->stmts[o->num_stmts];
+        if (e->objnames) {
+            free_strings(e->objnames);
         }
+        NCDInterpValue_Free(&e->ivalue);
     }
 fail1:
     BFree(o->stmts);
@@ -118,9 +131,11 @@ void NCDInterpBlock_Free (NCDInterpBlock *o)
     DebugObject_Free(&o->d_obj);
     
     while (o->num_stmts-- > 0) {
-        if (o->stmts[o->num_stmts].objnames) {
-            free_strings(o->stmts[o->num_stmts].objnames);
+        struct NCDInterpBlock__stmt *e = &o->stmts[o->num_stmts];
+        if (e->objnames) {
+            free_strings(e->objnames);
         }
+        NCDInterpValue_Free(&e->ivalue);
     }
     
     NCDInterpBlock__Hash_Free(&o->hash);
@@ -171,4 +186,13 @@ char ** NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i)
     ASSERT(i < o->num_stmts)
     
     return o->stmts[i].objnames;
+}
+
+NCDInterpValue * NCDInterpBlock_StatementInterpValue (NCDInterpBlock *o, int i)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(i >= 0)
+    ASSERT(i < o->num_stmts)
+    
+    return &o->stmts[i].ivalue;
 }

@@ -34,11 +34,13 @@
 #include <base/DebugObject.h>
 #include <structure/CHash.h>
 #include <ncd/NCDAst.h>
+#include <ncd/NCDInterpValue.h>
 
 struct NCDInterpBlock__stmt {
     const char *name;
     const char *cmdname;
     char **objnames;
+    NCDInterpValue ivalue;
     int hash_next;
 };
 
@@ -61,5 +63,6 @@ void NCDInterpBlock_Free (NCDInterpBlock *o);
 int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char *name);
 const char * NCDInterpBlock_StatementCmdName (NCDInterpBlock *o, int i);
 char ** NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i);
+NCDInterpValue * NCDInterpBlock_StatementInterpValue (NCDInterpBlock *o, int i);
 
 #endif
