@@ -80,25 +80,25 @@ struct process {
     NCDProcess *proc_ast;
     NCDInterpBlock *iblock;
     NCDModuleProcess *module_process;
-    size_t num_statements;
     struct process_statement *statements;
-    int state;
-    size_t ap;
-    size_t fp;
     BTimer wait_timer;
     BPending advance_job;
     BPending work_job;
     LinkedList1Node list_node; // node in processes
+    int state;
+    int ap;
+    int fp;
+    int num_statements;
 };
 
 struct process_statement {
     struct process *p;
-    size_t i;
-    int state;
-    int have_error;
     btime_t error_until;
     NCDModuleInst inst;
     NCDValue inst_args;
+    int i;
+    int state;
+    int have_error;
 };
 
 // command-line options
@@ -155,7 +155,7 @@ static char * names_tostring (char **names);
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process);
 static void process_free (struct process *p);
 static void process_start_terminating (struct process *p);
-static size_t process_rap (struct process *p);
+static int process_rap (struct process *p);
 static void process_assert_pointers (struct process *p);
 static void process_logfunc (struct process *p);
 static void process_log (struct process *p, int level, const char *fmt, ...);
@@ -163,9 +163,9 @@ static void process_schedule_work (struct process *p);
 static void process_work_job_handler (struct process *p);
 static void process_advance_job_handler (struct process *p);
 static void process_wait_timer_handler (struct process *p);
-static int process_find_object (struct process *p, size_t pos, const char *name, NCDObject *out_object);
-static int process_resolve_object_expr (struct process *p, size_t pos, char **names, NCDObject *out_object);
-static int process_resolve_variable_expr (struct process *p, size_t pos, char **names, NCDValue *out_value);
+static int process_find_object (struct process *p, int pos, const char *name, NCDObject *out_object);
+static int process_resolve_object_expr (struct process *p, int pos, char **names, NCDObject *out_object);
+static int process_resolve_variable_expr (struct process *p, int pos, char **names, NCDValue *out_value);
 static void process_statement_logfunc (struct process_statement *ps);
 static void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...);
 static void process_statement_set_error (struct process_statement *ps);
@@ -761,7 +761,7 @@ void process_start_terminating (struct process *p)
     process_schedule_work(p);
 }
 
-size_t process_rap (struct process *p)
+int process_rap (struct process *p)
 {
     if (p->ap > 0 && p->statements[p->ap - 1].state == SSTATE_CHILD) {
         return (p->ap - 1);
@@ -778,7 +778,7 @@ void process_assert_pointers (struct process *p)
     
 #ifndef NDEBUG
     // check AP
-    for (size_t i = 0; i < p->ap; i++) {
+    for (int i = 0; i < p->ap; i++) {
         if (i == p->ap - 1) {
             ASSERT(p->statements[i].state == SSTATE_ADULT || p->statements[i].state == SSTATE_CHILD)
         } else {
@@ -787,7 +787,7 @@ void process_assert_pointers (struct process *p)
     }
     
     // check FP
-    size_t fp = p->num_statements;
+    int fp = p->num_statements;
     while (fp > 0 && p->statements[fp - 1].state == SSTATE_FORGOTTEN) {
         fp--;
     }
@@ -1063,8 +1063,9 @@ void process_wait_timer_handler (struct process *p)
     BPending_Set(&p->work_job);
 }
 
-int process_find_object (struct process *p, size_t pos, const char *name, NCDObject *out_object)
+int process_find_object (struct process *p, int pos, const char *name, NCDObject *out_object)
 {
+    ASSERT(pos >= 0)
     ASSERT(pos <= p->num_statements)
     ASSERT(name)
     ASSERT(out_object)
@@ -1090,8 +1091,9 @@ int process_find_object (struct process *p, size_t pos, const char *name, NCDObj
     return 0;
 }
 
-int process_resolve_object_expr (struct process *p, size_t pos, char **names, NCDObject *out_object)
+int process_resolve_object_expr (struct process *p, int pos, char **names, NCDObject *out_object)
 {
+    ASSERT(pos >= 0)
     ASSERT(pos <= p->num_statements)
     ASSERT(names)
     ASSERT(count_strings(names) > 0)
@@ -1115,8 +1117,9 @@ fail:;
     return 0;
 }
 
-int process_resolve_variable_expr (struct process *p, size_t pos, char **names, NCDValue *out_value)
+int process_resolve_variable_expr (struct process *p, int pos, char **names, NCDValue *out_value)
 {
+    ASSERT(pos >= 0)
     ASSERT(pos <= p->num_statements)
     ASSERT(names)
     ASSERT(count_strings(names) > 0)
