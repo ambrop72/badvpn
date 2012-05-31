@@ -56,7 +56,6 @@
 #include <ncd/NCDModuleIndex.h>
 #include <ncd/NCDSugar.h>
 #include <ncd/NCDInterpProg.h>
-#include <ncd/NCDInterpValue.h>
 #include <ncd/modules/modules.h>
 
 #include <ncd/ncd.h>
@@ -95,7 +94,6 @@ struct process {
 struct process_statement {
     struct process *p;
     size_t i;
-    NCDInterpValue args;
     int state;
     int have_error;
     btime_t error_until;
@@ -157,7 +155,6 @@ static char * names_tostring (char **names);
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process);
 static void process_free (struct process *p);
 static void process_start_terminating (struct process *p);
-static void process_free_statements (struct process *p);
 static size_t process_rap (struct process *p);
 static void process_assert_pointers (struct process *p);
 static void process_logfunc (struct process *p);
@@ -686,11 +683,6 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
         ps->state = SSTATE_FORGOTTEN;
         ps->have_error = 0;
         
-        if (!NCDInterpValue_Init(&ps->args, NCDStatement_RegArgs(st))) {
-            BLog(BLOG_ERROR, "build_arg_from_ast failed");
-            goto fail3;
-        }
-        
         p->num_statements++;
     }
     
@@ -721,7 +713,7 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
     return 1;
     
 fail3:
-    process_free_statements(p);
+    free(p->statements);
 fail2:
     free(p);
 fail0:
@@ -752,7 +744,7 @@ void process_free (struct process *p)
     BReactor_RemoveTimer(&ss, &p->wait_timer);
     
     // free statements
-    process_free_statements(p);
+    free(p->statements);
     
     // free strucure
     free(p);
@@ -776,18 +768,6 @@ size_t process_rap (struct process *p)
     } else {
         return p->ap;
     }
-}
-
-void process_free_statements (struct process *p)
-{
-    // free statments
-    while (p->num_statements > 0) {
-        NCDInterpValue_Free(&p->statements[p->num_statements - 1].args);
-        p->num_statements--;
-    }
-    
-    // free stataments array
-    free(p->statements);
 }
 
 void process_assert_pointers (struct process *p)
@@ -1027,7 +1007,7 @@ void process_advance_job_handler (struct process *p)
     }
     
     // resolve arguments
-    if (!process_statement_resolve_argument(ps, &ps->args, &ps->inst_args)) {
+    if (!process_statement_resolve_argument(ps, NCDInterpBlock_StatementInterpValue(p->iblock, ps->i), &ps->inst_args)) {
         process_statement_log(ps, BLOG_ERROR, "failed to resolve arguments");
         goto fail;
     }
