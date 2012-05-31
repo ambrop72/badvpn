@@ -146,6 +146,9 @@ struct NCDModuleInst_iparams module_iparams;
 // processes
 LinkedList1 processes;
 
+// buffer for concatenating base_type::method_name
+char method_concat_buf[200];
+
 static void print_help (const char *name);
 static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
@@ -966,15 +969,14 @@ void process_advance_job_handler (struct process *p)
     
     NCDObject object;
     NCDObject *object_ptr = NULL;
-    char *type;
-    int free_type = 0;
+    const char *type;
     
     char **object_names = NCDInterpBlock_StatementObjNames(p->iblock, p->ap);
     const char *method_name = NCDInterpBlock_StatementCmdName(p->iblock, p->ap);
     
     if (!object_names) {
         // this is a function_call(); type is "function_call"
-        type = (char *)method_name;
+        type = method_name;
     } else {
         // this is a some.object.somewhere->method_call(); type is "base_type(some.object.somewhere)::method_call"
         
@@ -992,11 +994,12 @@ void process_advance_job_handler (struct process *p)
         }
         
         // build type string
-        if (!(type = concat_strings(3, object_type, "::", method_name))) {
-            process_statement_log(ps, BLOG_ERROR, "concat_strings failed");
+        int res = snprintf(method_concat_buf, sizeof(method_concat_buf), "%s::%s", object_type, method_name);
+        if (res >= sizeof(method_concat_buf) || res < 0) {
+            process_statement_log(ps, BLOG_ERROR, "type/method name too long");
             goto fail;
         }
-        free_type = 1;
+        type = method_concat_buf;
     }
     
     // find module to instantiate
@@ -1024,18 +1027,10 @@ void process_advance_job_handler (struct process *p)
     // increment FP
     p->fp++;
     
-    if (free_type) {
-        free(type);
-    }
-    
     process_assert_pointers(p);
     return;
     
 fail:
-    if (free_type) {
-        free(type);
-    }
-    
     // mark error
     process_statement_set_error(ps);
     
