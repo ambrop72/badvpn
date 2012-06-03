@@ -34,7 +34,7 @@
 #include <stdint.h>
 
 #include <misc/debug.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <structure/BAVL.h>
 
 #define NCDVALUE_STRING 1
@@ -66,7 +66,7 @@ typedef struct {
             size_t string_len;
         };
         struct {
-            LinkedList2 list;
+            LinkedList1 list;
             size_t list_count;
         };
         struct {
@@ -80,7 +80,7 @@ typedef struct {
 } NCDValue;
 
 typedef struct {
-    LinkedList2Node list_node;
+    LinkedList1Node list_node;
     NCDValue v;
 } NCDListElement;
 

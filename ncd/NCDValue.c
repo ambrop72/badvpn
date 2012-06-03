@@ -70,10 +70,7 @@ int NCDValue_InitCopy (NCDValue *o, NCDValue *v)
         case NCDVALUE_LIST: {
             NCDValue_InitList(o);
             
-            LinkedList2Iterator it;
-            LinkedList2Iterator_InitForward(&it, &v->list);
-            LinkedList2Node *n;
-            while (n = LinkedList2Iterator_Next(&it)) {
+            for (LinkedList1Node *n = LinkedList1_GetFirst(&v->list); n; n = LinkedList1Node_Next(n)) {
                 NCDListElement *e = UPPER_OBJECT(n, NCDListElement, list_node);
                 
                 NCDValue tmp;
@@ -90,7 +87,6 @@ int NCDValue_InitCopy (NCDValue *o, NCDValue *v)
             return 1;
             
         fail:
-            LinkedList2Iterator_Free(&it);
             NCDValue_Free(o);
             return 0;
         } break;
@@ -144,12 +140,12 @@ void NCDValue_Free (NCDValue *o)
         } break;
         
         case NCDVALUE_LIST: {
-            LinkedList2Node *n;
-            while (n = LinkedList2_GetFirst(&o->list)) {
+            LinkedList1Node *n;
+            while (n = LinkedList1_GetFirst(&o->list)) {
                 NCDListElement *e = UPPER_OBJECT(n, NCDListElement, list_node);
                 
                 NCDValue_Free(&e->v);
-                LinkedList2_Remove(&o->list, &e->list_node);
+                LinkedList1_Remove(&o->list, &e->list_node);
                 free(e);
             }
         } break;
@@ -262,7 +258,7 @@ int NCDValue_IsList (NCDValue *o)
 
 void NCDValue_InitList (NCDValue *o)
 {
-    LinkedList2_Init(&o->list);
+    LinkedList1_Init(&o->list);
     o->list_count = 0;
     
     o->type = NCDVALUE_LIST;
@@ -283,7 +279,7 @@ int NCDValue_ListAppend (NCDValue *o, NCDValue v)
         return 0;
     }
     
-    LinkedList2_Append(&o->list, &e->list_node);
+    LinkedList1_Append(&o->list, &e->list_node);
     o->list_count++;
     e->v = v;
     
@@ -305,7 +301,7 @@ int NCDValue_ListPrepend (NCDValue *o, NCDValue v)
         return 0;
     }
     
-    LinkedList2_Prepend(&o->list, &e->list_node);
+    LinkedList1_Prepend(&o->list, &e->list_node);
     o->list_count++;
     e->v = v;
     
@@ -323,11 +319,11 @@ int NCDValue_ListAppendList (NCDValue *o, NCDValue l)
         return 0;
     }
     
-    LinkedList2Node *n;
-    while (n = LinkedList2_GetFirst(&l.list)) {
+    LinkedList1Node *n;
+    while (n = LinkedList1_GetFirst(&l.list)) {
         NCDListElement *e = UPPER_OBJECT(n, NCDListElement, list_node);
-        LinkedList2_Remove(&l.list, &e->list_node);
-        LinkedList2_Append(&o->list, &e->list_node);
+        LinkedList1_Remove(&l.list, &e->list_node);
+        LinkedList1_Append(&o->list, &e->list_node);
     }
     
     o->list_count += l.list_count;
@@ -348,11 +344,13 @@ NCDValue * NCDValue_ListFirst (NCDValue *o)
     value_assert(o);
     ASSERT(o->type == NCDVALUE_LIST)
     
-    if (LinkedList2_IsEmpty(&o->list)) {
+    LinkedList1Node *ln = LinkedList1_GetFirst(&o->list);
+    
+    if (!ln) {
         return NULL;
     }
     
-    NCDListElement *e = UPPER_OBJECT(LinkedList2_GetFirst(&o->list), NCDListElement, list_node);
+    NCDListElement *e = UPPER_OBJECT(ln, NCDListElement, list_node);
     
     return &e->v;
 }
@@ -362,21 +360,16 @@ NCDValue * NCDValue_ListNext (NCDValue *o, NCDValue *ev)
     value_assert(o);
     ASSERT(o->type == NCDVALUE_LIST)
     
-    NCDListElement *e = UPPER_OBJECT(ev, NCDListElement, v);
+    NCDListElement *cur_e = UPPER_OBJECT(ev, NCDListElement, v);
+    LinkedList1Node *ln = LinkedList1Node_Next(&cur_e->list_node);
     
-    LinkedList2Iterator it;
-    LinkedList2Iterator_Init(&it, &o->list, 1, &e->list_node);
-    LinkedList2Iterator_Next(&it);
-    LinkedList2Node *nen = LinkedList2Iterator_Next(&it);
-    LinkedList2Iterator_Free(&it);
-    
-    if (!nen) {
+    if (!ln) {
         return NULL;
     }
     
-    NCDListElement *ne = UPPER_OBJECT(nen, NCDListElement, list_node);
+    NCDListElement *e = UPPER_OBJECT(ln, NCDListElement, list_node);
     
-    return &ne->v;
+    return &e->v;
 }
 
 int NCDValue_ListRead (NCDValue *o, int num, ...)
@@ -392,10 +385,7 @@ int NCDValue_ListRead (NCDValue *o, int num, ...)
     va_list ap;
     va_start(ap, num);
     
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &o->list);
-    LinkedList2Node *n;
-    while (n = LinkedList2Iterator_Next(&it)) {
+    for (LinkedList1Node *n = LinkedList1_GetFirst(&o->list); n; n = LinkedList1Node_Next(n)) {
         NCDListElement *e = UPPER_OBJECT(n, NCDListElement, list_node);
         
         NCDValue **dest = va_arg(ap, NCDValue **);
@@ -420,7 +410,7 @@ int NCDValue_ListReadHead (NCDValue *o, int num, ...)
     va_list ap;
     va_start(ap, num);
     
-    LinkedList2Node *n = LinkedList2_GetFirst(&o->list);
+    LinkedList1Node *n = LinkedList1_GetFirst(&o->list);
     while (num > 0) {
         ASSERT(n)
         NCDListElement *e = UPPER_OBJECT(n, NCDListElement, list_node);
@@ -428,7 +418,7 @@ int NCDValue_ListReadHead (NCDValue *o, int num, ...)
         NCDValue **dest = va_arg(ap, NCDValue **);
         *dest = &e->v;
         
-        n = LinkedList2Node_Next(n);
+        n = LinkedList1Node_Next(n);
         num--;
     }
     
@@ -462,11 +452,11 @@ NCDValue NCDValue_ListShift (NCDValue *o)
     ASSERT(o->type == NCDVALUE_LIST)
     ASSERT(o->list_count > 0)
     
-    NCDListElement *e = UPPER_OBJECT(LinkedList2_GetFirst(&o->list), NCDListElement, list_node);
+    NCDListElement *e = UPPER_OBJECT(LinkedList1_GetFirst(&o->list), NCDListElement, list_node);
     
     NCDValue v = e->v;
     
-    LinkedList2_Remove(&o->list, &e->list_node);
+    LinkedList1_Remove(&o->list, &e->list_node);
     o->list_count--;
     free(e);
     
@@ -483,7 +473,7 @@ NCDValue NCDValue_ListRemove (NCDValue *o, NCDValue *ev)
     
     NCDValue v = e->v;
     
-    LinkedList2_Remove(&o->list, &e->list_node);
+    LinkedList1_Remove(&o->list, &e->list_node);
     o->list_count--;
     free(e);
     
