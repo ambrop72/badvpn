@@ -32,21 +32,18 @@
 
 #include <misc/debug.h>
 #include <structure/BAVL.h>
+#include <structure/CHash.h>
 #include <base/DebugObject.h>
 #include <ncd/NCDModule.h>
 
-#define NCDMODULEINDEX_MAX_TYPE_LEN 63
-
-typedef struct {
-    BAVL modules_tree;
-    BAVL base_types_tree;
-    DebugObject d_obj;
-} NCDModuleIndex;
+#define NCDMODULEINDEX_MAX_TYPE_LEN 35
+#define NCDMODULEINDEX_MAX_MODULES 256
+#define NCDMODULEINDEX_MODULES_HASH_SIZE 512
 
 struct NCDModuleIndex_module {
-    char type[NCDMODULEINDEX_MAX_TYPE_LEN + 1];
     const struct NCDModule *module;
-    BAVLNode modules_tree_node;
+    int hash_next;
+    char type[NCDMODULEINDEX_MAX_TYPE_LEN + 1];
 };
 
 struct NCDModuleIndex_base_type {
@@ -55,7 +52,22 @@ struct NCDModuleIndex_base_type {
     BAVLNode base_types_tree_node;
 };
 
-void NCDModuleIndex_Init (NCDModuleIndex *o);
+typedef struct NCDModuleIndex_module NCDModuleIndex__mhash_entry;
+typedef const char *NCDModuleIndex__mhash_key;
+typedef struct NCDModuleIndex_module *NCDModuleIndex__mhash_arg;
+
+#include "NCDModuleIndex_mhash.h"
+#include <structure/CHash_decl.h>
+
+typedef struct {
+    struct NCDModuleIndex_module *modules;
+    int num_modules;
+    NCDModuleIndex__MHash modules_hash;
+    BAVL base_types_tree;
+    DebugObject d_obj;
+} NCDModuleIndex;
+
+int NCDModuleIndex_Init (NCDModuleIndex *o) WARN_UNUSED;
 void NCDModuleIndex_Free (NCDModuleIndex *o);
 int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *group) WARN_UNUSED;
 const struct NCDModule * NCDModuleIndex_FindModule (NCDModuleIndex *o, const char *type);

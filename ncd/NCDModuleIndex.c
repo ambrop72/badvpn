@@ -31,47 +31,33 @@
 #include <stdlib.h>
 
 #include <misc/offset.h>
+#include <misc/balloc.h>
+#include <misc/hashfun.h>
 #include <base/BLog.h>
 
 #include "NCDModuleIndex.h"
 
 #include <generated/blog_channel_NCDModuleIndex.h>
 
-static int string_comparator (void *user, const char *s1, const char *s2)
-{
-    int cmp = strcmp(s1, s2);
-    if (cmp < 0) {
-        return -1;
-    }
-    if (cmp > 0) {
-        return 1;
-    }
-    return 0;
-}
+#include "NCDModuleIndex_mhash.h"
+#include <structure/CHash_impl.h>
 
 static int string_pointer_comparator (void *user, const char **s1, const char **s2)
 {
     int cmp = strcmp(*s1, *s2);
-    if (cmp < 0) {
-        return -1;
-    }
-    if (cmp > 0) {
-        return 1;
-    }
-    return 0;
+    return (cmp > 0) - (cmp < 0);
 }
 
 static struct NCDModuleIndex_module * find_module (NCDModuleIndex *o, const char *type)
 {
-    BAVLNode *node = BAVL_LookupExact(&o->modules_tree, (void *)type);
-    if (!node) {
+    NCDModuleIndex__MHashRef ref = NCDModuleIndex__MHash_Lookup(&o->modules_hash, o->modules, type);
+    if (ref.link == NCDModuleIndex__MHashNullLink()) {
         return NULL;
     }
     
-    struct NCDModuleIndex_module *m = UPPER_OBJECT(node, struct NCDModuleIndex_module, modules_tree_node);
-    ASSERT(!strcmp(m->type, type))
+    ASSERT(!strcmp(ref.ptr->type, type))
     
-    return m;
+    return ref.ptr;
 }
 
 static struct NCDModuleIndex_base_type * find_base_type (NCDModuleIndex *o, const char *base_type)
@@ -87,15 +73,33 @@ static struct NCDModuleIndex_base_type * find_base_type (NCDModuleIndex *o, cons
     return bt;
 }
 
-void NCDModuleIndex_Init (NCDModuleIndex *o)
+int NCDModuleIndex_Init (NCDModuleIndex *o)
 {
-    // init modules tree
-    BAVL_Init(&o->modules_tree, OFFSET_DIFF(struct NCDModuleIndex_module, type, modules_tree_node), (BAVL_comparator)string_comparator, NULL);
+    // allocate modules array
+    if (!(o->modules = BAllocArray(NCDMODULEINDEX_MAX_MODULES, sizeof(o->modules[0])))) {
+        BLog(BLOG_ERROR, "BAllocArray failed");
+        goto fail0;
+    }
+    
+    // set zero modules
+    o->num_modules = 0;
+    
+    // init modules hash
+    if (!NCDModuleIndex__MHash_Init(&o->modules_hash, NCDMODULEINDEX_MODULES_HASH_SIZE)) {
+        BLog(BLOG_ERROR, "NCDModuleIndex__MHash_Init failed");
+        goto fail1;
+    }
     
     // init base types tree
     BAVL_Init(&o->base_types_tree, OFFSET_DIFF(struct NCDModuleIndex_base_type, base_type, base_types_tree_node), (BAVL_comparator)string_pointer_comparator, NULL);
     
     DebugObject_Init(&o->d_obj);
+    return 1;
+    
+fail1:
+    BFree(o->modules);
+fail0:
+    return 0;
 }
 
 void NCDModuleIndex_Free (NCDModuleIndex *o)
@@ -109,12 +113,11 @@ void NCDModuleIndex_Free (NCDModuleIndex *o)
         free(bt);
     }
     
-    // free modules
-    while (!BAVL_IsEmpty(&o->modules_tree)) {
-        struct NCDModuleIndex_module *m = UPPER_OBJECT(BAVL_GetFirst(&o->modules_tree), struct NCDModuleIndex_module, modules_tree_node);
-        BAVL_Remove(&o->modules_tree, &m->modules_tree_node);
-        free(m);
-    }
+    // free modules hash
+    NCDModuleIndex__MHash_Free(&o->modules_hash);
+    
+    // free modules array
+    BFree(o->modules);
 }
 
 int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *group)
@@ -128,19 +131,22 @@ int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *gro
         }
         
         if (strlen(nm->type) > NCDMODULEINDEX_MAX_TYPE_LEN) {
-            BLog(BLOG_ERROR, "module type '%s' is too long", nm->type);
+            BLog(BLOG_ERROR, "module type '%s' is too long (dump NCDMODULEINDEX_MAX_TYPE_LEN)", nm->type);
             goto loop_fail0;
         }
         
-        struct NCDModuleIndex_module *m = malloc(sizeof(*m));
-        if (!m) {
-            BLog(BLOG_ERROR, "malloc failed");
+        if (o->num_modules == NCDMODULEINDEX_MAX_MODULES) {
+            BLog(BLOG_ERROR, "too many modules (bump NCDMODULEINDEX_MAX_MODULES)");
             goto loop_fail0;
         }
+        
+        struct NCDModuleIndex_module *m = &o->modules[o->num_modules];
+        NCDModuleIndex__MHashRef ref = NCDModuleIndex__MHash_Deref(o->modules, o->num_modules);
         
         strcpy(m->type, nm->type);
         m->module = nm;
-        ASSERT_EXECUTE(BAVL_Insert(&o->modules_tree, &m->modules_tree_node, NULL))
+        int res = NCDModuleIndex__MHash_Insert(&o->modules_hash, o->modules, ref, NULL);
+        ASSERT(res)
         
         const char *base_type = (nm->base_type ? nm->base_type : nm->type);
         
@@ -161,11 +167,11 @@ int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *gro
             ASSERT_EXECUTE(BAVL_Insert(&o->base_types_tree, &bt->base_types_tree_node, NULL))
         }
         
+        o->num_modules++;
         continue;
         
     loop_fail1:
-        BAVL_Remove(&o->modules_tree, &m->modules_tree_node);
-        free(m);
+        NCDModuleIndex__MHash_Remove(&o->modules_hash, o->modules, ref);
     loop_fail0:
         return 0;
     }
@@ -176,6 +182,7 @@ int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *gro
 const struct NCDModule * NCDModuleIndex_FindModule (NCDModuleIndex *o, const char *type)
 {
     DebugObject_Access(&o->d_obj);
+    ASSERT(type)
     
     struct NCDModuleIndex_module *m = find_module(o, type);
     if (!m) {

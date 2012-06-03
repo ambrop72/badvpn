@@ -273,7 +273,10 @@ int main (int argc, char **argv)
     NCDUdevManager_Init(&umanager, options.no_udev, &ss, &manager);
     
     // init module index
-    NCDModuleIndex_Init(&mindex);
+    if (!NCDModuleIndex_Init(&mindex)) {
+        BLog(BLOG_ERROR, "NCDModuleIndex_Init failed");
+        goto fail1b;
+    }
     
     // add module groups to index
     for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
@@ -401,7 +404,7 @@ fail3:
 fail2:
     // free module index
     NCDModuleIndex_Free(&mindex);
-    
+fail1b:
     // free udev manager
     NCDUdevManager_Free(&umanager);
     
