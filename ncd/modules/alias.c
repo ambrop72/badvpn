@@ -38,8 +38,10 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <limits.h>
 
-#include <misc/concat_strings.h>
+#include <misc/debug.h>
 #include <misc/balloc.h>
 #include <ncd/NCDModule.h>
 
@@ -49,75 +51,50 @@
 
 struct instance {
     NCDModuleInst *i;
-    char **target;
+    int num_extra_parts;
+    char strings[];
 };
 
-static char ** split_string (const char *str, char del)
+static int split_string_inplace (char *str, char del)
 {
-    size_t len = strlen(str);
+    ASSERT(str)
     
-    // count parts
-    size_t num_parts = 0;
-    size_t i = 0;
-    while (1) {
-        size_t j = i;
-        while (j < len && str[j] != del) j++;
-        if (j == i) {
-            goto fail0;
+    int num_extra_parts = 0;
+    
+    while (*str) {
+        if (*str == del) {
+            if (num_extra_parts == INT_MAX) {
+                return -1;
+            }
+            *str = '\0';
+            num_extra_parts++;
         }
-        
-        num_parts++;
-        if (j == len) {
-            break;
-        }
-        i = j + 1;
+        str++;
     }
     
-    // allocate array for part pointers
-    char **result = BAllocArray(num_parts + 1, sizeof(*result));
-    if (!result) {
-        goto fail0;
-    }
-    
-    num_parts = 0;
-    i = 0;
-    while (1) {
-        size_t j = i;
-        while (j < len && str[j] != del) j++;
-        if (j == i) {
-            goto fail1;
-        }
-        
-        if (!(result[num_parts] = malloc(j - i + 1))) {
-            goto fail1;
-        }
-        memcpy(result[num_parts], str + i, j - i);
-        result[num_parts][j - i] = '\0';
-        
-        num_parts++;
-        if (j == len) {
-            break;
-        }
-        i = j + 1;
-    }
-    
-    result[num_parts] = NULL;
-    
-    return result;
-    
-fail1:
-    while (num_parts-- > 0) {
-        free(result[num_parts]);
-    }
-    BFree(result);
-fail0:
-    return NULL;
+    return num_extra_parts;
 }
 
 static void func_new (NCDModuleInst *i)
 {
+    // read arguments
+    NCDValue *target_arg;
+    if (!NCDValue_ListRead(i->args, 1, &target_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (!NCDValue_IsStringNoNulls(target_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    const char *target = NCDValue_StringValue(target_arg);
+    size_t target_len = strlen(target);
+    
+    // calculate size
+    bsize_t size = bsize_add(bsize_fromsize(sizeof(struct instance)), bsize_fromsize(target_len + 1));
+    
     // allocate instance
-    struct instance *o = malloc(sizeof(*o));
+    struct instance *o = BAllocSize(size);
     if (!o) {
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
@@ -125,20 +102,12 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     NCDModuleInst_Backend_SetUser(i, o);
     
-    // read arguments
-    NCDValue *target_arg;
-    if (!NCDValue_ListRead(i->args, 1, &target_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
-    }
-    if (!NCDValue_IsStringNoNulls(target_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
-    }
+    // copy target
+    memcpy(o->strings, target, target_len + 1);
     
     // split target into components
-    if (!(o->target = split_string(NCDValue_StringValue(target_arg), '.'))) {
-        ModuleLog(o->i, BLOG_ERROR, "bad target");
+    if ((o->num_extra_parts = split_string_inplace(o->strings, '.')) < 0) {
+        ModuleLog(o->i, BLOG_ERROR, "split_string_inplace failed");
         goto fail1;
     }
     
@@ -147,7 +116,7 @@ static void func_new (NCDModuleInst *i)
     return;
     
 fail1:
-    free(o);
+    BFree(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -158,16 +127,8 @@ static void func_die (void *vo)
     struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
-    // free target
-    char **str = o->target;
-    while (*str) {
-        free(*str);
-        str++;
-    }
-    free(o->target);
-    
     // free instance
-    free(o);
+    BFree(o);
     
     NCDModuleInst_Backend_Dead(i);
 }
@@ -177,12 +138,12 @@ static int func_getobj (void *vo, const char *name, NCDObject *out_object)
     struct instance *o = vo;
     
     NCDObject object;
-    if (!NCDModuleInst_Backend_GetObj(o->i, o->target[0], &object)) {
+    if (!NCDModuleInst_Backend_GetObj(o->i, o->strings, &object)) {
         return 0;
     }
     
     NCDObject obj2;
-    if (!NCDObject_ResolveObjExpr(&object, o->target + 1, &obj2)) {
+    if (!NCDObject_ResolveObjExprCompact(&object, o->strings + strlen(o->strings) + 1, o->num_extra_parts, &obj2)) {
         return 0;
     }
     
