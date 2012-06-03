@@ -83,12 +83,12 @@ static CHashRef CHash_Deref (CHashArg arg, CHashLink link)
 
 static int CHash_Insert (CHash *o, CHashArg arg, CHashRef entry, CHashRef *out_existing)
 {
-    CHashKey key = entry.ptr->CHASH_PARAM_ENTRY_KEY;
+    CHashKey key = CHASH_PARAM_GETKEY(arg, entry);
     size_t index = CHASH_PARAM_HASHFUN(arg, key) % o->numBuckets;
     
     CHashRef e = CHash_Deref(arg, o->buckets[index]);
     while (e.link != CHashNullLink()) {
-        if (CHASH_PARAM_KEYSEQUAL(arg, key, e.ptr->CHASH_PARAM_ENTRY_KEY)) {
+        if (CHASH_PARAM_KEYSEQUAL(arg, key, CHASH_PARAM_GETKEY(arg, e))) {
             if (out_existing) {
                 *out_existing = e;
             }
@@ -110,13 +110,13 @@ static int CHash_Insert (CHash *o, CHashArg arg, CHashRef entry, CHashRef *out_e
 
 static void CHash_InsertMulti (CHash *o, CHashArg arg, CHashRef entry)
 {
-    CHashKey key = entry.ptr->CHASH_PARAM_ENTRY_KEY;
+    CHashKey key = CHASH_PARAM_GETKEY(arg, entry);
     size_t index = CHASH_PARAM_HASHFUN(arg, key) % o->numBuckets;
     
     CHashRef prev = CHashNullRef();
     CHashRef cur = CHash_Deref(arg, o->buckets[index]);
     while (cur.link != CHashNullLink()) {
-        if (CHASH_PARAM_KEYSEQUAL(arg, cur.ptr->CHASH_PARAM_ENTRY_KEY, key)) {
+        if (CHASH_PARAM_KEYSEQUAL(arg, CHASH_PARAM_GETKEY(arg, cur), key)) {
             break;
         }
         prev = cur;
@@ -136,7 +136,7 @@ static void CHash_InsertMulti (CHash *o, CHashArg arg, CHashRef entry)
 
 static void CHash_Remove (CHash *o, CHashArg arg, CHashRef entry)
 {
-    CHashKey key = entry.ptr->CHASH_PARAM_ENTRY_KEY;
+    CHashKey key = CHASH_PARAM_GETKEY(arg, entry);
     size_t index = CHASH_PARAM_HASHFUN(arg, key) % o->numBuckets;
     
     CHashRef prev = CHashNullRef();
@@ -162,7 +162,7 @@ static CHashRef CHash_Lookup (const CHash *o, CHashArg arg, CHashKey key)
     
     CHashRef e = CHash_Deref(arg, o->buckets[index]);
     while (e.link != CHashNullLink()) {
-        if (CHASH_PARAM_KEYSEQUAL(arg, e.ptr->CHASH_PARAM_ENTRY_KEY, key)) {
+        if (CHASH_PARAM_KEYSEQUAL(arg, CHASH_PARAM_GETKEY(arg, e), key)) {
             return e;
         }
         e = CHash_Deref(arg, e.ptr->CHASH_PARAM_ENTRY_NEXT);
@@ -192,7 +192,7 @@ static CHashRef CHash_GetNext (const CHash *o, CHashArg arg, CHashRef entry)
         return CHash_Deref(arg, next);
     }
     
-    CHashKey key = entry.ptr->CHASH_PARAM_ENTRY_KEY;
+    CHashKey key = CHASH_PARAM_GETKEY(arg, entry);
     size_t i = CHASH_PARAM_HASHFUN(arg, key) % o->numBuckets;
     i++;
     
@@ -216,7 +216,7 @@ static CHashRef CHash_GetNextEqual (const CHash *o, CHashArg arg, CHashRef entry
     }
     
     CHashRef next_ref = CHash_Deref(arg, next);
-    if (!CHASH_PARAM_KEYSEQUAL(arg, next_ref.ptr->CHASH_PARAM_ENTRY_KEY, entry.ptr->CHASH_PARAM_ENTRY_KEY)) {
+    if (!CHASH_PARAM_KEYSEQUAL(arg, CHASH_PARAM_GETKEY(arg, next_ref), CHASH_PARAM_GETKEY(arg, entry))) {
         return CHashNullRef();
     }
     

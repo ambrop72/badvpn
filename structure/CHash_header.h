@@ -37,7 +37,7 @@
 // CHASH_PARAM_DEREF(arg, link) - dereference a non-null link
 // CHASH_PARAM_HASHFUN(arg, key) - hash function, return size_t
 // CHASH_PARAM_KEYSEQUAL(arg, key1, key2) - compares equality of two keys
-// CHASH_PARAM_ENTRY_KEY - key member in entry
+// CHASH_PARAM_GETKEY(arg, entry) - get key of entry
 // CHASH_PARAM_ENTRY_NEXT - next member in entry
 
 // types
