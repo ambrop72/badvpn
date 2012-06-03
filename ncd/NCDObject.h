@@ -60,6 +60,7 @@ const char * NCDObject_Type (NCDObject *o);
 int NCDObject_GetObj (NCDObject *o, const char *name, NCDObject *out_object) WARN_UNUSED;
 int NCDObject_GetVar (NCDObject *o, const char *name, NCDValue *out_value) WARN_UNUSED;
 int NCDObject_ResolveObjExpr (NCDObject *o, char **names, NCDObject *out_object) WARN_UNUSED;
+int NCDObject_ResolveObjExprCompact (NCDObject *o, const char *names, int num_names, NCDObject *out_object) WARN_UNUSED;
 int NCDObject_ResolveVarExpr (NCDObject *o, char **names, NCDValue *out_value) WARN_UNUSED;
 
 #endif

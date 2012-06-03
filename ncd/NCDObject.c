@@ -131,6 +131,30 @@ int NCDObject_ResolveObjExpr (NCDObject *o, char **names, NCDObject *out_object)
     return 1;
 }
 
+int NCDObject_ResolveObjExprCompact (NCDObject *o, const char *names, int num_names, NCDObject *out_object)
+{
+    ASSERT(num_names == 0 || names)
+    ASSERT(num_names >= 0)
+    ASSERT(out_object)
+    
+    NCDObject object = dig_into_object(*o);
+    
+    while (num_names > 0) {
+        NCDObject obj2;
+        if (!NCDObject_GetObj(&object, names, &obj2)) {
+            return 0;
+        }
+        
+        object = dig_into_object(obj2);
+        
+        names += strlen(names) + 1;
+        num_names--;
+    }
+    
+    *out_object = object;
+    return 1;
+}
+
 int NCDObject_ResolveVarExpr (NCDObject *o, char **names, NCDValue *out_value)
 {
     ASSERT(names)
