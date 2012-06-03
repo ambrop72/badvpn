@@ -1141,6 +1141,10 @@ void process_statement_logfunc (struct process_statement *ps)
 
 void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...)
 {
+    if (!BLog_WouldLog(BLOG_CURRENT_CHANNEL, level)) {
+        return;
+    }
+    
     va_list vl;
     va_start(vl, fmt);
     BLog_LogViaFuncVarArg((BLog_logfunc)process_statement_logfunc, ps, BLOG_CURRENT_CHANNEL, level, fmt, vl);
