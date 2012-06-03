@@ -32,23 +32,12 @@
 #include <string.h>
 
 #include <misc/balloc.h>
+#include <misc/hashfun.h>
 #include <base/BLog.h>
 
 #include "NCDInterpProg.h"
 
 #include <generated/blog_channel_ncd.h>
-
-static size_t djb2_hash (const unsigned char *str)
-{
-    size_t hash = 5381;
-    int c;
-    
-    while (c = *str++) {
-        hash = ((hash << 5) + hash) + c;
-    }
-    
-    return hash;
-}
 
 #include "NCDInterpProg_hash.h"
 #include <structure/CHash_impl.h>
