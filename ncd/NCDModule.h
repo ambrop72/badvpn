@@ -296,12 +296,9 @@ typedef struct NCDModuleInst_s {
     void *user;
     const struct NCDModuleInst_params *params;
     const struct NCDModuleInst_iparams *iparams;
-    BPending init_job;
-    BPending uninit_job;
-    BPending die_job;
-    BPending clean_job;
-    int state;
     void *inst_user;
+    BPending job;
+    int state;
     int is_error;
     DebugObject d_obj;
 } NCDModuleInst;
