@@ -953,17 +953,12 @@ void process_advance (struct process *p)
     
     NCDObject object;
     NCDObject *object_ptr = NULL;
-    const char *type;
     
     char **object_names = NCDInterpBlock_StatementObjNames(p->iblock, p->ap);
-    const char *method_name = NCDInterpBlock_StatementCmdName(p->iblock, p->ap);
+    const char *type = NCDInterpBlock_StatementCmdName(p->iblock, p->ap);
     
-    if (!object_names) {
-        // this is a function_call(); type is "function_call"
-        type = method_name;
-    } else {
-        // this is a some.object.somewhere->method_call(); type is "base_type(some.object.somewhere)::method_call"
-        
+    // if this is a method-like statement, type is really "base_type(object)::method_name"
+    if (object_names) {
         // get object
         if (!process_resolve_object_expr(p, p->ap, object_names, &object)) {
             goto fail;
@@ -978,7 +973,7 @@ void process_advance (struct process *p)
         }
         
         // build type string
-        int res = snprintf(method_concat_buf, sizeof(method_concat_buf), "%s::%s", object_type, method_name);
+        int res = snprintf(method_concat_buf, sizeof(method_concat_buf), "%s::%s", object_type, type);
         if (res >= sizeof(method_concat_buf) || res < 0) {
             process_statement_log(ps, BLOG_ERROR, "type/method name too long");
             goto fail;
