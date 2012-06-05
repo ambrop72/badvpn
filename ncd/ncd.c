@@ -93,7 +93,6 @@ struct process {
     NCDInterpBlock *iblock;
     NCDModuleProcess *module_process;
     BTimer wait_timer;
-    BPending advance_job;
     BPending work_job;
     LinkedList1Node list_node; // node in processes
     int state;
@@ -166,7 +165,7 @@ static void process_logfunc (struct process *p);
 static void process_log (struct process *p, int level, const char *fmt, ...);
 static void process_schedule_work (struct process *p);
 static void process_work_job_handler (struct process *p);
-static void process_advance_job_handler (struct process *p);
+static void process_advance (struct process *p);
 static void process_wait_timer_handler (struct process *p);
 static int process_find_object (struct process *p, int pos, const char *name, NCDObject *out_object);
 static int process_resolve_object_expr (struct process *p, int pos, char **names, NCDObject *out_object);
@@ -703,9 +702,6 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
     // init timer
     BTimer_Init(&p->wait_timer, 0, (BTimer_handler)process_wait_timer_handler, p);
     
-    // init advance job
-    BPending_Init(&p->advance_job, BReactor_PendingGroup(&ss), (BPending_handler)process_advance_job_handler, p);
-    
     // init work job
     BPending_Init(&p->work_job, BReactor_PendingGroup(&ss), (BPending_handler)process_work_job_handler, p);
     
@@ -737,9 +733,6 @@ void process_free (struct process *p)
     
     // free work job
     BPending_Free(&p->work_job);
-    
-    // free advance job
-    BPending_Free(&p->advance_job);
     
     // free timer
     BReactor_RemoveTimer(&ss, &p->wait_timer);
@@ -813,9 +806,6 @@ void process_schedule_work (struct process *p)
     // stop timer
     BReactor_RemoveTimer(&ss, &p->wait_timer);
     
-    // stop advance job
-    BPending_Unset(&p->advance_job);
-    
     // schedule work
     BPending_Set(&p->work_job);
 }
@@ -824,7 +814,6 @@ void process_work_job_handler (struct process *p)
 {
     process_assert_pointers(p);
     ASSERT(!BTimer_IsRunning(&p->wait_timer))
-    ASSERT(!BPending_IsSet(&p->advance_job))
     
     if (p->state == PSTATE_WAITING) {
         return;
@@ -926,8 +915,8 @@ void process_work_job_handler (struct process *p)
             // set wait timer
             BReactor_SetTimerAbsolute(&ss, &p->wait_timer, ps->error_until);
         } else {
-            // schedule advance
-            BPending_Set(&p->advance_job);
+            // advance
+            process_advance(p);
         }
         return;
     }
@@ -946,7 +935,7 @@ void process_work_job_handler (struct process *p)
     }
 }
 
-void process_advance_job_handler (struct process *p)
+void process_advance (struct process *p)
 {
     process_assert_pointers(p);
     ASSERT(p->ap == p->fp)
@@ -1041,7 +1030,6 @@ void process_wait_timer_handler (struct process *p)
     ASSERT(p->ap < p->num_statements)
     ASSERT(p->statements[p->ap].have_error)
     ASSERT(!BPending_IsSet(&p->work_job))
-    ASSERT(!BPending_IsSet(&p->advance_job))
     ASSERT(p->state == PSTATE_WORKING)
     
     process_log(p, BLOG_INFO, "retrying");
