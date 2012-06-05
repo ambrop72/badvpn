@@ -35,12 +35,20 @@
 
 #include <misc/debug.h>
 #include <structure/LinkedList1.h>
-#include <structure/BAVL.h>
+#include <structure/CAvl.h>
 
 #define NCDVALUE_STRING 1
 #define NCDVALUE_LIST 2
 #define NCDVALUE_MAP 3
 #define NCDVALUE_VAR 4
+
+typedef struct NCDValue_s NCDValue;
+typedef struct NCDMapElement_s NCDMapElement;
+typedef NCDMapElement *NCDValue__maptree_link;
+typedef NCDValue *NCDValue__maptree_key;
+
+#include "NCDValue_maptree.h"
+#include <structure/CAvl_decl.h>
 
 /**
  * Holds an NCD "value", which is used in the NCD programming when passing arguments to
@@ -58,7 +66,7 @@
  * which proceeds to take ownership of the value), all the structures become invalid.
  * Similarly, if the value is modified via one structure, the others become invalid.
  */
-typedef struct {
+struct NCDValue_s {
     int type;
     union {
         struct {
@@ -70,25 +78,27 @@ typedef struct {
             size_t list_count;
         };
         struct {
-            BAVL map_tree;
+            NCDValue__MapTree map_tree;
             size_t map_count;
         };
         struct {
             char *var_name;
         };
     };
-} NCDValue;
+};
 
 typedef struct {
     LinkedList1Node list_node;
     NCDValue v;
 } NCDListElement;
 
-typedef struct {
-    BAVLNode map_tree_node;
+struct NCDMapElement_s {
+    NCDMapElement *tree_link[2];
+    NCDMapElement *tree_parent;
+    int8_t tree_balance;
     NCDValue key;
     NCDValue val;
-} NCDMapElement;
+};
 
 /**
  * Initializes a value by copying an existing value.
