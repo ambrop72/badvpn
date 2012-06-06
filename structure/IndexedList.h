@@ -38,23 +38,36 @@
 #include <stdint.h>
 
 #include <misc/offset.h>
-#include <structure/BCountAVL.h>
+#include <structure/CAvl.h>
 
 struct _IndexedList_key {
     int is_spec;
     uint64_t spec_key;
 };
 
-typedef struct {
-    BCountAVL tree;
+typedef struct IndexedList_s IndexedList;
+typedef struct IndexedListNode_s IndexedListNode;
+
+typedef struct _IndexedList_key *IndexedList__tree_key;
+typedef IndexedListNode *IndexedList__tree_link;
+typedef IndexedList *IndexedList__tree_arg;
+
+#include "IndexedList_tree.h"
+#include <structure/CAvl_decl.h>
+
+struct IndexedList_s {
+    IndexedList__Tree tree;
     int inserting;
     uint64_t inserting_index;
-} IndexedList;
+};
 
-typedef struct {
+struct IndexedListNode_s {
     struct _IndexedList_key key;
-    BCountAVLNode tree_node;
-} IndexedListNode;
+    IndexedListNode *tree_link[2];
+    IndexedListNode *tree_parent;
+    int8_t tree_balance;
+    uint64_t tree_count;
+};
 
 /**
  * Initializes the indexed list.
@@ -115,7 +128,7 @@ static int _IndexedList_comparator (IndexedList *o, struct _IndexedList_key *k1,
         i1 = k1->spec_key;
     } else {
         IndexedListNode *n1 = UPPER_OBJECT(k1, IndexedListNode, key);
-        i1 = BCountAVL_IndexOf(&o->tree, &n1->tree_node);
+        i1 = IndexedList__Tree_IndexOf(&o->tree, o, IndexedList__Tree_Deref(o, n1));
         if (o->inserting && i1 >= o->inserting_index) {
             i1++;
         }
@@ -126,7 +139,7 @@ static int _IndexedList_comparator (IndexedList *o, struct _IndexedList_key *k1,
         i2 = k2->spec_key;
     } else {
         IndexedListNode *n2 = UPPER_OBJECT(k2, IndexedListNode, key);
-        i2 = BCountAVL_IndexOf(&o->tree, &n2->tree_node);
+        i2 = IndexedList__Tree_IndexOf(&o->tree, o, IndexedList__Tree_Deref(o, n2));
         if (o->inserting && i2 >= o->inserting_index) {
             i2++;
         }
@@ -135,19 +148,22 @@ static int _IndexedList_comparator (IndexedList *o, struct _IndexedList_key *k1,
     return (i1 > i2) - (i1 < i2);
 }
 
+#include "IndexedList_tree.h"
+#include <structure/CAvl_impl.h>
+
 static void IndexedList_Init (IndexedList *o)
 {
-    BCountAVL_Init(&o->tree, OFFSET_DIFF(IndexedListNode, key, tree_node), (BCountAVL_comparator)_IndexedList_comparator, o);
+    IndexedList__Tree_Init(&o->tree);
     o->inserting = 0;
 }
 
 static void IndexedList_InsertAt (IndexedList *o, IndexedListNode *node, uint64_t index)
 {
-    ASSERT(index <= BCountAVL_Count(&o->tree))
-    ASSERT(BCountAVL_Count(&o->tree) < UINT64_MAX - 1)
+    ASSERT(index <= IndexedList__Tree_Count(&o->tree, o))
+    ASSERT(IndexedList__Tree_Count(&o->tree, o) < UINT64_MAX - 1)
     ASSERT(!o->inserting)
     
-    uint64_t orig_count = BCountAVL_Count(&o->tree);
+    uint64_t orig_count = IndexedList__Tree_Count(&o->tree, o);
     
     // give this node the key 'index'
     node->key.is_spec = 1;
@@ -159,7 +175,7 @@ static void IndexedList_InsertAt (IndexedList *o, IndexedListNode *node, uint64_
     o->inserting_index = index;
     
     // insert new node
-    int res = BCountAVL_Insert(&o->tree, &node->tree_node, NULL);
+    int res = IndexedList__Tree_Insert(&o->tree, o, IndexedList__Tree_Deref(o, node), NULL);
     ASSERT(res)
     
     // positions have been updated by insertions, remove position
@@ -169,33 +185,33 @@ static void IndexedList_InsertAt (IndexedList *o, IndexedListNode *node, uint64_
     // node has been inserted, have it assume index of its position
     node->key.is_spec = 0;
     
-    ASSERT(BCountAVL_IndexOf(&o->tree, &node->tree_node) == index)
-    ASSERT(BCountAVL_Count(&o->tree) == orig_count + 1)
-#ifdef BAVL_DEBUG
-    _BCountAVL_assert(&o->tree);
-#endif
+    ASSERT(IndexedList__Tree_IndexOf(&o->tree, o, IndexedList__Tree_Deref(o, node)) == index)
+    ASSERT(IndexedList__Tree_Count(&o->tree, o) == orig_count + 1)
 }
 
 static void IndexedList_Remove (IndexedList *o, IndexedListNode *node)
 {
-    BCountAVL_Remove(&o->tree, &node->tree_node);
+    IndexedList__Tree_Remove(&o->tree, o, IndexedList__Tree_Deref(o, node));
 }
 
 static uint64_t IndexedList_Count (IndexedList *o)
 {
-    return BCountAVL_Count(&o->tree);
+    return IndexedList__Tree_Count(&o->tree, o);
 }
 
 static uint64_t IndexedList_IndexOf (IndexedList *o, IndexedListNode *node)
 {
-    return BCountAVL_IndexOf(&o->tree, &node->tree_node);
+    return IndexedList__Tree_IndexOf(&o->tree, o, IndexedList__Tree_Deref(o, node));
 }
 
 static IndexedListNode * IndexedList_GetAt (IndexedList *o, uint64_t index)
 {
-    ASSERT(index <= BCountAVL_Count(&o->tree))
+    ASSERT(index <= IndexedList__Tree_Count(&o->tree, o))
     
-    return UPPER_OBJECT(BCountAVL_GetAt(&o->tree, index), IndexedListNode, tree_node);
+    IndexedList__TreeNode ref = IndexedList__Tree_GetAt(&o->tree, o, index);
+    ASSERT(ref.link != IndexedList__TreeNullLink)
+    
+    return ref.ptr;
 }
 
 #endif
