@@ -626,14 +626,12 @@ static CAvlCount CAvl_IndexOf (const CAvl *o, CAvlArg arg, CAvlNode node)
     
     CAvlNode paren = CAvl_Deref(arg, CAvl_parent(node));
     
-    for (CAvlNode c = node; paren.link != CAvlNullLink; c = paren) {
+    for (CAvlNode c = node; paren.link != CAvlNullLink; c = paren, paren = CAvl_Deref(arg, CAvl_parent(c))) {
         if (c.link == CAvl_link(paren)[1]) {
             ASSERT(CAvl_count(paren) > CAvl_count(c))
             ASSERT(CAvl_count(paren) - CAvl_count(c) <= CAVL_PARAM_COUNT_MAX - index)
             index += CAvl_count(paren) - CAvl_count(c);
         }
-        
-        paren = CAvl_Deref(arg, CAvl_parent(c));
     }
     
     return index;
