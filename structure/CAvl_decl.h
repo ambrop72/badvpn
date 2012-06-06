@@ -42,10 +42,14 @@ static const CAvlLink CAvlNullLink = CAVL_PARAM_NULL;
 
 static void CAvl_Init (CAvl *o);
 static CAvlNode CAvl_Deref (CAvlArg arg, CAvlLink link);
+#if !CAVL_PARAM_KEYS_ARE_INDICES
 static int CAvl_Insert (CAvl *o, CAvlArg arg, CAvlNode node, CAvlNode *out_ref);
+#endif
 static void CAvl_Remove (CAvl *o, CAvlArg arg, CAvlNode node);
+#if !CAVL_PARAM_KEYS_ARE_INDICES
 static CAvlNode CAvl_Lookup (const CAvl *o, CAvlArg arg, CAvlKey key);
 static CAvlNode CAvl_LookupExact (const CAvl *o, CAvlArg arg, CAvlKey key);
+#endif
 static CAvlNode CAvl_GetFirst (const CAvl *o, CAvlArg arg);
 static CAvlNode CAvl_GetLast (const CAvl *o, CAvlArg arg);
 static CAvlNode CAvl_GetNext (const CAvl *o, CAvlArg arg, CAvlNode node);
@@ -57,6 +61,10 @@ static void CAvl_Verify (const CAvl *o, CAvlArg arg);
 static CAvlCount CAvl_Count (const CAvl *o, CAvlArg arg);
 static CAvlCount CAvl_IndexOf (const CAvl *o, CAvlArg arg, CAvlNode node);
 static CAvlNode CAvl_GetAt (const CAvl *o, CAvlArg arg, CAvlCount index);
+#endif
+
+#if CAVL_PARAM_KEYS_ARE_INDICES
+static void CAvl_InsertAt (CAvl *o, CAvlArg arg, CAvlNode node, CAvlCount index);
 #endif
 
 #include "CAvl_footer.h"

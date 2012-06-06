@@ -43,6 +43,7 @@
 #undef CAVL_PARAM_NODE_BALANCE
 #undef CAVL_PARAM_NODE_PARENT
 #undef CAVL_PARAM_NODE_COUNT
+#undef CAVL_PARAM_KEYS_ARE_INDICES
 
 #undef CAvl
 #undef CAvlEntry
@@ -69,6 +70,7 @@
 #undef CAvl_Count
 #undef CAvl_IndexOf
 #undef CAvl_GetAt
+#undef CAvl_InsertAt
 
 #undef CAvl_link
 #undef CAvl_balance
@@ -87,5 +89,6 @@
 #undef CAvl_replace_subtree_fix_counts
 #undef CAvl_swap_nodes
 #undef CAvl_rebalance
+#undef CAvl_child_count
 #undef CAvl_MAX
 #undef CAvl_OPTNEG
