@@ -40,29 +40,19 @@
 #include <misc/offset.h>
 #include <structure/CAvl.h>
 
-struct _IndexedList_key {
-    int is_spec;
-    uint64_t spec_key;
-};
-
 typedef struct IndexedList_s IndexedList;
 typedef struct IndexedListNode_s IndexedListNode;
 
-typedef struct _IndexedList_key *IndexedList__tree_key;
 typedef IndexedListNode *IndexedList__tree_link;
-typedef IndexedList *IndexedList__tree_arg;
 
 #include "IndexedList_tree.h"
 #include <structure/CAvl_decl.h>
 
 struct IndexedList_s {
     IndexedList__Tree tree;
-    int inserting;
-    uint64_t inserting_index;
 };
 
 struct IndexedListNode_s {
-    struct _IndexedList_key key;
     IndexedListNode *tree_link[2];
     IndexedListNode *tree_parent;
     int8_t tree_balance;
@@ -121,94 +111,47 @@ static uint64_t IndexedList_IndexOf (IndexedList *o, IndexedListNode *node);
  */
 static IndexedListNode * IndexedList_GetAt (IndexedList *o, uint64_t index);
 
-static int _IndexedList_comparator (IndexedList *o, struct _IndexedList_key *k1, struct _IndexedList_key *k2)
-{
-    uint64_t i1;
-    if (k1->is_spec) {
-        i1 = k1->spec_key;
-    } else {
-        IndexedListNode *n1 = UPPER_OBJECT(k1, IndexedListNode, key);
-        i1 = IndexedList__Tree_IndexOf(&o->tree, o, IndexedList__Tree_Deref(o, n1));
-        if (o->inserting && i1 >= o->inserting_index) {
-            i1++;
-        }
-    }
-    
-    uint64_t i2;
-    if (k2->is_spec) {
-        i2 = k2->spec_key;
-    } else {
-        IndexedListNode *n2 = UPPER_OBJECT(k2, IndexedListNode, key);
-        i2 = IndexedList__Tree_IndexOf(&o->tree, o, IndexedList__Tree_Deref(o, n2));
-        if (o->inserting && i2 >= o->inserting_index) {
-            i2++;
-        }
-    }
-    
-    return (i1 > i2) - (i1 < i2);
-}
-
 #include "IndexedList_tree.h"
 #include <structure/CAvl_impl.h>
 
 static void IndexedList_Init (IndexedList *o)
 {
     IndexedList__Tree_Init(&o->tree);
-    o->inserting = 0;
 }
 
 static void IndexedList_InsertAt (IndexedList *o, IndexedListNode *node, uint64_t index)
 {
-    ASSERT(index <= IndexedList__Tree_Count(&o->tree, o))
-    ASSERT(IndexedList__Tree_Count(&o->tree, o) < UINT64_MAX - 1)
-    ASSERT(!o->inserting)
+    ASSERT(index <= IndexedList__Tree_Count(&o->tree, 0))
+    ASSERT(IndexedList__Tree_Count(&o->tree, 0) < UINT64_MAX - 1)
     
-    uint64_t orig_count = IndexedList__Tree_Count(&o->tree, o);
+    uint64_t orig_count = IndexedList__Tree_Count(&o->tree, 0);
     
-    // give this node the key 'index'
-    node->key.is_spec = 1;
-    node->key.spec_key = index;
+    IndexedList__Tree_InsertAt(&o->tree, 0, IndexedList__Tree_Deref(0, node), index);
     
-    // make all existing nodes at positions >='index' assume keys one more
-    // than their positions
-    o->inserting = 1;
-    o->inserting_index = index;
-    
-    // insert new node
-    int res = IndexedList__Tree_Insert(&o->tree, o, IndexedList__Tree_Deref(o, node), NULL);
-    ASSERT(res)
-    
-    // positions have been updated by insertions, remove position
-    // increments
-    o->inserting = 0;
-    
-    // node has been inserted, have it assume index of its position
-    node->key.is_spec = 0;
-    
-    ASSERT(IndexedList__Tree_IndexOf(&o->tree, o, IndexedList__Tree_Deref(o, node)) == index)
-    ASSERT(IndexedList__Tree_Count(&o->tree, o) == orig_count + 1)
+    ASSERT(IndexedList__Tree_IndexOf(&o->tree, 0, IndexedList__Tree_Deref(0, node)) == index)
+    ASSERT(IndexedList__Tree_Count(&o->tree, 0) == orig_count + 1)
 }
 
 static void IndexedList_Remove (IndexedList *o, IndexedListNode *node)
 {
-    IndexedList__Tree_Remove(&o->tree, o, IndexedList__Tree_Deref(o, node));
+    IndexedList__Tree_Remove(&o->tree, 0, IndexedList__Tree_Deref(0, node));
 }
 
 static uint64_t IndexedList_Count (IndexedList *o)
 {
-    return IndexedList__Tree_Count(&o->tree, o);
+    return IndexedList__Tree_Count(&o->tree, 0);
 }
 
 static uint64_t IndexedList_IndexOf (IndexedList *o, IndexedListNode *node)
 {
-    return IndexedList__Tree_IndexOf(&o->tree, o, IndexedList__Tree_Deref(o, node));
+    return IndexedList__Tree_IndexOf(&o->tree, 0, IndexedList__Tree_Deref(0, node));
 }
 
 static IndexedListNode * IndexedList_GetAt (IndexedList *o, uint64_t index)
 {
-    ASSERT(index < IndexedList__Tree_Count(&o->tree, o))
+    ASSERT(index < IndexedList__Tree_Count(&o->tree, 0))
     
-    IndexedList__TreeNode ref = IndexedList__Tree_GetAt(&o->tree, o, index);
+    IndexedList__TreeNode ref = IndexedList__Tree_GetAt(&o->tree, 0, index);
     ASSERT(ref.link != IndexedList__TreeNullLink)
     
     return ref.ptr;
