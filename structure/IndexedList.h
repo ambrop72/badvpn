@@ -206,7 +206,7 @@ static uint64_t IndexedList_IndexOf (IndexedList *o, IndexedListNode *node)
 
 static IndexedListNode * IndexedList_GetAt (IndexedList *o, uint64_t index)
 {
-    ASSERT(index <= IndexedList__Tree_Count(&o->tree, o))
+    ASSERT(index < IndexedList__Tree_Count(&o->tree, o))
     
     IndexedList__TreeNode ref = IndexedList__Tree_GetAt(&o->tree, o, index);
     ASSERT(ref.link != IndexedList__TreeNullLink)
