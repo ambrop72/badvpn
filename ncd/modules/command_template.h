@@ -39,14 +39,11 @@
 #include <ncd/BEventLock.h>
 #include <ncd/NCDModule.h>
 
-#include <generated/blog_channel_ncd_net_iptables.h>
-
 typedef int (*command_template_build_cmdline) (NCDModuleInst *i, int remove, char **exec, CmdLine *cl);
 typedef void (*command_template_free_func) (void *user, int is_error);
 
 typedef struct {
     NCDModuleInst *i;
-    command_template_build_cmdline build_cmdline;
     command_template_free_func free_func;
     void *user;
     int blog_channel;
@@ -56,7 +53,6 @@ typedef struct {
     CmdLine undo_cmdline;
     BEventLockJob elock_job;
     int state;
-    int have_process;
     BProcess process;
 } command_template_instance;
 

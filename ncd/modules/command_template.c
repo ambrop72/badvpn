@@ -45,7 +45,6 @@ static void free_template (command_template_instance *o, int is_error);
 static void lock_handler (command_template_instance *o)
 {
     ASSERT(o->state == STATE_ADDING_LOCK || o->state == STATE_DELETING_LOCK)
-    ASSERT(!o->have_process)
     ASSERT(!(o->state == STATE_ADDING_LOCK) || o->do_exec)
     ASSERT(!(o->state == STATE_DELETING_LOCK) || o->undo_exec)
     
@@ -57,9 +56,6 @@ static void lock_handler (command_template_instance *o)
             return;
         }
         
-        // set have process
-        o->have_process = 1;
-        
         // set state
         o->state = STATE_ADDING;
     } else {
@@ -70,9 +66,6 @@ static void lock_handler (command_template_instance *o)
             return;
         }
         
-        // set have process
-        o->have_process = 1;
-        
         // set state
         o->state = STATE_DELETING;
     }
@@ -80,7 +73,6 @@ static void lock_handler (command_template_instance *o)
 
 static void process_handler (command_template_instance *o, int normally, uint8_t normally_exit_status)
 {
-    ASSERT(o->have_process)
     ASSERT(o->state == STATE_ADDING || o->state == STATE_ADDING_NEED_DELETE || o->state == STATE_DELETING)
     
     // release lock
@@ -88,9 +80,6 @@ static void process_handler (command_template_instance *o, int normally, uint8_t
     
     // free process
     BProcess_Free(&o->process);
-    
-    // set have no process
-    o->have_process = 0;
     
     if (!normally || normally_exit_status != 0) {
         NCDModuleInst_Backend_Log(o->i, o->blog_channel, BLOG_ERROR, "command failed");
@@ -133,28 +122,24 @@ void command_template_new (command_template_instance *o, NCDModuleInst *i, comma
 {
     // init arguments
     o->i = i;
-    o->build_cmdline = build_cmdline;
     o->free_func = free_func;
     o->user = user;
     o->blog_channel = blog_channel;
     
     // build do command
-    if (!o->build_cmdline(o->i, 0, &o->do_exec, &o->do_cmdline)) {
+    if (!build_cmdline(o->i, 0, &o->do_exec, &o->do_cmdline)) {
         NCDModuleInst_Backend_Log(o->i, o->blog_channel, BLOG_ERROR, "build_cmdline do callback failed");
         goto fail0;
     }
     
     // build undo command
-    if (!o->build_cmdline(o->i, 1, &o->undo_exec, &o->undo_cmdline)) {
+    if (!build_cmdline(o->i, 1, &o->undo_exec, &o->undo_cmdline)) {
         NCDModuleInst_Backend_Log(o->i, o->blog_channel, BLOG_ERROR, "build_cmdline undo callback failed");
         goto fail1;
     }
     
     // init lock job
     BEventLockJob_Init(&o->elock_job, elock, (BEventLock_handler)lock_handler, o);
-    
-    // set have no process
-    o->have_process = 0;
     
     if (o->do_exec) {
         // wait for lock
@@ -183,8 +168,6 @@ fail0:
 
 static void free_template (command_template_instance *o, int is_error)
 {
-    ASSERT(!o->have_process)
-    
     // free lock job
     BEventLockJob_Free(&o->elock_job);
     
@@ -210,22 +193,16 @@ void command_template_die (command_template_instance *o)
     
     switch (o->state) {
         case STATE_ADDING_LOCK: {
-            ASSERT(!o->have_process)
-            
             free_template(o, 0);
             return;
         } break;
         
         case STATE_ADDING: {
-            ASSERT(o->have_process)
-            
             // set state
             o->state = STATE_ADDING_NEED_DELETE;
         } break;
         
         case STATE_DONE: {
-            ASSERT(!o->have_process)
-            
             if (o->undo_exec) {
                 // wait for lock
                 BEventLockJob_Wait(&o->elock_job);
