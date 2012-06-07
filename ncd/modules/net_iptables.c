@@ -28,13 +28,14 @@
  * 
  * @section DESCRIPTION
  * 
- * iptables module.
+ * iptables and ebtables module.
  * 
- * Note that all iptables commands (in general) must be issued synchronously, or
- * the kernel may randomly report errors if there is another iptables command in progress.
- * To solve this, the NCD process contains a single "iptables lock". All iptables commands
- * exposed here go through that lock.
- * In case you wish to call iptables directly, the lock is exposed via net.iptables.lock().
+ * Note that all iptables/ebtables commands (in general) must be issued synchronously, or
+ * the kernel may randomly report errors if there is another iptables/ebtables command in
+ * progress. To solve this, the NCD process contains a single "iptables lock". All
+ * iptables/ebtables commands exposed here go through that lock.
+ * In case you wish to call iptables/ebtables directly, the lock is exposed via
+ * net.iptables.lock().
  * 
  * Synopsis:
  *   net.iptables.append(string table, string chain, string arg1  ...)
@@ -49,27 +50,46 @@
  *   deinit: iptables -t table -P chain revert_target
  * 
  * Synopsis:
- *   net.iptables.newchain(string chain)
+ *   net.iptables.newchain(string table, string chain)
+ *   net.iptables.newchain(string chain) // DEPRECATED, defaults to table="filter"
  * Description:
- *   init:   iptables -N chain
- *   deinit: iptables -X chain
+ *   init:   iptables -t table -N chain
+ *   deinit: iptables -t table -X chain
+ * 
+ * Synopsis:
+ *   net.ebtables.append(string table, string chain, string arg1 ...)
+ * Description:
+ *   init:   ebtables -t table -A chain arg1 ...
+ *   deinit: ebtables -t table -D chain arg1 ...
+ * 
+ * Synopsis:
+ *   net.ebtables.policy(string table, string chain, string target, string revert_target)
+ * Description:
+ *   init:   ebtables -t table -P chain target
+ *   deinit: ebtables -t table -P chain revert_target
+ * 
+ * Synopsis:
+ *   net.ebtables.newchain(string table, string chain)
+ * Description:
+ *   init:   ebtables -t table -N chain
+ *   deinit: ebtables -t table -X chain
  * 
  * Synopsis:
  *   net.iptables.lock()
  * Description:
- *   Use at the beginning of a block of custom iptables commands to make sure
- *   they do not interfere with other iptables commands.
+ *   Use at the beginning of a block of custom iptables/ebtables commands to make sure
+ *   they do not interfere with other iptables/ebtables commands.
  *   WARNING: improper usage of the lock can lead to deadlock. In particular:
- *   - Do not call any of the iptables wrappers above from a lock section; those
- *     will attempt to aquire the lock themselves.
+ *   - Do not call any of the iptables/ebtables wrappers above from a lock section;
+ *     those will attempt to aquire the lock themselves.
  *   - Do not enter another lock section from a lock section.
  *   - Do not perform any potentially long wait from a lock section.
  * 
  * Synopsis:
  *   net.iptables.lock::unlock()
  * Description:
- *   Use at the end of a block of custom iptables commands to make sure
- *   they do not interfere with other iptables commands.
+ *   Use at the end of a block of custom iptables/ebtables commands to make sure
+ *   they do not interfere with other iptables/ebtables commands.
  */
 
 #include <stdlib.h>
@@ -77,6 +97,7 @@
 #include <unistd.h>
 
 #include <misc/debug.h>
+#include <misc/find_program.h>
 #include <ncd/BEventLock.h>
 
 #include <ncd/modules/command_template.h>
@@ -84,9 +105,6 @@
 #include <generated/blog_channel_ncd_net_iptables.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
-
-#define IPTABLES_PATH "/sbin/iptables"
-#define IPTABLES_PATH2 "/usr/sbin/iptables"
 
 static void template_free_func (void *vo, int is_error);
 
@@ -118,21 +136,7 @@ struct unlock_instance {
 
 static void unlock_free (struct unlock_instance *o);
 
-static const char *find_iptables (NCDModuleInst *i)
-{
-    if (access(IPTABLES_PATH, X_OK) == 0) {
-        return IPTABLES_PATH;
-    }
-    
-    if (access(IPTABLES_PATH2, X_OK) == 0) {
-        return IPTABLES_PATH2;
-    }
-    
-    ModuleLog(i, BLOG_ERROR, "failed to find iptables (tried "IPTABLES_PATH" and "IPTABLES_PATH2")");
-    return NULL;
-}
-
-static int build_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+static int build_append_cmdline (NCDModuleInst *i, const char *prog, int remove, char **exec, CmdLine *cl)
 {
     // read arguments
     NCDValue *table_arg;
@@ -148,15 +152,9 @@ static int build_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdL
     char *table = NCDValue_StringValue(table_arg);
     char *chain = NCDValue_StringValue(chain_arg);
     
-    // find iptables
-    const char *iptables_path = find_iptables(i);
-    if (!iptables_path) {
-        goto fail0;
-    }
-    
-    // alloc exec
-    if (!(*exec = strdup(iptables_path))) {
-        ModuleLog(i, BLOG_ERROR, "strdup failed");
+    // find program
+    if (!(*exec = badvpn_find_program(prog))) {
+        ModuleLog(i, BLOG_ERROR, "failed to find program: %s", prog);
         goto fail0;
     }
     
@@ -167,7 +165,7 @@ static int build_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdL
     }
     
     // add header
-    if (!CmdLine_Append(cl, iptables_path) || !CmdLine_Append(cl, "-t") || !CmdLine_Append(cl, table) || !CmdLine_Append(cl, (remove ? "-D" : "-A")) || !CmdLine_Append(cl, chain)) {
+    if (!CmdLine_Append(cl, *exec) || !CmdLine_Append(cl, "-t") || !CmdLine_Append(cl, table) || !CmdLine_Append(cl, (remove ? "-D" : "-A")) || !CmdLine_Append(cl, chain)) {
         ModuleLog(i, BLOG_ERROR, "CmdLine_Append failed");
         goto fail2;
     }
@@ -204,7 +202,7 @@ fail0:
     return 0;
 }
 
-static int build_policy_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+static int build_policy_cmdline (NCDModuleInst *i, const char *prog, int remove, char **exec, CmdLine *cl)
 {
     // read arguments
     NCDValue *table_arg;
@@ -226,15 +224,9 @@ static int build_policy_cmdline (NCDModuleInst *i, int remove, char **exec, CmdL
     char *target = NCDValue_StringValue(target_arg);
     char *revert_target = NCDValue_StringValue(revert_target_arg);
     
-    // find iptables
-    const char *iptables_path = find_iptables(i);
-    if (!iptables_path) {
-        goto fail0;
-    }
-    
-    // alloc exec
-    if (!(*exec = strdup(iptables_path))) {
-        ModuleLog(i, BLOG_ERROR, "strdup failed");
+    // find program
+    if (!(*exec = badvpn_find_program(prog))) {
+        ModuleLog(i, BLOG_ERROR, "failed to find program: %s", prog);
         goto fail0;
     }
     
@@ -245,7 +237,7 @@ static int build_policy_cmdline (NCDModuleInst *i, int remove, char **exec, CmdL
     }
     
     // add arguments
-    if (!CmdLine_Append(cl, iptables_path) || !CmdLine_Append(cl, "-t") || !CmdLine_Append(cl, table) ||
+    if (!CmdLine_Append(cl, *exec) || !CmdLine_Append(cl, "-t") || !CmdLine_Append(cl, table) ||
         !CmdLine_Append(cl, "-P") || !CmdLine_Append(cl, chain) || !CmdLine_Append(cl, (remove ? revert_target : target))) {
         ModuleLog(i, BLOG_ERROR, "CmdLine_Append failed");
         goto fail2;
@@ -267,29 +259,25 @@ fail0:
     return 0;
 }
 
-static int build_newchain_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+static int build_newchain_cmdline (NCDModuleInst *i, const char *prog, int remove, char **exec, CmdLine *cl)
 {
     // read arguments
+    NCDValue *table_arg = NULL;
     NCDValue *chain_arg;
-    if (!NCDValue_ListRead(i->args, 1, &chain_arg)) {
+    if (!NCDValue_ListRead(i->args, 1, &chain_arg) && !NCDValue_ListRead(i->args, 2, &table_arg, &chain_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(chain_arg)) {
+    if ((table_arg && !NCDValue_IsStringNoNulls(table_arg)) || !NCDValue_IsStringNoNulls(chain_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
+    char *table = (!table_arg ? "filter" : NCDValue_StringValue(table_arg));
     char *chain = NCDValue_StringValue(chain_arg);
     
-    // find iptables
-    const char *iptables_path = find_iptables(i);
-    if (!iptables_path) {
-        goto fail0;
-    }
-    
-    // alloc exec
-    if (!(*exec = strdup(iptables_path))) {
-        ModuleLog(i, BLOG_ERROR, "strdup failed");
+    // find program
+    if (!(*exec = badvpn_find_program(prog))) {
+        ModuleLog(i, BLOG_ERROR, "failed to find program: %s", prog);
         goto fail0;
     }
     
@@ -300,7 +288,7 @@ static int build_newchain_cmdline (NCDModuleInst *i, int remove, char **exec, Cm
     }
     
     // add arguments
-    if (!CmdLine_AppendMulti(cl, 3, iptables_path, (remove ? "-X" : "-N"), chain)) {
+    if (!CmdLine_AppendMulti(cl, 5, *exec, "-t", table, (remove ? "-X" : "-N"), chain)) {
         ModuleLog(i, BLOG_ERROR, "CmdLine_AppendMulti failed");
         goto fail2;
     }
@@ -319,6 +307,36 @@ fail1:
     free(*exec);
 fail0:
     return 0;
+}
+
+static int build_iptables_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+{
+    return build_append_cmdline(i, "iptables", remove, exec, cl);
+}
+
+static int build_iptables_policy_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+{
+    return build_policy_cmdline(i, "iptables", remove, exec, cl);
+}
+
+static int build_iptables_newchain_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+{
+    return build_newchain_cmdline(i, "iptables", remove, exec, cl);
+}
+
+static int build_ebtables_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+{
+    return build_append_cmdline(i, "ebtables", remove, exec, cl);
+}
+
+static int build_ebtables_policy_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+{
+    return build_policy_cmdline(i, "ebtables", remove, exec, cl);
+}
+
+static int build_ebtables_newchain_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+{
+    return build_newchain_cmdline(i, "ebtables", remove, exec, cl);
 }
 
 static void lock_job_handler (struct lock_instance *o)
@@ -396,19 +414,34 @@ void template_free_func (void *vo, int is_error)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void append_func_new (NCDModuleInst *i)
+static void append_iptables_func_new (NCDModuleInst *i)
 {
-    func_new(i, build_append_cmdline);
+    func_new(i, build_iptables_append_cmdline);
 }
 
-static void policy_func_new (NCDModuleInst *i)
+static void policy_iptables_func_new (NCDModuleInst *i)
 {
-    func_new(i, build_policy_cmdline);
+    func_new(i, build_iptables_policy_cmdline);
 }
 
-static void newchain_func_new (NCDModuleInst *i)
+static void newchain_iptables_func_new (NCDModuleInst *i)
 {
-    func_new(i, build_newchain_cmdline);
+    func_new(i, build_iptables_newchain_cmdline);
+}
+
+static void append_ebtables_func_new (NCDModuleInst *i)
+{
+    func_new(i, build_ebtables_append_cmdline);
+}
+
+static void policy_ebtables_func_new (NCDModuleInst *i)
+{
+    func_new(i, build_ebtables_policy_cmdline);
+}
+
+static void newchain_ebtables_func_new (NCDModuleInst *i)
+{
+    func_new(i, build_ebtables_newchain_cmdline);
 }
 
 static void func_die (void *vo)
@@ -561,15 +594,27 @@ static void unlock_free (struct unlock_instance *o)
 static const struct NCDModule modules[] = {
     {
         .type = "net.iptables.append",
-        .func_new = append_func_new,
+        .func_new = append_iptables_func_new,
         .func_die = func_die
     }, {
         .type = "net.iptables.policy",
-        .func_new = policy_func_new,
+        .func_new = policy_iptables_func_new,
         .func_die = func_die
     }, {
         .type = "net.iptables.newchain",
-        .func_new = newchain_func_new,
+        .func_new = newchain_iptables_func_new,
+        .func_die = func_die
+    }, {
+        .type = "net.ebtables.append",
+        .func_new = append_ebtables_func_new,
+        .func_die = func_die
+    }, {
+        .type = "net.ebtables.policy",
+        .func_new = policy_ebtables_func_new,
+        .func_die = func_die
+    }, {
+        .type = "net.ebtables.newchain",
+        .func_new = newchain_ebtables_func_new,
         .func_die = func_die
     }, {
         .type = "net.iptables.lock",
