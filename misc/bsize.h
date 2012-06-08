@@ -144,7 +144,7 @@ bsize_t bsize_mul (bsize_t s1, bsize_t s2)
 {
     bsize_t s;
     
-    if (s1.is_overflow || s2.is_overflow || s2.value > SIZE_MAX / s1.value) {
+    if (s1.is_overflow || s2.is_overflow || (s1.value != 0 && s2.value > SIZE_MAX / s1.value)) {
         s.is_overflow = 1;
     } else {
         s.is_overflow = 0;
