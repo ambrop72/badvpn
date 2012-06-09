@@ -49,19 +49,19 @@
 static void func_new (NCDModuleInst *i)
 {
     // check arguments
-    NCDValue *exit_code_arg;
-    if (!NCDValue_ListRead(i->args, 1, &exit_code_arg)) {
+    NCDValRef exit_code_arg;
+    if (!NCDVal_ListRead(i->args, 1, &exit_code_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(exit_code_arg)) {
+    if (!NCDVal_IsStringNoNulls(exit_code_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     // parse exit code
     uintmax_t exit_code;
-    if (!parse_unsigned_integer(NCDValue_StringValue(exit_code_arg), &exit_code) || exit_code >= INT_MAX) {
+    if (!parse_unsigned_integer(NCDVal_StringValue(exit_code_arg), &exit_code) || exit_code >= INT_MAX) {
         ModuleLog(i, BLOG_ERROR, "wrong exit code value");
         goto fail0;
     }

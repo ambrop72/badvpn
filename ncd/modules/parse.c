@@ -54,13 +54,14 @@
 
 struct instance {
     NCDModuleInst *i;
-    NCDValue value;
+    NCDValMem mem;
+    NCDValRef value;
     int succeeded;
 };
 
-typedef int (*parse_func) (NCDModuleInst *i, const char *str, NCDValue *out_value);
+typedef int (*parse_func) (NCDModuleInst *i, const char *str, NCDValMem *mem, NCDValRef *out);
 
-static int parse_number (NCDModuleInst *i, const char *str, NCDValue *out_value)
+static int parse_number (NCDModuleInst *i, const char *str, NCDValMem *mem, NCDValRef *out)
 {
     uintmax_t n;
     if (!parse_unsigned_integer(str, &n)) {
@@ -69,19 +70,20 @@ static int parse_number (NCDModuleInst *i, const char *str, NCDValue *out_value)
     }
     
     char buf[25];
-    sprintf(buf, "%"PRIuMAX, n);
+    snprintf(buf, sizeof(buf), "%"PRIuMAX, n);
     
-    if (!NCDValue_InitString(out_value, buf)) {
-        ModuleLog(i, BLOG_ERROR, "NCDValue_InitString failed");
+    *out = NCDVal_NewString(mem, buf);
+    if (NCDVal_IsInvalid(*out)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_NewString failed");
         return 0;
     }
     
     return 1;
 }
 
-static int parse_value (NCDModuleInst *i, const char *str, NCDValue *out_value)
+static int parse_value (NCDModuleInst *i, const char *str, NCDValMem *mem, NCDValRef *out)
 {
-    if (!NCDValueParser_Parse(str, strlen(str), out_value)) {
+    if (!NCDValParser_Parse(str, strlen(str), mem, out)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse value");
         return 0;
     }
@@ -89,7 +91,7 @@ static int parse_value (NCDModuleInst *i, const char *str, NCDValue *out_value)
     return 1;
 }
 
-static int parse_ipv4_addr (NCDModuleInst *i, const char *str, NCDValue *out_value)
+static int parse_ipv4_addr (NCDModuleInst *i, const char *str, NCDValMem *mem, NCDValRef *out)
 {
     uint32_t addr;
     if (!ipaddr_parse_ipv4_addr((char *)str, &addr)) {
@@ -102,8 +104,9 @@ static int parse_ipv4_addr (NCDModuleInst *i, const char *str, NCDValue *out_val
     char buf[20];
     sprintf(buf, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, x[0], x[1], x[2], x[3]);
     
-    if (!NCDValue_InitString(out_value, buf)) {
-        ModuleLog(i, BLOG_ERROR, "NCDValue_InitString failed");
+    *out = NCDVal_NewString(mem, buf);
+    if (NCDVal_IsInvalid(*out)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_NewString failed");
         return 0;
     }
     
@@ -122,22 +125,25 @@ static void new_templ (NCDModuleInst *i, parse_func pfunc)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
-    NCDValue *str_arg;
-    if (!NCDValue_ListRead(i->args, 1, &str_arg)) {
+    NCDValRef str_arg;
+    if (!NCDVal_ListRead(i->args, 1, &str_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(str_arg) != NCDVALUE_STRING) {
+    if (!NCDVal_IsString(str_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
     
+    // init mem
+    NCDValMem_Init(&o->mem);
+    
     // parse
-    if (NCDValue_StringHasNulls(str_arg)) {
+    if (NCDVal_StringHasNulls(str_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "string has nulls");
         o->succeeded = 0;
     } else {
-        o->succeeded = pfunc(i, NCDValue_StringValue(str_arg), &o->value);
+        o->succeeded = pfunc(i, NCDVal_StringValue(str_arg), &o->mem, &o->value);
     }
     
     // signal up
@@ -156,10 +162,8 @@ static void func_die (void *vo)
     struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
-    // free value
-    if (o->succeeded) {
-        NCDValue_Free(&o->value);
-    }
+    // free mem
+    NCDValMem_Free(&o->mem);
     
     // free instance
     free(o);
@@ -167,23 +171,23 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out_value)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
     if (!strcmp(name, "succeeded")) {
         const char *str = o->succeeded ? "true" : "false";
-        if (!NCDValue_InitString(out_value, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
         return 1;
     }
     
     if (o->succeeded && !strcmp(name, "")) {
-        if (!NCDValue_InitCopy(out_value, &o->value)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-            return 0;
+        *out = NCDVal_NewCopy(mem, o->value);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
         }
         return 1;
     }

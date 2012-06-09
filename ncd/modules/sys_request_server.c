@@ -103,9 +103,9 @@
 
 struct instance {
     NCDModuleInst *i;
-    char *unix_socket_path;
-    char *request_handler_template;
-    NCDValue *args;
+    const char *unix_socket_path;
+    const char *request_handler_template;
+    NCDValRef args;
     BListener listener;
     LinkedList0 connections_list;
     int dying;
@@ -134,7 +134,8 @@ struct request {
     struct connection *con;
     uint32_t request_id;
     LinkedList0Node requests_list_node;
-    NCDValue request_data;
+    NCDValMem request_data_mem;
+    NCDValRef request_data;
     struct reply *end_reply;
     NCDModuleProcess process;
     int terminating;
@@ -161,13 +162,13 @@ static void request_free (struct request *r);
 static struct request * find_request (struct connection *c, uint32_t request_id);
 static void request_process_handler_event (struct request *r, int event);
 static int request_process_func_getspecialobj (struct request *r, const char *name, NCDObject *out_object);
-static int request_process_request_obj_func_getvar (struct request *r, const char *name, NCDValue *out_value);
+static int request_process_request_obj_func_getvar (struct request *r, const char *name, NCDValMem *mem, NCDValRef *out_value);
 static void request_terminate (struct request *r);
-static struct reply * reply_init (struct connection *c, uint32_t request_id, NCDValue *reply_data);
+static struct reply * reply_init (struct connection *c, uint32_t request_id, NCDValRef reply_data);
 static void reply_start (struct reply *r, uint32_t type);
 static void reply_free (struct reply *r);
 static void reply_send_qflow_if_handler_done (struct reply *r);
-static int init_listen (struct instance *o, NCDValue *listen_addr_arg);
+static int init_listen (struct instance *o, NCDValRef listen_addr_arg);
 static void instance_free (struct instance *o);
 
 static void listener_handler (struct instance *o)
@@ -377,24 +378,19 @@ static int request_init (struct connection *c, uint32_t request_id, const uint8_
     
     LinkedList0_Prepend(&c->requests_list, &r->requests_list_node);
     
-    if (!NCDValueParser_Parse((const char *)data, data_len, &r->request_data)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValueParser_Parse failed");
+    NCDValMem_Init(&r->request_data_mem);
+    
+    if (!NCDValParser_Parse((const char *)data, data_len, &r->request_data_mem, &r->request_data)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDValParser_Parse failed");
         goto fail1;
     }
     
-    if (!(r->end_reply = reply_init(c, request_id, NULL))) {
-        goto fail2;
+    if (!(r->end_reply = reply_init(c, request_id, NCDVal_NewInvalid()))) {
+        goto fail1;
     }
     
-    NCDValue args;
-    if (!NCDValue_InitCopy(&args, o->args)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail3;
-    }
-    
-    if (!NCDModuleProcess_Init(&r->process, o->i, o->request_handler_template, args, r, (NCDModuleProcess_handler_event)request_process_handler_event)) {
+    if (!NCDModuleProcess_Init(&r->process, o->i, o->request_handler_template, o->args, r, (NCDModuleProcess_handler_event)request_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
-        NCDValue_Free(&args);
         goto fail3;
     }
     
@@ -408,9 +404,8 @@ static int request_init (struct connection *c, uint32_t request_id, const uint8_
     
 fail3:
     reply_free(r->end_reply);
-fail2:
-    NCDValue_Free(&r->request_data);
 fail1:
+    NCDValMem_Free(&r->request_data_mem);
     LinkedList0_Remove(&c->requests_list, &r->requests_list_node);
     free(r);
 fail0:
@@ -428,7 +423,7 @@ static void request_free (struct request *r)
     }
     
     NCDModuleProcess_Free(&r->process);
-    NCDValue_Free(&r->request_data);
+    NCDValMem_Free(&r->request_data_mem);
     LinkedList0_Remove(&c->requests_list, &r->requests_list_node);
     free(r);
 }
@@ -490,14 +485,14 @@ static int request_process_func_getspecialobj (struct request *r, const char *na
     return 0;
 }
 
-static int request_process_request_obj_func_getvar (struct request *r, const char *name, NCDValue *out_value)
+static int request_process_request_obj_func_getvar (struct request *r, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = r->con->inst;
     
     if (!strcmp(name, "data")) {
-        if (!NCDValue_InitCopy(out_value, &r->request_data)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-            return 0;
+        *out = NCDVal_NewCopy(mem, r->request_data);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
         }
         return 1;
     }
@@ -513,9 +508,9 @@ static int request_process_request_obj_func_getvar (struct request *r, const cha
                 break;
         }
         
-        if (!NCDValue_InitString(out_value, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
         return 1;
     }
@@ -532,9 +527,9 @@ static int request_process_request_obj_func_getvar (struct request *r, const cha
             } break;
         }
         
-        if (!NCDValue_InitString(out_value, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
         return 1;
     }
@@ -551,10 +546,11 @@ static void request_terminate (struct request *r)
     r->terminating = 1;
 }
 
-static struct reply * reply_init (struct connection *c, uint32_t request_id, NCDValue *reply_data)
+static struct reply * reply_init (struct connection *c, uint32_t request_id, NCDValRef reply_data)
 {
     struct instance *o = c->inst;
     ASSERT(c->state == CONNECTION_STATE_RUNNING)
+    NCDVal_Assert(reply_data);
     
     struct reply *r = malloc(sizeof(*r));
     if (!r) {
@@ -587,8 +583,8 @@ static struct reply * reply_init (struct connection *c, uint32_t request_id, NCD
         goto fail2;
     }
     
-    if (reply_data && !NCDValueGenerator_AppendGenerate(reply_data, &str)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValueGenerator_AppendGenerate failed");
+    if (!NCDVal_IsInvalid(reply_data) && !NCDValGenerator_AppendGenerate(reply_data, &str)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDValGenerator_AppendGenerate failed");
         goto fail2;
     }
     
@@ -646,36 +642,38 @@ static void reply_send_qflow_if_handler_done (struct reply *r)
     reply_free(r);
 }
 
-static int init_listen (struct instance *o, NCDValue *listen_addr_arg)
+static int init_listen (struct instance *o, NCDValRef listen_addr_arg)
 {
-    if (NCDValue_Type(listen_addr_arg) != NCDVALUE_LIST) {
+    ASSERT(!NCDVal_IsInvalid(listen_addr_arg))
+    
+    if (!NCDVal_IsList(listen_addr_arg)) {
         goto bad;
     }
     
-    if (NCDValue_ListCount(listen_addr_arg) < 1) {
+    if (NCDVal_ListCount(listen_addr_arg) < 1) {
         goto bad;
     }
-    NCDValue *type_arg = NCDValue_ListFirst(listen_addr_arg);
+    NCDValRef type_arg = NCDVal_ListGet(listen_addr_arg, 0);
     
-    if (!NCDValue_IsStringNoNulls(type_arg)) {
+    if (!NCDVal_IsStringNoNulls(type_arg)) {
         goto bad;
     }
-    const char *type = NCDValue_StringValue(type_arg);
+    const char *type = NCDVal_StringValue(type_arg);
     
     o->unix_socket_path = NULL;
     
     if (!strcmp(type, "unix")) {
-        NCDValue *socket_path_arg;
-        if (!NCDValue_ListRead(listen_addr_arg, 2, &type_arg, &socket_path_arg)) {
+        NCDValRef socket_path_arg;
+        if (!NCDVal_ListRead(listen_addr_arg, 2, &type_arg, &socket_path_arg)) {
             goto bad;
         }
         
-        if (!NCDValue_IsStringNoNulls(socket_path_arg)) {
+        if (!NCDVal_IsStringNoNulls(socket_path_arg)) {
             goto bad;
         }
         
         // remember socket path
-        o->unix_socket_path = NCDValue_StringValue(socket_path_arg);
+        o->unix_socket_path = NCDVal_StringValue(socket_path_arg);
         
         // make sure socket file doesn't exist
         if (unlink(o->unix_socket_path) < 0 && errno != ENOENT) {
@@ -690,23 +688,23 @@ static int init_listen (struct instance *o, NCDValue *listen_addr_arg)
         }
     }
     else if (!strcmp(type, "tcp")) {
-        NCDValue *ip_address_arg;
-        NCDValue *port_number_arg;
-        if (!NCDValue_ListRead(listen_addr_arg, 3, &type_arg, &ip_address_arg, &port_number_arg)) {
+        NCDValRef ip_address_arg;
+        NCDValRef port_number_arg;
+        if (!NCDVal_ListRead(listen_addr_arg, 3, &type_arg, &ip_address_arg, &port_number_arg)) {
             goto bad;
         }
         
-        if (!NCDValue_IsStringNoNulls(ip_address_arg) || !NCDValue_IsStringNoNulls(port_number_arg)) {
+        if (!NCDVal_IsStringNoNulls(ip_address_arg) || !NCDVal_IsStringNoNulls(port_number_arg)) {
             goto bad;
         }
         
         BIPAddr ipaddr;
-        if (!BIPAddr_Resolve(&ipaddr, NCDValue_StringValue(ip_address_arg), 1)) {
+        if (!BIPAddr_Resolve(&ipaddr, (char *)NCDVal_StringValue(ip_address_arg), 1)) {
             goto bad;
         }
         
         uintmax_t port;
-        if (!parse_unsigned_integer(NCDValue_StringValue(port_number_arg), &port) || port > UINT16_MAX) {
+        if (!parse_unsigned_integer(NCDVal_StringValue(port_number_arg), &port) || port > UINT16_MAX) {
             goto bad;
         }
         
@@ -715,7 +713,7 @@ static int init_listen (struct instance *o, NCDValue *listen_addr_arg)
         
         // init listener
         if (!BListener_Init(&o->listener, addr, o->i->iparams->reactor, o, (BListener_handler)listener_handler)) {
-            ModuleLog(o->i, BLOG_ERROR, "BListener_InitUnix failed");
+            ModuleLog(o->i, BLOG_ERROR, "BListener_Init failed");
             return 0;
         }
     }
@@ -742,18 +740,18 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
-    NCDValue *listen_addr_arg;
-    NCDValue *request_handler_template_arg;
-    NCDValue *args_arg;
-    if (!NCDValue_ListRead(i->args, 3, &listen_addr_arg, &request_handler_template_arg, &args_arg)) {
+    NCDValRef listen_addr_arg;
+    NCDValRef request_handler_template_arg;
+    NCDValRef args_arg;
+    if (!NCDVal_ListRead(i->args, 3, &listen_addr_arg, &request_handler_template_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(request_handler_template_arg) || NCDValue_Type(args_arg) != NCDVALUE_LIST) {
+    if (!NCDVal_IsStringNoNulls(request_handler_template_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->request_handler_template = NCDValue_StringValue(request_handler_template_arg);
+    o->request_handler_template = NCDVal_StringValue(request_handler_template_arg);
     o->args = args_arg;
     
     // init listener
@@ -829,8 +827,8 @@ static void func_die (void *vo)
 
 static void reply_func_new (NCDModuleInst *i)
 {
-    NCDValue *reply_data;
-    if (!NCDValue_ListRead(i->args, 1, &reply_data)) {
+    NCDValRef reply_data;
+    if (!NCDVal_ListRead(i->args, 1, &reply_data)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail;
     }
@@ -861,7 +859,7 @@ fail:
 
 static void finish_func_new (NCDModuleInst *i)
 {
-    if (!NCDValue_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail;
     }

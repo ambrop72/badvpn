@@ -93,25 +93,34 @@
 #include <inttypes.h>
 
 #include <misc/parse_number.h>
+#include <misc/offset.h>
+#include <structure/IndexedList.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_list.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
+struct elem {
+    IndexedListNode il_node;
+    NCDValMem mem;
+    NCDValRef val;
+};
+
 struct instance {
     NCDModuleInst *i;
-    NCDValue list;
+    IndexedList il;
 };
 
 struct length_instance {
     NCDModuleInst *i;
-    size_t length;
+    uint64_t length;
 };
 
 struct get_instance {
     NCDModuleInst *i;
-    NCDValue value;
+    NCDValMem mem;
+    NCDValRef val;
 };
 
 struct contains_instance {
@@ -122,51 +131,189 @@ struct contains_instance {
 struct find_instance {
     NCDModuleInst *i;
     int is_found;
-    size_t found_pos;
+    uint64_t found_pos;
 };
 
-static int append_list_args (NCDModuleInst *i, NCDValue *list, NCDValue *args)
+static uint64_t list_count (struct instance *o)
 {
-    ASSERT(NCDValue_Type(list) == NCDVALUE_LIST)
-    ASSERT(NCDValue_Type(args) == NCDVALUE_LIST)
+    return IndexedList_Count(&o->il);
+}
+
+static struct elem * insert_value (NCDModuleInst *i, struct instance *o, NCDValRef val, uint64_t idx)
+{
+    ASSERT(idx <= list_count(o))
+    ASSERT(!NCDVal_IsInvalid(val))
     
-    // append contents of list arguments
-    for (NCDValue *arg = NCDValue_ListFirst(args); arg; arg = NCDValue_ListNext(args, arg)) {
-        // check type
-        if (NCDValue_Type(arg) != NCDVALUE_LIST) {
-            ModuleLog(i, BLOG_ERROR, "wrong type");
-            return 0;
-        }
-        
-        // copy list
-        NCDValue copy;
-        if (!NCDValue_InitCopy(&copy, arg)) {
-            ModuleLog(i, BLOG_ERROR, "NCDValue_InitCopy failed");
-            return 0;
-        }
-        
-        // append
-        if (!NCDValue_ListAppendList(list, copy)) {
-            ModuleLog(i, BLOG_ERROR, "NCDValue_ListAppendList failed");
-            NCDValue_Free(&copy);
-            return 0;
+    struct elem *e = malloc(sizeof(*e));
+    if (!e) {
+        ModuleLog(i, BLOG_ERROR, "malloc failed");
+        return NULL;
+    }
+    
+    NCDValMem_Init(&e->mem);
+    
+    e->val = NCDVal_NewCopy(&e->mem, val);
+    if (NCDVal_IsInvalid(e->val)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_NewCopy failed");
+        goto fail1;
+    }
+    
+    IndexedList_InsertAt(&o->il, &e->il_node, idx);
+    
+    return e;
+    
+fail1:
+    NCDValMem_Free(&e->mem);
+    free(e);
+fail0:
+    return NULL;
+}
+
+static void remove_elem (struct instance *o, struct elem *e)
+{
+    IndexedList_Remove(&o->il, &e->il_node);
+    NCDValMem_Free(&e->mem);
+    free(e);
+}
+
+static struct elem * get_elem_at (struct instance *o, uint64_t idx)
+{
+    ASSERT(idx < list_count(o))
+    
+    IndexedListNode *iln = IndexedList_GetAt(&o->il, idx);
+    struct elem *e = UPPER_OBJECT(iln, struct elem, il_node);
+    
+    return e;
+}
+
+static struct elem * get_first_elem (struct instance *o)
+{
+    ASSERT(list_count(o) > 0)
+    
+    IndexedListNode *iln = IndexedList_GetFirst(&o->il);
+    struct elem *e = UPPER_OBJECT(iln, struct elem, il_node);
+    
+    return e;
+}
+
+static struct elem * get_last_elem (struct instance *o)
+{
+    ASSERT(list_count(o) > 0)
+    
+    IndexedListNode *iln = IndexedList_GetLast(&o->il);
+    struct elem *e = UPPER_OBJECT(iln, struct elem, il_node);
+    
+    return e;
+}
+
+static void cut_list_front (struct instance *o, uint64_t count)
+{
+    while (list_count(o) > count) {
+        remove_elem(o, get_first_elem(o));
+    }
+}
+
+static void cut_list_back (struct instance *o, uint64_t count)
+{
+    while (list_count(o) > count) {
+        remove_elem(o, get_last_elem(o));
+    }
+}
+
+static int append_list_contents (NCDModuleInst *i, struct instance *o, NCDValRef args)
+{
+    ASSERT(NCDVal_IsList(args))
+    
+    uint64_t orig_count = list_count(o);
+    
+    size_t append_count = NCDVal_ListCount(args);
+    
+    for (size_t j = 0; j < append_count; j++) {
+        NCDValRef elem = NCDVal_ListGet(args, j);
+        if (!insert_value(i, o, elem, list_count(o))) {
+            goto fail;
         }
     }
     
     return 1;
+    
+fail:
+    cut_list_back(o, orig_count);
+    return 0;
 }
 
-static NCDValue * find_in_list (NCDValue *list, NCDValue *val)
+static int append_list_contents_contents (NCDModuleInst *i, struct instance *o, NCDValRef args)
 {
-    ASSERT(NCDValue_Type(list) == NCDVALUE_LIST)
+    ASSERT(NCDVal_IsList(args))
     
-    for (NCDValue *e = NCDValue_ListFirst(list); e; e = NCDValue_ListNext(list, e)) {
-        if (NCDValue_Compare(e, val) == 0) {
-            return e;
+    uint64_t orig_count = list_count(o);
+    
+    size_t append_count = NCDVal_ListCount(args);
+    
+    for (size_t j = 0; j < append_count; j++) {
+        NCDValRef elem = NCDVal_ListGet(args, j);
+        
+        if (!NCDVal_IsList(elem)) {
+            ModuleLog(i, BLOG_ERROR, "wrong type");
+            goto fail;
+        }
+        
+        if (!append_list_contents(i, o, elem)) {
+            goto fail;
         }
     }
     
+    return 1;
+    
+fail:
+    cut_list_back(o, orig_count);
+    return 0;
+}
+
+static struct elem * find_elem (struct instance *o, NCDValRef val, uint64_t start_idx, uint64_t *out_idx)
+{
+    if (start_idx >= list_count(o)) {
+        return NULL;
+    }
+    
+    for (IndexedListNode *iln = IndexedList_GetAt(&o->il, start_idx); iln; iln = IndexedList_GetNext(&o->il, iln)) {
+        struct elem *e = UPPER_OBJECT(iln, struct elem, il_node);
+        if (NCDVal_Compare(e->val, val) == 0) {
+            if (out_idx) {
+                *out_idx = start_idx;
+            }
+            return e;
+        }
+        start_idx++;
+    }
+    
     return NULL;
+}
+
+static int list_to_value (NCDModuleInst *i, struct instance *o, NCDValMem *mem, NCDValRef *out_val)
+{
+    *out_val = NCDVal_NewList(mem, IndexedList_Count(&o->il));
+    if (NCDVal_IsInvalid(*out_val)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_NewList failed");
+        goto fail;
+    }
+    
+    for (IndexedListNode *iln = IndexedList_GetFirst(&o->il); iln; iln = IndexedList_GetNext(&o->il, iln)) {
+        struct elem *e = UPPER_OBJECT(iln, struct elem, il_node);
+        
+        NCDValRef copy = NCDVal_NewCopy(mem, e->val);
+        if (NCDVal_IsInvalid(copy)) {
+            ModuleLog(i, BLOG_ERROR, "NCDVal_NewCopy failed");
+            goto fail;
+        }
+        
+        NCDVal_ListAppend(*out_val, copy);
+    }
+    
+    return 1;
+    
+fail:
+    return 0;
 }
 
 static void func_new_list (NCDModuleInst *i)
@@ -174,17 +321,17 @@ static void func_new_list (NCDModuleInst *i)
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
     if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        ModuleLog(i, BLOG_ERROR, "malloc failed");
         goto fail0;
     }
+    o->i = i;
     NCDModuleInst_Backend_SetUser(i, o);
     
-    // init arguments
-    o->i = i;
+    // init list
+    IndexedList_Init(&o->il);
     
-    // copy list
-    if (!NCDValue_InitCopy(&o->list, i->args)) {
-        ModuleLog(i, BLOG_ERROR, "NCDValue_InitCopy failed");
+    // append contents
+    if (!append_list_contents(i, o, i->args)) {
         goto fail1;
     }
     
@@ -193,6 +340,7 @@ static void func_new_list (NCDModuleInst *i)
     return;
     
 fail1:
+    cut_list_front(o, 0);
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
@@ -204,29 +352,26 @@ static void func_new_listfrom (NCDModuleInst *i)
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
     if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        ModuleLog(i, BLOG_ERROR, "malloc failed");
         goto fail0;
     }
+    o->i = i;
     NCDModuleInst_Backend_SetUser(i, o);
     
-    // init arguments
-    o->i = i;
-    
     // init list
-    NCDValue_InitList(&o->list);
+    IndexedList_Init(&o->il);
     
-    // append contents of list arguments
-    if (!append_list_args(i, &o->list, i->args)) {
-        goto fail2;
+    // append contents contents
+    if (!append_list_contents_contents(i, o, i->args)) {
+        goto fail1;
     }
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail2:
-    NCDValue_Free(&o->list);
 fail1:
+    cut_list_front(o, 0);
     free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
@@ -238,8 +383,8 @@ static void func_die (void *vo)
     struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
-    // free list
-    NCDValue_Free(&o->list);
+    // free list elements
+    cut_list_front(o, 0);
     
     // free instance
     free(o);
@@ -247,13 +392,12 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitCopy(out, &o->list)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
+        if (!list_to_value(o->i, o, mem, out)) {
             return 0;
         }
         
@@ -262,13 +406,12 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     
     if (!strcmp(name, "length")) {
         char str[64];
-        snprintf(str, sizeof(str), "%zu", NCDValue_ListCount(&o->list));
+        snprintf(str, sizeof(str), "%"PRIu64, list_count(o));
         
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
@@ -278,8 +421,8 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
 static void append_func_new (NCDModuleInst *i)
 {
     // check arguments
-    NCDValue *arg;
-    if (!NCDValue_ListRead(i->args, 1, &arg)) {
+    NCDValRef arg;
+    if (!NCDVal_ListRead(i->args, 1, &arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -288,14 +431,7 @@ static void append_func_new (NCDModuleInst *i)
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
     // append
-    NCDValue v;
-    if (!NCDValue_InitCopy(&v, arg)) {
-        ModuleLog(i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail0;
-    }
-    if (!NCDValue_ListAppend(&mo->list, v)) {
-        NCDValue_Free(&v);
-        ModuleLog(i, BLOG_ERROR, "NCDValue_ListAppend failed");
+    if (!insert_value(i, mo, arg, list_count(mo))) {
         goto fail0;
     }
     
@@ -311,12 +447,12 @@ fail0:
 static void appendv_func_new (NCDModuleInst *i)
 {
     // check arguments
-    NCDValue *arg;
-    if (!NCDValue_ListRead(i->args, 1, &arg)) {
+    NCDValRef arg;
+    if (!NCDVal_ListRead(i->args, 1, &arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (NCDValue_Type(arg) != NCDVALUE_LIST) {
+    if (!NCDVal_IsList(arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
@@ -325,14 +461,7 @@ static void appendv_func_new (NCDModuleInst *i)
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
     // append
-    NCDValue l;
-    if (!NCDValue_InitCopy(&l, arg)) {
-        ModuleLog(i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail0;
-    }
-    if (!NCDValue_ListAppendList(&mo->list, l)) {
-        ModuleLog(i, BLOG_ERROR, "NCDValue_ListAppendList failed");
-        NCDValue_Free(&l);
+    if (!append_list_contents(i, mo, arg)) {
         goto fail0;
     }
     
@@ -359,7 +488,7 @@ static void length_func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    if (!NCDValue_ListRead(o->i->args, 0)) {
+    if (!NCDVal_ListRead(o->i->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
@@ -368,7 +497,7 @@ static void length_func_new (NCDModuleInst *i)
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
     // remember length
-    o->length = NCDValue_ListCount(&mo->list);
+    o->length = list_count(mo);
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
@@ -393,19 +522,18 @@ static void length_func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int length_func_getvar (void *vo, const char *name, NCDValue *out)
+static int length_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct length_instance *o = vo;
     
     if (!strcmp(name, "")) {
         char str[64];
-        snprintf(str, sizeof(str), "%zu", o->length);
+        snprintf(str, sizeof(str), "%"PRIu64, o->length);
         
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
@@ -426,17 +554,17 @@ static void get_func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    NCDValue *index_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &index_arg)) {
+    NCDValRef index_arg;
+    if (!NCDVal_ListRead(o->i->args, 1, &index_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(index_arg)) {
+    if (!NCDVal_IsStringNoNulls(index_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
     uintmax_t index;
-    if (!parse_unsigned_integer(NCDValue_StringValue(index_arg), &index)) {
+    if (!parse_unsigned_integer(NCDVal_StringValue(index_arg), &index)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong value");
         goto fail1;
     }
@@ -445,22 +573,30 @@ static void get_func_new (NCDModuleInst *i)
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
     // check index
-    if (index >= NCDValue_ListCount(&mo->list)) {
+    if (index >= list_count(mo)) {
         ModuleLog(o->i, BLOG_ERROR, "no element at index %"PRIuMAX, index);
         goto fail1;
     }
     
+    // get element
+    struct elem *e = get_elem_at(mo, index);
+    
+    // init mem
+    NCDValMem_Init(&o->mem);
+    
     // copy value
-    if (!NCDValue_InitCopy(&o->value, NCDValue_ListGet(&mo->list, index))) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail1;
+    o->val = NCDVal_NewCopy(&o->mem, e->val);
+    if (NCDVal_IsInvalid(o->val)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
+        goto fail2;
     }
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
-    
     return;
     
+fail2:
+    NCDValMem_Free(&o->mem);
 fail1:
     free(o);
 fail0:
@@ -473,8 +609,8 @@ static void get_func_die (void *vo)
     struct get_instance *o = vo;
     NCDModuleInst *i = o->i;
     
-    // free value
-    NCDValue_Free(&o->value);
+    // free mem
+    NCDValMem_Free(&o->mem);
     
     // free instance
     free(o);
@@ -482,16 +618,15 @@ static void get_func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int get_func_getvar (void *vo, const char *name, NCDValue *out)
+static int get_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct get_instance *o = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitCopy(out, &o->value)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-            return 0;
+        *out = NCDVal_NewCopy(mem, o->val);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
         }
-        
         return 1;
     }
     
@@ -501,7 +636,7 @@ static int get_func_getvar (void *vo, const char *name, NCDValue *out)
 static void shift_func_new (NCDModuleInst *i)
 {
     // check arguments
-    if (!NCDValue_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -509,13 +644,14 @@ static void shift_func_new (NCDModuleInst *i)
     // get method object
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
-    // shift
-    if (!NCDValue_ListFirst(&mo->list)) {
+    // check first
+    if (list_count(mo) == 0) {
         ModuleLog(i, BLOG_ERROR, "list has no elements");
         goto fail0;
     }
-    NCDValue v = NCDValue_ListShift(&mo->list);
-    NCDValue_Free(&v);
+    
+    // remove first
+    remove_elem(mo, get_first_elem(mo));
     
     // signal up
     NCDModuleInst_Backend_Up(i);
@@ -540,8 +676,8 @@ static void contains_func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *value_arg;
-    if (!NCDValue_ListRead(i->args, 1, &value_arg)) {
+    NCDValRef value_arg;
+    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
@@ -550,13 +686,7 @@ static void contains_func_new (NCDModuleInst *i)
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
     // search
-    o->contains = 0;
-    for (NCDValue *v = NCDValue_ListFirst(&mo->list); v; v = NCDValue_ListNext(&mo->list, v)) {
-        if (NCDValue_Compare(v, value_arg) == 0) {
-            o->contains = 1;
-            break;
-        }
-    }
+    o->contains = !!find_elem(mo, value_arg, 0, NULL);
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
@@ -580,18 +710,17 @@ static void contains_func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int contains_func_getvar (void *vo, const char *name, NCDValue *out)
+static int contains_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct contains_instance *o = vo;
     
     if (!strcmp(name, "")) {
         const char *value = (o->contains ? "true" : "false");
         
-        if (!NCDValue_InitString(out, value)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, value);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
@@ -612,20 +741,20 @@ static void find_func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *start_pos_arg;
-    NCDValue *value_arg;
-    if (!NCDValue_ListRead(i->args, 2, &start_pos_arg, &value_arg)) {
+    NCDValRef start_pos_arg;
+    NCDValRef value_arg;
+    if (!NCDVal_ListRead(i->args, 2, &start_pos_arg, &value_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(start_pos_arg)) {
+    if (!NCDVal_IsStringNoNulls(start_pos_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
     
     // read start position
     uintmax_t start_pos;
-    if (!parse_unsigned_integer(NCDValue_StringValue(start_pos_arg), &start_pos)) {
+    if (!parse_unsigned_integer(NCDVal_StringValue(start_pos_arg), &start_pos) || start_pos > UINT64_MAX) {
         ModuleLog(o->i, BLOG_ERROR, "wrong start pos");
         goto fail1;
     }
@@ -633,17 +762,8 @@ static void find_func_new (NCDModuleInst *i)
     // get method object
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
-    // search
-    o->is_found = 0;
-    size_t pos = 0;
-    for (NCDValue *v = NCDValue_ListFirst(&mo->list); v; v = NCDValue_ListNext(&mo->list, v)) {
-        if (pos >= start_pos && NCDValue_Compare(v, value_arg) == 0) {
-            o->is_found = 1;
-            o->found_pos = pos;
-            break;
-        }
-        pos++;
-    }
+    // find
+    o->is_found = !!find_elem(mo, value_arg, start_pos, &o->found_pos);
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
@@ -667,7 +787,7 @@ static void find_func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int find_func_getvar (void *vo, const char *name, NCDValue *out)
+static int find_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct find_instance *o = vo;
     
@@ -675,27 +795,25 @@ static int find_func_getvar (void *vo, const char *name, NCDValue *out)
         char value[64];
         
         if (o->is_found) {
-            snprintf(value, sizeof(value), "%zu", o->found_pos);
+            snprintf(value, sizeof(value), "%"PRIu64, o->found_pos);
         } else {
             snprintf(value, sizeof(value), "none");
         }
         
-        if (!NCDValue_InitString(out, value)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, value);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
     if (!strcmp(name, "found")) {
         const char *value = (o->is_found ? "true" : "false");
         
-        if (!NCDValue_InitString(out, value)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, value);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
@@ -705,19 +823,19 @@ static int find_func_getvar (void *vo, const char *name, NCDValue *out)
 static void removeat_func_new (NCDModuleInst *i)
 {
     // read arguments
-    NCDValue *remove_pos_arg;
-    if (!NCDValue_ListRead(i->args, 1, &remove_pos_arg)) {
+    NCDValRef remove_pos_arg;
+    if (!NCDVal_ListRead(i->args, 1, &remove_pos_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(remove_pos_arg)) {
+    if (!NCDVal_IsStringNoNulls(remove_pos_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     // read position
     uintmax_t remove_pos;
-    if (!parse_unsigned_integer(NCDValue_StringValue(remove_pos_arg), &remove_pos)) {
+    if (!parse_unsigned_integer(NCDVal_StringValue(remove_pos_arg), &remove_pos)) {
         ModuleLog(i, BLOG_ERROR, "wrong pos");
         goto fail0;
     }
@@ -726,21 +844,13 @@ static void removeat_func_new (NCDModuleInst *i)
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
     // check position
-    if (remove_pos >= NCDValue_ListCount(&mo->list)) {
+    if (remove_pos >= list_count(mo)) {
         ModuleLog(i, BLOG_ERROR, "pos out of range");
         goto fail0;
     }
     
-    // find and remove
-    size_t pos = 0;
-    for (NCDValue *v = NCDValue_ListFirst(&mo->list); v; v = NCDValue_ListNext(&mo->list, v)) {
-        if (pos == remove_pos) {
-            NCDValue removed_v = NCDValue_ListRemove(&mo->list, v);
-            NCDValue_Free(&removed_v);
-            break;
-        }
-        pos++;
-    }
+    // remove
+    remove_elem(mo, get_elem_at(mo, remove_pos));
     
     // signal up
     NCDModuleInst_Backend_Up(i);
@@ -754,8 +864,8 @@ fail0:
 static void remove_func_new (NCDModuleInst *i)
 {
     // read arguments
-    NCDValue *value_arg;
-    if (!NCDValue_ListRead(i->args, 1, &value_arg)) {
+    NCDValRef value_arg;
+    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -763,16 +873,15 @@ static void remove_func_new (NCDModuleInst *i)
     // get method object
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
-    // find value
-    NCDValue *e = find_in_list(&mo->list, value_arg);
+    // find element
+    struct elem *e = find_elem(mo, value_arg, 0, NULL);
     if (!e) {
         ModuleLog(i, BLOG_ERROR, "value does not exist");
         goto fail0;
     }
     
-    // remove it
-    NCDValue removed_v = NCDValue_ListRemove(&mo->list, e);
-    NCDValue_Free(&removed_v);
+    // remove element
+    remove_elem(mo, e);
     
     // signal up
     NCDModuleInst_Backend_Up(i);
@@ -785,28 +894,24 @@ fail0:
 
 static void set_func_new (NCDModuleInst *i)
 {
-    // init list
-    NCDValue list;
-    NCDValue_InitList(&list);
-    
-    // append to list
-    if (!append_list_args(i, &list, i->args)) {
-        goto fail1;
-    }
-    
     // get method object
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
-    // replace list
-    NCDValue_Free(&mo->list);
-    mo->list = list;
+    // remember old count
+    uint64_t old_count = list_count(mo);
+    
+    // append contents of our lists
+    if (!append_list_contents_contents(i, mo, i->args)) {
+        goto fail0;
+    }
+    
+    // remove old elements
+    cut_list_front(mo, list_count(mo) - old_count);
     
     // signal up
     NCDModuleInst_Backend_Up(i);
     return;
     
-fail1:
-    NCDValue_Free(&list);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);

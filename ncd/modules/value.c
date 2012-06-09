@@ -154,7 +154,8 @@ struct value {
             IndexedListNode list_contents_il_node;
         } list_parent;
         struct {
-            NCDValue key;
+            NCDValMem key_mem;
+            NCDValRef key;
             BCountAVLNode map_contents_tree_node;
         } map_parent;
     };
@@ -174,7 +175,7 @@ struct value {
     };
 };
 
-static int ncdvalue_comparator (void *unused, void *vv1, void *vv2);
+static int ncdval_comparator (void *unused, void *vv1, void *vv2);
 static const char * get_type_str (int type);
 static void value_cleanup (struct value *v);
 static void value_delete (struct value *v);
@@ -188,35 +189,35 @@ static void value_list_remove (struct value *list, struct value *v);
 static struct value * value_init_map (NCDModuleInst *i);
 static size_t value_map_len (struct value *map);
 static struct value * value_map_at (struct value *map, size_t index);
-static struct value * value_map_find (struct value *map, NCDValue *key);
-static int value_map_insert (struct value *map, struct value *v, NCDValue key, NCDModuleInst *i);
+static struct value * value_map_find (struct value *map, NCDValRef key);
+static int value_map_insert (struct value *map, struct value *v, NCDValMem mem, NCDValSafeRef key, NCDModuleInst *i);
 static void value_map_remove (struct value *map, struct value *v);
-static void value_map_remove2 (struct value *map, struct value *v, NCDValue *out_key);
-static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValue *value);
-static int value_to_value (NCDModuleInst *i, struct value *v, NCDValue *out_value);
-static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *where, int no_error);
-static struct value * value_get_path (NCDModuleInst *i, struct value *v, NCDValue *path);
-static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue *where, NCDValue *what, struct value **out_oldv);
-static int value_remove (NCDModuleInst *i, struct value *v, NCDValue *where);
+static void value_map_remove2 (struct value *map, struct value *v, NCDValMem *out_mem, NCDValSafeRef *out_key);
+static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value);
+static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NCDValRef *out_value);
+static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValRef where, int no_error);
+static struct value * value_get_path (NCDModuleInst *i, struct value *v, NCDValRef path);
+static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef where, NCDValRef what, struct value **out_oldv);
+static int value_remove (NCDModuleInst *i, struct value *v, NCDValRef where);
 static void valref_init (struct valref *r, struct value *v);
 static void valref_free (struct valref *r);
 static struct value * valref_val (struct valref *r);
 static void valref_break (struct valref *r);
 
-static int ncdvalue_comparator (void *unused, void *vv1, void *vv2)
+static int ncdval_comparator (void *unused, void *vv1, void *vv2)
 {
-    NCDValue *v1 = vv1;
-    NCDValue *v2 = vv2;
+    NCDValRef *v1 = vv1;
+    NCDValRef *v2 = vv2;
     
-    return NCDValue_Compare(v1, v2);
+    return NCDVal_Compare(*v1, *v2);
 }
 
 static const char * get_type_str (int type)
 {
     switch (type) {
-        case NCDVALUE_STRING: return "string";
-        case NCDVALUE_LIST: return "list";
-        case NCDVALUE_MAP: return "map";
+        case NCDVAL_STRING: return "string";
+        case NCDVAL_LIST: return "list";
+        case NCDVAL_MAP: return "map";
     }
     ASSERT(0)
     return NULL;
@@ -229,11 +230,11 @@ static void value_cleanup (struct value *v)
     }
     
     switch (v->type) {
-        case NCDVALUE_STRING: {
+        case NCDVAL_STRING: {
             free(v->string.string);
         } break;
         
-        case NCDVALUE_LIST: {
+        case NCDVAL_LIST: {
             while (value_list_len(v) > 0) {
                 struct value *ev = value_list_at(v, 0);
                 value_list_remove(v, ev);
@@ -241,7 +242,7 @@ static void value_cleanup (struct value *v)
             }
         } break;
         
-        case NCDVALUE_MAP: {
+        case NCDVAL_MAP: {
             while (value_map_len(v) > 0) {
                 struct value *ev = value_map_at(v, 0);
                 value_map_remove(v, ev);
@@ -259,10 +260,10 @@ static void value_delete (struct value *v)
 {
     if (v->parent) {
         switch (v->parent->type) {
-            case NCDVALUE_LIST: {
+            case NCDVAL_LIST: {
                 value_list_remove(v->parent, v);
             } break;
-            case NCDVALUE_MAP: {
+            case NCDVAL_MAP: {
                 value_map_remove(v->parent, v);
             } break;
             default: ASSERT(0);
@@ -277,18 +278,18 @@ static void value_delete (struct value *v)
     }
     
     switch (v->type) {
-        case NCDVALUE_STRING: {
+        case NCDVAL_STRING: {
             free(v->string.string);
         } break;
         
-        case NCDVALUE_LIST: {
+        case NCDVAL_LIST: {
             while (value_list_len(v) > 0) {
                 struct value *ev = value_list_at(v, 0);
                 value_delete(ev);
             }
         } break;
         
-        case NCDVALUE_MAP: {
+        case NCDVAL_MAP: {
             while (value_map_len(v) > 0) {
                 struct value *ev = value_map_at(v, 0);
                 value_delete(ev);
@@ -311,7 +312,7 @@ static struct value * value_init_string (NCDModuleInst *i, const uint8_t *str, s
     
     LinkedList0_Init(&v->refs_list);
     v->parent = NULL;
-    v->type = NCDVALUE_STRING;
+    v->type = NCDVAL_STRING;
     
     if (!(v->string.string = malloc(len))) {
         ModuleLog(i, BLOG_ERROR, "malloc failed");
@@ -340,7 +341,7 @@ static struct value * value_init_list (NCDModuleInst *i)
     
     LinkedList0_Init(&v->refs_list);
     v->parent = NULL;
-    v->type = NCDVALUE_LIST;
+    v->type = NCDVAL_LIST;
     
     IndexedList_Init(&v->list.list_contents_il);
     
@@ -349,14 +350,14 @@ static struct value * value_init_list (NCDModuleInst *i)
 
 static size_t value_list_len (struct value *v)
 {
-    ASSERT(v->type == NCDVALUE_LIST)
+    ASSERT(v->type == NCDVAL_LIST)
     
     return IndexedList_Count(&v->list.list_contents_il);
 }
 
 static struct value * value_list_at (struct value *v, size_t index)
 {
-    ASSERT(v->type == NCDVALUE_LIST)
+    ASSERT(v->type == NCDVAL_LIST)
     ASSERT(index < value_list_len(v))
     
     IndexedListNode *iln = IndexedList_GetAt(&v->list.list_contents_il, index);
@@ -370,7 +371,7 @@ static struct value * value_list_at (struct value *v, size_t index)
 
 static size_t value_list_indexof (struct value *v, struct value *ev)
 {
-    ASSERT(v->type == NCDVALUE_LIST)
+    ASSERT(v->type == NCDVAL_LIST)
     ASSERT(ev->parent == v)
     
     uint64_t index = IndexedList_IndexOf(&v->list.list_contents_il, &ev->list_parent.list_contents_il_node);
@@ -381,7 +382,7 @@ static size_t value_list_indexof (struct value *v, struct value *ev)
 
 static int value_list_insert (NCDModuleInst *i, struct value *list, struct value *v, size_t index)
 {
-    ASSERT(list->type == NCDVALUE_LIST)
+    ASSERT(list->type == NCDVAL_LIST)
     ASSERT(!v->parent)
     ASSERT(index <= value_list_len(list))
     
@@ -398,7 +399,7 @@ static int value_list_insert (NCDModuleInst *i, struct value *list, struct value
 
 static void value_list_remove (struct value *list, struct value *v)
 {
-    ASSERT(list->type == NCDVALUE_LIST)
+    ASSERT(list->type == NCDVAL_LIST)
     ASSERT(v->parent == list)
     
     IndexedList_Remove(&list->list.list_contents_il, &v->list_parent.list_contents_il_node);
@@ -415,23 +416,23 @@ static struct value * value_init_map (NCDModuleInst *i)
     
     LinkedList0_Init(&v->refs_list);
     v->parent = NULL;
-    v->type = NCDVALUE_MAP;
+    v->type = NCDVAL_MAP;
     
-    BCountAVL_Init(&v->map.map_contents_tree, OFFSET_DIFF(struct value, map_parent.key, map_parent.map_contents_tree_node), ncdvalue_comparator, NULL);
+    BCountAVL_Init(&v->map.map_contents_tree, OFFSET_DIFF(struct value, map_parent.key, map_parent.map_contents_tree_node), ncdval_comparator, NULL);
     
     return v;
 }
 
 static size_t value_map_len (struct value *map)
 {
-    ASSERT(map->type == NCDVALUE_MAP)
+    ASSERT(map->type == NCDVAL_MAP)
     
     return BCountAVL_Count(&map->map.map_contents_tree);
 }
 
 static struct value * value_map_at (struct value *map, size_t index)
 {
-    ASSERT(map->type == NCDVALUE_MAP)
+    ASSERT(map->type == NCDVAL_MAP)
     ASSERT(index < value_map_len(map))
     
     BCountAVLNode *tn = BCountAVL_GetAt(&map->map.map_contents_tree, index);
@@ -443,12 +444,12 @@ static struct value * value_map_at (struct value *map, size_t index)
     return e;
 }
 
-static struct value * value_map_find (struct value *map, NCDValue *key)
+static struct value * value_map_find (struct value *map, NCDValRef key)
 {
-    ASSERT(map->type == NCDVALUE_MAP)
-    ASSERT(key)
+    ASSERT(map->type == NCDVAL_MAP)
+    ASSERT(NCDVal_Type(key))
     
-    BCountAVLNode *tn = BCountAVL_LookupExact(&map->map.map_contents_tree, key);
+    BCountAVLNode *tn = BCountAVL_LookupExact(&map->map.map_contents_tree, &key);
     if (!tn) {
         return NULL;
     }
@@ -459,18 +460,20 @@ static struct value * value_map_find (struct value *map, NCDValue *key)
     return e;
 }
 
-static int value_map_insert (struct value *map, struct value *v, NCDValue key, NCDModuleInst *i)
+static int value_map_insert (struct value *map, struct value *v, NCDValMem mem, NCDValSafeRef key, NCDModuleInst *i)
 {
-    ASSERT(map->type == NCDVALUE_MAP)
+    ASSERT(map->type == NCDVAL_MAP)
     ASSERT(!v->parent)
-    ASSERT(!value_map_find(map, &key))
+    ASSERT((NCDVal_Type(NCDVal_FromSafe(&mem, key)), 1))
+    ASSERT(!value_map_find(map, NCDVal_FromSafe(&mem, key)))
     
     if (value_map_len(map) == SIZE_MAX) {
         ModuleLog(i, BLOG_ERROR, "map has too many elements");
         return 0;
     }
     
-    v->map_parent.key = key;
+    v->map_parent.key_mem = mem;
+    v->map_parent.key = NCDVal_FromSafe(&v->map_parent.key_mem, key);
     int res = BCountAVL_Insert(&map->map.map_contents_tree, &v->map_parent.map_contents_tree_node, NULL);
     ASSERT(res)
     v->parent = map;
@@ -480,43 +483,49 @@ static int value_map_insert (struct value *map, struct value *v, NCDValue key, N
 
 static void value_map_remove (struct value *map, struct value *v)
 {
-    ASSERT(map->type == NCDVALUE_MAP)
+    ASSERT(map->type == NCDVAL_MAP)
     ASSERT(v->parent == map)
     
     BCountAVL_Remove(&map->map.map_contents_tree, &v->map_parent.map_contents_tree_node);
-    NCDValue_Free(&v->map_parent.key);
+    NCDValMem_Free(&v->map_parent.key_mem);
     v->parent = NULL;
 }
 
-static void value_map_remove2 (struct value *map, struct value *v, NCDValue *out_key)
+static void value_map_remove2 (struct value *map, struct value *v, NCDValMem *out_mem, NCDValSafeRef *out_key)
 {
-    ASSERT(map->type == NCDVALUE_MAP)
+    ASSERT(map->type == NCDVAL_MAP)
     ASSERT(v->parent == map)
+    ASSERT(out_mem)
     ASSERT(out_key)
     
     BCountAVL_Remove(&map->map.map_contents_tree, &v->map_parent.map_contents_tree_node);
-    *out_key = v->map_parent.key;
+    *out_mem = v->map_parent.key_mem;
+    *out_key = NCDVal_ToSafe(v->map_parent.key);
     v->parent = NULL;
 }
 
-static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValue *value)
+static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value)
 {
+    ASSERT((NCDVal_Type(value), 1))
+    
     struct value *v;
     
-    switch (NCDValue_Type(value)) {
-        case NCDVALUE_STRING: {
-            if (!(v = value_init_string(i, (const uint8_t *)NCDValue_StringValue(value), NCDValue_StringLength(value)))) {
+    switch (NCDVal_Type(value)) {
+        case NCDVAL_STRING: {
+            if (!(v = value_init_string(i, (const uint8_t *)NCDVal_StringValue(value), NCDVal_StringLength(value)))) {
                 goto fail0;
             }
         } break;
         
-        case NCDVALUE_LIST: {
+        case NCDVAL_LIST: {
             if (!(v = value_init_list(i))) {
                 goto fail0;
             }
             
-            for (NCDValue *eval = NCDValue_ListFirst(value); eval; eval = NCDValue_ListNext(value, eval)) {
-                struct value *ev = value_init_fromvalue(i, eval);
+            size_t count = NCDVal_ListCount(value);
+            
+            for (size_t j = 0; j < count; j++) {
+                struct value *ev = value_init_fromvalue(i, NCDVal_ListGet(value, j));
                 if (!ev) {
                     goto fail1;
                 }
@@ -528,28 +537,33 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValue *value)
             }
         } break;
         
-        case NCDVALUE_MAP: {
+        case NCDVAL_MAP: {
             if (!(v = value_init_map(i))) {
                 goto fail0;
             }
             
-            for (NCDValue *ekey = NCDValue_MapFirstKey(value); ekey; ekey = NCDValue_MapNextKey(value, ekey)) {
-                NCDValue *eval = NCDValue_MapKeyValue(value, ekey);
+            for (NCDValMapElem e = NCDVal_MapFirst(value); !NCDVal_MapElemInvalid(e); e = NCDVal_MapNext(value, e)) {
+                NCDValRef ekey = NCDVal_MapElemKey(value, e);
+                NCDValRef eval = NCDVal_MapElemVal(value, e);
                 
-                NCDValue key;
-                if (!NCDValue_InitCopy(&key, ekey)) {
-                    BLog(BLOG_ERROR, "NCDValue_InitCopy failed");
+                NCDValMem key_mem;
+                NCDValMem_Init(&key_mem);
+                
+                NCDValRef key = NCDVal_NewCopy(&key_mem, ekey);
+                if (NCDVal_IsInvalid(key)) {
+                    BLog(BLOG_ERROR, "NCDVal_NewCopy failed");
+                    NCDValMem_Free(&key_mem);
                     goto fail1;
                 }
                 
                 struct value *ev = value_init_fromvalue(i, eval);
                 if (!ev) {
-                    NCDValue_Free(&key);
+                    NCDValMem_Free(&key_mem);
                     goto fail1;
                 }
                 
-                if (!value_map_insert(v, ev, key, i)) {
-                    NCDValue_Free(&key);
+                if (!value_map_insert(v, ev, key_mem, NCDVal_ToSafe(key), i)) {
+                    NCDValMem_Free(&key_mem);
                     value_cleanup(ev);
                     goto fail1;
                 }
@@ -567,58 +581,60 @@ fail0:
     return NULL;
 }
 
-static int value_to_value (NCDModuleInst *i, struct value *v, NCDValue *out_value)
+static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NCDValRef *out_value)
 {
+    ASSERT(mem)
+    ASSERT(out_value)
+    
     switch (v->type) {
-        case NCDVALUE_STRING: {
-            if (!(NCDValue_InitStringBin(out_value, v->string.string, v->string.length))) {
-                ModuleLog(i, BLOG_ERROR, "NCDValue_InitStringBin failed");
-                goto fail0;
+        case NCDVAL_STRING: {
+            *out_value = NCDVal_NewStringBin(mem, v->string.string, v->string.length);
+            if (NCDVal_IsInvalid(*out_value)) {
+                ModuleLog(i, BLOG_ERROR, "NCDVal_NewStringBin failed");
+                goto fail;
             }
         } break;
         
-        case NCDVALUE_LIST: {
-            NCDValue_InitList(out_value);
+        case NCDVAL_LIST: {
+            *out_value = NCDVal_NewList(mem, value_list_len(v));
+            if (NCDVal_IsInvalid(*out_value)) {
+                ModuleLog(i, BLOG_ERROR, "NCDVal_NewList failed");
+                goto fail;
+            }
             
             for (size_t index = 0; index < value_list_len(v); index++) {
-                NCDValue eval;
-                if (!value_to_value(i, value_list_at(v, index), &eval)) {
-                    goto fail1;
+                NCDValRef eval;
+                if (!value_to_value(i, value_list_at(v, index), mem, &eval)) {
+                    goto fail;
                 }
                 
-                if (!NCDValue_ListAppend(out_value, eval)) {
-                    ModuleLog(i, BLOG_ERROR, "NCDValue_ListAppend failed");
-                    NCDValue_Free(&eval);
-                    goto fail1;
-                }
+                NCDVal_ListAppend(*out_value, eval);
             }
         } break;
         
-        case NCDVALUE_MAP: {
-            NCDValue_InitMap(out_value);
+        case NCDVAL_MAP: {
+            *out_value = NCDVal_NewMap(mem, value_map_len(v));
+            if (NCDVal_IsInvalid(*out_value)) {
+                ModuleLog(i, BLOG_ERROR, "NCDVal_NewMap failed");
+                goto fail;
+            }
             
             for (size_t index = 0; index < value_map_len(v); index++) {
                 struct value *ev = value_map_at(v, index);
                 
-                NCDValue key;
-                NCDValue val;
-                
-                if (!NCDValue_InitCopy(&key, &ev->map_parent.key)) {
-                    ModuleLog(i, BLOG_ERROR, "NCDValue_InitCopy failed");
-                    goto fail1;
+                NCDValRef key = NCDVal_NewCopy(mem, ev->map_parent.key);
+                if (NCDVal_IsInvalid(key)) {
+                    ModuleLog(i, BLOG_ERROR, "NCDVal_NewCopy failed");
+                    goto fail;
                 }
                 
-                if (!value_to_value(i, ev, &val)) {
-                    NCDValue_Free(&key);
-                    goto fail1;
+                NCDValRef val;
+                if (!value_to_value(i, ev, mem, &val)) {
+                    goto fail;
                 }
                 
-                if (!NCDValue_MapInsert(out_value, key, val)) {
-                    ModuleLog(i, BLOG_ERROR, "NCDValue_MapInsert failed");
-                    NCDValue_Free(&key);
-                    NCDValue_Free(&val);
-                    goto fail1;
-                }
+                int res = NCDVal_MapInsert(*out_value, key, val);
+                ASSERT(res)
             }
         } break;
         
@@ -627,28 +643,23 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValue *out_valu
     
     return 1;
     
-fail1:
-    NCDValue_Free(out_value);
-fail0:
+fail:
     return 0;
 }
 
-static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *where, int no_error)
+static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValRef where, int no_error)
 {
+    ASSERT((NCDVal_Type(where), 1))
+    
     switch (v->type) {
-        case NCDVALUE_STRING: {
+        case NCDVAL_STRING: {
             if (!no_error) ModuleLog(i, BLOG_ERROR, "cannot resolve into a string");
             goto fail;
         } break;
         
-        case NCDVALUE_LIST: {
-            if (NCDValue_Type(where) != NCDVALUE_STRING) {
-                if (!no_error) ModuleLog(i, BLOG_ERROR, "index is not a string (resolving into list)");
-                goto fail;
-            }
-            
+        case NCDVAL_LIST: {
             uintmax_t index;
-            if (NCDValue_StringHasNulls(where) || !parse_unsigned_integer(NCDValue_StringValue(where), &index)) {
+            if (!NCDVal_IsStringNoNulls(where) || !parse_unsigned_integer(NCDVal_StringValue(where), &index)) {
                 if (!no_error) ModuleLog(i, BLOG_ERROR, "index is not a valid number (resolving into list)");
                 goto fail;
             }
@@ -661,7 +672,7 @@ static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValue *wh
             v = value_list_at(v, index);
         } break;
         
-        case NCDVALUE_MAP: {
+        case NCDVAL_MAP: {
             v = value_map_find(v, where);
             if (!v) {
                 if (!no_error) ModuleLog(i, BLOG_ERROR, "key does not exist (resolving into map)");
@@ -678,12 +689,14 @@ fail:
     return NULL;
 }
 
-static struct value * value_get_path (NCDModuleInst *i, struct value *v, NCDValue *path)
+static struct value * value_get_path (NCDModuleInst *i, struct value *v, NCDValRef path)
 {
-    ASSERT(NCDValue_Type(path) == NCDVALUE_LIST)
+    ASSERT(NCDVal_IsList(path))
     
-    for (NCDValue *ev = NCDValue_ListFirst(path); ev; ev = NCDValue_ListNext(path, ev)) {
-        if (!(v = value_get(i, v, ev, 0))) {
+    size_t count = NCDVal_ListCount(path);
+    
+    for (size_t j = 0; j < count; j++) {
+        if (!(v = value_get(i, v, NCDVal_ListGet(path, j), 0))) {
             goto fail;
         }
     }
@@ -694,11 +707,11 @@ fail:
     return NULL;
 }
 
-static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue *where, NCDValue *what, struct value **out_oldv)
+static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef where, NCDValRef what, struct value **out_oldv)
 {
     ASSERT(v)
-    NCDValue_Type(where);
-    NCDValue_Type(what);
+    ASSERT((NCDVal_Type(where), 1))
+    ASSERT((NCDVal_Type(what), 1))
     
     struct value *nv = value_init_fromvalue(i, what);
     if (!nv) {
@@ -708,19 +721,14 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue 
     struct value *oldv = NULL;
     
     switch (v->type) {
-        case NCDVALUE_STRING: {
+        case NCDVAL_STRING: {
             ModuleLog(i, BLOG_ERROR, "cannot insert into a string");
             goto fail1;
         } break;
         
-        case NCDVALUE_LIST: {
-            if (NCDValue_Type(where) != NCDVALUE_STRING) {
-                ModuleLog(i, BLOG_ERROR, "index is not a string (inserting into list)");
-                goto fail1;
-            }
-            
+        case NCDVAL_LIST: {
             uintmax_t index;
-            if (NCDValue_StringHasNulls(where) || !parse_unsigned_integer(NCDValue_StringValue(where), &index)) {
+            if (!NCDVal_IsStringNoNulls(where) || !parse_unsigned_integer(NCDVal_StringValue(where), &index)) {
                 ModuleLog(i, BLOG_ERROR, "index is not a valid number (inserting into list)");
                 goto fail1;
             }
@@ -735,7 +743,7 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue 
             }
         } break;
         
-        case NCDVALUE_MAP: {
+        case NCDVAL_MAP: {
             oldv = value_map_find(v, where);
             
             if (!oldv && value_map_len(v) == SIZE_MAX) {
@@ -743,9 +751,13 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue 
                 goto fail1;
             }
             
-            NCDValue key;
-            if (!NCDValue_InitCopy(&key, where)) {
-                ModuleLog(i, BLOG_ERROR, "NCDValue_InitCopy failed");
+            NCDValMem key_mem;
+            NCDValMem_Init(&key_mem);
+            
+            NCDValRef key = NCDVal_NewCopy(&key_mem, where);
+            if (NCDVal_IsInvalid(key)) {
+                ModuleLog(i, BLOG_ERROR, "NCDVal_NewCopy failed");
+                NCDValMem_Free(&key_mem);
                 goto fail1;
             }
             
@@ -753,7 +765,7 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValue 
                 value_map_remove(v, oldv);
             }
             
-            int res = value_map_insert(v, nv, key, i);
+            int res = value_map_insert(v, nv, key_mem, NCDVal_ToSafe(key), i);
             ASSERT(res)
         } break;
         
@@ -775,22 +787,20 @@ fail0:
     return NULL;
 }
 
-static int value_remove (NCDModuleInst *i, struct value *v, NCDValue *where)
+static int value_remove (NCDModuleInst *i, struct value *v, NCDValRef where)
 {
+    ASSERT(v)
+    ASSERT((NCDVal_Type(where), 1))
+    
     switch (v->type) {
-        case NCDVALUE_STRING: {
+        case NCDVAL_STRING: {
             ModuleLog(i, BLOG_ERROR, "cannot remove from a string");
             goto fail;
         } break;
         
-        case NCDVALUE_LIST: {
-            if (NCDValue_Type(where) != NCDVALUE_STRING) {
-                ModuleLog(i, BLOG_ERROR, "index is not a string (removing from list)");
-                goto fail;
-            }
-            
+        case NCDVAL_LIST: {
             uintmax_t index;
-            if (NCDValue_StringHasNulls(where) || !parse_unsigned_integer(NCDValue_StringValue(where), &index)) {
+            if (!NCDVal_IsStringNoNulls(where) || !parse_unsigned_integer(NCDVal_StringValue(where), &index)) {
                 ModuleLog(i, BLOG_ERROR, "index is not a valid number (removing from list)");
                 goto fail;
             }
@@ -806,7 +816,7 @@ static int value_remove (NCDModuleInst *i, struct value *v, NCDValue *where)
             value_cleanup(ov);
         } break;
         
-        case NCDVALUE_MAP: {
+        case NCDVAL_MAP: {
             struct value *ov = value_map_find(v, where);
             if (!ov) {
                 ModuleLog(i, BLOG_ERROR, "key does not exist (removing from map)");
@@ -905,16 +915,16 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out_value)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     struct value *v = valref_val(&o->ref);
     
     if (!strcmp(name, "exists")) {
         const char *str = v ? "true" : "false";
-        if (!NCDValue_InitString(out_value, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
         return 1;
     }
@@ -929,21 +939,21 @@ static int func_getvar (void *vo, const char *name, NCDValue *out_value)
     }
     
     if (!strcmp(name, "type")) {
-        if (!NCDValue_InitString(out_value, get_type_str(v->type))) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, get_type_str(v->type));
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
     }
     else if (!strcmp(name, "length")) {
         size_t len;
         switch (v->type) {
-            case NCDVALUE_LIST:
+            case NCDVAL_LIST:
                 len = value_list_len(v);
                 break;
-            case NCDVALUE_MAP:
+            case NCDVAL_MAP:
                 len = value_map_len(v);
                 break;
-            case NCDVALUE_STRING:
+            case NCDVAL_STRING:
                 len = v->string.length;
                 break;
             default:
@@ -952,43 +962,38 @@ static int func_getvar (void *vo, const char *name, NCDValue *out_value)
         
         char str[64];
         snprintf(str, sizeof(str), "%zu", len);
-        if (!NCDValue_InitString(out_value, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
     }
     else if (!strcmp(name, "keys")) {
-        if (v->type != NCDVALUE_MAP) {
+        if (v->type != NCDVAL_MAP) {
             ModuleLog(o->i, BLOG_ERROR, "value is not a map (reading keys variable)");
             return 0;
         }
         
-        NCDValue_InitList(out_value);
-        
-        for (size_t i = 0; i < value_map_len(v); i++) {
-            struct value *ev = value_map_at(v, i);
-            
-            NCDValue key;
-            if (!NCDValue_InitCopy(&key, &ev->map_parent.key)) {
-                ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-                goto map_fail1;
-            }
-            
-            if (!NCDValue_ListAppend(out_value, key)) {
-                ModuleLog(o->i, BLOG_ERROR, "NCDValue_ListAppend failed");
-                NCDValue_Free(&key);
-                goto map_fail1;
-            }
+        *out = NCDVal_NewList(mem, value_map_len(v));
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewList failed");
+            goto fail;
         }
         
-        return 1;
-        
-    map_fail1:
-        NCDValue_Free(out_value);
-        return 0;
+        for (size_t j = 0; j < value_map_len(v); j++) {
+            struct value *ev = value_map_at(v, j);
+            
+            NCDValRef key = NCDVal_NewCopy(mem, ev->map_parent.key);
+            if (NCDVal_IsInvalid(key)) {
+                ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
+                goto fail;
+            }
+            
+            NCDVal_ListAppend(*out, key);
+        }
     }
     else if (!strcmp(name, "")) {
-        if (!value_to_value(o->i, v, out_value)) {
+        if (!value_to_value(o->i, v, mem, out)) {
             return 0;
         }
     }
@@ -997,12 +1002,16 @@ static int func_getvar (void *vo, const char *name, NCDValue *out_value)
     }
     
     return 1;
+    
+fail:
+    *out = NCDVal_NewInvalid();
+    return 1;
 }
 
 static void func_new_value (NCDModuleInst *i)
 {
-    NCDValue *value_arg;
-    if (!NCDValue_ListRead(i->args, 1, &value_arg)) {
+    NCDValRef value_arg;
+    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -1022,8 +1031,8 @@ fail0:
 
 static void func_new_get (NCDModuleInst *i)
 {
-    NCDValue *where_arg;
-    if (!NCDValue_ListRead(i->args, 1, &where_arg)) {
+    NCDValRef where_arg;
+    if (!NCDVal_ListRead(i->args, 1, &where_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -1051,8 +1060,8 @@ fail0:
 
 static void func_new_try_get (NCDModuleInst *i)
 {
-    NCDValue *where_arg;
-    if (!NCDValue_ListRead(i->args, 1, &where_arg)) {
+    NCDValRef where_arg;
+    if (!NCDVal_ListRead(i->args, 1, &where_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -1077,12 +1086,12 @@ fail0:
 
 static void func_new_getpath (NCDModuleInst *i)
 {
-    NCDValue *path_arg;
-    if (!NCDValue_ListRead(i->args, 1, &path_arg)) {
+    NCDValRef path_arg;
+    if (!NCDVal_ListRead(i->args, 1, &path_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (NCDValue_Type(path_arg) != NCDVALUE_LIST) {
+    if (!NCDVal_IsList(path_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
@@ -1110,9 +1119,9 @@ fail0:
 
 static void func_new_insert (NCDModuleInst *i)
 {
-    NCDValue *where_arg;
-    NCDValue *what_arg;
-    if (!NCDValue_ListRead(i->args, 2, &where_arg, &what_arg)) {
+    NCDValRef where_arg;
+    NCDValRef what_arg;
+    if (!NCDVal_ListRead(i->args, 2, &where_arg, &what_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -1154,7 +1163,7 @@ static void insert_undo_deinit_func (struct insert_undo_deinit_data *data, NCDMo
         
         // remove this value from parent and restore saved one (or none)
         switch (parent->type) {
-            case NCDVALUE_LIST: {
+            case NCDVAL_LIST: {
                 size_t index = value_list_indexof(parent, val);
                 value_list_remove(parent, val);
                 if (oldval) {
@@ -1163,14 +1172,15 @@ static void insert_undo_deinit_func (struct insert_undo_deinit_data *data, NCDMo
                 }
             } break;
             
-            case NCDVALUE_MAP: {
-                NCDValue key;
-                value_map_remove2(parent, val, &key);
+            case NCDVAL_MAP: {
+                NCDValMem key_mem;
+                NCDValSafeRef key;
+                value_map_remove2(parent, val, &key_mem, &key);
                 if (oldval) {
-                    int res = value_map_insert(parent, oldval, key, i);
+                    int res = value_map_insert(parent, oldval, key_mem, key, i);
                     ASSERT(res)
                 } else {
-                    NCDValue_Free(&key);
+                    NCDValMem_Free(&key_mem);
                 }
             } break;
             
@@ -1185,9 +1195,9 @@ static void insert_undo_deinit_func (struct insert_undo_deinit_data *data, NCDMo
 
 static void func_new_insert_undo (NCDModuleInst *i)
 {
-    NCDValue *where_arg;
-    NCDValue *what_arg;
-    if (!NCDValue_ListRead(i->args, 2, &where_arg, &what_arg)) {
+    NCDValRef where_arg;
+    NCDValRef what_arg;
+    if (!NCDVal_ListRead(i->args, 2, &where_arg, &what_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -1227,26 +1237,26 @@ fail0:
 
 static void func_new_substr (NCDModuleInst *i)
 {
-    NCDValue *start_arg;
-    NCDValue *length_arg = NULL;
-    if (!NCDValue_ListRead(i->args, 1, &start_arg) &&
-        !NCDValue_ListRead(i->args, 2, &start_arg, &length_arg)) {
+    NCDValRef start_arg;
+    NCDValRef length_arg = NCDVal_NewInvalid();
+    if (!NCDVal_ListRead(i->args, 1, &start_arg) &&
+        !NCDVal_ListRead(i->args, 2, &start_arg, &length_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(start_arg) || (length_arg && !NCDValue_IsStringNoNulls(length_arg))) {
+    if (!NCDVal_IsStringNoNulls(start_arg) || (!NCDVal_IsInvalid(length_arg) && !NCDVal_IsStringNoNulls(length_arg))) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     uintmax_t start;
-    if (!parse_unsigned_integer(NCDValue_StringValue(start_arg), &start)) {
+    if (!parse_unsigned_integer(NCDVal_StringValue(start_arg), &start)) {
         ModuleLog(i, BLOG_ERROR, "start is not a number");
         goto fail0;
     }
     
     uintmax_t length = UINTMAX_MAX;
-    if (length_arg && !parse_unsigned_integer(NCDValue_StringValue(length_arg), &length)) {
+    if (!NCDVal_IsInvalid(length_arg) && !parse_unsigned_integer(NCDVal_StringValue(length_arg), &length)) {
         ModuleLog(i, BLOG_ERROR, "length is not a number");
         goto fail0;
     }
@@ -1259,7 +1269,7 @@ static void func_new_substr (NCDModuleInst *i)
         goto fail0;
     }
     
-    if (mov->type != NCDVALUE_STRING) {
+    if (mov->type != NCDVAL_STRING) {
         ModuleLog(i, BLOG_ERROR, "value is not a string");
         goto fail0;
     }
@@ -1287,8 +1297,8 @@ fail0:
 
 static void remove_func_new (NCDModuleInst *i)
 {
-    NCDValue *where_arg;
-    if (!NCDValue_ListRead(i->args, 1, &where_arg)) {
+    NCDValRef where_arg;
+    if (!NCDVal_ListRead(i->args, 1, &where_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -1315,7 +1325,7 @@ fail0:
 
 static void delete_func_new (NCDModuleInst *i)
 {
-    if (!NCDValue_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

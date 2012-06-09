@@ -46,7 +46,8 @@
 
 struct instance {
     NCDModuleInst *i;
-    NCDValue v;
+    NCDValMem mem;
+    NCDValRef val;
 };
 
 static void func_new (NCDModuleInst *i)
@@ -61,27 +62,32 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
-    NCDValue *str_arg;
-    if (!NCDValue_ListRead(i->args, 1, &str_arg)) {
+    NCDValRef str_arg;
+    if (!NCDVal_ListRead(i->args, 1, &str_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(str_arg)) {
+    if (!NCDVal_IsStringNoNulls(str_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    char *str = NCDValue_StringValue(str_arg);
+    const char *str = NCDVal_StringValue(str_arg);
+    
+    // init mem
+    NCDValMem_Init(&o->mem);
     
     // parse value string
-    if (!NCDValueParser_Parse(str, strlen(str), &o->v)) {
+    if (!NCDValParser_Parse(str, strlen(str), &o->mem, &o->val)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse");
-        goto fail1;
+        goto fail2;
     }
     
     // signal up
     NCDModuleInst_Backend_Up(i);
     return;
     
+fail2:
+    NCDValMem_Free(&o->mem);
 fail1:
     free(o);
 fail0:
@@ -94,8 +100,8 @@ static void func_die (void *vo)
     struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
-    // free value
-    NCDValue_Free(&o->v);
+    // free mem
+    NCDValMem_Free(&o->mem);
     
     // free structure
     free(o);
@@ -103,14 +109,14 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitCopy(out, &o->v)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopu failed");
-            return 0;
+        *out = NCDVal_NewCopy(mem, o->val);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
         }
         return 1;
     }

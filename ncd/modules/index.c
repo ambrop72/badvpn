@@ -86,19 +86,19 @@ fail0:
 static void func_new_from_value (NCDModuleInst *i)
 {
     // read arguments
-    NCDValue *arg_value;
-    if (!NCDValue_ListRead(i->args, 1, &arg_value)) {
+    NCDValRef arg_value;
+    if (!NCDVal_ListRead(i->args, 1, &arg_value)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(arg_value)) {
+    if (!NCDVal_IsStringNoNulls(arg_value)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     // parse value
     uintmax_t value;
-    if (!parse_unsigned_integer(NCDValue_StringValue(arg_value), &value)) {
+    if (!parse_unsigned_integer(NCDVal_StringValue(arg_value), &value)) {
         ModuleLog(i, BLOG_ERROR, "wrong value");
         goto fail0;
     }
@@ -146,7 +146,7 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
@@ -154,11 +154,10 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
         char str[64];
         snprintf(str, sizeof(str), "%zu", o->value);
         
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     

@@ -79,7 +79,7 @@
 
 struct instance {
     NCDModuleInst *i;
-    char *input;
+    const char *input;
     size_t input_len;
     int succeeded;
     int num_matches;
@@ -184,19 +184,19 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *input_arg;
-    NCDValue *regex_arg;
-    if (!NCDValue_ListRead(o->i->args, 2, &input_arg, &regex_arg)) {
+    NCDValRef input_arg;
+    NCDValRef regex_arg;
+    if (!NCDVal_ListRead(o->i->args, 2, &input_arg, &regex_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(input_arg) != NCDVALUE_STRING || !NCDValue_IsStringNoNulls(regex_arg)) {
+    if (!NCDVal_IsString(input_arg) || !NCDVal_IsStringNoNulls(regex_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->input = NCDValue_StringValue(input_arg);
-    o->input_len = NCDValue_StringLength(input_arg);
-    char *regex = NCDValue_StringValue(regex_arg);
+    o->input = NCDVal_StringValue(input_arg);
+    o->input_len = NCDVal_StringLength(input_arg);
+    const char *regex = NCDVal_StringValue(regex_arg);
     
     // make sure we don't overflow regoff_t
     if (o->input_len > INT_MAX) {
@@ -243,16 +243,16 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
     if (!strcmp(name, "succeeded")) {
-        if (!NCDValue_InitString(out, (o->succeeded ? "true" : "false"))) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-            return 0;
+        const char *str = o->succeeded ? "true" : "false";
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
@@ -268,11 +268,10 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
             
             size_t len = m->rm_eo - m->rm_so;
             
-            if (!NCDValue_InitStringBin(out, (uint8_t *)o->input + m->rm_so, len)) {
-                ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitStringBin failed");
-                return 0;
+            *out = NCDVal_NewStringBin(mem, (uint8_t *)o->input + m->rm_so, len);
+            if (NCDVal_IsInvalid(*out)) {
+                ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
             }
-            
             return 1;
         }
     }
@@ -292,35 +291,36 @@ static void replace_func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
-    NCDValue *input_arg;
-    NCDValue *regex_arg;
-    NCDValue *replace_arg;
-    if (!NCDValue_ListRead(i->args, 3, &input_arg, &regex_arg, &replace_arg)) {
+    NCDValRef input_arg;
+    NCDValRef regex_arg;
+    NCDValRef replace_arg;
+    if (!NCDVal_ListRead(i->args, 3, &input_arg, &regex_arg, &replace_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsString(input_arg) || !NCDValue_IsList(regex_arg) || !NCDValue_IsList(replace_arg)) {
+    if (!NCDVal_IsString(input_arg) || !NCDVal_IsList(regex_arg) || !NCDVal_IsList(replace_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
     
     // check number of regex/replace
-    if (NCDValue_ListCount(regex_arg) != NCDValue_ListCount(replace_arg)) {
+    if (NCDVal_ListCount(regex_arg) != NCDVal_ListCount(replace_arg)) {
         ModuleLog(i, BLOG_ERROR, "number of regex's is not the same as number of replacements");
         goto fail1;
     }
     
     // start with input as current text
-    char *current = NCDValue_StringValue(input_arg);
-    size_t current_len = NCDValue_StringLength(input_arg);
+    char *current = (char *)NCDVal_StringValue(input_arg);
+    size_t current_len = NCDVal_StringLength(input_arg);
     int current_free = 0;
     
-    NCDValue *regex = NCDValue_ListFirst(regex_arg);
-    NCDValue *replace = NCDValue_ListFirst(replace_arg);
-    
-    while (regex) {
+    size_t count = NCDVal_ListCount(regex_arg);
+    for (size_t j = 0; j < count; j++) {
+        NCDValRef regex = NCDVal_ListGet(regex_arg, j);
+        NCDValRef replace = NCDVal_ListGet(replace_arg, j);
+        
         // check type of regex and replace
-        if (!NCDValue_IsStringNoNulls(regex) || !NCDValue_IsString(replace)) {
+        if (!NCDVal_IsStringNoNulls(regex) || !NCDVal_IsString(replace)) {
             ModuleLog(i, BLOG_ERROR, "regex/replace element has wrong type");
             goto fail2;
         }
@@ -328,7 +328,7 @@ static void replace_func_new (NCDModuleInst *i)
         // perform the replacing
         char *replaced;
         size_t replaced_len;
-        if (!regex_replace(current, current_len, NCDValue_StringValue(regex), NCDValue_StringValue(replace), NCDValue_StringLength(replace), &replaced, &replaced_len, i)) {
+        if (!regex_replace(current, current_len, NCDVal_StringValue(regex), NCDVal_StringValue(replace), NCDVal_StringLength(replace), &replaced, &replaced_len, i)) {
             goto fail2;
         }
         
@@ -339,9 +339,6 @@ static void replace_func_new (NCDModuleInst *i)
         current = replaced;
         current_len = replaced_len;
         current_free = 1;
-        
-        regex = NCDValue_ListNext(regex_arg, regex);
-        replace = NCDValue_ListNext(replace_arg, replace);
     }
     
     // set output
@@ -380,14 +377,14 @@ static void replace_func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int replace_func_getvar (void *vo, const char *name, NCDValue *out)
+static int replace_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct replace_instance *o = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitStringBin(out, (uint8_t *)o->output, o->output_len)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitStringBin failed");
-            return 0;
+        *out = NCDVal_NewStringBin(mem, (uint8_t *)o->output, o->output_len);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
         }
         return 1;
     }

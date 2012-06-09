@@ -69,7 +69,7 @@
 
 struct provide {
     NCDModuleInst *i;
-    char *name;
+    const char *name;
     int is_queued;
     union {
         struct {
@@ -86,7 +86,7 @@ struct provide {
 
 struct depend {
     NCDModuleInst *i;
-    char *name;
+    const char *name;
     struct provide *p;
     LinkedList2Node node;
 };
@@ -179,16 +179,16 @@ static void provide_func_new_templ (NCDModuleInst *i, int event)
     o->i = i;
     
     // read arguments
-    NCDValue *name_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &name_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong arity");
+    NCDValRef name_arg;
+    if (!NCDVal_ListRead(i->args, 1, &name_arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(name_arg)) {
+    if (!NCDVal_IsStringNoNulls(name_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->name = NCDValue_StringValue(name_arg);
+    o->name = NCDVal_StringValue(name_arg);
     
     // signal up.
     // This comes above provide_promote(), so that effects on related depend statements are
@@ -312,16 +312,16 @@ static void depend_func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *name_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &name_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong arity");
+    NCDValRef name_arg;
+    if (!NCDVal_ListRead(i->args, 1, &name_arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(name_arg)) {
+    if (!NCDVal_IsStringNoNulls(name_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->name = NCDValue_StringValue(name_arg);
+    o->name = NCDVal_StringValue(name_arg);
     
     // find a provide with our name
     struct provide *p = find_provide(o->name);

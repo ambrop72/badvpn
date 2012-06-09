@@ -90,18 +90,18 @@ static void read_func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
-    NCDValue *filename_arg;
-    if (!NCDValue_ListRead(i->args, 1, &filename_arg)) {
+    NCDValRef filename_arg;
+    if (!NCDVal_ListRead(i->args, 1, &filename_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(filename_arg)) {
+    if (!NCDVal_IsStringNoNulls(filename_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
     
     // read file
-    if (!read_file(NCDValue_StringValue(filename_arg), &o->file_data, &o->file_len)) {
+    if (!read_file(NCDVal_StringValue(filename_arg), &o->file_data, &o->file_len)) {
         ModuleLog(i, BLOG_ERROR, "failed to read file");
         goto fail1;
     }
@@ -131,14 +131,14 @@ static void read_func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int read_func_getvar (void *vo, const char *name, NCDValue *out_value)
+static int read_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct read_instance *o = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitStringBin(out_value, o->file_data, o->file_len)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitStringBin failed");
-            return 0;
+        *out = NCDVal_NewStringBin(mem, o->file_data, o->file_len);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
         }
         return 1;
     }
@@ -149,19 +149,19 @@ static int read_func_getvar (void *vo, const char *name, NCDValue *out_value)
 static void write_func_new (NCDModuleInst *i)
 {
     // read arguments
-    NCDValue *filename_arg;
-    NCDValue *contents_arg;
-    if (!NCDValue_ListRead(i->args, 2, &filename_arg, &contents_arg)) {
+    NCDValRef filename_arg;
+    NCDValRef contents_arg;
+    if (!NCDVal_ListRead(i->args, 2, &filename_arg, &contents_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(filename_arg) || !NCDValue_IsString(contents_arg)) {
+    if (!NCDVal_IsStringNoNulls(filename_arg) || !NCDVal_IsString(contents_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     // write file
-    if (!write_file(NCDValue_StringValue(filename_arg), (const uint8_t *)NCDValue_StringValue(contents_arg), NCDValue_StringLength(contents_arg))) {
+    if (!write_file(NCDVal_StringValue(filename_arg), (const uint8_t *)NCDVal_StringValue(contents_arg), NCDVal_StringLength(contents_arg))) {
         ModuleLog(i, BLOG_ERROR, "failed to write file");
         goto fail0;
     }

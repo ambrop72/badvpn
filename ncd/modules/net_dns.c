@@ -220,29 +220,31 @@ static void func_new (NCDModuleInst *i)
     LinkedList2_Init(&o->ipv4_dns_servers);
     
     // get arguments
-    NCDValue *servers_arg;
-    NCDValue *priority_arg;
-    if (!NCDValue_ListRead(o->i->args, 2, &servers_arg, &priority_arg)) {
+    NCDValRef servers_arg;
+    NCDValRef priority_arg;
+    if (!NCDVal_ListRead(o->i->args, 2, &servers_arg, &priority_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(servers_arg) != NCDVALUE_LIST || !NCDValue_IsStringNoNulls(priority_arg)) {
+    if (!NCDVal_IsList(servers_arg) || !NCDVal_IsStringNoNulls(priority_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
     
-    int priority = atoi(NCDValue_StringValue(priority_arg));
+    int priority = atoi(NCDVal_StringValue(priority_arg));
     
     // read servers
-    NCDValue *server_arg = NCDValue_ListFirst(servers_arg);
-    while (server_arg) {
-        if (NCDValue_Type(server_arg) != NCDVALUE_STRING) {
+    size_t count = NCDVal_ListCount(servers_arg);
+    for (size_t j = 0; j < count; j++) {
+        NCDValRef server_arg = NCDVal_ListGet(servers_arg, j);
+        
+        if (!NCDVal_IsStringNoNulls(server_arg)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong type");
             goto fail1;
         }
         
         uint32_t addr;
-        if (!ipaddr_parse_ipv4_addr(NCDValue_StringValue(server_arg), &addr)) {
+        if (!ipaddr_parse_ipv4_addr((char *)NCDVal_StringValue(server_arg), &addr)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong addr");
             goto fail1;
         }
@@ -251,8 +253,6 @@ static void func_new (NCDModuleInst *i)
             ModuleLog(o->i, BLOG_ERROR, "failed to add dns entry");
             goto fail1;
         }
-        
-        server_arg = NCDValue_ListNext(servers_arg, server_arg);
     }
     
     // add to instances

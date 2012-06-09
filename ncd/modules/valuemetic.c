@@ -68,36 +68,36 @@ struct instance {
     int result;
 };
 
-typedef int (*compute_func) (NCDValue *v1, NCDValue *v2);
+typedef int (*compute_func) (NCDValRef v1, NCDValRef v2);
 
-static int compute_lesser (NCDValue *v1, NCDValue *v2)
+static int compute_lesser (NCDValRef v1, NCDValRef v2)
 {
-    return NCDValue_Compare(v1, v2) < 0;
+    return NCDVal_Compare(v1, v2) < 0;
 }
 
-static int compute_greater (NCDValue *v1, NCDValue *v2)
+static int compute_greater (NCDValRef v1, NCDValRef v2)
 {
-    return NCDValue_Compare(v1, v2) > 0;
+    return NCDVal_Compare(v1, v2) > 0;
 }
 
-static int compute_lesser_equal (NCDValue *v1, NCDValue *v2)
+static int compute_lesser_equal (NCDValRef v1, NCDValRef v2)
 {
-    return NCDValue_Compare(v1, v2) <= 0;
+    return NCDVal_Compare(v1, v2) <= 0;
 }
 
-static int compute_greater_equal (NCDValue *v1, NCDValue *v2)
+static int compute_greater_equal (NCDValRef v1, NCDValRef v2)
 {
-    return NCDValue_Compare(v1, v2) >= 0;
+    return NCDVal_Compare(v1, v2) >= 0;
 }
 
-static int compute_equal (NCDValue *v1, NCDValue *v2)
+static int compute_equal (NCDValRef v1, NCDValRef v2)
 {
-    return NCDValue_Compare(v1, v2) == 0;
+    return NCDVal_Compare(v1, v2) == 0;
 }
 
-static int compute_different (NCDValue *v1, NCDValue *v2)
+static int compute_different (NCDValRef v1, NCDValRef v2)
 {
-    return NCDValue_Compare(v1, v2) != 0;
+    return NCDVal_Compare(v1, v2) != 0;
 }
 
 static void new_templ (NCDModuleInst *i, compute_func cfunc)
@@ -110,9 +110,9 @@ static void new_templ (NCDModuleInst *i, compute_func cfunc)
     o->i = i;
     NCDModuleInst_Backend_SetUser(i, o);
     
-    NCDValue *v1_arg;
-    NCDValue *v2_arg;
-    if (!NCDValue_ListRead(i->args, 2, &v1_arg, &v2_arg)) {
+    NCDValRef v1_arg;
+    NCDValRef v2_arg;
+    if (!NCDVal_ListRead(i->args, 2, &v1_arg, &v2_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
@@ -140,16 +140,16 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out_value)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
         const char *str = o->result ? "true" : "false";
         
-        if (!NCDValue_InitString(out_value, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
         return 1;
     }

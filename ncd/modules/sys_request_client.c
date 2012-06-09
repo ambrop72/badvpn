@@ -92,6 +92,7 @@
 #include <system/BAddr.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDRequestClient.h>
+#include <ncd/NCDValCompat.h>
 
 #include <generated/blog_channel_ncd_sys_request_client.h>
 
@@ -122,16 +123,17 @@ struct instance {
 
 struct request_instance {
     NCDModuleInst *i;
-    char *reply_handler;
-    char *finished_handler;
-    NCDValue *args;
+    const char *reply_handler;
+    const char *finished_handler;
+    NCDValRef args;
     struct instance *client;
     NCDRequestClientRequest request;
     LinkedList0Node requests_list_node;
     LinkedList1 replies_list;
     NCDModuleProcess process;
     int process_is_finished;
-    NCDValue process_reply_data;
+    NCDValMem process_reply_mem;
+    NCDValRef process_reply_data;
     int rstate;
     int pstate;
     int dstate;
@@ -139,7 +141,8 @@ struct request_instance {
 
 struct reply {
     LinkedList1Node replies_list_node;
-    NCDValue val;
+    NCDValMem mem;
+    NCDValRef val;
 };
 
 static void client_handler_error (struct instance *o);
@@ -150,14 +153,14 @@ static void request_handler_finished (struct request_instance *o, int is_error);
 static void request_process_handler_event (struct request_instance *o, int event);
 static int request_process_func_getspecialobj (struct request_instance *o, const char *name, NCDObject *out_object);
 static int request_process_caller_obj_func_getobj (struct request_instance *o, const char *name, NCDObject *out_object);
-static int request_process_reply_obj_func_getvar (struct request_instance *o, const char *name, NCDValue *out_value);
+static int request_process_reply_obj_func_getvar (struct request_instance *o, const char *name, NCDValMem *mem, NCDValRef *out);
 static void request_gone (struct request_instance *o, int is_bad);
 static void request_terminate_process (struct request_instance *o);
 static void request_die (struct request_instance *o, int is_error);
 static void request_free_reply (struct request_instance *o, struct reply *r, int have_value);
-static int request_init_reply_process (struct request_instance *o, NCDValue reply_data);
+static int request_init_reply_process (struct request_instance *o, NCDValMem reply_mem, NCDValSafeRef reply_data);
 static int request_init_finished_process (struct request_instance *o);
-static int get_connect_addr (struct instance *o, NCDValue *connect_addr_arg, struct NCDRequestClient_addr *out_addr);
+static int get_connect_addr (struct instance *o, NCDValRef connect_addr_arg, struct NCDRequestClient_addr *out_addr);
 static void instance_free (struct instance *o, int with_error);
 static void request_instance_free (struct request_instance *o, int with_error);
 
@@ -195,27 +198,39 @@ static void request_handler_reply (struct request_instance *o, NCDValue reply_da
 {
     ASSERT(o->rstate == RRSTATE_READY)
     
+    NCDValMem mem;
+    NCDValMem_Init(&mem);
+    
+    NCDValRef val;
+    int res = NCDValCompat_ValueToVal(&reply_data, &mem, &val);
+    NCDValue_Free(&reply_data);
+    if (!res) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDValCompat_ValueToVal failed");
+        goto fail1;
+    }
+    
     // queue reply if process is running
     if (o->pstate != RPSTATE_NONE) {
         struct reply *r = malloc(sizeof(*r));
         if (!r) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-            goto fail;
+            ModuleLog(o->i, BLOG_ERROR, "malloc failed");
+            goto fail1;
         }
-        r->val = reply_data;
+        r->mem = mem;
+        r->val = NCDVal_Moved(&r->mem, val);
         LinkedList1_Append(&o->replies_list, &r->replies_list_node);
         return;
     }
     
     // start reply process
-    if (!request_init_reply_process(o, reply_data)) {
-        goto fail;
+    if (!request_init_reply_process(o, mem, NCDVal_ToSafe(val))) {
+        goto fail1;
     }
     
     return;
     
-fail:
-    NCDValue_Free(&reply_data);
+fail1:
+    NCDValMem_Free(&mem);
     request_die(o, 1);
 }
 
@@ -270,7 +285,7 @@ static void request_process_handler_event (struct request_instance *o, int event
             
             // free reply data
             if (!o->process_is_finished) {
-                NCDValue_Free(&o->process_reply_data);
+                NCDValMem_Free(&o->process_reply_mem);
             }
             
             // set process state none
@@ -287,7 +302,7 @@ static void request_process_handler_event (struct request_instance *o, int event
                 struct reply *r = UPPER_OBJECT(LinkedList1_GetFirst(&o->replies_list), struct reply, replies_list_node);
                 
                 // start reply process
-                if (!request_init_reply_process(o, r->val)) {
+                if (!request_init_reply_process(o, r->mem, NCDVal_ToSafe(r->val))) {
                     goto fail;
                 }
                 
@@ -333,15 +348,15 @@ static int request_process_caller_obj_func_getobj (struct request_instance *o, c
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
 }
 
-static int request_process_reply_obj_func_getvar (struct request_instance *o, const char *name, NCDValue *out_value)
+static int request_process_reply_obj_func_getvar (struct request_instance *o, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     ASSERT(o->pstate != RPSTATE_NONE)
     ASSERT(!o->process_is_finished)
     
     if (!strcmp(name, "data")) {
-        if (!NCDValue_InitCopy(out_value, &o->process_reply_data)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-            return 0;
+        *out = NCDVal_NewCopy(mem, o->process_reply_data);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
         }
         return 1;
     }
@@ -404,32 +419,25 @@ static void request_free_reply (struct request_instance *o, struct reply *r, int
     
     // free value
     if (have_value) {
-        NCDValue_Free(&r->val);
+        NCDValMem_Free(&r->mem);
     }
     
     // free structure
     free(r);
 }
 
-static int request_init_reply_process (struct request_instance *o, NCDValue reply_data)
+static int request_init_reply_process (struct request_instance *o, NCDValMem reply_mem, NCDValSafeRef reply_data)
 {
     ASSERT(o->pstate == RPSTATE_NONE)
     
     // set parameters
     o->process_is_finished = 0;
-    o->process_reply_data = reply_data;
-    
-    // copy arguments
-    NCDValue args;
-    if (!NCDValue_InitCopy(&args, o->args)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail0;
-    }
+    o->process_reply_mem = reply_mem;
+    o->process_reply_data = NCDVal_FromSafe(&o->process_reply_mem, reply_data);
     
     // init process
-    if (!NCDModuleProcess_Init(&o->process, o->i, o->reply_handler, args, o, (NCDModuleProcess_handler_event)request_process_handler_event)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        NCDValue_Free(&args);
+    if (!NCDModuleProcess_Init(&o->process, o->i, o->reply_handler, o->args, o, (NCDModuleProcess_handler_event)request_process_handler_event)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail0;
     }
     
@@ -451,17 +459,9 @@ static int request_init_finished_process (struct request_instance *o)
     // set parameters
     o->process_is_finished = 1;
     
-    // copy arguments
-    NCDValue args;
-    if (!NCDValue_InitCopy(&args, o->args)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail0;
-    }
-    
     // init process
-    if (!NCDModuleProcess_Init(&o->process, o->i, o->finished_handler, args, o, (NCDModuleProcess_handler_event)request_process_handler_event)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        NCDValue_Free(&args);
+    if (!NCDModuleProcess_Init(&o->process, o->i, o->finished_handler, o->args, o, (NCDModuleProcess_handler_event)request_process_handler_event)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail0;
     }
     
@@ -476,52 +476,52 @@ fail0:
     return 0;
 }
 
-static int get_connect_addr (struct instance *o, NCDValue *connect_addr_arg, struct NCDRequestClient_addr *out_addr)
+static int get_connect_addr (struct instance *o, NCDValRef connect_addr_arg, struct NCDRequestClient_addr *out_addr)
 {
-    if (NCDValue_Type(connect_addr_arg) != NCDVALUE_LIST) {
+    if (!NCDVal_IsList(connect_addr_arg)) {
         goto bad;
     }
     
-    if (NCDValue_ListCount(connect_addr_arg) < 1) {
+    if (NCDVal_ListCount(connect_addr_arg) < 1) {
         goto bad;
     }
-    NCDValue *type_arg = NCDValue_ListFirst(connect_addr_arg);
+    NCDValRef type_arg = NCDVal_ListGet(connect_addr_arg, 0);
     
-    if (!NCDValue_IsStringNoNulls(type_arg)) {
+    if (!NCDVal_IsStringNoNulls(type_arg)) {
         goto bad;
     }
-    const char *type = NCDValue_StringValue(type_arg);
+    const char *type = NCDVal_StringValue(type_arg);
     
     if (!strcmp(type, "unix")) {
-        NCDValue *socket_path_arg;
-        if (!NCDValue_ListRead(connect_addr_arg, 2, &type_arg, &socket_path_arg)) {
+        NCDValRef socket_path_arg;
+        if (!NCDVal_ListRead(connect_addr_arg, 2, &type_arg, &socket_path_arg)) {
             goto bad;
         }
         
-        if (!NCDValue_IsStringNoNulls(socket_path_arg)) {
+        if (!NCDVal_IsStringNoNulls(socket_path_arg)) {
             goto bad;
         }
         
-        *out_addr = NCDREQUESTCLIENT_UNIX_ADDR(NCDValue_StringValue(socket_path_arg));
+        *out_addr = NCDREQUESTCLIENT_UNIX_ADDR(NCDVal_StringValue(socket_path_arg));
     }
     else if (!strcmp(type, "tcp")) {
-        NCDValue *ip_address_arg;
-        NCDValue *port_number_arg;
-        if (!NCDValue_ListRead(connect_addr_arg, 3, &type_arg, &ip_address_arg, &port_number_arg)) {
+        NCDValRef ip_address_arg;
+        NCDValRef port_number_arg;
+        if (!NCDVal_ListRead(connect_addr_arg, 3, &type_arg, &ip_address_arg, &port_number_arg)) {
             goto bad;
         }
         
-        if (!NCDValue_IsStringNoNulls(ip_address_arg) || !NCDValue_IsStringNoNulls(port_number_arg)) {
+        if (!NCDVal_IsStringNoNulls(ip_address_arg) || !NCDVal_IsStringNoNulls(port_number_arg)) {
             goto bad;
         }
         
         BIPAddr ipaddr;
-        if (!BIPAddr_Resolve(&ipaddr, NCDValue_StringValue(ip_address_arg), 1)) {
+        if (!BIPAddr_Resolve(&ipaddr, (char *)NCDVal_StringValue(ip_address_arg), 1)) {
             goto bad;
         }
         
         uintmax_t port;
-        if (!parse_unsigned_integer(NCDValue_StringValue(port_number_arg), &port) || port > UINT16_MAX) {
+        if (!parse_unsigned_integer(NCDVal_StringValue(port_number_arg), &port) || port > UINT16_MAX) {
             goto bad;
         }
         
@@ -553,8 +553,8 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
-    NCDValue *connect_addr_arg;
-    if (!NCDValue_ListRead(i->args, 1, &connect_addr_arg)) {
+    NCDValRef connect_addr_arg;
+    if (!NCDVal_ListRead(i->args, 1, &connect_addr_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
@@ -629,22 +629,22 @@ static void request_func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
-    NCDValue *request_data_arg;
-    NCDValue *reply_handler_arg;
-    NCDValue *finished_handler_arg;
-    NCDValue *args_arg;
-    if (!NCDValue_ListRead(i->args, 4, &request_data_arg, &reply_handler_arg, &finished_handler_arg, &args_arg)) {
+    NCDValRef request_data_arg;
+    NCDValRef reply_handler_arg;
+    NCDValRef finished_handler_arg;
+    NCDValRef args_arg;
+    if (!NCDVal_ListRead(i->args, 4, &request_data_arg, &reply_handler_arg, &finished_handler_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(reply_handler_arg) || !NCDValue_IsStringNoNulls(finished_handler_arg) ||
-        NCDValue_Type(args_arg) != NCDVALUE_LIST
+    if (!NCDVal_IsStringNoNulls(reply_handler_arg) || !NCDVal_IsStringNoNulls(finished_handler_arg) ||
+        !NCDVal_IsList(args_arg)
     ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->reply_handler = NCDValue_StringValue(reply_handler_arg);
-    o->finished_handler = NCDValue_StringValue(finished_handler_arg);
+    o->reply_handler = NCDVal_StringValue(reply_handler_arg);
+    o->finished_handler = NCDVal_StringValue(finished_handler_arg);
     o->args = args_arg;
     
     // get client
@@ -657,14 +657,24 @@ static void request_func_new (NCDModuleInst *i)
         goto fail1;
     }
     
+    // convert argument to old format
+    NCDValue request_data_compat;
+    if (!NCDValCompat_ValToValue(request_data_arg, &request_data_compat)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDValCompat_ValToValue failed");
+        goto fail1;
+    }
+    
     // init request
-    if (!NCDRequestClientRequest_Init(&o->request, &client->client, request_data_arg, o,
+    if (!NCDRequestClientRequest_Init(&o->request, &client->client, &request_data_compat, o,
         (NCDRequestClientRequest_handler_sent)request_handler_sent,
         (NCDRequestClientRequest_handler_reply)request_handler_reply,
         (NCDRequestClientRequest_handler_finished)request_handler_finished)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDRequestClientRequest_Init failed");
+        NCDValue_Free(&request_data_compat);
         goto fail1;
     }
+    
+    NCDValue_Free(&request_data_compat);
     
     // add to requests list
     LinkedList0_Prepend(&client->requests_list, &o->requests_list_node);

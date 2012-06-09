@@ -65,14 +65,14 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *arg_addr1;
-    NCDValue *arg_addr2;
-    NCDValue *arg_netprefix;
-    if (!NCDValue_ListRead(o->i->args, 3, &arg_addr1, &arg_addr2, &arg_netprefix)) {
+    NCDValRef arg_addr1;
+    NCDValRef arg_addr2;
+    NCDValRef arg_netprefix;
+    if (!NCDVal_ListRead(o->i->args, 3, &arg_addr1, &arg_addr2, &arg_netprefix)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(arg_addr1) || !NCDValue_IsStringNoNulls(arg_addr2) || !NCDValue_IsStringNoNulls(arg_netprefix)) {
+    if (!NCDVal_IsStringNoNulls(arg_addr1) || !NCDVal_IsStringNoNulls(arg_addr2) || !NCDVal_IsStringNoNulls(arg_netprefix)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
@@ -81,15 +81,15 @@ static void func_new (NCDModuleInst *i)
     uint32_t addr1;
     uint32_t addr2;
     int netprefix;
-    if (!ipaddr_parse_ipv4_addr(NCDValue_StringValue(arg_addr1), &addr1)) {
+    if (!ipaddr_parse_ipv4_addr((char *)NCDVal_StringValue(arg_addr1), &addr1)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong addr1");
         goto fail1;
     }
-    if (!ipaddr_parse_ipv4_addr(NCDValue_StringValue(arg_addr2), &addr2)) {
+    if (!ipaddr_parse_ipv4_addr((char *)NCDVal_StringValue(arg_addr2), &addr2)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong addr2");
         goto fail1;
     }
-    if (!ipaddr_parse_ipv4_prefix(NCDValue_StringValue(arg_netprefix), &netprefix)) {
+    if (!ipaddr_parse_ipv4_prefix((char *)NCDVal_StringValue(arg_netprefix), &netprefix)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong netprefix");
         goto fail1;
     }
@@ -120,18 +120,17 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
         const char *v = (o->value ? "true" : "false");
         
-        if (!NCDValue_InitString(out, v)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, v);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     

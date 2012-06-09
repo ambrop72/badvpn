@@ -79,24 +79,21 @@ int NCDObject_GetObj (NCDObject *o, const char *name, NCDObject *out_object)
     return res;
 }
 
-int NCDObject_GetVar (NCDObject *o, const char *name, NCDValue *out_value)
+int NCDObject_GetVar (NCDObject *o, const char *name, NCDValMem *mem, NCDValRef *out_value)
 {
     ASSERT(name)
+    ASSERT(mem)
     ASSERT(out_value)
     
     int res;
     if (o->user2) {
-        res = (!o->uv.func_getvar2 ? 0 : o->uv.func_getvar2(o->user, o->user2, name, out_value));
+        res = (!o->uv.func_getvar2 ? 0 : o->uv.func_getvar2(o->user, o->user2, name, mem, out_value));
     } else {
-        res = (!o->uv.func_getvar ? 0 : o->uv.func_getvar(o->user, name, out_value));
+        res = (!o->uv.func_getvar ? 0 : o->uv.func_getvar(o->user, name, mem, out_value));
     }
     
     ASSERT(res == 0 || res == 1)
-#ifndef NDEBUG
-    if (res) {
-        NCDValue_Type(out_value);
-    }
-#endif
+    ASSERT(res == 0 || (NCDVal_Assert(*out_value), 1))
     
     return res;
 }
@@ -155,9 +152,10 @@ int NCDObject_ResolveObjExprCompact (NCDObject *o, const char *names, int num_na
     return 1;
 }
 
-int NCDObject_ResolveVarExpr (NCDObject *o, char **names, NCDValue *out_value)
+int NCDObject_ResolveVarExpr (NCDObject *o, char **names, NCDValMem *mem, NCDValRef *out_value)
 {
     ASSERT(names)
+    ASSERT(mem)
     ASSERT(out_value)
     
     NCDObject object = dig_into_object(*o);
@@ -165,7 +163,7 @@ int NCDObject_ResolveVarExpr (NCDObject *o, char **names, NCDValue *out_value)
     for (size_t i = 0; names[i]; i++) {
         NCDObject obj2;
         if (!NCDObject_GetObj(&object, names[i], &obj2)) {
-            if (!names[i + 1] && NCDObject_GetVar(&object, names[i], out_value)) {
+            if (!names[i + 1] && NCDObject_GetVar(&object, names[i], mem, out_value)) {
                 return 1;
             }
             
@@ -175,5 +173,5 @@ int NCDObject_ResolveVarExpr (NCDObject *o, char **names, NCDValue *out_value)
         object = dig_into_object(obj2);
     }
     
-    return NCDObject_GetVar(&object, "", out_value);
+    return NCDObject_GetVar(&object, "", mem, out_value);
 }

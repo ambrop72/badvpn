@@ -48,24 +48,24 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-static void new_templ (NCDModuleInst *i, int not)
+static void new_templ (NCDModuleInst *i, int is_not)
 {
     // check arguments
-    NCDValue *arg;
-    if (!NCDValue_ListRead(i->args, 1, &arg)) {
+    NCDValRef arg;
+    if (!NCDVal_ListRead(i->args, 1, &arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+    if (!NCDVal_IsString(arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     // compute logical value of argument
-    int c = NCDValue_StringEquals(arg, "true");
+    int c = NCDVal_StringEquals(arg, "true");
     
     // signal up if needed
-    if ((not && !c) || (!not && c)) {
+    if ((is_not && !c) || (!is_not && c)) {
         NCDModuleInst_Backend_Up(i);
     }
     

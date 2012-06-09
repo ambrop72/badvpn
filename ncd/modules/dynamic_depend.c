@@ -62,7 +62,7 @@ struct name {
 struct provide {
     NCDModuleInst *i;
     struct name *n;
-    NCDValue *order_value;
+    NCDValRef order_value;
     BAVLNode provides_tree_node;
     int dying;
 };
@@ -91,9 +91,9 @@ static int stringptr_comparator (void *user, char **v1, char **v2)
     return 0;
 }
 
-static int valueptr_comparator (void *user, NCDValue **v1, NCDValue **v2)
+static int val_comparator (void *user, NCDValRef *v1, NCDValRef *v2)
 {
-    return NCDValue_Compare(*v1, *v2);
+    return NCDVal_Compare(*v1, *v2);
 }
 
 static struct name * find_name (const char *name)
@@ -130,7 +130,7 @@ static struct name * name_init (NCDModuleInst *i, const char *name)
     ASSERT_EXECUTE(BAVL_Insert(&names_tree, &o->names_tree_node, NULL))
     
     // init provides tree
-    BAVL_Init(&o->provides_tree, OFFSET_DIFF(struct provide, order_value, provides_tree_node), (BAVL_comparator)valueptr_comparator, NULL);
+    BAVL_Init(&o->provides_tree, OFFSET_DIFF(struct provide, order_value, provides_tree_node), (BAVL_comparator)val_comparator, NULL);
     
     // init waiting depends list
     LinkedList0_Init(&o->waiting_depends_list);
@@ -287,16 +287,16 @@ static void provide_func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *name_arg;
-    if (!NCDValue_ListRead(i->args, 2, &name_arg, &o->order_value)) {
+    NCDValRef name_arg;
+    if (!NCDVal_ListRead(i->args, 2, &name_arg, &o->order_value)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(name_arg)) {
+    if (!NCDVal_IsStringNoNulls(name_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    char *name_str = NCDValue_StringValue(name_arg);
+    const char *name_str = NCDVal_StringValue(name_arg);
     
     // find name, create new if needed
     struct name *n = find_name(name_str);
@@ -397,16 +397,16 @@ static void depend_func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *name_arg;
-    if (!NCDValue_ListRead(i->args, 1, &name_arg)) {
+    NCDValRef name_arg;
+    if (!NCDVal_ListRead(i->args, 1, &name_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(name_arg)) {
+    if (!NCDVal_IsStringNoNulls(name_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    char *name_str = NCDValue_StringValue(name_arg);
+    const char *name_str = NCDVal_StringValue(name_arg);
     
     // find name, create new if needed
     struct name *n = find_name(name_str);

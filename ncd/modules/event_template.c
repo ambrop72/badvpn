@@ -118,7 +118,7 @@ void event_template_die (event_template *o)
     return;
 }
 
-int event_template_getvar (event_template *o, const char *name, NCDValue *out)
+int event_template_getvar (event_template *o, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     ASSERT(o->enabled)
     ASSERT(name)
@@ -128,11 +128,10 @@ int event_template_getvar (event_template *o, const char *name, NCDValue *out)
         return 0;
     }
     
-    if (!NCDValue_InitString(out, val)) {
-        TemplateLog(o, BLOG_ERROR, "NCDValue_InitString failed");
-        return 0;
+    *out = NCDVal_NewString(mem, val);
+    if (NCDVal_IsInvalid(*out)) {
+        TemplateLog(o, BLOG_ERROR, "NCDVal_NewString failed");
     }
-    
     return 1;
 }
 

@@ -72,24 +72,28 @@ struct instance {
 
 static void instance_free (struct instance *o);
 
-static int build_cmdline (NCDModuleInst *i, NCDValue *cmd_arg, char **exec, CmdLine *cl)
+static int build_cmdline (NCDModuleInst *i, NCDValRef cmd_arg, char **exec, CmdLine *cl)
 {
-    if (NCDValue_Type(cmd_arg) != NCDVALUE_LIST) {
+    ASSERT(!NCDVal_IsInvalid(cmd_arg))
+    
+    if (!NCDVal_IsList(cmd_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
+    size_t count = NCDVal_ListCount(cmd_arg);
+    
     // read exec
-    NCDValue *exec_arg = NCDValue_ListFirst(cmd_arg);
-    if (!exec_arg) {
+    if (count == 0) {
         ModuleLog(i, BLOG_ERROR, "missing executable name");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(exec_arg)) {
+    NCDValRef exec_arg = NCDVal_ListGet(cmd_arg, 0);
+    if (!NCDVal_IsStringNoNulls(exec_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    if (!(*exec = strdup(NCDValue_StringValue(exec_arg)))) {
+    if (!(*exec = strdup(NCDVal_StringValue(exec_arg)))) {
         ModuleLog(i, BLOG_ERROR, "strdup failed");
         goto fail0;
     }
@@ -107,14 +111,15 @@ static int build_cmdline (NCDModuleInst *i, NCDValue *cmd_arg, char **exec, CmdL
     }
     
     // add additional arguments
-    NCDValue *arg = exec_arg;
-    while (arg = NCDValue_ListNext(cmd_arg, arg)) {
-        if (!NCDValue_IsStringNoNulls(arg)) {
+    for (size_t j = 1; j < count; j++) {
+        NCDValRef arg = NCDVal_ListGet(cmd_arg, j);
+        
+        if (!NCDVal_IsStringNoNulls(arg)) {
             ModuleLog(i, BLOG_ERROR, "wrong type");
             goto fail2;
         }
         
-        if (!CmdLine_Append(cl, NCDValue_StringValue(arg))) {
+        if (!CmdLine_Append(cl, NCDVal_StringValue(arg))) {
             ModuleLog(i, BLOG_ERROR, "CmdLine_Append failed");
             goto fail2;
         }
@@ -174,13 +179,13 @@ static void func_new (NCDModuleInst *i)
     o->term_on_deinit = 0;
     
     // read arguments
-    NCDValue *cmd_arg;
-    NCDValue *opts_arg = NULL;
-    if (!NCDValue_ListRead(i->args, 1, &cmd_arg) && !NCDValue_ListRead(i->args, 2, &cmd_arg, &opts_arg)) {
+    NCDValRef cmd_arg;
+    NCDValRef opts_arg = NCDVal_NewInvalid();
+    if (!NCDVal_ListRead(i->args, 1, &cmd_arg) && !NCDVal_ListRead(i->args, 2, &cmd_arg, &opts_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (opts_arg && NCDValue_Type(opts_arg) != NCDVALUE_LIST) {
+    if (!NCDVal_IsInvalid(opts_arg) && !NCDVal_IsList(opts_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
@@ -190,13 +195,16 @@ static void func_new (NCDModuleInst *i)
     int do_setsid = 0;
     
     // read options
-    for (NCDValue *opt = (opts_arg ? NCDValue_ListFirst(opts_arg) : NULL); opt; opt = NCDValue_ListNext(opts_arg, opt)) {
+    size_t count = NCDVal_IsInvalid(opts_arg) ? 0 : NCDVal_ListCount(opts_arg);
+    for (size_t j = 0; j < count; j++) {
+        NCDValRef opt = NCDVal_ListGet(opts_arg, j);
+        
         // read name
-        if (!NCDValue_IsStringNoNulls(opt)) {
+        if (!NCDVal_IsStringNoNulls(opt)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong option name type");
             goto fail1;
         }
-        char *optname = NCDValue_StringValue(opt);
+        const char *optname = NCDVal_StringValue(opt);
         
         if (!strcmp(optname, "term_on_deinit")) {
             o->term_on_deinit = 1;
@@ -295,7 +303,7 @@ static void func_die (void *vo)
     o->state = STATE_RUNNING_DIE;
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     ASSERT(o->state == STATE_FINISHED)
@@ -304,11 +312,10 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
         char str[30];
         snprintf(str, sizeof(str), "%d", o->exit_status);
         
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     

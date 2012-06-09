@@ -81,7 +81,7 @@ static void refhere_func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    if (!NCDValue_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
@@ -145,7 +145,7 @@ static void ref_func_new_templ (NCDModuleInst *i, struct refhere_instance *rh)
     o->i = i;
     
     // check arguments
-    if (!NCDValue_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }

@@ -116,7 +116,7 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    if (!NCDValue_ListRead(o->i->args, 0)) {
+    if (!NCDVal_ListRead(o->i->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
@@ -185,7 +185,7 @@ static void updown_func_new_templ (NCDModuleInst *i, int up, int first_down)
     ASSERT(!first_down || up)
     
     // check arguments
-    if (!NCDValue_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -252,7 +252,7 @@ static void rdownup_func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
-    if (!NCDValue_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
@@ -322,7 +322,7 @@ static void use_func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    if (!NCDValue_ListRead(o->i->args, 0)) {
+    if (!NCDVal_ListRead(o->i->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }

@@ -63,16 +63,16 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *ifname_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &ifname_arg)) {
+    NCDValRef ifname_arg;
+    if (!NCDVal_ListRead(o->i->args, 1, &ifname_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(ifname_arg)) {
+    if (!NCDVal_IsStringNoNulls(ifname_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->ifname = NCDValue_StringValue(ifname_arg);
+    o->ifname = NCDVal_StringValue(ifname_arg);
     
     // set interface up
     if (!NCDIfConfig_set_up(o->ifname)) {

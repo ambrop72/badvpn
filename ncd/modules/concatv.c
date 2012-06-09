@@ -64,12 +64,12 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *strings_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &strings_arg)) {
+    NCDValRef strings_arg;
+    if (!NCDVal_ListRead(o->i->args, 1, &strings_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(strings_arg) != NCDVALUE_LIST) {
+    if (!NCDVal_IsList(strings_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
@@ -82,19 +82,19 @@ static void func_new (NCDModuleInst *i)
     }
     
     // append arguments
-    NCDValue *arg = NCDValue_ListFirst(strings_arg);
-    while (arg) {
-        if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+    size_t count = NCDVal_ListCount(strings_arg);
+    for (size_t j = 0; j < count; j++) {
+        NCDValRef arg = NCDVal_ListGet(strings_arg, j);
+        
+        if (!NCDVal_IsString(arg)) {
             ModuleLog(i, BLOG_ERROR, "wrong type");
             goto fail2;
         }
         
-        if (!ExpString_AppendBinary(&s, (const uint8_t *)NCDValue_StringValue(arg), NCDValue_StringLength(arg))) {
+        if (!ExpString_AppendBinary(&s, (const uint8_t *)NCDVal_StringValue(arg), NCDVal_StringLength(arg))) {
             ModuleLog(i, BLOG_ERROR, "ExpString_Append failed");
             goto fail2;
         }
-        
-        arg = NCDValue_ListNext(strings_arg, arg);
     }
     
     // set string
@@ -129,16 +129,15 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitStringBin(out, o->string, o->len)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitStringBin failed");
-            return 0;
+        *out = NCDVal_NewStringBin(mem, o->string, o->len);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     

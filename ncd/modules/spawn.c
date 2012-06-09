@@ -97,19 +97,17 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
+    o->i = i;
     NCDModuleInst_Backend_SetUser(i, o);
     
-    // init arguments
-    o->i = i;
-    
     // check arguments
-    NCDValue *template_name_arg;
-    NCDValue *args_arg;
-    if (!NCDValue_ListRead(o->i->args, 2, &template_name_arg, &args_arg)) {
+    NCDValRef template_name_arg;
+    NCDValRef args_arg;
+    if (!NCDVal_ListRead(o->i->args, 2, &template_name_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(template_name_arg) || NCDValue_Type(args_arg) != NCDVALUE_LIST) {
+    if (!NCDVal_IsStringNoNulls(template_name_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
@@ -118,17 +116,9 @@ static void func_new (NCDModuleInst *i)
     // Do it before creating the process so that the process starts initializing before our own process continues.
     NCDModuleInst_Backend_Up(o->i);
     
-    // copy arguments
-    NCDValue args;
-    if (!NCDValue_InitCopy(&args, args_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail1;
-    }
-    
     // create process
-    if (!NCDModuleProcess_Init(&o->process, o->i, NCDValue_StringValue(template_name_arg), args, o, (NCDModuleProcess_handler_event)process_handler_event)) {
+    if (!NCDModuleProcess_Init(&o->process, o->i, NCDVal_StringValue(template_name_arg), args_arg, o, (NCDModuleProcess_handler_event)process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
-        NCDValue_Free(&args);
         goto fail1;
     }
     

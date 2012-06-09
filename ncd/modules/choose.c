@@ -51,7 +51,7 @@
 
 struct instance {
     NCDModuleInst *i;
-    NCDValue *result;
+    NCDValRef result;
 };
 
 static void func_new (NCDModuleInst *i)
@@ -68,48 +68,50 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *arg_choices;
-    NCDValue *arg_default_result;
-    if (!NCDValue_ListRead(i->args, 2, &arg_choices, &arg_default_result)) {
+    NCDValRef arg_choices;
+    NCDValRef arg_default_result;
+    if (!NCDVal_ListRead(i->args, 2, &arg_choices, &arg_default_result)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(arg_choices) != NCDVALUE_LIST) {
+    if (!NCDVal_IsList(arg_choices)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
     
-    // set no result
-    o->result = NULL;
-    
     // iterate choices
-    for (NCDValue *c = NCDValue_ListFirst(arg_choices); c; c = NCDValue_ListNext(arg_choices, c)) {
+    int have_result = 0;
+    size_t count = NCDVal_ListCount(arg_choices);
+    for (size_t j = 0; j < count; j++) {
+        NCDValRef c = NCDVal_ListGet(arg_choices, j);
+        
         // check choice type
-        if (NCDValue_Type(c) != NCDVALUE_LIST) {
+        if (!NCDVal_IsList(c)) {
             ModuleLog(i, BLOG_ERROR, "wrong choice type");
             goto fail1;
         }
         
         // read choice
-        NCDValue *c_cond;
-        NCDValue *c_result;
-        if (!NCDValue_ListRead(c, 2, &c_cond, &c_result)) {
+        NCDValRef c_cond;
+        NCDValRef c_result;
+        if (!NCDVal_ListRead(c, 2, &c_cond, &c_result)) {
             ModuleLog(i, BLOG_ERROR, "wrong choice contents arity");
             goto fail1;
         }
-        if (NCDValue_Type(c_cond) != NCDVALUE_STRING) {
+        if (!NCDVal_IsString(c_cond)) {
             ModuleLog(i, BLOG_ERROR, "wrong choice condition type");
             goto fail1;
         }
         
         // update result
-        if (!o->result && NCDValue_StringEquals(c_cond, "true")) {
+        if (!have_result && NCDVal_StringEquals(c_cond, "true")) {
             o->result = c_result;
+            have_result = 1;
         }
     }
     
     // default?
-    if (!o->result) {
+    if (!have_result) {
         o->result = arg_default_result;
     }
     
@@ -135,16 +137,15 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitCopy(out, o->result)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-            return 0;
+        *out = NCDVal_NewCopy(mem, o->result);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     

@@ -34,7 +34,10 @@
 
 #include <misc/debug.h>
 #include <ncd/NCDValue.h>
+#include <ncd/NCDVal.h>
 
 int NCDValueParser_Parse (const char *str, size_t str_len, NCDValue *out_value) WARN_UNUSED;
+
+int NCDValParser_Parse (const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out_value) WARN_UNUSED;
 
 #endif

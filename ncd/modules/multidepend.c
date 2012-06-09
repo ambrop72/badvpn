@@ -58,7 +58,7 @@
 
 struct provide {
     NCDModuleInst *i;
-    char *name;
+    const char *name;
     LinkedList2Node provides_node;
     LinkedList2 depends;
     int dying;
@@ -66,7 +66,7 @@ struct provide {
 
 struct depend {
     NCDModuleInst *i;
-    NCDValue *names;
+    NCDValRef names;
     LinkedList2Node depends_node;
     struct provide *provide;
     LinkedList2Node provide_node;
@@ -94,13 +94,14 @@ static struct provide * find_provide (const char *name)
 
 static struct provide * depend_find_best_provide (struct depend *o)
 {
-    NCDValue *e = NCDValue_ListFirst(o->names);
-    while (e) {
-        struct provide *p = find_provide(NCDValue_StringValue(e));
+    size_t count = NCDVal_ListCount(o->names);
+    
+    for (size_t j = 0; j < count; j++) {
+        NCDValRef e = NCDVal_ListGet(o->names, j);
+        struct provide *p = find_provide(NCDVal_StringValue(e));
         if (p && !p->dying) {
             return p;
         }
-        e = NCDValue_ListNext(o->names, e);
     }
     
     return NULL;
@@ -168,16 +169,16 @@ static void provide_func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *name_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &name_arg)) {
+    NCDValRef name_arg;
+    if (!NCDVal_ListRead(o->i->args, 1, &name_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(name_arg)) {
+    if (!NCDVal_IsStringNoNulls(name_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->name = NCDValue_StringValue(name_arg);
+    o->name = NCDVal_StringValue(name_arg);
     
     // check for existing provide with this name
     if (find_provide(o->name)) {
@@ -272,25 +273,25 @@ static void depend_func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *names_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &names_arg)) {
+    NCDValRef names_arg;
+    if (!NCDVal_ListRead(o->i->args, 1, &names_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(names_arg) != NCDVALUE_LIST) {
+    if (!NCDVal_IsList(names_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
     o->names = names_arg;
     
     // check names list
-    NCDValue *e = NCDValue_ListFirst(o->names);
-    while (e) {
-        if (!NCDValue_IsStringNoNulls(e)) {
+    size_t count = NCDVal_ListCount(o->names);
+    for (size_t j = 0; j < count; j++) {
+        NCDValRef e = NCDVal_ListGet(o->names, j);
+        if (!NCDVal_IsStringNoNulls(e)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong type");
             goto fail1;
         }
-        e = NCDValue_ListNext(o->names, e);
     }
     
     // insert to depends list

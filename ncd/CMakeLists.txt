@@ -30,16 +30,25 @@ add_library(ncdvalue
     NCDValue.c
 )
 
+add_library(ncdval
+    NCDVal.c
+)
+
+add_library(ncdvalcompat
+    NCDValCompat.c
+)
+target_link_libraries(ncdvalcompat ncdvalue ncdval)
+
 add_library(ncdvaluegenerator
     NCDValueGenerator.c
 )
-target_link_libraries(ncdvaluegenerator base ncdvalue)
+target_link_libraries(ncdvaluegenerator base ncdvalue ncdval)
 
 add_library(ncdvalueparser
     NCDConfig.c
     NCDValueParser.c
 )
-target_link_libraries(ncdvalueparser base ncdvalue ncdtokenizer)
+target_link_libraries(ncdvalueparser base ncdvalue ncdval ncdtokenizer ncdvalcompat)
 
 add_library(ncdast
     NCDAst.c
@@ -134,7 +143,7 @@ add_executable(badvpn-ncd
     modules/call2.c
     ${NCD_ADDITIONAL_SOURCES}
 )
-target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdvalue ncdvaluegenerator ncdvalueparser ncdconfigparser udevmonitor ncdinterfacemonitor ncdrequest)
+target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdvalue ncdval ncdvalcompat ncdvaluegenerator ncdvalueparser ncdconfigparser udevmonitor ncdinterfacemonitor ncdrequest)
 
 if (BADVPN_USE_LINUX_INPUT)
     string(REPLACE " " ";" FLAGS_LIST "${CMAKE_C_FLAGS}")

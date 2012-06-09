@@ -98,19 +98,19 @@ fail0:
 static void prefix_to_mask_func_init (NCDModuleInst *i)
 {
     // read arguments
-    NCDValue *prefix_arg;
-    if (!NCDValue_ListRead(i->args, 1, &prefix_arg)) {
+    NCDValRef prefix_arg;
+    if (!NCDVal_ListRead(i->args, 1, &prefix_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(prefix_arg)) {
+    if (!NCDVal_IsStringNoNulls(prefix_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     // parse prefix
     int prefix;
-    if (!ipaddr_parse_ipv4_prefix(NCDValue_StringValue(prefix_arg), &prefix)) {
+    if (!ipaddr_parse_ipv4_prefix((char *)NCDVal_StringValue(prefix_arg), &prefix)) {
         ModuleLog(i, BLOG_ERROR, "bad prefix");
         goto fail0;
     }
@@ -129,27 +129,27 @@ fail0:
 static void ipv4_net_from_addr_and_prefix_func_init (NCDModuleInst *i)
 {
     // read arguments
-    NCDValue *addr_arg;
-    NCDValue *prefix_arg;
-    if (!NCDValue_ListRead(i->args, 2, &addr_arg, &prefix_arg)) {
+    NCDValRef addr_arg;
+    NCDValRef prefix_arg;
+    if (!NCDVal_ListRead(i->args, 2, &addr_arg, &prefix_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(addr_arg) || !NCDValue_IsStringNoNulls(prefix_arg)) {
+    if (!NCDVal_IsStringNoNulls(addr_arg) || !NCDVal_IsStringNoNulls(prefix_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     // parse addr
     uint32_t addr;
-    if (!ipaddr_parse_ipv4_addr(NCDValue_StringValue(addr_arg), &addr)) {
+    if (!ipaddr_parse_ipv4_addr((char *)NCDVal_StringValue(addr_arg), &addr)) {
         ModuleLog(i, BLOG_ERROR, "bad addr");
         goto fail0;
     }
     
     // parse prefix
     int prefix;
-    if (!ipaddr_parse_ipv4_prefix(NCDValue_StringValue(prefix_arg), &prefix)) {
+    if (!ipaddr_parse_ipv4_prefix((char *)NCDVal_StringValue(prefix_arg), &prefix)) {
         ModuleLog(i, BLOG_ERROR, "bad prefix");
         goto fail0;
     }
@@ -176,7 +176,7 @@ static void addr_func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int addr_func_getvar (void *vo, const char *name, NCDValue *out_value)
+static int addr_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct addr_instance *o = vo;
     
@@ -185,11 +185,10 @@ static int addr_func_getvar (void *vo, const char *name, NCDValue *out_value)
         char buf[20];
         sprintf(buf, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, x[0], x[1], x[2], x[3]);
         
-        if (!NCDValue_InitString(out_value, buf)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, buf);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
@@ -208,19 +207,19 @@ static void mask_to_prefix_func_init (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
-    NCDValue *mask_arg;
-    if (!NCDValue_ListRead(i->args, 1, &mask_arg)) {
+    NCDValRef mask_arg;
+    if (!NCDVal_ListRead(i->args, 1, &mask_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(mask_arg)) {
+    if (!NCDVal_IsStringNoNulls(mask_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
     
     // parse mask
     uint32_t mask;
-    if (!ipaddr_parse_ipv4_addr(NCDValue_StringValue(mask_arg), &mask)) {
+    if (!ipaddr_parse_ipv4_addr((char *)NCDVal_StringValue(mask_arg), &mask)) {
         ModuleLog(i, BLOG_ERROR, "bad mask");
         goto fail1;
     }
@@ -253,7 +252,7 @@ static void prefix_func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int prefix_func_getvar (void *vo, const char *name, NCDValue *out_value)
+static int prefix_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct prefix_instance *o = vo;
     
@@ -261,11 +260,10 @@ static int prefix_func_getvar (void *vo, const char *name, NCDValue *out_value)
         char buf[6];
         sprintf(buf, "%d", o->prefix);
         
-        if (!NCDValue_InitString(out_value, buf)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, buf);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     

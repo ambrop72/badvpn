@@ -82,21 +82,21 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    NCDValue *ms_start_arg;
-    NCDValue *ms_stop_arg;
-    if (!NCDValue_ListRead(i->args, 2, &ms_start_arg, &ms_stop_arg)) {
+    NCDValRef ms_start_arg;
+    NCDValRef ms_stop_arg;
+    if (!NCDVal_ListRead(i->args, 2, &ms_start_arg, &ms_stop_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(ms_start_arg) || !NCDValue_IsStringNoNulls(ms_stop_arg)) {
+    if (!NCDVal_IsStringNoNulls(ms_start_arg) || !NCDVal_IsStringNoNulls(ms_stop_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    if (sscanf(NCDValue_StringValue(ms_start_arg), "%"SCNi64, &o->ms_start) != 1) {
+    if (sscanf(NCDVal_StringValue(ms_start_arg), "%"SCNi64, &o->ms_start) != 1) {
         ModuleLog(o->i, BLOG_ERROR, "wrong time");
         goto fail1;
     }
-    if (sscanf(NCDValue_StringValue(ms_stop_arg), "%"SCNi64, &o->ms_stop) != 1) {
+    if (sscanf(NCDVal_StringValue(ms_stop_arg), "%"SCNi64, &o->ms_stop) != 1) {
         ModuleLog(o->i, BLOG_ERROR, "wrong time");
         goto fail1;
     }

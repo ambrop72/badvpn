@@ -39,6 +39,9 @@ if (BUILD_NCD)
 
     add_executable(ncdinterfacemonitor_test ncdinterfacemonitor_test.c)
     target_link_libraries(ncdinterfacemonitor_test ncdinterfacemonitor)
+
+    add_executable(ncdval_test ncdval_test.c)
+    target_link_libraries(ncdval_test ncdval)
 endif ()
 
 if (BUILDING_UDEVMONITOR)

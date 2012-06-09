@@ -184,20 +184,20 @@ static void new_templ (NCDModuleInst *i, compute_func cfunc)
     o->i = i;
     NCDModuleInst_Backend_SetUser(i, o);
     
-    NCDValue *n1_arg;
-    NCDValue *n2_arg;
-    if (!NCDValue_ListRead(i->args, 2, &n1_arg, &n2_arg)) {
+    NCDValRef n1_arg;
+    NCDValRef n2_arg;
+    if (!NCDVal_ListRead(i->args, 2, &n1_arg, &n2_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(n1_arg) || !NCDValue_IsStringNoNulls(n2_arg)) {
+    if (!NCDVal_IsStringNoNulls(n1_arg) || !NCDVal_IsStringNoNulls(n2_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
     
     uintmax_t n1;
     uintmax_t n2;
-    if (!parse_unsigned_integer(NCDValue_StringValue(n1_arg), &n1) || !parse_unsigned_integer(NCDValue_StringValue(n2_arg), &n2)) {
+    if (!parse_unsigned_integer(NCDVal_StringValue(n1_arg), &n1) || !parse_unsigned_integer(NCDVal_StringValue(n2_arg), &n2)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong value");
         goto fail1;
     }
@@ -227,14 +227,14 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out_value)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitString(out_value, o->value)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, o->value);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
         return 1;
     }

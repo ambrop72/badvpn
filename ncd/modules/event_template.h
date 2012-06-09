@@ -56,7 +56,7 @@ struct event_template_event {
 void event_template_new (event_template *o, NCDModuleInst *i, int blog_channel, int maxevents, void *user,
                          event_template_func_free func_free);
 void event_template_die (event_template *o);
-int event_template_getvar (event_template *o, const char *name, NCDValue *out);
+int event_template_getvar (event_template *o, const char *name, NCDValMem *mem, NCDValRef *out);
 void event_template_queue (event_template *o, BStringMap map, int *out_was_empty);
 void event_template_dequeue (event_template *o, int *out_is_empty);
 int event_template_is_enabled (event_template *o);

@@ -34,6 +34,7 @@
 #include <misc/debug.h>
 #include <base/BLog.h>
 #include <ncd/NCDConfigTokenizer.h>
+#include <ncd/NCDValCompat.h>
 
 #include "NCDValueParser.h"
 
@@ -293,4 +294,24 @@ out:
     free(state.out.ast_string.str);
     NCDConfig_free_list(state.out.ast_list);
     return res;
+}
+
+int NCDValParser_Parse (const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out_value)
+{
+    ASSERT(mem)
+    ASSERT(out_value)
+    
+    NCDValue value;
+    if (!NCDValueParser_Parse(str, str_len, &value)) {
+        return 0;
+    }
+    
+    if (!NCDValCompat_ValueToVal(&value, mem, out_value)) {
+        BLog(BLOG_ERROR, "NCDValCompat_ValueToVal failed");
+        NCDValue_Free(&value);
+        return 0;
+    }
+    
+    NCDValue_Free(&value);
+    return 1;
 }

@@ -168,29 +168,21 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
-    NCDValue *template_name_arg;
-    NCDValue *args_arg;
-    if (!NCDValue_ListRead(i->args, 2, &template_name_arg, &args_arg)) {
+    NCDValRef template_name_arg;
+    NCDValRef args_arg;
+    if (!NCDVal_ListRead(i->args, 2, &template_name_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(template_name_arg) || NCDValue_Type(args_arg) != NCDVALUE_LIST) {
+    if (!NCDVal_IsStringNoNulls(template_name_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    char *template_name = NCDValue_StringValue(template_name_arg);
-    
-    // copy arguments
-    NCDValue args;
-    if (!NCDValue_InitCopy(&args, args_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail1;
-    }
+    const char *template_name = NCDVal_StringValue(template_name_arg);
     
     // start process
-    if (!NCDModuleProcess_Init(&o->process, i, template_name, args, o, (NCDModuleProcess_handler_event)process_handler_event)) {
+    if (!NCDModuleProcess_Init(&o->process, i, template_name, args_arg, o, (NCDModuleProcess_handler_event)process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
-        NCDValue_Free(&args);
         goto fail1;
     }
     
@@ -240,7 +232,7 @@ static void func_die (void *vo)
     }
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     ASSERT(o->state == STATE_FINISHED)
@@ -248,9 +240,10 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     
     if (!strcmp(name, "succeeded")) {
         const char *str = (o->succeeded ? "true" : "false");
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
         return 1;
     }
@@ -261,12 +254,12 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
 static void assert_func_new (NCDModuleInst *i)
 {
     // check arguments
-    NCDValue *cond_arg;
-    if (!NCDValue_ListRead(i->args, 1, &cond_arg)) {
+    NCDValRef cond_arg;
+    if (!NCDVal_ListRead(i->args, 1, &cond_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(cond_arg) != NCDVALUE_STRING) {
+    if (!NCDVal_IsString(cond_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
@@ -278,7 +271,7 @@ static void assert_func_new (NCDModuleInst *i)
     // signal up
     NCDModuleInst_Backend_Up(i);
     
-    if (!NCDValue_StringEquals(cond_arg, "true")) {
+    if (!NCDVal_StringEquals(cond_arg, "true")) {
         // mark not succeeded
         mo->succeeded = 0;
         

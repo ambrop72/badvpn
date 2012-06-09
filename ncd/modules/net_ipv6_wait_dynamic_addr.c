@@ -104,16 +104,16 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
-    NCDValue *ifname_arg;
-    if (!NCDValue_ListRead(i->args, 1, &ifname_arg)) {
+    NCDValRef ifname_arg;
+    if (!NCDVal_ListRead(i->args, 1, &ifname_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(ifname_arg)) {
+    if (!NCDVal_IsStringNoNulls(ifname_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    const char *ifname = NCDValue_StringValue(ifname_arg);
+    const char *ifname = NCDVal_StringValue(ifname_arg);
     
     // get interface index
     int ifindex;
@@ -158,7 +158,7 @@ static void func_die (void *vo)
     instance_free(o);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     ASSERT(o->up)
@@ -169,9 +169,9 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
             ModuleLog(o->i, BLOG_ERROR, "ipaddr6_print_addr failed");
             return 0;
         }
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
         return 1;
     }
@@ -179,9 +179,9 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     if (!strcmp(name, "prefix")) {
         char str[10];
         sprintf(str, "%d", o->ifaddr.prefix);
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
         return 1;
     }

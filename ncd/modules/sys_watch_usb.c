@@ -331,7 +331,7 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    if (!NCDValue_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
@@ -377,16 +377,16 @@ static void func_die (void *vo)
     event_template_die(&o->templ);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
-    return event_template_getvar(&o->templ, name, out);
+    return event_template_getvar(&o->templ, name, mem, out);
 }
 
 static void nextevent_func_new (NCDModuleInst *i)
 {
     // check arguments
-    if (!NCDValue_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

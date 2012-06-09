@@ -68,15 +68,15 @@
 
 struct instance {
     NCDModuleInst *i;
-    char *deinit_template;
-    NCDValue *deinit_args;
+    const char *deinit_template;
+    NCDValRef deinit_args;
     BTimer deinit_timer;
     NCDModuleProcess process;
     int state;
     int dying;
 };
 
-static int start_process (struct instance *o, const char *templ, NCDValue *args, NCDModuleProcess_handler_event handler);
+static int start_process (struct instance *o, const char *templ, NCDValRef args, NCDModuleProcess_handler_event handler);
 static void go_deinit (struct instance *o);
 static void init_process_handler_event (struct instance *o, int event);
 static void deinit_process_handler_event (struct instance *o, int event);
@@ -85,28 +85,19 @@ static int process_caller_object_func_getobj (struct instance *o, const char *na
 static void deinit_timer_handler (struct instance *o);
 static void instance_free (struct instance *o);
 
-static int start_process (struct instance *o, const char *templ, NCDValue *args, NCDModuleProcess_handler_event handler)
+static int start_process (struct instance *o, const char *templ, NCDValRef args, NCDModuleProcess_handler_event handler)
 {
-    // copy arguments
-    NCDValue args_copy;
-    if (!NCDValue_InitCopy(&args_copy, args)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail;
-    }
+    ASSERT(NCDVal_IsList(args))
     
     // create process
-    if (!NCDModuleProcess_Init(&o->process, o->i, templ, args_copy, o, handler)) {
+    if (!NCDModuleProcess_Init(&o->process, o->i, templ, args, o, handler)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
-        NCDValue_Free(&args_copy);
-        goto fail;
+        return 0;
     }
     
     // set special functions
     NCDModuleProcess_SetSpecialFuncs(&o->process, (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
     return 1;
-    
-fail:
-    return 0;
 }
 
 static void go_deinit (struct instance *o)
@@ -247,26 +238,26 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    NCDValue *init_template_arg;
-    NCDValue *init_args;
-    NCDValue *deinit_template_arg;
-    NCDValue *deinit_timeout_arg;
-    if (!NCDValue_ListRead(i->args, 5, &init_template_arg, &init_args, &deinit_template_arg, &o->deinit_args, &deinit_timeout_arg)) {
+    NCDValRef init_template_arg;
+    NCDValRef init_args;
+    NCDValRef deinit_template_arg;
+    NCDValRef deinit_timeout_arg;
+    if (!NCDVal_ListRead(i->args, 5, &init_template_arg, &init_args, &deinit_template_arg, &o->deinit_args, &deinit_timeout_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(init_template_arg) || NCDValue_Type(init_args) != NCDVALUE_LIST ||
-        !NCDValue_IsStringNoNulls(deinit_template_arg) || NCDValue_Type(o->deinit_args) != NCDVALUE_LIST ||
-        !NCDValue_IsStringNoNulls(deinit_timeout_arg)) {
+    if (!NCDVal_IsStringNoNulls(init_template_arg) || !NCDVal_IsList(init_args)  ||
+        !NCDVal_IsStringNoNulls(deinit_template_arg) || !NCDVal_IsList(o->deinit_args) ||
+        !NCDVal_IsStringNoNulls(deinit_timeout_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    char *init_template = NCDValue_StringValue(init_template_arg);
-    o->deinit_template = NCDValue_StringValue(deinit_template_arg);
+    const char *init_template = NCDVal_StringValue(init_template_arg);
+    o->deinit_template = NCDVal_StringValue(deinit_template_arg);
     
     // read timeout
     uintmax_t timeout;
-    if (!parse_unsigned_integer(NCDValue_StringValue(deinit_timeout_arg), &timeout) || timeout > UINT64_MAX) {
+    if (!parse_unsigned_integer(NCDVal_StringValue(deinit_timeout_arg), &timeout) || timeout > UINT64_MAX) {
         ModuleLog(i, BLOG_ERROR, "wrong timeout");
         goto fail1;
     }

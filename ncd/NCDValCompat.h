@@ -1,5 +1,5 @@
 /**
- * @file getargs.c
+ * @file NCDValCompat.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -25,68 +25,32 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
- * @section DESCRIPTION
- * 
- * Synopsis:
- *   getargs()
- * 
- * Variables:
- *   (empty) - list of extra command line arguments that were passed to the intrepreter
  */
 
-#include <string.h>
+#ifndef BADVPN_NCDVALCOMPAT_H
+#define BADVPN_NCDVALCOMPAT_H
 
-#include <ncd/NCDModule.h>
+#include <misc/debug.h>
+#include <ncd/NCDValue.h>
+#include <ncd/NCDVal.h>
 
-#include <generated/blog_channel_ncd_getargs.h>
+/**
+ * Converts an old NCDValue-form value into the new NCDVal-form.
+ * 
+ * @param value input value
+ * @param mem value memory to use
+ * @param out on success, a non-invalid converted value will be returned here
+ * @return 1 on success, 0 on failure
+ */
+int NCDValCompat_ValueToVal (NCDValue *value, NCDValMem *mem, NCDValRef *out) WARN_UNUSED;
 
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+/**
+ * Converts a new NCDVal-form value into the old NCDValue-form.
+ * 
+ * @param value non-invalid input value
+ * @param out on success, the converted value will be returned here
+ * @return 1 on success, 0 on failure
+ */
+int NCDValCompat_ValToValue (NCDValRef value, NCDValue *out) WARN_UNUSED;
 
-static void func_new (NCDModuleInst *i)
-{
-    NCDModuleInst_Backend_SetUser(i, i);
-    
-    // check arguments
-    if (!NCDVal_ListRead(i->args, 0)) {
-        ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail0;
-    }
-    
-    // signal up
-    NCDModuleInst_Backend_Up(i);
-    return;
-    
-fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
-}
-
-static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
-{
-    NCDModuleInst *i = vo;
-    
-    if (!strcmp(name, "")) {
-        if (!NCDModuleInst_Backend_InterpGetArgs(i, mem, out)) {
-            ModuleLog(i, BLOG_ERROR, "NCDModuleInst_Backend_InterpGetArgs failed");
-            return 0;
-        }
-        return 1;
-    }
-    
-    return 0;
-}
-
-static const struct NCDModule modules[] = {
-    {
-        .type = "getargs",
-        .func_new = func_new,
-        .func_getvar = func_getvar
-    }, {
-        .type = NULL
-    }
-};
-
-const struct NCDModuleGroup ncdmodule_getargs = {
-    .modules = modules
-};
+#endif

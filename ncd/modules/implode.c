@@ -64,13 +64,13 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
-    NCDValue *glue_arg;
-    NCDValue *pieces_arg;
-    if (!NCDValue_ListRead(i->args, 2, &glue_arg, &pieces_arg)) {
+    NCDValRef glue_arg;
+    NCDValRef pieces_arg;
+    if (!NCDVal_ListRead(i->args, 2, &glue_arg, &pieces_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsString(glue_arg) || !NCDValue_IsList(pieces_arg)) {
+    if (!NCDVal_IsString(glue_arg) || !NCDVal_IsList(pieces_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
@@ -82,23 +82,26 @@ static void func_new (NCDModuleInst *i)
         goto fail1;
     }
     
-    for (NCDValue *piece = NCDValue_ListFirst(pieces_arg); piece; piece = NCDValue_ListNext(pieces_arg, piece)) {
+    size_t count = NCDVal_ListCount(pieces_arg);
+    for (size_t j = 0; j < count; j++) {
+        NCDValRef piece = NCDVal_ListGet(pieces_arg, j);
+        
         // check piece type
-        if (!NCDValue_IsString(piece)) {
+        if (!NCDVal_IsString(piece)) {
             ModuleLog(i, BLOG_ERROR, "wrong piece type");
             goto fail2;
         }
         
         // append glue
-        if (piece != NCDValue_ListFirst(pieces_arg)) {
-            if (!ExpString_AppendBinary(&str, (const uint8_t *)NCDValue_StringValue(glue_arg), NCDValue_StringLength(glue_arg))) {
+        if (j > 0) {
+            if (!ExpString_AppendBinary(&str, (const uint8_t *)NCDVal_StringValue(glue_arg), NCDVal_StringLength(glue_arg))) {
                 ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
                 goto fail2;
             }
         }
         
         // append piece
-        if (!ExpString_AppendBinary(&str, (const uint8_t *)NCDValue_StringValue(piece), NCDValue_StringLength(piece))) {
+        if (!ExpString_AppendBinary(&str, (const uint8_t *)NCDVal_StringValue(piece), NCDVal_StringLength(piece))) {
             ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
             goto fail2;
         }
@@ -135,16 +138,15 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out_value)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitStringBin(out_value, (uint8_t *)o->result, o->result_len)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitStringBin failed");
-            return 0;
+        *out = NCDVal_NewStringBin(mem, (uint8_t *)o->result, o->result_len);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
         }
-        
         return 1;
     }
     

@@ -76,40 +76,40 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *dest_arg;
-    NCDValue *dest_prefix_arg;
-    NCDValue *gateway_arg;
-    NCDValue *metric_arg;
-    NCDValue *ifname_arg;
-    if (!NCDValue_ListRead(o->i->args, 5, &dest_arg, &dest_prefix_arg, &gateway_arg, &metric_arg, &ifname_arg)) {
+    NCDValRef dest_arg;
+    NCDValRef dest_prefix_arg;
+    NCDValRef gateway_arg;
+    NCDValRef metric_arg;
+    NCDValRef ifname_arg;
+    if (!NCDVal_ListRead(o->i->args, 5, &dest_arg, &dest_prefix_arg, &gateway_arg, &metric_arg, &ifname_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(dest_arg) || !NCDValue_IsStringNoNulls(dest_prefix_arg) || !NCDValue_IsStringNoNulls(gateway_arg) ||
-        !NCDValue_IsStringNoNulls(metric_arg) || !NCDValue_IsStringNoNulls(ifname_arg)) {
+    if (!NCDVal_IsStringNoNulls(dest_arg) || !NCDVal_IsStringNoNulls(dest_prefix_arg) || !NCDVal_IsStringNoNulls(gateway_arg) ||
+        !NCDVal_IsStringNoNulls(metric_arg) || !NCDVal_IsStringNoNulls(ifname_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
     
     // read dest
-    if (!ipaddr_parse_ipv4_addr(NCDValue_StringValue(dest_arg), &o->dest.addr)) {
+    if (!ipaddr_parse_ipv4_addr((char *)NCDVal_StringValue(dest_arg), &o->dest.addr)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong dest addr");
         goto fail1;
     }
-    if (!ipaddr_parse_ipv4_prefix(NCDValue_StringValue(dest_prefix_arg), &o->dest.prefix)) {
+    if (!ipaddr_parse_ipv4_prefix((char *)NCDVal_StringValue(dest_prefix_arg), &o->dest.prefix)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong dest prefix");
         goto fail1;
     }
     
     // read gateway and choose type
-    char *gateway_str = NCDValue_StringValue(gateway_arg);
+    const char *gateway_str = NCDVal_StringValue(gateway_arg);
     if (!strcmp(gateway_str, "none")) {
         o->type = TYPE_IFONLY;
     }
     else if (!strcmp(gateway_str, "blackhole")) {
         o->type = TYPE_BLACKHOLE;
     } else {
-        if (!ipaddr_parse_ipv4_addr(gateway_str, &o->gateway)) {
+        if (!ipaddr_parse_ipv4_addr((char *)gateway_str, &o->gateway)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong gateway");
             goto fail1;
         }
@@ -117,10 +117,10 @@ static void func_new (NCDModuleInst *i)
     }
     
     // read metric
-    o->metric = atoi(NCDValue_StringValue(metric_arg));
+    o->metric = atoi(NCDVal_StringValue(metric_arg));
     
     // read ifname
-    o->ifname = NCDValue_StringValue(ifname_arg);
+    o->ifname = NCDVal_StringValue(ifname_arg);
     
     // add route
     int res;

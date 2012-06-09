@@ -63,23 +63,23 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *ifname_arg;
-    NCDValue *addr_arg;
-    NCDValue *prefix_arg;
-    if (!NCDValue_ListRead(o->i->args, 3, &ifname_arg, &addr_arg, &prefix_arg)) {
+    NCDValRef ifname_arg;
+    NCDValRef addr_arg;
+    NCDValRef prefix_arg;
+    if (!NCDVal_ListRead(o->i->args, 3, &ifname_arg, &addr_arg, &prefix_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(ifname_arg) || !NCDValue_IsStringNoNulls(addr_arg) || !NCDValue_IsStringNoNulls(prefix_arg)) {
+    if (!NCDVal_IsStringNoNulls(ifname_arg) || !NCDVal_IsStringNoNulls(addr_arg) || !NCDVal_IsStringNoNulls(prefix_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->ifname = NCDValue_StringValue(ifname_arg);
-    if (!ipaddr_parse_ipv4_addr(NCDValue_StringValue(addr_arg), &o->ifaddr.addr)) {
+    o->ifname = NCDVal_StringValue(ifname_arg);
+    if (!ipaddr_parse_ipv4_addr((char *)NCDVal_StringValue(addr_arg), &o->ifaddr.addr)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong address");
         goto fail1;
     }
-    if (!ipaddr_parse_ipv4_prefix(NCDValue_StringValue(prefix_arg), &o->ifaddr.prefix)) {
+    if (!ipaddr_parse_ipv4_prefix((char *)NCDVal_StringValue(prefix_arg), &o->ifaddr.prefix)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong prefix");
         goto fail1;
     }

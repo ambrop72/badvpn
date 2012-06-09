@@ -31,13 +31,13 @@
 #define BADVPN_NCDOBJECT_H
 
 #include <misc/debug.h>
-#include <ncd/NCDValue.h>
+#include <ncd/NCDVal.h>
 
 typedef struct NCDObject_s NCDObject;
 
-typedef int (*NCDObject_func_getvar) (void *user, const char *name, NCDValue *out_value);
+typedef int (*NCDObject_func_getvar) (void *user, const char *name, NCDValMem *mem, NCDValRef *out_value);
 typedef int (*NCDObject_func_getobj) (void *user, const char *name, NCDObject *out_object);
-typedef int (*NCDObject_func_getvar2) (void *user, void *user2, const char *name, NCDValue *out_value);
+typedef int (*NCDObject_func_getvar2) (void *user, void *user2, const char *name, NCDValMem *mem, NCDValRef *out_value);
 typedef int (*NCDObject_func_getobj2) (void *user, void *user2, const char *name, NCDObject *out_object);
 
 struct NCDObject_s {
@@ -58,9 +58,9 @@ NCDObject NCDObject_Build (const char *type, void *user, NCDObject_func_getvar f
 NCDObject NCDObject_Build2 (const char *type, void *user, void *user2, NCDObject_func_getvar2 func_getvar2, NCDObject_func_getobj2 func_getobj2);
 const char * NCDObject_Type (NCDObject *o);
 int NCDObject_GetObj (NCDObject *o, const char *name, NCDObject *out_object) WARN_UNUSED;
-int NCDObject_GetVar (NCDObject *o, const char *name, NCDValue *out_value) WARN_UNUSED;
+int NCDObject_GetVar (NCDObject *o, const char *name, NCDValMem *mem, NCDValRef *out_value) WARN_UNUSED;
 int NCDObject_ResolveObjExpr (NCDObject *o, char **names, NCDObject *out_object) WARN_UNUSED;
 int NCDObject_ResolveObjExprCompact (NCDObject *o, const char *names, int num_names, NCDObject *out_object) WARN_UNUSED;
-int NCDObject_ResolveVarExpr (NCDObject *o, char **names, NCDValue *out_value) WARN_UNUSED;
+int NCDObject_ResolveVarExpr (NCDObject *o, char **names, NCDValMem *mem, NCDValRef *out_value) WARN_UNUSED;
 
 #endif

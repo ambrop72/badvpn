@@ -36,7 +36,6 @@
 #include <base/BLog.h>
 #include <system/BProcess.h>
 #include <udevmonitor/NCDUdevManager.h>
-#include <ncd/NCDValue.h>
 #include <ncd/NCDObject.h>
 
 #define NCDMODULE_EVENT_UP 1
@@ -125,12 +124,12 @@ typedef void (*NCDModuleInst_func_interp_exit) (void *user, int exit_code);
  * provide its extra command line arguments.
  * 
  * @param user as in {@link NCDModuleInst_Init}
- * @param out_value on success, the interpreter will write the list of extra command
- *                  line arguments here
- * @return 1 on success, 0 on failure
- *   
+ * @param mem value memory to use
+ * @param out_value write value reference here on success
+ * @return 1 if available, 0 if not available. If available, but out of memory, return 1
+ *         and an invalid value.
  */
-typedef int (*NCDModuleInst_func_interp_getargs) (void *user, NCDValue *out_value);
+typedef int (*NCDModuleInst_func_interp_getargs) (void *user, NCDValMem *mem, NCDValRef *out_value);
 
 /**
  * Function called when the module instance wants the interpreter to
@@ -292,7 +291,7 @@ struct NCDModuleInst_iparams {
 typedef struct NCDModuleInst_s {
     const struct NCDModule *m;
     void *method_user;
-    NCDValue *args;
+    NCDValRef args;
     void *user;
     const struct NCDModuleInst_params *params;
     const struct NCDModuleInst_iparams *iparams;
@@ -308,13 +307,12 @@ typedef struct NCDModuleInst_s {
  * instance, implemented by the interpreter.
  */
 typedef struct NCDModuleProcess_s {
-    NCDValue args;
+    NCDValRef args;
     void *user;
     NCDModuleProcess_handler_event handler_event;
     NCDModuleProcess_func_getspecialobj func_getspecialobj;
     BPending event_job;
     int state;
-    int no_args;
     void *interp_user;
     NCDModuleProcess_interp_func_event interp_func_event;
     NCDModuleProcess_interp_func_getobj interp_func_getobj;
@@ -334,13 +332,13 @@ typedef struct NCDModuleProcess_s {
  * @param method_object the base object if the module being initialized is a method, otherwise NULL.
  *                      The caller must ensure that this object is of the type expected by the module
  *                      being initialized.
- * @param args arguments to the module. Must be a NCDVALUE_LIST value. Must be available as long as
- *             the instance is freed.
+ * @param args arguments to the module. Must be a list value. Must be available and unchanged
+ *             as long as the instance exists.
  * @param user argument to callback functions
  * @param params more parameters, see {@link NCDModuleInst_params}
  * @param iparams more parameters, see {@link NCDModuleInst_iparams}
  */
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValue *args, void *user, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams);
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValRef args, void *user, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams);
 
 /**
  * Frees the instance.
@@ -475,10 +473,12 @@ void NCDModuleInst_Backend_InterpExit (NCDModuleInst *n, int exit_code);
  * Retrieves extra command line arguments passed to the interpreter.
  * 
  * @param n backend instance handle
+ * @param mem value memory to use
  * @param out_value the arguments will be written here on success as a list value
- * @return 1 on success, 0 on failure
+ * @return 1 if available, 0 if not available. If available, but out of memory, returns 1
+ *         and an invalid value.
  */
-int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValue *out_value);
+int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValMem *mem, NCDValRef *out_value);
 
 /**
  * Returns the retry time of the intepreter.
@@ -496,14 +496,14 @@ btime_t NCDModuleInst_Backend_InterpGetRetryTime (NCDModuleInst *n);
  * @param o the process
  * @param n backend instance whose interpreter will be providing the process
  * @param template_name name of the process template
- * @param args arguments to the process. On success, the arguments become owned
- *             by the interpreter. On failure, they are left untouched.
+ * @param args arguments to the process. Must be an invalid value or a list value.
+ *             The value must be available and unchanged while the process exists.
  * @param user argument to handlers
  * @param handler_event handler which reports events about the process from the
  *                      interpreter
  * @return 1 on success, 0 on failure
  */
-int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValue args, void *user, NCDModuleProcess_handler_event handler_event) WARN_UNUSED;
+int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event) WARN_UNUSED;
 
 /**
  * Frees the process.
@@ -528,15 +528,6 @@ void NCDModuleProcess_AssertFree (NCDModuleProcess *o);
  * @param func_getspecialobj function for resolving special objects, or NULL
  */
 void NCDModuleProcess_SetSpecialFuncs (NCDModuleProcess *o, NCDModuleProcess_func_getspecialobj func_getspecialobj);
-
-/**
- * Makes the process itself not resolve the _args and _argN special objects.
- * After calling this, the only special objects the interpreter can resolve
- * are those provided by the creator of the process via {@link NCDModuleProcess_SetSpecialFuncs}.
- * 
- * @param o the process
- */
-void NCDModuleProcess_SetNoArgs (NCDModuleProcess *o);
 
 /**
  * Continues the process after the process went down.
@@ -675,10 +666,12 @@ typedef void (*NCDModule_func_die) (void *o);
  * 
  * @param o as in {@link NCDModuleInst_Backend_SetUser}, or NULL by default
  * @param name name of the variable to resolve
+ * @param mem value memory to use
  * @param out on success, the backend should initialize the value here
- * @return 1 on success, 0 on failure
+ * @return 1 if exists, 0 if not exists. If exists, but out of memory, return 1
+ *         and an invalid value.
  */
-typedef int (*NCDModule_func_getvar) (void *o, const char *name, NCDValue *out);
+typedef int (*NCDModule_func_getvar) (void *o, const char *name, NCDValMem *mem, NCDValRef *out);
 
 /**
  * Function called to resolve an object within a backend instance.

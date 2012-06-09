@@ -88,6 +88,7 @@ struct callrefhere_instance {
 
 struct instance {
     NCDModuleInst *i;
+    NCDValMem args_mem;
     NCDModuleProcess process;
     int state;
     struct callrefhere_instance *crh;
@@ -206,17 +207,17 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    NCDValue *template_name_arg;
-    NCDValue *args_arg;
-    if (!NCDValue_ListRead(o->i->args, 2, &template_name_arg, &args_arg)) {
+    NCDValRef template_name_arg;
+    NCDValRef args_arg;
+    if (!NCDVal_ListRead(i->args, 2, &template_name_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(template_name_arg) || NCDValue_Type(args_arg) != NCDVALUE_LIST) {
+    if (!NCDVal_IsStringNoNulls(template_name_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    char *template_name = NCDValue_StringValue(template_name_arg);
+    const char *template_name = NCDVal_StringValue(template_name_arg);
     
     // calling none?
     if (!strcmp(template_name, "<none>")) {
@@ -226,17 +227,21 @@ static void func_new (NCDModuleInst *i)
         // set state none
         o->state = STATE_NONE;
     } else {
+        // init args mem
+        NCDValMem_Init(&o->args_mem);
+        
         // copy arguments
-        NCDValue args;
-        if (!NCDValue_InitCopy(&args, args_arg)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
+        NCDValRef args = NCDVal_NewCopy(&o->args_mem, args_arg);
+        if (NCDVal_IsInvalid(args)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
+            NCDValMem_Free(&o->args_mem);
             goto fail1;
         }
         
         // create process
         if (!NCDModuleProcess_Init(&o->process, o->i, template_name, args, o, (NCDModuleProcess_handler_event)process_handler_event)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
-            NCDValue_Free(&args);
+            NCDValMem_Free(&o->args_mem);
             goto fail1;
         }
         
@@ -273,6 +278,9 @@ void instance_free (struct instance *o)
         if (o->crh) {
             LinkedList0_Remove(&o->crh->calls_list, &o->calls_list_node);
         }
+        
+        // free args mem
+        NCDValMem_Free(&o->args_mem);
         
         // free process
         NCDModuleProcess_Free(&o->process);

@@ -48,7 +48,8 @@
 
 struct instance {
     NCDModuleInst *i;
-    NCDValue value;
+    NCDValMem mem;
+    NCDValRef value;
 };
 
 static void func_new (NCDModuleInst *i)
@@ -65,23 +66,28 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // read argument
-    NCDValue *value_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &value_arg)) {
+    NCDValRef value_arg;
+    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
     
-    // copy to value
-    if (!NCDValue_InitCopy(&o->value, value_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail1;
+    // init mem
+    NCDValMem_Init(&o->mem);
+    
+    // copy value
+    o->value = NCDVal_NewCopy(&o->mem, value_arg);
+    if (NCDVal_IsInvalid(o->value)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
+        goto fail2;
     }
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
-    
     return;
     
+fail2:
+    NCDValMem_Free(&o->mem);
 fail1:
     free(o);
 fail0:
@@ -94,8 +100,8 @@ static void func_die (void *vo)
     struct instance *o = vo;
     NCDModuleInst *i = o->i;
     
-    // free value
-    NCDValue_Free(&o->value);
+    // free mem
+    NCDValMem_Free(&o->mem);
     
     // free instance
     free(o);
@@ -103,16 +109,15 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitCopy(out, &o->value)) {
+        *out = NCDVal_NewCopy(mem, o->value);
+        if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-            return 0;
         }
-        
         return 1;
     }
     
@@ -121,9 +126,9 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
 
 static void set_func_new (NCDModuleInst *i)
 {
-    // read argument
-    NCDValue *value_arg;
-    if (!NCDValue_ListRead(i->args, 1, &value_arg)) {
+    // read arguments
+    NCDValRef value_arg;
+    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -131,21 +136,28 @@ static void set_func_new (NCDModuleInst *i)
     // get method object
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
+    // allocate new mem
+    NCDValMem mem;
+    NCDValMem_Init(&mem);
+    
     // copy value
-    NCDValue v;
-    if (!NCDValue_InitCopy(&v, value_arg)) {
-        ModuleLog(i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail0;
+    NCDValRef copy = NCDVal_NewCopy(&mem, value_arg);
+    if (NCDVal_IsInvalid(copy)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_NewCopy failed");
+        goto fail1;
     }
     
     // replace value in var
-    NCDValue_Free(&mo->value);
-    mo->value = v;
+    NCDValMem_Free(&mo->mem);
+    mo->mem = mem;
+    mo->value = NCDVal_Moved(&mo->mem, copy);
     
     // signal up
     NCDModuleInst_Backend_Up(i);
     return;
     
+fail1:
+    NCDValMem_Free(&mem);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);

@@ -68,10 +68,10 @@
 
 struct instance {
     NCDModuleInst *i;
-    char *ifname;
-    char *conf;
-    char *exec;
-    NCDValue *args;
+    const char *ifname;
+    const char *conf;
+    const char *exec;
+    NCDValRef args;
     int dying;
     int up;
     BInputProcess process;
@@ -216,19 +216,19 @@ int build_cmdline (struct instance *o, CmdLine *c)
     }
     
     // append user arguments
-    NCDValue *arg = NCDValue_ListFirst(o->args);
-    while (arg) {
-        if (!NCDValue_IsStringNoNulls(arg)) {
+    size_t count = NCDVal_ListCount(o->args);
+    for (size_t j = 0; j < count; j++) {
+        NCDValRef arg = NCDVal_ListGet(o->args, j);
+        
+        if (!NCDVal_IsStringNoNulls(arg)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong type");
             goto fail1;
         }
         
         // append argument
-        if (!CmdLine_Append(c, NCDValue_StringValue(arg))) {
+        if (!CmdLine_Append(c, NCDVal_StringValue(arg))) {
             goto fail1;
         }
-        
-        arg = NCDValue_ListNext(o->args, arg);
     }
     
     // append interface name
@@ -411,22 +411,22 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *ifname_arg;
-    NCDValue *conf_arg;
-    NCDValue *exec_arg;
-    NCDValue *args_arg;
-    if (!NCDValue_ListRead(o->i->args, 4, &ifname_arg, &conf_arg, &exec_arg, &args_arg)) {
+    NCDValRef ifname_arg;
+    NCDValRef conf_arg;
+    NCDValRef exec_arg;
+    NCDValRef args_arg;
+    if (!NCDVal_ListRead(o->i->args, 4, &ifname_arg, &conf_arg, &exec_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(ifname_arg) || !NCDValue_IsStringNoNulls(conf_arg)  ||
-        !NCDValue_IsStringNoNulls(exec_arg) || NCDValue_Type(args_arg) != NCDVALUE_LIST) {
+    if (!NCDVal_IsStringNoNulls(ifname_arg) || !NCDVal_IsStringNoNulls(conf_arg)  ||
+        !NCDVal_IsStringNoNulls(exec_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->ifname = NCDValue_StringValue(ifname_arg);
-    o->conf = NCDValue_StringValue(conf_arg);
-    o->exec = NCDValue_StringValue(exec_arg);
+    o->ifname = NCDVal_StringValue(ifname_arg);
+    o->conf = NCDVal_StringValue(conf_arg);
+    o->exec = NCDVal_StringValue(exec_arg);
     o->args = args_arg;
     
     // set not dying
@@ -528,7 +528,7 @@ static void func_die (void *vo)
     o->dying = 1;
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     ASSERT(o->up)
@@ -544,20 +544,18 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
             sprintf(str, "%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8, id[0], id[1], id[2], id[3], id[4], id[5]);
         }
         
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
     if (!strcmp(name, "ssid")) {
-        if (!NCDValue_InitString(out, o->info_ssid)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, o->info_ssid);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     

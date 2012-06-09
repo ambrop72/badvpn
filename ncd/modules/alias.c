@@ -78,16 +78,16 @@ static int split_string_inplace (char *str, char del)
 static void func_new (NCDModuleInst *i)
 {
     // read arguments
-    NCDValue *target_arg;
-    if (!NCDValue_ListRead(i->args, 1, &target_arg)) {
+    NCDValRef target_arg;
+    if (!NCDVal_ListRead(i->args, 1, &target_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(target_arg)) {
+    if (!NCDVal_IsStringNoNulls(target_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *target = NCDValue_StringValue(target_arg);
+    const char *target = NCDVal_StringValue(target_arg);
     size_t target_len = strlen(target);
     
     // calculate size

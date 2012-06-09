@@ -64,7 +64,7 @@ struct instance {
 static void process_handler_event (struct instance *o, int event);
 static int process_func_getspecialobj (struct instance *o, const char *name, NCDObject *out_object);
 static int caller_obj_func_getobj (struct instance *o, const char *name, NCDObject *out_object);
-static void func_new_templ (NCDModuleInst *i, const char *template_name, NCDValue *args, int embed);
+static void func_new_templ (NCDModuleInst *i, const char *template_name, NCDValRef args, int embed);
 static void instance_free (struct instance *o);
 
 static void process_handler_event (struct instance *o, int event)
@@ -121,9 +121,9 @@ static int caller_obj_func_getobj (struct instance *o, const char *name, NCDObje
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
 }
 
-static void func_new_templ (NCDModuleInst *i, const char *template_name, NCDValue *args, int embed)
+static void func_new_templ (NCDModuleInst *i, const char *template_name, NCDValRef args, int embed)
 {
-    ASSERT(!args || NCDValue_IsList(args))
+    ASSERT(NCDVal_IsInvalid(args) || NCDVal_IsList(args))
     ASSERT(embed == !!embed)
     
     // allocate instance
@@ -145,27 +145,10 @@ static void func_new_templ (NCDModuleInst *i, const char *template_name, NCDValu
         // set state none
         o->state = STATE_NONE;
     } else {
-        // copy arguments
-        NCDValue args_copy;
-        if (!args) {
-            NCDValue_InitList(&args_copy);
-        } else {
-            if (!NCDValue_InitCopy(&args_copy, args)) {
-                ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-                goto fail1;
-            }
-        }
-        
         // create process
-        if (!NCDModuleProcess_Init(&o->process, o->i, template_name, args_copy, o, (NCDModuleProcess_handler_event)process_handler_event)) {
+        if (!NCDModuleProcess_Init(&o->process, o->i, template_name, args, o, (NCDModuleProcess_handler_event)process_handler_event)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
-            NCDValue_Free(&args_copy);
             goto fail1;
-        }
-        
-        // if this is an embed call, make the process ignore arguments
-        if (embed) {
-            NCDModuleProcess_SetNoArgs(&o->process);
         }
         
         // set special functions
@@ -201,18 +184,18 @@ static void instance_free (struct instance *o)
 
 static void func_new_call (NCDModuleInst *i)
 {
-    NCDValue *template_arg;
-    NCDValue *args_arg;
-    if (!NCDValue_ListRead(i->args, 2, &template_arg, &args_arg)) {
+    NCDValRef template_arg;
+    NCDValRef args_arg;
+    if (!NCDVal_ListRead(i->args, 2, &template_arg, &args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(template_arg) || !NCDValue_IsList(args_arg)) {
+    if (!NCDVal_IsStringNoNulls(template_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
-    func_new_templ(i, NCDValue_StringValue(template_arg), args_arg, 0);
+    func_new_templ(i, NCDVal_StringValue(template_arg), args_arg, 0);
     return;
     
 fail0:
@@ -222,17 +205,17 @@ fail0:
 
 static void func_new_embcall (NCDModuleInst *i)
 {
-    NCDValue *template_arg;
-    if (!NCDValue_ListRead(i->args, 1, &template_arg)) {
+    NCDValRef template_arg;
+    if (!NCDVal_ListRead(i->args, 1, &template_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(template_arg)) {
+    if (!NCDVal_IsStringNoNulls(template_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
-    func_new_templ(i, NCDValue_StringValue(template_arg), NULL, 1);
+    func_new_templ(i, NCDVal_StringValue(template_arg), NCDVal_NewInvalid(), 1);
     return;
     
 fail0:
@@ -242,22 +225,22 @@ fail0:
 
 static void func_new_call_if (NCDModuleInst *i)
 {
-    NCDValue *cond_arg;
-    NCDValue *template_arg;
-    NCDValue *args_arg;
-    if (!NCDValue_ListRead(i->args, 3, &cond_arg, &template_arg, &args_arg)) {
+    NCDValRef cond_arg;
+    NCDValRef template_arg;
+    NCDValRef args_arg;
+    if (!NCDVal_ListRead(i->args, 3, &cond_arg, &template_arg, &args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsString(cond_arg) || !NCDValue_IsStringNoNulls(template_arg) || !NCDValue_IsList(args_arg)) {
+    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsStringNoNulls(template_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     const char *template_name = NULL;
     
-    if (NCDValue_StringEquals(cond_arg, "true")) {
-        template_name = NCDValue_StringValue(template_arg);
+    if (NCDVal_StringEquals(cond_arg, "true")) {
+        template_name = NCDVal_StringValue(template_arg);
     }
     
     func_new_templ(i, template_name, args_arg, 0);
@@ -270,24 +253,24 @@ fail0:
 
 static void func_new_embcall_if (NCDModuleInst *i)
 {
-    NCDValue *cond_arg;
-    NCDValue *template_arg;
-    if (!NCDValue_ListRead(i->args, 2, &cond_arg, &template_arg)) {
+    NCDValRef cond_arg;
+    NCDValRef template_arg;
+    if (!NCDVal_ListRead(i->args, 2, &cond_arg, &template_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsString(cond_arg) || !NCDValue_IsStringNoNulls(template_arg)) {
+    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsStringNoNulls(template_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     const char *template_name = NULL;
     
-    if (NCDValue_StringEquals(cond_arg, "true")) {
-        template_name = NCDValue_StringValue(template_arg);
+    if (NCDVal_StringEquals(cond_arg, "true")) {
+        template_name = NCDVal_StringValue(template_arg);
     }
     
-    func_new_templ(i, template_name, NULL, 1);
+    func_new_templ(i, template_name, NCDVal_NewInvalid(), 1);
     return;
     
 fail0:
@@ -297,25 +280,25 @@ fail0:
 
 static void func_new_call_ifelse (NCDModuleInst *i)
 {
-    NCDValue *cond_arg;
-    NCDValue *template_arg;
-    NCDValue *else_template_arg;
-    NCDValue *args_arg;
-    if (!NCDValue_ListRead(i->args, 4, &cond_arg, &template_arg, &else_template_arg, &args_arg)) {
+    NCDValRef cond_arg;
+    NCDValRef template_arg;
+    NCDValRef else_template_arg;
+    NCDValRef args_arg;
+    if (!NCDVal_ListRead(i->args, 4, &cond_arg, &template_arg, &else_template_arg, &args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsString(cond_arg) || !NCDValue_IsStringNoNulls(template_arg) || !NCDValue_IsStringNoNulls(else_template_arg) || !NCDValue_IsList(args_arg)) {
+    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsStringNoNulls(template_arg) || !NCDVal_IsStringNoNulls(else_template_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     const char *template_name;
     
-    if (NCDValue_StringEquals(cond_arg, "true")) {
-        template_name = NCDValue_StringValue(template_arg);
+    if (NCDVal_StringEquals(cond_arg, "true")) {
+        template_name = NCDVal_StringValue(template_arg);
     } else {
-        template_name = NCDValue_StringValue(else_template_arg);
+        template_name = NCDVal_StringValue(else_template_arg);
     }
     
     func_new_templ(i, template_name, args_arg, 0);
@@ -328,27 +311,27 @@ fail0:
 
 static void func_new_embcall_ifelse (NCDModuleInst *i)
 {
-    NCDValue *cond_arg;
-    NCDValue *template_arg;
-    NCDValue *else_template_arg;
-    if (!NCDValue_ListRead(i->args, 3, &cond_arg, &template_arg, &else_template_arg)) {
+    NCDValRef cond_arg;
+    NCDValRef template_arg;
+    NCDValRef else_template_arg;
+    if (!NCDVal_ListRead(i->args, 3, &cond_arg, &template_arg, &else_template_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsString(cond_arg) || !NCDValue_IsStringNoNulls(template_arg) || !NCDValue_IsStringNoNulls(else_template_arg)) {
+    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsStringNoNulls(template_arg) || !NCDVal_IsStringNoNulls(else_template_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     const char *template_name;
     
-    if (NCDValue_StringEquals(cond_arg, "true")) {
-        template_name = NCDValue_StringValue(template_arg);
+    if (NCDVal_StringEquals(cond_arg, "true")) {
+        template_name = NCDVal_StringValue(template_arg);
     } else {
-        template_name = NCDValue_StringValue(else_template_arg);
+        template_name = NCDVal_StringValue(else_template_arg);
     }
     
-    func_new_templ(i, template_name, NULL, 1);
+    func_new_templ(i, template_name, NCDVal_NewInvalid(), 1);
     return;
     
 fail0:
@@ -360,34 +343,38 @@ static void func_new_embcall_multif (NCDModuleInst *i)
 {
     const char *template_name = NULL;
     
-    NCDValue *arg = NCDValue_ListFirst(i->args);
+    size_t count = NCDVal_ListCount(i->args);
+    size_t j = 0;
     
-    while (arg) {
-        NCDValue *arg2 = NCDValue_ListNext(i->args, arg);
-        if (!arg2) {
-            if (!NCDValue_IsStringNoNulls(arg)) {
+    while (j < count) {
+        NCDValRef arg = NCDVal_ListGet(i->args, j);
+        
+        if (j == count - 1) {
+            if (!NCDVal_IsStringNoNulls(arg)) {
                 ModuleLog(i, BLOG_ERROR, "bad arguments");
                 goto fail0;
             }
             
-            template_name = NCDValue_StringValue(arg);
+            template_name = NCDVal_StringValue(arg);
             break;
         }
         
-        if (!NCDValue_IsString(arg) || !NCDValue_IsStringNoNulls(arg2)) {
+        NCDValRef arg2 = NCDVal_ListGet(i->args, j + 1);
+        
+        if (!NCDVal_IsString(arg) || !NCDVal_IsStringNoNulls(arg2)) {
             ModuleLog(i, BLOG_ERROR, "bad arguments");
             goto fail0;
         }
         
-        if (NCDValue_StringEquals(arg, "true")) {
-            template_name = NCDValue_StringValue(arg2);
+        if (NCDVal_StringEquals(arg, "true")) {
+            template_name = NCDVal_StringValue(arg2);
             break;
         }
         
-        arg = NCDValue_ListNext(i->args, arg2);
+        j += 2;
     }
     
-    func_new_templ(i, template_name, NULL, 1);
+    func_new_templ(i, template_name, NCDVal_NewInvalid(), 1);
     return;
     
 fail0:

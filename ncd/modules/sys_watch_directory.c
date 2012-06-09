@@ -64,7 +64,7 @@
 
 struct instance {
     NCDModuleInst *i;
-    char *dir;
+    const char *dir;
     DIR *dir_handle;
     int inotify_fd;
     BFileDescriptor bfd;
@@ -244,16 +244,16 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    NCDValue *dir_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &dir_arg)) {
+    NCDValRef dir_arg;
+    if (!NCDVal_ListRead(o->i->args, 1, &dir_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(dir_arg)) {
+    if (!NCDVal_IsStringNoNulls(dir_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->dir = NCDValue_StringValue(dir_arg);
+    o->dir = NCDVal_StringValue(dir_arg);
     
     // open inotify
     if ((o->inotify_fd = inotify_init()) < 0) {
@@ -337,26 +337,24 @@ static void func_die (void *vo)
     instance_free(o, 0);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     ASSERT(o->processing)
     
     if (!strcmp(name, "event_type")) {
-        if (!NCDValue_InitString(out, o->processing_type)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, o->processing_type);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
     if (!strcmp(name, "filename")) {
-        if (!NCDValue_InitString(out, o->processing_file)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, o->processing_file);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
@@ -364,27 +362,29 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
         char *str = concat_strings(3, o->dir, "/", o->processing_file);
         if (!str) {
             ModuleLog(o->i, BLOG_ERROR, "concat_strings failed");
-            return 0;
+            goto fail;
         }
         
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            free(str);
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
         
         free(str);
-        
         return 1;
     }
     
     return 0;
+    
+fail:
+    *out = NCDVal_NewInvalid();
+    return 1;
 }
 
 static void nextevent_func_new (NCDModuleInst *i)
 {
     // check arguments
-    if (!NCDValue_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

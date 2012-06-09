@@ -57,7 +57,7 @@ struct instance {
     int value;
 };
 
-static void func_new (NCDModuleInst *i, int not, int or)
+static void func_new (NCDModuleInst *i, int is_not, int is_or)
 {
     // allocate instance
     struct instance *o = malloc(sizeof(*o));
@@ -71,36 +71,37 @@ static void func_new (NCDModuleInst *i, int not, int or)
     o->i = i;
     
     // compute value from arguments
-    if (not) {
-        NCDValue *arg;
-        if (!NCDValue_ListRead(o->i->args, 1, &arg)) {
+    if (is_not) {
+        NCDValRef arg;
+        if (!NCDVal_ListRead(i->args, 1, &arg)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong arity");
             goto fail1;
         }
-        if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+        if (!NCDVal_IsString(arg)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong type");
             goto fail1;
         }
         
-        o->value = !NCDValue_StringEquals(arg, "true");
+        o->value = !NCDVal_StringEquals(arg, "true");
     } else {
-        o->value = (or ? 0 : 1);
+        o->value = (is_or ? 0 : 1);
         
-        NCDValue *arg = NCDValue_ListFirst(o->i->args);
-        while (arg) {
-            if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+        size_t count = NCDVal_ListCount(i->args);
+        
+        for (size_t j = 0; j < count; j++) {
+            NCDValRef arg = NCDVal_ListGet(i->args, j);
+            
+            if (!NCDVal_IsString(arg)) {
                 ModuleLog(o->i, BLOG_ERROR, "wrong type");
                 goto fail1;
             }
             
-            int this_value = NCDValue_StringEquals(arg, "true");
-            if (or) {
+            int this_value = NCDVal_StringEquals(arg, "true");
+            if (is_or) {
                 o->value = o->value || this_value;
             } else {
                 o->value = o->value && this_value;
             }
-            
-            arg = NCDValue_ListNext(o->i->args, arg);
         }
     }
     
@@ -142,18 +143,17 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
         const char *v = (o->value ? "true" : "false");
         
-        if (!NCDValue_InitString(out, v)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, v);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     

@@ -74,8 +74,8 @@ struct element;
 
 struct instance {
     NCDModuleInst *i;
-    char *template_name;
-    NCDValue *args;
+    const char *template_name;
+    NCDValRef args;
     BTimer timer;
     size_t num_elems;
     struct element *elems;
@@ -87,7 +87,7 @@ struct instance {
 struct element {
     struct instance *inst;
     size_t i;
-    NCDValue *value;
+    NCDValRef value;
     NCDModuleProcess process;
     int state;
 };
@@ -99,8 +99,8 @@ static void timer_handler (struct instance *o);
 static void element_process_handler_event (struct element *e, int event);
 static int element_process_func_getspecialobj (struct element *e, const char *name, NCDObject *out_object);
 static int element_caller_object_func_getobj (struct element *e, const char *name, NCDObject *out_object);
-static int element_index_object_func_getvar (struct element *e, const char *name, NCDValue *out_value);
-static int element_elem_object_func_getvar (struct element *e, const char *name, NCDValue *out_value);
+static int element_index_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out);
+static int element_elem_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out);
 static void instance_free (struct instance *o);
 
 static void assert_state (struct instance *o)
@@ -228,17 +228,9 @@ static void advance (struct instance *o)
     // get next element
     struct element *e = &o->elems[o->gp];
     
-    // copy arguments
-    NCDValue args;
-    if (!NCDValue_InitCopy(&args, o->args)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail;
-    }
-    
     // init process
-    if (!NCDModuleProcess_Init(&e->process, o->i, o->template_name, args, e, (NCDModuleProcess_handler_event)element_process_handler_event)) {
+    if (!NCDModuleProcess_Init(&e->process, o->i, o->template_name, o->args, e, (NCDModuleProcess_handler_event)element_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
-        NCDValue_Free(&args);
         goto fail;
     }
     
@@ -352,7 +344,7 @@ static int element_caller_object_func_getobj (struct element *e, const char *nam
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
 }
 
-static int element_index_object_func_getvar (struct element *e, const char *name, NCDValue *out_value)
+static int element_index_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
@@ -364,15 +356,14 @@ static int element_index_object_func_getvar (struct element *e, const char *name
     char str[64];
     snprintf(str, sizeof(str), "%zu", e->i);
     
-    if (!NCDValue_InitString(out_value, str)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-        return 0;
+    *out = NCDVal_NewString(mem, str);
+    if (NCDVal_IsInvalid(*out)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
     }
-    
     return 1;
 }
 
-static int element_elem_object_func_getvar (struct element *e, const char *name, NCDValue *out_value)
+static int element_elem_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
@@ -381,11 +372,10 @@ static int element_elem_object_func_getvar (struct element *e, const char *name,
         return 0;
     }
     
-    if (!NCDValue_InitCopy(out_value, e->value)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        return 0;
+    *out = NCDVal_NewCopy(mem, e->value);
+    if (NCDVal_IsInvalid(*out)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
     }
-    
     return 1;
 }
 
@@ -403,20 +393,20 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *arg_list;
-    NCDValue *arg_template;
-    NCDValue *arg_args;
-    if (!NCDValue_ListRead(i->args, 3, &arg_list, &arg_template, &arg_args)) {
+    NCDValRef arg_list;
+    NCDValRef arg_template;
+    NCDValRef arg_args;
+    if (!NCDVal_ListRead(i->args, 3, &arg_list, &arg_template, &arg_args)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (NCDValue_Type(arg_list) != NCDVALUE_LIST || !NCDValue_IsStringNoNulls(arg_template) ||
-        NCDValue_Type(arg_args) != NCDVALUE_LIST
+    if (!NCDVal_IsList(arg_list) || !NCDVal_IsStringNoNulls(arg_template) ||
+        !NCDVal_IsList(arg_args)
     ) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->template_name = NCDValue_StringValue(arg_template);
+    o->template_name = NCDVal_StringValue(arg_template);
     o->args = arg_args;
     
     // init timer
@@ -424,7 +414,7 @@ static void func_new (NCDModuleInst *i)
     BTimer_Init(&o->timer, retry_time, (BTimer_handler)timer_handler, o);
     
     // count elements
-    o->num_elems = NCDValue_ListCount(arg_list);
+    o->num_elems = NCDVal_ListCount(arg_list);
     
     // allocate elements
     if (!(o->elems = BAllocArray(o->num_elems, sizeof(o->elems[0])))) {
@@ -432,24 +422,21 @@ static void func_new (NCDModuleInst *i)
         goto fail1;
     }
     
-    NCDValue *ev = NCDValue_ListFirst(arg_list);
-    
-    for (size_t i = 0; i < o->num_elems; i++) {
-        struct element *e = &o->elems[i];
+    for (size_t j = 0; j < o->num_elems; j++) {
+        struct element *e = &o->elems[j];
+        NCDValRef ev = NCDVal_ListGet(arg_list, j);
         
         // set instance
         e->inst = o;
         
         // set index
-        e->i = i;
+        e->i = j;
         
         // set value
         e->value = ev;
         
         // set state forgotten
         e->state = ESTATE_FORGOTTEN;
-        
-        ev = NCDValue_ListNext(arg_list, ev);
     }
     
     // set GP and IP zero

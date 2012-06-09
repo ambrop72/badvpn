@@ -132,22 +132,22 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *arg_ifname;
-    NCDValue *arg_addr;
-    if (!NCDValue_ListRead(i->args, 2, &arg_ifname, &arg_addr)) {
+    NCDValRef arg_ifname;
+    NCDValRef arg_addr;
+    if (!NCDVal_ListRead(i->args, 2, &arg_ifname, &arg_addr)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(arg_ifname) || !NCDValue_IsStringNoNulls(arg_addr)) {
+    if (!NCDVal_IsStringNoNulls(arg_ifname) || !NCDVal_IsStringNoNulls(arg_addr)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    char *ifname = NCDValue_StringValue(arg_ifname);
-    char *addr_str = NCDValue_StringValue(arg_addr);
+    const char *ifname = NCDVal_StringValue(arg_ifname);
+    const char *addr_str = NCDVal_StringValue(arg_addr);
     
     // parse address
     uint32_t addr;
-    if (!ipaddr_parse_ipv4_addr(addr_str, &addr)) {
+    if (!ipaddr_parse_ipv4_addr((char *)addr_str, &addr)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong address");
         goto fail1;
     }
@@ -189,7 +189,7 @@ static void func_die (void *vo)
     instance_free(o);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     ASSERT(o->state == STATE_EXIST || o->state == STATE_NOEXIST)
@@ -197,11 +197,10 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
     if (!strcmp(name, "exists")) {
         const char *str = (o->state == STATE_EXIST ? "true" : "false");
         
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     

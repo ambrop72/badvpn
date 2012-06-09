@@ -48,10 +48,10 @@
 
 struct instance {
     NCDModuleInst *i;
-    char *ifname;
-    char *user;
-    char *exec;
-    NCDValue *args;
+    const char *ifname;
+    const char *user;
+    const char *exec;
+    NCDValRef args;
     int dying;
     int started;
     BTimer timer;
@@ -81,13 +81,12 @@ void try_process (struct instance *o)
     }
     
     // append arguments
-    NCDValue *arg = NCDValue_ListFirst(o->args);
-    while (arg) {
-        // append argument
-        if (!CmdLine_Append(&c, NCDValue_StringValue(arg))) {
+    size_t count = NCDVal_ListCount(o->args);
+    for (size_t j = 0; j < count; j++) {
+        NCDValRef arg = NCDVal_ListGet(o->args, j);
+        if (!CmdLine_Append(&c, NCDVal_StringValue(arg))) {
             goto fail1;
         }
-        arg = NCDValue_ListNext(o->args, arg);
     }
     
     // terminate cmdline
@@ -161,32 +160,32 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *ifname_arg;
-    NCDValue *user_arg;
-    NCDValue *exec_arg;
-    NCDValue *args_arg;
-    if (!NCDValue_ListRead(o->i->args, 4, &ifname_arg, &user_arg, &exec_arg, &args_arg)) {
+    NCDValRef ifname_arg;
+    NCDValRef user_arg;
+    NCDValRef exec_arg;
+    NCDValRef args_arg;
+    if (!NCDVal_ListRead(o->i->args, 4, &ifname_arg, &user_arg, &exec_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(ifname_arg) || !NCDValue_IsStringNoNulls(user_arg) ||
-        !NCDValue_IsStringNoNulls(exec_arg) || NCDValue_Type(args_arg) != NCDVALUE_LIST) {
+    if (!NCDVal_IsStringNoNulls(ifname_arg) || !NCDVal_IsStringNoNulls(user_arg) ||
+        !NCDVal_IsStringNoNulls(exec_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->ifname = NCDValue_StringValue(ifname_arg);
-    o->user = NCDValue_StringValue(user_arg);
-    o->exec = NCDValue_StringValue(exec_arg);
+    o->ifname = NCDVal_StringValue(ifname_arg);
+    o->user = NCDVal_StringValue(user_arg);
+    o->exec = NCDVal_StringValue(exec_arg);
     o->args = args_arg;
     
     // check arguments
-    NCDValue *arg = NCDValue_ListFirst(o->args);
-    while (arg) {
-        if (!NCDValue_IsStringNoNulls(arg)) {
+    size_t count = NCDVal_ListCount(o->args);
+    for (size_t j = 0; j < count; j++) {
+        NCDValRef arg = NCDVal_ListGet(o->args, j);
+        if (!NCDVal_IsStringNoNulls(arg)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong type");
             goto fail1;
         }
-        arg = NCDValue_ListNext(o->args, arg);
     }
     
     // create TAP device

@@ -77,23 +77,26 @@ struct process {
     LinkedList2Node processes_list_node;
     int have_params;
     char *params_template_name;
-    NCDValue params_args;
+    NCDValMem params_mem;
+    NCDValRef params_args;
     int have_module_process;
+    NCDValMem process_mem;
+    NCDValRef process_args;
     NCDModuleProcess module_process;
     int state;
 };
 
 static struct process * find_process (struct instance *o, const char *name);
-static int process_new (struct instance *o, const char *name, const char *template_name, NCDValue *args);
+static int process_new (struct instance *o, const char *name, const char *template_name, NCDValRef args);
 static void process_free (struct process *p);
 static void process_retry_timer_handler (struct process *p);
 static void process_module_process_handler_event (struct process *p, int event);
 static int process_module_process_func_getspecialobj (struct process *p, const char *name, NCDObject *out_object);
 static int process_module_process_caller_obj_func_getobj (struct process *p, const char *name, NCDObject *out_object);
 static void process_stop (struct process *p);
-static int process_restart (struct process *p, const char *template_name, NCDValue *args);
+static int process_restart (struct process *p, const char *template_name, NCDValRef args);
 static void process_try (struct process *p);
-static int process_set_params (struct process *p, const char *template_name, NCDValue args);
+static int process_set_params (struct process *p, const char *template_name, NCDValMem mem, NCDValSafeRef args);
 static void instance_free (struct instance *o);
 
 struct process * find_process (struct instance *o, const char *name)
@@ -110,11 +113,11 @@ struct process * find_process (struct instance *o, const char *name)
     return NULL;
 }
 
-int process_new (struct instance *o, const char *name, const char *template_name, NCDValue *args)
+int process_new (struct instance *o, const char *name, const char *template_name, NCDValRef args)
 {
     ASSERT(!o->dying)
     ASSERT(!find_process(o, name))
-    ASSERT(NCDValue_Type(args) == NCDVALUE_LIST)
+    ASSERT(NCDVal_IsList(args))
     
     // allocate structure
     struct process *p = malloc(sizeof(*p));
@@ -145,15 +148,16 @@ int process_new (struct instance *o, const char *name, const char *template_name
     p->have_module_process = 0;
     
     // copy arguments
-    NCDValue args2;
-    if (!NCDValue_InitCopy(&args2, args)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
+    NCDValMem mem;
+    NCDValMem_Init(&mem);
+    NCDValRef args2 = NCDVal_NewCopy(&mem, args);
+    if (NCDVal_IsInvalid(args2)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
         goto fail2;
     }
     
     // set params
-    if (!process_set_params(p, template_name, args2)) {
-        NCDValue_Free(&args2);
+    if (!process_set_params(p, template_name, mem, NCDVal_ToSafe(args2))) {
         goto fail2;
     }
     
@@ -163,6 +167,7 @@ int process_new (struct instance *o, const char *name, const char *template_name
     return 1;
     
 fail2:
+    NCDValMem_Free(&mem);
     LinkedList2_Remove(&o->processes_list, &p->processes_list_node);
     free(p->name);
 fail1:
@@ -178,7 +183,7 @@ void process_free (struct process *p)
     
     // free params
     if (p->have_params) {
-        NCDValue_Free(&p->params_args);
+        NCDValMem_Free(&p->params_mem);
         free(p->params_template_name);
     }
     
@@ -223,6 +228,9 @@ void process_module_process_handler_event (struct process *p, int event)
     
     // free module process
     NCDModuleProcess_Free(&p->module_process);
+    
+    // free arguments mem
+    NCDValMem_Free(&p->process_mem);
     
     // set no module process
     p->have_module_process = 0;
@@ -297,7 +305,7 @@ void process_stop (struct process *p)
             ASSERT(p->have_params)
             
             // free params
-            NCDValue_Free(&p->params_args);
+            NCDValMem_Free(&p->params_mem);
             free(p->params_template_name);
             p->have_params = 0;
             
@@ -313,30 +321,36 @@ void process_stop (struct process *p)
     }
 }
 
-int process_restart (struct process *p, const char *template_name, NCDValue *args)
+int process_restart (struct process *p, const char *template_name, NCDValRef args)
 {
     struct instance *o = p->manager;
     ASSERT(!o->dying)
     ASSERT(p->state == PROCESS_STATE_STOPPING)
     ASSERT(!p->have_params)
+    ASSERT(NCDVal_IsList(args))
     
     // copy arguments
-    NCDValue args2;
-    if (!NCDValue_InitCopy(&args2, args)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        return 0;
+    NCDValMem mem;
+    NCDValMem_Init(&mem);
+    NCDValRef args2 = NCDVal_NewCopy(&mem, args);
+    if (NCDVal_IsInvalid(args2)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
+        goto fail1;
     }
     
     // set params
-    if (!process_set_params(p, template_name, args2)) {
-        NCDValue_Free(&args2);
-        return 0;
+    if (!process_set_params(p, template_name, mem, NCDVal_ToSafe(args2))) {
+        goto fail1;
     }
     
     // set state
     p->state = PROCESS_STATE_RESTARTING;
     
     return 1;
+    
+fail1:
+    NCDValMem_Free(&mem);
+    return 0;
 }
 
 void process_try (struct process *p)
@@ -348,8 +362,12 @@ void process_try (struct process *p)
     
     ModuleLog(o->i, BLOG_INFO, "trying process %s", p->name);
     
+    // move params
+    p->process_mem = p->params_mem;
+    p->process_args = NCDVal_Moved(&p->process_mem, p->params_args);
+    
     // init module process
-    if (!NCDModuleProcess_Init(&p->module_process, o->i, p->params_template_name, p->params_args, p, (NCDModuleProcess_handler_event)process_module_process_handler_event)) {
+    if (!NCDModuleProcess_Init(&p->module_process, o->i, p->params_template_name, p->process_args, p, (NCDModuleProcess_handler_event)process_module_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         
         // set timer
@@ -357,7 +375,6 @@ void process_try (struct process *p)
         
         // set state
         p->state = PROCESS_STATE_RETRYING;
-        
         return;
     }
     
@@ -375,9 +392,10 @@ void process_try (struct process *p)
     p->state = PROCESS_STATE_RUNNING;
 }
 
-int process_set_params (struct process *p, const char *template_name, NCDValue args)
+int process_set_params (struct process *p, const char *template_name, NCDValMem mem, NCDValSafeRef args)
 {
     ASSERT(!p->have_params)
+    ASSERT(NCDVal_IsList(NCDVal_FromSafe(&mem, args)))
     
     // copy template name
     if (!(p->params_template_name = strdup(template_name))) {
@@ -386,7 +404,8 @@ int process_set_params (struct process *p, const char *template_name, NCDValue a
     }
     
     // eat arguments
-    p->params_args = args;
+    p->params_mem = mem;
+    p->params_args = NCDVal_FromSafe(&p->params_mem, args);
     
     // set have params
     p->have_params = 1;
@@ -408,7 +427,7 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    if (!NCDValue_ListRead(o->i->args, 0)) {
+    if (!NCDVal_ListRead(o->i->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
@@ -469,20 +488,20 @@ static void func_die (void *vo)
 static void start_func_new (NCDModuleInst *i)
 {
     // check arguments
-    NCDValue *name_arg;
-    NCDValue *template_name_arg;
-    NCDValue *args_arg;
-    if (!NCDValue_ListRead(i->args, 3, &name_arg, &template_name_arg, &args_arg)) {
+    NCDValRef name_arg;
+    NCDValRef template_name_arg;
+    NCDValRef args_arg;
+    if (!NCDVal_ListRead(i->args, 3, &name_arg, &template_name_arg, &args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(name_arg) || !NCDValue_IsStringNoNulls(template_name_arg) ||
-        NCDValue_Type(args_arg) != NCDVALUE_LIST) {
+    if (!NCDVal_IsStringNoNulls(name_arg) || !NCDVal_IsStringNoNulls(template_name_arg) ||
+        !NCDVal_IsList(args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    char *name = NCDValue_StringValue(name_arg);
-    char *template_name = NCDValue_StringValue(template_name_arg);
+    const char *name = NCDVal_StringValue(name_arg);
+    const char *template_name = NCDVal_StringValue(template_name_arg);
     
     // signal up.
     // Do it before creating the process so that the process starts initializing before our own process continues.
@@ -522,16 +541,16 @@ fail0:
 static void stop_func_new (NCDModuleInst *i)
 {
     // check arguments
-    NCDValue *name_arg;
-    if (!NCDValue_ListRead(i->args, 1, &name_arg)) {
+    NCDValRef name_arg;
+    if (!NCDVal_ListRead(i->args, 1, &name_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(name_arg)) {
+    if (!NCDVal_IsStringNoNulls(name_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    char *name = NCDValue_StringValue(name_arg);
+    const char *name = NCDVal_StringValue(name_arg);
     
     // signal up.
     // Do it before stopping the process so that the process starts terminating before our own process continues.

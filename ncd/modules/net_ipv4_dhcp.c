@@ -109,41 +109,44 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    NCDValue *ifname_arg;
-    NCDValue *opts_arg = NULL;
-    if (!NCDValue_ListRead(i->args, 1, &ifname_arg) && !NCDValue_ListRead(i->args, 2, &ifname_arg, &opts_arg)) {
+    NCDValRef ifname_arg;
+    NCDValRef opts_arg = NCDVal_NewInvalid();
+    if (!NCDVal_ListRead(i->args, 1, &ifname_arg) && !NCDVal_ListRead(i->args, 2, &ifname_arg, &opts_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(ifname_arg) || (opts_arg && NCDValue_Type(opts_arg) != NCDVALUE_LIST)) {
+    if (!NCDVal_IsStringNoNulls(ifname_arg) || (!NCDVal_IsInvalid(opts_arg) && !NCDVal_IsList(opts_arg))) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    char *ifname = NCDValue_StringValue(ifname_arg);
+    const char *ifname = NCDVal_StringValue(ifname_arg);
     
     struct BDHCPClient_opts opts = {};
     
     // read options
-    for (NCDValue *opt = (opts_arg ? NCDValue_ListFirst(opts_arg) : NULL); opt; opt = NCDValue_ListNext(opts_arg, opt)) {
+    size_t count = NCDVal_IsInvalid(opts_arg) ? 0 : NCDVal_ListCount(opts_arg);
+    for (size_t j = 0; j < count; j++) {
+        NCDValRef opt = NCDVal_ListGet(opts_arg, j);
+        
         // read name
-        if (!NCDValue_IsStringNoNulls(opt)) {
+        if (!NCDVal_IsStringNoNulls(opt)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong option name type");
             goto fail1;
         }
-        char *optname = NCDValue_StringValue(opt);
+        const char *optname = NCDVal_StringValue(opt);
         
         if (!strcmp(optname, "hostname") || !strcmp(optname, "vendorclassid")) {
             // read value
-            NCDValue *val = NCDValue_ListNext(opts_arg, opt);
-            if (!val) {
+            if (j == count) {
                 ModuleLog(o->i, BLOG_ERROR, "option value missing");
                 goto fail1;
             }
-            if (!NCDValue_IsStringNoNulls(val)) {
+            NCDValRef val = NCDVal_ListGet(opts_arg, j + 1);
+            if (!NCDVal_IsStringNoNulls(val)) {
                 ModuleLog(o->i, BLOG_ERROR, "wrong option value type");
                 goto fail1;
             }
-            char *optval = NCDValue_StringValue(val);
+            const char *optval = NCDVal_StringValue(val);
             
             if (!strcmp(optname, "hostname")) {
                 opts.hostname = optval;
@@ -151,7 +154,7 @@ static void func_new (NCDModuleInst *i)
                 opts.vendorclassid = optval;
             }
             
-            opt = val;
+            j++;
         }
         else if (!strcmp(optname, "auto_clientid")) {
             opts.auto_clientid = 1;
@@ -200,7 +203,7 @@ static void func_die (void *vo)
     instance_free(o);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     ASSERT(o->up)
@@ -213,11 +216,10 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
         char str[50];
         sprintf(str, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, b[0], b[1], b[2], b[3]);
         
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
@@ -236,11 +238,10 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
         char str[10];
         sprintf(str, "%d", ifaddr.prefix);
         
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
@@ -255,11 +256,10 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
             sprintf(str, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, b[0], b[1], b[2], b[3]);
         }
         
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
@@ -267,33 +267,27 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
         uint32_t servers[BDHCPCLIENT_MAX_DOMAIN_NAME_SERVERS];
         int num_servers = BDHCPClient_GetDNS(&o->dhcp, servers, BDHCPCLIENT_MAX_DOMAIN_NAME_SERVERS);
         
-        NCDValue list;
-        NCDValue_InitList(&list);
+        *out = NCDVal_NewList(mem, num_servers);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewList failed");
+            goto fail;
+        }
         
         for (int i = 0; i < num_servers; i++) {
             uint8_t *b = (uint8_t *)&servers[i];
             char str[50];
             sprintf(str, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, b[0], b[1], b[2], b[3]);
             
-            NCDValue server;
-            if (!NCDValue_InitString(&server, str)) {
-                ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-                goto fail1;
+            NCDValRef server = NCDVal_NewString(mem, str);
+            if (NCDVal_IsInvalid(server)) {
+                ModuleLog(o->i, BLOG_ERROR, "NCDVal_IsInvalid failed");
+                goto fail;
             }
             
-            if (!NCDValue_ListAppend(&list, server)) {
-                ModuleLog(o->i, BLOG_ERROR, "NCDValue_ListAppend failed");
-                NCDValue_Free(&server);
-                goto fail1;
-            }
+            NCDVal_ListAppend(*out, server);
         }
         
-        *out = list;
         return 1;
-        
-    fail1:
-        NCDValue_Free(&list);
-        return 0;
     }
     
     if (!strcmp(name, "server_mac")) {
@@ -304,15 +298,18 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
         sprintf(str, "%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8":%02"PRIX8,
                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
     return 0;
+    
+fail:
+    *out = NCDVal_NewInvalid();
+    return 1;
 }
 
 static const struct NCDModule modules[] = {

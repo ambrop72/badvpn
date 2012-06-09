@@ -139,18 +139,18 @@ static void unlock_free (struct unlock_instance *o);
 static int build_append_cmdline (NCDModuleInst *i, const char *prog, int remove, char **exec, CmdLine *cl)
 {
     // read arguments
-    NCDValue *table_arg;
-    NCDValue *chain_arg;
-    if (!NCDValue_ListReadHead(i->args, 2, &table_arg, &chain_arg)) {
+    NCDValRef table_arg;
+    NCDValRef chain_arg;
+    if (!NCDVal_ListReadHead(i->args, 2, &table_arg, &chain_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(table_arg) || !NCDValue_IsStringNoNulls(chain_arg)) {
+    if (!NCDVal_IsStringNoNulls(table_arg) || !NCDVal_IsStringNoNulls(chain_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    char *table = NCDValue_StringValue(table_arg);
-    char *chain = NCDValue_StringValue(chain_arg);
+    const char *table = NCDVal_StringValue(table_arg);
+    const char *chain = NCDVal_StringValue(chain_arg);
     
     // find program
     if (!(*exec = badvpn_find_program(prog))) {
@@ -171,19 +171,19 @@ static int build_append_cmdline (NCDModuleInst *i, const char *prog, int remove,
     }
     
     // add additional arguments
-    NCDValue *arg = NCDValue_ListNext(i->args, chain_arg);
-    while (arg) {
-        if (!NCDValue_IsStringNoNulls(arg)) {
+    size_t count = NCDVal_ListCount(i->args);
+    for (size_t j = 2; j < count; j++) {
+        NCDValRef arg = NCDVal_ListGet(i->args, j);
+        
+        if (!NCDVal_IsStringNoNulls(arg)) {
             ModuleLog(i, BLOG_ERROR, "wrong type");
             goto fail2;
         }
         
-        if (!CmdLine_Append(cl, NCDValue_StringValue(arg))) {
+        if (!CmdLine_Append(cl, NCDVal_StringValue(arg))) {
             ModuleLog(i, BLOG_ERROR, "CmdLine_Append failed");
             goto fail2;
         }
-        
-        arg = NCDValue_ListNext(i->args, arg);
     }
     
     // finish
@@ -205,24 +205,24 @@ fail0:
 static int build_policy_cmdline (NCDModuleInst *i, const char *prog, int remove, char **exec, CmdLine *cl)
 {
     // read arguments
-    NCDValue *table_arg;
-    NCDValue *chain_arg;
-    NCDValue *target_arg;
-    NCDValue *revert_target_arg;
-    if (!NCDValue_ListRead(i->args, 4, &table_arg, &chain_arg, &target_arg, &revert_target_arg)) {
+    NCDValRef table_arg;
+    NCDValRef chain_arg;
+    NCDValRef target_arg;
+    NCDValRef revert_target_arg;
+    if (!NCDVal_ListRead(i->args, 4, &table_arg, &chain_arg, &target_arg, &revert_target_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(table_arg) || !NCDValue_IsStringNoNulls(chain_arg) ||
-        !NCDValue_IsStringNoNulls(target_arg) || !NCDValue_IsStringNoNulls(revert_target_arg)
+    if (!NCDVal_IsStringNoNulls(table_arg) || !NCDVal_IsStringNoNulls(chain_arg) ||
+        !NCDVal_IsStringNoNulls(target_arg) || !NCDVal_IsStringNoNulls(revert_target_arg)
     ) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    char *table = NCDValue_StringValue(table_arg);
-    char *chain = NCDValue_StringValue(chain_arg);
-    char *target = NCDValue_StringValue(target_arg);
-    char *revert_target = NCDValue_StringValue(revert_target_arg);
+    const char *table = NCDVal_StringValue(table_arg);
+    const char *chain = NCDVal_StringValue(chain_arg);
+    const char *target = NCDVal_StringValue(target_arg);
+    const char *revert_target = NCDVal_StringValue(revert_target_arg);
     
     // find program
     if (!(*exec = badvpn_find_program(prog))) {
@@ -262,18 +262,18 @@ fail0:
 static int build_newchain_cmdline (NCDModuleInst *i, const char *prog, int remove, char **exec, CmdLine *cl)
 {
     // read arguments
-    NCDValue *table_arg = NULL;
-    NCDValue *chain_arg;
-    if (!NCDValue_ListRead(i->args, 1, &chain_arg) && !NCDValue_ListRead(i->args, 2, &table_arg, &chain_arg)) {
+    NCDValRef table_arg = NCDVal_NewInvalid();
+    NCDValRef chain_arg;
+    if (!NCDVal_ListRead(i->args, 1, &chain_arg) && !NCDVal_ListRead(i->args, 2, &table_arg, &chain_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if ((table_arg && !NCDValue_IsStringNoNulls(table_arg)) || !NCDValue_IsStringNoNulls(chain_arg)) {
+    if ((!NCDVal_IsInvalid(table_arg) && !NCDVal_IsStringNoNulls(table_arg)) || !NCDVal_IsStringNoNulls(chain_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    char *table = (!table_arg ? "filter" : NCDValue_StringValue(table_arg));
-    char *chain = NCDValue_StringValue(chain_arg);
+    const char *table = (NCDVal_IsInvalid(table_arg) ? "filter" : NCDVal_StringValue(table_arg));
+    const char *chain = NCDVal_StringValue(chain_arg);
     
     // find program
     if (!(*exec = badvpn_find_program(prog))) {

@@ -61,36 +61,40 @@
 
 struct instance {
     NCDModuleInst *i;
-    NCDValue *cmd_arg;
+    NCDValRef cmd_arg;
     BTimer timer;
     BProcess process;
     int state;
 };
 
-static int build_cmdline (NCDModuleInst *i, NCDValue *cmd_arg, char **exec, CmdLine *cl);
+static int build_cmdline (NCDModuleInst *i, NCDValRef cmd_arg, char **exec, CmdLine *cl);
 static void start_process (struct instance *o);
 static void timer_handler (struct instance *o);
 static void process_handler (struct instance *o, int normally, uint8_t normally_exit_status);
 static void instance_free (struct instance *o);
 
-static int build_cmdline (NCDModuleInst *i, NCDValue *cmd_arg, char **exec, CmdLine *cl)
+static int build_cmdline (NCDModuleInst *i, NCDValRef cmd_arg, char **exec, CmdLine *cl)
 {
-    if (NCDValue_Type(cmd_arg) != NCDVALUE_LIST) {
+    ASSERT(!NCDVal_IsInvalid(cmd_arg))
+    
+    if (!NCDVal_IsList(cmd_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
+    size_t count = NCDVal_ListCount(cmd_arg);
+    
     // read exec
-    NCDValue *exec_arg = NCDValue_ListFirst(cmd_arg);
-    if (!exec_arg) {
+    if (count == 0) {
         ModuleLog(i, BLOG_ERROR, "missing executable name");
         goto fail0;
     }
-    if (!NCDValue_IsStringNoNulls(exec_arg)) {
+    NCDValRef exec_arg = NCDVal_ListGet(cmd_arg, 0);
+    if (!NCDVal_IsStringNoNulls(exec_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    if (!(*exec = strdup(NCDValue_StringValue(exec_arg)))) {
+    if (!(*exec = strdup(NCDVal_StringValue(exec_arg)))) {
         ModuleLog(i, BLOG_ERROR, "strdup failed");
         goto fail0;
     }
@@ -108,14 +112,15 @@ static int build_cmdline (NCDModuleInst *i, NCDValue *cmd_arg, char **exec, CmdL
     }
     
     // add additional arguments
-    NCDValue *arg = exec_arg;
-    while (arg = NCDValue_ListNext(cmd_arg, arg)) {
-        if (!NCDValue_IsStringNoNulls(arg)) {
+    for (size_t j = 1; j < count; j++) {
+        NCDValRef arg = NCDVal_ListGet(cmd_arg, j);
+        
+        if (!NCDVal_IsStringNoNulls(arg)) {
             ModuleLog(i, BLOG_ERROR, "wrong type");
             goto fail2;
         }
         
-        if (!CmdLine_Append(cl, NCDValue_StringValue(arg))) {
+        if (!CmdLine_Append(cl, NCDVal_StringValue(arg))) {
             ModuleLog(i, BLOG_ERROR, "CmdLine_Append failed");
             goto fail2;
         }
@@ -213,7 +218,7 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    if (!NCDValue_ListRead(i->args, 1, &o->cmd_arg)) {
+    if (!NCDVal_ListRead(i->args, 1, &o->cmd_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }

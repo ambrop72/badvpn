@@ -68,11 +68,14 @@ struct instance {
 
 static void do_print (NCDModuleInst *i, int ln)
 {
-    for (NCDValue *arg = NCDValue_ListFirst(i->args); arg; arg = NCDValue_ListNext(i->args, arg)) {
-        ASSERT(NCDValue_Type(arg) == NCDVALUE_STRING)
+    size_t num_args = NCDVal_ListCount(i->args);
+    
+    for (size_t j = 0; j < num_args; j++) {
+        NCDValRef arg = NCDVal_ListGet(i->args, j);
+        ASSERT(NCDVal_IsString(arg))
         
-        const char *str = NCDValue_StringValue(arg);
-        size_t len = NCDValue_StringLength(arg);
+        const char *str = NCDVal_StringValue(arg);
+        size_t len = NCDVal_StringLength(arg);
         size_t pos = 0;
         
         while (pos < len) {
@@ -107,8 +110,10 @@ static void func_new_temp (NCDModuleInst *i, int ln, int rev)
     o->rev = rev;
     
     // check arguments
-    for (NCDValue *arg = NCDValue_ListFirst(i->args); arg; arg = NCDValue_ListNext(i->args, arg)) {
-        if (NCDValue_Type(arg) != NCDVALUE_STRING) {
+    size_t num_args = NCDVal_ListCount(i->args);
+    for (size_t j = 0; j < num_args; j++) {
+        NCDValRef arg = NCDVal_ListGet(i->args, j);
+        if (!NCDVal_IsString(arg)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong type");
             goto fail1;
         }

@@ -151,18 +151,18 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    NCDValue *device_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &device_arg)) {
+    NCDValRef device_arg;
+    if (!NCDVal_ListRead(o->i->args, 1, &device_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(device_arg)) {
+    if (!NCDVal_IsStringNoNulls(device_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
     
     // open device
-    if ((o->evdev_fd = open(NCDValue_StringValue(device_arg), O_RDONLY)) < 0) {
+    if ((o->evdev_fd = open(NCDVal_StringValue(device_arg), O_RDONLY)) < 0) {
         ModuleLog(o->i, BLOG_ERROR, "open failed");
         goto fail1;
     }
@@ -223,39 +223,36 @@ static void func_die (void *vo)
     instance_free(o, 0);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     ASSERT(o->processing)
     
     if (!strcmp(name, "type")) {
-        if (!NCDValue_InitString(out, evdev_type_to_str(o->event.type))) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, evdev_type_to_str(o->event.type));
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
     if (!strcmp(name, "value")) {
         char str[50];
         snprintf(str, sizeof(str), "%"PRIi32, o->event.value);
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
     if (!strcmp(name, "code_numeric")) {
         char str[50];
         snprintf(str, sizeof(str), "%"PRIu16, o->event.code);
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
@@ -297,14 +294,12 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
             #endif
         }
         
-        if (!NCDValue_InitString(out, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
-
     
     return 0;
 }
@@ -312,7 +307,7 @@ static int func_getvar (void *vo, const char *name, NCDValue *out)
 static void nextevent_func_new (NCDModuleInst *i)
 {
     // check arguments
-    if (!NCDValue_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

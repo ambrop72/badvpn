@@ -70,7 +70,7 @@ struct device {
 
 struct instance {
     NCDModuleInst *i;
-    char *devnode_type;
+    const char *devnode_type;
     NCDUdevClient client;
     LinkedList1 devices_list;
     event_template templ;
@@ -356,16 +356,16 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    NCDValue *devnode_type_arg;
-    if (!NCDValue_ListRead(o->i->args, 1, &devnode_type_arg)) {
+    NCDValRef devnode_type_arg;
+    if (!NCDVal_ListRead(o->i->args, 1, &devnode_type_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(devnode_type_arg)) {
+    if (!NCDVal_IsStringNoNulls(devnode_type_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->devnode_type = NCDValue_StringValue(devnode_type_arg);
+    o->devnode_type = NCDVal_StringValue(devnode_type_arg);
     
     // init client
     NCDUdevClient_Init(&o->client, o->i->iparams->umanager, o, (NCDUdevClient_handler)client_handler);
@@ -409,16 +409,16 @@ static void func_die (void *vo)
     event_template_die(&o->templ);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
-    return event_template_getvar(&o->templ, name, out);
+    return event_template_getvar(&o->templ, name, mem, out);
 }
 
 static void nextevent_func_new (NCDModuleInst *i)
 {
     // check arguments
-    if (!NCDValue_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

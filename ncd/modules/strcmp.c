@@ -44,70 +44,47 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-struct instance {
-    NCDModuleInst *i;
-    NCDValue *arg1;
-    NCDValue *arg2;
-};
-
 static void func_new (NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+    // set argument
+    NCDModuleInst_Backend_SetUser(i, i);
+    
+    // check arguments
+    NCDValRef str1_arg;
+    NCDValRef str2_arg;
+    if (!NCDVal_ListRead(i->args, 2, &str1_arg, &str2_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
-    o->i = i;
-    
-    // read arguments
-    if (!NCDValue_ListRead(o->i->args, 2, &o->arg1, &o->arg2)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
-    }
-    if (NCDValue_Type(o->arg1) != NCDVALUE_STRING || NCDValue_Type(o->arg2) != NCDVALUE_STRING) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+    if (!NCDVal_IsString(str1_arg) || !NCDVal_IsString(str2_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
     }
     
     // signal up
-    NCDModuleInst_Backend_Up(o->i);
-    
+    NCDModuleInst_Backend_Up(i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_die (void *vo)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
-    struct instance *o = vo;
-    NCDModuleInst *i = o->i;
-    
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
-}
-
-static int func_getvar (void *vo, const char *name, NCDValue *out)
-{
-    struct instance *o = vo;
+    NCDModuleInst *i = vo;
     
     if (!strcmp(name, "")) {
-        const char *v = !NCDValue_Compare(o->arg1, o->arg2) ? "true" : "false";
+        NCDValRef str1_arg;
+        NCDValRef str2_arg;
+        NCDVal_ListRead(i->args, 2, &str1_arg, &str2_arg);
+        int result = NCDVal_Compare(str1_arg, str2_arg) == 0;
+        const char *v = result ? "true" : "false";
         
-        if (!NCDValue_InitString(out, v)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, v);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(i, BLOG_ERROR, "NCDVal_NewString failed");
         }
-        
         return 1;
     }
     
@@ -118,7 +95,6 @@ static const struct NCDModule modules[] = {
     {
         .type = "strcmp",
         .func_new = func_new,
-        .func_die = func_die,
         .func_getvar = func_getvar
     }, {
         .type = NULL

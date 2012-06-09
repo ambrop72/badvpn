@@ -30,6 +30,8 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stddef.h>
+#include <inttypes.h>
+#include <limits.h>
 
 #include <misc/string_begins_with.h>
 #include <misc/parse_number.h>
@@ -58,10 +60,10 @@
 #define PROCESS_STATE_TERMINATED_PENDING 9
 #define PROCESS_STATE_TERMINATED 10
 
-static int object_func_getvar (NCDModuleInst *n, const char *name, NCDValue *out_value);
+static int object_func_getvar (NCDModuleInst *n, const char *name, NCDValMem *mem, NCDValRef *out_value);
 static int object_func_getobj (NCDModuleInst *n, const char *name, NCDObject *out_object);
-static int process_args_object_func_getvar (NCDModuleProcess *o, const char *name, NCDValue *out_value);
-static int process_arg_object_func_getvar2 (NCDModuleProcess *o, NCDValue *arg, const char *name, NCDValue *out_value);
+static int process_args_object_func_getvar (NCDModuleProcess *o, const char *name, NCDValMem *mem, NCDValRef *out_value);
+static int process_arg_object_func_getvar2 (NCDModuleProcess *o, void *n_ptr, const char *name, NCDValMem *mem, NCDValRef *out_value);
 
 static void frontend_event (NCDModuleInst *n, int event)
 {
@@ -156,11 +158,10 @@ static void inst_assert_backend (NCDModuleInst *n)
            n->state == STATE_DYING)
 }
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValue *args, void *user, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams)
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValRef args, void *user, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams)
 {
     ASSERT(m)
-    ASSERT(args)
-    ASSERT(NCDValue_Type(args) == NCDVALUE_LIST)
+    ASSERT(NCDVal_IsList(args))
     ASSERT(params)
     ASSERT(params->func_event)
     ASSERT(params->func_getobj)
@@ -278,7 +279,7 @@ static int can_resolve (NCDModuleInst *n)
     }
 }
 
-static int object_func_getvar (NCDModuleInst *n, const char *name, NCDValue *out_value)
+static int object_func_getvar (NCDModuleInst *n, const char *name, NCDValMem *mem, NCDValRef *out_value)
 {
     DebugObject_Access(&n->d_obj);
     
@@ -286,8 +287,9 @@ static int object_func_getvar (NCDModuleInst *n, const char *name, NCDValue *out
         return 0;
     }
     
-    int res = n->m->func_getvar(n->inst_user, name, out_value);
+    int res = n->m->func_getvar(n->inst_user, name, mem, out_value);
     ASSERT(res == 0 || res == 1)
+    ASSERT(res == 0 || (NCDVal_Assert(*out_value), 1))
     
     return res;
 }
@@ -451,15 +453,16 @@ void NCDModuleInst_Backend_InterpExit (NCDModuleInst *n, int exit_code)
     n->iparams->func_interp_exit(n->user, exit_code);
 }
 
-int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValue *out_value)
+int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValMem *mem, NCDValRef *out_value)
 {
     DebugObject_Access(&n->d_obj);
     inst_assert_backend(n);
+    ASSERT(mem)
     ASSERT(out_value)
     
-    int res = n->iparams->func_interp_getargs(n->user, out_value);
+    int res = n->iparams->func_interp_getargs(n->user, mem, out_value);
     ASSERT(res == 0 || res == 1)
-    ASSERT(!res || (NCDValue_Type(out_value), 1))
+    ASSERT(res == 0 || (NCDVal_Assert(*out_value), 1))
     
     return res;
 }
@@ -472,14 +475,14 @@ btime_t NCDModuleInst_Backend_InterpGetRetryTime (NCDModuleInst *n)
     return n->iparams->func_interp_getretrytime(n->user);
 }
 
-int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValue args, void *user, NCDModuleProcess_handler_event handler_event)
+int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event)
 {
     DebugObject_Access(&n->d_obj);
     ASSERT(n->state == STATE_DOWN_PCLEAN || n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
            n->state == STATE_UP || n->state == STATE_DOWN_DIE || n->state == STATE_UP_DIE ||
            n->state == STATE_DYING)
     ASSERT(template_name)
-    ASSERT(NCDValue_Type(&args) == NCDVALUE_LIST)
+    ASSERT(NCDVal_IsInvalid(args) || NCDVal_IsList(args))
     ASSERT(handler_event)
     
     // init arguments
@@ -495,9 +498,6 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     
     // set state
     o->state = PROCESS_STATE_INIT;
-    
-    // set not no args
-    o->no_args = 0;
     
     // clear interp functions so we can assert they were set
     o->interp_func_event = NULL;
@@ -529,9 +529,6 @@ void NCDModuleProcess_Free (NCDModuleProcess *o)
     
     // free event job
     BPending_Free(&o->event_job);
-    
-    // free arguments
-    NCDValue_Free(&o->args);
 }
 
 void NCDModuleProcess_AssertFree (NCDModuleProcess *o)
@@ -545,13 +542,6 @@ void NCDModuleProcess_SetSpecialFuncs (NCDModuleProcess *o, NCDModuleProcess_fun
     DebugObject_Access(&o->d_obj);
     
     o->func_getspecialobj = func_getspecialobj;
-}
-
-void NCDModuleProcess_SetNoArgs (NCDModuleProcess *o)
-{
-    DebugObject_Access(&o->d_obj);
-    
-    o->no_args = 1;
 }
 
 void NCDModuleProcess_Continue (NCDModuleProcess *o)
@@ -665,7 +655,7 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, const char *name
     ASSERT(name)
     ASSERT(out_object)
     
-    if (!o->no_args) {
+    if (!NCDVal_IsInvalid(o->args)) {
         if (!strcmp(name, "_args")) {
             *out_object = NCDObject_Build(NULL, o, (NCDObject_func_getvar)process_args_object_func_getvar, NULL);
             return 1;
@@ -673,8 +663,8 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, const char *name
         
         size_t len;
         uintmax_t n;
-        if ((len = string_begins_with(name, "_arg")) && parse_unsigned_integer(name + len, &n) && n < NCDValue_ListCount(&o->args)) {
-            *out_object = NCDObject_Build2(NULL, o, NCDValue_ListGet(&o->args, n), (NCDObject_func_getvar2)process_arg_object_func_getvar2, NULL);
+        if ((len = string_begins_with(name, "_arg")) && parse_unsigned_integer(name + len, &n) && n < NCDVal_ListCount(o->args) && n < UINTPTR_MAX) {
+            *out_object = NCDObject_Build2(NULL, o, (void *)((uintptr_t)(n + 1)), (NCDObject_func_getvar2)process_arg_object_func_getvar2, NULL);
             return 1;
         }
     }
@@ -689,32 +679,38 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, const char *name
     return res;
 }
 
-static int process_args_object_func_getvar (NCDModuleProcess *o, const char *name, NCDValue *out_value)
+static int process_args_object_func_getvar (NCDModuleProcess *o, const char *name, NCDValMem *mem, NCDValRef *out_value)
 {
     DebugObject_Access(&o->d_obj);
     process_assert_interp(o);
+    ASSERT(!NCDVal_IsInvalid(o->args))
     
     if (strcmp(name, "")) {
         return 0;
     }
     
-    if (!NCDValue_InitCopy(out_value, &o->args)) {
-        BLog_LogToChannel(BLOG_CHANNEL_NCDModuleProcess, BLOG_ERROR, "NCDValue_InitCopy failed");
-        return 0;
+    *out_value = NCDVal_NewCopy(mem, o->args);
+    if (NCDVal_IsInvalid(*out_value)) {
+        BLog_LogToChannel(BLOG_CHANNEL_NCDModuleProcess, BLOG_ERROR, "NCDVal_NewCopy failed");
     }
-    
     return 1;
 }
 
-static int process_arg_object_func_getvar2 (NCDModuleProcess *o, NCDValue *arg, const char *name, NCDValue *out_value)
+static int process_arg_object_func_getvar2 (NCDModuleProcess *o, void *n_ptr, const char *name, NCDValMem *mem, NCDValRef *out_value)
 {
     DebugObject_Access(&o->d_obj);
     process_assert_interp(o);
+    ASSERT(!NCDVal_IsInvalid(o->args))
     
-    if (!NCDValue_InitCopy(out_value, arg)) {
-        BLog_LogToChannel(BLOG_CHANNEL_NCDModuleProcess, BLOG_ERROR, "NCDValue_InitCopy failed");
+    if (strcmp(name, "")) {
         return 0;
     }
     
+    uintmax_t n = (uintmax_t)n_ptr - 1;
+    
+    *out_value = NCDVal_NewCopy(mem, NCDVal_ListGet(o->args, n));
+    if (NCDVal_IsInvalid(*out_value)) {
+        BLog_LogToChannel(BLOG_CHANNEL_NCDModuleProcess, BLOG_ERROR, "NCDVal_NewCopy failed");
+    }
     return 1;
 }

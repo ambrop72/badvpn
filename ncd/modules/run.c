@@ -60,32 +60,33 @@ struct instance {
 static int build_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
 {
     // read arguments
-    NCDValue *do_cmd_arg;
-    NCDValue *undo_cmd_arg;
-    if (!NCDValue_ListRead(i->args, 2, &do_cmd_arg, &undo_cmd_arg)) {
+    NCDValRef do_cmd_arg;
+    NCDValRef undo_cmd_arg;
+    if (!NCDVal_ListRead(i->args, 2, &do_cmd_arg, &undo_cmd_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (NCDValue_Type(do_cmd_arg) != NCDVALUE_LIST || NCDValue_Type(undo_cmd_arg) != NCDVALUE_LIST) {
+    if (!NCDVal_IsList(do_cmd_arg) || !NCDVal_IsList(undo_cmd_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
-    NCDValue *list = (remove ? undo_cmd_arg : do_cmd_arg);
+    NCDValRef list = (remove ? undo_cmd_arg : do_cmd_arg);
+    size_t count = NCDVal_ListCount(list);
     
     // check if there is no command
-    if (!NCDValue_ListFirst(list)) {
+    if (count == 0) {
         *exec = NULL;
         return 1;
     }
     
     // read exec
-    NCDValue *exec_arg = NCDValue_ListFirst(list);
-    if (!NCDValue_IsStringNoNulls(exec_arg)) {
+    NCDValRef exec_arg = NCDVal_ListGet(list, 0);
+    if (!NCDVal_IsStringNoNulls(exec_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    if (!(*exec = strdup(NCDValue_StringValue(exec_arg)))) {
+    if (!(*exec = strdup(NCDVal_StringValue(exec_arg)))) {
         ModuleLog(i, BLOG_ERROR, "strdup failed");
         goto fail0;
     }
@@ -103,14 +104,15 @@ static int build_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl
     }
     
     // add additional arguments
-    NCDValue *arg = exec_arg;
-    while (arg = NCDValue_ListNext(list, arg)) {
-        if (!NCDValue_IsStringNoNulls(arg)) {
+    for (size_t j = 1; j < count; j++) {
+        NCDValRef arg = NCDVal_ListGet(list, j);
+        
+        if (!NCDVal_IsStringNoNulls(arg)) {
             ModuleLog(i, BLOG_ERROR, "wrong type");
             goto fail2;
         }
         
-        if (!CmdLine_Append(cl, NCDValue_StringValue(arg))) {
+        if (!CmdLine_Append(cl, NCDVal_StringValue(arg))) {
             ModuleLog(i, BLOG_ERROR, "CmdLine_Append failed");
             goto fail2;
         }

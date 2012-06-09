@@ -129,16 +129,16 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    NCDValue *arg;
-    if (!NCDValue_ListRead(i->args, 1, &arg)) {
+    NCDValRef arg;
+    if (!NCDVal_ListRead(i->args, 1, &arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(arg)) {
+    if (!NCDVal_IsStringNoNulls(arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->ifname = NCDValue_StringValue(arg);
+    o->ifname = NCDVal_StringValue(arg);
     
     // init client
     NCDUdevClient_Init(&o->client, o->i->iparams->umanager, o, (NCDUdevClient_handler)client_handler);

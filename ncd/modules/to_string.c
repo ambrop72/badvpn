@@ -61,15 +61,15 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
-    NCDValue *value_arg;
-    if (!NCDValue_ListRead(i->args, 1, &value_arg)) {
+    NCDValRef value_arg;
+    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
     
     // convert to string
-    if (!(o->str = NCDValueGenerator_Generate(value_arg))) {
-        ModuleLog(i, BLOG_ERROR, "NCDValueGenerator_Generate failed");
+    if (!(o->str = NCDValGenerator_Generate(value_arg))) {
+        ModuleLog(i, BLOG_ERROR, "NCDValGenerator_Generate failed");
         goto fail1;
     }
     
@@ -98,14 +98,14 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValue *out)
+static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
-        if (!NCDValue_InitString(out, o->str)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitString failed");
-            return 0;
+        *out = NCDVal_NewString(mem, o->str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
         return 1;
     }

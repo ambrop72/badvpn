@@ -66,8 +66,8 @@
 
 struct ondemand {
     NCDModuleInst *i;
-    char *template_name;
-    NCDValue *args;
+    const char *template_name;
+    NCDValRef args;
     LinkedList1 demands_list;
     int dying;
     int have_process;
@@ -93,17 +93,9 @@ static int ondemand_start_process (struct ondemand *o)
     ASSERT(!o->dying)
     ASSERT(!o->have_process)
     
-    // copy arguments
-    NCDValue args;
-    if (!NCDValue_InitCopy(&args, o->args)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
-        goto fail0;
-    }
-    
     // start process
-    if (!NCDModuleProcess_Init(&o->process, o->i, o->template_name, args, o, (NCDModuleProcess_handler_event)ondemand_process_handler)) {
+    if (!NCDModuleProcess_Init(&o->process, o->i, o->template_name, o->args, o, (NCDModuleProcess_handler_event)ondemand_process_handler)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
-        NCDValue_Free(&args);
         goto fail0;
     }
     
@@ -230,17 +222,17 @@ static void ondemand_func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    NCDValue *arg_template_name;
-    NCDValue *arg_args;
-    if (!NCDValue_ListRead(i->args, 2, &arg_template_name, &arg_args)) {
+    NCDValRef arg_template_name;
+    NCDValRef arg_args;
+    if (!NCDVal_ListRead(i->args, 2, &arg_template_name, &arg_args)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(arg_template_name) || NCDValue_Type(arg_args) != NCDVALUE_LIST) {
+    if (!NCDVal_IsStringNoNulls(arg_template_name) || !NCDVal_IsList(arg_args)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    o->template_name = NCDValue_StringValue(arg_template_name);
+    o->template_name = NCDVal_StringValue(arg_template_name);
     o->args = arg_args;
     
     // init demands list
@@ -315,7 +307,7 @@ static void demand_func_new (NCDModuleInst *i)
     o->i = i;
     
     // read arguments
-    if (!NCDValue_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }

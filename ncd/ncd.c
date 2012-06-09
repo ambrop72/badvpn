@@ -82,7 +82,7 @@ struct process_statement {
     struct process *p;
     btime_t error_until;
     NCDModuleInst inst;
-    NCDValue inst_args;
+    NCDValMem args_mem;
     int i;
     int state;
     int have_error;
@@ -169,17 +169,17 @@ static void process_advance (struct process *p);
 static void process_wait_timer_handler (struct process *p);
 static int process_find_object (struct process *p, int pos, const char *name, NCDObject *out_object);
 static int process_resolve_object_expr (struct process *p, int pos, char **names, NCDObject *out_object);
-static int process_resolve_variable_expr (struct process *p, int pos, char **names, NCDValue *out_value);
+static int process_resolve_variable_expr (struct process *p, int pos, char **names, NCDValMem *mem, NCDValRef *out_value);
 static void process_statement_logfunc (struct process_statement *ps);
 static void process_statement_log (struct process_statement *ps, int level, const char *fmt, ...);
 static void process_statement_set_error (struct process_statement *ps);
-static int process_statement_resolve_argument (struct process_statement *ps, NCDInterpValue *arg, NCDValue *out);
+static int process_statement_resolve_argument (struct process_statement *ps, NCDInterpValue *arg, NCDValMem *mem, NCDValRef *out);
 static void process_statement_instance_func_event (struct process_statement *ps, int event);
 static int process_statement_instance_func_getobj (struct process_statement *ps, const char *objname, NCDObject *out_object);
 static int process_statement_instance_func_initprocess (struct process_statement *ps, NCDModuleProcess *mp, const char *template_name);
 static void process_statement_instance_logfunc (struct process_statement *ps);
 static void process_statement_instance_func_interp_exit (struct process_statement *ps, int exit_code);
-static int process_statement_instance_func_interp_getargs (struct process_statement *ps, NCDValue *out_value);
+static int process_statement_instance_func_interp_getargs (struct process_statement *ps, NCDValMem *mem, NCDValRef *out_value);
 static btime_t process_statement_instance_func_interp_getretrytime (struct process_statement *ps);
 static void process_moduleprocess_func_event (struct process *p, int event);
 static int process_moduleprocess_func_getobj (struct process *p, const char *name, NCDObject *out_object);
@@ -961,7 +961,7 @@ void process_advance (struct process *p)
     if (object_names) {
         // get object
         if (!process_resolve_object_expr(p, p->ap, object_names, &object)) {
-            goto fail;
+            goto fail0;
         }
         object_ptr = &object;
         
@@ -969,14 +969,14 @@ void process_advance (struct process *p)
         const char *object_type = NCDObject_Type(&object);
         if (!object_type) {
             process_statement_log(ps, BLOG_ERROR, "cannot call method on object with no type");
-            goto fail;
+            goto fail0;
         }
         
         // build type string
         int res = snprintf(method_concat_buf, sizeof(method_concat_buf), "%s::%s", object_type, type);
         if (res >= sizeof(method_concat_buf) || res < 0) {
             process_statement_log(ps, BLOG_ERROR, "type/method name too long");
-            goto fail;
+            goto fail0;
         }
         type = method_concat_buf;
     }
@@ -985,17 +985,22 @@ void process_advance (struct process *p)
     const struct NCDModule *module = NCDModuleIndex_FindModule(&mindex, type);
     if (!module) {
         process_statement_log(ps, BLOG_ERROR, "failed to find module: %s", type);
-        goto fail;
+        goto fail0;
     }
     
+    // init args mem
+    NCDValMem_Init(&ps->args_mem);
+    
     // resolve arguments
-    if (!process_statement_resolve_argument(ps, NCDInterpBlock_StatementInterpValue(p->iblock, ps->i), &ps->inst_args)) {
+    NCDValRef args;
+    NCDInterpValue *iargs = NCDInterpBlock_StatementInterpValue(p->iblock, ps->i);
+    if (!process_statement_resolve_argument(ps, iargs, &ps->args_mem, &args)) {
         process_statement_log(ps, BLOG_ERROR, "failed to resolve arguments");
-        goto fail;
+        goto fail1;
     }
     
     // initialize module instance
-    NCDModuleInst_Init(&ps->inst, module, object_ptr, &ps->inst_args, ps, &module_params, &module_iparams);
+    NCDModuleInst_Init(&ps->inst, module, object_ptr, args, ps, &module_params, &module_iparams);
     
     // set statement state CHILD
     ps->state = SSTATE_CHILD;
@@ -1009,7 +1014,9 @@ void process_advance (struct process *p)
     process_assert_pointers(p);
     return;
     
-fail:
+fail1:
+    NCDValMem_Free(&ps->args_mem);
+fail0:
     // mark error
     process_statement_set_error(ps);
     
@@ -1090,12 +1097,13 @@ fail:;
     return 0;
 }
 
-int process_resolve_variable_expr (struct process *p, int pos, char **names, NCDValue *out_value)
+int process_resolve_variable_expr (struct process *p, int pos, char **names, NCDValMem *mem, NCDValRef *out_value)
 {
     ASSERT(pos >= 0)
     ASSERT(pos <= p->num_statements)
     ASSERT(names)
     ASSERT(count_strings(names) > 0)
+    ASSERT(mem)
     ASSERT(out_value)
     
     NCDObject object;
@@ -1103,7 +1111,7 @@ int process_resolve_variable_expr (struct process *p, int pos, char **names, NCD
         goto fail;
     }
     
-    if (!NCDObject_ResolveVarExpr(&object, names + 1, out_value)) {
+    if (!NCDObject_ResolveVarExpr(&object, names + 1, mem, out_value)) {
         goto fail;
     }
     
@@ -1142,90 +1150,77 @@ void process_statement_set_error (struct process_statement *ps)
     ps->error_until = btime_add(btime_gettime(), options.retry_time);
 }
 
-int process_statement_resolve_argument (struct process_statement *ps, NCDInterpValue *arg, NCDValue *out)
+int process_statement_resolve_argument (struct process_statement *ps, NCDInterpValue *arg, NCDValMem *mem, NCDValRef *out)
 {
     ASSERT(ps->i <= process_rap(ps->p))
     ASSERT(arg)
+    ASSERT(mem)
     ASSERT(out)
     
     switch (arg->type) {
         case NCDVALUE_STRING: {
-            if (!NCDValue_InitStringBin(out, (uint8_t *)arg->string, arg->string_len)) {
-                process_statement_log(ps, BLOG_ERROR, "NCDValue_InitStringBin failed");
+            *out = NCDVal_NewStringBin(mem, (uint8_t *)arg->string, arg->string_len);
+            if (NCDVal_IsInvalid(*out)) {
+                process_statement_log(ps, BLOG_ERROR, "NCDVal_NewStringBin failed");
                 return 0;
             }
         } break;
         
         case NCDVALUE_VAR: {
-            if (!process_resolve_variable_expr(ps->p, ps->i, arg->variable_names, out)) {
+            if (!process_resolve_variable_expr(ps->p, ps->i, arg->variable_names, mem, out)) {
+                return 0;
+            }
+            if (NCDVal_IsInvalid(*out)) {
                 return 0;
             }
         } break;
         
-        case NCDVALUE_LIST: do {
-            NCDValue_InitList(out);
+        case NCDVALUE_LIST: {
+            *out = NCDVal_NewList(mem, arg->list_count);
+            if (NCDVal_IsInvalid(*out)) {
+                process_statement_log(ps, BLOG_ERROR, "NCDVal_NewList failed");
+                return 0;
+            }
             
             for (LinkedList1Node *n = LinkedList1_GetFirst(&arg->list); n; n = LinkedList1Node_Next(n)) {
                 struct NCDInterpValueListElem *elem = UPPER_OBJECT(n, struct NCDInterpValueListElem, list_node);
                 
-                NCDValue v;
-                if (!process_statement_resolve_argument(ps, &elem->value, &v)) {
-                    goto list_fail1;
+                NCDValRef new_elem;
+                if (!process_statement_resolve_argument(ps, &elem->value, mem, &new_elem)) {
+                    return 0;
                 }
                 
-                if (!NCDValue_ListAppend(out, v)) {
-                    process_statement_log(ps, BLOG_ERROR, "NCDValue_ListAppend failed");
-                    NCDValue_Free(&v);
-                    goto list_fail1;
-                }
+                NCDVal_ListAppend(*out, new_elem);
             }
-            
-            break;
-            
-        list_fail1:
-            NCDValue_Free(out);
-            return 0;
-        } while (0); break;
+        } break;
         
-        case NCDVALUE_MAP: do {
-            NCDValue_InitMap(out);
+        case NCDVALUE_MAP: {
+            *out = NCDVal_NewMap(mem, arg->map_count);
+            if (NCDVal_IsInvalid(*out)) {
+                process_statement_log(ps, BLOG_ERROR, "NCDVal_NewMap failed");
+                return 0;
+            }
             
             for (LinkedList1Node *n = LinkedList1_GetFirst(&arg->maplist); n; n = LinkedList1Node_Next(n)) {
                 struct NCDInterpValueMapElem *elem = UPPER_OBJECT(n, struct NCDInterpValueMapElem, maplist_node);
                 
-                NCDValue key;
-                NCDValue val;
-                
-                if (!process_statement_resolve_argument(ps, &elem->key, &key)) {
-                    goto map_fail;
+                NCDValRef new_key;
+                if (!process_statement_resolve_argument(ps, &elem->key, mem, &new_key)) {
+                    return 0;
                 }
                 
-                if (!process_statement_resolve_argument(ps, &elem->val, &val)) {
-                    NCDValue_Free(&key);
-                    goto map_fail;
+                NCDValRef new_val;
+                if (!process_statement_resolve_argument(ps, &elem->val, mem, &new_val)) {
+                    return 0;
                 }
                 
-                if (NCDValue_MapFindKey(out, &key)) {
+                int res = NCDVal_MapInsert(*out, new_key, new_val);
+                if (!res) {
                     process_statement_log(ps, BLOG_ERROR, "duplicate map keys");
-                    NCDValue_Free(&key);
-                    NCDValue_Free(&val);
-                    goto map_fail;
-                }
-                
-                if (!NCDValue_MapInsert(out, key, val)) {
-                    process_statement_log(ps, BLOG_ERROR, "NCDValue_MapInsert failed");
-                    NCDValue_Free(&key);
-                    NCDValue_Free(&val);
-                    goto map_fail;
+                    return 0;
                 }
             }
-            
-            break;
-            
-        map_fail:
-            NCDValue_Free(out);
-            return 0;
-        } while (0); break;
+        } break;
         
         default: ASSERT(0);
     }
@@ -1279,8 +1274,8 @@ void process_statement_instance_func_event (struct process_statement *ps, int ev
             // free instance
             NCDModuleInst_Free(&ps->inst);
             
-            // free instance arguments
-            NCDValue_Free(&ps->inst_args);
+            // free arguments memory
+            NCDValMem_Free(&ps->args_mem);
             
             // set state FORGOTTEN
             ps->state = SSTATE_FORGOTTEN;
@@ -1348,31 +1343,31 @@ void process_statement_instance_func_interp_exit (struct process_statement *ps, 
     start_terminate(exit_code);
 }
 
-int process_statement_instance_func_interp_getargs (struct process_statement *ps, NCDValue *out_value)
+int process_statement_instance_func_interp_getargs (struct process_statement *ps, NCDValMem *mem, NCDValRef *out_value)
 {
     ASSERT(ps->state != SSTATE_FORGOTTEN)
     
-    NCDValue_InitList(out_value);
+    *out_value = NCDVal_NewList(mem, options.num_extra_args);
+    if (NCDVal_IsInvalid(*out_value)) {
+        process_statement_log(ps, BLOG_ERROR, "NCDVal_NewList failed");
+        goto fail;
+    }
     
     for (int i = 0; i < options.num_extra_args; i++) {
-        NCDValue arg;
-        if (!NCDValue_InitString(&arg, options.extra_args[i])) {
-             process_statement_log(ps, BLOG_ERROR, "NCDValue_InitString failed");
-             goto fail1;
+        NCDValRef arg = NCDVal_NewString(mem, options.extra_args[i]);
+        if (NCDVal_IsInvalid(arg)) {
+            process_statement_log(ps, BLOG_ERROR, "NCDVal_NewString failed");
+            goto fail;
         }
         
-        if (!NCDValue_ListAppend(out_value, arg)) {
-            process_statement_log(ps, BLOG_ERROR, "NCDValue_ListAppend failed");
-            NCDValue_Free(&arg);
-            goto fail1;
-        }
+        NCDVal_ListAppend(*out_value, arg);
     }
     
     return 1;
     
-fail1:
-    NCDValue_Free(out_value);
-    return 0;
+fail:
+    *out_value = NCDVal_NewInvalid();
+    return 1;
 }
 
 btime_t process_statement_instance_func_interp_getretrytime (struct process_statement *ps)

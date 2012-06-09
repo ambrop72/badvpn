@@ -144,18 +144,18 @@ static void func_new (NCDModuleInst *i)
     o->i = i;
     
     // check arguments
-    NCDValue *type_arg;
-    NCDValue *name_arg;
-    if (!NCDValue_ListRead(i->args, 2, &type_arg, &name_arg)) {
+    NCDValRef type_arg;
+    NCDValRef name_arg;
+    if (!NCDVal_ListRead(i->args, 2, &type_arg, &name_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(type_arg) || !NCDValue_IsStringNoNulls(name_arg)) {
+    if (!NCDVal_IsStringNoNulls(type_arg) || !NCDVal_IsStringNoNulls(name_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    char *type = NCDValue_StringValue(type_arg);
-    char *name = NCDValue_StringValue(name_arg);
+    const char *type = NCDVal_StringValue(type_arg);
+    const char *name = NCDVal_StringValue(name_arg);
     
     if (!strcmp(type, "index")) {
         if (sscanf(name, "%"SCNu32, &o->index) != 1) {

@@ -88,16 +88,16 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
-    NCDValue *arg;
-    if (!NCDValue_ListRead(i->args, 1, &arg)) {
+    NCDValRef arg;
+    if (!NCDVal_ListRead(i->args, 1, &arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDValue_IsStringNoNulls(arg)) {
+    if (!NCDVal_IsStringNoNulls(arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
-    char *ifname = NCDValue_StringValue(arg);
+    const char *ifname = NCDVal_StringValue(arg);
     
     // get interface index
     int ifindex;
