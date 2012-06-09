@@ -28,6 +28,7 @@
  */
 
 #include <stdlib.h>
+#include <limits.h>
 
 #include <misc/offset.h>
 #include <misc/split_string.h>
@@ -181,11 +182,17 @@ void NCDInterpValue_InitList (NCDInterpValue *o)
 {
     o->type = NCDVALUE_LIST;
     LinkedList1_Init(&o->list);
+    o->list_count = 0;
 }
 
 int NCDInterpValue_ListAppend (NCDInterpValue *o, NCDInterpValue v)
 {
     ASSERT(o->type == NCDVALUE_LIST)
+    
+    if (o->list_count == SIZE_MAX) {
+        BLog(BLOG_ERROR, "size overflow");
+        return 0;
+    }
     
     struct NCDInterpValueListElem *elem = malloc(sizeof(*elem));
     if (!elem) {
@@ -194,6 +201,7 @@ int NCDInterpValue_ListAppend (NCDInterpValue *o, NCDInterpValue v)
     }
     LinkedList1_Append(&o->list, &elem->list_node);
     elem->value = v;
+    o->list_count++;
     
     return 1;
 }
@@ -202,11 +210,17 @@ void NCDInterpValue_InitMap (NCDInterpValue *o)
 {
     o->type = NCDVALUE_MAP;
     LinkedList1_Init(&o->maplist);
+    o->map_count = 0;
 }
 
 int NCDInterpValue_MapAppend (NCDInterpValue *o, NCDInterpValue key, NCDInterpValue val)
 {
     ASSERT(o->type == NCDVALUE_MAP)
+    
+    if (o->map_count == SIZE_MAX) {
+        BLog(BLOG_ERROR, "size overflow");
+        return 0;
+    }
     
     struct NCDInterpValueMapElem *elem = malloc(sizeof(*elem));
     if (!elem) {
@@ -216,6 +230,7 @@ int NCDInterpValue_MapAppend (NCDInterpValue *o, NCDInterpValue key, NCDInterpVa
     LinkedList1_Append(&o->maplist, &elem->maplist_node);
     elem->key = key;
     elem->val = val;
+    o->map_count++;
     
     return 1;
 }

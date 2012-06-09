@@ -44,8 +44,14 @@ typedef struct {
             size_t string_len;
         };
         char **variable_names;
-        LinkedList1 list;
-        LinkedList1 maplist;
+        struct {
+            LinkedList1 list;
+            size_t list_count;
+        };
+        struct {
+            LinkedList1 maplist;
+            size_t map_count;
+        };
     };
 } NCDInterpValue;
 
