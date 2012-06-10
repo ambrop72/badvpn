@@ -120,3 +120,4 @@ ncd_file 4
 ncd_netmask 4
 ncd_implode 4
 ncd_call2 4
+ncd_assert 4

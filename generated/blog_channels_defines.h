@@ -120,4 +120,5 @@
 #define BLOG_CHANNEL_ncd_netmask 119
 #define BLOG_CHANNEL_ncd_implode 120
 #define BLOG_CHANNEL_ncd_call2 121
-#define BLOG_NUM_CHANNELS 122
+#define BLOG_CHANNEL_ncd_assert 122
+#define BLOG_NUM_CHANNELS 123
