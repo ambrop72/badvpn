@@ -161,15 +161,28 @@ static NCDValMapElem NCDVal__MapElem (NCDVal__idx elemidx)
     return me;
 }
 
+static void NCDVal__MapAssertElemOnly (NCDValRef map, NCDVal__idx elemidx)
+{
+#ifndef NDEBUG
+    struct NCDVal__map *map_e = NCDValMem__BufAt(map.mem, map.idx);
+    ASSERT(elemidx >= map.idx + offsetof(struct NCDVal__map, elems))
+    ASSERT(elemidx < map.idx + offsetof(struct NCDVal__map, elems) + map_e->count * sizeof(struct NCDVal__mapelem))
+
+    struct NCDVal__mapelem *me_e = NCDValMem__BufAt(map.mem, elemidx);
+    NCDVal__AssertValOnly(map.mem, me_e->key_idx);
+    NCDVal__AssertValOnly(map.mem, me_e->val_idx);
+#endif
+}
+
 static void NCDVal__MapAssertElem (NCDValRef map, NCDValMapElem me)
 {
     ASSERT(NCDVal_IsMap(map))
-    ASSERT(me.elemidx >= map.idx + offsetof(struct NCDVal__map, elems))
-    ASSERT(me.elemidx < map.idx + offsetof(struct NCDVal__map, elems) + NCDVal_MapCount(map) * sizeof(struct NCDVal__mapelem))
-    
-    struct NCDVal__mapelem *me_e = NCDValMem__BufAt(map.mem, me.elemidx);
-    NCDVal__AssertValOnly(map.mem, me_e->key_idx);
-    NCDVal__AssertValOnly(map.mem, me_e->val_idx);
+    NCDVal__MapAssertElemOnly(map, me.elemidx);
+}
+
+static NCDVal__idx NCDVal__MapElemIdx (NCDVal__idx mapidx, NCDVal__idx pos)
+{
+    return mapidx + offsetof(struct NCDVal__map, elems) + pos * sizeof(struct NCDVal__mapelem);
 }
 
 #include "NCDVal_maptree.h"
@@ -320,13 +333,13 @@ int NCDVal_Compare (NCDValRef val1, NCDValRef val2)
         } break;
         
         case NCDVAL_MAP: {
-            NCDValMapElem e1 = NCDVal_MapFirst(val1);
-            NCDValMapElem e2 = NCDVal_MapFirst(val2);
+            NCDValMapElem e1 = NCDVal_MapOrderedFirst(val1);
+            NCDValMapElem e2 = NCDVal_MapOrderedFirst(val2);
             
             while (1) {
                 int inv1 = NCDVal_MapElemInvalid(e1);
                 int inv2 = NCDVal_MapElemInvalid(e2);
-                if (inv1 + inv2 < 2) {
+                if (inv1 || inv2) {
                     return inv2 - inv1;
                 }
                 
@@ -346,8 +359,8 @@ int NCDVal_Compare (NCDValRef val1, NCDValRef val2)
                     return cmp;
                 }
                 
-                e1 = NCDVal_MapNext(val1, e1);
-                e2 = NCDVal_MapNext(val2, e2);
+                e1 = NCDVal_MapOrderedNext(val1, e1);
+                e2 = NCDVal_MapOrderedNext(val2, e2);
             }
         } break;
         
@@ -630,7 +643,7 @@ int NCDVal_MapInsert (NCDValRef map, NCDValRef key, NCDValRef val)
     
     struct NCDVal__map *map_e = NCDValMem__BufAt(map.mem, map.idx);
     
-    NCDVal__idx elemidx = map.idx + offsetof(struct NCDVal__map, elems) + map_e->count * sizeof(struct NCDVal__mapelem);
+    NCDVal__idx elemidx = NCDVal__MapElemIdx(map.idx, map_e->count);
     
     struct NCDVal__mapelem *me_e = NCDValMem__BufAt(map.mem, elemidx);
     ASSERT(me_e == &map_e->elems[map_e->count])
@@ -678,9 +691,14 @@ NCDValMapElem NCDVal_MapFirst (NCDValRef map)
     
     struct NCDVal__map *map_e = NCDValMem__BufAt(map.mem, map.idx);
     
-    NCDVal__MapTreeNode ref = NCDVal__MapTree_GetFirst(&map_e->tree, map.mem);
+    if (map_e->count == 0) {
+        return NCDVal__MapElem(-1);
+    }
     
-    return NCDVal__MapElem(ref.link);
+    NCDVal__idx elemidx = NCDVal__MapElemIdx(map.idx, 0);
+    NCDVal__MapAssertElemOnly(map, elemidx);
+    
+    return NCDVal__MapElem(elemidx);
 }
 
 NCDValMapElem NCDVal_MapNext (NCDValRef map, NCDValMapElem me)
@@ -688,8 +706,41 @@ NCDValMapElem NCDVal_MapNext (NCDValRef map, NCDValMapElem me)
     NCDVal__MapAssertElem(map, me);
     
     struct NCDVal__map *map_e = NCDValMem__BufAt(map.mem, map.idx);
+    ASSERT(map_e->count > 0)
+    
+    NCDVal__idx last_elemidx = NCDVal__MapElemIdx(map.idx, map_e->count - 1);
+    ASSERT(me.elemidx <= last_elemidx)
+    
+    if (me.elemidx == last_elemidx) {
+        return NCDVal__MapElem(-1);
+    }
+    
+    NCDVal__idx elemidx = me.elemidx + sizeof(struct NCDVal__mapelem);
+    NCDVal__MapAssertElemOnly(map, elemidx);
+    
+    return NCDVal__MapElem(elemidx);
+}
+
+NCDValMapElem NCDVal_MapOrderedFirst (NCDValRef map)
+{
+    ASSERT(NCDVal_IsMap(map))
+    
+    struct NCDVal__map *map_e = NCDValMem__BufAt(map.mem, map.idx);
+    
+    NCDVal__MapTreeNode ref = NCDVal__MapTree_GetFirst(&map_e->tree, map.mem);
+    ASSERT(ref.link == -1 || (NCDVal__MapAssertElemOnly(map, ref.link), 1))
+    
+    return NCDVal__MapElem(ref.link);
+}
+
+NCDValMapElem NCDVal_MapOrderedNext (NCDValRef map, NCDValMapElem me)
+{
+    NCDVal__MapAssertElem(map, me);
+    
+    struct NCDVal__map *map_e = NCDValMem__BufAt(map.mem, map.idx);
     
     NCDVal__MapTreeNode ref = NCDVal__MapTree_GetNext(&map_e->tree, map.mem, NCDVal__MapTree_Deref(map.mem, me.elemidx));
+    ASSERT(ref.link == -1 || (NCDVal__MapAssertElemOnly(map, ref.link), 1))
     
     return NCDVal__MapElem(ref.link);
 }
@@ -724,6 +775,7 @@ NCDValMapElem NCDVal_MapFindKey (NCDValRef map, NCDValRef key)
     struct NCDVal__map *map_e = NCDValMem__BufAt(map.mem, map.idx);
     
     NCDVal__MapTreeNode ref = NCDVal__MapTree_LookupExact(&map_e->tree, map.mem, key);
+    ASSERT(ref.link == -1 || (NCDVal__MapAssertElemOnly(map, ref.link), 1))
     
     return NCDVal__MapElem(ref.link);
 }

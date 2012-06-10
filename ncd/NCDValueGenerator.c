@@ -249,7 +249,7 @@ static int generate_val (NCDValRef value, ExpString *out_str)
             
             int is_first = 1;
             
-            for (NCDValMapElem e = NCDVal_MapFirst(value); !NCDVal_MapElemInvalid(e); e = NCDVal_MapNext(value, e)) {
+            for (NCDValMapElem e = NCDVal_MapOrderedFirst(value); !NCDVal_MapElemInvalid(e); e = NCDVal_MapOrderedNext(value, e)) {
                 NCDValRef ekey = NCDVal_MapElemKey(value, e);
                 NCDValRef eval = NCDVal_MapElemVal(value, e);
                 
