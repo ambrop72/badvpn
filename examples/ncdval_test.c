@@ -36,7 +36,7 @@ static void print_value (NCDValRef val, unsigned int indent)
             print_indent(indent);
             printf("map(%zu)\n", NCDVal_MapCount(val));
             
-            for (NCDValMapElem e = NCDVal_MapFirst(val); !NCDVal_MapElemInvalid(e); e = NCDVal_MapNext(val, e)) {
+            for (NCDValMapElem e = NCDVal_MapOrderedFirst(val); !NCDVal_MapElemInvalid(e); e = NCDVal_MapOrderedNext(val, e)) {
                 NCDValRef ekey = NCDVal_MapElemKey(val, e);
                 NCDValRef eval = NCDVal_MapElemVal(val, e);
                 
