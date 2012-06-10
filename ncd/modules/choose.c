@@ -142,7 +142,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     if (!strcmp(name, "")) {
         *out = NCDVal_NewCopy(mem, o->result);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
         }
         return 1;
     }
