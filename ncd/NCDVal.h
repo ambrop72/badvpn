@@ -161,8 +161,8 @@ NCDValRef NCDVal_NewInvalid (void);
 
 /**
  * Copies a value into the specified memory object. The source
- * must not be an invalid reference, but may reside in a different
- * memory object.
+ * must not be an invalid reference, however it may reside in any memory
+ * object (including 'mem').
  * Returns a reference to the copied value. On out of memory, returns
  * an invalid reference.
  */
@@ -210,6 +210,9 @@ int NCDVal_IsStringNoNulls (NCDValRef val);
  * Equivalent to NCDVal_NewStringBin(mem, data, strlen(data)).
  * Returns a reference to the new value, or an invalid reference
  * on out of memory.
+ * WARNING: The buffer passed must NOT be part of any value in the
+ * memory object specified. In particular, you may NOT use this
+ * function to copy a string that resides in the same memory object.
  */
 NCDValRef NCDVal_NewString (NCDValMem *mem, const char *data);
 
@@ -217,8 +220,19 @@ NCDValRef NCDVal_NewString (NCDValMem *mem, const char *data);
  * Builds a new string value.
  * Returns a reference to the new value, or an invalid reference
  * on out of memory.
+ * WARNING: The buffer passed must NOT be part of any value in the
+ * memory object specified. In particular, you may NOT use this
+ * function to copy a string that resides in the same memory object.
  */
 NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len);
+
+/**
+ * Builds a new string value of the given length with undefined contents.
+ * You can define the contents of the string later by copying to the address
+ * returned by {@link NCDVal_StringValue}. The terminating null byte is
+ * however automatically written.
+ */
+NCDValRef NCDVal_NewStringUninitialized (NCDValMem *mem, size_t len);
 
 /**
  * Returns a pointer to the data of a string value. An extra null byte

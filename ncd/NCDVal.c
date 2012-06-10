@@ -111,6 +111,13 @@ static void NCDVal__AssertMem (NCDValMem *mem)
     ASSERT(!mem->buf || mem->size >= NCDVAL_FIRST_SIZE)
 }
 
+static void NCDVal_AssertExternal (NCDValMem *mem, const void *e_buf, size_t e_len)
+{
+    const char *e_cbuf = e_buf;
+    char *buf = (mem->buf ? mem->buf : mem->fastbuf);
+    ASSERT(e_cbuf >= buf + mem->size || e_cbuf + e_len <= buf)
+}
+
 static void NCDVal__AssertValOnly (NCDValMem *mem, NCDVal__idx idx)
 {
     ASSERT(idx >= 0)
@@ -234,7 +241,16 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
     
     switch (NCDVal_Type(val)) {
         case NCDVAL_STRING: {
-            return NCDVal_NewStringBin(mem, (const uint8_t *)NCDVal_StringValue(val), NCDVal_StringLength(val));
+            size_t len = NCDVal_StringLength(val);
+            
+            NCDValRef copy = NCDVal_NewStringUninitialized(mem, len);
+            if (NCDVal_IsInvalid(copy)) {
+                goto fail;
+            }
+            
+            memcpy((char *)NCDVal_StringValue(copy), NCDVal_StringValue(val), len);
+            
+            return copy;
         } break;
         
         case NCDVAL_LIST: {
@@ -414,6 +430,7 @@ NCDValRef NCDVal_NewString (NCDValMem *mem, const char *data)
 {
     NCDVal__AssertMem(mem);
     ASSERT(data)
+    NCDVal_AssertExternal(mem, data, strlen(data));
     
     return NCDVal_NewStringBin(mem, (const uint8_t *)data, strlen(data));
 }
@@ -422,6 +439,7 @@ NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len)
 {
     NCDVal__AssertMem(mem);
     ASSERT(len == 0 || data)
+    NCDVal_AssertExternal(mem, data, len);
     
     if (len == SIZE_MAX) {
         goto fail;
@@ -439,6 +457,31 @@ NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len)
     if (len > 0) {
         memcpy(str_e->data, data, len);
     }
+    str_e->data[len] = '\0';
+    
+    return NCDVal__Ref(mem, idx);
+    
+fail:
+    return NCDVal_NewInvalid();
+}
+
+NCDValRef NCDVal_NewStringUninitialized (NCDValMem *mem, size_t len)
+{
+    NCDVal__AssertMem(mem);
+    
+    if (len == SIZE_MAX) {
+        goto fail;
+    }
+    
+    bsize_t size = bsize_add(bsize_fromsize(sizeof(struct NCDVal__string)), bsize_fromsize(len + 1));
+    NCDVal__idx idx = NCDValMem__Alloc(mem, size, __alignof(struct NCDVal__string));
+    if (idx < 0) {
+        goto fail;
+    }
+    
+    struct NCDVal__string *str_e = NCDValMem__BufAt(mem, idx);
+    str_e->type = NCDVAL_STRING;
+    str_e->length = len;
     str_e->data[len] = '\0';
     
     return NCDVal__Ref(mem, idx);

@@ -54,6 +54,8 @@ static void print_value (NCDValRef val, unsigned int indent)
 
 int main ()
 {
+    // Some basic usage of values.
+    
     NCDValMem mem;
     NCDValMem_Init(&mem);
     
@@ -94,5 +96,34 @@ int main ()
     print_value(m1, 0);
     
     NCDValMem_Free(&mem);
+    
+    // Try to make copies of a string within the same memory object.
+    // This is an evil test because we cannot simply copy a string using e.g.
+    // NCDVal_NewStringBin() - it requires that the buffer passed
+    // be outside the memory object of the new string.
+    // We use NCDVal_NewCopy(), which takes care of this by creating
+    // an uninitialized string using NCDVal_NewStringUninitialized() and
+    // then copyng the data.
+    
+    NCDValMem_Init(&mem);
+    
+    NCDValRef s[100];
+    
+    s[0] = NCDVal_NewString(&mem, "Eeeeeeeeeeeevil.");
+    FORCE( !NCDVal_IsInvalid(s[0]) )
+    
+    for (int i = 1; i < 100; i++) {
+        s[i] = NCDVal_NewCopy(&mem, s[i - 1]);
+        FORCE( !NCDVal_IsInvalid(s[i]) )
+        ASSERT( !strcmp(NCDVal_StringValue(s[i - 1]), "Eeeeeeeeeeeevil.") )
+        ASSERT( !strcmp(NCDVal_StringValue(s[i]), "Eeeeeeeeeeeevil.") )
+    }
+    
+    for (int i = 0; i < 100; i++) {
+        ASSERT( !strcmp(NCDVal_StringValue(s[i]), "Eeeeeeeeeeeevil.") )
+    }
+    
+    NCDValMem_Free(&mem);
+    
     return 0;
 }
