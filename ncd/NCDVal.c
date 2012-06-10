@@ -565,11 +565,9 @@ int NCDVal_ListRead (NCDValRef list, int num, ...)
     va_list ap;
     va_start(ap, num);
     
-    for (size_t i = 0; i < num; i++) {
-        NCDValRef elem = NCDVal_ListGet(list, i);
-        
+    for (int i = 0; i < num; i++) {
         NCDValRef *dest = va_arg(ap, NCDValRef *);
-        *dest = elem;
+        *dest = NCDVal_ListGet(list, i);
     }
     
     va_end(ap);
@@ -591,11 +589,9 @@ int NCDVal_ListReadHead (NCDValRef list, int num, ...)
     va_list ap;
     va_start(ap, num);
     
-    for (size_t i = 0; i < num; i++) {
-        NCDValRef elem = NCDVal_ListGet(list, i);
-        
+    for (int i = 0; i < num; i++) {
         NCDValRef *dest = va_arg(ap, NCDValRef *);
-        *dest = elem;
+        *dest = NCDVal_ListGet(list, i);
     }
     
     va_end(ap);
@@ -750,8 +746,6 @@ NCDValRef NCDVal_MapElemKey (NCDValRef map, NCDValMapElem me)
     NCDVal__MapAssertElem(map, me);
     
     struct NCDVal__mapelem *me_e = NCDValMem__BufAt(map.mem, me.elemidx);
-    NCDVal__AssertValOnly(map.mem, me_e->key_idx);
-    NCDVal__AssertValOnly(map.mem, me_e->val_idx);
     
     return NCDVal__Ref(map.mem, me_e->key_idx);
 }
@@ -761,8 +755,6 @@ NCDValRef NCDVal_MapElemVal (NCDValRef map, NCDValMapElem me)
     NCDVal__MapAssertElem(map, me);
     
     struct NCDVal__mapelem *me_e = NCDValMem__BufAt(map.mem, me.elemidx);
-    NCDVal__AssertValOnly(map.mem, me_e->key_idx);
-    NCDVal__AssertValOnly(map.mem, me_e->val_idx);
     
     return NCDVal__Ref(map.mem, me_e->val_idx);
 }
