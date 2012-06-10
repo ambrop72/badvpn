@@ -111,8 +111,47 @@ static uint64_t IndexedList_IndexOf (IndexedList *o, IndexedListNode *node);
  */
 static IndexedListNode * IndexedList_GetAt (IndexedList *o, uint64_t index);
 
+/**
+ * Returns the first node, or NULL if the list is empty.
+ * 
+ * @param o indexed list
+ * @return first node, or NULL
+ */
+static IndexedListNode * IndexedList_GetFirst (IndexedList *o);
+
+/**
+ * Returns the last node, or NULL if the list is empty.
+ * 
+ * @param o indexed list
+ * @return last node, or NULL
+ */
+static IndexedListNode * IndexedList_GetLast (IndexedList *o);
+
+/**
+ * Returns the next node of a given node, or NULL this is the last node.
+ * 
+ * @param o indexed list
+ * @param node existing node
+ * @return next node, or NULL
+ */
+static IndexedListNode * IndexedList_GetNext (IndexedList *o, IndexedListNode *node);
+
+/**
+ * Returns the previous node of a given node, or NULL this is the first node.
+ * 
+ * @param o indexed list
+ * @param node existing node
+ * @return previous node, or NULL
+ */
+static IndexedListNode * IndexedList_GetPrev (IndexedList *o, IndexedListNode *node);
+
 #include "IndexedList_tree.h"
 #include <structure/CAvl_impl.h>
+
+static IndexedListNode * IndexedList__deref (IndexedList__TreeNode ref)
+{
+    return (ref.link == IndexedList__TreeNullLink ? NULL : ref.ptr);
+}
 
 static void IndexedList_Init (IndexedList *o)
 {
@@ -156,5 +195,30 @@ static IndexedListNode * IndexedList_GetAt (IndexedList *o, uint64_t index)
     
     return ref.ptr;
 }
+
+static IndexedListNode * IndexedList_GetFirst (IndexedList *o)
+{
+    return IndexedList__deref(IndexedList__Tree_GetFirst(&o->tree, 0));
+}
+
+static IndexedListNode * IndexedList_GetLast (IndexedList *o)
+{
+    return IndexedList__deref(IndexedList__Tree_GetLast(&o->tree, 0));
+}
+
+static IndexedListNode * IndexedList_GetNext (IndexedList *o, IndexedListNode *node)
+{
+    ASSERT(node)
+    
+    return IndexedList__deref(IndexedList__Tree_GetNext(&o->tree, 0, IndexedList__Tree_Deref(0, node)));
+}
+
+static IndexedListNode * IndexedList_GetPrev (IndexedList *o, IndexedListNode *node)
+{
+    ASSERT(node)
+    
+    return IndexedList__deref(IndexedList__Tree_GetPrev(&o->tree, 0, IndexedList__Tree_Deref(0, node)));
+}
+
 
 #endif
