@@ -62,13 +62,13 @@ typedef struct {
 } NCDValSafeRef;
 
 struct NCDVal__string {
-    uint8_t type;
+    int type;
     NCDVal__idx length;
     char data[];
 };
 
 struct NCDVal__list {
-    uint8_t type;
+    int type;
     NCDVal__idx maxcount;
     NCDVal__idx count;
     NCDVal__idx elem_indices[];
@@ -89,7 +89,7 @@ typedef NCDValMem *NCDVal__maptree_arg;
 #include <structure/CAvl_decl.h>
 
 struct NCDVal__map {
-    uint8_t type;
+    int type;
     NCDVal__idx maxcount;
     NCDVal__idx count;
     NCDVal__MapTree tree;

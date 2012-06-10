@@ -114,10 +114,10 @@ static void NCDVal__AssertMem (NCDValMem *mem)
 static void NCDVal__AssertValOnly (NCDValMem *mem, NCDVal__idx idx)
 {
     ASSERT(idx >= 0)
-    ASSERT(idx + sizeof(uint8_t) <= mem->used)
+    ASSERT(idx + sizeof(int) <= mem->used)
     
 #ifndef NDEBUG
-    uint8_t *type_ptr = NCDValMem__BufAt(mem, idx);
+    int *type_ptr = NCDValMem__BufAt(mem, idx);
     
     switch (*type_ptr) {
         case NCDVAL_STRING: {
@@ -216,7 +216,7 @@ int NCDVal_Type (NCDValRef val)
 {
     NCDVal__AssertVal(val);
     
-    uint8_t *type_ptr = NCDValMem__BufAt(val.mem, val.idx);
+    int *type_ptr = NCDValMem__BufAt(val.mem, val.idx);
     
     return *type_ptr;
 }
