@@ -68,10 +68,10 @@ static void func_new_templ (NCDModuleInst *i, size_t value)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
+    o->i = i;
     NCDModuleInst_Backend_SetUser(i, o);
     
-    // init arguments
-    o->i = i;
+    // set value
     o->value = value;
     
     // signal up

@@ -173,10 +173,8 @@ static void provide_func_new_templ (NCDModuleInst *i, int event)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
     o->i = i;
+    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef name_arg;
@@ -306,10 +304,8 @@ static void depend_func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
     o->i = i;
+    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef name_arg;

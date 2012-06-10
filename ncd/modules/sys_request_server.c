@@ -579,7 +579,7 @@ static struct reply * reply_init (struct connection *c, uint32_t request_id, NCD
     }
     
     if (!ExpString_AppendZeros(&str, sizeof(struct reply_header))) {
-        ModuleLog(o->i, BLOG_ERROR, "ExpString_AppendBinary failed");
+        ModuleLog(o->i, BLOG_ERROR, "ExpString_AppendZeros failed");
         goto fail2;
     }
     
@@ -733,7 +733,7 @@ static void func_new (NCDModuleInst *i)
     // allocate structure
     struct instance *o = malloc(sizeof(*o));
     if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        ModuleLog(i, BLOG_ERROR, "malloc failed");
         goto fail0;
     }
     o->i = i;

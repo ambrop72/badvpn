@@ -60,10 +60,8 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
         goto fail0;
     }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
     o->i = i;
+    NCDModuleInst_Backend_SetUser(i, o);
     
     // read argument
     NCDValRef value_arg;
@@ -116,7 +114,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     if (!strcmp(name, "")) {
         *out = NCDVal_NewCopy(mem, o->value);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDValue_InitCopy failed");
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
         }
         return 1;
     }

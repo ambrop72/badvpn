@@ -546,7 +546,7 @@ static void func_new (NCDModuleInst *i)
     // allocate structure
     struct instance *o = malloc(sizeof(*o));
     if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        ModuleLog(i, BLOG_ERROR, "malloc failed");
         goto fail0;
     }
     o->i = i;
@@ -622,7 +622,7 @@ static void request_func_new (NCDModuleInst *i)
     // allocate structure
     struct request_instance *o = malloc(sizeof(*o));
     if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+        ModuleLog(i, BLOG_ERROR, "malloc failed");
         goto fail0;
     }
     o->i = i;

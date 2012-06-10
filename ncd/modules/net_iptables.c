@@ -387,10 +387,8 @@ static void func_new (NCDModuleInst *i, command_template_build_cmdline build_cmd
         BLog(BLOG_ERROR, "malloc failed");
         goto fail0;
     }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
     o->i = i;
+    NCDModuleInst_Backend_SetUser(i, o);
     
     command_template_new(&o->cti, i, build_cmdline, template_free_func, o, BLOG_CURRENT_CHANNEL, &iptables_lock);
     return;
