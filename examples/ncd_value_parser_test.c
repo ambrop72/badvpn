@@ -36,53 +36,7 @@
 #include <ncd/NCDValueParser.h>
 #include <ncd/NCDValueGenerator.h>
 
-static void print_indent (unsigned int indent)
-{
-    while (indent > 0) {
-        printf("  ");
-        indent--;
-    }
-}
-
-static void print_value (NCDValue *val, unsigned int indent)
-{
-    switch (NCDValue_Type(val)) {
-        case NCDVALUE_STRING: {
-            print_indent(indent);
-            printf("string: '%s'\n", NCDValue_StringValue(val));
-        } break;
-        
-        case NCDVALUE_LIST: {
-            print_indent(indent);
-            printf("list:\n");
-            
-            for (NCDValue *e = NCDValue_ListFirst(val); e; e = NCDValue_ListNext(val, e)) {
-                print_value(e, indent + 1);
-            }
-        } break;
-        
-        case NCDVALUE_MAP: {
-            print_indent(indent);
-            printf("map:\n");
-            
-            for (NCDValue *ekey = NCDValue_MapFirstKey(val); ekey; ekey = NCDValue_MapNextKey(val, ekey)) {
-                NCDValue *eval = NCDValue_MapKeyValue(val, ekey);
-                
-                print_indent(indent + 1);
-                printf("key:\n");
-                print_value(ekey, indent + 2);
-                
-                print_indent(indent + 1);
-                printf("val:\n");
-                print_value(eval, indent + 2);
-            }
-        } break;
-        
-        default: ASSERT(0);
-    }
-}
-
-int main (int argc, char **argv)
+int main (int argc, char *argv[])
 {
     int res = 1;
     
@@ -93,21 +47,21 @@ int main (int argc, char **argv)
     
     BLog_InitStdout();
     
+    NCDValMem mem;
+    NCDValMem_Init(&mem);
+    
     // parse
-    NCDValue val;
-    if (!NCDValueParser_Parse(argv[1], strlen(argv[1]), &val)) {
-        DEBUG("NCDValueParser_Parse failed");
+    NCDValRef val;
+    if (!NCDValParser_Parse(argv[1], strlen(argv[1]), &mem, &val)) {
+        DEBUG("NCDValParser_Parse failed");
         goto fail1;
     }
     
-    // print tree-based
-    print_value(&val, 0);
-    
     // generate value string
-    char *str = NCDValueGenerator_Generate(&val);
+    char *str = NCDValGenerator_Generate(val);
     if (!str) {
-        DEBUG("NCDValueGenerator_Generate failed");
-        goto fail2;
+        DEBUG("NCDValGenerator_Generate failed");
+        goto fail1;
     }
     
     // print value string
@@ -116,9 +70,8 @@ int main (int argc, char **argv)
     res = 0;
     
     free(str);
-fail2:
-    NCDValue_Free(&val);
 fail1:
+    NCDValMem_Free(&mem);
     BLog_Free();
 fail0:
     return res;
