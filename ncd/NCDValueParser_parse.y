@@ -27,51 +27,23 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-%include {
+%extra_argument { struct parser_state *parser_out }
 
-#include <string.h>
-#include <stddef.h>
+%token_type { struct token }
 
-#include <misc/debug.h>
-#include <ncd/NCDConfig.h>
+%token_destructor { free_token($$); }
 
-#define AST_TYPE_NONE 0
-#define AST_TYPE_STRING 1
-#define AST_TYPE_LIST 2
-#define AST_TYPE_MAP 3
+%type list_contents { struct value }
+%type list { struct value }
+%type map_contents { struct value }
+%type map  { struct value }
+%type value  { struct value }
 
-struct parser_minor {
-    char *str;
-    size_t len;
-};
-
-struct parser_out {
-    int out_of_memory;
-    int syntax_error;
-    int ast_type;
-    struct parser_minor ast_string;
-    struct NCDConfig_list *ast_list;
-};
-
-}
-
-%extra_argument {struct parser_out *parser_out}
-
-%token_type {struct parser_minor}
-
-%token_destructor { free($$.str); }
-
-%type list_contents {struct NCDConfig_list *}
-%type list {struct NCDConfig_list *}
-%type map_contents {struct NCDConfig_list *}
-%type map {struct NCDConfig_list *}
-%type value {struct NCDConfig_list *}
-
-%destructor list_contents { NCDConfig_free_list($$); }
-%destructor list { NCDConfig_free_list($$); }
-%destructor map_contents { NCDConfig_free_list($$); }
-%destructor map { NCDConfig_free_list($$); }
-%destructor value { NCDConfig_free_list($$); }
+%destructor list_contents { free_value($$); }
+%destructor list { free_value($$); }
+%destructor map_contents { free_value($$); }
+%destructor map { free_value($$); }
+%destructor value { free_value($$); }
 
 %stack_size 0
 
@@ -82,83 +54,136 @@ struct parser_out {
 // workaroud Lemon bug: if the stack overflows, the token that caused the overflow will be leaked
 %stack_overflow {
     if (yypMinor) {
-        free(yypMinor->yy0.str);
+        free_token(yypMinor->yy0);
     }
 }
 
-input ::= STRING(A). {
-    ASSERT(parser_out->ast_type == AST_TYPE_NONE)
-
-    parser_out->ast_string = A;
-    parser_out->ast_type = AST_TYPE_STRING;
-}
-
-input ::= list(A). {
-    ASSERT(parser_out->ast_type == AST_TYPE_NONE)
-
-    parser_out->ast_list = A;
-    parser_out->ast_type = AST_TYPE_LIST;
-}
-
-input ::= map(A). {
-    ASSERT(parser_out->ast_type == AST_TYPE_NONE)
-
-    parser_out->ast_list = A;
-    parser_out->ast_type = AST_TYPE_MAP;
+input ::= value(A). {
+    if (!A.have || parser_out->have_value) {
+        free_value(A);
+    } else {
+        parser_out->have_value = 1;
+        parser_out->value = A.v;
+    }
 }
 
 list_contents(R) ::= value(A). {
-    R = A;
+    if (!A.have) {
+        goto failL0;
+    }
+
+    NCDValue_InitList(&R.v);
+
+    if (!NCDValue_ListPrepend(&R.v, A.v)) {
+        goto failL1;
+    }
+    A.have = 0;
+
+    R.have = 1;
+    goto doneL;
+
+failL1:
+    NCDValue_Free(&R.v);
+failL0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneL:
+    free_value(A);
 }
 
 list_contents(R) ::= value(A) COMMA list_contents(N). {
-    if (!A) {
-        NCDConfig_free_list(N);
-    } else {
-        ASSERT(!A->next)
-        A->next = N;
+    if (!A.have || !N.have) {
+        goto failM0;
     }
-    R = A;
-}
 
-map_contents(R) ::= value(A) COLON value(B). {
-    if (!A || !B) {
-        NCDConfig_free_list(A);
-        NCDConfig_free_list(B);
-        R = NULL;
-    } else {
-        ASSERT(!A->next)
-        ASSERT(!B->next)
-        A->next = B;
-        R = A;
+    if (!NCDValue_ListPrepend(&N.v, A.v)) {
+        goto failM0;
     }
-}
+    A.have = 0;
 
-map_contents(R) ::= value(A) COLON value(B) COMMA map_contents(N). {
-    if (!A || !B) {
-        NCDConfig_free_list(A);
-        NCDConfig_free_list(B);
-        NCDConfig_free_list(N);
-        R = NULL;
-    } else {
-        ASSERT(!A->next)
-        ASSERT(!B->next)
-        A->next = B;
-        B->next = N;
-        R = A;
-    }
+    R.have = 1;
+    R.v = N.v;
+    N.have = 0;
+    goto doneM;
+
+failM0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneM:
+    free_value(A);
+    free_value(N);
 }
 
 list(R) ::= CURLY_OPEN CURLY_CLOSE. {
-    R = NULL;
+    R.have = 1;
+    NCDValue_InitList(&R.v);
 }
 
 list(R) ::= CURLY_OPEN list_contents(A) CURLY_CLOSE. {
     R = A;
 }
 
+map_contents(R) ::= value(A) COLON value(B). {
+    if (!A.have || !B.have) {
+        goto failS0;
+    }
+
+    NCDValue_InitMap(&R.v);
+
+    if (!NCDValue_MapInsert(&R.v, A.v, B.v)) {
+        goto failS1;
+    }
+    A.have = 0;
+    B.have = 0;
+
+    R.have = 1;
+    goto doneS;
+
+failS1:
+    NCDValue_Free(&R.v);
+failS0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneS:
+    free_value(A);
+    free_value(B);
+}
+
+map_contents(R) ::= value(A) COLON value(B) COMMA map_contents(N). {
+    if (!A.have || !B.have || !N.have) {
+        goto failT0;
+    }
+
+    if (NCDValue_MapFindKey(&N.v, &A.v)) {
+        BLog(BLOG_ERROR, "duplicate key in map");
+        R.have = 0;
+        parser_out->syntax_error = 1;
+        goto doneT;
+    }
+
+    if (!NCDValue_MapInsert(&N.v, A.v, B.v)) {
+        goto failT0;
+    }
+    A.have = 0;
+    B.have = 0;
+
+    R.have = 1;
+    R.v = N.v;
+    N.have = 0;
+    goto doneT;
+
+failT0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneT:
+    free_value(A);
+    free_value(B);
+    free_value(N);
+}
+
 map(R) ::= BRACKET_OPEN BRACKET_CLOSE. {
-    R = NULL;
+    R.have = 1;
+    NCDValue_InitMap(&R.v);
 }
 
 map(R) ::= BRACKET_OPEN map_contents(A) BRACKET_CLOSE. {
@@ -166,22 +191,26 @@ map(R) ::= BRACKET_OPEN map_contents(A) BRACKET_CLOSE. {
 }
 
 value(R) ::= STRING(A). {
-    R = NCDConfig_make_list_string(A.str, A.len, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
+    ASSERT(A.str)
+
+    if (!NCDValue_InitStringBin(&R.v, (uint8_t *)A.str, A.len)) {
+        goto failU0;
     }
+
+    R.have = 1;
+    goto doneU;
+
+failU0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneU:
+    free_token(A);
 }
 
 value(R) ::= list(A). {
-    R = NCDConfig_make_list_list(A, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
+    R = A;
 }
 
 value(R) ::= map(A). {
-    R = NCDConfig_make_list_maplist(A, NULL);
-    if (!R) {
-        parser_out->out_of_memory = 1;
-    }
+    R = A;
 }

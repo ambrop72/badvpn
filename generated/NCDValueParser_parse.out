@@ -1,17 +1,19 @@
 State 0:
-          input ::= * STRING
-          input ::= * list
-          input ::= * map
+          input ::= * value
           list ::= * CURLY_OPEN CURLY_CLOSE
           list ::= * CURLY_OPEN list_contents CURLY_CLOSE
           map ::= * BRACKET_OPEN BRACKET_CLOSE
           map ::= * BRACKET_OPEN map_contents BRACKET_CLOSE
+          value ::= * STRING
+          value ::= * list
+          value ::= * map
 
-                        STRING shift  6
                     CURLY_OPEN shift  1
                   BRACKET_OPEN shift  2
-                          list shift  7
-                           map shift  8
+                        STRING shift  14
+                          list shift  15
+                           map shift  16
+                         value shift  6
                          input accept
 
 State 1:
@@ -27,20 +29,20 @@ State 1:
           value ::= * list
           value ::= * map
 
-                        STRING shift  16
                     CURLY_OPEN shift  1
-                   CURLY_CLOSE shift  21
+                   CURLY_CLOSE shift  19
                   BRACKET_OPEN shift  2
-                 list_contents shift  13
-                          list shift  17
-                           map shift  18
-                         value shift  9
+                        STRING shift  14
+                 list_contents shift  11
+                          list shift  15
+                           map shift  16
+                         value shift  7
 
 State 2:
-          map_contents ::= * value COLON value
-          map_contents ::= * value COLON value COMMA map_contents
           list ::= * CURLY_OPEN CURLY_CLOSE
           list ::= * CURLY_OPEN list_contents CURLY_CLOSE
+          map_contents ::= * value COLON value
+          map_contents ::= * value COLON value COMMA map_contents
           map ::= * BRACKET_OPEN BRACKET_CLOSE
           map ::= BRACKET_OPEN * BRACKET_CLOSE
           map ::= * BRACKET_OPEN map_contents BRACKET_CLOSE
@@ -49,14 +51,14 @@ State 2:
           value ::= * list
           value ::= * map
 
-                        STRING shift  16
                     CURLY_OPEN shift  1
                   BRACKET_OPEN shift  2
-                 BRACKET_CLOSE shift  19
-                          list shift  17
-                  map_contents shift  12
-                           map shift  18
-                         value shift  10
+                 BRACKET_CLOSE shift  17
+                        STRING shift  14
+                          list shift  15
+                  map_contents shift  10
+                           map shift  16
+                         value shift  8
 
 State 3:
           list_contents ::= * value
@@ -70,156 +72,146 @@ State 3:
           value ::= * list
           value ::= * map
 
-                        STRING shift  16
                     CURLY_OPEN shift  1
                   BRACKET_OPEN shift  2
-                 list_contents shift  14
-                          list shift  17
-                           map shift  18
-                         value shift  9
+                        STRING shift  14
+                 list_contents shift  12
+                          list shift  15
+                           map shift  16
+                         value shift  7
 
 State 4:
+          list ::= * CURLY_OPEN CURLY_CLOSE
+          list ::= * CURLY_OPEN list_contents CURLY_CLOSE
           map_contents ::= * value COLON value
           map_contents ::= * value COLON value COMMA map_contents
           map_contents ::= value COLON value COMMA * map_contents
-          list ::= * CURLY_OPEN CURLY_CLOSE
-          list ::= * CURLY_OPEN list_contents CURLY_CLOSE
           map ::= * BRACKET_OPEN BRACKET_CLOSE
           map ::= * BRACKET_OPEN map_contents BRACKET_CLOSE
           value ::= * STRING
           value ::= * list
           value ::= * map
 
-                        STRING shift  16
                     CURLY_OPEN shift  1
                   BRACKET_OPEN shift  2
-                          list shift  17
-                  map_contents shift  15
-                           map shift  18
-                         value shift  10
+                        STRING shift  14
+                          list shift  15
+                  map_contents shift  13
+                           map shift  16
+                         value shift  8
 
 State 5:
-          map_contents ::= value COLON * value
-          map_contents ::= value COLON * value COMMA map_contents
           list ::= * CURLY_OPEN CURLY_CLOSE
           list ::= * CURLY_OPEN list_contents CURLY_CLOSE
+          map_contents ::= value COLON * value
+          map_contents ::= value COLON * value COMMA map_contents
           map ::= * BRACKET_OPEN BRACKET_CLOSE
           map ::= * BRACKET_OPEN map_contents BRACKET_CLOSE
           value ::= * STRING
           value ::= * list
           value ::= * map
 
-                        STRING shift  16
                     CURLY_OPEN shift  1
                   BRACKET_OPEN shift  2
-                          list shift  17
-                           map shift  18
-                         value shift  11
+                        STRING shift  14
+                          list shift  15
+                           map shift  16
+                         value shift  9
 
 State 6:
-      (0) input ::= STRING *
+      (0) input ::= value *
 
                              $ reduce 0
 
 State 7:
-      (1) input ::= list *
-
-                             $ reduce 1
-
-State 8:
-      (2) input ::= map *
-
-                             $ reduce 2
-
-State 9:
-      (3) list_contents ::= value *
+      (1) list_contents ::= value *
           list_contents ::= value * COMMA list_contents
 
                          COMMA shift  3
-                     {default} reduce 3
+                     {default} reduce 1
 
-State 10:
+State 8:
           map_contents ::= value * COLON value
           map_contents ::= value * COLON value COMMA map_contents
 
                          COLON shift  5
 
-State 11:
+State 9:
       (5) map_contents ::= value COLON value *
           map_contents ::= value COLON value * COMMA map_contents
 
                          COMMA shift  4
                      {default} reduce 5
 
-State 12:
+State 10:
           map ::= BRACKET_OPEN map_contents * BRACKET_CLOSE
 
-                 BRACKET_CLOSE shift  20
+                 BRACKET_CLOSE shift  18
 
-State 13:
+State 11:
           list ::= CURLY_OPEN list_contents * CURLY_CLOSE
 
-                   CURLY_CLOSE shift  22
+                   CURLY_CLOSE shift  20
 
-State 14:
-      (4) list_contents ::= value COMMA list_contents *
+State 12:
+      (2) list_contents ::= value COMMA list_contents *
 
-                     {default} reduce 4
+                     {default} reduce 2
 
-State 15:
+State 13:
       (6) map_contents ::= value COLON value COMMA map_contents *
 
                      {default} reduce 6
 
+State 14:
+      (9) value ::= STRING *
+
+                     {default} reduce 9
+
+State 15:
+     (10) value ::= list *
+
+                     {default} reduce 10
+
 State 16:
-     (11) value ::= STRING *
+     (11) value ::= map *
 
                      {default} reduce 11
 
 State 17:
-     (12) value ::= list *
-
-                     {default} reduce 12
-
-State 18:
-     (13) value ::= map *
-
-                     {default} reduce 13
-
-State 19:
-      (9) map ::= BRACKET_OPEN BRACKET_CLOSE *
-
-                     {default} reduce 9
-
-State 20:
-     (10) map ::= BRACKET_OPEN map_contents BRACKET_CLOSE *
-
-                     {default} reduce 10
-
-State 21:
-      (7) list ::= CURLY_OPEN CURLY_CLOSE *
+      (7) map ::= BRACKET_OPEN BRACKET_CLOSE *
 
                      {default} reduce 7
 
-State 22:
-      (8) list ::= CURLY_OPEN list_contents CURLY_CLOSE *
+State 18:
+      (8) map ::= BRACKET_OPEN map_contents BRACKET_CLOSE *
 
                      {default} reduce 8
+
+State 19:
+      (3) list ::= CURLY_OPEN CURLY_CLOSE *
+
+                     {default} reduce 3
+
+State 20:
+      (4) list ::= CURLY_OPEN list_contents CURLY_CLOSE *
+
+                     {default} reduce 4
 
 ----------------------------------------------------
 Symbols:
     0: $:
-    1: STRING
-    2: COMMA
-    3: COLON
-    4: CURLY_OPEN
-    5: CURLY_CLOSE
-    6: BRACKET_OPEN
-    7: BRACKET_CLOSE
+    1: COMMA
+    2: CURLY_OPEN
+    3: CURLY_CLOSE
+    4: COLON
+    5: BRACKET_OPEN
+    6: BRACKET_CLOSE
+    7: STRING
     8: error:
-    9: list_contents: STRING CURLY_OPEN BRACKET_OPEN
+    9: list_contents: CURLY_OPEN BRACKET_OPEN STRING
    10: list: CURLY_OPEN
-   11: map_contents: STRING CURLY_OPEN BRACKET_OPEN
+   11: map_contents: CURLY_OPEN BRACKET_OPEN STRING
    12: map: BRACKET_OPEN
-   13: value: STRING CURLY_OPEN BRACKET_OPEN
-   14: input: STRING CURLY_OPEN BRACKET_OPEN
+   13: value: CURLY_OPEN BRACKET_OPEN STRING
+   14: input: CURLY_OPEN BRACKET_OPEN STRING

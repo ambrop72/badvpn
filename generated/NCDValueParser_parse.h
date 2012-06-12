@@ -1,7 +1,7 @@
-#define STRING                          1
-#define COMMA                           2
-#define COLON                           3
-#define CURLY_OPEN                      4
-#define CURLY_CLOSE                     5
-#define BRACKET_OPEN                    6
-#define BRACKET_CLOSE                   7
+#define COMMA                           1
+#define CURLY_OPEN                      2
+#define CURLY_CLOSE                     3
+#define COLON                           4
+#define BRACKET_OPEN                    5
+#define BRACKET_CLOSE                   6
+#define STRING                          7
