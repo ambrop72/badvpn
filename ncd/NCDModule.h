@@ -698,6 +698,8 @@ typedef int (*NCDModule_func_getobj) (void *o, const char *name, NCDObject *out_
  */
 typedef void (*NCDModule_func_clean) (void *o);
 
+#define NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN (1 << 0)
+
 /**
  * Structure encapsulating the implementation of a module backend.
  */
@@ -746,11 +748,14 @@ struct NCDModule {
     NCDModule_func_clean func_clean;
     
     /**
-     * Whether the interpreter is allowed to call func_getvar and func_getobj
-     * even when the backend instance is in down state (as opposed to just
-     * in up state).
+     * Various flags.
+     * 
+     * - NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
+     *   Whether the interpreter is allowed to call func_getvar and func_getobj
+     *   even when the backend instance is in down state (as opposed to just
+     *   in up state.
      */
-    int can_resolve_when_down;
+    int flags;
 };
 
 /**

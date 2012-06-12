@@ -273,7 +273,7 @@ static int can_resolve (NCDModuleInst *n)
         case STATE_DOWN_UNCLEAN:
         case STATE_DOWN_PCLEAN:
         case STATE_DOWN_DIE:
-            return n->m->can_resolve_when_down;
+            return !!(n->m->flags & NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN);
         default:
             return 0;
     }

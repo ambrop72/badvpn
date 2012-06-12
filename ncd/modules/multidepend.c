@@ -383,7 +383,7 @@ static const struct NCDModule modules[] = {
         .func_die = depend_func_die,
         .func_clean = depend_func_clean,
         .func_getobj = depend_func_getobj,
-        .can_resolve_when_down = 1
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
     }, {
         .type = NULL
     }

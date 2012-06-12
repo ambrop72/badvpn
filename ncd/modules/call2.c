@@ -432,49 +432,49 @@ static const struct NCDModule modules[] = {
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .can_resolve_when_down = 1
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
     }, {
         .type = "call2_if",
         .func_new = func_new_call_if,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .can_resolve_when_down = 1
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
     }, {
         .type = "call2_ifelse",
         .func_new = func_new_call_ifelse,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .can_resolve_when_down = 1
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
     }, {
         .type = "embcall2",
         .func_new = func_new_embcall,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .can_resolve_when_down = 1
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
     }, {
         .type = "embcall2_if",
         .func_new = func_new_embcall_if,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .can_resolve_when_down = 1
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
     }, {
         .type = "embcall2_ifelse",
         .func_new = func_new_embcall_ifelse,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .can_resolve_when_down = 1
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
     }, {
         .type = "embcall2_multif",
         .func_new = func_new_embcall_multif,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .can_resolve_when_down = 1
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
     }, {
         .type = NULL
     }
