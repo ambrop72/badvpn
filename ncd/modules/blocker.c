@@ -102,21 +102,15 @@ struct use_instance {
     LinkedList2Node blocker_node;
 };
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
     if (!NCDVal_ListRead(o->i->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     
     // init users list
@@ -135,8 +129,6 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -145,7 +137,6 @@ fail0:
 static void instance_free (struct instance *o)
 {
     ASSERT(LinkedList2_IsEmpty(&o->users))
-    NCDModuleInst *i = o->i;
     
     // break any rdownups
     LinkedList0Node *ln;
@@ -156,10 +147,7 @@ static void instance_free (struct instance *o)
         rdu->blocker = NULL;
     }
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -237,21 +225,15 @@ static void downup_func_new (NCDModuleInst *i)
     updown_func_new_templ(i, 1, 1);
 }
 
-static void rdownup_func_new (NCDModuleInst *i)
+static void rdownup_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate structure
-    struct rdownup_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
+    struct rdownup_instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
     if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     
     // get blocker
@@ -267,8 +249,6 @@ static void rdownup_func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -277,7 +257,6 @@ fail0:
 static void rdownup_func_die (void *vo)
 {
     struct rdownup_instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     struct instance *blk = o->blocker;
     
@@ -299,29 +278,18 @@ static void rdownup_func_die (void *vo)
         blk->up = 1;
     }
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
-static void use_func_new (NCDModuleInst *i)
+static void use_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct use_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct use_instance *o = vo;
     o->i = i;
     
     // check arguments
     if (!NCDVal_ListRead(o->i->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     
     // set blocker
@@ -337,8 +305,6 @@ static void use_func_new (NCDModuleInst *i)
     
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -347,7 +313,6 @@ fail0:
 static void use_func_die (void *vo)
 {
     struct use_instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // remove from blocker's list
     LinkedList2_Remove(&o->blocker->users, &o->blocker_node);
@@ -357,17 +322,15 @@ static void use_func_die (void *vo)
         instance_free(o->blocker);
     }
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static const struct NCDModule modules[] = {
     {
         .type = "blocker",
-        .func_new = func_new,
-        .func_die = func_die
+        .func_new2 = func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "blocker::up",
         .func_new = up_func_new
@@ -379,12 +342,14 @@ static const struct NCDModule modules[] = {
         .func_new = downup_func_new
     }, {
         .type = "blocker::rdownup",
-        .func_new = rdownup_func_new,
-        .func_die = rdownup_func_die
+        .func_new2 = rdownup_func_new,
+        .func_die = rdownup_func_die,
+        .alloc_size = sizeof(struct rdownup_instance)
     }, {
         .type = "blocker::use",
-        .func_new = use_func_new,
+        .func_new2 = use_func_new,
         .func_die = use_func_die,
+        .alloc_size = sizeof(struct use_instance)
     }, {
         .type = NULL
     }

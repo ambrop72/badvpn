@@ -134,17 +134,9 @@ fail0:
     return 0;
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        BLog(BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct instance *o = vo;
     o->i = i;
     
     // init dummy event lock
@@ -152,27 +144,19 @@ static void func_new (NCDModuleInst *i)
     
     command_template_new(&o->cti, i, build_cmdline, template_free_func, o, BLOG_CURRENT_CHANNEL, &o->lock);
     return;
-    
-fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
 }
 
 void template_free_func (void *vo, int is_error)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // free dummy event lock
     BEventLock_Free(&o->lock);
     
-    // free instance
-    free(o);
-    
     if (is_error) {
-        NCDModuleInst_Backend_SetError(i);
+        NCDModuleInst_Backend_SetError(o->i);
     }
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -185,8 +169,9 @@ static void func_die (void *vo)
 static const struct NCDModule modules[] = {
     {
         .type = "run",
-        .func_new = func_new,
-        .func_die = func_die
+        .func_new2 = func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

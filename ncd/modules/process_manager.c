@@ -413,23 +413,15 @@ int process_set_params (struct process *p, const char *template_name, NCDValMem 
     return 1;
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct instance *o = vo;
     o->i = i;
     
     // check arguments
     if (!NCDVal_ListRead(o->i->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     
     // init processes list
@@ -440,11 +432,8 @@ static void func_new (NCDModuleInst *i)
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
-    
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -453,12 +442,8 @@ fail0:
 void instance_free (struct instance *o)
 {
     ASSERT(LinkedList2_IsEmpty(&o->processes_list))
-    NCDModuleInst *i = o->i;
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -580,8 +565,9 @@ fail0:
 static const struct NCDModule modules[] = {
     {
         .type = "process_manager",
-        .func_new = func_new,
-        .func_die = func_die
+        .func_new2 = func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "process_manager::start",
         .func_new = start_func_new

@@ -57,27 +57,21 @@ struct instance {
     int value;
 };
 
-static void func_new (NCDModuleInst *i, int is_not, int is_or)
+static void func_new (void *vo, NCDModuleInst *i, int is_not, int is_or)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // compute value from arguments
     if (is_not) {
         NCDValRef arg;
         if (!NCDVal_ListRead(i->args, 1, &arg)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-            goto fail1;
+            goto fail0;
         }
         if (!NCDVal_IsString(arg)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong type");
-            goto fail1;
+            goto fail0;
         }
         
         o->value = !NCDVal_StringEquals(arg, "true");
@@ -91,7 +85,7 @@ static void func_new (NCDModuleInst *i, int is_not, int is_or)
             
             if (!NCDVal_IsString(arg)) {
                 ModuleLog(o->i, BLOG_ERROR, "wrong type");
-                goto fail1;
+                goto fail0;
             }
             
             int this_value = NCDVal_StringEquals(arg, "true");
@@ -107,37 +101,24 @@ static void func_new (NCDModuleInst *i, int is_not, int is_or)
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_not (NCDModuleInst *i)
+static void func_new_not (void *vo, NCDModuleInst *i)
 {
-    func_new(i, 1, 0);
+    func_new(vo, i, 1, 0);
 }
 
-static void func_new_or (NCDModuleInst *i)
+static void func_new_or (void *vo, NCDModuleInst *i)
 {
-    func_new(i, 0, 1);
+    func_new(vo, i, 0, 1);
 }
 
-static void func_new_and (NCDModuleInst *i)
+static void func_new_and (void *vo, NCDModuleInst *i)
 {
-    func_new(i, 0, 0);
-}
-
-static void func_die (void *vo)
-{
-    struct instance *o = vo;
-    NCDModuleInst *i = o->i;
-    
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    func_new(vo, i, 0, 0);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -160,19 +141,19 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
 static const struct NCDModule modules[] = {
     {
         .type = "not",
-        .func_new = func_new_not,
-        .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_new2 = func_new_not,
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "or",
-        .func_new = func_new_or,
-        .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_new2 = func_new_or,
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "and",
-        .func_new = func_new_and,
-        .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_new2 = func_new_and,
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

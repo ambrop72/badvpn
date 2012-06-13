@@ -60,11 +60,25 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-struct instance {
+struct rprint_instance {
     NCDModuleInst *i;
     int ln;
-    int rev;
 };
+
+static int check_args (NCDModuleInst *i)
+{
+    size_t num_args = NCDVal_ListCount(i->args);
+    
+    for (size_t j = 0; j < num_args; j++) {
+        NCDValRef arg = NCDVal_ListGet(i->args, j);
+        if (!NCDVal_IsString(arg)) {
+            ModuleLog(i, BLOG_ERROR, "wrong type");
+            return 0;
+        }
+    }
+    
+    return 1;
+}
 
 static void do_print (NCDModuleInst *i, int ln)
 {
@@ -94,101 +108,92 @@ static void do_print (NCDModuleInst *i, int ln)
     }
 }
 
-static void func_new_temp (NCDModuleInst *i, int ln, int rev)
+static void rprint_func_new_common (void *vo, NCDModuleInst *i, int ln)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct rprint_instance *o = vo;
     o->i = i;
     o->ln = ln;
-    o->rev = rev;
     
-    // check arguments
-    size_t num_args = NCDVal_ListCount(i->args);
-    for (size_t j = 0; j < num_args; j++) {
-        NCDValRef arg = NCDVal_ListGet(i->args, j);
-        if (!NCDVal_IsString(arg)) {
-            ModuleLog(o->i, BLOG_ERROR, "wrong type");
-            goto fail1;
-        }
+    if (!check_args(i)) {
+        goto fail0;
     }
     
-    // print
-    if (!o->rev) {
-        do_print(o->i, o->ln);
-    }
-    
-    // signal up
-    NCDModuleInst_Backend_Up(o->i);
-    
+    NCDModuleInst_Backend_Up(i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_die (void *vo)
+static void rprint_func_die (void *vo)
 {
-    struct instance *o = vo;
-    NCDModuleInst *i = o->i;
+    struct rprint_instance *o = vo;
     
-    // print
-    if (o->rev) {
-        do_print(o->i, o->ln);
-    }
+    do_print(o->i, o->ln);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void print_func_new (NCDModuleInst *i)
 {
-    return func_new_temp(i, 0, 0);
+    if (!check_args(i)) {
+        goto fail0;
+    }
+    
+    do_print(i, 0);
+    
+    NCDModuleInst_Backend_Up(i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
 }
 
 static void println_func_new (NCDModuleInst *i)
 {
-    return func_new_temp(i, 1, 0);
+    if (!check_args(i)) {
+        goto fail0;
+    }
+    
+    do_print(i, 1);
+    
+    NCDModuleInst_Backend_Up(i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
 }
 
-static void rprint_func_new (NCDModuleInst *i)
+static void rprint_func_new (void *vo, NCDModuleInst *i)
 {
-    return func_new_temp(i, 0, 1);
+    return rprint_func_new_common(vo, i, 0);
 }
 
-static void rprintln_func_new (NCDModuleInst *i)
+static void rprintln_func_new (void *vo, NCDModuleInst *i)
 {
-    return func_new_temp(i, 1, 1);
+    return rprint_func_new_common(vo, i, 1);
 }
 
 static const struct NCDModule modules[] = {
     {
         .type = "print",
-        .func_new = print_func_new,
-        .func_die = func_die
+        .func_new = print_func_new
     }, {
         .type = "println",
-        .func_new = println_func_new,
-        .func_die = func_die
+        .func_new = println_func_new
     }, {
         .type = "rprint",
-        .func_new = rprint_func_new,
-        .func_die = func_die
+        .func_new2 = rprint_func_new,
+        .func_die = rprint_func_die,
+        .alloc_size = sizeof(struct rprint_instance)
      }, {
         .type = "rprintln",
-        .func_new = rprintln_func_new,
-        .func_die = func_die
+        .func_new2 = rprintln_func_new,
+        .func_die = rprint_func_die,
+        .alloc_size = sizeof(struct rprint_instance)
     }, {
         .type = NULL
     }

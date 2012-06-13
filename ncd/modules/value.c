@@ -866,16 +866,10 @@ static void valref_break (struct valref *r)
     r->v = NULL;
 }
 
-static void func_new_common (NCDModuleInst *i, struct value *v, value_deinit_func deinit_func, void *deinit_data)
+static void func_new_common (void *vo, NCDModuleInst *i, struct value *v, value_deinit_func deinit_func, void *deinit_data)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // init value references
     valref_init(&o->ref, v);
@@ -886,33 +880,21 @@ static void func_new_common (NCDModuleInst *i, struct value *v, value_deinit_fun
     
     NCDModuleInst_Backend_Up(i);
     return;
-    
-fail0:
-    value_cleanup(v);
-    if (deinit_func) {
-        deinit_func(deinit_data, i);
-    }
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
 }
 
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // deinit
     if (o->deinit_func) {
-        o->deinit_func(o->deinit_data, i);
+        o->deinit_func(o->deinit_data, o->i);
     }
     
     // free value reference
     valref_free(&o->ref);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -1008,7 +990,7 @@ fail:
     return 1;
 }
 
-static void func_new_value (NCDModuleInst *i)
+static void func_new_value (void *vo, NCDModuleInst *i)
 {
     NCDValRef value_arg;
     if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
@@ -1021,7 +1003,7 @@ static void func_new_value (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_common(i, v, NULL, NULL);
+    func_new_common(vo, i, v, NULL, NULL);
     return;
     
 fail0:
@@ -1029,7 +1011,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_get (NCDModuleInst *i)
+static void func_new_get (void *vo, NCDModuleInst *i)
 {
     NCDValRef where_arg;
     if (!NCDVal_ListRead(i->args, 1, &where_arg)) {
@@ -1050,7 +1032,7 @@ static void func_new_get (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_common(i, v, NULL, NULL);
+    func_new_common(vo, i, v, NULL, NULL);
     return;
     
 fail0:
@@ -1058,7 +1040,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_try_get (NCDModuleInst *i)
+static void func_new_try_get (void *vo, NCDModuleInst *i)
 {
     NCDValRef where_arg;
     if (!NCDVal_ListRead(i->args, 1, &where_arg)) {
@@ -1076,7 +1058,7 @@ static void func_new_try_get (NCDModuleInst *i)
     
     struct value *v = value_get(i, mov, where_arg, 1);
     
-    func_new_common(i, v, NULL, NULL);
+    func_new_common(vo, i, v, NULL, NULL);
     return;
     
 fail0:
@@ -1084,7 +1066,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_getpath (NCDModuleInst *i)
+static void func_new_getpath (void *vo, NCDModuleInst *i)
 {
     NCDValRef path_arg;
     if (!NCDVal_ListRead(i->args, 1, &path_arg)) {
@@ -1109,7 +1091,7 @@ static void func_new_getpath (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_common(i, v, NULL, NULL);
+    func_new_common(vo, i, v, NULL, NULL);
     return;
     
 fail0:
@@ -1117,7 +1099,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_insert (NCDModuleInst *i)
+static void func_new_insert (void *vo, NCDModuleInst *i)
 {
     NCDValRef where_arg;
     NCDValRef what_arg;
@@ -1139,7 +1121,7 @@ static void func_new_insert (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_common(i, v, NULL, NULL);
+    func_new_common(vo, i, v, NULL, NULL);
     return;
     
 fail0:
@@ -1193,7 +1175,7 @@ static void insert_undo_deinit_func (struct insert_undo_deinit_data *data, NCDMo
     free(data);
 }
 
-static void func_new_insert_undo (NCDModuleInst *i)
+static void func_new_insert_undo (void *vo, NCDModuleInst *i)
 {
     NCDValRef where_arg;
     NCDValRef what_arg;
@@ -1225,7 +1207,7 @@ static void func_new_insert_undo (NCDModuleInst *i)
     valref_init(&data->val_ref, v);
     valref_init(&data->oldval_ref, oldv);
     
-    func_new_common(i, v, (value_deinit_func)insert_undo_deinit_func, data);
+    func_new_common(vo, i, v, (value_deinit_func)insert_undo_deinit_func, data);
     return;
     
 fail1:
@@ -1235,7 +1217,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_substr (NCDModuleInst *i)
+static void func_new_substr (void *vo, NCDModuleInst *i)
 {
     NCDValRef start_arg;
     NCDValRef length_arg = NCDVal_NewInvalid();
@@ -1287,7 +1269,7 @@ static void func_new_substr (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_common(i, v, NULL, NULL);
+    func_new_common(vo, i, v, NULL, NULL);
     return;
     
 fail0:
@@ -1351,39 +1333,45 @@ fail0:
 static const struct NCDModule modules[] = {
     {
         .type = "value",
-        .func_new = func_new_value,
+        .func_new2 = func_new_value,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::get",
         .base_type = "value",
-        .func_new = func_new_get,
+        .func_new2 = func_new_get,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::try_get",
         .base_type = "value",
-        .func_new = func_new_try_get,
+        .func_new2 = func_new_try_get,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::getpath",
         .base_type = "value",
-        .func_new = func_new_getpath,
+        .func_new2 = func_new_getpath,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::insert",
         .base_type = "value",
-        .func_new = func_new_insert,
+        .func_new2 = func_new_insert,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::insert_undo",
         .base_type = "value",
-        .func_new = func_new_insert_undo,
+        .func_new2 = func_new_insert_undo,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::remove",
         .func_new = remove_func_new
@@ -1393,9 +1381,10 @@ static const struct NCDModule modules[] = {
     }, {
         .type = "value::substr",
         .base_type = "value",
-        .func_new = func_new_substr,
+        .func_new2 = func_new_substr,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

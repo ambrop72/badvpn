@@ -64,7 +64,7 @@ struct instance {
 static void process_handler_event (struct instance *o, int event);
 static int process_func_getspecialobj (struct instance *o, const char *name, NCDObject *out_object);
 static int caller_obj_func_getobj (struct instance *o, const char *name, NCDObject *out_object);
-static void func_new_templ (NCDModuleInst *i, const char *template_name, NCDValRef args, int embed);
+static void func_new_templ (void *vo, NCDModuleInst *i, const char *template_name, NCDValRef args, int embed);
 static void instance_free (struct instance *o);
 
 static void process_handler_event (struct instance *o, int event)
@@ -121,19 +121,13 @@ static int caller_obj_func_getobj (struct instance *o, const char *name, NCDObje
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
 }
 
-static void func_new_templ (NCDModuleInst *i, const char *template_name, NCDValRef args, int embed)
+static void func_new_templ (void *vo, NCDModuleInst *i, const char *template_name, NCDValRef args, int embed)
 {
     ASSERT(NCDVal_IsInvalid(args) || NCDVal_IsList(args))
     ASSERT(embed == !!embed)
     
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // remember embed
     o->embed = embed;
@@ -148,7 +142,7 @@ static void func_new_templ (NCDModuleInst *i, const char *template_name, NCDValR
         // create process
         if (!NCDModuleProcess_Init(&o->process, o->i, template_name, args, o, (NCDModuleProcess_handler_event)process_handler_event)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
-            goto fail1;
+            goto fail0;
         }
         
         // set special functions
@@ -160,8 +154,6 @@ static void func_new_templ (NCDModuleInst *i, const char *template_name, NCDValR
     
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -169,20 +161,15 @@ fail0:
 
 static void instance_free (struct instance *o)
 {
-    NCDModuleInst *i = o->i;
-    
     // free process
     if (o->state != STATE_NONE) {
         NCDModuleProcess_Free(&o->process);
     }
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
-static void func_new_call (NCDModuleInst *i)
+static void func_new_call (void *vo, NCDModuleInst *i)
 {
     NCDValRef template_arg;
     NCDValRef args_arg;
@@ -195,7 +182,7 @@ static void func_new_call (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_templ(i, NCDVal_StringValue(template_arg), args_arg, 0);
+    func_new_templ(vo, i, NCDVal_StringValue(template_arg), args_arg, 0);
     return;
     
 fail0:
@@ -203,7 +190,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_embcall (NCDModuleInst *i)
+static void func_new_embcall (void *vo, NCDModuleInst *i)
 {
     NCDValRef template_arg;
     if (!NCDVal_ListRead(i->args, 1, &template_arg)) {
@@ -215,7 +202,7 @@ static void func_new_embcall (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_templ(i, NCDVal_StringValue(template_arg), NCDVal_NewInvalid(), 1);
+    func_new_templ(vo, i, NCDVal_StringValue(template_arg), NCDVal_NewInvalid(), 1);
     return;
     
 fail0:
@@ -223,7 +210,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_call_if (NCDModuleInst *i)
+static void func_new_call_if (void *vo, NCDModuleInst *i)
 {
     NCDValRef cond_arg;
     NCDValRef template_arg;
@@ -243,7 +230,7 @@ static void func_new_call_if (NCDModuleInst *i)
         template_name = NCDVal_StringValue(template_arg);
     }
     
-    func_new_templ(i, template_name, args_arg, 0);
+    func_new_templ(vo, i, template_name, args_arg, 0);
     return;
     
 fail0:
@@ -251,7 +238,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_embcall_if (NCDModuleInst *i)
+static void func_new_embcall_if (void *vo, NCDModuleInst *i)
 {
     NCDValRef cond_arg;
     NCDValRef template_arg;
@@ -270,7 +257,7 @@ static void func_new_embcall_if (NCDModuleInst *i)
         template_name = NCDVal_StringValue(template_arg);
     }
     
-    func_new_templ(i, template_name, NCDVal_NewInvalid(), 1);
+    func_new_templ(vo, i, template_name, NCDVal_NewInvalid(), 1);
     return;
     
 fail0:
@@ -278,7 +265,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_call_ifelse (NCDModuleInst *i)
+static void func_new_call_ifelse (void *vo, NCDModuleInst *i)
 {
     NCDValRef cond_arg;
     NCDValRef template_arg;
@@ -301,7 +288,7 @@ static void func_new_call_ifelse (NCDModuleInst *i)
         template_name = NCDVal_StringValue(else_template_arg);
     }
     
-    func_new_templ(i, template_name, args_arg, 0);
+    func_new_templ(vo, i, template_name, args_arg, 0);
     return;
     
 fail0:
@@ -309,7 +296,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_embcall_ifelse (NCDModuleInst *i)
+static void func_new_embcall_ifelse (void *vo, NCDModuleInst *i)
 {
     NCDValRef cond_arg;
     NCDValRef template_arg;
@@ -331,7 +318,7 @@ static void func_new_embcall_ifelse (NCDModuleInst *i)
         template_name = NCDVal_StringValue(else_template_arg);
     }
     
-    func_new_templ(i, template_name, NCDVal_NewInvalid(), 1);
+    func_new_templ(vo, i, template_name, NCDVal_NewInvalid(), 1);
     return;
     
 fail0:
@@ -339,7 +326,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_embcall_multif (NCDModuleInst *i)
+static void func_new_embcall_multif (void *vo, NCDModuleInst *i)
 {
     const char *template_name = NULL;
     
@@ -374,7 +361,7 @@ static void func_new_embcall_multif (NCDModuleInst *i)
         j += 2;
     }
     
-    func_new_templ(i, template_name, NCDVal_NewInvalid(), 1);
+    func_new_templ(vo, i, template_name, NCDVal_NewInvalid(), 1);
     return;
     
 fail0:
@@ -428,53 +415,60 @@ static int func_getobj (void *vo, const char *name, NCDObject *out_object)
 static const struct NCDModule modules[] = {
     {
         .type = "call2",
-        .func_new = func_new_call,
+        .func_new2 = func_new_call,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "call2_if",
-        .func_new = func_new_call_if,
+        .func_new2 = func_new_call_if,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "call2_ifelse",
-        .func_new = func_new_call_ifelse,
+        .func_new2 = func_new_call_ifelse,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "embcall2",
-        .func_new = func_new_embcall,
+        .func_new2 = func_new_embcall,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "embcall2_if",
-        .func_new = func_new_embcall_if,
+        .func_new2 = func_new_embcall_if,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "embcall2_ifelse",
-        .func_new = func_new_embcall_ifelse,
+        .func_new2 = func_new_embcall_ifelse,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "embcall2_multif",
-        .func_new = func_new_embcall_multif,
+        .func_new2 = func_new_embcall_multif,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

@@ -54,27 +54,21 @@ struct instance {
     NCDValRef result;
 };
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef arg_choices;
     NCDValRef arg_default_result;
     if (!NCDVal_ListRead(i->args, 2, &arg_choices, &arg_default_result)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsList(arg_choices)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     
     // iterate choices
@@ -86,7 +80,7 @@ static void func_new (NCDModuleInst *i)
         // check choice type
         if (!NCDVal_IsList(c)) {
             ModuleLog(i, BLOG_ERROR, "wrong choice type");
-            goto fail1;
+            goto fail0;
         }
         
         // read choice
@@ -94,11 +88,11 @@ static void func_new (NCDModuleInst *i)
         NCDValRef c_result;
         if (!NCDVal_ListRead(c, 2, &c_cond, &c_result)) {
             ModuleLog(i, BLOG_ERROR, "wrong choice contents arity");
-            goto fail1;
+            goto fail0;
         }
         if (!NCDVal_IsString(c_cond)) {
             ModuleLog(i, BLOG_ERROR, "wrong choice condition type");
-            goto fail1;
+            goto fail0;
         }
         
         // update result
@@ -117,21 +111,8 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
-}
-
-static void func_die (void *vo)
-{
-    struct instance *o = vo;
-    NCDModuleInst *i = o->i;
-    
-    // free instance
-    free(o);
-    
     NCDModuleInst_Backend_Dead(i);
 }
 
@@ -153,9 +134,9 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
 static const struct NCDModule modules[] = {
     {
         .type = "choose",
-        .func_new = func_new,
-        .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_new2 = func_new,
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

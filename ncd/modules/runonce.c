@@ -164,18 +164,12 @@ static void process_handler (struct instance *o, int normally, uint8_t normally_
     NCDModuleInst_Backend_Up(o->i);
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
+    struct instance *o = vo;
+    o->i = i;
     
     // init arguments
-    o->i = i;
     o->term_on_deinit = 0;
     
     // read arguments
@@ -183,11 +177,11 @@ static void func_new (NCDModuleInst *i)
     NCDValRef opts_arg = NCDVal_NewInvalid();
     if (!NCDVal_ListRead(i->args, 1, &cmd_arg) && !NCDVal_ListRead(i->args, 2, &cmd_arg, &opts_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsInvalid(opts_arg) && !NCDVal_IsList(opts_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     
     int keep_stdout = 0;
@@ -202,7 +196,7 @@ static void func_new (NCDModuleInst *i)
         // read name
         if (!NCDVal_IsStringNoNulls(opt)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong option name type");
-            goto fail1;
+            goto fail0;
         }
         const char *optname = NCDVal_StringValue(opt);
         
@@ -220,7 +214,7 @@ static void func_new (NCDModuleInst *i)
         }
         else {
             ModuleLog(o->i, BLOG_ERROR, "unknown option name");
-            goto fail1;
+            goto fail0;
         }
     }
     
@@ -228,7 +222,7 @@ static void func_new (NCDModuleInst *i)
     char *exec;
     CmdLine cl;
     if (!build_cmdline(o->i, cmd_arg, &exec, &cl)) {
-        goto fail1;
+        goto fail0;
     }
     
     // build fd mapping
@@ -257,7 +251,7 @@ static void func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "BProcess_Init failed");
         CmdLine_Free(&cl);
         free(exec);
-        goto fail1;
+        goto fail0;
     }
     
     CmdLine_Free(&cl);
@@ -265,11 +259,8 @@ static void func_new (NCDModuleInst *i)
     
     // set state
     o->state = STATE_RUNNING;
-    
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -277,12 +268,7 @@ fail0:
 
 static void instance_free (struct instance *o)
 {
-    NCDModuleInst *i = o->i;
-    
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -325,9 +311,10 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
 static const struct NCDModule modules[] = {
     {
         .type = "runonce",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

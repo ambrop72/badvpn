@@ -149,17 +149,9 @@ static int process_func_getspecialobj (struct instance *o, const char *name, NCD
     return 0;
 }
 
-static void callrefhere_func_new (NCDModuleInst *i)
+static void callrefhere_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct callrefhere_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // set arguments
+    struct callrefhere_instance *o = vo;
     o->i = i;
     
     // init calls list
@@ -167,17 +159,11 @@ static void callrefhere_func_new (NCDModuleInst *i)
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
-    return;
-    
-fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
 }
 
 static void callrefhere_func_die (void *vo)
 {
     struct callrefhere_instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // disconnect calls
     while (!LinkedList0_IsEmpty(&o->calls_list)) {
@@ -187,33 +173,24 @@ static void callrefhere_func_die (void *vo)
         inst->crh = NULL;
     }
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
     NCDValRef template_name_arg;
     NCDValRef args_arg;
     if (!NCDVal_ListRead(i->args, 2, &template_name_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(template_name_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     const char *template_name = NCDVal_StringValue(template_name_arg);
     
@@ -233,14 +210,14 @@ static void func_new (NCDModuleInst *i)
         if (NCDVal_IsInvalid(args)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
             NCDValMem_Free(&o->args_mem);
-            goto fail1;
+            goto fail0;
         }
         
         // create process
         if (!NCDModuleProcess_Init(&o->process, o->i, template_name, args, o, (NCDModuleProcess_handler_event)process_handler_event)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
             NCDValMem_Free(&o->args_mem);
-            goto fail1;
+            goto fail0;
         }
         
         // set special functions
@@ -260,8 +237,6 @@ static void func_new (NCDModuleInst *i)
     }
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -269,8 +244,6 @@ fail0:
 
 void instance_free (struct instance *o)
 {
-    NCDModuleInst *i = o->i;
-    
     if (o->state != STATE_NONE) {
         // remove from callrefhere's calls list
         if (o->crh) {
@@ -284,10 +257,7 @@ void instance_free (struct instance *o)
         NCDModuleProcess_Free(&o->process);
     }
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -350,22 +320,25 @@ static int ref_obj_func_getobj (struct instance *o, const char *name, NCDObject 
 static const struct NCDModule modules[] = {
     {
         .type = "callrefhere",
-        .func_new = callrefhere_func_new,
-        .func_die = callrefhere_func_die
+        .func_new2 = callrefhere_func_new,
+        .func_die = callrefhere_func_die,
+        .alloc_size = sizeof(struct callrefhere_instance)
     }, {
         .type = "call",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "callrefhere::call",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

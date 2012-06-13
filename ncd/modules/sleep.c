@@ -68,35 +68,29 @@ static void timer_handler (void *vo)
     }
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
     NCDValRef ms_start_arg;
     NCDValRef ms_stop_arg;
     if (!NCDVal_ListRead(i->args, 2, &ms_start_arg, &ms_stop_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(ms_start_arg) || !NCDVal_IsStringNoNulls(ms_stop_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     if (sscanf(NCDVal_StringValue(ms_start_arg), "%"SCNi64, &o->ms_start) != 1) {
         ModuleLog(o->i, BLOG_ERROR, "wrong time");
-        goto fail1;
+        goto fail0;
     }
     if (sscanf(NCDVal_StringValue(ms_stop_arg), "%"SCNi64, &o->ms_stop) != 1) {
         ModuleLog(o->i, BLOG_ERROR, "wrong time");
-        goto fail1;
+        goto fail0;
     }
     
     // init timer
@@ -109,8 +103,6 @@ static void func_new (NCDModuleInst *i)
     BReactor_SetTimerAfter(o->i->iparams->reactor, &o->timer, o->ms_start);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -118,15 +110,10 @@ fail0:
 
 void instance_free (struct instance *o)
 {
-    NCDModuleInst *i = o->i;
-    
     // free timer
     BReactor_RemoveTimer(o->i->iparams->reactor, &o->timer);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -143,8 +130,9 @@ static void func_die (void *vo)
 static const struct NCDModule modules[] = {
     {
         .type = "sleep",
-        .func_new = func_new,
-        .func_die = func_die
+        .func_new2 = func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

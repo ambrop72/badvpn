@@ -52,22 +52,16 @@ struct instance {
     NCDValRef value;
 };
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // read argument
     NCDValRef value_arg;
     if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     
     // init mem
@@ -77,17 +71,15 @@ static void func_new (NCDModuleInst *i)
     o->value = NCDVal_NewCopy(&o->mem, value_arg);
     if (NCDVal_IsInvalid(o->value)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
-        goto fail2;
+        goto fail1;
     }
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail2:
-    NCDValMem_Free(&o->mem);
 fail1:
-    free(o);
+    NCDValMem_Free(&o->mem);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -96,15 +88,11 @@ fail0:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // free mem
     NCDValMem_Free(&o->mem);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -164,9 +152,10 @@ fail0:
 static const struct NCDModule modules[] = {
     {
         .type = "var",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "var::set",
         .func_new = set_func_new

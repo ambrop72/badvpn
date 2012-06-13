@@ -44,10 +44,15 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-static void func_new (NCDModuleInst *i)
+struct instance {
+    NCDModuleInst *i;
+    int result;
+};
+
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // set argument
-    NCDModuleInst_Backend_SetUser(i, i);
+    struct instance *o = vo;
+    o->i = i;
     
     // check arguments
     NCDValRef str1_arg;
@@ -61,6 +66,9 @@ static void func_new (NCDModuleInst *i)
         goto fail0;
     }
     
+    // compare
+    o->result = (NCDVal_Compare(str1_arg, str2_arg) == 0);
+    
     // signal up
     NCDModuleInst_Backend_Up(i);
     return;
@@ -72,18 +80,14 @@ fail0:
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
 {
-    NCDModuleInst *i = vo;
+    struct instance *o = vo;
     
     if (!strcmp(name, "")) {
-        NCDValRef str1_arg;
-        NCDValRef str2_arg;
-        NCDVal_ListRead(i->args, 2, &str1_arg, &str2_arg);
-        int result = NCDVal_Compare(str1_arg, str2_arg) == 0;
-        const char *v = result ? "true" : "false";
+        const char *v = o->result ? "true" : "false";
         
         *out = NCDVal_NewString(mem, v);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
         return 1;
     }
@@ -94,8 +98,9 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
 static const struct NCDModule modules[] = {
     {
         .type = "strcmp",
-        .func_new = func_new,
-        .func_getvar = func_getvar
+        .func_new2 = func_new,
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

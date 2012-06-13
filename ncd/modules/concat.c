@@ -50,22 +50,16 @@ struct instance {
     size_t len;
 };
 
-static void func_new (NCDModuleInst *i)
+static void func_new2 (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // init string
     ExpString s;
     if (!ExpString_Init(&s)) {
         ModuleLog(i, BLOG_ERROR, "ExpString_Init failed");
-        goto fail1;
+        goto fail0;
     }
     
     // append arguments
@@ -75,12 +69,12 @@ static void func_new (NCDModuleInst *i)
         
         if (!NCDVal_IsString(arg)) {
             ModuleLog(i, BLOG_ERROR, "wrong type");
-            goto fail2;
+            goto fail1;
         }
         
         if (!ExpString_AppendBinary(&s, (const uint8_t *)NCDVal_StringValue(arg), NCDVal_StringLength(arg))) {
             ModuleLog(i, BLOG_ERROR, "ExpString_Append failed");
-            goto fail2;
+            goto fail1;
         }
     }
     
@@ -92,10 +86,8 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail2:
-    ExpString_Free(&s);
 fail1:
-    free(o);
+    ExpString_Free(&s);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -104,15 +96,11 @@ fail0:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // free string
     free(o->string);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -133,9 +121,10 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
 static const struct NCDModule modules[] = {
     {
         .type = "concat",
-        .func_new = func_new,
+        .func_new2 = func_new2,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

@@ -156,34 +156,28 @@ static void start_terminating (struct instance *o)
     o->state = STATE_DEINIT;
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate structure
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
     NCDValRef template_name_arg;
     NCDValRef args_arg;
     if (!NCDVal_ListRead(i->args, 2, &template_name_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(template_name_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     const char *template_name = NCDVal_StringValue(template_name_arg);
     
     // start process
     if (!NCDModuleProcess_Init(&o->process, i, template_name, args_arg, o, (NCDModuleProcess_handler_event)process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
-        goto fail1;
+        goto fail0;
     }
     
     // set special object function
@@ -195,21 +189,14 @@ static void func_new (NCDModuleInst *i)
     o->succeeded = 1;
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
 }
 
 static void instance_free (struct instance *o)
-{
-    NCDModuleInst *i = o->i;
-    
-    // free structure
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+{   
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -291,9 +278,10 @@ fail1:
 static const struct NCDModule modules[] = {
     {
         .type = "try",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "try.try::assert",
         .func_new = assert_func_new
