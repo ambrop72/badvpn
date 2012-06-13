@@ -35,6 +35,7 @@
 #include <misc/balloc.h>
 #include <misc/split_string.h>
 #include <misc/hashfun.h>
+#include <misc/maxalign.h>
 #include <base/BLog.h>
 
 #include "NCDInterpBlock.h"
@@ -43,6 +44,29 @@
 
 #include "NCDInterpBlock_hash.h"
 #include <structure/CHash_impl.h>
+
+static int compute_prealloc (NCDInterpBlock *o)
+{
+    int size = 0;
+    
+    for (int i = 0; i < o->num_stmts; i++) {
+        int mod = size % BMAX_ALIGN;
+        int align_size = (mod == 0 ? 0 : BMAX_ALIGN - mod);
+        
+        if (align_size + o->stmts[i].alloc_size > INT_MAX - size) {
+            return 0;
+        }
+        
+        o->stmts[i].prealloc_offset = size + align_size;
+        size += align_size + o->stmts[i].alloc_size;
+    }
+    
+    ASSERT(size >= 0)
+    
+    o->prealloc_size = size;
+    
+    return 1;
+}
 
 int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block)
 {
@@ -63,6 +87,7 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block)
     }
     
     o->num_stmts = 0;
+    o->prealloc_size = -1;
     
     for (NCDStatement *s = NCDBlock_FirstStatement(block); s; s = NCDBlock_NextStatement(block, s)) {
         ASSERT(NCDStatement_Type(s) == NCDSTATEMENT_REG)
@@ -71,6 +96,7 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block)
         e->name = NCDStatement_Name(s);
         e->cmdname = NCDStatement_RegCmdName(s);
         e->objnames = NULL;
+        e->alloc_size = 0;
         
         if (!NCDInterpValue_Init(&e->ivalue, NCDStatement_RegArgs(s))) {
             BLog(BLOG_ERROR, "NCDInterpValue_Init failed");
@@ -184,4 +210,48 @@ NCDInterpValue * NCDInterpBlock_StatementInterpValue (NCDInterpBlock *o, int i)
     ASSERT(i < o->num_stmts)
     
     return &o->stmts[i].ivalue;
+}
+
+void NCDInterpBlock_StatementBumpAllocSize (NCDInterpBlock *o, int i, int alloc_size)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(i >= 0)
+    ASSERT(i < o->num_stmts)
+    ASSERT(alloc_size >= 0)
+    
+    if (alloc_size > o->stmts[i].alloc_size) {
+        o->stmts[i].alloc_size = alloc_size;
+        o->prealloc_size = -1;
+    }
+}
+
+int NCDInterpBlock_StatementPreallocSize (NCDInterpBlock *o, int i)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(i >= 0)
+    ASSERT(i < o->num_stmts)
+    
+    return o->stmts[i].alloc_size;
+}
+
+int NCDInterpBlock_PreallocSize (NCDInterpBlock *o)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->prealloc_size == -1 || o->prealloc_size >= 0)
+    
+    if (o->prealloc_size < 0 && !compute_prealloc(o)) {
+        return -1;
+    }
+    
+    return o->prealloc_size;
+}
+
+int NCDInterpBlock_StatementPreallocOffset (NCDInterpBlock *o, int i)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(i >= 0)
+    ASSERT(i < o->num_stmts)
+    ASSERT(o->prealloc_size >= 0)
+    
+    return o->stmts[i].prealloc_offset;
 }

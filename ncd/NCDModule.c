@@ -78,7 +78,11 @@ static void job_handler (NCDModuleInst *n)
         case STATE_INIT: {
             n->state = STATE_DOWN_CLEAN;
             
-            n->m->func_new(n);
+            if (n->m->func_new2) {
+                n->m->func_new2(n->inst_user, n);
+            } else {
+                n->m->func_new(n);
+            }
             return;
         } break;
         
@@ -158,9 +162,11 @@ static void inst_assert_backend (NCDModuleInst *n)
            n->state == STATE_DYING)
 }
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValRef args, void *user, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams)
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem, const NCDObject *method_object, NCDValRef args, void *user, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams)
 {
     ASSERT(m)
+    ASSERT(m->alloc_size >= 0)
+    ASSERT(!!mem == m->alloc_size > 0)
     ASSERT(NCDVal_IsList(args))
     ASSERT(params)
     ASSERT(params->func_event)
@@ -181,7 +187,7 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDO
     n->iparams = iparams;
     
     // set initial instance argument
-    n->inst_user = NULL;
+    n->inst_user = mem;
     
     // init job
     BPending_Init(&n->job, BReactor_PendingGroup(iparams->reactor), (BPending_handler)job_handler, n);

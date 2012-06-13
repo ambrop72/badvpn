@@ -329,6 +329,9 @@ typedef struct NCDModuleProcess_s {
  * 
  * @param n the instance
  * @param m structure of module functions implementing the module backend
+ * @param mem preallocated memory for the instance. If m->prealloc_size == 0, this must be NULL;
+ *            if it is >0, it must point to a block of memory with at least that many bytes available,
+ *            and properly aligned for any object.
  * @param method_object the base object if the module being initialized is a method, otherwise NULL.
  *                      The caller must ensure that this object is of the type expected by the module
  *                      being initialized.
@@ -338,7 +341,7 @@ typedef struct NCDModuleProcess_s {
  * @param params more parameters, see {@link NCDModuleInst_params}
  * @param iparams more parameters, see {@link NCDModuleInst_iparams}
  */
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValRef args, void *user, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams);
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem, const NCDObject *method_object, NCDValRef args, void *user, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams);
 
 /**
  * Frees the instance.
@@ -386,6 +389,9 @@ int NCDModuleInst_HaveError (NCDModuleInst *n);
 
 /**
  * Sets the argument passed to handlers of a module backend instance.
+ * If the alloc_size member in the {@link NCDModule} structure is >0,
+ * the argument will automatically be set to the preallocated memory,
+ * in which case there is no need to call this.
  * 
  * @param n backend instance handle
  * @param user value to pass to future handlers for this backend instance
@@ -393,9 +399,8 @@ int NCDModuleInst_HaveError (NCDModuleInst *n);
 void NCDModuleInst_Backend_SetUser (NCDModuleInst *n, void *user);
 
 /**
- * Retuns the argument passed to handlers of a module backend instance,
- * i.e. what was set in {@link NCDModuleInst_Backend_SetUser} (or NULL
- * by default).
+ * Retuns the argument passed to handlers of a module backend instance;
+ * see {@link NCDModuleInst_Backend_SetUser}.
  * 
  * @param n backend instance handle
  * @return argument passed to handlers
@@ -639,7 +644,11 @@ typedef void (*NCDModule_func_globalfree) (void);
  * The backend is initialized in down state.
  * 
  * This handler should call {@link NCDModuleInst_Backend_SetUser} to provide
- * an argument for handlers of this backend instance.
+ * an argument for handlers of this backend instance if it needs to keep any
+ * kind of state. Alternatively, the module can have the interpreter preallocate
+ * a predefined amount of memory for each instance, in which case the
+ * {@link NCDModule_func_new2} init function should be used instead of this one
+ * (see alloc_size in the {@link NCDModule} structure).
  * 
  * If the backend fails initialization, this function should report the backend
  * instance to have died with error by calling {@link NCDModuleInst_Backend_SetError}
@@ -651,11 +660,18 @@ typedef void (*NCDModule_func_globalfree) (void);
 typedef void (*NCDModule_func_new) (NCDModuleInst *i);
 
 /**
+ * Like {@link NCDModule_func_new}, but with the extra user argument, as in other module
+ * instance handlers. The initial value of the argument, as used here, is a pointer to
+ * preallocated memory of alloc_size bytes (from {@link NCDModule}), or NULL if alloc_size==0.
+ */
+typedef void (*NCDModule_func_new2) (void *o, NCDModuleInst *i);
+
+/**
  * Handler called to request termination of a backend instance.
  * The backend instance was in down or up state.
  * The backend instance enters dying state.
  * 
- * @param o as in {@link NCDModuleInst_Backend_SetUser}, or NULL by default
+ * @param o see {@link NCDModuleInst_Backend_SetUser}
  */
 typedef void (*NCDModule_func_die) (void *o);
 
@@ -664,7 +680,7 @@ typedef void (*NCDModule_func_die) (void *o);
  * The backend instance is in up state, or in up or down state if can_resolve_when_down=1.
  * This function must not have any side effects.
  * 
- * @param o as in {@link NCDModuleInst_Backend_SetUser}, or NULL by default
+ * @param o see {@link NCDModuleInst_Backend_SetUser}
  * @param name name of the variable to resolve
  * @param mem value memory to use
  * @param out on success, the backend should initialize the value here
@@ -678,7 +694,7 @@ typedef int (*NCDModule_func_getvar) (void *o, const char *name, NCDValMem *mem,
  * The backend instance is in up state, or in up or down state if can_resolve_when_down=1.
  * This function must not have any side effects.
  * 
- * @param o as in {@link NCDModuleInst_Backend_SetUser}, or NULL by default
+ * @param o see {@link NCDModuleInst_Backend_SetUser}
  * @param name name of the object to resolve
  * @param out_object the object will be returned here
  * @return 1 on success, 0 on failure
@@ -694,7 +710,7 @@ typedef int (*NCDModule_func_getobj) (void *o, const char *name, NCDObject *out_
  * termination will be requested with {@link NCDModule_func_die}.
  * The backend instance was in down state.
  * 
- * @param o as in {@link NCDModuleInst_Backend_SetUser}, or NULL by default
+ * @param o see {@link NCDModuleInst_Backend_SetUser}
  */
 typedef void (*NCDModule_func_clean) (void *o);
 
@@ -720,8 +736,16 @@ struct NCDModule {
     
     /**
      * Function called to create an new backend instance.
+     * Only one of the two possible init functions must be set.
      */
     NCDModule_func_new func_new;
+    
+    /**
+     * Function called to create an new backend instance, to be used with memory
+     * preallocation.
+     * Only one of the two possible init functions must be set.
+     */
+    NCDModule_func_new2 func_new2;
     
     /**
      * Function called to request termination of a backend instance.
@@ -756,6 +780,19 @@ struct NCDModule {
      *   in up state.
      */
     int flags;
+    
+    /**
+     * The amount of memory to preallocate for each module instance.
+     * Preallocation can be used to avoid having to allocate memory from
+     * module initialization. To make use of preallocated memory, use the
+     * {@link NCDModule_func_new2} variant of the init function.
+     * The memory will be available from the point the init function is
+     * called to the point the instance calls {@link NCDModuleInst_Backend_Dead}.
+     * If alloc_size is >0, there is no need to call
+     * {@link NCDModuleInst_Backend_SetUser}, as the the user argument will
+     * automatically be set to a pointer to the preallocated memory.
+     */
+    int alloc_size;
 };
 
 /**

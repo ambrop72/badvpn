@@ -41,6 +41,8 @@ struct NCDInterpBlock__stmt {
     const char *cmdname;
     char **objnames;
     NCDInterpValue ivalue;
+    int alloc_size;
+    int prealloc_offset;
     int hash_next;
 };
 
@@ -54,6 +56,7 @@ typedef struct NCDInterpBlock__stmt *NCDInterpBlock__hasharg;
 typedef struct {
     struct NCDInterpBlock__stmt *stmts;
     int num_stmts;
+    int prealloc_size;
     NCDInterpBlock__Hash hash;
     DebugObject d_obj;
 } NCDInterpBlock;
@@ -64,5 +67,9 @@ int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char 
 const char * NCDInterpBlock_StatementCmdName (NCDInterpBlock *o, int i);
 char ** NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i);
 NCDInterpValue * NCDInterpBlock_StatementInterpValue (NCDInterpBlock *o, int i);
+void NCDInterpBlock_StatementBumpAllocSize (NCDInterpBlock *o, int i, int alloc_size);
+int NCDInterpBlock_StatementPreallocSize (NCDInterpBlock *o, int i);
+int NCDInterpBlock_PreallocSize (NCDInterpBlock *o);
+int NCDInterpBlock_StatementPreallocOffset (NCDInterpBlock *o, int i);
 
 #endif

@@ -43,6 +43,7 @@
 #include <misc/open_standard_streams.h>
 #include <misc/expstring.h>
 #include <misc/split_string.h>
+#include <misc/maxalign.h>
 #include <structure/LinkedList1.h>
 #include <base/BLog.h>
 #include <base/BLog_syslog.h>
@@ -83,6 +84,8 @@ struct statement {
     btime_t error_until;
     NCDModuleInst inst;
     NCDValMem args_mem;
+    char *mem;
+    int mem_size;
     int i;
     int state;
     int have_error;
@@ -95,6 +98,8 @@ struct process {
     BTimer wait_timer;
     BPending work_job;
     LinkedList1Node list_node; // node in processes
+    char *mem;
+    int mem_size;
     int state;
     int ap;
     int fp;
@@ -158,6 +163,7 @@ static void start_terminate (int exit_code);
 static char * names_tostring (char **names);
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process);
 static void process_free (struct process *p);
+static int process_mem_is_preallocated (struct process *p, char *mem);
 static void process_start_terminating (struct process *p);
 static int process_rap (struct process *p);
 static void process_assert_pointers (struct process *p);
@@ -173,6 +179,7 @@ static int process_resolve_variable_expr (struct process *p, int pos, char **nam
 static void statement_logfunc (struct statement *ps);
 static void statement_log (struct statement *ps, int level, const char *fmt, ...);
 static void statement_set_error (struct statement *ps);
+static int statement_allocate_memory (struct statement *ps, int alloc_size, void **out_mem);
 static int statement_resolve_argument (struct statement *ps, NCDInterpValue *arg, NCDValMem *mem, NCDValRef *out);
 static void statement_instance_func_event (struct statement *ps, int event);
 static int statement_instance_func_getobj (struct statement *ps, const char *objname, NCDObject *out_object);
@@ -681,6 +688,16 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
                                             (NCDModuleProcess_interp_func_getobj)process_moduleprocess_func_getobj);
     }
     
+    // preallocate statement memory
+    if ((p->mem_size = NCDInterpBlock_PreallocSize(iblock)) < 0) {
+        BLog(BLOG_ERROR, "NCDInterpBlock_PreallocSize");
+        goto fail1;
+    }
+    if (!(p->mem = BAllocSize(bsize_fromint(p->mem_size)))) {
+        BLog(BLOG_ERROR, "BAllocSize failed");
+        goto fail1;
+    }
+    
     // init statements
     for (int i = 0; i < num_statements; i++) {
         struct statement *ps = &p->statements[i];
@@ -688,6 +705,8 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
         ps->i = i;
         ps->state = SSTATE_FORGOTTEN;
         ps->have_error = 0;
+        ps->mem_size = NCDInterpBlock_StatementPreallocSize(iblock, i);
+        ps->mem = (ps->mem_size == 0 ? NULL : p->mem + NCDInterpBlock_StatementPreallocOffset(iblock, i));
     }
     
     // set state working
@@ -713,6 +732,8 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
     
     return 1;
     
+fail1:
+    BFree(p);
 fail0:
     BLog(BLOG_ERROR, "failed to initialize process %s", NCDProcess_Name(proc_ast));
     return 0;
@@ -728,6 +749,14 @@ void process_free (struct process *p)
         NCDModuleProcess_Interp_Terminated(p->module_process);
     }
     
+    // free statement memory
+    for (int i = 0; i < p->num_statements; i++) {
+        struct statement *ps = &p->statements[i];
+        if (ps->mem && !process_mem_is_preallocated(p, ps->mem)) {
+            free(ps->mem);
+        }
+    }
+    
     // remove from processes list
     LinkedList1_Remove(&processes, &p->list_node);
     
@@ -737,8 +766,18 @@ void process_free (struct process *p)
     // free timer
     BReactor_RemoveTimer(&ss, &p->wait_timer);
     
+    // free preallocated memory
+    BFree(p->mem);
+    
     // free strucure
     BFree(p);
+}
+
+int process_mem_is_preallocated (struct process *p, char *mem)
+{
+    ASSERT(mem)
+    
+    return (mem >= p->mem && mem < p->mem + p->mem_size);
 }
 
 void process_start_terminating (struct process *p)
@@ -988,6 +1027,9 @@ void process_advance (struct process *p)
         goto fail0;
     }
     
+    // register alloc size for future preallocations
+    NCDInterpBlock_StatementBumpAllocSize(p->iblock, p->ap, module->alloc_size);
+    
     // init args mem
     NCDValMem_Init(&ps->args_mem);
     
@@ -999,8 +1041,15 @@ void process_advance (struct process *p)
         goto fail1;
     }
     
+    // allocate memory
+    void *mem;
+    if (!statement_allocate_memory(ps, module->alloc_size, &mem)) {
+        statement_log(ps, BLOG_ERROR, "failed to allocate memory");
+        goto fail1;
+    }
+    
     // initialize module instance
-    NCDModuleInst_Init(&ps->inst, module, object_ptr, args, ps, &module_params, &module_iparams);
+    NCDModuleInst_Init(&ps->inst, module, mem, object_ptr, args, ps, &module_params, &module_iparams);
     
     // set statement state CHILD
     ps->state = SSTATE_CHILD;
@@ -1148,6 +1197,34 @@ void statement_set_error (struct statement *ps)
     
     ps->have_error = 1;
     ps->error_until = btime_add(btime_gettime(), options.retry_time);
+}
+
+int statement_allocate_memory (struct statement *ps, int alloc_size, void **out_mem)
+{
+    ASSERT(alloc_size >= 0)
+    ASSERT(out_mem)
+    
+    if (alloc_size == 0) {
+        *out_mem = NULL;
+        return 1;
+    }
+    
+    if (alloc_size > ps->mem_size) {
+        if (ps->mem && !process_mem_is_preallocated(ps->p, ps->mem)) {
+            free(ps->mem);
+        }
+        
+        if (!(ps->mem = malloc(alloc_size))) {
+            statement_log(ps, BLOG_ERROR, "malloc failed");
+            ps->mem_size = 0;
+            return 0;
+        }
+        
+        ps->mem_size = alloc_size;
+    }
+    
+    *out_mem = ps->mem;
+    return 1;
 }
 
 int statement_resolve_argument (struct statement *ps, NCDInterpValue *arg, NCDValMem *mem, NCDValRef *out)
