@@ -129,8 +129,13 @@ static int send_next_dump_request (NCDInterfaceMonitor *o)
 void netlink_fd_handler (NCDInterfaceMonitor *o, int events)
 {
     DebugObject_Access(&o->d_obj);
-    ASSERT(o->buf_left == -1)
     ASSERT(o->have_bfd)
+    
+    // handler fd error
+    if (o->buf_left >= 0) {
+        BLog(BLOG_ERROR, "file descriptor error");
+        goto fail;
+    }
     
     // read from netlink fd
     int len = read(o->netlink_fd, o->buf.buf, sizeof(o->buf));
