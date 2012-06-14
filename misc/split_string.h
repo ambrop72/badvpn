@@ -8,6 +8,7 @@
 
 #include <misc/balloc.h>
 #include <misc/debug.h>
+#include <misc/expstring.h>
 
 static char ** split_string (const char *str, char del)
 {
@@ -94,6 +95,32 @@ static void free_strings (char **names)
     }
     
     BFree(names);
+}
+
+static char * implode_strings (char **names, char del)
+{
+    ASSERT(names)
+    
+    ExpString str;
+    if (!ExpString_Init(&str)) {
+        goto fail0;
+    }
+    
+    for (size_t i = 0; names[i]; i++) {
+        if (i > 0 && !ExpString_AppendChar(&str, del)) {
+            goto fail1;
+        }
+        if (!ExpString_Append(&str, names[i])) {
+            goto fail1;
+        }
+    }
+    
+    return ExpString_Get(&str);
+    
+fail1:
+    ExpString_Free(&str);
+fail0:
+    return NULL;
 }
 
 #endif
