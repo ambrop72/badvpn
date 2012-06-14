@@ -187,7 +187,12 @@ static void next_inotify_event (struct instance *o)
 
 static void inotify_fd_handler (struct instance *o, int events)
 {
-    ASSERT(!o->processing)
+    if (o->processing) {
+        ModuleLog(o->i, BLOG_ERROR, "file descriptor error");
+        instance_free(o, 1);
+        return;
+    }
+    
     ASSERT(!o->dir_handle)
     
     int res = read(o->inotify_fd, o->events, sizeof(o->events));
@@ -320,7 +325,9 @@ void instance_free (struct instance *o, int is_error)
     BReactor_RemoveFileDescriptor(o->i->iparams->reactor, &o->bfd);
     
     // close inotify
-    ASSERT_FORCE(close(o->inotify_fd) == 0)
+    if (close(o->inotify_fd) < 0) {
+        ModuleLog(o->i, BLOG_ERROR, "close failed");
+    }
     
     // free instance
     free(o);
