@@ -99,7 +99,11 @@ MAKE_LOOKUP_FUNC(ffstatus)
 
 static void device_handler (struct instance *o, int events)
 {
-    ASSERT(!o->processing)
+    if (o->processing) {
+        ModuleLog(o->i, BLOG_ERROR, "device error");
+        instance_free(o, 1);
+        return;
+    }
     
     int res = read(o->evdev_fd, &o->event, sizeof(o->event));
     if (res < 0) {
