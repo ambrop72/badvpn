@@ -38,18 +38,14 @@
 #include <misc/read_file.h>
 #include <misc/balloc.h>
 #include <misc/concat_strings.h>
-#include <misc/string_begins_with.h>
-#include <misc/parse_number.h>
 #include <misc/open_standard_streams.h>
 #include <misc/expstring.h>
 #include <misc/split_string.h>
-#include <misc/maxalign.h>
 #include <structure/LinkedList1.h>
 #include <base/BLog.h>
 #include <base/BLog_syslog.h>
 #include <system/BReactor.h>
 #include <system/BSignal.h>
-#include <system/BConnection.h>
 #include <system/BProcess.h>
 #include <udevmonitor/NCDUdevManager.h>
 #include <ncd/NCDConfigParser.h>
@@ -59,7 +55,7 @@
 #include <ncd/NCDInterpProg.h>
 #include <ncd/modules/modules.h>
 
-#include <ncd/ncd.h>
+#include "ncd.h"
 
 #include <generated/blog_channel_ncd.h>
 
@@ -124,7 +120,7 @@ struct {
 } options;
 
 // reactor
-BReactor ss;
+BReactor reactor;
 
 // are we terminating
 int terminating;
@@ -160,7 +156,6 @@ static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static void start_terminate (int exit_code);
-static char * names_tostring (char **names);
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process);
 static void process_free (struct process *p);
 static int process_mem_is_preallocated (struct process *p, char *mem);
@@ -261,7 +256,7 @@ int main (int argc, char **argv)
     BTime_Init();
     
     // init reactor
-    if (!BReactor_Init(&ss)) {
+    if (!BReactor_Init(&reactor)) {
         BLog(BLOG_ERROR, "BReactor_Init failed");
         goto fail1;
     }
@@ -270,13 +265,13 @@ int main (int argc, char **argv)
     terminating = 0;
     
     // init process manager
-    if (!BProcessManager_Init(&manager, &ss)) {
+    if (!BProcessManager_Init(&manager, &reactor)) {
         BLog(BLOG_ERROR, "BProcessManager_Init failed");
         goto fail1a;
     }
     
     // init udev manager
-    NCDUdevManager_Init(&umanager, options.no_udev, &ss, &manager);
+    NCDUdevManager_Init(&umanager, options.no_udev, &reactor, &manager);
     
     // init module index
     if (!NCDModuleIndex_Init(&mindex)) {
@@ -293,7 +288,7 @@ int main (int argc, char **argv)
     }
     
     // setup signal handler
-    if (!BSignal_Init(&ss, signal_handler, NULL)) {
+    if (!BSignal_Init(&reactor, signal_handler, NULL)) {
         BLog(BLOG_ERROR, "BSignal_Init failed");
         goto fail2;
     }
@@ -330,7 +325,7 @@ int main (int argc, char **argv)
     
     // init module params
     struct NCDModuleInitParams params;
-    params.reactor = &ss;
+    params.reactor = &reactor;
     params.manager = &manager;
     params.umanager = &umanager;
     
@@ -348,7 +343,7 @@ int main (int argc, char **argv)
     module_params.func_event = (NCDModuleInst_func_event)statement_instance_func_event;
     module_params.func_getobj = (NCDModuleInst_func_getobj)statement_instance_func_getobj;
     module_params.logfunc = (BLog_logfunc)statement_instance_logfunc;
-    module_iparams.reactor = &ss;
+    module_iparams.reactor = &reactor;
     module_iparams.manager = &manager;
     module_iparams.umanager = &umanager;
     module_iparams.func_initprocess = (NCDModuleInst_func_initprocess)statement_instance_func_initprocess;
@@ -380,7 +375,7 @@ int main (int argc, char **argv)
     
     // enter event loop
     BLog(BLOG_NOTICE, "entering event loop");
-    BReactor_Exec(&ss);
+    BReactor_Exec(&reactor);
     
     ASSERT(LinkedList1_IsEmpty(&processes))
     
@@ -418,7 +413,7 @@ fail1b:
     BProcessManager_Free(&manager);
 fail1a:
     // free reactor
-    BReactor_Free(&ss);
+    BReactor_Free(&reactor);
 fail1:
     // free logger
     BLog(BLOG_NOTICE, "exiting");
@@ -615,7 +610,7 @@ void start_terminate (int exit_code)
     terminating = 1;
     
     if (LinkedList1_IsEmpty(&processes)) {
-        BReactor_Quit(&ss, 0);
+        BReactor_Quit(&reactor, 0);
         return;
     }
     
@@ -629,32 +624,6 @@ void start_terminate (int exit_code)
             process_start_terminating(p);
         }
     }
-}
-
-static char * names_tostring (char **names)
-{
-    ASSERT(names)
-    
-    ExpString str;
-    if (!ExpString_Init(&str)) {
-        goto fail0;
-    }
-    
-    for (size_t i = 0; names[i]; i++) {
-        if (i > 0 && !ExpString_AppendChar(&str, '.')) {
-            goto fail1;
-        }
-        if (!ExpString_Append(&str, names[i])) {
-            goto fail1;
-        }
-    }
-    
-    return ExpString_Get(&str);
-    
-fail1:
-    ExpString_Free(&str);
-fail0:
-    return NULL;
 }
 
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process)
@@ -722,7 +691,7 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
     BTimer_Init(&p->wait_timer, 0, (BTimer_handler)process_wait_timer_handler, p);
     
     // init work job
-    BPending_Init(&p->work_job, BReactor_PendingGroup(&ss), (BPending_handler)process_work_job_handler, p);
+    BPending_Init(&p->work_job, BReactor_PendingGroup(&reactor), (BPending_handler)process_work_job_handler, p);
     
     // insert to processes list
     LinkedList1_Append(&processes, &p->list_node);
@@ -764,7 +733,7 @@ void process_free (struct process *p)
     BPending_Free(&p->work_job);
     
     // free timer
-    BReactor_RemoveTimer(&ss, &p->wait_timer);
+    BReactor_RemoveTimer(&reactor, &p->wait_timer);
     
     // free preallocated memory
     BFree(p->mem);
@@ -843,7 +812,7 @@ void process_schedule_work (struct process *p)
     process_assert_pointers(p);
     
     // stop timer
-    BReactor_RemoveTimer(&ss, &p->wait_timer);
+    BReactor_RemoveTimer(&reactor, &p->wait_timer);
     
     // schedule work
     BPending_Set(&p->work_job);
@@ -865,7 +834,7 @@ void process_work_job_handler (struct process *p)
             
             // if program is terminating amd there are no more processes, exit program
             if (terminating && LinkedList1_IsEmpty(&processes)) {
-                BReactor_Quit(&ss, 0);
+                BReactor_Quit(&reactor, 0);
             }
             return;
         }
@@ -952,7 +921,7 @@ void process_work_job_handler (struct process *p)
             statement_log(ps, BLOG_INFO, "waiting after error");
             
             // set wait timer
-            BReactor_SetTimerAbsolute(&ss, &p->wait_timer, ps->error_until);
+            BReactor_SetTimerAbsolute(&reactor, &p->wait_timer, ps->error_until);
         } else {
             // advance
             process_advance(p);
@@ -1140,7 +1109,7 @@ int process_resolve_object_expr (struct process *p, int pos, char **names, NCDOb
     return 1;
     
 fail:;
-    char *name = names_tostring(names);
+    char *name = implode_strings(names, '.');
     process_log(p, BLOG_ERROR, "failed to resolve object (%s) from position %zu", (name ? name : ""), pos);
     free(name);
     return 0;
@@ -1167,7 +1136,7 @@ int process_resolve_variable_expr (struct process *p, int pos, char **names, NCD
     return 1;
     
 fail:;
-    char *name = names_tostring(names);
+    char *name = implode_strings(names, '.');
     process_log(p, BLOG_ERROR, "failed to resolve variable (%s) from position %zu", (name ? name : ""), pos);
     free(name);
     return 0;
