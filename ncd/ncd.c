@@ -77,14 +77,12 @@ struct process;
 
 struct statement {
     struct process *p;
-    btime_t error_until;
     NCDModuleInst inst;
     NCDValMem args_mem;
     char *mem;
     int mem_size;
     int i;
     int state;
-    int have_error;
 };
 
 struct process {
@@ -99,6 +97,7 @@ struct process {
     int state;
     int ap;
     int fp;
+    int have_error;
     int num_statements;
     struct statement statements[];
 };
@@ -173,7 +172,6 @@ static int process_resolve_object_expr (struct process *p, int pos, char **names
 static int process_resolve_variable_expr (struct process *p, int pos, char **names, NCDValMem *mem, NCDValRef *out_value);
 static void statement_logfunc (struct statement *ps);
 static void statement_log (struct statement *ps, int level, const char *fmt, ...);
-static void statement_set_error (struct statement *ps);
 static int statement_allocate_memory (struct statement *ps, int alloc_size, void **out_mem);
 static int statement_resolve_argument (struct statement *ps, NCDInterpValue *arg, NCDValMem *mem, NCDValRef *out);
 static void statement_instance_func_event (struct statement *ps, int event);
@@ -673,7 +671,6 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
         ps->p = p;
         ps->i = i;
         ps->state = SSTATE_FORGOTTEN;
-        ps->have_error = 0;
         ps->mem_size = NCDInterpBlock_StatementPreallocSize(iblock, i);
         ps->mem = (ps->mem_size == 0 ? NULL : p->mem + NCDInterpBlock_StatementPreallocOffset(iblock, i));
     }
@@ -687,8 +684,11 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
     // set FP=0
     p->fp = 0;
     
+    // set no error
+    p->have_error = 0;
+    
     // init timer
-    BTimer_Init(&p->wait_timer, 0, (BTimer_handler)process_wait_timer_handler, p);
+    BTimer_Init(&p->wait_timer, options.retry_time, (BTimer_handler)process_wait_timer_handler, p);
     
     // init work job
     BPending_Init(&p->work_job, BReactor_PendingGroup(&reactor), (BPending_handler)process_work_job_handler, p);
@@ -912,16 +912,14 @@ void process_work_job_handler (struct process *p)
         struct statement *ps = &p->statements[p->ap];
         ASSERT(ps->state == SSTATE_FORGOTTEN)
         
-        // clear expired error
-        if (ps->have_error && ps->error_until <= btime_gettime()) {
-            ps->have_error = 0;
-        }
-        
-        if (ps->have_error) {
+        if (p->have_error) {
             statement_log(ps, BLOG_INFO, "waiting after error");
             
+            // clear error
+            p->have_error = 0;
+            
             // set wait timer
-            BReactor_SetTimerAbsolute(&reactor, &p->wait_timer, ps->error_until);
+            BReactor_SetTimer(&reactor, &p->wait_timer);
         } else {
             // advance
             process_advance(p);
@@ -949,7 +947,7 @@ void process_advance (struct process *p)
     ASSERT(p->ap == p->fp)
     ASSERT(p->ap == process_rap(p))
     ASSERT(p->ap < p->num_statements)
-    ASSERT(!p->statements[p->ap].have_error)
+    ASSERT(!p->have_error)
     ASSERT(!BPending_IsSet(&p->work_job))
     ASSERT(!BTimer_IsRunning(&p->wait_timer))
     ASSERT(p->state == PSTATE_WORKING)
@@ -1035,8 +1033,8 @@ void process_advance (struct process *p)
 fail1:
     NCDValMem_Free(&ps->args_mem);
 fail0:
-    // mark error
-    statement_set_error(ps);
+    // set error
+    p->have_error = 1;
     
     // schedule work to start the timer
     process_schedule_work(p);
@@ -1048,17 +1046,14 @@ void process_wait_timer_handler (struct process *p)
     ASSERT(p->ap == p->fp)
     ASSERT(p->ap == process_rap(p))
     ASSERT(p->ap < p->num_statements)
-    ASSERT(p->statements[p->ap].have_error)
+    ASSERT(!p->have_error)
     ASSERT(!BPending_IsSet(&p->work_job))
     ASSERT(p->state == PSTATE_WORKING)
     
     process_log(p, BLOG_INFO, "retrying");
     
-    // clear error
-    p->statements[p->ap].have_error = 0;
-    
-    // schedule work
-    BPending_Set(&p->work_job);
+    // advance
+    process_advance(p);
 }
 
 int process_find_object (struct process *p, int pos, const char *name, NCDObject *out_object)
@@ -1158,14 +1153,6 @@ void statement_log (struct statement *ps, int level, const char *fmt, ...)
     va_start(vl, fmt);
     BLog_LogViaFuncVarArg((BLog_logfunc)statement_logfunc, ps, BLOG_CURRENT_CHANNEL, level, fmt, vl);
     va_end(vl);
-}
-
-void statement_set_error (struct statement *ps)
-{
-    ASSERT(ps->state == SSTATE_FORGOTTEN)
-    
-    ps->have_error = 1;
-    ps->error_until = btime_add(btime_gettime(), options.retry_time);
 }
 
 int statement_allocate_memory (struct statement *ps, int alloc_size, void **out_mem)
@@ -1302,6 +1289,11 @@ void statement_instance_func_event (struct statement *ps, int event)
             // set state CHILD
             ps->state = SSTATE_CHILD;
             
+            // clear error
+            if (ps->i < p->ap) {
+                p->have_error = 0;
+            }
+            
             // update AP
             if (p->ap > ps->i + 1) {
                 p->ap = ps->i + 1;
@@ -1327,8 +1319,8 @@ void statement_instance_func_event (struct statement *ps, int event)
             ps->state = SSTATE_FORGOTTEN;
             
             // set error
-            if (is_error) {
-                statement_set_error(ps);
+            if (is_error && ps->i < p->ap) {
+                p->have_error = 1;
             }
             
             // update AP
