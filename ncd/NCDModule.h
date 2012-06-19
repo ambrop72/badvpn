@@ -296,7 +296,6 @@ typedef struct NCDModuleInst_s {
     const struct NCDModuleInst_params *params;
     const struct NCDModuleInst_iparams *iparams;
     void *inst_user;
-    BPending job;
     int state;
     int is_error;
     DebugObject d_obj;
@@ -322,6 +321,7 @@ typedef struct NCDModuleProcess_s {
 /**
  * Initializes an instance of an NCD module.
  * The instance is initialized in down state.
+ * WARNING: this directly calls the module backend; expect to be called back
  * 
  * This and other non-Backend methods are the interpreter interface.
  * The Backend methods are the module backend interface and are documented
@@ -355,6 +355,7 @@ void NCDModuleInst_Free (NCDModuleInst *n);
  * Requests the instance to die.
  * The instance must be in down or up state.
  * The instance enters dying state.
+ * WARNING: this directly calls the module backend; expect to be called back
  * 
  * @param n the instance
  */
@@ -363,6 +364,7 @@ void NCDModuleInst_Die (NCDModuleInst *n);
 /**
  * Informs the module that it is in a clean state to proceed.
  * The instance must be in down state.
+ * WARNING: this directly calls the module backend; expect to be called back
  * 
  * @param n the instance
  */

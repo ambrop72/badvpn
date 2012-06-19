@@ -845,9 +845,6 @@ void process_work_job_handler (struct process *p)
         if (ps->state != SSTATE_DYING) {
             statement_log(ps, BLOG_INFO, "killing");
             
-            // order it to die
-            NCDModuleInst_Die(&ps->inst);
-            
             // set statement state DYING
             ps->state = SSTATE_DYING;
             
@@ -855,6 +852,10 @@ void process_work_job_handler (struct process *p)
             if (p->ap > ps->i) {
                 p->ap = ps->i;
             }
+            
+            // order it to die
+            NCDModuleInst_Die(&ps->inst);
+            return;
         }
         return;
     }
@@ -882,11 +883,12 @@ void process_work_job_handler (struct process *p)
         if (ps->state != SSTATE_DYING) {
             statement_log(ps, BLOG_INFO, "killing");
             
-            // order it to die
-            NCDModuleInst_Die(&ps->inst);
-            
             // set statement state DYING
             ps->state = SSTATE_DYING;
+            
+            // order it to die
+            NCDModuleInst_Die(&ps->inst);
+            return;
         }
         return;
     }
@@ -1015,9 +1017,6 @@ void process_advance (struct process *p)
         goto fail1;
     }
     
-    // initialize module instance
-    NCDModuleInst_Init(&ps->inst, module, mem, object_ptr, args, ps, &module_params, &module_iparams);
-    
     // set statement state CHILD
     ps->state = SSTATE_CHILD;
     
@@ -1028,6 +1027,9 @@ void process_advance (struct process *p)
     p->fp++;
     
     process_assert_pointers(p);
+    
+    // initialize module instance
+    NCDModuleInst_Init(&ps->inst, module, mem, object_ptr, args, ps, &module_params, &module_iparams);
     return;
     
 fail1:
