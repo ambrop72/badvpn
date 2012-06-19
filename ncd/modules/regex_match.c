@@ -54,10 +54,14 @@
  *   string (empty) - transformed input
  * 
  * Description:
- *   Replaces matching parts of the input string. Replacement is performed one regular
- *   expression after another: starting with the input string, for each given regular
- *   expression, matching substrings of the current string are replaced with the
- *   corresponding replacement string.
+ *   Replaces matching parts of a string. Replacement is performed by repetedly matching
+ *   the remaining part of the string with all regular expressions. On each step, out of
+ *   all regular expressions that match the remainder of the string, the one whose match
+ *   starts at the least position wins, and the matching part is replaced with the
+ *   replacement string corresponding to this regular expression. The process continues
+ *   from the end of the just-replaced portion until no more regular expressions match.
+ *   If multiple regular expressions match at the least position, the one that appears
+ *   first in the 'regex' argument wins.
  */
 
 #include <stdlib.h>
@@ -69,6 +73,7 @@
 #include <misc/parse_number.h>
 #include <misc/expstring.h>
 #include <misc/debug.h>
+#include <misc/balloc.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_regex_match.h>
@@ -90,97 +95,11 @@ struct replace_instance {
     NCDModuleInst *i;
     char *output;
     size_t output_len;
-    int output_free;
 };
 
-static int regex_replace (const char *input, size_t input_len, const char *regex, const char *replace, size_t replace_len, char **out_output, size_t *out_output_len, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    int res = 0;
-    
-    // make sure we don't overflow regoff_t
-    if (input_len > INT_MAX) {
-        ModuleLog(i, BLOG_ERROR, "string is too long");
-        goto fail0;
-    }
-    
-    // compile regex
-    regex_t preg;
-    int ret;
-    if ((ret = regcomp(&preg, regex, REG_EXTENDED)) != 0) {
-        ModuleLog(i, BLOG_ERROR, "regcomp failed (error=%d)", ret);
-        goto fail0;
-    }
-    
-    // init output string
-    ExpString str;
-    if (!ExpString_Init(&str)) {
-        ModuleLog(i, BLOG_ERROR, "ExpString_Init failed");
-        goto fail1;
-    }
-    
-    while (1) {
-        // execute match
-        regmatch_t matches[MAX_MATCHES];
-        matches[0].rm_so = 0;
-        matches[0].rm_eo = input_len;
-        if (regexec(&preg, input, MAX_MATCHES, matches, REG_STARTEND) != 0) {
-            break;
-        }
-        
-        ASSERT(matches[0].rm_so >= 0)
-        ASSERT(matches[0].rm_so <= input_len)
-        ASSERT(matches[0].rm_eo >= matches[0].rm_so)
-        ASSERT(matches[0].rm_eo <= input_len)
-        
-        // append data before match
-        if (!ExpString_AppendBinary(&str, (const uint8_t *)input, matches[0].rm_so)) {
-            ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
-            goto fail2;
-        }
-        
-        // append replace data
-        if (!ExpString_AppendBinary(&str, (const uint8_t *)replace, replace_len)) {
-            ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
-            goto fail2;
-        }
-        
-        // go on matching the rest
-        input += matches[0].rm_eo;
-        input_len -= matches[0].rm_eo;
-    }
-    
-    // append remaining data
-    if (!ExpString_AppendBinary(&str, (const uint8_t *)input, input_len)) {
-        ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
-        goto fail2;
-    }
-    
-    // success
-    *out_output = ExpString_Get(&str);
-    *out_output_len = ExpString_Length(&str);
-    res = 1;
-    
-fail2:
-    if (!res) {
-        ExpString_Free(&str);
-    }
-fail1:
-    regfree(&preg);
-fail0:
-    return res;
-}
-
-static void func_new (NCDModuleInst *i)
-{
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct instance *o = vo;
     o->i = i;
     
     // read arguments
@@ -188,11 +107,11 @@ static void func_new (NCDModuleInst *i)
     NCDValRef regex_arg;
     if (!NCDVal_ListRead(o->i->args, 2, &input_arg, &regex_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsString(input_arg) || !NCDVal_IsStringNoNulls(regex_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     o->input = NCDVal_StringValue(input_arg);
     o->input_len = NCDVal_StringLength(input_arg);
@@ -201,7 +120,7 @@ static void func_new (NCDModuleInst *i)
     // make sure we don't overflow regoff_t
     if (o->input_len > INT_MAX) {
         ModuleLog(o->i, BLOG_ERROR, "input string too long");
-        goto fail1;
+        goto fail0;
     }
     
     // compile regex
@@ -209,7 +128,7 @@ static void func_new (NCDModuleInst *i)
     int ret;
     if ((ret = regcomp(&preg, regex, REG_EXTENDED)) != 0) {
         ModuleLog(o->i, BLOG_ERROR, "regcomp failed (error=%d)", ret);
-        goto fail1;
+        goto fail0;
     }
     
     // execute match
@@ -222,24 +141,10 @@ static void func_new (NCDModuleInst *i)
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
-    
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
-}
-
-static void func_die (void *vo)
-{
-    struct instance *o = vo;
-    NCDModuleInst *i = o->i;
-    
-    // free instance
-    free(o);
-    
     NCDModuleInst_Backend_Dead(i);
 }
 
@@ -279,16 +184,10 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return 0;
 }
 
-static void replace_func_new (NCDModuleInst *i)
+static void replace_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate structure
-    struct replace_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
+    struct replace_instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef input_arg;
@@ -308,55 +207,113 @@ static void replace_func_new (NCDModuleInst *i)
         ModuleLog(i, BLOG_ERROR, "number of regex's is not the same as number of replacements");
         goto fail1;
     }
+    size_t num_regex = NCDVal_ListCount(regex_arg);
     
-    // start with input as current text
-    char *current = (char *)NCDVal_StringValue(input_arg);
-    size_t current_len = NCDVal_StringLength(input_arg);
-    int current_free = 0;
+    // allocate array for compiled regex's
+    regex_t *regs = BAllocArray(num_regex, sizeof(regs[0]));
+    if (!regs) {
+        ModuleLog(i, BLOG_ERROR, "BAllocArray failed");
+        goto fail1;
+    }
+    size_t num_done_regex = 0;
     
-    size_t count = NCDVal_ListCount(regex_arg);
-    for (size_t j = 0; j < count; j++) {
-        NCDValRef regex = NCDVal_ListGet(regex_arg, j);
-        NCDValRef replace = NCDVal_ListGet(replace_arg, j);
+    // compile regex's, check arguments
+    while (num_done_regex < num_regex) {
+        NCDValRef regex = NCDVal_ListGet(regex_arg, num_done_regex);
+        NCDValRef replace = NCDVal_ListGet(replace_arg, num_done_regex);
         
-        // check type of regex and replace
         if (!NCDVal_IsStringNoNulls(regex) || !NCDVal_IsString(replace)) {
-            ModuleLog(i, BLOG_ERROR, "regex/replace element has wrong type");
+            ModuleLog(i, BLOG_ERROR, "wrong regex/replace type for pair %zu", num_done_regex);
             goto fail2;
         }
         
-        // perform the replacing
-        char *replaced;
-        size_t replaced_len;
-        if (!regex_replace(current, current_len, NCDVal_StringValue(regex), NCDVal_StringValue(replace), NCDVal_StringLength(replace), &replaced, &replaced_len, i)) {
+        int res = regcomp(&regs[num_done_regex], NCDVal_StringValue(regex), REG_EXTENDED);
+        if (res != 0) {
+            ModuleLog(i, BLOG_ERROR, "regcomp failed for pair %zu (error=%d)", num_done_regex, res);
             goto fail2;
         }
         
-        // update current text
-        if (current_free) {
-            free(current);
+        num_done_regex++;
+    }
+    
+    // init output string
+    ExpString out;
+    if (!ExpString_Init(&out)) {
+        ModuleLog(i, BLOG_ERROR, "ExpString_Init failed");
+        goto fail2;
+    }
+    
+    // input state
+    const char *in = NCDVal_StringValue(input_arg);
+    size_t in_pos = 0;
+    size_t in_len = NCDVal_StringLength(input_arg);
+    
+    // process input
+    while (in_pos < in_len) {
+        // find first match
+        int have_match = 0;
+        size_t match_regex;
+        regmatch_t match;
+        for (size_t j = 0; j < num_regex; j++) {
+            regmatch_t this_match;
+            this_match.rm_so = 0;
+            this_match.rm_eo = in_len - in_pos;
+            if (regexec(&regs[j], in + in_pos, 1, &this_match, REG_STARTEND) == 0 && (!have_match || this_match.rm_so < match.rm_so)) {
+                have_match = 1;
+                match_regex = j;
+                match = this_match;
+            }
         }
-        current = replaced;
-        current_len = replaced_len;
-        current_free = 1;
+        
+        // if no match, append remaining data and finish
+        if (!have_match) {
+            if (!ExpString_AppendBinary(&out, in + in_pos, in_len - in_pos)) {
+                ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
+                goto fail3;
+            }
+            break;
+        }
+        
+        // append data before match
+        if (!ExpString_AppendBinary(&out, in + in_pos, match.rm_so)) {
+            ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
+            goto fail3;
+        }
+        
+        // append replacement data
+        NCDValRef replace = NCDVal_ListGet(replace_arg, match_regex);
+        if (!ExpString_AppendBinary(&out, NCDVal_StringValue(replace), NCDVal_StringLength(replace))) {
+            ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
+            goto fail3;
+        }
+        
+        in_pos += match.rm_eo;
     }
     
     // set output
-    o->output = current;
-    o->output_len = current_len;
-    o->output_free = current_free;
+    o->output = ExpString_Get(&out);
+    o->output_len = ExpString_Length(&out);
+    
+    // free compiled regex's
+    while (num_done_regex-- > 0) {
+        regfree(&regs[num_done_regex]);
+    }
+    
+    // free array
+    BFree(regs);
     
     // signal up
-    NCDModuleInst_Backend_Up(o->i);
+    NCDModuleInst_Backend_Up(i);
     return;
     
+fail3:
+    ExpString_Free(&out);
 fail2:
-    if (current_free) {
-        free(current);
+    while (num_done_regex-- > 0) {
+        regfree(&regs[num_done_regex]);
     }
+    BFree(regs);
 fail1:
-    free(o);
-fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
 }
@@ -364,17 +321,11 @@ fail0:
 static void replace_func_die (void *vo)
 {
     struct replace_instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // free output
-    if (o->output_free) {
-        free(o->output);
-    }
+    BFree(o->output);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int replace_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -395,14 +346,15 @@ static int replace_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDV
 static const struct NCDModule modules[] = {
     {
         .type = "regex_match",
-        .func_new = func_new,
-        .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_new2 = func_new,
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "regex_replace",
-        .func_new = replace_func_new,
+        .func_new2 = replace_func_new,
         .func_die = replace_func_die,
-        .func_getvar = replace_func_getvar
+        .func_getvar = replace_func_getvar,
+        .alloc_size = sizeof(struct replace_instance)
     }, {
         .type = NULL
     }
