@@ -593,7 +593,7 @@ static int process_arg_object_func_getvar2 (NCDModuleProcess *o, void *n_ptr, co
         return 0;
     }
     
-    uintmax_t n = (uintmax_t)n_ptr - 1;
+    uintptr_t n = (uintptr_t)n_ptr - 1;
     
     *out_value = NCDVal_NewCopy(mem, NCDVal_ListGet(o->args, n));
     if (NCDVal_IsInvalid(*out_value)) {
