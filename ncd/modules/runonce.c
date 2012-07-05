@@ -42,6 +42,8 @@
  *                        send it SIGTERM.
  *     "keep_stdout" - Start the program with the same stdout as the NCD process.
  *     "keep_stderr" - Start the program with the same stderr as the NCD process.
+ *     "do_setsid" - Call setsid() in the child before exec. This is needed to
+ *                   start the 'agetty' program.
  * Variables:
  *   string exit_status - if the program exited normally, the non-negative exit code, otherwise -1
  */
