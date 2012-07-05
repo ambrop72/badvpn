@@ -29,7 +29,7 @@
  * @section DESCRIPTION
  * 
  * Synopsis:
- *   foreach(list list, string template, list args)
+ *   foreach(list/map collection, string template, list args)
  * 
  * Description:
  *   Initializes a template process for each element of list, sequentially,
@@ -42,10 +42,26 @@
  * 
  * Template process specials:
  * 
- *   _index - index of the list element corresponding to the template process,
- *            as a decimal string, starting from zero
- *   _elem - element of list corresponding to the template process
+ *   _index - (lists only) index of the list element corresponding to the template,
+ *            process, as a decimal string, starting from zero
+ *   _elem - (lists only) element of list corresponding to the template process
+ *   _key - (maps only) key of the current map entry
+ *   _val - (maps only) value of the current map entry
  *   _caller.X - X as seen from the foreach() statement
+ * 
+ * Synopsis:
+ *   foreach_emb(list/map collection, string template, string name1 [, string name2])
+ * 
+ * Description:
+ *   Foreach for embedded templates; the desugaring process converts Foreach
+ *   clauses into this statement. The called templates have direct access to
+ *   objects as seen from this statement, and also some kind of access to the
+ *   current element of the iteration, depending on the type of collection
+ *   being iterated, and whether 'name2' is provided:
+ *   List and one name: current element is named 'name1'.
+ *   List and both names: current index is named 'name1', current element 'name2'.
+ *   Map and one name: current key is named 'name1'.
+ *   Map and both names: current key is named 'name1', current value 'name2'.
  */
 
 #include <stdlib.h>
@@ -74,8 +90,11 @@ struct element;
 
 struct instance {
     NCDModuleInst *i;
+    int type;
     const char *template_name;
     NCDValRef args;
+    const char *name1;
+    const char *name2;
     BTimer timer;
     size_t num_elems;
     struct element *elems;
@@ -87,7 +106,15 @@ struct instance {
 struct element {
     struct instance *inst;
     size_t i;
-    NCDValRef value;
+    union {
+        struct {
+            NCDValRef list_elem;
+        };
+        struct {
+            NCDValRef map_key;
+            NCDValRef map_val;
+        };
+    };
     NCDModuleProcess process;
     int state;
 };
@@ -99,8 +126,10 @@ static void timer_handler (struct instance *o);
 static void element_process_handler_event (struct element *e, int event);
 static int element_process_func_getspecialobj (struct element *e, const char *name, NCDObject *out_object);
 static int element_caller_object_func_getobj (struct element *e, const char *name, NCDObject *out_object);
-static int element_index_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out);
-static int element_elem_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out);
+static int element_list_index_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out);
+static int element_list_elem_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out);
+static int element_map_key_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out);
+static int element_map_val_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out);
 static void instance_free (struct instance *o);
 
 static void assert_state (struct instance *o)
@@ -318,18 +347,43 @@ static int element_process_func_getspecialobj (struct element *e, const char *na
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
     
+    switch (o->type) {
+        case NCDVAL_LIST: {
+            const char *index_name = (o->name2 ? o->name1 : NULL);
+            const char *elem_name = (o->name2 ? o->name2 : o->name1);
+            
+            if (index_name && !strcmp(name, index_name)) {
+                *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_list_index_object_func_getvar, NULL);
+                return 1;
+            }
+            
+            if (!strcmp(name, elem_name)) {
+                *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_list_elem_object_func_getvar, NULL);
+                return 1;
+            }
+        } break;
+        case NCDVAL_MAP: {
+            const char *key_name = o->name1;
+            const char *val_name = o->name2;
+            
+            if (!strcmp(name, key_name)) {
+                *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_map_key_object_func_getvar, NULL);
+                return 1;
+            }
+            
+            if (val_name && !strcmp(name, val_name)) {
+                *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_map_val_object_func_getvar, NULL);
+                return 1;
+            }
+        } break;
+    }
+    
+    if (NCDVal_IsInvalid(o->args)) {
+        return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
+    }
+    
     if (!strcmp(name, "_caller")) {
         *out_object = NCDObject_Build(NULL, e, NULL, (NCDObject_func_getobj)element_caller_object_func_getobj);
-        return 1;
-    }
-    
-    if (!strcmp(name, "_index")) {
-        *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_index_object_func_getvar, NULL);
-        return 1;
-    }
-    
-    if (!strcmp(name, "_elem")) {
-        *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_elem_object_func_getvar, NULL);
         return 1;
     }
     
@@ -340,14 +394,16 @@ static int element_caller_object_func_getobj (struct element *e, const char *nam
 {
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
+    ASSERT(!NCDVal_IsInvalid(o->args))
     
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
 }
 
-static int element_index_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out)
+static int element_list_index_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
+    ASSERT(o->type == NCDVAL_LIST)
     
     if (strcmp(name, "")) {
         return 0;
@@ -363,68 +419,100 @@ static int element_index_object_func_getvar (struct element *e, const char *name
     return 1;
 }
 
-static int element_elem_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out)
+static int element_list_elem_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
+    ASSERT(o->type == NCDVAL_LIST)
     
     if (strcmp(name, "")) {
         return 0;
     }
     
-    *out = NCDVal_NewCopy(mem, e->value);
+    *out = NCDVal_NewCopy(mem, e->list_elem);
     if (NCDVal_IsInvalid(*out)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
     }
     return 1;
 }
 
-static void func_new (NCDModuleInst *i)
+static int element_map_key_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
+    struct instance *o = e->inst;
+    ASSERT(e->state != ESTATE_FORGOTTEN)
+    ASSERT(o->type == NCDVAL_MAP)
     
-    // init arguments
+    if (strcmp(name, "")) {
+        return 0;
+    }
+    
+    *out = NCDVal_NewCopy(mem, e->map_key);
+    if (NCDVal_IsInvalid(*out)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
+    }
+    return 1;
+}
+
+static int element_map_val_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out)
+{
+    struct instance *o = e->inst;
+    ASSERT(e->state != ESTATE_FORGOTTEN)
+    ASSERT(o->type == NCDVAL_MAP)
+    
+    if (strcmp(name, "")) {
+        return 0;
+    }
+    
+    *out = NCDVal_NewCopy(mem, e->map_val);
+    if (NCDVal_IsInvalid(*out)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
+    }
+    return 1;
+}
+
+static void func_new_common (void *vo, NCDModuleInst *i, NCDValRef collection, const char *template_name, NCDValRef args, const char *name1, const char *name2)
+{
+    ASSERT(!NCDVal_IsInvalid(collection))
+    ASSERT(template_name)
+    ASSERT(NCDVal_IsInvalid(args) || NCDVal_IsList(args))
+    ASSERT(name1)
+    
+    struct instance *o = vo;
     o->i = i;
     
-    // read arguments
-    NCDValRef arg_list;
-    NCDValRef arg_template;
-    NCDValRef arg_args;
-    if (!NCDVal_ListRead(i->args, 3, &arg_list, &arg_template, &arg_args)) {
-        ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
-    }
-    if (!NCDVal_IsList(arg_list) || !NCDVal_IsStringNoNulls(arg_template) ||
-        !NCDVal_IsList(arg_args)
-    ) {
-        ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail1;
-    }
-    o->template_name = NCDVal_StringValue(arg_template);
-    o->args = arg_args;
+    o->type = NCDVal_Type(collection);
+    o->template_name = template_name;
+    o->args = args;
+    o->name1 = name1;
+    o->name2 = name2;
     
     // init timer
     btime_t retry_time = NCDModuleInst_Backend_InterpGetRetryTime(i);
     BTimer_Init(&o->timer, retry_time, (BTimer_handler)timer_handler, o);
     
-    // count elements
-    o->num_elems = NCDVal_ListCount(arg_list);
+    NCDValMapElem cur_map_elem;
+    
+    switch (o->type) {
+        case NCDVAL_LIST: {
+            o->num_elems = NCDVal_ListCount(collection);
+        } break;
+        case NCDVAL_MAP: {
+            o->num_elems = NCDVal_MapCount(collection);
+            cur_map_elem = NCDVal_MapOrderedFirst(collection); 
+        } break;
+        default:
+            ModuleLog(i, BLOG_ERROR, "invalid collection type");
+            goto fail0;
+    }
     
     // allocate elements
     if (!(o->elems = BAllocArray(o->num_elems, sizeof(o->elems[0])))) {
         ModuleLog(i, BLOG_ERROR, "BAllocArray failed");
-        goto fail1;
+        goto fail0;
     }
     
     for (size_t j = 0; j < o->num_elems; j++) {
         struct element *e = &o->elems[j];
-        NCDValRef ev = NCDVal_ListGet(arg_list, j);
         
         // set instance
         e->inst = o;
@@ -432,11 +520,20 @@ static void func_new (NCDModuleInst *i)
         // set index
         e->i = j;
         
-        // set value
-        e->value = ev;
-        
         // set state forgotten
         e->state = ESTATE_FORGOTTEN;
+        
+        // set values
+        switch (o->type) {
+            case NCDVAL_LIST: {
+                e->list_elem = NCDVal_ListGet(collection, j);
+            } break;
+            case NCDVAL_MAP: {
+                e->map_key = NCDVal_MapElemKey(collection, cur_map_elem);
+                e->map_val = NCDVal_MapElemVal(collection, cur_map_elem);
+                cur_map_elem = NCDVal_MapOrderedNext(collection, cur_map_elem);
+            } break;
+        }
     }
     
     // set GP and IP zero
@@ -449,8 +546,75 @@ static void func_new (NCDModuleInst *i)
     work(o);
     return;
     
-fail1:
-    free(o);
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void func_new_foreach (void *vo, NCDModuleInst *i)
+{
+    // read arguments
+    NCDValRef arg_collection;
+    NCDValRef arg_template;
+    NCDValRef arg_args;
+    if (!NCDVal_ListRead(i->args, 3, &arg_collection, &arg_template, &arg_args)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (!NCDVal_IsStringNoNulls(arg_template) || !NCDVal_IsList(arg_args)) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    
+    const char *template_name = NCDVal_StringValue(arg_template);
+    const char *name1;
+    const char *name2;
+    
+    switch (NCDVal_Type(arg_collection)) {
+        case NCDVAL_LIST: {
+            name1 = "_index";
+            name2 = "_elem";
+        } break;
+        case NCDVAL_MAP: {
+            name1 = "_key";
+            name2 = "_val";
+        } break;
+        default:
+            ModuleLog(i, BLOG_ERROR, "invalid collection type");
+            goto fail0;
+    }
+    
+    func_new_common(vo, i, arg_collection, template_name, arg_args, name1, name2);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void func_new_foreach_emb (void *vo, NCDModuleInst *i)
+{
+    // read arguments
+    NCDValRef arg_collection;
+    NCDValRef arg_template;
+    NCDValRef arg_name1;
+    NCDValRef arg_name2 = NCDVal_NewInvalid();
+    if (!NCDVal_ListRead(i->args, 3, &arg_collection, &arg_template, &arg_name1) && !NCDVal_ListRead(i->args, 4, &arg_collection, &arg_template, &arg_name1, &arg_name2)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (!NCDVal_IsStringNoNulls(arg_template) || !NCDVal_IsStringNoNulls(arg_name1) || (!NCDVal_IsInvalid(arg_name2) && !NCDVal_IsStringNoNulls(arg_name2))) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    
+    const char *template_name = NCDVal_StringValue(arg_template);
+    const char *name1 = NCDVal_StringValue(arg_name1);
+    const char *name2 = (NCDVal_IsInvalid(arg_name2) ? NULL : NCDVal_StringValue(arg_name2));
+    
+    func_new_common(vo, i, arg_collection, template_name, NCDVal_NewInvalid(), name1, name2);
+    return;
+    
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -458,7 +622,6 @@ fail0:
 
 static void instance_free (struct instance *o)
 {
-    NCDModuleInst *i = o->i;
     ASSERT(o->gp == 0)
     ASSERT(o->ip == 0)
     
@@ -468,10 +631,7 @@ static void instance_free (struct instance *o)
     // free timer
     BReactor_RemoveTimer(o->i->iparams->reactor, &o->timer);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -508,9 +668,16 @@ static void func_clean (void *vo)
 static const struct NCDModule modules[] = {
     {
         .type = "foreach",
-        .func_new = func_new,
+        .func_new2 = func_new_foreach,
         .func_die = func_die,
-        .func_clean = func_clean
+        .func_clean = func_clean,
+        .alloc_size = sizeof(struct instance)
+    }, {
+        .type = "foreach_emb",
+        .func_new2 = func_new_foreach_emb,
+        .func_die = func_die,
+        .func_clean = func_clean,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }
