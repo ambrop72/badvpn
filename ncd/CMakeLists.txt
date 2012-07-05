@@ -141,6 +141,7 @@ add_executable(badvpn-ncd
     modules/implode.c
     modules/call2.c
     modules/assert.c
+    modules/reboot.c
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdvalue ncdval ncdvalcompat ncdvaluegenerator ncdvalueparser ncdconfigparser udevmonitor ncdinterfacemonitor ncdrequest)
