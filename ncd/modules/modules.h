@@ -103,6 +103,7 @@ extern const struct NCDModuleGroup ncdmodule_implode;
 extern const struct NCDModuleGroup ncdmodule_call2;
 extern const struct NCDModuleGroup ncdmodule_assert;
 extern const struct NCDModuleGroup ncdmodule_reboot;
+extern const struct NCDModuleGroup ncdmodule_explode;
 
 static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_var,
@@ -174,6 +175,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_call2,
     &ncdmodule_assert,
     &ncdmodule_reboot,
+    &ncdmodule_explode,
     NULL
 };
 

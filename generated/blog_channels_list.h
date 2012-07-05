@@ -122,3 +122,4 @@
 {.name = "ncd_call2", .loglevel = 4},
 {.name = "ncd_assert", .loglevel = 4},
 {.name = "ncd_reboot", .loglevel = 4},
+{.name = "ncd_explode", .loglevel = 4},
