@@ -69,3 +69,5 @@ if (BUILDING_ARPPROBE)
     add_executable(arpprobe_test arpprobe_test.c)
     target_link_libraries(arpprobe_test arpprobe)
 endif ()
+
+add_executable(substring_test substring_test.c)
