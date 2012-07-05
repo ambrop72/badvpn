@@ -58,11 +58,32 @@
  *            the file is being written. For this reason, you should only use this
  *            to write small local files which will be written quickly, and especially
  *            not files on network mounts.
+ * 
+ * Synopsis:
+ *   file_stat(string filename)
+ *   file_lstat(string filename)
+ * 
+ * Description:
+ *   Retrieves information about a file.
+ *   file_stat() follows symlinks; file_lstat() does not and allows retrieving information
+ *   about a symlink.
+ *   WARNING: this blocks the interpreter
+ * 
+ * Variables:
+ *   succeeded - whether the stat operation succeeded (true/false). If false, all other
+ *               variables obtain the value "failed".
+ *   type - file, dir, chr, blk, fifo, link, socket, other, failed
+ *   size - size of the file, or failed
  */
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include <misc/read_file.h>
 #include <misc/write_file.h>
@@ -76,6 +97,12 @@ struct read_instance {
     NCDModuleInst *i;
     uint8_t *file_data;
     size_t file_len;
+};
+
+struct stat_instance {
+    NCDModuleInst *i;
+    int succeeded;
+    struct stat result;
 };
 
 static void read_func_new (NCDModuleInst *i)
@@ -175,6 +202,121 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
+static void stat_func_new_common (void *vo, NCDModuleInst *i, int is_lstat)
+{
+    struct stat_instance *o = vo;
+    o->i = i;
+    
+    NCDValRef filename_arg;
+    if (!NCDVal_ListRead(i->args, 1, &filename_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (!NCDVal_IsString(filename_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    
+    o->succeeded = 0;
+    
+    if (!NCDVal_IsStringNoNulls(filename_arg)) {
+        goto out;
+    }
+    const char *filename = NCDVal_StringValue(filename_arg);
+    
+    int res;
+    if (is_lstat) {
+        res = lstat(filename, &o->result);
+    } else {
+        res = stat(filename, &o->result);
+    }
+    
+    if (res < 0) {
+        goto out;
+    }
+    
+    o->succeeded = 1;
+    
+out:
+    NCDModuleInst_Backend_Up(i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void stat_func_new (void *vo, NCDModuleInst *i)
+{
+    stat_func_new_common(vo, i, 0);
+}
+
+static void lstat_func_new (void *vo, NCDModuleInst *i)
+{
+    stat_func_new_common(vo, i, 1);
+}
+
+static int stat_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+{
+    struct stat_instance *o = vo;
+    
+    if (!strcmp(name, "succeeded")) {
+        const char *str = (o->succeeded ? "true" : "false");
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+        }
+        return 1;
+    }
+    
+    if (!strcmp(name, "type")) {
+        const char *str;
+        
+        if (!o->succeeded) {
+            str = "failed";
+        } else if (S_ISREG(o->result.st_mode)) {
+            str = "file";
+        } else if (S_ISDIR(o->result.st_mode)) {
+            str = "dir";
+        } else if (S_ISCHR(o->result.st_mode)) {
+            str = "chr";
+        } else if (S_ISBLK(o->result.st_mode)) {
+            str = "blk";
+        } else if (S_ISFIFO(o->result.st_mode)) {
+            str = "fifo";
+        } else if (S_ISLNK(o->result.st_mode)) {
+            str = "link";
+        } else if (S_ISSOCK(o->result.st_mode)) {
+            str = "socket";
+        } else {
+            str = "other";
+        }
+        
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+        }
+        return 1;
+    }
+    
+    if (!strcmp(name, "size")) {
+        char str[50];
+        if (!o->succeeded) {
+            strcpy(str, "failed");
+        } else {
+            snprintf(str, sizeof(str), "%"PRIuMAX, (uintmax_t)o->result.st_size);
+        }
+        
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+        }
+        return 1;
+    }
+    
+    return 0;
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "file_read",
@@ -184,6 +326,16 @@ static const struct NCDModule modules[] = {
     }, {
         .type = "file_write",
         .func_new = write_func_new
+    }, {
+        .type = "file_stat",
+        .func_new2 = stat_func_new,
+        .func_getvar = stat_func_getvar,
+        .alloc_size = sizeof(struct stat_instance)
+    }, {
+        .type = "file_lstat",
+        .func_new2 = lstat_func_new,
+        .func_getvar = stat_func_getvar,
+        .alloc_size = sizeof(struct stat_instance)
     }, {
         .type = NULL
     }
