@@ -123,6 +123,12 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
         else if (l = data_begins_with(str, left, "else")) {
             token = NCD_TOKEN_ELSE;
         }
+        else if (l = data_begins_with(str, left, "Foreach")) {
+            token = NCD_TOKEN_FOREACH;
+        }
+        else if (l = data_begins_with(str, left, "As")) {
+            token = NCD_TOKEN_AS;
+        }
         else if (is_name_first_char(*str)) {
             l = 1;
             while (l < left && is_name_char(str[l])) {
