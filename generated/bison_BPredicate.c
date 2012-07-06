@@ -1,8 +1,8 @@
-/* A Bison parser, made by GNU Bison 2.5.  */
+/* A Bison parser, made by GNU Bison 2.5.1.  */
 
 /* Bison implementation for Yacc-like parsers in C
    
-      Copyright (C) 1984, 1989-1990, 2000-2011 Free Software Foundation, Inc.
+      Copyright (C) 1984, 1989-1990, 2000-2012 Free Software Foundation, Inc.
    
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -44,7 +44,7 @@
 #define YYBISON 1
 
 /* Bison version.  */
-#define YYBISON_VERSION "2.5"
+#define YYBISON_VERSION "2.5.1"
 
 /* Skeleton name.  */
 #define YYSKELETON_NAME "yacc.c"
@@ -258,6 +258,14 @@ fail:
 /* Line 268 of yacc.c  */
 #line 260 "generated//bison_BPredicate.c"
 
+# ifndef YY_NULL
+#  if defined __cplusplus && 201103L <= __cplusplus
+#   define YY_NULL nullptr
+#  else
+#   define YY_NULL 0
+#  endif
+# endif
+
 /* Enabling traces.  */
 #ifndef YYDEBUG
 # define YYDEBUG 0
@@ -304,7 +312,7 @@ fail:
 typedef union YYSTYPE
 {
 
-/* Line 293 of yacc.c  */
+/* Line 295 of yacc.c  */
 #line 227 "predicate/BPredicate.y"
 
     char *text;
@@ -315,8 +323,8 @@ typedef union YYSTYPE
 
 
 
-/* Line 293 of yacc.c  */
-#line 320 "generated//bison_BPredicate.c"
+/* Line 295 of yacc.c  */
+#line 328 "generated//bison_BPredicate.c"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -340,8 +348,8 @@ typedef struct YYLTYPE
 /* Copy the second part of user declarations.  */
 
 
-/* Line 343 of yacc.c  */
-#line 345 "generated//bison_BPredicate.c"
+/* Line 345 of yacc.c  */
+#line 353 "generated//bison_BPredicate.c"
 
 #ifdef short
 # undef short
@@ -447,6 +455,7 @@ YYID (yyi)
 #    if ! defined _ALLOCA_H && ! defined EXIT_SUCCESS && (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 #     include <stdlib.h> /* INFRINGES ON USER NAME SPACE */
+      /* Use EXIT_SUCCESS as a witness for stdlib.h.  */
 #     ifndef EXIT_SUCCESS
 #      define EXIT_SUCCESS 0
 #     endif
@@ -540,20 +549,20 @@ union yyalloc
 #endif
 
 #if defined YYCOPY_NEEDED && YYCOPY_NEEDED
-/* Copy COUNT objects from FROM to TO.  The source and destination do
+/* Copy COUNT objects from SRC to DST.  The source and destination do
    not overlap.  */
 # ifndef YYCOPY
 #  if defined __GNUC__ && 1 < __GNUC__
-#   define YYCOPY(To, From, Count) \
-      __builtin_memcpy (To, From, (Count) * sizeof (*(From)))
+#   define YYCOPY(Dst, Src, Count) \
+      __builtin_memcpy (Dst, Src, (Count) * sizeof (*(Src)))
 #  else
-#   define YYCOPY(To, From, Count)		\
-      do					\
-	{					\
-	  YYSIZE_T yyi;				\
-	  for (yyi = 0; yyi < (Count); yyi++)	\
-	    (To)[yyi] = (From)[yyi];		\
-	}					\
+#   define YYCOPY(Dst, Src, Count)              \
+      do                                        \
+        {                                       \
+          YYSIZE_T yyi;                         \
+          for (yyi = 0; yyi < (Count); yyi++)   \
+            (Dst)[yyi] = (Src)[yyi];            \
+        }                                       \
       while (YYID (0))
 #  endif
 # endif
@@ -651,7 +660,7 @@ static const char *const yytname[] =
   "PEER2_NAME", "AND", "OR", "NOT", "SPAR", "EPAR", "CONSTANT_TRUE",
   "CONSTANT_FALSE", "COMMA", "$accept", "input", "predicate", "constant",
   "parentheses", "neg", "conjunct", "disjunct", "function", "arguments",
-  "argument", 0
+  "argument", YY_NULL
 };
 #endif
 
@@ -780,17 +789,18 @@ static const yytype_uint8 yystos[] =
 
 #define YYRECOVERING()  (!!yyerrstatus)
 
-#define YYBACKUP(Token, Value)					\
-do								\
-  if (yychar == YYEMPTY && yylen == 1)				\
-    {								\
-      yychar = (Token);						\
-      yylval = (Value);						\
-      YYPOPSTACK (1);						\
-      goto yybackup;						\
-    }								\
-  else								\
-    {								\
+#define YYBACKUP(Token, Value)                                  \
+do                                                              \
+  if (yychar == YYEMPTY)                                        \
+    {                                                           \
+      yychar = (Token);                                         \
+      yylval = (Value);                                         \
+      YYPOPSTACK (yylen);                                       \
+      yystate = *yyssp;                                         \
+      goto yybackup;                                            \
+    }                                                           \
+  else                                                          \
+    {                                                           \
       yyerror (&yylloc, scanner, result, YY_("syntax error: cannot back up")); \
       YYERROR;							\
     }								\
@@ -897,6 +907,8 @@ yy_symbol_value_print (yyoutput, yytype, yyvaluep, yylocationp, scanner, result)
     struct predicate_node **result;
 #endif
 {
+  FILE *yyo = yyoutput;
+  YYUSE (yyo);
   if (!yyvaluep)
     return;
   YYUSE (yylocationp);
@@ -1159,12 +1171,12 @@ static int
 yysyntax_error (YYSIZE_T *yymsg_alloc, char **yymsg,
                 yytype_int16 *yyssp, int yytoken)
 {
-  YYSIZE_T yysize0 = yytnamerr (0, yytname[yytoken]);
+  YYSIZE_T yysize0 = yytnamerr (YY_NULL, yytname[yytoken]);
   YYSIZE_T yysize = yysize0;
   YYSIZE_T yysize1;
   enum { YYERROR_VERBOSE_ARGS_MAXIMUM = 5 };
   /* Internationalized format string. */
-  const char *yyformat = 0;
+  const char *yyformat = YY_NULL;
   /* Arguments of yyformat. */
   char const *yyarg[YYERROR_VERBOSE_ARGS_MAXIMUM];
   /* Number of reported tokens (one for the "unexpected", one per
@@ -1224,7 +1236,7 @@ yysyntax_error (YYSIZE_T *yymsg_alloc, char **yymsg,
                     break;
                   }
                 yyarg[yycount++] = yytname[yyx];
-                yysize1 = yysize + yytnamerr (0, yytname[yyx]);
+                yysize1 = yysize + yytnamerr (YY_NULL, yytname[yyx]);
                 if (! (yysize <= yysize1
                        && yysize1 <= YYSTACK_ALLOC_MAXIMUM))
                   return 2;
@@ -1317,29 +1329,29 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
     {
       case 3: /* "STRING" */
 
-/* Line 1391 of yacc.c  */
+/* Line 1395 of yacc.c  */
 #line 240 "predicate/BPredicate.y"
 	{
     free((yyvaluep->text));
 };
 
-/* Line 1391 of yacc.c  */
-#line 1328 "generated//bison_BPredicate.c"
+/* Line 1395 of yacc.c  */
+#line 1340 "generated//bison_BPredicate.c"
 	break;
       case 4: /* "NAME" */
 
-/* Line 1391 of yacc.c  */
+/* Line 1395 of yacc.c  */
 #line 240 "predicate/BPredicate.y"
 	{
     free((yyvaluep->text));
 };
 
-/* Line 1391 of yacc.c  */
-#line 1339 "generated//bison_BPredicate.c"
+/* Line 1395 of yacc.c  */
+#line 1351 "generated//bison_BPredicate.c"
 	break;
       case 17: /* "predicate" */
 
-/* Line 1391 of yacc.c  */
+/* Line 1395 of yacc.c  */
 #line 250 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->node)) {
@@ -1347,12 +1359,12 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
     }
 };
 
-/* Line 1391 of yacc.c  */
-#line 1352 "generated//bison_BPredicate.c"
+/* Line 1395 of yacc.c  */
+#line 1364 "generated//bison_BPredicate.c"
 	break;
       case 18: /* "constant" */
 
-/* Line 1391 of yacc.c  */
+/* Line 1395 of yacc.c  */
 #line 250 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->node)) {
@@ -1360,12 +1372,12 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
     }
 };
 
-/* Line 1391 of yacc.c  */
-#line 1365 "generated//bison_BPredicate.c"
+/* Line 1395 of yacc.c  */
+#line 1377 "generated//bison_BPredicate.c"
 	break;
       case 19: /* "parentheses" */
 
-/* Line 1391 of yacc.c  */
+/* Line 1395 of yacc.c  */
 #line 250 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->node)) {
@@ -1373,12 +1385,12 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
     }
 };
 
-/* Line 1391 of yacc.c  */
-#line 1378 "generated//bison_BPredicate.c"
+/* Line 1395 of yacc.c  */
+#line 1390 "generated//bison_BPredicate.c"
 	break;
       case 20: /* "neg" */
 
-/* Line 1391 of yacc.c  */
+/* Line 1395 of yacc.c  */
 #line 250 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->node)) {
@@ -1386,12 +1398,12 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
     }
 };
 
-/* Line 1391 of yacc.c  */
-#line 1391 "generated//bison_BPredicate.c"
+/* Line 1395 of yacc.c  */
+#line 1403 "generated//bison_BPredicate.c"
 	break;
       case 21: /* "conjunct" */
 
-/* Line 1391 of yacc.c  */
+/* Line 1395 of yacc.c  */
 #line 250 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->node)) {
@@ -1399,12 +1411,12 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
     }
 };
 
-/* Line 1391 of yacc.c  */
-#line 1404 "generated//bison_BPredicate.c"
+/* Line 1395 of yacc.c  */
+#line 1416 "generated//bison_BPredicate.c"
 	break;
       case 22: /* "disjunct" */
 
-/* Line 1391 of yacc.c  */
+/* Line 1395 of yacc.c  */
 #line 250 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->node)) {
@@ -1412,12 +1424,12 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
     }
 };
 
-/* Line 1391 of yacc.c  */
-#line 1417 "generated//bison_BPredicate.c"
+/* Line 1395 of yacc.c  */
+#line 1429 "generated//bison_BPredicate.c"
 	break;
       case 23: /* "function" */
 
-/* Line 1391 of yacc.c  */
+/* Line 1395 of yacc.c  */
 #line 250 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->node)) {
@@ -1425,12 +1437,12 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
     }
 };
 
-/* Line 1391 of yacc.c  */
-#line 1430 "generated//bison_BPredicate.c"
+/* Line 1395 of yacc.c  */
+#line 1442 "generated//bison_BPredicate.c"
 	break;
       case 24: /* "arguments" */
 
-/* Line 1391 of yacc.c  */
+/* Line 1395 of yacc.c  */
 #line 257 "predicate/BPredicate.y"
 	{
     if ((yyvaluep->arg_node)) {
@@ -1438,19 +1450,19 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
     }
 };
 
-/* Line 1391 of yacc.c  */
-#line 1443 "generated//bison_BPredicate.c"
+/* Line 1395 of yacc.c  */
+#line 1455 "generated//bison_BPredicate.c"
 	break;
       case 25: /* "argument" */
 
-/* Line 1391 of yacc.c  */
+/* Line 1395 of yacc.c  */
 #line 264 "predicate/BPredicate.y"
 	{
     free_argument((yyvaluep->arg_arg));
 };
 
-/* Line 1391 of yacc.c  */
-#line 1454 "generated//bison_BPredicate.c"
+/* Line 1395 of yacc.c  */
+#line 1466 "generated//bison_BPredicate.c"
 	break;
 
       default:
@@ -1523,7 +1535,7 @@ YYLTYPE yylloc;
        `yyvs': related to semantic values.
        `yyls': related to locations.
 
-       Refer to the stacks thru separate pointers, to allow yyoverflow
+       Refer to the stacks through separate pointers, to allow yyoverflow
        to reallocate them elsewhere.  */
 
     /* The state stack.  */
@@ -1779,7 +1791,7 @@ yyreduce:
     {
         case 2:
 
-/* Line 1806 of yacc.c  */
+/* Line 1810 of yacc.c  */
 #line 276 "predicate/BPredicate.y"
     {
         *result = (yyvsp[(1) - (1)].node);
@@ -1788,7 +1800,7 @@ yyreduce:
 
   case 9:
 
-/* Line 1806 of yacc.c  */
+/* Line 1810 of yacc.c  */
 #line 284 "predicate/BPredicate.y"
     {
         (yyval.node) = make_constant(1);
@@ -1797,7 +1809,7 @@ yyreduce:
 
   case 10:
 
-/* Line 1806 of yacc.c  */
+/* Line 1810 of yacc.c  */
 #line 288 "predicate/BPredicate.y"
     {
         (yyval.node) = make_constant(0);
@@ -1806,7 +1818,7 @@ yyreduce:
 
   case 11:
 
-/* Line 1806 of yacc.c  */
+/* Line 1810 of yacc.c  */
 #line 294 "predicate/BPredicate.y"
     {
         (yyval.node) = (yyvsp[(2) - (3)].node);
@@ -1815,7 +1827,7 @@ yyreduce:
 
   case 12:
 
-/* Line 1806 of yacc.c  */
+/* Line 1810 of yacc.c  */
 #line 300 "predicate/BPredicate.y"
     {
         (yyval.node) = make_negation((yyvsp[(2) - (2)].node));
@@ -1824,7 +1836,7 @@ yyreduce:
 
   case 13:
 
-/* Line 1806 of yacc.c  */
+/* Line 1810 of yacc.c  */
 #line 306 "predicate/BPredicate.y"
     {
         (yyval.node) = make_conjunction((yyvsp[(1) - (3)].node), (yyvsp[(3) - (3)].node));
@@ -1833,7 +1845,7 @@ yyreduce:
 
   case 14:
 
-/* Line 1806 of yacc.c  */
+/* Line 1810 of yacc.c  */
 #line 312 "predicate/BPredicate.y"
     {
         (yyval.node) = make_disjunction((yyvsp[(1) - (3)].node), (yyvsp[(3) - (3)].node));
@@ -1842,7 +1854,7 @@ yyreduce:
 
   case 15:
 
-/* Line 1806 of yacc.c  */
+/* Line 1810 of yacc.c  */
 #line 318 "predicate/BPredicate.y"
     {
         (yyval.node) = make_function((yyvsp[(1) - (3)].text), NULL, 0);
@@ -1851,7 +1863,7 @@ yyreduce:
 
   case 16:
 
-/* Line 1806 of yacc.c  */
+/* Line 1810 of yacc.c  */
 #line 322 "predicate/BPredicate.y"
     {
         (yyval.node) = make_function((yyvsp[(1) - (4)].text), (yyvsp[(3) - (4)].arg_node), 1);
@@ -1860,7 +1872,7 @@ yyreduce:
 
   case 17:
 
-/* Line 1806 of yacc.c  */
+/* Line 1810 of yacc.c  */
 #line 328 "predicate/BPredicate.y"
     {
         (yyval.arg_node) = make_arguments((yyvsp[(1) - (1)].arg_arg), NULL, 0);
@@ -1869,7 +1881,7 @@ yyreduce:
 
   case 18:
 
-/* Line 1806 of yacc.c  */
+/* Line 1810 of yacc.c  */
 #line 332 "predicate/BPredicate.y"
     {
         (yyval.arg_node) = make_arguments((yyvsp[(1) - (3)].arg_arg), (yyvsp[(3) - (3)].arg_node), 1);
@@ -1878,7 +1890,7 @@ yyreduce:
 
   case 19:
 
-/* Line 1806 of yacc.c  */
+/* Line 1810 of yacc.c  */
 #line 338 "predicate/BPredicate.y"
     {
         (yyval.arg_arg) = make_argument_predicate((yyvsp[(1) - (1)].node));
@@ -1887,7 +1899,7 @@ yyreduce:
 
   case 20:
 
-/* Line 1806 of yacc.c  */
+/* Line 1810 of yacc.c  */
 #line 342 "predicate/BPredicate.y"
     {
         (yyval.arg_arg) = make_argument_string((yyvsp[(1) - (1)].text));
@@ -1896,8 +1908,8 @@ yyreduce:
 
 
 
-/* Line 1806 of yacc.c  */
-#line 1901 "generated//bison_BPredicate.c"
+/* Line 1810 of yacc.c  */
+#line 1913 "generated//bison_BPredicate.c"
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -2091,7 +2103,7 @@ yyabortlab:
   yyresult = 1;
   goto yyreturn;
 
-#if !defined(yyoverflow) || YYERROR_VERBOSE
+#if !defined yyoverflow || YYERROR_VERBOSE
 /*-------------------------------------------------.
 | yyexhaustedlab -- memory exhaustion comes here.  |
 `-------------------------------------------------*/
