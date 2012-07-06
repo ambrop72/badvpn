@@ -121,7 +121,7 @@ void BDatagram_SetSendAddrs (BDatagram *o, BAddr remote_addr, BIPAddr local_addr
  * @param local_addr returns the local destination IP address. May be an invalid address.
  * @return 1 on success, 0 on failure
  */
-int BDatagram_GetLastReceiveAddrs (BDatagram *o, BAddr *remote_addr, BIPAddr *local_addr) WARN_UNUSED;
+int BDatagram_GetLastReceiveAddrs (BDatagram *o, BAddr *remote_addr, BIPAddr *local_addr);
 
 #ifndef BADVPN_USE_WINAPI
 /**
