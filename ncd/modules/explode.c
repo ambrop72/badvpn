@@ -198,7 +198,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         }
         for (size_t j = 0; j < o->num; j++) {
             struct substring *elem = &((struct substring *)o->arr.v)[j];
-            NCDValRef str = NCDVal_NewStringBin(mem, elem->data, elem->len);
+            NCDValRef str = NCDVal_NewStringBin(mem, (uint8_t *)elem->data, elem->len);
             if (NCDVal_IsInvalid(str)) {
                 ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
                 goto fail;

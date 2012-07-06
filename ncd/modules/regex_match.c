@@ -267,7 +267,7 @@ static void replace_func_new (void *vo, NCDModuleInst *i)
         
         // if no match, append remaining data and finish
         if (!have_match) {
-            if (!ExpString_AppendBinary(&out, in + in_pos, in_len - in_pos)) {
+            if (!ExpString_AppendBinary(&out, (const uint8_t *)in + in_pos, in_len - in_pos)) {
                 ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
                 goto fail3;
             }
@@ -275,14 +275,14 @@ static void replace_func_new (void *vo, NCDModuleInst *i)
         }
         
         // append data before match
-        if (!ExpString_AppendBinary(&out, in + in_pos, match.rm_so)) {
+        if (!ExpString_AppendBinary(&out, (const uint8_t *)in + in_pos, match.rm_so)) {
             ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
             goto fail3;
         }
         
         // append replacement data
         NCDValRef replace = NCDVal_ListGet(replace_arg, match_regex);
-        if (!ExpString_AppendBinary(&out, NCDVal_StringValue(replace), NCDVal_StringLength(replace))) {
+        if (!ExpString_AppendBinary(&out, (const uint8_t *)NCDVal_StringValue(replace), NCDVal_StringLength(replace))) {
             ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
             goto fail3;
         }
