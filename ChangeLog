@@ -1,4 +1,14 @@
 
+- NCD: add Foreach clause
+
+- NCD: implement _caller in spawn(), add spawn::join()
+
+- NCD: add explode()
+
+- NCD: add hard_reboot() and hard_poweroff()
+
+- NCD: add file_stat() and file_lstat()
+
 - NCD: fix regex_replace() semantics. It was very broken because it did a complete replacement pass for every regex on the list, so it would match parts that have already been replaced, producing unexpected results.
 
 - NCD: small performance improvement
