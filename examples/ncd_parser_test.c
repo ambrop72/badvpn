@@ -36,6 +36,7 @@
 #include <base/BLog.h>
 #include <ncd/NCDConfigParser.h>
 #include <ncd/NCDValueGenerator.h>
+#include <ncd/NCDSugar.h>
 
 int error;
 
@@ -103,6 +104,16 @@ static void print_block (NCDBlock *block, unsigned int indent)
                 }
             } break;
             
+            case NCDSTATEMENT_FOREACH: {
+                const char *name1 = NCDStatement_ForeachName1(st);
+                const char *name2 = NCDStatement_ForeachName2(st) ? NCDStatement_ForeachName2(st) : "";
+                
+                print_indent(indent);
+                printf("foreach name=%s name1=%s name2=%s\n", name, name1, name2);
+                
+                print_block(NCDStatement_ForeachBlock(st), indent + 2);
+            } break;
+            
             default: ASSERT(0);
         }
     }
@@ -110,22 +121,31 @@ static void print_block (NCDBlock *block, unsigned int indent)
 
 int main (int argc, char **argv)
 {
-    if (argc < 1) {
-        return 1;
+    int res = 1;
+    
+    if (argc != 3) {
+        printf("Usage: %s <desugar=0/1> <string>\n", (argc > 0 ? argv[0] : ""));
+        goto fail0;
     }
     
-    if (argc != 2) {
-        printf("Usage: %s <string>\n", argv[0]);
-        return 1;
-    }
+    int desugar = atoi(argv[1]);
+    char *text = argv[2];
     
     BLog_InitStdout();
     
     // parse
     NCDProgram prog;
-    if (!NCDConfigParser_Parse(argv[1], strlen(argv[1]), &prog)) {
+    if (!NCDConfigParser_Parse(text, strlen(text), &prog)) {
         DEBUG("NCDConfigParser_Parse failed");
-        return 1;
+        goto fail1;
+    }
+    
+    // desugar
+    if (desugar) {
+        if (!NCDSugar_Desugar(&prog)) {
+            DEBUG("NCDSugar_Desugar failed");
+            goto fail2;
+        }
     }
     
     // print
@@ -134,7 +154,11 @@ int main (int argc, char **argv)
         print_block(NCDProcess_Block(p), 2);
     }
     
+    res = 0;
+fail2:
     NCDProgram_Free(&prog);
-    
-    return 0;
+fail1:
+    BLog_Free();
+fail0:
+    return res;
 }

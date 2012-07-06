@@ -59,6 +59,11 @@ add_library(ncdconfigparser
 )
 target_link_libraries(ncdconfigparser base ncdtokenizer ncdast)
 
+add_library(ncdsugar
+    NCDSugar.c
+)
+target_link_libraries(ncdsugar ncdast)
+
 add_library(ncdrequest
     NCDRequestClient.c
 )
@@ -75,7 +80,6 @@ add_executable(badvpn-ncd
     NCDModuleIndex.c
     NCDIfConfig.c
     NCDObject.c
-    NCDSugar.c
     NCDInterpBlock.c
     NCDInterpProg.c
     NCDInterpValue.c
@@ -145,7 +149,7 @@ add_executable(badvpn-ncd
     modules/explode.c
     ${NCD_ADDITIONAL_SOURCES}
 )
-target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdvalue ncdval ncdvalcompat ncdvaluegenerator ncdvalueparser ncdconfigparser udevmonitor ncdinterfacemonitor ncdrequest)
+target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdvalue ncdval ncdvalcompat ncdvaluegenerator ncdvalueparser ncdconfigparser ncdsugar udevmonitor ncdinterfacemonitor ncdrequest)
 
 if (BADVPN_USE_LINUX_INPUT)
     string(REPLACE " " ";" FLAGS_LIST "${CMAKE_C_FLAGS}")

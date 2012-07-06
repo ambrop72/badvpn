@@ -41,6 +41,7 @@ struct desugar_state {
 static int add_template (struct desugar_state *state, NCDBlock block, NCDValue *out_name_val);
 static int desugar_block (struct desugar_state *state, NCDBlock *block);
 static int desugar_if (struct desugar_state *state, NCDBlock *block, NCDStatement *stmt, NCDStatement **out_next);
+static int desugar_foreach (struct desugar_state *state, NCDBlock *block, NCDStatement *stmt, NCDStatement **out_next);
 
 static int add_template (struct desugar_state *state, NCDBlock block, NCDValue *out_name_val)
 {
@@ -83,6 +84,12 @@ static int desugar_block (struct desugar_state *state, NCDBlock *block)
             
             case NCDSTATEMENT_IF: {
                 if (!desugar_if(state, block, stmt, &stmt)) {
+                    return 0;
+                }
+            } break;
+            
+            case NCDSTATEMENT_FOREACH: {
+                if (!desugar_foreach(state, block, stmt, &stmt)) {
                     return 0;
                 }
             } break;
@@ -143,6 +150,71 @@ static int desugar_if (struct desugar_state *state, NCDBlock *block, NCDStatemen
     
     NCDStatement new_stmt;
     if (!NCDStatement_InitReg(&new_stmt, NCDStatement_Name(stmt), NULL, "embcall2_multif", args)) {
+        goto fail;
+    }
+    
+    stmt = NCDBlock_ReplaceStatement(block, stmt, new_stmt);
+    
+    *out_next = NCDBlock_NextStatement(block, stmt);
+    return 1;
+    
+fail:
+    NCDValue_Free(&args);
+    return 0;
+}
+
+static int desugar_foreach (struct desugar_state *state, NCDBlock *block, NCDStatement *stmt, NCDStatement **out_next)
+{
+    ASSERT(NCDStatement_Type(stmt) == NCDSTATEMENT_FOREACH)
+    
+    NCDValue args;
+    NCDValue_InitList(&args);
+    
+    NCDValue collection;
+    NCDBlock foreach_block;
+    NCDStatement_ForeachGrab(stmt, &collection, &foreach_block);
+    
+    NCDValue template_arg;
+    if (!add_template(state, foreach_block, &template_arg)) {
+        NCDValue_Free(&collection);
+        goto fail;
+    }
+    
+    if (!NCDValue_ListAppend(&args, collection)) {
+        NCDValue_Free(&template_arg);
+        NCDValue_Free(&collection);
+        goto fail;
+    }
+    
+    if (!NCDValue_ListAppend(&args, template_arg)) {
+        NCDValue_Free(&template_arg);
+        goto fail;
+    }
+    
+    NCDValue name1_arg;
+    if (!NCDValue_InitString(&name1_arg, NCDStatement_ForeachName1(stmt))) {
+        goto fail;
+    }
+    
+    if (!NCDValue_ListAppend(&args, name1_arg)) {
+        NCDValue_Free(&name1_arg);
+        goto fail;
+    }
+    
+    if (NCDStatement_ForeachName2(stmt)) {
+        NCDValue name2_arg;
+        if (!NCDValue_InitString(&name2_arg, NCDStatement_ForeachName2(stmt))) {
+            goto fail;
+        }
+        
+        if (!NCDValue_ListAppend(&args, name2_arg)) {
+            NCDValue_Free(&name2_arg);
+            goto fail;
+        }
+    }
+    
+    NCDStatement new_stmt;
+    if (!NCDStatement_InitReg(&new_stmt, NCDStatement_Name(stmt), NULL, "foreach_emb", args)) {
         goto fail;
     }
     

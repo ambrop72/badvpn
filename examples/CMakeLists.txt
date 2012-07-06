@@ -32,7 +32,7 @@ if (BUILD_NCD)
     target_link_libraries(ncd_tokenizer_test ncdtokenizer)
 
     add_executable(ncd_parser_test ncd_parser_test.c)
-    target_link_libraries(ncd_parser_test ncdconfigparser ncdvaluegenerator)
+    target_link_libraries(ncd_parser_test ncdconfigparser ncdvaluegenerator ncdsugar)
 
     add_executable(ncd_value_parser_test ncd_value_parser_test.c)
     target_link_libraries(ncd_value_parser_test ncdvalueparser ncdvaluegenerator)

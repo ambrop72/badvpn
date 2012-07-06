@@ -291,6 +291,55 @@ doneE:
     free(C);
 }
 
+statement(R) ::= FOREACH ROUND_OPEN value(A) AS NAME(B) ROUND_CLOSE CURLY_OPEN statements(S) CURLY_CLOSE name_maybe(N) SEMICOLON. {
+    if (!A.have || !B.str || !S.have) {
+        goto failEA0;
+    }
+    
+    if (!NCDStatement_InitForeach(&R.v, N, A.v, B.str, NULL, S.v)) {
+        goto failEA0;
+    }
+    A.have = 0;
+    S.have = 0;
+    
+    R.have = 1;
+    goto doneEA0;
+    
+failEA0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneEA0:
+    free_value(A);
+    free_token(B);
+    free_block(S);
+    free(N);
+}
+
+statement(R) ::= FOREACH ROUND_OPEN value(A) AS NAME(B) COLON NAME(C) ROUND_CLOSE CURLY_OPEN statements(S) CURLY_CLOSE name_maybe(N) SEMICOLON. {
+    if (!A.have || !B.str || !C.str || !S.have) {
+        goto failEB0;
+    }
+    
+    if (!NCDStatement_InitForeach(&R.v, N, A.v, B.str, C.str, S.v)) {
+        goto failEB0;
+    }
+    A.have = 0;
+    S.have = 0;
+    
+    R.have = 1;
+    goto doneEB0;
+    
+failEB0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneEB0:
+    free_value(A);
+    free_token(B);
+    free_token(C);
+    free_block(S);
+    free(N);
+}
+
 elif_maybe(R) ::= . {
     NCDIfBlock_Init(&R.v);
     R.have = 1;
