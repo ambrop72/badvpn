@@ -282,6 +282,40 @@ int NCDStatement_InitIf (NCDStatement *o, const char *name, NCDIfBlock ifblock)
     return 1;
 }
 
+int NCDStatement_InitForeach (NCDStatement *o, const char *name, NCDValue collection, const char *name1, const char *name2, NCDBlock block)
+{
+    ASSERT(name1)
+    
+    o->name = NULL;
+    o->foreach.name1 = NULL;
+    o->foreach.name2 = NULL;
+    
+    if (name && !(o->name = strdup(name))) {
+        goto fail;
+    }
+    
+    if (!(o->foreach.name1 = strdup(name1))) {
+        goto fail;
+    }
+    
+    if (name2 && !(o->foreach.name2 = strdup(name2))) {
+        goto fail;
+    }
+    
+    o->type = NCDSTATEMENT_FOREACH;
+    o->foreach.collection = collection;
+    o->foreach.block = block;
+    o->foreach.is_grabbed = 0;
+    
+    return 1;
+    
+fail:
+    free(o->name);
+    free(o->foreach.name1);
+    free(o->foreach.name2);
+    return 0;
+}
+
 void NCDStatement_Free (NCDStatement *o)
 {
     switch (o->type) {
@@ -297,6 +331,15 @@ void NCDStatement_Free (NCDStatement *o)
             }
             
             NCDIfBlock_Free(&o->ifc.ifblock);
+        } break;
+        
+        case NCDSTATEMENT_FOREACH: {
+            if (!o->foreach.is_grabbed) {
+                NCDBlock_Free(&o->foreach.block);
+                NCDValue_Free(&o->foreach.collection);
+            }
+            free(o->foreach.name2);
+            free(o->foreach.name1);
         } break;
         
         default: ASSERT(0);
@@ -371,6 +414,46 @@ NCDBlock NCDStatement_IfGrabElse (NCDStatement *o)
     o->ifc.have_else = 0;
     
     return o->ifc.else_block;
+}
+
+NCDValue * NCDStatement_ForeachCollection (NCDStatement *o)
+{
+    ASSERT(o->type == NCDSTATEMENT_FOREACH)
+    ASSERT(!o->foreach.is_grabbed)
+    
+    return &o->foreach.collection;
+}
+
+const char * NCDStatement_ForeachName1 (NCDStatement *o)
+{
+    ASSERT(o->type == NCDSTATEMENT_FOREACH)
+    
+    return o->foreach.name1;
+}
+
+const char * NCDStatement_ForeachName2 (NCDStatement *o)
+{
+    ASSERT(o->type == NCDSTATEMENT_FOREACH)
+    
+    return o->foreach.name2;
+}
+
+NCDBlock * NCDStatement_ForeachBlock (NCDStatement *o)
+{
+    ASSERT(o->type == NCDSTATEMENT_FOREACH)
+    ASSERT(!o->foreach.is_grabbed)
+    
+    return &o->foreach.block;
+}
+
+void NCDStatement_ForeachGrab (NCDStatement *o, NCDValue *out_collection, NCDBlock *out_block)
+{
+    ASSERT(o->type == NCDSTATEMENT_FOREACH)
+    ASSERT(!o->foreach.is_grabbed)
+    
+    *out_collection = o->foreach.collection;
+    *out_block = o->foreach.block;
+    o->foreach.is_grabbed = 1;
 }
 
 void NCDIfBlock_Init (NCDIfBlock *o)

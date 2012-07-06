@@ -75,6 +75,13 @@ struct NCDStatement_s {
             int have_else;
             NCDBlock else_block;
         } ifc;
+        struct {
+            NCDValue collection;
+            char *name1;
+            char *name2;
+            NCDBlock block;
+            int is_grabbed;
+        } foreach;
     };
 };
 
@@ -102,6 +109,7 @@ struct IfBlockIf {
 
 #define NCDSTATEMENT_REG 1
 #define NCDSTATEMENT_IF 2
+#define NCDSTATEMENT_FOREACH 3
 
 void NCDProgram_Init (NCDProgram *o);
 void NCDProgram_Free (NCDProgram *o);
@@ -127,6 +135,7 @@ size_t NCDBlock_NumStatements (NCDBlock *o);
 
 int NCDStatement_InitReg (NCDStatement *o, const char *name, const char *objname, const char *cmdname, NCDValue args) WARN_UNUSED;
 int NCDStatement_InitIf (NCDStatement *o, const char *name, NCDIfBlock ifblock) WARN_UNUSED;
+int NCDStatement_InitForeach (NCDStatement *o, const char *name, NCDValue collection, const char *name1, const char *name2, NCDBlock block) WARN_UNUSED;
 void NCDStatement_Free (NCDStatement *o);
 int NCDStatement_Type (NCDStatement *o);
 const char * NCDStatement_Name (NCDStatement *o);
@@ -137,6 +146,11 @@ NCDIfBlock * NCDStatement_IfBlock (NCDStatement *o);
 void NCDStatement_IfAddElse (NCDStatement *o, NCDBlock else_block);
 NCDBlock * NCDStatement_IfElse (NCDStatement *o);
 NCDBlock NCDStatement_IfGrabElse (NCDStatement *o);
+NCDValue * NCDStatement_ForeachCollection (NCDStatement *o);
+const char * NCDStatement_ForeachName1 (NCDStatement *o);
+const char * NCDStatement_ForeachName2 (NCDStatement *o);
+NCDBlock * NCDStatement_ForeachBlock (NCDStatement *o);
+void NCDStatement_ForeachGrab (NCDStatement *o, NCDValue *out_collection, NCDBlock *out_block);
 
 void NCDIfBlock_Init (NCDIfBlock *o);
 void NCDIfBlock_Free (NCDIfBlock *o);
