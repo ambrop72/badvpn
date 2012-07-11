@@ -65,9 +65,12 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
+#include <limits.h>
 
 #include <misc/balloc.h>
 #include <misc/string_begins_with.h>
+#include <misc/debug.h>
 #include <system/BReactor.h>
 #include <ncd/NCDModule.h>
 
@@ -90,22 +93,21 @@ struct element;
 
 struct instance {
     NCDModuleInst *i;
-    int type;
     const char *template_name;
     NCDValRef args;
     const char *name1;
     const char *name2;
     BTimer timer;
-    size_t num_elems;
     struct element *elems;
-    size_t gp; // good pointer
-    size_t ip; // initialized pointer
+    int type;
+    int num_elems;
+    int gp; // good pointer
+    int ip; // initialized pointer
     int state;
 };
 
 struct element {
     struct instance *inst;
-    size_t i;
     union {
         struct {
             NCDValRef list_elem;
@@ -116,6 +118,7 @@ struct element {
         };
     };
     NCDModuleProcess process;
+    int i;
     int state;
 };
 
@@ -134,13 +137,16 @@ static void instance_free (struct instance *o);
 
 static void assert_state (struct instance *o)
 {
+    ASSERT(o->num_elems >= 0)
+    ASSERT(o->gp >= 0)
+    ASSERT(o->ip >= 0)
     ASSERT(o->gp <= o->num_elems)
     ASSERT(o->ip <= o->num_elems)
     ASSERT(o->gp <= o->ip)
     
 #ifndef NDEBUG
     // check GP
-    for (size_t i = 0; i < o->gp; i++) {
+    for (int i = 0; i < o->gp; i++) {
         if (i == o->gp - 1) {
             ASSERT(o->elems[i].state == ESTATE_UP || o->elems[i].state == ESTATE_DOWN ||
                    o->elems[i].state == ESTATE_WAITING)
@@ -150,14 +156,14 @@ static void assert_state (struct instance *o)
     }
     
     // check IP
-    size_t ip = o->num_elems;
+    int ip = o->num_elems;
     while (ip > 0 && o->elems[ip - 1].state == ESTATE_FORGOTTEN) {
         ip--;
     }
     ASSERT(o->ip == ip)
     
     // check gap
-    for (size_t i = o->gp; i < o->ip; i++) {
+    for (int i = o->gp; i < o->ip; i++) {
         if (i == o->ip - 1) {
             ASSERT(o->elems[i].state == ESTATE_UP || o->elems[i].state == ESTATE_DOWN ||
                    o->elems[i].state == ESTATE_WAITING || o->elems[i].state == ESTATE_TERMINATING)
@@ -410,7 +416,7 @@ static int element_list_index_object_func_getvar (struct element *e, const char 
     }
     
     char str[64];
-    snprintf(str, sizeof(str), "%zu", e->i);
+    snprintf(str, sizeof(str), "%d", e->i);
     
     *out = NCDVal_NewString(mem, str);
     if (NCDVal_IsInvalid(*out)) {
@@ -490,14 +496,15 @@ static void func_new_common (void *vo, NCDModuleInst *i, NCDValRef collection, c
     btime_t retry_time = NCDModuleInst_Backend_InterpGetRetryTime(i);
     BTimer_Init(&o->timer, retry_time, (BTimer_handler)timer_handler, o);
     
+    size_t num_elems;
     NCDValMapElem cur_map_elem;
     
     switch (o->type) {
         case NCDVAL_LIST: {
-            o->num_elems = NCDVal_ListCount(collection);
+            num_elems = NCDVal_ListCount(collection);
         } break;
         case NCDVAL_MAP: {
-            o->num_elems = NCDVal_MapCount(collection);
+            num_elems = NCDVal_MapCount(collection);
             cur_map_elem = NCDVal_MapOrderedFirst(collection); 
         } break;
         default:
@@ -505,13 +512,19 @@ static void func_new_common (void *vo, NCDModuleInst *i, NCDValRef collection, c
             goto fail0;
     }
     
+    if (num_elems > INT_MAX) {
+        ModuleLog(i, BLOG_ERROR, "too many elements");
+        goto fail0;
+    }
+    o->num_elems = num_elems;
+    
     // allocate elements
     if (!(o->elems = BAllocArray(o->num_elems, sizeof(o->elems[0])))) {
         ModuleLog(i, BLOG_ERROR, "BAllocArray failed");
         goto fail0;
     }
     
-    for (size_t j = 0; j < o->num_elems; j++) {
+    for (int j = 0; j < o->num_elems; j++) {
         struct element *e = &o->elems[j];
         
         // set instance
