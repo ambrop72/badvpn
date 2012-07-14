@@ -459,17 +459,12 @@ void NCDModuleProcess_Interp_Down (NCDModuleProcess *o)
 {
     DebugObject_Access(&o->d_obj);
     process_assert_interp(o);
+    ASSERT(o->state == PROCESS_STATE_UP)
     
-    switch (o->state) {
-        case PROCESS_STATE_UP: {
-            o->state = PROCESS_STATE_DOWN_WAITING;
-            
-            o->handler_event(o->user, NCDMODULEPROCESS_EVENT_DOWN);
-            return;
-        } break;
-        
-        default: ASSERT(0);
-    }
+    o->state = PROCESS_STATE_DOWN_WAITING;
+    
+    o->handler_event(o->user, NCDMODULEPROCESS_EVENT_DOWN);
+    return;
 }
 
 void NCDModuleProcess_Interp_Terminated (NCDModuleProcess *o)
