@@ -156,7 +156,7 @@ static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static void start_terminate (int exit_code);
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process);
-static void process_free (struct process *p);
+static void process_free (struct process *p, NCDModuleProcess **out_mp);
 static int process_mem_is_preallocated (struct process *p, char *mem);
 static void process_start_terminating (struct process *p);
 static int process_rap (struct process *p);
@@ -381,7 +381,9 @@ fail6:;
     LinkedList1Node *ln;
     while (ln = LinkedList1_GetFirst(&processes)) {
         struct process *p = UPPER_OBJECT(ln, struct process, list_node);
-        process_free(p);
+        NCDModuleProcess *mp;
+        process_free(p, &mp);
+        ASSERT(!mp)
     }
 fail5:
     // free modules
@@ -708,15 +710,14 @@ fail0:
     return 0;
 }
 
-void process_free (struct process *p)
+void process_free (struct process *p, NCDModuleProcess **out_mp)
 {
     ASSERT(p->ap == 0)
     ASSERT(p->fp == 0)
+    ASSERT(out_mp)
     
-    // inform module process that the process is terminated
-    if (p->module_process) {
-        NCDModuleProcess_Interp_Terminated(p->module_process);
-    }
+    // give module process to caller so it can inform the process creator that the process has terminated
+    *out_mp = p->module_process;
     
     // free statement memory
     for (int i = 0; i < p->num_statements; i++) {
@@ -829,13 +830,23 @@ void process_work_job_handler (struct process *p)
     
     if (p->state == PSTATE_TERMINATING) {
         if (p->fp == 0) {
-            // finished retreating
-            process_free(p);
+            // free process
+            NCDModuleProcess *mp;
+            process_free(p, &mp);
             
             // if program is terminating amd there are no more processes, exit program
             if (terminating && LinkedList1_IsEmpty(&processes)) {
+                ASSERT(!mp)
                 BReactor_Quit(&reactor, 0);
+                return;
             }
+            
+            // inform the process creator that the process has terminated
+            if (mp) {
+                NCDModuleProcess_Interp_Terminated(mp);
+                return;
+            }
+            
             return;
         }
         
@@ -864,11 +875,11 @@ void process_work_job_handler (struct process *p)
     if (p->state == PSTATE_UP && !(p->ap == process_rap(p) && p->ap == p->num_statements)) {
         // if we have module process, wait for its permission to continue
         if (p->module_process) {
-            // set module process down
-            NCDModuleProcess_Interp_Down(p->module_process);
-            
             // set state waiting
             p->state = PSTATE_WAITING;
+            
+            // set module process down
+            NCDModuleProcess_Interp_Down(p->module_process);
             return;
         }
         
@@ -933,13 +944,14 @@ void process_work_job_handler (struct process *p)
     if (p->state == PSTATE_WORKING) {
         process_log(p, BLOG_INFO, "victory");
         
+        // set state up
+        p->state = PSTATE_UP;
+        
         // set module process up
         if (p->module_process) {
             NCDModuleProcess_Interp_Up(p->module_process);
+            return;
         }
-        
-        // set state up
-        p->state = PSTATE_UP;
     }
 }
 

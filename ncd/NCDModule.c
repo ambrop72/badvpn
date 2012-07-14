@@ -46,13 +46,9 @@
 
 #define PROCESS_STATE_INIT 1
 #define PROCESS_STATE_DOWN 2
-#define PROCESS_STATE_UP_PENDING 3
 #define PROCESS_STATE_UP 4
-#define PROCESS_STATE_DOWN_PENDING 5
 #define PROCESS_STATE_DOWN_WAITING 6
-#define PROCESS_STATE_DOWN_CONTINUE_PENDING 7
 #define PROCESS_STATE_TERMINATING 8
-#define PROCESS_STATE_TERMINATED_PENDING 9
 #define PROCESS_STATE_TERMINATED 10
 
 static int object_func_getvar (NCDModuleInst *n, const char *name, NCDValMem *mem, NCDValRef *out_value);
@@ -63,42 +59,6 @@ static int process_arg_object_func_getvar2 (NCDModuleProcess *o, void *n_ptr, co
 static void frontend_event (NCDModuleInst *n, int event)
 {
     n->params->func_event(n->user, event);
-}
-
-static void process_event_job_handler (NCDModuleProcess *o)
-{
-    DebugObject_Access(&o->d_obj);
-    
-    switch (o->state) {
-        case PROCESS_STATE_DOWN_CONTINUE_PENDING: {
-            o->state = PROCESS_STATE_DOWN;
-            
-            o->interp_func_event(o->interp_user, NCDMODULEPROCESS_INTERP_EVENT_CONTINUE);
-        } break;
-        
-        case PROCESS_STATE_UP_PENDING: {
-            o->state = PROCESS_STATE_UP;
-            
-            o->handler_event(o->user, NCDMODULEPROCESS_EVENT_UP);
-            return;
-        } break;
-        
-        case PROCESS_STATE_DOWN_PENDING: {
-            o->state = PROCESS_STATE_DOWN_WAITING;
-            
-            o->handler_event(o->user, NCDMODULEPROCESS_EVENT_DOWN);
-            return;
-        } break;
-        
-        case PROCESS_STATE_TERMINATED_PENDING: {
-            o->state = PROCESS_STATE_TERMINATED;
-            
-            o->handler_event(o->user, NCDMODULEPROCESS_EVENT_TERMINATED);
-            return;
-        } break;
-        
-        default: ASSERT(0);
-    }
 }
 
 static void inst_assert_backend (NCDModuleInst *n)
@@ -380,9 +340,6 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     // set no special functions
     o->func_getspecialobj = NULL;
     
-    // init event job
-    BPending_Init(&o->event_job, BReactor_PendingGroup(n->iparams->reactor), (BPending_handler)process_event_job_handler, o);
-    
     // set state
     o->state = PROCESS_STATE_INIT;
     
@@ -405,7 +362,6 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     return 1;
     
 fail1:
-    BPending_Free(&o->event_job);
     return 0;
 }
 
@@ -413,9 +369,6 @@ void NCDModuleProcess_Free (NCDModuleProcess *o)
 {
     DebugObject_Free(&o->d_obj);
     ASSERT(o->state == PROCESS_STATE_TERMINATED)
-    
-    // free event job
-    BPending_Free(&o->event_job);
 }
 
 void NCDModuleProcess_AssertFree (NCDModuleProcess *o)
@@ -444,11 +397,9 @@ void NCDModuleProcess_Continue (NCDModuleProcess *o)
 void NCDModuleProcess_Terminate (NCDModuleProcess *o)
 {
     DebugObject_Access(&o->d_obj);
-    ASSERT(o->state == PROCESS_STATE_DOWN || o->state == PROCESS_STATE_UP_PENDING ||
-           o->state == PROCESS_STATE_DOWN_CONTINUE_PENDING || o->state == PROCESS_STATE_UP ||
-           o->state == PROCESS_STATE_DOWN_PENDING || o->state == PROCESS_STATE_DOWN_WAITING)
+    ASSERT(o->state == PROCESS_STATE_DOWN || o->state == PROCESS_STATE_UP ||
+           o->state == PROCESS_STATE_DOWN_WAITING)
     
-    BPending_Unset(&o->event_job);
     o->state = PROCESS_STATE_TERMINATING;
     
     o->interp_func_event(o->interp_user, NCDMODULEPROCESS_INTERP_EVENT_TERMINATE);
@@ -462,7 +413,7 @@ int NCDModuleProcess_GetObj (NCDModuleProcess *o, const char *name, NCDObject *o
     ASSERT(out_object)
     
     // interpreter gone?
-    if (o->state == PROCESS_STATE_TERMINATED_PENDING || o->state == PROCESS_STATE_TERMINATED) {
+    if (o->state == PROCESS_STATE_TERMINATED) {
         return 0;
     }
     
@@ -475,10 +426,8 @@ int NCDModuleProcess_GetObj (NCDModuleProcess *o, const char *name, NCDObject *o
 static void process_assert_interp (NCDModuleProcess *o)
 {
     // assert that the interpreter knows about the object, and we're not in init
-    ASSERT(o->state == PROCESS_STATE_DOWN || o->state == PROCESS_STATE_UP_PENDING ||
-           o->state == PROCESS_STATE_DOWN_CONTINUE_PENDING || o->state == PROCESS_STATE_UP ||
-           o->state == PROCESS_STATE_DOWN_PENDING || o->state == PROCESS_STATE_DOWN_WAITING ||
-           o->state == PROCESS_STATE_TERMINATING)
+    ASSERT(o->state == PROCESS_STATE_DOWN || o->state == PROCESS_STATE_UP ||
+           o->state == PROCESS_STATE_DOWN_WAITING || o->state == PROCESS_STATE_TERMINATING)
 }
 
 void NCDModuleProcess_Interp_SetHandlers (NCDModuleProcess *o, void *interp_user,
@@ -500,8 +449,10 @@ void NCDModuleProcess_Interp_Up (NCDModuleProcess *o)
     process_assert_interp(o);
     ASSERT(o->state == PROCESS_STATE_DOWN)
     
-    BPending_Set(&o->event_job);
-    o->state = PROCESS_STATE_UP_PENDING;
+    o->state = PROCESS_STATE_UP;
+    
+    o->handler_event(o->user, NCDMODULEPROCESS_EVENT_UP);
+    return;
 }
 
 void NCDModuleProcess_Interp_Down (NCDModuleProcess *o)
@@ -510,15 +461,11 @@ void NCDModuleProcess_Interp_Down (NCDModuleProcess *o)
     process_assert_interp(o);
     
     switch (o->state) {
-        case PROCESS_STATE_UP_PENDING: {
-            BPending_Unset(&o->event_job);
-            BPending_Set(&o->event_job);
-            o->state = PROCESS_STATE_DOWN_CONTINUE_PENDING;
-        } break;
-        
         case PROCESS_STATE_UP: {
-            BPending_Set(&o->event_job);
-            o->state = PROCESS_STATE_DOWN_PENDING;
+            o->state = PROCESS_STATE_DOWN_WAITING;
+            
+            o->handler_event(o->user, NCDMODULEPROCESS_EVENT_DOWN);
+            return;
         } break;
         
         default: ASSERT(0);
@@ -531,8 +478,10 @@ void NCDModuleProcess_Interp_Terminated (NCDModuleProcess *o)
     process_assert_interp(o);
     ASSERT(o->state == PROCESS_STATE_TERMINATING)
     
-    BPending_Set(&o->event_job);
-    o->state = PROCESS_STATE_TERMINATED_PENDING;
+    o->state = PROCESS_STATE_TERMINATED;
+    
+    o->handler_event(o->user, NCDMODULEPROCESS_EVENT_TERMINATED);
+    return;
 }
 
 int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, const char *name, NCDObject *out_object)

@@ -310,7 +310,6 @@ typedef struct NCDModuleProcess_s {
     void *user;
     NCDModuleProcess_handler_event handler_event;
     NCDModuleProcess_func_getspecialobj func_getspecialobj;
-    BPending event_job;
     int state;
     void *interp_user;
     NCDModuleProcess_interp_func_event interp_func_event;
@@ -585,6 +584,7 @@ void NCDModuleProcess_Interp_SetHandlers (NCDModuleProcess *o, void *interp_user
  * Reports the process backend as up.
  * The process backend must be in down state.
  * The process backend enters up state.
+ * WARNING: this directly calls the process creator; expect to be called back
  * 
  * @param o process backend handle
  */
@@ -594,6 +594,7 @@ void NCDModuleProcess_Interp_Up (NCDModuleProcess *o);
  * Reports the process backend as down.
  * The process backend must be in up state.
  * The process backend enters waiting state.
+ * WARNING: this directly calls the process creator; expect to be called back
  * 
  * NOTE: the backend enters waiting state, NOT down state. The interpreter should
  * pause the process until {@link NCDModuleProcess_interp_func_event} reports
@@ -609,6 +610,7 @@ void NCDModuleProcess_Interp_Down (NCDModuleProcess *o);
  * The process backend must be in terminating state.
  * The process backend handle becomes invalid and must not be used
  * by the interpreter any longer.
+ * WARNING: this directly calls the process creator; expect to be called back
  * 
  * @param o process backend handle
  */
