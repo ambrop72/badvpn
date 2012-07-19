@@ -32,6 +32,7 @@
 
 #include <misc/offset.h>
 #include <misc/split_string.h>
+#include <misc/balloc.h>
 #include <base/BLog.h>
 
 #include "NCDInterpValue.h"
@@ -121,7 +122,7 @@ void NCDInterpValue_Free (NCDInterpValue *o)
 {
     switch (o->type) {
         case NCDVALUE_STRING: {
-            free(o->string);
+            BFree(o->string);
         } break;
         
         case NCDVALUE_VAR: {
@@ -155,8 +156,8 @@ int NCDInterpValue_InitString (NCDInterpValue *o, const char *string, size_t len
 {
     o->type = NCDVALUE_STRING;
     
-    if (!(o->string = malloc(len))) {
-        BLog(BLOG_ERROR, "malloc failed");
+    if (!(o->string = BAlloc(len))) {
+        BLog(BLOG_ERROR, "BAlloc failed");
         return 0;
     }
     memcpy(o->string, string, len);

@@ -120,6 +120,7 @@
 #include <misc/offset.h>
 #include <misc/debug.h>
 #include <misc/parse_number.h>
+#include <misc/balloc.h>
 #include <structure/LinkedList0.h>
 #include <structure/IndexedList.h>
 #include <structure/BCountAVL.h>
@@ -231,7 +232,7 @@ static void value_cleanup (struct value *v)
     
     switch (v->type) {
         case NCDVAL_STRING: {
-            free(v->string.string);
+            BFree(v->string.string);
         } break;
         
         case NCDVAL_LIST: {
@@ -279,7 +280,7 @@ static void value_delete (struct value *v)
     
     switch (v->type) {
         case NCDVAL_STRING: {
-            free(v->string.string);
+            BFree(v->string.string);
         } break;
         
         case NCDVAL_LIST: {
@@ -314,8 +315,8 @@ static struct value * value_init_string (NCDModuleInst *i, const uint8_t *str, s
     v->parent = NULL;
     v->type = NCDVAL_STRING;
     
-    if (!(v->string.string = malloc(len))) {
-        ModuleLog(i, BLOG_ERROR, "malloc failed");
+    if (!(v->string.string = BAlloc(len))) {
+        ModuleLog(i, BLOG_ERROR, "BAlloc failed");
         goto fail1;
     }
     
