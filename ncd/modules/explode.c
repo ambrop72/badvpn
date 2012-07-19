@@ -138,8 +138,8 @@ static void func_new (void *vo, NCDModuleInst *i)
         
         struct substring *elem = &((struct substring *)o->arr.v)[o->num];
         
-        if (!(elem->data = malloc(start))) {
-            ModuleLog(i, BLOG_ERROR, "malloc failed");
+        if (!(elem->data = BAlloc(start))) {
+            ModuleLog(i, BLOG_ERROR, "BAlloc failed");
             goto fail2;
         }
         
@@ -164,7 +164,7 @@ static void func_new (void *vo, NCDModuleInst *i)
 
 fail2:
     while (o->num-- > 0) {
-        free(((struct substring *)o->arr.v)[o->num].data);
+        BFree(((struct substring *)o->arr.v)[o->num].data);
     }
     free(o->arr.v);
 fail1:
@@ -179,7 +179,7 @@ static void func_die (void *vo)
     struct instance *o = vo;
     
     while (o->num-- > 0) {
-        free(((struct substring *)o->arr.v)[o->num].data);
+        BFree(((struct substring *)o->arr.v)[o->num].data);
     }
     free(o->arr.v);
     
