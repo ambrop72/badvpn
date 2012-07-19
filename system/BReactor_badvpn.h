@@ -63,7 +63,7 @@
 #include <misc/debugcounter.h>
 #include <base/DebugObject.h>
 #include <structure/LinkedList1.h>
-#include <structure/BHeap.h>
+#include <structure/CAvl.h>
 #include <system/BTime.h>
 #include <base/BPending.h>
 
@@ -92,7 +92,11 @@ typedef struct BTimer_t {
     uint8_t expired;
     btime_t absTime;
     union {
-        BHeapNode heap_node;
+        struct {
+            struct BTimer_t *tree_child[2];
+            struct BTimer_t *tree_parent;
+            int8_t tree_balance;
+        };
         LinkedList1Node list_node;
     };
 } BTimer;
@@ -182,6 +186,11 @@ void BFileDescriptor_Init (BFileDescriptor *bs, int fd, BFileDescriptor_handler 
 #define BSYSTEM_MAX_HANDLES 64
 #define BSYSTEM_MAX_POLL_FDS 4096
 
+typedef BTimer *BReactor__TimersTree_link;
+
+#include "BReactor_badvpn_timerstree.h"
+#include <structure/CAvl_decl.h>
+
 /**
  * Event loop that supports file desciptor (Linux) or HANDLE (Windows) events
  * and timers.
@@ -194,7 +203,7 @@ typedef struct {
     BPendingGroup pending_jobs;
     
     // timers
-    BHeap timers_heap;
+    BReactor__TimersTree timers_tree;
     LinkedList1 timers_expired_list;
     
     // limits
