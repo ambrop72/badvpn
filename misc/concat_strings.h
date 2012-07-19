@@ -52,6 +52,7 @@ static char * concat_strings (int num, ...)
         const char *str = va_arg(ap, const char *);
         size_t str_len = strlen(str);
         if (str_len > SIZE_MAX - 1 - sum) {
+            va_end(ap);
             return NULL;
         }
         sum += str_len;
