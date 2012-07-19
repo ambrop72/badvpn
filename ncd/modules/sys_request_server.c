@@ -791,7 +791,6 @@ static void instance_free (struct instance *o)
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     ASSERT(!o->dying)
     
     // free listener
@@ -867,7 +866,6 @@ static void finish_func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(i);
     
     struct request *r = i->method_user;
-    struct connection *c = r->con;
     
     if (r->terminating) {
         ModuleLog(i, BLOG_ERROR, "request is dying, cannot submit finished");

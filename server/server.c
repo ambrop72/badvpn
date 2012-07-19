@@ -1369,7 +1369,9 @@ int client_send_newclient (struct client_data *client, struct client_data *nc, i
     }
     pack->id = htol16(nc->id);
     pack->flags = htol16(flags);
-    memcpy(pack + 1, cert_data, cert_len);
+    if (cert_len > 0) {
+        memcpy(pack + 1, cert_data, cert_len);
+    }
     client_end_control_packet(client, SCID_NEWCLIENT);
     
     return 0;

@@ -252,8 +252,6 @@ int BProcess_Init2 (BProcess *o, BProcessManager *m, BProcess_handler handler, v
             close(i);
         }
         
-        const int *orig_fds_map = params.fds_map;
-        
         // map fds to requested fd numbers
         while (*fds2 >= 0) {
             // resolve possible conflict

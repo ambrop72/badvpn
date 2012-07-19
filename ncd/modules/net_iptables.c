@@ -561,7 +561,6 @@ fail0:
 static void unlock_func_die (void *vo)
 {
     struct unlock_instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // if lock is gone, die right away
     if (!o->lock) {
