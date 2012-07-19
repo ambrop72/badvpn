@@ -93,7 +93,7 @@ typedef struct {
 } NCDListElement;
 
 struct NCDMapElement_s {
-    NCDMapElement *tree_link[2];
+    NCDMapElement *tree_child[2];
     NCDMapElement *tree_parent;
     int8_t tree_balance;
     NCDValue key;

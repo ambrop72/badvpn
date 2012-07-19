@@ -53,7 +53,7 @@ struct IndexedList_s {
 };
 
 struct IndexedListNode_s {
-    IndexedListNode *tree_link[2];
+    IndexedListNode *tree_child[2];
     IndexedListNode *tree_parent;
     int8_t tree_balance;
     uint64_t tree_count;
@@ -148,9 +148,9 @@ static IndexedListNode * IndexedList_GetPrev (IndexedList *o, IndexedListNode *n
 #include "IndexedList_tree.h"
 #include <structure/CAvl_impl.h>
 
-static IndexedListNode * IndexedList__deref (IndexedList__TreeNode ref)
+static IndexedListNode * IndexedList__deref (IndexedList__TreeRef ref)
 {
-    return (ref.link == IndexedList__TreeNullLink ? NULL : ref.ptr);
+    return ref.link;
 }
 
 static void IndexedList_Init (IndexedList *o)
@@ -165,15 +165,15 @@ static void IndexedList_InsertAt (IndexedList *o, IndexedListNode *node, uint64_
     
     uint64_t orig_count = IndexedList__Tree_Count(&o->tree, 0);
     
-    IndexedList__Tree_InsertAt(&o->tree, 0, IndexedList__Tree_Deref(0, node), index);
+    IndexedList__Tree_InsertAt(&o->tree, 0, IndexedList__TreeDeref(0, node), index);
     
-    ASSERT(IndexedList__Tree_IndexOf(&o->tree, 0, IndexedList__Tree_Deref(0, node)) == index)
+    ASSERT(IndexedList__Tree_IndexOf(&o->tree, 0, IndexedList__TreeDeref(0, node)) == index)
     ASSERT(IndexedList__Tree_Count(&o->tree, 0) == orig_count + 1)
 }
 
 static void IndexedList_Remove (IndexedList *o, IndexedListNode *node)
 {
-    IndexedList__Tree_Remove(&o->tree, 0, IndexedList__Tree_Deref(0, node));
+    IndexedList__Tree_Remove(&o->tree, 0, IndexedList__TreeDeref(0, node));
 }
 
 static uint64_t IndexedList_Count (IndexedList *o)
@@ -183,15 +183,15 @@ static uint64_t IndexedList_Count (IndexedList *o)
 
 static uint64_t IndexedList_IndexOf (IndexedList *o, IndexedListNode *node)
 {
-    return IndexedList__Tree_IndexOf(&o->tree, 0, IndexedList__Tree_Deref(0, node));
+    return IndexedList__Tree_IndexOf(&o->tree, 0, IndexedList__TreeDeref(0, node));
 }
 
 static IndexedListNode * IndexedList_GetAt (IndexedList *o, uint64_t index)
 {
     ASSERT(index < IndexedList__Tree_Count(&o->tree, 0))
     
-    IndexedList__TreeNode ref = IndexedList__Tree_GetAt(&o->tree, 0, index);
-    ASSERT(ref.link != IndexedList__TreeNullLink)
+    IndexedList__TreeRef ref = IndexedList__Tree_GetAt(&o->tree, 0, index);
+    ASSERT(!IndexedList__TreeIsNullRef(ref))
     
     return ref.ptr;
 }
@@ -210,15 +210,14 @@ static IndexedListNode * IndexedList_GetNext (IndexedList *o, IndexedListNode *n
 {
     ASSERT(node)
     
-    return IndexedList__deref(IndexedList__Tree_GetNext(&o->tree, 0, IndexedList__Tree_Deref(0, node)));
+    return IndexedList__deref(IndexedList__Tree_GetNext(&o->tree, 0, IndexedList__TreeDeref(0, node)));
 }
 
 static IndexedListNode * IndexedList_GetPrev (IndexedList *o, IndexedListNode *node)
 {
     ASSERT(node)
     
-    return IndexedList__deref(IndexedList__Tree_GetPrev(&o->tree, 0, IndexedList__Tree_Deref(0, node)));
+    return IndexedList__deref(IndexedList__Tree_GetPrev(&o->tree, 0, IndexedList__TreeDeref(0, node)));
 }
-
 
 #endif

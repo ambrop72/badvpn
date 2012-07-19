@@ -689,7 +689,7 @@ int NCDVal_MapInsert (NCDValRef map, NCDValRef key, NCDValRef val)
     me_e->key_idx = key.idx;
     me_e->val_idx = val.idx;
     
-    int res = NCDVal__MapTree_Insert(&map_e->tree, map.mem, NCDVal__MapTree_Deref(map.mem, elemidx), NULL);
+    int res = NCDVal__MapTree_Insert(&map_e->tree, map.mem, NCDVal__MapTreeDeref(map.mem, elemidx), NULL);
     if (!res) {
         return 0;
     }
@@ -766,7 +766,7 @@ NCDValMapElem NCDVal_MapOrderedFirst (NCDValRef map)
     
     struct NCDVal__map *map_e = NCDValMem__BufAt(map.mem, map.idx);
     
-    NCDVal__MapTreeNode ref = NCDVal__MapTree_GetFirst(&map_e->tree, map.mem);
+    NCDVal__MapTreeRef ref = NCDVal__MapTree_GetFirst(&map_e->tree, map.mem);
     ASSERT(ref.link == -1 || (NCDVal__MapAssertElemOnly(map, ref.link), 1))
     
     return NCDVal__MapElem(ref.link);
@@ -778,7 +778,7 @@ NCDValMapElem NCDVal_MapOrderedNext (NCDValRef map, NCDValMapElem me)
     
     struct NCDVal__map *map_e = NCDValMem__BufAt(map.mem, map.idx);
     
-    NCDVal__MapTreeNode ref = NCDVal__MapTree_GetNext(&map_e->tree, map.mem, NCDVal__MapTree_Deref(map.mem, me.elemidx));
+    NCDVal__MapTreeRef ref = NCDVal__MapTree_GetNext(&map_e->tree, map.mem, NCDVal__MapTreeDeref(map.mem, me.elemidx));
     ASSERT(ref.link == -1 || (NCDVal__MapAssertElemOnly(map, ref.link), 1))
     
     return NCDVal__MapElem(ref.link);
@@ -809,7 +809,7 @@ NCDValMapElem NCDVal_MapFindKey (NCDValRef map, NCDValRef key)
     
     struct NCDVal__map *map_e = NCDValMem__BufAt(map.mem, map.idx);
     
-    NCDVal__MapTreeNode ref = NCDVal__MapTree_LookupExact(&map_e->tree, map.mem, key);
+    NCDVal__MapTreeRef ref = NCDVal__MapTree_LookupExact(&map_e->tree, map.mem, key);
     ASSERT(ref.link == -1 || (NCDVal__MapAssertElemOnly(map, ref.link), 1))
     
     return NCDVal__MapElem(ref.link);

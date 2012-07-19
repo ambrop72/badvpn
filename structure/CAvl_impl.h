@@ -29,87 +29,94 @@
 
 #include "CAvl_header.h"
 
-static CAvlNode CAvl_nullnode (void)
+static CAvlLink CAvl_nulllink (void)
 {
-    CAvlNode n;
-    n.link = CAvlNullLink;
+    return CAVL_PARAM_VALUE_NULL;
+}
+
+static CAvlRef CAvl_nullref (void)
+{
+    CAvlRef n;
+    n.link = CAVL_PARAM_VALUE_NULL;
     n.ptr = NULL;
     return n;
 }
 
-#if !CAVL_PARAM_KEYS_ARE_INDICES
-static int CAvl_compare_nodes (CAvlArg arg, CAvlNode node1, CAvlNode node2)
+#if !CAVL_PARAM_FEATURE_KEYS_ARE_INDICES
+
+static int CAvl_compare_entries (CAvlArg arg, CAvlRef node1, CAvlRef node2)
 {
-    int res = CAVL_PARAM_COMPARE_NODES(arg, node1, node2);
+    int res = CAVL_PARAM_FUN_COMPARE_ENTRIES(arg, node1, node2);
     ASSERT(res >= -1)
     ASSERT(res <= 1)
     
     return res;
 }
 
-static int CAvl_compare_key_node (CAvlArg arg, CAvlKey key1, CAvlNode node2)
+static int CAvl_compare_key_entry (CAvlArg arg, CAvlKey key1, CAvlRef node2)
 {
-    int res = CAVL_PARAM_COMPARE_KEY_NODE(arg, key1, node2);
+    int res = CAVL_PARAM_FUN_COMPARE_KEY_ENTRY(arg, key1, node2);
     ASSERT(res >= -1)
     ASSERT(res <= 1)
     
     return res;
 }
+
 #endif
 
-static int CAvl_check_parent (CAvlNode p, CAvlNode c)
+static int CAvl_check_parent (CAvlRef p, CAvlRef c)
 {
-    return (p.link == CAvl_parent(c)) && (p.link == CAvlNullLink || c.link == CAvl_link(p)[0] || c.link == CAvl_link(p)[1]);
+    return (p.link == CAvl_parent(c)) && (p.link == CAvl_nulllink() || c.link == CAvl_link(p)[0] || c.link == CAvl_link(p)[1]);
 }
 
-static int CAvl_verify_recurser (CAvlArg arg, CAvlNode n)
+static int CAvl_verify_recurser (CAvlArg arg, CAvlRef n)
 {
     ASSERT_FORCE(CAvl_balance(n) >= -1)
     ASSERT_FORCE(CAvl_balance(n) <= 1)
     
     int height_left = 0;
     int height_right = 0;
-#if CAVL_PARAM_USE_COUNTS
+#if CAVL_PARAM_FEATURE_COUNTS
     CAvlCount count_left = 0;
     CAvlCount count_right = 0;
 #endif
     
     // check left subtree
-    if (CAvl_link(n)[0] != CAvlNullLink) {
+    if (CAvl_link(n)[0] != CAvl_nulllink()) {
         // check parent link
-        ASSERT_FORCE(CAvl_parent(CAvl_Deref(arg, CAvl_link(n)[0])) == n.link)
+        ASSERT_FORCE(CAvl_parent(CAvlDeref(arg, CAvl_link(n)[0])) == n.link)
         // check binary search tree
-#if !CAVL_PARAM_KEYS_ARE_INDICES
-        ASSERT_FORCE(CAvl_compare_nodes(arg, CAvl_Deref(arg, CAvl_link(n)[0]), n) == -1)
+#if !CAVL_PARAM_FEATURE_KEYS_ARE_INDICES
+        ASSERT_FORCE(CAvl_compare_entries(arg, CAvlDeref(arg, CAvl_link(n)[0]), n) == -1)
 #endif
         // recursively calculate height
-        height_left = CAvl_verify_recurser(arg, CAvl_Deref(arg, CAvl_link(n)[0]));
-#if CAVL_PARAM_USE_COUNTS
-        count_left = CAvl_count(CAvl_Deref(arg, CAvl_link(n)[0]));
+        height_left = CAvl_verify_recurser(arg, CAvlDeref(arg, CAvl_link(n)[0]));
+#if CAVL_PARAM_FEATURE_COUNTS
+        count_left = CAvl_count(CAvlDeref(arg, CAvl_link(n)[0]));
 #endif
     }
     
     // check right subtree
-    if (CAvl_link(n)[1] != CAvlNullLink) {
+    if (CAvl_link(n)[1] != CAvl_nulllink()) {
         // check parent link
-        ASSERT_FORCE(CAvl_parent(CAvl_Deref(arg, CAvl_link(n)[1])) == n.link)
-#if !CAVL_PARAM_KEYS_ARE_INDICES
+        ASSERT_FORCE(CAvl_parent(CAvlDeref(arg, CAvl_link(n)[1])) == n.link)
         // check binary search tree
-        ASSERT_FORCE(CAvl_compare_nodes(arg, CAvl_Deref(arg, CAvl_link(n)[1]), n) == 1)
+#if !CAVL_PARAM_FEATURE_KEYS_ARE_INDICES
+        ASSERT_FORCE(CAvl_compare_entries(arg, CAvlDeref(arg, CAvl_link(n)[1]), n) == 1)
 #endif
         // recursively calculate height
-        height_right = CAvl_verify_recurser(arg, CAvl_Deref(arg, CAvl_link(n)[1]));
-#if CAVL_PARAM_USE_COUNTS
-        count_right = CAvl_count(CAvl_Deref(arg, CAvl_link(n)[1]));
+        height_right = CAvl_verify_recurser(arg, CAvlDeref(arg, CAvl_link(n)[1]));
+#if CAVL_PARAM_FEATURE_COUNTS
+        count_right = CAvl_count(CAvlDeref(arg, CAvl_link(n)[1]));
 #endif
     }
     
     // check balance factor
     ASSERT_FORCE(CAvl_balance(n) == height_right - height_left)
     
-#if CAVL_PARAM_USE_COUNTS
+#if CAVL_PARAM_FEATURE_COUNTS
     // check count
-    ASSERT(CAvl_count(n) == 1 + count_left + count_right)
+    ASSERT_FORCE(CAvl_count(n) == 1 + count_left + count_right)
 #endif
     
     return CAvl_MAX(height_left, height_right) + 1;
@@ -122,88 +129,88 @@ static void CAvl_assert_tree (CAvl *o, CAvlArg arg)
 #endif
 }
 
-#if CAVL_PARAM_USE_COUNTS
-static void CAvl_update_count_from_children (CAvlArg arg, CAvlNode n)
+#if CAVL_PARAM_FEATURE_COUNTS
+static void CAvl_update_count_from_children (CAvlArg arg, CAvlRef n)
 {
-    CAvlCount left_count = CAvl_link(n)[0] != CAvlNullLink ? CAvl_count(CAvl_Deref(arg, CAvl_link(n)[0])) : 0;
-    CAvlCount right_count = CAvl_link(n)[1] != CAvlNullLink ? CAvl_count(CAvl_Deref(arg, CAvl_link(n)[1])) : 0;
+    CAvlCount left_count = CAvl_link(n)[0] != CAvl_nulllink() ? CAvl_count(CAvlDeref(arg, CAvl_link(n)[0])) : 0;
+    CAvlCount right_count = CAvl_link(n)[1] != CAvl_nulllink() ? CAvl_count(CAvlDeref(arg, CAvl_link(n)[1])) : 0;
     CAvl_count(n) = 1 + left_count + right_count;
 }
 #endif
 
-static void CAvl_rotate (CAvl *o, CAvlArg arg, CAvlNode r, uint8_t dir, CAvlNode r_parent)
+static void CAvl_rotate (CAvl *o, CAvlArg arg, CAvlRef r, uint8_t dir, CAvlRef r_parent)
 {
     ASSERT(CAvl_check_parent(r_parent, r))
-    CAvlNode nr = CAvl_Deref(arg, CAvl_link(r)[!dir]);
+    CAvlRef nr = CAvlDeref(arg, CAvl_link(r)[!dir]);
     
     CAvl_link(r)[!dir] = CAvl_link(nr)[dir];
-    if (CAvl_link(r)[!dir] != CAvlNullLink) {
-        CAvl_parent(CAvl_Deref(arg, CAvl_link(r)[!dir])) = r.link;
+    if (CAvl_link(r)[!dir] != CAvl_nulllink()) {
+        CAvl_parent(CAvlDeref(arg, CAvl_link(r)[!dir])) = r.link;
     }
     CAvl_link(nr)[dir] = r.link;
     CAvl_parent(nr) = r_parent.link;
-    if (r_parent.link != CAvlNullLink) {
+    if (r_parent.link != CAvl_nulllink()) {
         CAvl_link(r_parent)[r.link == CAvl_link(r_parent)[1]] = nr.link;
     } else {
         o->root = nr.link;
     }
     CAvl_parent(r) = nr.link;
     
-#if CAVL_PARAM_USE_COUNTS
+#if CAVL_PARAM_FEATURE_COUNTS
     CAvl_update_count_from_children(arg, r);
     CAvl_update_count_from_children(arg, nr);
 #endif
 }
 
-static CAvlNode CAvl_subtree_min (CAvlArg arg, CAvlNode n)
+static CAvlRef CAvl_subtree_min (CAvlArg arg, CAvlRef n)
 {
-    ASSERT(n.link != CAvlNullLink)
+    ASSERT(n.link != CAvl_nulllink())
     
-    while (CAvl_link(n)[0] != CAvlNullLink) {
-        n = CAvl_Deref(arg, CAvl_link(n)[0]);
+    while (CAvl_link(n)[0] != CAvl_nulllink()) {
+        n = CAvlDeref(arg, CAvl_link(n)[0]);
     }
     
     return n;
 }
 
-static CAvlNode CAvl_subtree_max (CAvlArg arg, CAvlNode n)
+static CAvlRef CAvl_subtree_max (CAvlArg arg, CAvlRef n)
 {
-    ASSERT(n.link != CAvlNullLink)
+    ASSERT(n.link != CAvl_nulllink())
     
-    while (CAvl_link(n)[1] != CAvlNullLink) {
-        n = CAvl_Deref(arg, CAvl_link(n)[1]);
+    while (CAvl_link(n)[1] != CAvl_nulllink()) {
+        n = CAvlDeref(arg, CAvl_link(n)[1]);
     }
     
     return n;
 }
 
-static void CAvl_replace_subtree_fix_counts (CAvl *o, CAvlArg arg, CAvlNode dest, CAvlNode n, CAvlNode dest_parent)
+static void CAvl_replace_subtree_fix_counts (CAvl *o, CAvlArg arg, CAvlRef dest, CAvlRef n, CAvlRef dest_parent)
 {
-    ASSERT(dest.link != CAvlNullLink)
+    ASSERT(dest.link != CAvl_nulllink())
     ASSERT(CAvl_check_parent(dest_parent, dest))
     
-    if (dest_parent.link != CAvlNullLink) {
+    if (dest_parent.link != CAvl_nulllink()) {
         CAvl_link(dest_parent)[dest.link == CAvl_link(dest_parent)[1]] = n.link;
     } else {
         o->root = n.link;
     }
-    if (n.link != CAvlNullLink) {
+    if (n.link != CAvl_nulllink()) {
         CAvl_parent(n) = CAvl_parent(dest);
     }
     
-#if CAVL_PARAM_USE_COUNTS
-    for (CAvlNode c = dest_parent; c.link != CAvlNullLink; c = CAvl_Deref(arg, CAvl_parent(c))) {
+#if CAVL_PARAM_FEATURE_COUNTS
+    for (CAvlRef c = dest_parent; c.link != CAvl_nulllink(); c = CAvlDeref(arg, CAvl_parent(c))) {
         ASSERT(CAvl_count(c) >= CAvl_count(dest))
         CAvl_count(c) -= CAvl_count(dest);
-        if (n.link != CAvlNullLink) {
-            ASSERT(CAvl_count(n) <= CAVL_PARAM_COUNT_MAX - CAvl_count(c))
+        if (n.link != CAvl_nulllink()) {
+            ASSERT(CAvl_count(n) <= CAVL_PARAM_VALUE_COUNT_MAX - CAvl_count(c))
             CAvl_count(c) += CAvl_count(n);
         }
     }
 #endif
 }
 
-static void CAvl_swap_nodes (CAvl *o, CAvlArg arg, CAvlNode n1, CAvlNode n2, CAvlNode n1_parent, CAvlNode n2_parent)
+static void CAvl_swap_entries (CAvl *o, CAvlArg arg, CAvlRef n1, CAvlRef n2, CAvlRef n1_parent, CAvlRef n2_parent)
 {
     ASSERT(CAvl_check_parent(n1_parent, n1))
     ASSERT(CAvl_check_parent(n2_parent, n2))
@@ -212,7 +219,7 @@ static void CAvl_swap_nodes (CAvl *o, CAvlArg arg, CAvlNode n1, CAvlNode n2, CAv
         // when the nodes are directly connected we need special handling
         // make sure n1 is above n2
         if (n1_parent.link == n2.link) {
-            CAvlNode t = n1;
+            CAvlRef t = n1;
             n1 = n2;
             n2 = t;
             t = n1_parent;
@@ -221,17 +228,17 @@ static void CAvl_swap_nodes (CAvl *o, CAvlArg arg, CAvlNode n1, CAvlNode n2, CAv
         }
         
         uint8_t side = (n2.link == CAvl_link(n1)[1]);
-        CAvlNode c = CAvl_Deref(arg, CAvl_link(n1)[!side]);
+        CAvlRef c = CAvlDeref(arg, CAvl_link(n1)[!side]);
         
-        if ((CAvl_link(n1)[0] = CAvl_link(n2)[0]) != CAvlNullLink) {
-            CAvl_parent(CAvl_Deref(arg, CAvl_link(n1)[0])) = n1.link;
+        if ((CAvl_link(n1)[0] = CAvl_link(n2)[0]) != CAvl_nulllink()) {
+            CAvl_parent(CAvlDeref(arg, CAvl_link(n1)[0])) = n1.link;
         }
-        if ((CAvl_link(n1)[1] = CAvl_link(n2)[1]) != CAvlNullLink) {
-            CAvl_parent(CAvl_Deref(arg, CAvl_link(n1)[1])) = n1.link;
+        if ((CAvl_link(n1)[1] = CAvl_link(n2)[1]) != CAvl_nulllink()) {
+            CAvl_parent(CAvlDeref(arg, CAvl_link(n1)[1])) = n1.link;
         }
         
         CAvl_parent(n2) = CAvl_parent(n1);
-        if (n1_parent.link != CAvlNullLink) {
+        if (n1_parent.link != CAvl_nulllink()) {
             CAvl_link(n1_parent)[n1.link == CAvl_link(n1_parent)[1]] = n2.link;
         } else {
             o->root = n2.link;
@@ -239,43 +246,43 @@ static void CAvl_swap_nodes (CAvl *o, CAvlArg arg, CAvlNode n1, CAvlNode n2, CAv
         
         CAvl_link(n2)[side] = n1.link;
         CAvl_parent(n1) = n2.link;
-        if ((CAvl_link(n2)[!side] = c.link) != CAvlNullLink) {
+        if ((CAvl_link(n2)[!side] = c.link) != CAvl_nulllink()) {
             CAvl_parent(c) = n2.link;
         }
     } else {
-        CAvlNode temp;
+        CAvlRef temp;
         
         // swap parents
         temp = n1_parent;
         CAvl_parent(n1) = CAvl_parent(n2);
-        if (n2_parent.link != CAvlNullLink) {
+        if (n2_parent.link != CAvl_nulllink()) {
             CAvl_link(n2_parent)[n2.link == CAvl_link(n2_parent)[1]] = n1.link;
         } else {
             o->root = n1.link;
         }
         CAvl_parent(n2) = temp.link;
-        if (temp.link != CAvlNullLink) {
+        if (temp.link != CAvl_nulllink()) {
             CAvl_link(temp)[n1.link == CAvl_link(temp)[1]] = n2.link;
         } else {
             o->root = n2.link;
         }
         
         // swap left children
-        temp = CAvl_Deref(arg, CAvl_link(n1)[0]);
-        if ((CAvl_link(n1)[0] = CAvl_link(n2)[0]) != CAvlNullLink) {
-            CAvl_parent(CAvl_Deref(arg, CAvl_link(n1)[0])) = n1.link;
+        temp = CAvlDeref(arg, CAvl_link(n1)[0]);
+        if ((CAvl_link(n1)[0] = CAvl_link(n2)[0]) != CAvl_nulllink()) {
+            CAvl_parent(CAvlDeref(arg, CAvl_link(n1)[0])) = n1.link;
         }
-        if ((CAvl_link(n2)[0] = temp.link) != CAvlNullLink) {
-            CAvl_parent(CAvl_Deref(arg, CAvl_link(n2)[0])) = n2.link;
+        if ((CAvl_link(n2)[0] = temp.link) != CAvl_nulllink()) {
+            CAvl_parent(CAvlDeref(arg, CAvl_link(n2)[0])) = n2.link;
         }
         
         // swap right children
-        temp = CAvl_Deref(arg, CAvl_link(n1)[1]);
-        if ((CAvl_link(n1)[1] = CAvl_link(n2)[1]) != CAvlNullLink) {
-            CAvl_parent(CAvl_Deref(arg, CAvl_link(n1)[1])) = n1.link;
+        temp = CAvlDeref(arg, CAvl_link(n1)[1]);
+        if ((CAvl_link(n1)[1] = CAvl_link(n2)[1]) != CAvl_nulllink()) {
+            CAvl_parent(CAvlDeref(arg, CAvl_link(n1)[1])) = n1.link;
         }
-        if ((CAvl_link(n2)[1] = temp.link) != CAvlNullLink) {
-            CAvl_parent(CAvl_Deref(arg, CAvl_link(n2)[1])) = n2.link;
+        if ((CAvl_link(n2)[1] = temp.link) != CAvl_nulllink()) {
+            CAvl_parent(CAvlDeref(arg, CAvl_link(n2)[1])) = n2.link;
         }
     }
     
@@ -284,7 +291,7 @@ static void CAvl_swap_nodes (CAvl *o, CAvlArg arg, CAvlNode n1, CAvlNode n2, CAv
     CAvl_balance(n1) = CAvl_balance(n2);
     CAvl_balance(n2) = b;
     
-#if CAVL_PARAM_USE_COUNTS
+#if CAVL_PARAM_FEATURE_COUNTS
     // swap counts
     CAvlCount c = CAvl_count(n1);
     CAvl_count(n1) = CAvl_count(n2);
@@ -292,7 +299,7 @@ static void CAvl_swap_nodes (CAvl *o, CAvlArg arg, CAvlNode n1, CAvlNode n2, CAv
 #endif
 }
 
-static void CAvl_rebalance (CAvl *o, CAvlArg arg, CAvlNode node, uint8_t side, int8_t deltac)
+static void CAvl_rebalance (CAvl *o, CAvlArg arg, CAvlRef node, uint8_t side, int8_t deltac)
 {
     ASSERT(side == 0 || side == 1)
     ASSERT(deltac >= -1 && deltac <= 1)
@@ -310,8 +317,8 @@ static void CAvl_rebalance (CAvl *o, CAvlArg arg, CAvlNode node, uint8_t side, i
     // update our balance factor
     CAvl_balance(node) -= CAvl_OPTNEG(deltac, side);
     
-    CAvlNode child;
-    CAvlNode gchild;
+    CAvlRef child;
+    CAvlRef gchild;
     
     // perform transformations if the balance factor is wrong
     if (CAvl_balance(node) == 2 || CAvl_balance(node) == -2) {
@@ -325,28 +332,28 @@ static void CAvl_rebalance (CAvl *o, CAvlArg arg, CAvlNode node, uint8_t side, i
             bsidef = -1;
         }
         
-        ASSERT(CAvl_link(node)[bside] != CAvlNullLink)
-        child = CAvl_Deref(arg, CAvl_link(node)[bside]);
+        ASSERT(CAvl_link(node)[bside] != CAvl_nulllink())
+        child = CAvlDeref(arg, CAvl_link(node)[bside]);
         
         switch (CAvl_balance(child) * bsidef) {
             case 1:
-                CAvl_rotate(o, arg, node, !bside, CAvl_Deref(arg, CAvl_parent(node)));
+                CAvl_rotate(o, arg, node, !bside, CAvlDeref(arg, CAvl_parent(node)));
                 CAvl_balance(node) = 0;
                 CAvl_balance(child) = 0;
                 node = child;
                 delta -= 1;
                 break;
             case 0:
-                CAvl_rotate(o, arg, node, !bside, CAvl_Deref(arg, CAvl_parent(node)));
+                CAvl_rotate(o, arg, node, !bside, CAvlDeref(arg, CAvl_parent(node)));
                 CAvl_balance(node) = 1 * bsidef;
                 CAvl_balance(child) = -1 * bsidef;
                 node = child;
                 break;
             case -1:
-                ASSERT(CAvl_link(child)[!bside] != CAvlNullLink)
-                gchild = CAvl_Deref(arg, CAvl_link(child)[!bside]);
+                ASSERT(CAvl_link(child)[!bside] != CAvl_nulllink())
+                gchild = CAvlDeref(arg, CAvl_link(child)[!bside]);
                 CAvl_rotate(o, arg, child, bside, node);
-                CAvl_rotate(o, arg, node, !bside, CAvl_Deref(arg, CAvl_parent(node)));
+                CAvl_rotate(o, arg, node, !bside, CAvlDeref(arg, CAvl_parent(node)));
                 CAvl_balance(node) = -CAvl_MAX(0, CAvl_balance(gchild) * bsidef) * bsidef;
                 CAvl_balance(child) = CAvl_MAX(0, -CAvl_balance(gchild) * bsidef) * bsidef;
                 CAvl_balance(gchild) = 0;
@@ -369,32 +376,37 @@ static void CAvl_rebalance (CAvl *o, CAvlArg arg, CAvlNode node, uint8_t side, i
     //       the height of the heaviest subtree was unchanged. If the transformation
     //       reduces delta by one, it becomes -1.
     
-    if (CAvl_parent(node) != CAvlNullLink) {
-        CAvlNode node_parent = CAvl_Deref(arg, CAvl_parent(node));
+    if (CAvl_parent(node) != CAvl_nulllink()) {
+        CAvlRef node_parent = CAvlDeref(arg, CAvl_parent(node));
         CAvl_rebalance(o, arg, node_parent, node.link == CAvl_link(node_parent)[1], delta);
     }
 }
 
-#if CAVL_PARAM_KEYS_ARE_INDICES
-static CAvlCount CAvl_child_count (CAvlArg arg, CAvlNode n, int dir)
+#if CAVL_PARAM_FEATURE_KEYS_ARE_INDICES
+static CAvlCount CAvl_child_count (CAvlArg arg, CAvlRef n, int dir)
 {
-    return (CAvl_link(n)[dir] != CAvlNullLink ? CAvl_count(CAvl_Deref(arg, CAvl_link(n)[dir])) : 0);
+    return (CAvl_link(n)[dir] != CAvl_nulllink() ? CAvl_count(CAvlDeref(arg, CAvl_link(n)[dir])) : 0);
 }
 #endif
 
-static void CAvl_Init (CAvl *o)
+static int CAvlIsNullRef (CAvlRef node)
 {
-    o->root = CAvlNullLink;
+    return node.link == CAvl_nulllink();
 }
 
-static CAvlNode CAvl_Deref (CAvlArg arg, CAvlLink link)
+static int CAvlIsValidRef (CAvlRef node)
 {
-    if (link == CAvlNullLink) {
-        return CAvl_nullnode();
+    return node.link != CAvl_nulllink();
+}
+
+static CAvlRef CAvlDeref (CAvlArg arg, CAvlLink link)
+{
+    if (link == CAvl_nulllink()) {
+        return CAvl_nullref();
     }
     
-    CAvlNode n;
-    n.ptr = CAVL_PARAM_DEREF(arg, link);
+    CAvlRef n;
+    n.ptr = CAVL_PARAM_FUN_DEREF(arg, link);
     n.link = link;
     
     ASSERT(n.ptr)
@@ -402,34 +414,40 @@ static CAvlNode CAvl_Deref (CAvlArg arg, CAvlLink link)
     return n;
 }
 
-#if !CAVL_PARAM_KEYS_ARE_INDICES
-static int CAvl_Insert (CAvl *o, CAvlArg arg, CAvlNode node, CAvlNode *out_ref)
+static void CAvl_Init (CAvl *o)
 {
-    ASSERT(node.link != CAvlNullLink)
+    o->root = CAvl_nulllink();
+}
+
+#if !CAVL_PARAM_FEATURE_KEYS_ARE_INDICES
+
+static int CAvl_Insert (CAvl *o, CAvlArg arg, CAvlRef node, CAvlRef *out_ref)
+{
+    ASSERT(node.link != CAvl_nulllink())
     
     // insert to root?
-    if (o->root == CAvlNullLink) {
+    if (o->root == CAvl_nulllink()) {
         o->root = node.link;
-        CAvl_parent(node) = CAvlNullLink;
-        CAvl_link(node)[0] = CAvlNullLink;
-        CAvl_link(node)[1] = CAvlNullLink;
+        CAvl_parent(node) = CAvl_nulllink();
+        CAvl_link(node)[0] = CAvl_nulllink();
+        CAvl_link(node)[1] = CAvl_nulllink();
         CAvl_balance(node) = 0;
-#if CAVL_PARAM_USE_COUNTS
+#if CAVL_PARAM_FEATURE_COUNTS
         CAvl_count(node) = 1;
 #endif
         
         CAvl_assert_tree(o, arg);
         
         if (out_ref) {
-            *out_ref = CAvl_nullnode();
+            *out_ref = CAvl_nullref();
         }
         return 1;
     }
     
-    CAvlNode c = CAvl_Deref(arg, o->root);
+    CAvlRef c = CAvlDeref(arg, o->root);
     int side;
     while (1) {
-        int comp = CAvl_compare_nodes(arg, node, c);
+        int comp = CAvl_compare_entries(arg, node, c);
         
         if (comp == 0) {
             if (out_ref) {
@@ -440,24 +458,24 @@ static int CAvl_Insert (CAvl *o, CAvlArg arg, CAvlNode node, CAvlNode *out_ref)
         
         side = (comp == 1);
         
-        if (CAvl_link(c)[side] == CAvlNullLink) {
+        if (CAvl_link(c)[side] == CAvl_nulllink()) {
             break;
         }
         
-        c = CAvl_Deref(arg, CAvl_link(c)[side]);
+        c = CAvlDeref(arg, CAvl_link(c)[side]);
     }
     
     CAvl_link(c)[side] = node.link;
     CAvl_parent(node) = c.link;
-    CAvl_link(node)[0] = CAvlNullLink;
-    CAvl_link(node)[1] = CAvlNullLink;
+    CAvl_link(node)[0] = CAvl_nulllink();
+    CAvl_link(node)[1] = CAvl_nulllink();
     CAvl_balance(node) = 0;
-#if CAVL_PARAM_USE_COUNTS
+#if CAVL_PARAM_FEATURE_COUNTS
     CAvl_count(node) = 1;
 #endif
     
-#if CAVL_PARAM_USE_COUNTS
-    for (CAvlNode p = c; p.link != CAvlNullLink; p = CAvl_Deref(arg, CAvl_parent(p))) {
+#if CAVL_PARAM_FEATURE_COUNTS
+    for (CAvlRef p = c; p.link != CAvl_nulllink(); p = CAvlDeref(arg, CAvl_parent(p))) {
         CAvl_count(p)++;
     }
 #endif
@@ -471,230 +489,20 @@ static int CAvl_Insert (CAvl *o, CAvlArg arg, CAvlNode node, CAvlNode *out_ref)
     }
     return 1;
 }
-#endif
 
-static void CAvl_Remove (CAvl *o, CAvlArg arg, CAvlNode node)
+#else
+
+static void CAvl_InsertAt (CAvl *o, CAvlArg arg, CAvlRef node, CAvlCount index)
 {
-    ASSERT(node.link != CAvlNullLink)
-    ASSERT(o->root != CAvlNullLink)
-    
-    if (CAvl_link(node)[0] != CAvlNullLink && CAvl_link(node)[1] != CAvlNullLink) {
-        CAvlNode max = CAvl_subtree_max(arg, CAvl_Deref(arg, CAvl_link(node)[0]));
-        CAvl_swap_nodes(o, arg, node, max, CAvl_Deref(arg, CAvl_parent(node)), CAvl_Deref(arg, CAvl_parent(max)));
-    }
-    
-    ASSERT(CAvl_link(node)[0] == CAvlNullLink || CAvl_link(node)[1] == CAvlNullLink)
-    
-    CAvlNode paren = CAvl_Deref(arg, CAvl_parent(node));
-    CAvlNode child = (CAvl_link(node)[0] != CAvlNullLink ? CAvl_Deref(arg, CAvl_link(node)[0]) : CAvl_Deref(arg, CAvl_link(node)[1]));
-    
-    if (paren.link != CAvlNullLink) {
-        int side = (node.link == CAvl_link(paren)[1]);
-        CAvl_replace_subtree_fix_counts(o, arg, node, child, paren);
-        CAvl_rebalance(o, arg, paren, side, -1);
-    } else {
-        CAvl_replace_subtree_fix_counts(o, arg, node, child, paren);
-    }
-    
-    CAvl_assert_tree(o, arg);
-}
-
-#if !CAVL_PARAM_KEYS_ARE_INDICES
-static CAvlNode CAvl_Lookup (const CAvl *o, CAvlArg arg, CAvlKey key)
-{
-    if (o->root == CAvlNullLink) {
-        return CAvl_nullnode();
-    }
-    
-    CAvlNode c = CAvl_Deref(arg, o->root);
-    while (1) {
-        // compare
-        int comp = CAvl_compare_key_node(arg, key, c);
-        
-        // have we found a node that compares equal?
-        if (comp == 0) {
-            return c;
-        }
-        
-        int side = (comp == 1);
-        
-        // have we reached a leaf?
-        if (CAvl_link(c)[side] == CAvlNullLink) {
-            return c;
-        }
-        
-        c = CAvl_Deref(arg, CAvl_link(c)[side]);
-    }
-}
-
-static CAvlNode CAvl_LookupExact (const CAvl *o, CAvlArg arg, CAvlKey key)
-{
-    if (o->root == CAvlNullLink) {
-        return CAvl_nullnode();
-    }
-    
-    CAvlNode c = CAvl_Deref(arg, o->root);
-    while (1) {
-        // compare
-        int comp = CAvl_compare_key_node(arg, key, c);
-        
-        // have we found a node that compares equal?
-        if (comp == 0) {
-            return c;
-        }
-        
-        int side = (comp == 1);
-        
-        // have we reached a leaf?
-        if (CAvl_link(c)[side] == CAvlNullLink) {
-            return CAvl_nullnode();
-        }
-        
-        c = CAvl_Deref(arg, CAvl_link(c)[side]);
-    }
-}
-#endif
-
-static CAvlNode CAvl_GetFirst (const CAvl *o, CAvlArg arg)
-{
-    if (o->root == CAvlNullLink) {
-        return CAvl_nullnode();
-    }
-    
-    return CAvl_subtree_min(arg, CAvl_Deref(arg, o->root));
-}
-
-static CAvlNode CAvl_GetLast (const CAvl *o, CAvlArg arg)
-{
-    if (o->root == CAvlNullLink) {
-        return CAvl_nullnode();
-    }
-    
-    return CAvl_subtree_max(arg, CAvl_Deref(arg, o->root));
-}
-
-static CAvlNode CAvl_GetNext (const CAvl *o, CAvlArg arg, CAvlNode node)
-{
-    ASSERT(node.link != CAvlNullLink)
-    ASSERT(o->root != CAvlNullLink)
-    
-    if (CAvl_link(node)[1] != CAvlNullLink) {
-        node = CAvl_Deref(arg, CAvl_link(node)[1]);
-        while (CAvl_link(node)[0] != CAvlNullLink) {
-            node = CAvl_Deref(arg, CAvl_link(node)[0]);
-        }
-    } else {
-        while (CAvl_parent(node) != CAvlNullLink && node.link == CAvl_link(CAvl_Deref(arg, CAvl_parent(node)))[1]) {
-            node = CAvl_Deref(arg, CAvl_parent(node));
-        }
-        node = CAvl_Deref(arg, CAvl_parent(node));
-    }
-    
-    return node;
-}
-
-static CAvlNode CAvl_GetPrev (const CAvl *o, CAvlArg arg, CAvlNode node)
-{
-    ASSERT(node.link != CAvlNullLink)
-    ASSERT(o->root != CAvlNullLink)
-    
-    if (CAvl_link(node)[0] != CAvlNullLink) {
-        node = CAvl_Deref(arg, CAvl_link(node)[0]);
-        while (CAvl_link(node)[1] != CAvlNullLink) {
-            node = CAvl_Deref(arg, CAvl_link(node)[1]);
-        }
-    } else {
-        while (CAvl_parent(node) != CAvlNullLink && node.link == CAvl_link(CAvl_Deref(arg, CAvl_parent(node)))[0]) {
-            node = CAvl_Deref(arg, CAvl_parent(node));
-        }
-        node = CAvl_Deref(arg, CAvl_parent(node));
-    }
-    
-    return node;
-}
-
-static int CAvl_IsEmpty (const CAvl *o)
-{
-    return o->root == CAvlNullLink;
-}
-
-static void CAvl_Verify (const CAvl *o, CAvlArg arg)
-{
-    if (o->root != CAvlNullLink) {
-        CAvlNode root = CAvl_Deref(arg, o->root);
-        ASSERT(CAvl_parent(root) == CAvlNullLink)
-        CAvl_verify_recurser(arg, root);
-    }
-}
-
-#if CAVL_PARAM_USE_COUNTS
-
-static CAvlCount CAvl_Count (const CAvl *o, CAvlArg arg)
-{
-    return (o->root != CAvlNullLink ? CAvl_count(CAvl_Deref(arg, o->root)) : 0);
-}
-
-static CAvlCount CAvl_IndexOf (const CAvl *o, CAvlArg arg, CAvlNode node)
-{
-    ASSERT(node.link != CAvlNullLink)
-    ASSERT(o->root != CAvlNullLink)
-    
-    CAvlCount index = (CAvl_link(node)[0] != CAvlNullLink ? CAvl_count(CAvl_Deref(arg, CAvl_link(node)[0])) : 0);
-    
-    CAvlNode paren = CAvl_Deref(arg, CAvl_parent(node));
-    
-    for (CAvlNode c = node; paren.link != CAvlNullLink; c = paren, paren = CAvl_Deref(arg, CAvl_parent(c))) {
-        if (c.link == CAvl_link(paren)[1]) {
-            ASSERT(CAvl_count(paren) > CAvl_count(c))
-            ASSERT(CAvl_count(paren) - CAvl_count(c) <= CAVL_PARAM_COUNT_MAX - index)
-            index += CAvl_count(paren) - CAvl_count(c);
-        }
-    }
-    
-    return index;
-}
-
-static CAvlNode CAvl_GetAt (const CAvl *o, CAvlArg arg, CAvlCount index)
-{
-    if (index >= CAvl_Count(o, arg)) {
-        return CAvl_nullnode();
-    }
-    
-    CAvlNode c = CAvl_Deref(arg, o->root);
-    
-    while (1) {
-        ASSERT(c.link != CAvlNullLink)
-        ASSERT(index < CAvl_count(c))
-        
-        CAvlCount left_count = (CAvl_link(c)[0] != CAvlNullLink ? CAvl_count(CAvl_Deref(arg, CAvl_link(c)[0])) : 0);
-        
-        if (index == left_count) {
-            return c;
-        }
-        
-        if (index < left_count) {
-            c = CAvl_Deref(arg, CAvl_link(c)[0]);
-        } else {
-            c = CAvl_Deref(arg, CAvl_link(c)[1]);
-            index -= left_count + 1;
-        }
-    }
-}
-
-#endif
-
-#if CAVL_PARAM_KEYS_ARE_INDICES
-static void CAvl_InsertAt (CAvl *o, CAvlArg arg, CAvlNode node, CAvlCount index)
-{
-    ASSERT(node.link != CAvlNullLink)
+    ASSERT(node.link != CAvl_nulllink())
     ASSERT(index <= CAvl_Count(o, arg))
     
     // insert to root?
-    if (o->root == CAvlNullLink) {
+    if (o->root == CAvl_nulllink()) {
         o->root = node.link;
-        CAvl_parent(node) = CAvlNullLink;
-        CAvl_link(node)[0] = CAvlNullLink;
-        CAvl_link(node)[1] = CAvlNullLink;
+        CAvl_parent(node) = CAvl_nulllink();
+        CAvl_link(node)[0] = CAvl_nulllink();
+        CAvl_link(node)[1] = CAvl_nulllink();
         CAvl_balance(node) = 0;
         CAvl_count(node) = 1;
         
@@ -702,17 +510,17 @@ static void CAvl_InsertAt (CAvl *o, CAvlArg arg, CAvlNode node, CAvlCount index)
         return;
     }
     
-    CAvlNode c = CAvl_Deref(arg, o->root);
+    CAvlRef c = CAvlDeref(arg, o->root);
     CAvlCount c_idx = CAvl_child_count(arg, c, 0);
     int side;
     while (1) {
         side = (index > c_idx);
         
-        if (CAvl_link(c)[side] == CAvlNullLink) {
+        if (CAvl_link(c)[side] == CAvl_nulllink()) {
             break;
         }
         
-        c = CAvl_Deref(arg, CAvl_link(c)[side]);
+        c = CAvlDeref(arg, CAvl_link(c)[side]);
         
         if (side == 0) {
             c_idx -= 1 + CAvl_child_count(arg, c, 1);
@@ -723,12 +531,12 @@ static void CAvl_InsertAt (CAvl *o, CAvlArg arg, CAvlNode node, CAvlCount index)
     
     CAvl_link(c)[side] = node.link;
     CAvl_parent(node) = c.link;
-    CAvl_link(node)[0] = CAvlNullLink;
-    CAvl_link(node)[1] = CAvlNullLink;
+    CAvl_link(node)[0] = CAvl_nulllink();
+    CAvl_link(node)[1] = CAvl_nulllink();
     CAvl_balance(node) = 0;
     CAvl_count(node) = 1;
     
-    for (CAvlNode p = c; p.link != CAvlNullLink; p = CAvl_Deref(arg, CAvl_parent(p))) {
+    for (CAvlRef p = c; p.link != CAvl_nulllink(); p = CAvlDeref(arg, CAvl_parent(p))) {
         CAvl_count(p)++;
     }
     
@@ -737,6 +545,219 @@ static void CAvl_InsertAt (CAvl *o, CAvlArg arg, CAvlNode node, CAvlCount index)
     CAvl_assert_tree(o, arg);
     return;
 }
+
+#endif
+
+static void CAvl_Remove (CAvl *o, CAvlArg arg, CAvlRef node)
+{
+    ASSERT(node.link != CAvl_nulllink())
+    ASSERT(o->root != CAvl_nulllink())
+    
+    if (CAvl_link(node)[0] != CAvl_nulllink() && CAvl_link(node)[1] != CAvl_nulllink()) {
+        CAvlRef max = CAvl_subtree_max(arg, CAvlDeref(arg, CAvl_link(node)[0]));
+        CAvl_swap_entries(o, arg, node, max, CAvlDeref(arg, CAvl_parent(node)), CAvlDeref(arg, CAvl_parent(max)));
+    }
+    
+    ASSERT(CAvl_link(node)[0] == CAvl_nulllink() || CAvl_link(node)[1] == CAvl_nulllink())
+    
+    CAvlRef paren = CAvlDeref(arg, CAvl_parent(node));
+    CAvlRef child = (CAvl_link(node)[0] != CAvl_nulllink() ? CAvlDeref(arg, CAvl_link(node)[0]) : CAvlDeref(arg, CAvl_link(node)[1]));
+    
+    if (paren.link != CAvl_nulllink()) {
+        int side = (node.link == CAvl_link(paren)[1]);
+        CAvl_replace_subtree_fix_counts(o, arg, node, child, paren);
+        CAvl_rebalance(o, arg, paren, side, -1);
+    } else {
+        CAvl_replace_subtree_fix_counts(o, arg, node, child, paren);
+    }
+    
+    CAvl_assert_tree(o, arg);
+}
+
+#if !CAVL_PARAM_FEATURE_KEYS_ARE_INDICES
+
+static CAvlRef CAvl_Lookup (const CAvl *o, CAvlArg arg, CAvlKey key)
+{
+    if (o->root == CAvl_nulllink()) {
+        return CAvl_nullref();
+    }
+    
+    CAvlRef c = CAvlDeref(arg, o->root);
+    while (1) {
+        // compare
+        int comp = CAvl_compare_key_entry(arg, key, c);
+        
+        // have we found a node that compares equal?
+        if (comp == 0) {
+            return c;
+        }
+        
+        int side = (comp == 1);
+        
+        // have we reached a leaf?
+        if (CAvl_link(c)[side] == CAvl_nulllink()) {
+            return c;
+        }
+        
+        c = CAvlDeref(arg, CAvl_link(c)[side]);
+    }
+}
+
+static CAvlRef CAvl_LookupExact (const CAvl *o, CAvlArg arg, CAvlKey key)
+{
+    if (o->root == CAvl_nulllink()) {
+        return CAvl_nullref();
+    }
+    
+    CAvlRef c = CAvlDeref(arg, o->root);
+    while (1) {
+        // compare
+        int comp = CAvl_compare_key_entry(arg, key, c);
+        
+        // have we found a node that compares equal?
+        if (comp == 0) {
+            return c;
+        }
+        
+        int side = (comp == 1);
+        
+        // have we reached a leaf?
+        if (CAvl_link(c)[side] == CAvl_nulllink()) {
+            return CAvl_nullref();
+        }
+        
+        c = CAvlDeref(arg, CAvl_link(c)[side]);
+    }
+}
+
+#endif
+
+static CAvlRef CAvl_GetFirst (const CAvl *o, CAvlArg arg)
+{
+    if (o->root == CAvl_nulllink()) {
+        return CAvl_nullref();
+    }
+    
+    return CAvl_subtree_min(arg, CAvlDeref(arg, o->root));
+}
+
+static CAvlRef CAvl_GetLast (const CAvl *o, CAvlArg arg)
+{
+    if (o->root == CAvl_nulllink()) {
+        return CAvl_nullref();
+    }
+    
+    return CAvl_subtree_max(arg, CAvlDeref(arg, o->root));
+}
+
+static CAvlRef CAvl_GetNext (const CAvl *o, CAvlArg arg, CAvlRef node)
+{
+    ASSERT(node.link != CAvl_nulllink())
+    ASSERT(o->root != CAvl_nulllink())
+    
+    if (CAvl_link(node)[1] != CAvl_nulllink()) {
+        node = CAvlDeref(arg, CAvl_link(node)[1]);
+        while (CAvl_link(node)[0] != CAvl_nulllink()) {
+            node = CAvlDeref(arg, CAvl_link(node)[0]);
+        }
+    } else {
+        while (CAvl_parent(node) != CAvl_nulllink() && node.link == CAvl_link(CAvlDeref(arg, CAvl_parent(node)))[1]) {
+            node = CAvlDeref(arg, CAvl_parent(node));
+        }
+        node = CAvlDeref(arg, CAvl_parent(node));
+    }
+    
+    return node;
+}
+
+static CAvlRef CAvl_GetPrev (const CAvl *o, CAvlArg arg, CAvlRef node)
+{
+    ASSERT(node.link != CAvl_nulllink())
+    ASSERT(o->root != CAvl_nulllink())
+    
+    if (CAvl_link(node)[0] != CAvl_nulllink()) {
+        node = CAvlDeref(arg, CAvl_link(node)[0]);
+        while (CAvl_link(node)[1] != CAvl_nulllink()) {
+            node = CAvlDeref(arg, CAvl_link(node)[1]);
+        }
+    } else {
+        while (CAvl_parent(node) != CAvl_nulllink() && node.link == CAvl_link(CAvlDeref(arg, CAvl_parent(node)))[0]) {
+            node = CAvlDeref(arg, CAvl_parent(node));
+        }
+        node = CAvlDeref(arg, CAvl_parent(node));
+    }
+    
+    return node;
+}
+
+static int CAvl_IsEmpty (const CAvl *o)
+{
+    return o->root == CAvl_nulllink();
+}
+
+static void CAvl_Verify (const CAvl *o, CAvlArg arg)
+{
+    if (o->root != CAvl_nulllink()) {
+        CAvlRef root = CAvlDeref(arg, o->root);
+        ASSERT(CAvl_parent(root) == CAvl_nulllink())
+        CAvl_verify_recurser(arg, root);
+    }
+}
+
+#if CAVL_PARAM_FEATURE_COUNTS
+
+static CAvlCount CAvl_Count (const CAvl *o, CAvlArg arg)
+{
+    return (o->root != CAvl_nulllink() ? CAvl_count(CAvlDeref(arg, o->root)) : 0);
+}
+
+static CAvlCount CAvl_IndexOf (const CAvl *o, CAvlArg arg, CAvlRef node)
+{
+    ASSERT(node.link != CAvl_nulllink())
+    ASSERT(o->root != CAvl_nulllink())
+    
+    CAvlCount index = (CAvl_link(node)[0] != CAvl_nulllink() ? CAvl_count(CAvlDeref(arg, CAvl_link(node)[0])) : 0);
+    
+    CAvlRef paren = CAvlDeref(arg, CAvl_parent(node));
+    
+    for (CAvlRef c = node; paren.link != CAvl_nulllink(); c = paren, paren = CAvlDeref(arg, CAvl_parent(c))) {
+        if (c.link == CAvl_link(paren)[1]) {
+            ASSERT(CAvl_count(paren) > CAvl_count(c))
+            ASSERT(CAvl_count(paren) - CAvl_count(c) <= CAVL_PARAM_VALUE_COUNT_MAX - index)
+            index += CAvl_count(paren) - CAvl_count(c);
+        }
+    }
+    
+    return index;
+}
+
+static CAvlRef CAvl_GetAt (const CAvl *o, CAvlArg arg, CAvlCount index)
+{
+    if (index >= CAvl_Count(o, arg)) {
+        return CAvl_nullref();
+    }
+    
+    CAvlRef c = CAvlDeref(arg, o->root);
+    
+    while (1) {
+        ASSERT(c.link != CAvl_nulllink())
+        ASSERT(index < CAvl_count(c))
+        
+        CAvlCount left_count = (CAvl_link(c)[0] != CAvl_nulllink() ? CAvl_count(CAvlDeref(arg, CAvl_link(c)[0])) : 0);
+        
+        if (index == left_count) {
+            return c;
+        }
+        
+        if (index < left_count) {
+            c = CAvlDeref(arg, CAvl_link(c)[0]);
+        } else {
+            c = CAvlDeref(arg, CAvl_link(c)[1]);
+            index -= left_count + 1;
+        }
+    }
+}
+
 #endif
 
 #include "CAvl_footer.h"

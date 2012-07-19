@@ -77,7 +77,7 @@ struct NCDVal__list {
 struct NCDVal__mapelem {
     NCDVal__idx key_idx;
     NCDVal__idx val_idx;
-    NCDVal__idx tree_link[2];
+    NCDVal__idx tree_child[2];
     NCDVal__idx tree_parent;
     int8_t tree_balance;
 };

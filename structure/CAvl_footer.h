@@ -27,37 +27,39 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#undef CAVL_PARAM_USE_COUNTS
 #undef CAVL_PARAM_NAME
-#undef CAVL_PARAM_ENTRY
-#undef CAVL_PARAM_LINK
-#undef CAVL_PARAM_KEY
-#undef CAVL_PARAM_ARG
-#undef CAVL_PARAM_COUNT
-#undef CAVL_PARAM_COUNT_MAX
-#undef CAVL_PARAM_NULL
-#undef CAVL_PARAM_DEREF
-#undef CAVL_PARAM_COMPARE_NODES
-#undef CAVL_PARAM_COMPARE_KEY_NODE
-#undef CAVL_PARAM_NODE_LINK
-#undef CAVL_PARAM_NODE_BALANCE
-#undef CAVL_PARAM_NODE_PARENT
-#undef CAVL_PARAM_NODE_COUNT
-#undef CAVL_PARAM_KEYS_ARE_INDICES
+#undef CAVL_PARAM_FEATURE_COUNTS
+#undef CAVL_PARAM_FEATURE_KEYS_ARE_INDICES
+#undef CAVL_PARAM_TYPE_ENTRY
+#undef CAVL_PARAM_TYPE_LINK
+#undef CAVL_PARAM_TYPE_KEY
+#undef CAVL_PARAM_TYPE_ARG
+#undef CAVL_PARAM_TYPE_COUNT
+#undef CAVL_PARAM_VALUE_COUNT_MAX
+#undef CAVL_PARAM_VALUE_NULL
+#undef CAVL_PARAM_FUN_DEREF
+#undef CAVL_PARAM_FUN_COMPARE_ENTRIES
+#undef CAVL_PARAM_FUN_COMPARE_KEY_ENTRY
+#undef CAVL_PARAM_MEMBER_CHILD
+#undef CAVL_PARAM_MEMBER_BALANCE
+#undef CAVL_PARAM_MEMBER_PARENT
+#undef CAVL_PARAM_MEMBER_COUNT
 
 #undef CAvl
 #undef CAvlEntry
 #undef CAvlLink
-#undef CAvlNode
+#undef CAvlRef
 #undef CAvlArg
 #undef CAvlKey
 #undef CAvlCount
 
-#undef CAvlNullLink
+#undef CAvlIsNullRef
+#undef CAvlIsValidRef
+#undef CAvlDeref
 
 #undef CAvl_Init
-#undef CAvl_Deref
 #undef CAvl_Insert
+#undef CAvl_InsertAt
 #undef CAvl_Remove
 #undef CAvl_Lookup
 #undef CAvl_LookupExact
@@ -70,15 +72,15 @@
 #undef CAvl_Count
 #undef CAvl_IndexOf
 #undef CAvl_GetAt
-#undef CAvl_InsertAt
 
 #undef CAvl_link
 #undef CAvl_balance
 #undef CAvl_parent
 #undef CAvl_count
-#undef CAvl_nullnode
-#undef CAvl_compare_nodes
-#undef CAvl_compare_key_node
+#undef CAvl_nulllink
+#undef CAvl_nullref
+#undef CAvl_compare_entries
+#undef CAvl_compare_key_entry
 #undef CAvl_check_parent
 #undef CAvl_verify_recurser
 #undef CAvl_assert_tree
@@ -87,7 +89,7 @@
 #undef CAvl_subtree_min
 #undef CAvl_subtree_max
 #undef CAvl_replace_subtree_fix_counts
-#undef CAvl_swap_nodes
+#undef CAvl_swap_entries
 #undef CAvl_rebalance
 #undef CAvl_child_count
 #undef CAvl_MAX

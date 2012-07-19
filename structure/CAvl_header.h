@@ -28,46 +28,49 @@
  */
 
 // Preprocessor inputs:
-// CAVL_PARAM_USE_COUNTS - whether to keep node counts (0 or 1)
 // CAVL_PARAM_NAME - name of this data structure
-// CAVL_PARAM_ENTRY - type of entry
-// CAVL_PARAM_LINK - type of node link (usually pointer)
-// CAVL_PARAM_KEY - type of key (unused if CAVL_PARAM_KEYS_ARE_INDICES=1) 
-// CAVL_PARAM_ARG - type of argument pass through to comparisons
-// CAVL_PARAM_COUNT - type of count
-// CAVL_PARAM_COUNT_MAX - maximum value of count
-// CAVL_PARAM_NULL - invalid link
-// CAVL_PARAM_DEREF(arg, link) - dereference a non-null link
-// CAVL_PARAM_COMPARE_NODES(arg, node1, node2) - compare nodes
-// CAVL_PARAM_COMPARE_KEY_NODE(arg, key1, node2) - compare key and node
-// CAVL_PARAM_NODE_LINK - link member in node
-// CAVL_PARAM_NODE_BALANCE - balance member in node
-// CAVL_PARAM_NODE_PARENT - parent member in node
-// CAVL_PARAM_NODE_COUNT - count member in node (if CAVL_PARAM_USE_COUNTS)
-// CAVL_PARAM_KEYS_ARE_INDICES - (0 or 1) whether to assume the keys are node indices
-//                               (number of nodes lesser than given node). If yes,
-//                               CAVL_PARAM_KEY is unused. Requires CAVL_PARAM_USE_COUNTS.
+// CAVL_PARAM_FEATURE_COUNTS - whether to keep count information (0 or 1)
+// CAVL_PARAM_FEATURE_KEYS_ARE_INDICES - (0 or 1) whether to assume the keys are entry indices
+//   (number of entries lesser than given entry). If yes, CAVL_PARAM_TYPE_KEY is unused.
+//   Requires CAVL_PARAM_FEATURE_COUNTS.
+// CAVL_PARAM_TYPE_ENTRY - type of entry
+// CAVL_PARAM_TYPE_LINK - type of entry link (usually pointer or index)
+// CAVL_PARAM_TYPE_KEY - type of key (only if not CAVL_PARAM_FEATURE_KEYS_ARE_INDICES)
+// CAVL_PARAM_TYPE_ARG - type of argument pass through to callbacks
+// CAVL_PARAM_TYPE_COUNT - type of count (only if CAVL_PARAM_FEATURE_COUNTS)
+// CAVL_PARAM_VALUE_COUNT_MAX - maximum value of count (type is CAVL_PARAM_TYPE_COUNT)
+// CAVL_PARAM_VALUE_NULL - value of invalid link (type is CAVL_PARAM_TYPE_LINK)
+// CAVL_PARAM_FUN_DEREF(arg, link) - dereference a non-null link; returns pointer to CAVL_PARAM_TYPE_LINK
+// CAVL_PARAM_FUN_COMPARE_ENTRIES(arg, entry1, entry2) - compare to entries; returns -1/0/1
+// CAVL_PARAM_FUN_COMPARE_KEY_ENTRY(arg, key1, entry2) - compare key and entry; returns -1/0/1
+// CAVL_PARAM_MEMBER_CHILD - name of the child member in entry (type is CAVL_PARAM_TYPE_LINK[2])
+// CAVL_PARAM_MEMBER_BALANCE - name of the balance member in entry (type is any signed integer)
+// CAVL_PARAM_MEMBER_PARENT - name of the parent member in entry (type is CAVL_PARAM_TYPE_LINK)
+// CAVL_PARAM_MEMBER_COUNT - name of the count member in entry (type is CAVL_PARAM_TYPE_COUNT)
+//   (only if CAVL_PARAM_FEATURE_COUNTS)
 
-#if CAVL_PARAM_KEYS_ARE_INDICES && !CAVL_PARAM_USE_COUNTS
-#error CAVL_PARAM_KEYS_ARE_INDICES requires CAVL_PARAM_USE_COUNTS
+#if CAVL_PARAM_FEATURE_KEYS_ARE_INDICES && !CAVL_PARAM_FEATURE_COUNTS
+#error CAVL_PARAM_FEATURE_KEYS_ARE_INDICES requires CAVL_PARAM_FEATURE_COUNTS
 #endif
 
 // types
 #define CAvl CAVL_PARAM_NAME
-#define CAvlEntry CAVL_PARAM_ENTRY
-#define CAvlLink CAVL_PARAM_LINK
-#define CAvlNode MERGE(CAvl, Node)
-#define CAvlArg CAVL_PARAM_ARG
-#define CAvlKey CAVL_PARAM_KEY
-#define CAvlCount CAVL_PARAM_COUNT
+#define CAvlEntry CAVL_PARAM_TYPE_ENTRY
+#define CAvlLink CAVL_PARAM_TYPE_LINK
+#define CAvlRef MERGE(CAVL_PARAM_NAME, Ref)
+#define CAvlArg CAVL_PARAM_TYPE_ARG
+#define CAvlKey CAVL_PARAM_TYPE_KEY
+#define CAvlCount CAVL_PARAM_TYPE_COUNT
 
-// static values
-#define CAvlNullLink MERGE(CAvl, NullLink)
+// non-object public functions
+#define CAvlIsNullRef MERGE(CAvl, IsNullRef)
+#define CAvlIsValidRef MERGE(CAvl, IsValidRef)
+#define CAvlDeref MERGE(CAvl, Deref)
 
 // public functions
 #define CAvl_Init MERGE(CAvl, _Init)
-#define CAvl_Deref MERGE(CAvl, _Deref)
 #define CAvl_Insert MERGE(CAvl, _Insert)
+#define CAvl_InsertAt MERGE(CAvl, _InsertAt)
 #define CAvl_Remove MERGE(CAvl, _Remove)
 #define CAvl_Lookup MERGE(CAvl, _Lookup)
 #define CAvl_LookupExact MERGE(CAvl, _LookupExact)
@@ -80,26 +83,26 @@
 #define CAvl_Count MERGE(CAvl, _Count)
 #define CAvl_IndexOf MERGE(CAvl, _IndexOf)
 #define CAvl_GetAt MERGE(CAvl, _GetAt)
-#define CAvl_InsertAt MERGE(CAvl, _InsertAt)
 
 // private stuff
-#define CAvl_link(node) ((node).ptr->CAVL_PARAM_NODE_LINK)
-#define CAvl_balance(node) ((node).ptr->CAVL_PARAM_NODE_BALANCE)
-#define CAvl_parent(node) ((node).ptr->CAVL_PARAM_NODE_PARENT)
-#define CAvl_count(node) ((node).ptr->CAVL_PARAM_NODE_COUNT)
-#define CAvl_nullnode MERGE(CAvl, __nullnode)
-#define CAvl_compare_nodes MERGE(CAvl, __compare_nodes)
-#define CAvl_compare_key_node MERGE(CAvl, __compare_key_node)
-#define CAvl_check_parent MERGE(CAvl, __check_parent)
-#define CAvl_verify_recurser MERGE(CAvl, __verify_recurser)
-#define CAvl_assert_tree MERGE(CAvl, __assert_tree)
-#define CAvl_update_count_from_children MERGE(CAvl, __update_count_from_children)
-#define CAvl_rotate MERGE(CAvl, __rotate)
-#define CAvl_subtree_min MERGE(CAvl, __subtree_min)
-#define CAvl_subtree_max MERGE(CAvl, __subtree_max)
-#define CAvl_replace_subtree_fix_counts MERGE(CAvl, __replace_subtree_fix_counts)
-#define CAvl_swap_nodes MERGE(CAvl, __swap_nodes)
-#define CAvl_rebalance MERGE(CAvl, __rebalance)
+#define CAvl_link(entry) ((entry).ptr->CAVL_PARAM_MEMBER_CHILD)
+#define CAvl_balance(entry) ((entry).ptr->CAVL_PARAM_MEMBER_BALANCE)
+#define CAvl_parent(entry) ((entry).ptr->CAVL_PARAM_MEMBER_PARENT)
+#define CAvl_count(entry) ((entry).ptr->CAVL_PARAM_MEMBER_COUNT)
+#define CAvl_nulllink MERGE(CAvl, __nulllink)
+#define CAvl_nullref MERGE(CAvl, __nullref)
+#define CAvl_compare_entries MERGE(CAVL_PARAM_NAME, _compare_entries)
+#define CAvl_compare_key_entry MERGE(CAVL_PARAM_NAME, _compare_key_entry)
+#define CAvl_check_parent MERGE(CAVL_PARAM_NAME, _check_parent)
+#define CAvl_verify_recurser MERGE(CAVL_PARAM_NAME, _verify_recurser)
+#define CAvl_assert_tree MERGE(CAVL_PARAM_NAME, _assert_tree)
+#define CAvl_update_count_from_children MERGE(CAVL_PARAM_NAME, _update_count_from_children)
+#define CAvl_rotate MERGE(CAVL_PARAM_NAME, _rotate)
+#define CAvl_subtree_min MERGE(CAVL_PARAM_NAME, _subtree_min)
+#define CAvl_subtree_max MERGE(CAVL_PARAM_NAME, _subtree_max)
+#define CAvl_replace_subtree_fix_counts MERGE(CAVL_PARAM_NAME, _replace_subtree_fix_counts)
+#define CAvl_swap_entries MERGE(CAVL_PARAM_NAME, _swap_entries)
+#define CAvl_rebalance MERGE(CAVL_PARAM_NAME, _rebalance)
 #define CAvl_child_count MERGE(CAvl, __child_count)
 #define CAvl_MAX(_a, _b) ((_a) > (_b) ? (_a) : (_b))
 #define CAvl_OPTNEG(_a, _neg) ((_neg) ? -(_a) : (_a))

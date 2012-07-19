@@ -1,13 +1,14 @@
-#define CAVL_PARAM_USE_COUNTS 0
 #define CAVL_PARAM_NAME NCDValue__MapTree
-#define CAVL_PARAM_ENTRY NCDMapElement
-#define CAVL_PARAM_LINK NCDValue__maptree_link
-#define CAVL_PARAM_KEY NCDValue__maptree_key
-#define CAVL_PARAM_ARG int
-#define CAVL_PARAM_NULL NULL
-#define CAVL_PARAM_DEREF(arg, link) (link)
-#define CAVL_PARAM_COMPARE_NODES(arg, node1, node2) NCDValue_Compare(&(node1).ptr->key, &(node2).ptr->key)
-#define CAVL_PARAM_COMPARE_KEY_NODE(arg, key1, node2) NCDValue_Compare((key1), &(node2).ptr->key)
-#define CAVL_PARAM_NODE_LINK tree_link
-#define CAVL_PARAM_NODE_BALANCE tree_balance
-#define CAVL_PARAM_NODE_PARENT tree_parent
+#define CAVL_PARAM_FEATURE_COUNTS 0
+#define CAVL_PARAM_FEATURE_KEYS_ARE_INDICES 0
+#define CAVL_PARAM_TYPE_ENTRY NCDMapElement
+#define CAVL_PARAM_TYPE_LINK NCDValue__maptree_link
+#define CAVL_PARAM_TYPE_KEY NCDValue__maptree_key
+#define CAVL_PARAM_TYPE_ARG int
+#define CAVL_PARAM_VALUE_NULL ((NCDValue__maptree_link)NULL)
+#define CAVL_PARAM_FUN_DEREF(arg, link) (link)
+#define CAVL_PARAM_FUN_COMPARE_ENTRIES(arg, entry1, entry2) NCDValue_Compare(&(entry1).ptr->key, &(entry2).ptr->key)
+#define CAVL_PARAM_FUN_COMPARE_KEY_ENTRY(arg, key1, entry2) NCDValue_Compare((key1), &(entry2).ptr->key)
+#define CAVL_PARAM_MEMBER_CHILD tree_child
+#define CAVL_PARAM_MEMBER_BALANCE tree_balance
+#define CAVL_PARAM_MEMBER_PARENT tree_parent

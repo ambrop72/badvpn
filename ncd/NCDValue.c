@@ -154,12 +154,12 @@ void NCDValue_Free (NCDValue *o)
         } break;
         
         case NCDVALUE_MAP: {
-            NCDValue__MapTreeNode tn;
-            while ((tn = NCDValue__MapTree_GetFirst(&o->map_tree, 0)).link != NCDValue__MapTreeNullLink) {
-                NCDValue__MapTree_Remove(&o->map_tree, 0, tn);
-                NCDValue_Free(&tn.ptr->key);
-                NCDValue_Free(&tn.ptr->val);
-                free(tn.ptr);
+            NCDValue__MapTreeRef ref;
+            while (NCDValue__MapTreeIsValidRef(ref = NCDValue__MapTree_GetFirst(&o->map_tree, 0))) {
+                NCDValue__MapTree_Remove(&o->map_tree, 0, ref);
+                NCDValue_Free(&ref.ptr->key);
+                NCDValue_Free(&ref.ptr->val);
+                free(ref.ptr);
             }
         } break;
         
@@ -508,15 +508,15 @@ NCDValue * NCDValue_MapFirstKey (NCDValue *o)
     value_assert(o);
     ASSERT(o->type == NCDVALUE_MAP)
     
-    NCDValue__MapTreeNode tn = NCDValue__MapTree_GetFirst(&o->map_tree, 0);
-    if (tn.link == NCDValue__MapTreeNullLink) {
+    NCDValue__MapTreeRef ref = NCDValue__MapTree_GetFirst(&o->map_tree, 0);
+    if (NCDValue__MapTreeIsNullRef(ref)) {
         return NULL;
     }
     
-    value_assert(&tn.ptr->key);
-    value_assert(&tn.ptr->val);
+    value_assert(&ref.ptr->key);
+    value_assert(&ref.ptr->val);
     
-    return &tn.ptr->key;
+    return &ref.ptr->key;
 }
 
 NCDValue * NCDValue_MapNextKey (NCDValue *o, NCDValue *ekey)
@@ -528,15 +528,15 @@ NCDValue * NCDValue_MapNextKey (NCDValue *o, NCDValue *ekey)
     value_assert(&e->key);
     value_assert(&e->val);
     
-    NCDValue__MapTreeNode tn = NCDValue__MapTree_GetNext(&o->map_tree, 0, NCDValue__MapTree_Deref(0, e));
-    if (tn.link == NCDValue__MapTreeNullLink) {
+    NCDValue__MapTreeRef ref = NCDValue__MapTree_GetNext(&o->map_tree, 0, NCDValue__MapTreeDeref(0, e));
+    if (NCDValue__MapTreeIsNullRef(ref)) {
         return NULL;
     }
     
-    value_assert(&tn.ptr->key);
-    value_assert(&tn.ptr->val);
+    value_assert(&ref.ptr->key);
+    value_assert(&ref.ptr->val);
     
-    return &tn.ptr->key;
+    return &ref.ptr->key;
 }
 
 NCDValue * NCDValue_MapKeyValue (NCDValue *o, NCDValue *ekey)
@@ -557,16 +557,16 @@ NCDValue * NCDValue_MapFindKey (NCDValue *o, NCDValue *key)
     ASSERT(o->type == NCDVALUE_MAP)
     value_assert(key);
     
-    NCDValue__MapTreeNode tn = NCDValue__MapTree_LookupExact(&o->map_tree, 0, key);
-    if (tn.link == NCDValue__MapTreeNullLink) {
+    NCDValue__MapTreeRef ref = NCDValue__MapTree_LookupExact(&o->map_tree, 0, key);
+    if (NCDValue__MapTreeIsNullRef(ref)) {
         return NULL;
     }
     
-    value_assert(&tn.ptr->key);
-    value_assert(&tn.ptr->val);
-    ASSERT(!NCDValue_Compare(&tn.ptr->key, key))
+    value_assert(&ref.ptr->key);
+    value_assert(&ref.ptr->val);
+    ASSERT(!NCDValue_Compare(&ref.ptr->key, key))
     
-    return &tn.ptr->key;
+    return &ref.ptr->key;
 }
 
 NCDValue * NCDValue_MapInsert (NCDValue *o, NCDValue key, NCDValue val)
@@ -588,7 +588,7 @@ NCDValue * NCDValue_MapInsert (NCDValue *o, NCDValue key, NCDValue val)
     
     e->key = key;
     e->val = val;
-    int res = NCDValue__MapTree_Insert(&o->map_tree, 0, NCDValue__MapTree_Deref(0, e), NULL);
+    int res = NCDValue__MapTree_Insert(&o->map_tree, 0, NCDValue__MapTreeDeref(0, e), NULL);
     ASSERT(res)
     
     o->map_count++;
@@ -608,7 +608,7 @@ void NCDValue_MapRemove (NCDValue *o, NCDValue *ekey, NCDValue *out_key, NCDValu
     value_assert(&e->key);
     value_assert(&e->val);
     
-    NCDValue__MapTree_Remove(&o->map_tree, 0, NCDValue__MapTree_Deref(0, e));
+    NCDValue__MapTree_Remove(&o->map_tree, 0, NCDValue__MapTreeDeref(0, e));
     
     *out_key = e->key;
     *out_val = e->val;

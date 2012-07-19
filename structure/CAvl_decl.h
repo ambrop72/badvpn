@@ -36,35 +36,33 @@ typedef struct {
 typedef struct {
     CAvlEntry *ptr;
     CAvlLink link;
-} CAvlNode;
+} CAvlRef;
 
-static const CAvlLink CAvlNullLink = CAVL_PARAM_NULL;
+static int CAvlIsNullRef (CAvlRef node);
+static int CAvlIsValidRef (CAvlRef node);
+static CAvlRef CAvlDeref (CAvlArg arg, CAvlLink link);
 
 static void CAvl_Init (CAvl *o);
-static CAvlNode CAvl_Deref (CAvlArg arg, CAvlLink link);
-#if !CAVL_PARAM_KEYS_ARE_INDICES
-static int CAvl_Insert (CAvl *o, CAvlArg arg, CAvlNode node, CAvlNode *out_ref);
+#if !CAVL_PARAM_FEATURE_KEYS_ARE_INDICES
+static int CAvl_Insert (CAvl *o, CAvlArg arg, CAvlRef node, CAvlRef *out_ref);
+#else
+static void CAvl_InsertAt (CAvl *o, CAvlArg arg, CAvlRef node, CAvlCount index);
 #endif
-static void CAvl_Remove (CAvl *o, CAvlArg arg, CAvlNode node);
-#if !CAVL_PARAM_KEYS_ARE_INDICES
-static CAvlNode CAvl_Lookup (const CAvl *o, CAvlArg arg, CAvlKey key);
-static CAvlNode CAvl_LookupExact (const CAvl *o, CAvlArg arg, CAvlKey key);
+static void CAvl_Remove (CAvl *o, CAvlArg arg, CAvlRef node);
+#if !CAVL_PARAM_FEATURE_KEYS_ARE_INDICES
+static CAvlRef CAvl_Lookup (const CAvl *o, CAvlArg arg, CAvlKey key);
+static CAvlRef CAvl_LookupExact (const CAvl *o, CAvlArg arg, CAvlKey key);
 #endif
-static CAvlNode CAvl_GetFirst (const CAvl *o, CAvlArg arg);
-static CAvlNode CAvl_GetLast (const CAvl *o, CAvlArg arg);
-static CAvlNode CAvl_GetNext (const CAvl *o, CAvlArg arg, CAvlNode node);
-static CAvlNode CAvl_GetPrev (const CAvl *o, CAvlArg arg, CAvlNode node);
+static CAvlRef CAvl_GetFirst (const CAvl *o, CAvlArg arg);
+static CAvlRef CAvl_GetLast (const CAvl *o, CAvlArg arg);
+static CAvlRef CAvl_GetNext (const CAvl *o, CAvlArg arg, CAvlRef node);
+static CAvlRef CAvl_GetPrev (const CAvl *o, CAvlArg arg, CAvlRef node);
 static int CAvl_IsEmpty (const CAvl *o);
 static void CAvl_Verify (const CAvl *o, CAvlArg arg);
-
-#if CAVL_PARAM_USE_COUNTS
+#if CAVL_PARAM_FEATURE_COUNTS
 static CAvlCount CAvl_Count (const CAvl *o, CAvlArg arg);
-static CAvlCount CAvl_IndexOf (const CAvl *o, CAvlArg arg, CAvlNode node);
-static CAvlNode CAvl_GetAt (const CAvl *o, CAvlArg arg, CAvlCount index);
-#endif
-
-#if CAVL_PARAM_KEYS_ARE_INDICES
-static void CAvl_InsertAt (CAvl *o, CAvlArg arg, CAvlNode node, CAvlCount index);
+static CAvlCount CAvl_IndexOf (const CAvl *o, CAvlArg arg, CAvlRef node);
+static CAvlRef CAvl_GetAt (const CAvl *o, CAvlArg arg, CAvlCount index);
 #endif
 
 #include "CAvl_footer.h"
