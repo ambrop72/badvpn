@@ -1204,7 +1204,7 @@ err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t e
         
         int ret = client_free_client(client);
         
-        return (err ? ERR_ABRT : ERR_OK);
+        return (ret ? ERR_ABRT : ERR_OK);
     }
     
     ASSERT(p->tot_len > 0)
