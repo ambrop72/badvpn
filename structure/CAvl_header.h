@@ -33,9 +33,11 @@
 // CAVL_PARAM_FEATURE_KEYS_ARE_INDICES - (0 or 1) whether to assume the keys are entry indices
 //   (number of entries lesser than given entry). If yes, CAVL_PARAM_TYPE_KEY is unused.
 //   Requires CAVL_PARAM_FEATURE_COUNTS.
+// CAVL_PARAM_FEATURE_NOKEYS - define to 1 if there is no need for a lookup operation
 // CAVL_PARAM_TYPE_ENTRY - type of entry
 // CAVL_PARAM_TYPE_LINK - type of entry link (usually pointer or index)
-// CAVL_PARAM_TYPE_KEY - type of key (only if not CAVL_PARAM_FEATURE_KEYS_ARE_INDICES)
+// CAVL_PARAM_TYPE_KEY - type of key (only if not CAVL_PARAM_FEATURE_KEYS_ARE_INDICES and
+//   not CAVL_PARAM_FEATURE_NOKEYS)
 // CAVL_PARAM_TYPE_ARG - type of argument pass through to callbacks
 // CAVL_PARAM_TYPE_COUNT - type of count (only if CAVL_PARAM_FEATURE_COUNTS)
 // CAVL_PARAM_VALUE_COUNT_MAX - maximum value of count (type is CAVL_PARAM_TYPE_COUNT)
@@ -51,6 +53,10 @@
 
 #if CAVL_PARAM_FEATURE_KEYS_ARE_INDICES && !CAVL_PARAM_FEATURE_COUNTS
 #error CAVL_PARAM_FEATURE_KEYS_ARE_INDICES requires CAVL_PARAM_FEATURE_COUNTS
+#endif
+
+#if CAVL_PARAM_FEATURE_KEYS_ARE_INDICES && CAVL_PARAM_FEATURE_NOKEYS
+#error CAVL_PARAM_FEATURE_KEYS_ARE_INDICES and CAVL_PARAM_FEATURE_NOKEYS cannot be used together
 #endif
 
 // types

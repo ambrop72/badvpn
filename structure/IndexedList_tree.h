@@ -1,6 +1,7 @@
 #define CAVL_PARAM_NAME IndexedList__Tree
 #define CAVL_PARAM_FEATURE_COUNTS 1
 #define CAVL_PARAM_FEATURE_KEYS_ARE_INDICES 1
+#define CAVL_PARAM_FEATURE_NOKEYS 0
 #define CAVL_PARAM_TYPE_ENTRY IndexedListNode
 #define CAVL_PARAM_TYPE_LINK IndexedList__tree_link
 #define CAVL_PARAM_TYPE_ARG int

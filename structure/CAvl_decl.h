@@ -49,7 +49,7 @@ static int CAvl_Insert (CAvl *o, CAvlArg arg, CAvlRef node, CAvlRef *out_ref);
 static void CAvl_InsertAt (CAvl *o, CAvlArg arg, CAvlRef node, CAvlCount index);
 #endif
 static void CAvl_Remove (CAvl *o, CAvlArg arg, CAvlRef node);
-#if !CAVL_PARAM_FEATURE_KEYS_ARE_INDICES
+#if !CAVL_PARAM_FEATURE_KEYS_ARE_INDICES && !CAVL_PARAM_FEATURE_NOKEYS
 static CAvlRef CAvl_Lookup (const CAvl *o, CAvlArg arg, CAvlKey key);
 static CAvlRef CAvl_LookupExact (const CAvl *o, CAvlArg arg, CAvlKey key);
 #endif

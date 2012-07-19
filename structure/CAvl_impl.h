@@ -53,6 +53,8 @@ static int CAvl_compare_entries (CAvlArg arg, CAvlRef node1, CAvlRef node2)
     return res;
 }
 
+#if !CAVL_PARAM_FEATURE_NOKEYS
+
 static int CAvl_compare_key_entry (CAvlArg arg, CAvlKey key1, CAvlRef node2)
 {
     int res = CAVL_PARAM_FUN_COMPARE_KEY_ENTRY(arg, key1, node2);
@@ -61,6 +63,8 @@ static int CAvl_compare_key_entry (CAvlArg arg, CAvlKey key1, CAvlRef node2)
     
     return res;
 }
+
+#endif
 
 #endif
 
@@ -574,7 +578,7 @@ static void CAvl_Remove (CAvl *o, CAvlArg arg, CAvlRef node)
     CAvl_assert_tree(o, arg);
 }
 
-#if !CAVL_PARAM_FEATURE_KEYS_ARE_INDICES
+#if !CAVL_PARAM_FEATURE_KEYS_ARE_INDICES && !CAVL_PARAM_FEATURE_NOKEYS
 
 static CAvlRef CAvl_Lookup (const CAvl *o, CAvlArg arg, CAvlKey key)
 {

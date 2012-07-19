@@ -1,6 +1,7 @@
 #define CAVL_PARAM_NAME NCDValue__MapTree
 #define CAVL_PARAM_FEATURE_COUNTS 0
 #define CAVL_PARAM_FEATURE_KEYS_ARE_INDICES 0
+#define CAVL_PARAM_FEATURE_NOKEYS 0
 #define CAVL_PARAM_TYPE_ENTRY NCDMapElement
 #define CAVL_PARAM_TYPE_LINK NCDValue__maptree_link
 #define CAVL_PARAM_TYPE_KEY NCDValue__maptree_key
