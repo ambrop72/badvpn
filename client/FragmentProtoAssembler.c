@@ -40,23 +40,15 @@
 
 #define PeerLog(_o, ...) BLog_LogViaFunc((_o)->logfunc, (_o)->user, BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-static int frame_id_comparator (void *unused, fragmentproto_frameid *v1, fragmentproto_frameid *v2)
-{
-    if (*v1 < *v2) {
-        return -1;
-    }
-    if (*v1 > *v2) {
-        return 1;
-    }
-    return 0;
-}
+#include "FragmentProtoAssembler_tree.h"
+#include <structure/CAvl_impl.h>
 
 static void free_frame (FragmentProtoAssembler *o, struct FragmentProtoAssembler_frame *frame)
 {
     // remove from used list
     LinkedList2_Remove(&o->frames_used, &frame->list_node);
     // remove from used tree
-    BAVL_Remove(&o->frames_used_tree, &frame->tree_node);
+    FPAFramesTree_Remove(&o->frames_used_tree, 0, FPAFramesTreeDeref(0, frame));
     
     // append to free list
     LinkedList2_Append(&o->frames_free, &frame->list_node);
@@ -77,7 +69,7 @@ static void free_oldest_frame (FragmentProtoAssembler *o)
 
 static struct FragmentProtoAssembler_frame * allocate_new_frame (FragmentProtoAssembler *o, fragmentproto_frameid id)
 {
-    ASSERT(!BAVL_LookupExact(&o->frames_used_tree, &id))
+    ASSERT(FPAFramesTreeIsNullRef(FPAFramesTree_LookupExact(&o->frames_used_tree, 0, id)))
     
     // if there are no free entries, free the oldest used one
     if (LinkedList2_IsEmpty(&o->frames_free)) {
@@ -104,7 +96,8 @@ static struct FragmentProtoAssembler_frame * allocate_new_frame (FragmentProtoAs
     // append to used list
     LinkedList2_Append(&o->frames_used, &frame->list_node);
     // insert to used tree
-    ASSERT_EXECUTE(BAVL_Insert(&o->frames_used_tree, &frame->tree_node, NULL))
+    int res = FPAFramesTree_Insert(&o->frames_used_tree, 0, FPAFramesTreeDeref(0, frame), NULL);
+    ASSERT(res)
     
     return frame;
 }
@@ -186,13 +179,13 @@ static int process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid frame
     
     // lookup frame
     struct FragmentProtoAssembler_frame *frame;
-    BAVLNode *tree_node;
-    if (!(tree_node = BAVL_LookupExact(&o->frames_used_tree, &frame_id))) {
+    FPAFramesTreeRef ref = FPAFramesTree_LookupExact(&o->frames_used_tree, 0, frame_id);
+    if (FPAFramesTreeIsNullRef(ref)) {
         // frame not found, add a new one
         frame = allocate_new_frame(o, frame_id);
     } else {
         // have existing frame with that ID
-        frame = UPPER_OBJECT(tree_node, struct FragmentProtoAssembler_frame, tree_node);
+        frame = ref.ptr;
         // check frame time
         if (frame_is_timed_out(o, frame)) {
             // frame is timed out, remove it and use a new one
@@ -435,7 +428,7 @@ int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, Packe
     }
     
     // init tree
-    BAVL_Init(&o->frames_used_tree, OFFSET_DIFF(struct FragmentProtoAssembler_frame, id, tree_node), (BAVL_comparator)frame_id_comparator, NULL);
+    FPAFramesTree_Init(&o->frames_used_tree);
     
     // have no input packet
     o->in_len = -1;
