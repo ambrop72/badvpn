@@ -40,12 +40,49 @@
 #include <structure/BAVL.h>
 #include <structure/LinkedList2.h>
 #include <structure/LinkedList3.h>
+#include <structure/CAvl.h>
 #include <base/DebugObject.h>
 #include <base/BLog.h>
 #include <system/BReactor.h>
 
 struct _FrameDeciderPeer;
-struct _FrameDecider_mac_entry;
+
+struct _FrameDecider_mac_entry {
+    struct _FrameDeciderPeer *peer;
+    LinkedList2Node list_node; // node in FrameDeciderPeer.mac_entries_free or FrameDeciderPeer.mac_entries_used
+    // defined when used:
+    uint8_t mac[6];
+    // node in FrameDecider.macs_tree, indexed by mac
+    struct _FrameDecider_mac_entry *tree_child[2];
+    struct _FrameDecider_mac_entry *tree_parent;
+    int8_t tree_balance;
+};
+
+struct _FrameDecider_group_entry {
+    struct _FrameDeciderPeer *peer;
+    LinkedList2Node list_node; // node in FrameDeciderPeer.group_entries_free or FrameDeciderPeer.group_entries_used
+    BTimer timer; // timer for removing the group entry, running when used
+    // defined when used:
+    // basic group data
+    uint32_t group; // group address
+    BAVLNode tree_node; // node in FrameDeciderPeer.groups_tree, indexed by group
+    // all that folows is managed by add_to_multicast() and remove_from_multicast()
+    LinkedList3Node sig_list_node; // node in list of group entries with the same sig
+    btime_t timer_endtime;
+    int is_master;
+    // defined when used and we are master:
+    struct {
+        uint32_t sig; // last 23 bits of group address
+        BAVLNode tree_node; // node in FrameDecider.multicast_tree, indexed by sig
+    } master;
+};
+
+typedef struct _FrameDecider_mac_entry FDMacsTree_entry;
+typedef struct _FrameDecider_mac_entry *FDMacsTree_link;
+typedef const uint8_t *FDMacsTree_key;
+
+#include "FrameDecider_macs_tree.h"
+#include <structure/CAvl_decl.h>
 
 /**
  * Object that represents a local device.
@@ -57,7 +94,7 @@ typedef struct {
     btime_t igmp_last_member_query_time;
     BReactor *reactor;
     LinkedList2 peers_list;
-    BAVL macs_tree;
+    FDMacsTree macs_tree;
     BAVL multicast_tree;
     int decide_state;
     LinkedList2Iterator decide_flood_it;
@@ -83,33 +120,6 @@ typedef struct _FrameDeciderPeer {
     BAVL groups_tree;
     DebugObject d_obj;
 } FrameDeciderPeer;
-
-struct _FrameDecider_mac_entry {
-    FrameDeciderPeer *peer;
-    LinkedList2Node list_node; // node in FrameDeciderPeer.mac_entries_free or FrameDeciderPeer.mac_entries_used
-    // defined when used:
-    uint8_t mac[6];
-    BAVLNode tree_node; // node in FrameDecider.macs_tree, indexed by mac
-};
-
-struct _FrameDecider_group_entry {
-    FrameDeciderPeer *peer;
-    LinkedList2Node list_node; // node in FrameDeciderPeer.group_entries_free or FrameDeciderPeer.group_entries_used
-    BTimer timer; // timer for removing the group entry, running when used
-    // defined when used:
-    // basic group data
-    uint32_t group; // group address
-    BAVLNode tree_node; // node in FrameDeciderPeer.groups_tree, indexed by group
-    // all that folows is managed by add_to_multicast() and remove_from_multicast()
-    LinkedList3Node sig_list_node; // node in list of group entries with the same sig
-    btime_t timer_endtime;
-    int is_master;
-    // defined when used and we are master:
-    struct {
-        uint32_t sig; // last 23 bits of group address
-        BAVLNode tree_node; // node in FrameDecider.multicast_tree, indexed by sig
-    } master;
-};
 
 /**
  * Initializes the object.

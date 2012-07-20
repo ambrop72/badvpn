@@ -38,6 +38,7 @@
 #include <misc/ipv4_proto.h>
 #include <misc/igmp_proto.h>
 #include <misc/byteorder.h>
+#include <misc/compare.h>
 
 #include <client/FrameDecider.h>
 
@@ -50,17 +51,14 @@
 
 #define PeerLog(_o, ...) BLog_LogViaFunc((_o)->logfunc, (_o)->user, BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-static int mac_comparator (void *user, uint8_t *mac1, uint8_t *mac2)
+static int compare_macs (const uint8_t *mac1, const uint8_t *mac2)
 {
     int c = memcmp(mac1, mac2, 6);
-    if (c < 0) {
-        return -1;
-    }
-    if (c > 0) {
-        return 1;
-    }
-    return 0;
+    return B_COMPARE(c, 0);
 }
+
+#include "FrameDecider_macs_tree.h"
+#include <structure/CAvl_impl.h>
 
 static int uint32_comparator (void *user, uint32_t *v1, uint32_t *v2)
 {
@@ -78,9 +76,9 @@ static void add_mac_to_peer (FrameDeciderPeer *o, uint8_t *mac)
     FrameDecider *d = o->d;
     
     // locate entry in tree
-    BAVLNode *tree_node = BAVL_LookupExact(&d->macs_tree, mac);
-    if (tree_node) {
-        struct _FrameDecider_mac_entry *entry = UPPER_OBJECT(tree_node, struct _FrameDecider_mac_entry, tree_node);
+    FDMacsTreeRef ref = FDMacsTree_LookupExact(&d->macs_tree, 0, mac);
+    if (FDMacsTreeIsValidRef(ref)) {
+        struct _FrameDecider_mac_entry *entry = ref.ptr;
         
         if (entry->peer == o) {
             // this is our MAC; only move it to the end of the used list
@@ -90,7 +88,7 @@ static void add_mac_to_peer (FrameDeciderPeer *o, uint8_t *mac)
         }
         
         // some other peer has that MAC; disassociate it
-        BAVL_Remove(&d->macs_tree, &entry->tree_node);
+        FDMacsTree_Remove(&d->macs_tree, 0, FDMacsTreeDeref(0, entry));
         LinkedList2_Remove(&entry->peer->mac_entries_used, &entry->list_node);
         LinkedList2_Append(&entry->peer->mac_entries_free, &entry->list_node);
     }
@@ -111,7 +109,7 @@ static void add_mac_to_peer (FrameDeciderPeer *o, uint8_t *mac)
         ASSERT(entry->peer == o)
         
         // remove from used
-        BAVL_Remove(&d->macs_tree, &entry->tree_node);
+        FDMacsTree_Remove(&d->macs_tree, 0, FDMacsTreeDeref(0, entry));
         LinkedList2_Remove(&o->mac_entries_used, &entry->list_node);
     }
     
@@ -122,7 +120,8 @@ static void add_mac_to_peer (FrameDeciderPeer *o, uint8_t *mac)
     
     // add to used
     LinkedList2_Append(&o->mac_entries_used, &entry->list_node);
-    ASSERT_EXECUTE(BAVL_Insert(&d->macs_tree, &entry->tree_node, NULL))
+    int res = FDMacsTree_Insert(&d->macs_tree, 0, FDMacsTreeDeref(0, entry), NULL);
+    ASSERT(res)
 }
 
 static uint32_t compute_sig_for_group (uint32_t group)
@@ -348,7 +347,7 @@ void FrameDecider_Init (FrameDecider *o, int max_peer_macs, int max_peer_groups,
     LinkedList2_Init(&o->peers_list);
     
     // init MAC tree
-    BAVL_Init(&o->macs_tree, OFFSET_DIFF(struct _FrameDecider_mac_entry, mac, tree_node), (BAVL_comparator)mac_comparator, NULL);
+    FDMacsTree_Init(&o->macs_tree);
     
     // init multicast tree
     BAVL_Init(&o->multicast_tree, OFFSET_DIFF(struct _FrameDecider_group_entry, master.sig, master.tree_node), (BAVL_comparator)uint32_comparator, NULL);
@@ -362,7 +361,7 @@ void FrameDecider_Init (FrameDecider *o, int max_peer_macs, int max_peer_groups,
 void FrameDecider_Free (FrameDecider *o)
 {
     ASSERT(BAVL_IsEmpty(&o->multicast_tree))
-    ASSERT(BAVL_IsEmpty(&o->macs_tree))
+    ASSERT(FDMacsTree_IsEmpty(&o->macs_tree))
     ASSERT(LinkedList2_IsEmpty(&o->peers_list))
     DebugObject_Free(&o->d_obj);
 }
@@ -502,9 +501,9 @@ out:;
     }
     
     // look for MAC entry
-    BAVLNode *tree_node;
-    if (tree_node = BAVL_LookupExact(&o->macs_tree, eh->dest)) {
-        struct _FrameDecider_mac_entry *entry = UPPER_OBJECT(tree_node, struct _FrameDecider_mac_entry, tree_node);
+    FDMacsTreeRef ref = FDMacsTree_LookupExact(&o->macs_tree, 0, eh->dest);
+    if (FDMacsTreeIsValidRef(ref)) {
+        struct _FrameDecider_mac_entry *entry = ref.ptr;
         o->decide_state = DECIDE_STATE_UNICAST;
         o->decide_unicast_peer = entry->peer;
         return;
@@ -659,7 +658,7 @@ void FrameDeciderPeer_Free (FrameDeciderPeer *o)
         struct _FrameDecider_mac_entry *entry = UPPER_OBJECT(node, struct _FrameDecider_mac_entry, list_node);
         
         // remove from tree
-        BAVL_Remove(&d->macs_tree, &entry->tree_node);
+        FDMacsTree_Remove(&d->macs_tree, 0, FDMacsTreeDeref(0, entry));
     }
     
     // remove from peers list
