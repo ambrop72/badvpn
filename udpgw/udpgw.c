@@ -43,6 +43,7 @@
 #include <misc/bsize.h>
 #include <misc/open_standard_streams.h>
 #include <misc/balloc.h>
+#include <misc/compare.h>
 #include <structure/LinkedList1.h>
 #include <structure/BAVL.h>
 #include <base/BLog.h>
@@ -1290,11 +1291,5 @@ struct connection * find_connection (struct client *client, uint16_t conid)
 
 int uint16_comparator (void *unused, uint16_t *v1, uint16_t *v2)
 {
-    if (*v1 < *v2) {
-        return -1;
-    }
-    if (*v1 > *v2) {
-        return 1;
-    }
-    return 0;
+    return B_COMPARE(*v1, *v2);
 }

@@ -39,6 +39,7 @@
 
 #include <misc/offset.h>
 #include <misc/debug.h>
+#include <misc/compare.h>
 #include <structure/LinkedList0.h>
 #include <structure/BAVL.h>
 #include <ncd/NCDModule.h>
@@ -82,13 +83,7 @@ static void depend_free (struct depend *o);
 static int stringptr_comparator (void *user, char **v1, char **v2)
 {
     int cmp = strcmp(*v1, *v2);
-    if (cmp < 0) {
-        return -1;
-    }
-    if (cmp > 0) {
-        return 1;
-    }
-    return 0;
+    return B_COMPARE(cmp, 0);
 }
 
 static int val_comparator (void *user, NCDValRef *v1, NCDValRef *v2)

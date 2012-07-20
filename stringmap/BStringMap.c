@@ -31,19 +31,14 @@
 #include <string.h>
 
 #include <misc/offset.h>
+#include <misc/compare.h>
 
 #include <stringmap/BStringMap.h>
 
 static int string_comparator (void *unused, char **str1, char **str2)
 {
     int c = strcmp(*str1, *str2);
-    if (c < 0) {
-        return -1;
-    }
-    if (c > 0) {
-        return 1;
-    }
-    return 0;
+    return B_COMPARE(c, 0);
 }
 
 static void free_entry (BStringMap *o, struct BStringMap_entry *e)

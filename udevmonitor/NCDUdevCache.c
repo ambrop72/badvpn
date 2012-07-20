@@ -33,6 +33,7 @@
 #include <misc/offset.h>
 #include <misc/string_begins_with.h>
 #include <misc/concat_strings.h>
+#include <misc/compare.h>
 #include <base/BLog.h>
 
 #include <udevmonitor/NCDUdevCache.h>
@@ -42,13 +43,7 @@
 static int string_comparator (void *unused, const char **str1, const char **str2)
 {
     int c = strcmp(*str1, *str2);
-    if (c < 0) {
-        return -1;
-    }
-    if (c > 0) {
-        return 1;
-    }
-    return 0;
+    return B_COMPARE(c, 0);
 }
 
 static void free_device (NCDUdevCache *o, struct NCDUdevCache_device *device)

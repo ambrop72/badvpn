@@ -32,18 +32,13 @@
 #include <misc/debug.h>
 #include <misc/offset.h>
 #include <misc/minmax.h>
+#include <misc/compare.h>
 
 #include <flow/PacketPassFairQueue.h>
 
 static int time_comparator (void *user, uint64_t *time1, uint64_t *time2)
 {
-    if (*time1 < *time2) {
-        return -1;
-    }
-    if (*time1 > *time2) {
-        return 1;
-    }
-    return 0;
+    return B_COMPARE(*time1, *time2);
 }
 
 static uint64_t get_current_time (PacketPassFairQueue *m)

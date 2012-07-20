@@ -33,6 +33,7 @@
 #include <misc/offset.h>
 #include <misc/balloc.h>
 #include <misc/hashfun.h>
+#include <misc/compare.h>
 #include <base/BLog.h>
 
 #include "NCDModuleIndex.h"
@@ -45,7 +46,7 @@
 static int string_pointer_comparator (void *user, const char **s1, const char **s2)
 {
     int cmp = strcmp(*s1, *s2);
-    return (cmp > 0) - (cmp < 0);
+    return B_COMPARE(cmp, 0);
 }
 
 static struct NCDModuleIndex_module * find_module (NCDModuleIndex *o, const char *type)

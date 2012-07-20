@@ -29,6 +29,7 @@
 
 #include <misc/offset.h>
 #include <misc/balloc.h>
+#include <misc/compare.h>
 #include <structure/BHeap.h>
 #include <security/BRandom.h>
 
@@ -40,13 +41,7 @@ struct mynode {
 
 static int int_comparator (void *user, int *val1, int *val2)
 {
-    if (*val1 < *val2) {
-        return -1;
-    }
-    if (*val1 > *val2) {
-        return 1;
-    }
-    return 0;
+    return B_COMPARE(*val1, *val2);
 }
 
 static void print_indent (int indent)

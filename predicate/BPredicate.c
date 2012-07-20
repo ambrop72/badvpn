@@ -34,6 +34,7 @@
 #include <misc/debug.h>
 #include <misc/offset.h>
 #include <misc/balloc.h>
+#include <misc/compare.h>
 #include <predicate/BPredicate_internal.h>
 #include <predicate/BPredicate_parser.h>
 #include <predicate/LexMemoryBufferInput.h>
@@ -52,13 +53,7 @@ void yyerror (YYLTYPE *yylloc, yyscan_t scanner, struct predicate_node **result,
 static int string_comparator (void *user, char *s1, char *s2)
 {
     int cmp = strcmp(s1, s2);
-    if (cmp < 0) {
-        return -1;
-    }
-    if (cmp > 0) {
-        return 1;
-    }
-    return 0;
+    return B_COMPARE(cmp, 0);
 }
 
 static int eval_function (BPredicate *p, struct predicate_node *root)

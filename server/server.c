@@ -53,6 +53,7 @@
 #include <misc/loglevel.h>
 #include <misc/loggers_string.h>
 #include <misc/open_standard_streams.h>
+#include <misc/compare.h>
 #include <predicate/BPredicate.h>
 #include <base/DebugObject.h>
 #include <base/BLog.h>
@@ -2126,13 +2127,7 @@ int relay_predicate_func_raddr_cb (void *user, void **args)
 
 int peerid_comparator (void *unused, peerid_t *p1, peerid_t *p2)
 {
-    if (*p1 < *p2) {
-        return -1;
-    }
-    if (*p1 > *p2) {
-        return 1;
-    }
-    return 0;
+    return B_COMPARE(*p1, *p2);
 }
 
 struct peer_know * create_know (struct client_data *from, struct client_data *to, int relay_server, int relay_client)

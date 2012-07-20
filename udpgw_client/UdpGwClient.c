@@ -32,6 +32,7 @@
 
 #include <misc/offset.h>
 #include <misc/byteorder.h>
+#include <misc/compare.h>
 #include <base/BLog.h>
 
 #include <udpgw_client/UdpGwClient.h>
@@ -57,13 +58,7 @@ static struct UdpGwClient_connection * reuse_connection (UdpGwClient *o, struct 
 
 static int uint16_comparator (void *unused, uint16_t *v1, uint16_t *v2)
 {
-    if (*v1 < *v2) {
-        return -1;
-    }
-    if (*v1 > *v2) {
-        return 1;
-    }
-    return 0;
+    return B_COMPARE(*v1, *v2);
 }
 
 static int compare_addresses (BAddr v1, BAddr v2)
@@ -71,19 +66,12 @@ static int compare_addresses (BAddr v1, BAddr v2)
     ASSERT(v1.type == BADDR_TYPE_IPV4)
     ASSERT(v2.type == BADDR_TYPE_IPV4)
     
-    if (v1.ipv4.port < v2.ipv4.port) {
-        return -1;
+    int cmp = B_COMPARE(v1.ipv4.port, v2.ipv4.port);
+    if (cmp) {
+        return cmp;
     }
-    if (v1.ipv4.port > v2.ipv4.port) {
-        return 1;
-    }
-    if (v1.ipv4.ip < v2.ipv4.ip) {
-        return -1;
-    }
-    if (v1.ipv4.ip > v2.ipv4.ip) {
-        return 1;
-    }
-    return 0;
+    
+    return B_COMPARE(v1.ipv4.ip, v2.ipv4.ip);
 }
 
 static int conaddr_comparator (void *unused, struct UdpGwClient_conaddr *v1, struct UdpGwClient_conaddr *v2)

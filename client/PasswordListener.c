@@ -36,6 +36,7 @@
 #include <misc/offset.h>
 #include <misc/byteorder.h>
 #include <misc/balloc.h>
+#include <misc/compare.h>
 #include <base/BLog.h>
 #include <security/BRandom.h>
 #include <nspr_support/DummyPRFileDesc.h>
@@ -53,13 +54,7 @@ static void client_receiver_handler (struct PasswordListenerClient *client);
 
 int password_comparator (void *user, uint64_t *p1, uint64_t *p2)
 {
-    if (*p1 < *p2) {
-        return -1;
-    }
-    if (*p1 > *p2) {
-        return 1;
-    }
-    return 0;
+    return B_COMPARE(*p1, *p2);
 }
 
 void remove_client (struct PasswordListenerClient *client)

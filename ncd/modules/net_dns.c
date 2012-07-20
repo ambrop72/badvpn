@@ -39,6 +39,7 @@
 #include <misc/offset.h>
 #include <misc/bsort.h>
 #include <misc/balloc.h>
+#include <misc/compare.h>
 #include <structure/LinkedList2.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDIfConfig.h>
@@ -125,14 +126,7 @@ static int dns_sort_comparator (const void *v1, const void *v2)
 {
     const struct dns_sort_entry *e1 = v1;
     const struct dns_sort_entry *e2 = v2;
-    
-    if (e1->priority < e2->priority) {
-        return -1;
-    }
-    if (e1->priority > e2->priority) {
-        return 1;
-    }
-    return 0;
+    return B_COMPARE(e1->priority, e2->priority);
 }
 
 static int set_servers (void)

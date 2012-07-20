@@ -31,18 +31,13 @@
 
 #include <misc/debug.h>
 #include <misc/offset.h>
+#include <misc/compare.h>
 
 #include <flow/PacketPassPriorityQueue.h>
 
 static int int_comparator (void *user, int *prio1, int *prio2)
 {
-    if (*prio1 < *prio2) {
-        return -1;
-    }
-    if (*prio1 > *prio2) {
-        return 1;
-    }
-    return 0;
+    return B_COMPARE(*prio1, *prio2);
 }
 
 static void schedule (PacketPassPriorityQueue *m)

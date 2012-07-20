@@ -36,6 +36,7 @@
 #include <misc/byteorder.h>
 #include <misc/expstring.h>
 #include <misc/offset.h>
+#include <misc/compare.h>
 #include <protocol/packetproto.h>
 #include <protocol/requestproto.h>
 #include <base/BLog.h>
@@ -81,7 +82,7 @@ static int uint32_comparator (void *unused, void *vv1, void *vv2)
 {
     uint32_t *v1 = vv1;
     uint32_t *v2 = vv2;
-    return (*v1 > *v2) - (*v1 < *v2);
+    return B_COMPARE(*v1, *v2);
 }
 
 static void report_error (NCDRequestClient *o)
