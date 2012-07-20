@@ -428,6 +428,9 @@ static void CAvl_Init (CAvl *o)
 static int CAvl_Insert (CAvl *o, CAvlArg arg, CAvlRef node, CAvlRef *out_ref)
 {
     ASSERT(node.link != CAvl_nulllink())
+#if CAVL_PARAM_FEATURE_COUNTS
+    ASSERT(CAvl_Count(o, arg) < CAVL_PARAM_VALUE_COUNT_MAX)
+#endif
     
     // insert to root?
     if (o->root == CAvl_nulllink()) {
@@ -500,6 +503,7 @@ static void CAvl_InsertAt (CAvl *o, CAvlArg arg, CAvlRef node, CAvlCount index)
 {
     ASSERT(node.link != CAvl_nulllink())
     ASSERT(index <= CAvl_Count(o, arg))
+    ASSERT(CAvl_Count(o, arg) < CAVL_PARAM_VALUE_COUNT_MAX)
     
     // insert to root?
     if (o->root == CAvl_nulllink()) {
