@@ -37,7 +37,6 @@
 
 #include <stdint.h>
 
-#include <structure/BAVL.h>
 #include <structure/LinkedList2.h>
 #include <structure/LinkedList3.h>
 #include <structure/CAvl.h>
@@ -76,7 +75,10 @@ struct _FrameDecider_group_entry {
     // defined when used and we are master:
     struct {
         uint32_t sig; // last 23 bits of group address
-        BAVLNode tree_node; // node in FrameDecider.multicast_tree, indexed by sig
+        // node in FrameDecider.multicast_tree, indexed by sig
+        struct _FrameDecider_group_entry *tree_child[2];
+        struct _FrameDecider_group_entry *tree_parent;
+        int8_t tree_balance;
     } master;
 };
 
@@ -93,6 +95,12 @@ typedef struct _FrameDecider_group_entry *FDGroupsTree_link;
 #include "FrameDecider_groups_tree.h"
 #include <structure/CAvl_decl.h>
 
+typedef struct _FrameDecider_group_entry FDMulticastTree_entry;
+typedef struct _FrameDecider_group_entry *FDMulticastTree_link;
+
+#include "FrameDecider_multicast_tree.h"
+#include <structure/CAvl_decl.h>
+
 /**
  * Object that represents a local device.
  */
@@ -104,7 +112,7 @@ typedef struct {
     BReactor *reactor;
     LinkedList2 peers_list;
     FDMacsTree macs_tree;
-    BAVL multicast_tree;
+    FDMulticastTree multicast_tree;
     int decide_state;
     LinkedList2Iterator decide_flood_it;
     struct _FrameDeciderPeer *decide_unicast_peer;

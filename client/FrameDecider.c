@@ -63,16 +63,8 @@ static int compare_macs (const uint8_t *mac1, const uint8_t *mac2)
 #include "FrameDecider_groups_tree.h"
 #include <structure/CAvl_impl.h>
 
-static int uint32_comparator (void *user, uint32_t *v1, uint32_t *v2)
-{
-    if (*v1 < *v2) {
-        return -1;
-    }
-    if (*v1 > *v2) {
-        return 1;
-    }
-    return 0;
-}
+#include "FrameDecider_multicast_tree.h"
+#include <structure/CAvl_impl.h>
 
 static void add_mac_to_peer (FrameDeciderPeer *o, uint8_t *mac)
 {
@@ -145,10 +137,10 @@ static void add_to_multicast (FrameDecider *d, struct _FrameDecider_group_entry 
     // compute sig
     uint32_t sig = compute_sig_for_group(group_entry->group);
     
-    BAVLNode *node;
-    if (node = BAVL_LookupExact(&d->multicast_tree, &sig)) {
+    FDMulticastTreeRef ref = FDMulticastTree_LookupExact(&d->multicast_tree, 0, sig);
+    if (FDMulticastTreeIsValidRef(ref)) {
         // use existing master
-        struct _FrameDecider_group_entry *master = UPPER_OBJECT(node, struct _FrameDecider_group_entry, master.tree_node);
+        struct _FrameDecider_group_entry *master = ref.ptr;
         ASSERT(master->is_master)
         
         // set not master
@@ -166,7 +158,8 @@ static void add_to_multicast (FrameDecider *d, struct _FrameDecider_group_entry 
         group_entry->master.sig = sig;
         
         // insert to multicast tree
-        ASSERT_EXECUTE(BAVL_Insert(&d->multicast_tree, &group_entry->master.tree_node, NULL))
+        int res = FDMulticastTree_Insert(&d->multicast_tree, 0, FDMulticastTreeDeref(0, group_entry), NULL);
+        ASSERT(res)
         
         // init list node
         LinkedList3Node_InitLonely(&group_entry->sig_list_node);
@@ -180,7 +173,7 @@ static void remove_from_multicast (FrameDecider *d, struct _FrameDecider_group_e
     
     if (group_entry->is_master) {
         // remove master from multicast tree
-        BAVL_Remove(&d->multicast_tree, &group_entry->master.tree_node);
+        FDMulticastTree_Remove(&d->multicast_tree, 0, FDMulticastTreeDeref(0, group_entry));
         
         if (!LinkedList3Node_IsLonely(&group_entry->sig_list_node)) {
             // at least one more group entry for this sig; make another entry the master
@@ -197,7 +190,8 @@ static void remove_from_multicast (FrameDecider *d, struct _FrameDecider_group_e
             newmaster->master.sig = sig;
             
             // insert to multicast tree
-            ASSERT_EXECUTE(BAVL_Insert(&d->multicast_tree, &newmaster->master.tree_node, NULL))
+            int res = FDMulticastTree_Insert(&d->multicast_tree, 0, FDMulticastTreeDeref(0, newmaster), NULL);
+            ASSERT(res)
         }
     }
     
@@ -300,11 +294,11 @@ static void lower_group_timers_to_lmqt (FrameDecider *d, uint32_t group)
     uint32_t sig = compute_sig_for_group(group);
     
     // look up the sig in multicast tree
-    BAVLNode *tree_node;
-    if (!(tree_node = BAVL_LookupExact(&d->multicast_tree, &sig))) {
+    FDMulticastTreeRef ref = FDMulticastTree_LookupExact(&d->multicast_tree, 0, sig);
+    if (FDMulticastTreeIsNullRef(ref)) {
         return;
     }
-    struct _FrameDecider_group_entry *master = UPPER_OBJECT(tree_node, struct _FrameDecider_group_entry, master.tree_node);
+    struct _FrameDecider_group_entry *master = ref.ptr;
     ASSERT(master->is_master)
     
     // iterate all group entries with this sig
@@ -354,7 +348,7 @@ void FrameDecider_Init (FrameDecider *o, int max_peer_macs, int max_peer_groups,
     FDMacsTree_Init(&o->macs_tree);
     
     // init multicast tree
-    BAVL_Init(&o->multicast_tree, OFFSET_DIFF(struct _FrameDecider_group_entry, master.sig, master.tree_node), (BAVL_comparator)uint32_comparator, NULL);
+    FDMulticastTree_Init(&o->multicast_tree);
     
     // init decide state
     o->decide_state = DECIDE_STATE_NONE;
@@ -364,7 +358,7 @@ void FrameDecider_Init (FrameDecider *o, int max_peer_macs, int max_peer_groups,
 
 void FrameDecider_Free (FrameDecider *o)
 {
-    ASSERT(BAVL_IsEmpty(&o->multicast_tree))
+    ASSERT(FDMulticastTree_IsEmpty(&o->multicast_tree))
     ASSERT(FDMacsTree_IsEmpty(&o->macs_tree))
     ASSERT(LinkedList2_IsEmpty(&o->peers_list))
     DebugObject_Free(&o->d_obj);
@@ -492,9 +486,9 @@ out:;
         uint32_t sig = compute_sig_for_mac(eh->dest);
         
         // look up the sig in multicast tree
-        BAVLNode *node;
-        if (node = BAVL_LookupExact(&o->multicast_tree, &sig)) {
-            struct _FrameDecider_group_entry *master = UPPER_OBJECT(node, struct _FrameDecider_group_entry, master.tree_node);
+        FDMulticastTreeRef ref = FDMulticastTree_LookupExact(&o->multicast_tree, 0, sig);
+        if (FDMulticastTreeIsValidRef(ref)) {
+            struct _FrameDecider_group_entry *master = ref.ptr;
             ASSERT(master->is_master)
             
             o->decide_state = DECIDE_STATE_MULTICAST;
