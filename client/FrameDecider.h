@@ -65,7 +65,10 @@ struct _FrameDecider_group_entry {
     // defined when used:
     // basic group data
     uint32_t group; // group address
-    BAVLNode tree_node; // node in FrameDeciderPeer.groups_tree, indexed by group
+    // node in FrameDeciderPeer.groups_tree, indexed by group
+    struct _FrameDecider_group_entry *tree_child[2];
+    struct _FrameDecider_group_entry *tree_parent;
+    int8_t tree_balance;
     // all that folows is managed by add_to_multicast() and remove_from_multicast()
     LinkedList3Node sig_list_node; // node in list of group entries with the same sig
     btime_t timer_endtime;
@@ -82,6 +85,12 @@ typedef struct _FrameDecider_mac_entry *FDMacsTree_link;
 typedef const uint8_t *FDMacsTree_key;
 
 #include "FrameDecider_macs_tree.h"
+#include <structure/CAvl_decl.h>
+
+typedef struct _FrameDecider_group_entry FDGroupsTree_entry;
+typedef struct _FrameDecider_group_entry *FDGroupsTree_link;
+
+#include "FrameDecider_groups_tree.h"
 #include <structure/CAvl_decl.h>
 
 /**
@@ -117,7 +126,7 @@ typedef struct _FrameDeciderPeer {
     LinkedList2 mac_entries_used;
     LinkedList2 group_entries_free;
     LinkedList2 group_entries_used;
-    BAVL groups_tree;
+    FDGroupsTree groups_tree;
     DebugObject d_obj;
 } FrameDeciderPeer;
 

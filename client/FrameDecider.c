@@ -60,6 +60,9 @@ static int compare_macs (const uint8_t *mac1, const uint8_t *mac2)
 #include "FrameDecider_macs_tree.h"
 #include <structure/CAvl_impl.h>
 
+#include "FrameDecider_groups_tree.h"
+#include <structure/CAvl_impl.h>
+
 static int uint32_comparator (void *user, uint32_t *v1, uint32_t *v2)
 {
     if (*v1 < *v2) {
@@ -209,9 +212,9 @@ static void add_group_to_peer (FrameDeciderPeer *o, uint32_t group)
     struct _FrameDecider_group_entry *group_entry;
     
     // lookup if the peer already has that group
-    BAVLNode *old_tree_node;
-    if ((old_tree_node = BAVL_LookupExact(&o->groups_tree, &group))) {
-        group_entry = UPPER_OBJECT(old_tree_node, struct _FrameDecider_group_entry, tree_node);
+    FDGroupsTreeRef ref = FDGroupsTree_LookupExact(&o->groups_tree, 0, group);
+    if (FDGroupsTreeIsValidRef(ref)) {
+        group_entry = ref.ptr;
         
         // move to end of used list
         LinkedList2_Remove(&o->group_entries_used, &group_entry->list_node);
@@ -237,7 +240,7 @@ static void add_group_to_peer (FrameDeciderPeer *o, uint32_t group)
             remove_from_multicast(d, group_entry);
             
             // remove from peer's groups tree
-            BAVL_Remove(&o->groups_tree, &group_entry->tree_node);
+            FDGroupsTree_Remove(&o->groups_tree, 0, FDGroupsTreeDeref(0, group_entry));
             
             // remove from used list
             LinkedList2_Remove(&o->group_entries_used, &group_entry->list_node);
@@ -250,7 +253,8 @@ static void add_group_to_peer (FrameDeciderPeer *o, uint32_t group)
         group_entry->group = group;
         
         // insert to peer's groups tree
-        ASSERT_EXECUTE(BAVL_Insert(&o->groups_tree, &group_entry->tree_node, NULL))
+        int res = FDGroupsTree_Insert(&o->groups_tree, 0, FDGroupsTreeDeref(0, group_entry), NULL);
+        ASSERT(res)
         
         // add to multicast
         add_to_multicast(d, group_entry);
@@ -276,7 +280,7 @@ static void remove_group_entry (struct _FrameDecider_group_entry *group_entry)
     remove_from_multicast(d, group_entry);
     
     // remove from peer's groups tree
-    BAVL_Remove(&peer->groups_tree, &group_entry->tree_node);
+    FDGroupsTree_Remove(&peer->groups_tree, 0, FDGroupsTreeDeref(0, group_entry));
     
     // remove from used list
     LinkedList2_Remove(&peer->group_entries_used, &group_entry->list_node);
@@ -614,7 +618,7 @@ int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d, void *user, BLo
     }
     
     // initialize groups tree
-    BAVL_Init(&o->groups_tree, OFFSET_DIFF(struct _FrameDecider_group_entry, group, tree_node), (BAVL_comparator)uint32_comparator, NULL);
+    FDGroupsTree_Init(&o->groups_tree);
     
     DebugObject_Init(&o->d_obj);
     
