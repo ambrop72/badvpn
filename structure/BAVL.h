@@ -191,6 +191,8 @@ static uint64_t BAVL_IndexOf (const BAVL *o, BAVLNode *n);
 static BAVLNode * BAVL_GetAt (const BAVL *o, uint64_t index);
 #endif
 
+static void BAVL_Verify (BAVL *o);
+
 #define BAVL_MAX(_a, _b) ((_a) > (_b) ? (_a) : (_b))
 #define BAVL_OPTNEG(_a, _neg) ((_neg) ? -(_a) : (_a))
 
@@ -214,16 +216,15 @@ static int _BAVL_compare_nodes (BAVL *o, BAVLNode *n1, BAVLNode *n2)
 }
 
 #ifdef BAVL_DEBUG
-#define BAVL_ASSERT(_h) _BAVL_assert(_h);
+#define BAVL_ASSERT(_h) BAVL_Verify((_h));
 #else
 #define BAVL_ASSERT(_h)
 #endif
 
-#ifdef BAVL_DEBUG
-
 static int _BAVL_assert_recurser (BAVL *o, BAVLNode *n)
 {
-    ASSERT(n->balance >= -1 && n->balance <= 1)
+    ASSERT_FORCE(n->balance >= -1)
+    ASSERT_FORCE(n->balance <= 1)
     
     int height_left = 0;
     int height_right = 0;
@@ -235,9 +236,9 @@ static int _BAVL_assert_recurser (BAVL *o, BAVLNode *n)
     // check left subtree
     if (n->link[0]) {
         // check parent link
-        ASSERT(n->link[0]->parent == n)
+        ASSERT_FORCE(n->link[0]->parent == n)
         // check binary search tree
-        ASSERT(_BAVL_compare_nodes(o, n->link[0], n) == -1)
+        ASSERT_FORCE(_BAVL_compare_nodes(o, n->link[0], n) == -1)
         // recursively calculate height
         height_left = _BAVL_assert_recurser(o, n->link[0]);
 #ifdef BAVL_COUNT
@@ -248,9 +249,9 @@ static int _BAVL_assert_recurser (BAVL *o, BAVLNode *n)
     // check right subtree
     if (n->link[1]) {
         // check parent link
-        ASSERT(n->link[1]->parent == n)
+        ASSERT_FORCE(n->link[1]->parent == n)
         // check binary search tree
-        ASSERT(_BAVL_compare_nodes(o, n->link[1], n) == 1)
+        ASSERT_FORCE(_BAVL_compare_nodes(o, n->link[1], n) == 1)
         // recursively calculate height
         height_right = _BAVL_assert_recurser(o, n->link[1]);
 #ifdef BAVL_COUNT
@@ -259,25 +260,15 @@ static int _BAVL_assert_recurser (BAVL *o, BAVLNode *n)
     }
     
     // check balance factor
-    ASSERT(n->balance == height_right - height_left)
+    ASSERT_FORCE(n->balance == height_right - height_left)
     
 #ifdef BAVL_COUNT
     // check count
-    ASSERT(n->count == 1 + count_left + count_right)
+    ASSERT_FORCE(n->count == 1 + count_left + count_right)
 #endif
     
     return (BAVL_MAX(height_left, height_right) + 1);
 }
-
-static void _BAVL_assert (BAVL *o)
-{
-    if (o->root) {
-        ASSERT(!o->root->parent)
-        _BAVL_assert_recurser(o, o->root);
-    }
-}
-
-#endif
 
 #ifdef BAVL_COUNT
 static void _BAVL_update_count_from_children (BAVLNode *n)
@@ -794,5 +785,13 @@ static BAVLNode * BAVL_GetAt (const BAVL *o, uint64_t index)
 }
 
 #endif
+
+static void BAVL_Verify (BAVL *o)
+{
+    if (o->root) {
+        ASSERT(!o->root->parent)
+        _BAVL_assert_recurser(o, o->root);
+    }
+}
 
 #endif
