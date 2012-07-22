@@ -28,6 +28,7 @@
  */
 
 #include <stdlib.h>
+#include <limits.h>
 
 #include <misc/debug.h>
 #include <misc/balloc.h>
@@ -92,6 +93,7 @@ int main (int argc, char **argv)
         }
     }
     printf("Inserted %d entries\n", inserted);
+    ASSERT_FORCE(MyTree_Count(&tree, 0) == inserted)
     verify(&tree);
     
     printf("Removing random entries...\n");
@@ -107,6 +109,7 @@ int main (int argc, char **argv)
         }
     }
     printf("Removed %d entries\n", removed1);
+    ASSERT_FORCE(MyTree_Count(&tree, 0) == inserted - removed1)
     verify(&tree);
     
     printf("Removing remaining...\n");
@@ -121,6 +124,7 @@ int main (int argc, char **argv)
     printf("Removed %d entries\n", removed2);
     ASSERT_FORCE(MyTree_IsEmpty(&tree))
     ASSERT_FORCE(removed1 + removed2 == inserted)
+    ASSERT_FORCE(MyTree_Count(&tree, 0) == 0)
     verify(&tree);
     
     BFree(nodes);
