@@ -41,14 +41,14 @@
 #define PeerLog(_o, ...) BLog_LogViaFunc((_o)->logfunc, (_o)->user, BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 #include "FragmentProtoAssembler_tree.h"
-#include <structure/CAvl_impl.h>
+#include <structure/SAvl_impl.h>
 
 static void free_frame (FragmentProtoAssembler *o, struct FragmentProtoAssembler_frame *frame)
 {
     // remove from used list
     LinkedList2_Remove(&o->frames_used, &frame->list_node);
     // remove from used tree
-    FPAFramesTree_Remove(&o->frames_used_tree, 0, FPAFramesTreeDeref(0, frame));
+    FPAFramesTree_Remove(&o->frames_used_tree, 0, frame);
     
     // append to free list
     LinkedList2_Append(&o->frames_free, &frame->list_node);
@@ -69,7 +69,7 @@ static void free_oldest_frame (FragmentProtoAssembler *o)
 
 static struct FragmentProtoAssembler_frame * allocate_new_frame (FragmentProtoAssembler *o, fragmentproto_frameid id)
 {
-    ASSERT(FPAFramesTreeIsNullRef(FPAFramesTree_LookupExact(&o->frames_used_tree, 0, id)))
+    ASSERT(!FPAFramesTree_LookupExact(&o->frames_used_tree, 0, id))
     
     // if there are no free entries, free the oldest used one
     if (LinkedList2_IsEmpty(&o->frames_free)) {
@@ -96,7 +96,7 @@ static struct FragmentProtoAssembler_frame * allocate_new_frame (FragmentProtoAs
     // append to used list
     LinkedList2_Append(&o->frames_used, &frame->list_node);
     // insert to used tree
-    int res = FPAFramesTree_Insert(&o->frames_used_tree, 0, FPAFramesTreeDeref(0, frame), NULL);
+    int res = FPAFramesTree_Insert(&o->frames_used_tree, 0, frame, NULL);
     ASSERT(res)
     
     return frame;
@@ -178,14 +178,12 @@ static int process_chunk (FragmentProtoAssembler *o, fragmentproto_frameid frame
     ASSERT(chunk_end <= o->output_mtu)
     
     // lookup frame
-    struct FragmentProtoAssembler_frame *frame;
-    FPAFramesTreeRef ref = FPAFramesTree_LookupExact(&o->frames_used_tree, 0, frame_id);
-    if (FPAFramesTreeIsNullRef(ref)) {
+    struct FragmentProtoAssembler_frame *frame = FPAFramesTree_LookupExact(&o->frames_used_tree, 0, frame_id);
+    if (!frame) {
         // frame not found, add a new one
         frame = allocate_new_frame(o, frame_id);
     } else {
         // have existing frame with that ID
-        frame = ref.ptr;
         // check frame time
         if (frame_is_timed_out(o, frame)) {
             // frame is timed out, remove it and use a new one

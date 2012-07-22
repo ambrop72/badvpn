@@ -42,10 +42,15 @@
 #include <base/DebugObject.h>
 #include <base/BLog.h>
 #include <structure/LinkedList2.h>
-#include <structure/CAvl.h>
+#include <structure/SAvl.h>
 #include <flow/PacketPassInterface.h>
 
 #define FPA_MAX_TIME UINT32_MAX
+
+struct FragmentProtoAssembler_frame;
+
+#include "FragmentProtoAssembler_tree.h"
+#include <structure/SAvl_decl.h>
 
 struct FragmentProtoAssembler_chunk {
     int start;
@@ -59,20 +64,12 @@ struct FragmentProtoAssembler_frame {
     // everything below only defined when frame entry is used
     fragmentproto_frameid id; // frame identifier
     uint32_t time; // packet time when the last chunk was received
-    struct FragmentProtoAssembler_frame *tree_child[2]; // node fields in tree for searching frames by id
-    struct FragmentProtoAssembler_frame *tree_parent;
-    int8_t tree_balance;
+    FPAFramesTreeNode tree_node; // node fields in tree for searching frames by id
     int num_chunks; // number of valid chunks
     int sum; // sum of all chunks' lengths
     int length; // length of the frame, or -1 if not yet known
     int length_so_far; // if length=-1, current data set's upper bound
 };
-
-typedef struct FragmentProtoAssembler_frame FPAFramesTree_entry;
-typedef struct FragmentProtoAssembler_frame *FPAFramesTree_link;
-
-#include "FragmentProtoAssembler_tree.h"
-#include <structure/CAvl_decl.h>
 
 /**
  * Object which decodes packets according to FragmentProto.
