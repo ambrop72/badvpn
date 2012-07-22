@@ -40,6 +40,9 @@ static void SAvl_Init (SAvl *o)
 static int SAvl_Insert (SAvl *o, SAvlArg arg, SAvlEntry *entry, SAvlEntry **out_existing)
 {
     ASSERT(entry)
+#if SAVL_PARAM_FEATURE_COUNTS
+    ASSERT(SAvl_Count(o, arg) < SAVL_PARAM_VALUE_COUNT_MAX)
+#endif
     
     SAvl__TreeRef out_ref;
     int res = SAvl__Tree_Insert(&o->tree, arg, SAvl__TreeDeref(arg, entry), &out_ref);
