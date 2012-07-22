@@ -128,7 +128,7 @@ static int CAvl_verify_recurser (CAvlArg arg, CAvlRef n)
 
 static void CAvl_assert_tree (CAvl *o, CAvlArg arg)
 {
-#ifdef CAVL_PARAM_VERIFY
+#ifdef CAVL_AUTO_VERIFY
     CAvl_Verify(o, arg);
 #endif
 }
