@@ -23,6 +23,9 @@ if (BUILDING_SECURITY)
     add_executable(bavl_test bavl_test.c)
     target_link_libraries(bavl_test security)
 
+    add_executable(savl_test savl_test.c)
+    target_link_libraries(savl_test security)
+
     add_executable(bencryption_bench bencryption_bench.c)
     target_link_libraries(bencryption_bench system security)
 endif ()
