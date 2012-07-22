@@ -42,7 +42,7 @@ typedef struct {
     SAvlEntry *child[2];
     SAvlEntry *parent;
     int8_t balance;
-#if CAVL_PARAM_FEATURE_COUNTS
+#if SAVL_PARAM_FEATURE_COUNTS
     SAvlCount count;
 #endif
 } SAvlNode;
