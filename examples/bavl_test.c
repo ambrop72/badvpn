@@ -47,30 +47,10 @@ static int int_comparator (void *user, int *val1, int *val2)
     return B_COMPARE(*val1, *val2);
 }
 
-static void print_indent (int indent)
+static void verify (BAVL *tree)
 {
-    for (int i = 0; i < indent; i++) {
-        printf("  ");
-    }
-}
-
-static void print_avl_recurser (BAVLNode *node, int indent)
-{
-    print_indent(indent);
-    
-    if (!node) {
-        printf("null\n");
-    } else {
-        struct mynode *mnode = UPPER_OBJECT(node, struct mynode, avl_node);
-        printf("(%d) %d %p\n", node->balance, mnode->num, node);
-        print_avl_recurser(node->link[0], indent + 1);
-        print_avl_recurser(node->link[1], indent + 1);
-    }
-}
-
-static void print_avl (BAVL *tree)
-{
-    print_avl_recurser(tree->root, 0);
+    printf("Verifying...\n");
+    BAVL_Verify(tree);
 }
 
 int main (int argc, char **argv)
@@ -94,16 +74,7 @@ int main (int argc, char **argv)
     
     BAVL avl;
     BAVL_Init(&avl, OFFSET_DIFF(struct mynode, num, avl_node), (BAVL_comparator)int_comparator, NULL);
-    
-    /*
-    printf("Inserting in reverse order...\n");
-    for (int i = num_nodes - 1; i >= 0; i--) {
-        nodes[i].used = 1;
-        nodes[i].num = i;
-        int res = BAVL_Insert(&avl, &nodes[i].avl_node);
-        ASSERT(res == 1)
-    }
-    */
+    verify(&avl);
     
     printf("Inserting random values...\n");
     BRandom_randomize((uint8_t *)values_ins, num_nodes * sizeof(int));
@@ -116,6 +87,7 @@ int main (int argc, char **argv)
             printf("Insert collision!\n");
         }
     }
+    verify(&avl);
     
     printf("Removing random entries...\n");
     int removed = 0;
@@ -129,6 +101,7 @@ int main (int argc, char **argv)
             removed++;
         }
     }
+    verify(&avl);
     
     printf("Removed %d entries\n", removed);
     
