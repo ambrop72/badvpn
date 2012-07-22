@@ -58,7 +58,7 @@ static int compare_macs (const uint8_t *mac1, const uint8_t *mac2)
 }
 
 #include "FrameDecider_macs_tree.h"
-#include <structure/CAvl_impl.h>
+#include <structure/SAvl_impl.h>
 
 #include "FrameDecider_groups_tree.h"
 #include <structure/CAvl_impl.h>
@@ -71,21 +71,19 @@ static void add_mac_to_peer (FrameDeciderPeer *o, uint8_t *mac)
     FrameDecider *d = o->d;
     
     // locate entry in tree
-    FDMacsTreeRef ref = FDMacsTree_LookupExact(&d->macs_tree, 0, mac);
-    if (FDMacsTreeIsValidRef(ref)) {
-        struct _FrameDecider_mac_entry *entry = ref.ptr;
-        
-        if (entry->peer == o) {
+    struct _FrameDecider_mac_entry *e_entry = FDMacsTree_LookupExact(&d->macs_tree, 0, mac);
+    if (e_entry) {
+        if (e_entry->peer == o) {
             // this is our MAC; only move it to the end of the used list
-            LinkedList2_Remove(&o->mac_entries_used, &entry->list_node);
-            LinkedList2_Append(&o->mac_entries_used, &entry->list_node);
+            LinkedList2_Remove(&o->mac_entries_used, &e_entry->list_node);
+            LinkedList2_Append(&o->mac_entries_used, &e_entry->list_node);
             return;
         }
         
         // some other peer has that MAC; disassociate it
-        FDMacsTree_Remove(&d->macs_tree, 0, FDMacsTreeDeref(0, entry));
-        LinkedList2_Remove(&entry->peer->mac_entries_used, &entry->list_node);
-        LinkedList2_Append(&entry->peer->mac_entries_free, &entry->list_node);
+        FDMacsTree_Remove(&d->macs_tree, 0, e_entry);
+        LinkedList2_Remove(&e_entry->peer->mac_entries_used, &e_entry->list_node);
+        LinkedList2_Append(&e_entry->peer->mac_entries_free, &e_entry->list_node);
     }
     
     // aquire MAC address entry, if there are no free ones reuse the oldest used one
@@ -104,7 +102,7 @@ static void add_mac_to_peer (FrameDeciderPeer *o, uint8_t *mac)
         ASSERT(entry->peer == o)
         
         // remove from used
-        FDMacsTree_Remove(&d->macs_tree, 0, FDMacsTreeDeref(0, entry));
+        FDMacsTree_Remove(&d->macs_tree, 0, entry);
         LinkedList2_Remove(&o->mac_entries_used, &entry->list_node);
     }
     
@@ -115,7 +113,7 @@ static void add_mac_to_peer (FrameDeciderPeer *o, uint8_t *mac)
     
     // add to used
     LinkedList2_Append(&o->mac_entries_used, &entry->list_node);
-    int res = FDMacsTree_Insert(&d->macs_tree, 0, FDMacsTreeDeref(0, entry), NULL);
+    int res = FDMacsTree_Insert(&d->macs_tree, 0, entry, NULL);
     ASSERT(res)
 }
 
@@ -499,9 +497,8 @@ out:;
     }
     
     // look for MAC entry
-    FDMacsTreeRef ref = FDMacsTree_LookupExact(&o->macs_tree, 0, eh->dest);
-    if (FDMacsTreeIsValidRef(ref)) {
-        struct _FrameDecider_mac_entry *entry = ref.ptr;
+    struct _FrameDecider_mac_entry *entry = FDMacsTree_LookupExact(&o->macs_tree, 0, eh->dest);
+    if (entry) {
         o->decide_state = DECIDE_STATE_UNICAST;
         o->decide_unicast_peer = entry->peer;
         return;
@@ -656,7 +653,7 @@ void FrameDeciderPeer_Free (FrameDeciderPeer *o)
         struct _FrameDecider_mac_entry *entry = UPPER_OBJECT(node, struct _FrameDecider_mac_entry, list_node);
         
         // remove from tree
-        FDMacsTree_Remove(&d->macs_tree, 0, FDMacsTreeDeref(0, entry));
+        FDMacsTree_Remove(&d->macs_tree, 0, entry);
     }
     
     // remove from peers list

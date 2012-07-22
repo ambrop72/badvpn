@@ -40,21 +40,25 @@
 #include <structure/LinkedList2.h>
 #include <structure/LinkedList3.h>
 #include <structure/CAvl.h>
+#include <structure/SAvl.h>
 #include <base/DebugObject.h>
 #include <base/BLog.h>
 #include <system/BReactor.h>
 
 struct _FrameDeciderPeer;
+struct _FrameDecider_mac_entry;
+
+typedef const uint8_t *FDMacsTree_key;
+
+#include "FrameDecider_macs_tree.h"
+#include <structure/SAvl_decl.h>
 
 struct _FrameDecider_mac_entry {
     struct _FrameDeciderPeer *peer;
     LinkedList2Node list_node; // node in FrameDeciderPeer.mac_entries_free or FrameDeciderPeer.mac_entries_used
     // defined when used:
     uint8_t mac[6];
-    // node in FrameDecider.macs_tree, indexed by mac
-    struct _FrameDecider_mac_entry *tree_child[2];
-    struct _FrameDecider_mac_entry *tree_parent;
-    int8_t tree_balance;
+    FDMacsTreeNode tree_node; // node in FrameDecider.macs_tree, indexed by mac
 };
 
 struct _FrameDecider_group_entry {
@@ -81,13 +85,6 @@ struct _FrameDecider_group_entry {
         int8_t tree_balance;
     } master;
 };
-
-typedef struct _FrameDecider_mac_entry FDMacsTree_entry;
-typedef struct _FrameDecider_mac_entry *FDMacsTree_link;
-typedef const uint8_t *FDMacsTree_key;
-
-#include "FrameDecider_macs_tree.h"
-#include <structure/CAvl_decl.h>
 
 typedef struct _FrameDecider_group_entry FDGroupsTree_entry;
 typedef struct _FrameDecider_group_entry *FDGroupsTree_link;
