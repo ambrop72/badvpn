@@ -39,7 +39,6 @@
 
 #include <structure/LinkedList2.h>
 #include <structure/LinkedList3.h>
-#include <structure/CAvl.h>
 #include <structure/SAvl.h>
 #include <base/DebugObject.h>
 #include <base/BLog.h>
@@ -55,6 +54,9 @@ typedef const uint8_t *FDMacsTree_key;
 #include <structure/SAvl_decl.h>
 
 #include "FrameDecider_groups_tree.h"
+#include <structure/SAvl_decl.h>
+
+#include "FrameDecider_multicast_tree.h"
 #include <structure/SAvl_decl.h>
 
 struct _FrameDecider_mac_entry {
@@ -80,18 +82,9 @@ struct _FrameDecider_group_entry {
     // defined when used and we are master:
     struct {
         uint32_t sig; // last 23 bits of group address
-        // node in FrameDecider.multicast_tree, indexed by sig
-        struct _FrameDecider_group_entry *tree_child[2];
-        struct _FrameDecider_group_entry *tree_parent;
-        int8_t tree_balance;
+        FDMulticastTreeNode tree_node; // node in FrameDecider.multicast_tree, indexed by sig
     } master;
 };
-
-typedef struct _FrameDecider_group_entry FDMulticastTree_entry;
-typedef struct _FrameDecider_group_entry *FDMulticastTree_link;
-
-#include "FrameDecider_multicast_tree.h"
-#include <structure/CAvl_decl.h>
 
 /**
  * Object that represents a local device.
