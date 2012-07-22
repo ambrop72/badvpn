@@ -123,7 +123,7 @@
 #include <misc/balloc.h>
 #include <structure/LinkedList0.h>
 #include <structure/IndexedList.h>
-#include <structure/CAvl.h>
+#include <structure/SAvl.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_value.h>
@@ -132,18 +132,15 @@
 
 struct value;
 
+#include "value_maptree.h"
+#include <structure/SAvl_decl.h>
+
 struct valref {
     struct value *v;
     LinkedList0Node refs_list_node;
 };
 
 typedef void (*value_deinit_func) (void *deinit_data, NCDModuleInst *i);
-
-typedef struct value MapTree_entry;
-typedef struct value *MapTree_link;
-
-#include "value_maptree.h"
-#include <structure/CAvl_decl.h>
 
 struct instance {
     NCDModuleInst *i;
@@ -163,10 +160,7 @@ struct value {
         struct {
             NCDValMem key_mem;
             NCDValRef key;
-            struct value *maptree_child[2];
-            struct value *maptree_parent;
-            size_t maptree_count;
-            int8_t maptree_balance;
+            MapTreeNode maptree_node;
         } map_parent;
     };
     
@@ -214,7 +208,7 @@ static struct value * valref_val (struct valref *r);
 static void valref_break (struct valref *r);
 
 #include "value_maptree.h"
-#include <structure/CAvl_impl.h>
+#include <structure/SAvl_impl.h>
 
 static const char * get_type_str (int type)
 {
@@ -439,10 +433,8 @@ static struct value * value_map_at (struct value *map, size_t index)
     ASSERT(map->type == NCDVAL_MAP)
     ASSERT(index < value_map_len(map))
     
-    MapTreeRef ref = MapTree_GetAt(&map->map.map_tree, 0, index);
-    ASSERT(MapTreeIsValidRef(ref))
-    
-    struct value *e = ref.ptr;
+    struct value *e =  MapTree_GetAt(&map->map.map_tree, 0, index);
+    ASSERT(e)
     ASSERT(e->parent == map)
     
     return e;
@@ -453,13 +445,8 @@ static struct value * value_map_find (struct value *map, NCDValRef key)
     ASSERT(map->type == NCDVAL_MAP)
     ASSERT(NCDVal_Type(key))
     
-    MapTreeRef ref = MapTree_LookupExact(&map->map.map_tree, 0, key);
-    if (MapTreeIsNullRef(ref)) {
-        return NULL;
-    }
-    
-    struct value *e = ref.ptr;
-    ASSERT(e->parent == map)
+    struct value *e = MapTree_LookupExact(&map->map.map_tree, 0, key);
+    ASSERT(!e || e->parent == map)
     
     return e;
 }
@@ -478,7 +465,7 @@ static int value_map_insert (struct value *map, struct value *v, NCDValMem mem, 
     
     v->map_parent.key_mem = mem;
     v->map_parent.key = NCDVal_FromSafe(&v->map_parent.key_mem, key);
-    int res = MapTree_Insert(&map->map.map_tree, 0, MapTreeDeref(0, v), NULL);
+    int res = MapTree_Insert(&map->map.map_tree, 0, v, NULL);
     ASSERT(res)
     v->parent = map;
     
@@ -490,7 +477,7 @@ static void value_map_remove (struct value *map, struct value *v)
     ASSERT(map->type == NCDVAL_MAP)
     ASSERT(v->parent == map)
     
-    MapTree_Remove(&map->map.map_tree, 0, MapTreeDeref(0, v));
+    MapTree_Remove(&map->map.map_tree, 0, v);
     NCDValMem_Free(&v->map_parent.key_mem);
     v->parent = NULL;
 }
@@ -502,7 +489,7 @@ static void value_map_remove2 (struct value *map, struct value *v, NCDValMem *ou
     ASSERT(out_mem)
     ASSERT(out_key)
     
-    MapTree_Remove(&map->map.map_tree, 0, MapTreeDeref(0, v));
+    MapTree_Remove(&map->map.map_tree, 0, v);
     *out_mem = v->map_parent.key_mem;
     *out_key = NCDVal_ToSafe(v->map_parent.key);
     v->parent = NULL;
