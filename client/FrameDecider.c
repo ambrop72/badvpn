@@ -61,7 +61,7 @@ static int compare_macs (const uint8_t *mac1, const uint8_t *mac2)
 #include <structure/SAvl_impl.h>
 
 #include "FrameDecider_groups_tree.h"
-#include <structure/CAvl_impl.h>
+#include <structure/SAvl_impl.h>
 
 #include "FrameDecider_multicast_tree.h"
 #include <structure/CAvl_impl.h>
@@ -201,13 +201,8 @@ static void add_group_to_peer (FrameDeciderPeer *o, uint32_t group)
 {
     FrameDecider *d = o->d;
     
-    struct _FrameDecider_group_entry *group_entry;
-    
-    // lookup if the peer already has that group
-    FDGroupsTreeRef ref = FDGroupsTree_LookupExact(&o->groups_tree, 0, group);
-    if (FDGroupsTreeIsValidRef(ref)) {
-        group_entry = ref.ptr;
-        
+    struct _FrameDecider_group_entry *group_entry = FDGroupsTree_LookupExact(&o->groups_tree, 0, group);
+    if (group_entry) {
         // move to end of used list
         LinkedList2_Remove(&o->group_entries_used, &group_entry->list_node);
         LinkedList2_Append(&o->group_entries_used, &group_entry->list_node);
@@ -232,7 +227,7 @@ static void add_group_to_peer (FrameDeciderPeer *o, uint32_t group)
             remove_from_multicast(d, group_entry);
             
             // remove from peer's groups tree
-            FDGroupsTree_Remove(&o->groups_tree, 0, FDGroupsTreeDeref(0, group_entry));
+            FDGroupsTree_Remove(&o->groups_tree, 0, group_entry);
             
             // remove from used list
             LinkedList2_Remove(&o->group_entries_used, &group_entry->list_node);
@@ -245,7 +240,7 @@ static void add_group_to_peer (FrameDeciderPeer *o, uint32_t group)
         group_entry->group = group;
         
         // insert to peer's groups tree
-        int res = FDGroupsTree_Insert(&o->groups_tree, 0, FDGroupsTreeDeref(0, group_entry), NULL);
+        int res = FDGroupsTree_Insert(&o->groups_tree, 0, group_entry, NULL);
         ASSERT(res)
         
         // add to multicast
@@ -272,7 +267,7 @@ static void remove_group_entry (struct _FrameDecider_group_entry *group_entry)
     remove_from_multicast(d, group_entry);
     
     // remove from peer's groups tree
-    FDGroupsTree_Remove(&peer->groups_tree, 0, FDGroupsTreeDeref(0, group_entry));
+    FDGroupsTree_Remove(&peer->groups_tree, 0, group_entry);
     
     // remove from used list
     LinkedList2_Remove(&peer->group_entries_used, &group_entry->list_node);
