@@ -215,7 +215,7 @@ static int _BAVL_compare_nodes (BAVL *o, BAVLNode *n1, BAVLNode *n2)
     return _BAVL_compare_values(o, _BAVL_node_value(o, n1), _BAVL_node_value(o, n2));
 }
 
-#ifdef BAVL_DEBUG
+#ifdef BAVL_AUTO_VERIFY
 #define BAVL_ASSERT(_h) BAVL_Verify((_h));
 #else
 #define BAVL_ASSERT(_h)
