@@ -1,5 +1,5 @@
 /**
- * @file bavl_test.c
+ * @file savl_test.c
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
