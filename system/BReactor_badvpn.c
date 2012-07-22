@@ -65,16 +65,15 @@ static int compare_timers (BTimer *t1, BTimer *t2)
 }
 
 #include "BReactor_badvpn_timerstree.h"
-#include <structure/CAvl_impl.h>
+#include <structure/SAvl_impl.h>
 
 static int move_expired_timers (BReactor *bsys, btime_t now)
 {
     int moved = 0;
     
     // move timed out timers to the expired list
-    BReactor__TimersTreeRef ref;
-    while (BReactor__TimersTreeIsValidRef(ref = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0))) {
-        BTimer *timer = ref.ptr;
+    BTimer *timer;
+    while (timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0)) {
         ASSERT(timer->active)
         
         // if it's in the future, stop
@@ -83,8 +82,8 @@ static int move_expired_timers (BReactor *bsys, btime_t now)
         }
         moved = 1;
         
-        // remove from running timers heap
-        BReactor__TimersTree_Remove(&bsys->timers_tree, 0, BReactor__TimersTreeDeref(0, timer));
+        // remove from running timers tree
+        BReactor__TimersTree_Remove(&bsys->timers_tree, 0, timer);
         
         // add to expired timers list
         LinkedList1_Append(&bsys->timers_expired_list, &timer->list_node);
@@ -99,14 +98,13 @@ static int move_expired_timers (BReactor *bsys, btime_t now)
 static void move_first_timers (BReactor *bsys)
 {
     // get the time of the first timer
-    BReactor__TimersTreeRef ref = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0);
-    ASSERT(BReactor__TimersTreeIsValidRef(ref))
-    BTimer *first_timer = ref.ptr;
+    BTimer *first_timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0);
+    ASSERT(first_timer)
     ASSERT(first_timer->active)
     btime_t first_time = first_timer->absTime;
     
-    // remove from running timers heap
-    BReactor__TimersTree_Remove(&bsys->timers_tree, 0, BReactor__TimersTreeDeref(0, first_timer));
+    // remove from running timers tree
+    BReactor__TimersTree_Remove(&bsys->timers_tree, 0, first_timer);
     
     // add to expired timers list
     LinkedList1_Append(&bsys->timers_expired_list, &first_timer->list_node);
@@ -115,8 +113,8 @@ static void move_first_timers (BReactor *bsys)
     first_timer->expired = 1;
     
     // also move other timers with the same timeout
-    while (BReactor__TimersTreeIsValidRef(ref = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0))) {
-        BTimer *timer = ref.ptr;
+    BTimer *timer;
+    while (timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0)) {
         ASSERT(timer->active)
         ASSERT(timer->absTime >= first_time)
         
@@ -125,8 +123,8 @@ static void move_first_timers (BReactor *bsys)
             break;
         }
         
-        // remove from running timers heap
-        BReactor__TimersTree_Remove(&bsys->timers_tree, 0, BReactor__TimersTreeDeref(0, timer));
+        // remove from running timers tree
+        BReactor__TimersTree_Remove(&bsys->timers_tree, 0, timer);
         
         // add to expired timers list
         LinkedList1_Append(&bsys->timers_expired_list, &timer->list_node);
@@ -300,8 +298,8 @@ static void wait_for_events (BReactor *bsys)
     btime_t now;
     
     // compute timeout
-    BReactor__TimersTreeRef ref = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0);
-    if (BReactor__TimersTreeIsValidRef(ref)) {
+    BTimer *first_timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0);
+    if (first_timer) {
         // get current time
         now = btime_gettime();
         
@@ -312,7 +310,6 @@ static void wait_for_events (BReactor *bsys)
         }
         
         // timeout is first timer, remember absolute time
-        BTimer *first_timer = ref.ptr;
         have_timeout = 1;
         timeout_abs = first_timer->absTime;
     }
@@ -981,8 +978,8 @@ void BReactor_SetTimerAbsolute (BReactor *bsys, BTimer *bt, btime_t time)
     bt->expired = 0;
     bt->absTime = time;
 
-    // insert to running timers heap
-    int res = BReactor__TimersTree_Insert(&bsys->timers_tree, 0, BReactor__TimersTreeDeref(0, bt), NULL);
+    // insert to running timers tree
+    int res = BReactor__TimersTree_Insert(&bsys->timers_tree, 0, bt, NULL);
     ASSERT(res)
 }
 
@@ -996,8 +993,8 @@ void BReactor_RemoveTimer (BReactor *bsys, BTimer *bt)
         // remove from expired list
         LinkedList1_Remove(&bsys->timers_expired_list, &bt->list_node);
     } else {
-        // remove from running heap
-        BReactor__TimersTree_Remove(&bsys->timers_tree, 0, BReactor__TimersTreeDeref(0, bt));
+        // remove from running tree
+        BReactor__TimersTree_Remove(&bsys->timers_tree, 0, bt);
     }
 
     // set inactive

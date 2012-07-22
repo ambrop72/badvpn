@@ -1,13 +1,7 @@
-#define CAVL_PARAM_NAME BReactor__TimersTree
-#define CAVL_PARAM_FEATURE_COUNTS 0
-#define CAVL_PARAM_FEATURE_KEYS_ARE_INDICES 0
-#define CAVL_PARAM_FEATURE_NOKEYS 1
-#define CAVL_PARAM_TYPE_ENTRY BTimer
-#define CAVL_PARAM_TYPE_LINK BReactor__TimersTree_link
-#define CAVL_PARAM_TYPE_ARG int
-#define CAVL_PARAM_VALUE_NULL ((BReactor__TimersTree_link)NULL)
-#define CAVL_PARAM_FUN_DEREF(arg, link) (link)
-#define CAVL_PARAM_FUN_COMPARE_ENTRIES(arg, entry1, entry2) compare_timers((entry1).ptr, (entry2).ptr)
-#define CAVL_PARAM_MEMBER_CHILD tree_child
-#define CAVL_PARAM_MEMBER_BALANCE tree_balance
-#define CAVL_PARAM_MEMBER_PARENT tree_parent
+#define SAVL_PARAM_NAME BReactor__TimersTree
+#define SAVL_PARAM_FEATURE_COUNTS 0
+#define SAVL_PARAM_FEATURE_NOKEYS 1
+#define SAVL_PARAM_TYPE_ENTRY struct BTimer_t
+#define SAVL_PARAM_TYPE_ARG int
+#define SAVL_PARAM_FUN_COMPARE_ENTRIES(arg, entry1, entry2) compare_timers((entry1), (entry2))
+#define SAVL_PARAM_MEMBER_NODE tree_node

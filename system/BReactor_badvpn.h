@@ -63,11 +63,14 @@
 #include <misc/debugcounter.h>
 #include <base/DebugObject.h>
 #include <structure/LinkedList1.h>
-#include <structure/CAvl.h>
+#include <structure/SAvl.h>
 #include <system/BTime.h>
 #include <base/BPending.h>
 
 struct BTimer_t;
+
+#include "BReactor_badvpn_timerstree.h"
+#include <structure/SAvl_decl.h>
 
 /**
  * Handler function invoked when the timer expires.
@@ -92,11 +95,7 @@ typedef struct BTimer_t {
     uint8_t expired;
     btime_t absTime;
     union {
-        struct {
-            struct BTimer_t *tree_child[2];
-            struct BTimer_t *tree_parent;
-            int8_t tree_balance;
-        };
+        BReactor__TimersTreeNode tree_node;
         LinkedList1Node list_node;
     };
 } BTimer;
@@ -185,11 +184,6 @@ void BFileDescriptor_Init (BFileDescriptor *bs, int fd, BFileDescriptor_handler 
 #define BSYSTEM_MAX_RESULTS 64
 #define BSYSTEM_MAX_HANDLES 64
 #define BSYSTEM_MAX_POLL_FDS 4096
-
-typedef BTimer *BReactor__TimersTree_link;
-
-#include "BReactor_badvpn_timerstree.h"
-#include <structure/CAvl_decl.h>
 
 /**
  * Event loop that supports file desciptor (Linux) or HANDLE (Windows) events
