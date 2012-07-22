@@ -79,20 +79,23 @@ int main (int argc, char **argv)
     verify(&tree);
     
     printf("Inserting random values...\n");
+    int inserted = 0;
     BRandom_randomize((uint8_t *)values_ins, num_nodes * sizeof(int));
     for (int i = 0; i < num_nodes; i++) {
         nodes[i].num = values_ins[i];
         if (MyTree_Insert(&tree, 0, &nodes[i], NULL)) {
             nodes[i].used = 1;
+            inserted++;
         } else {
             nodes[i].used = 0;
             printf("Insert collision!\n");
         }
     }
+    printf("Inserted %d entries\n", inserted);
     verify(&tree);
     
     printf("Removing random entries...\n");
-    int removed = 0;
+    int removed1 = 0;
     BRandom_randomize((uint8_t *)values, num_random_delete * sizeof(int));
     for (int i = 0; i < num_random_delete; i++) {
         int index = (((unsigned int *)values)[i] % num_nodes);
@@ -100,12 +103,25 @@ int main (int argc, char **argv)
         if (node->used) {
             MyTree_Remove(&tree, 0, node);
             node->used = 0;
-            removed++;
+            removed1++;
         }
     }
+    printf("Removed %d entries\n", removed1);
     verify(&tree);
     
-    printf("Removed %d entries\n", removed);
+    printf("Removing remaining...\n");
+    int removed2 = 0;
+    while (!MyTree_IsEmpty(&tree)) {
+        struct mynode *node = MyTree_GetFirst(&tree, 0);
+        ASSERT_FORCE(node->used)
+        MyTree_Remove(&tree, 0, node);
+        node->used = 0;
+        removed2++;
+    }
+    printf("Removed %d entries\n", removed2);
+    ASSERT_FORCE(MyTree_IsEmpty(&tree))
+    ASSERT_FORCE(removed1 + removed2 == inserted)
+    verify(&tree);
     
     BFree(nodes);
     BFree(values_ins);

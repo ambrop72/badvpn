@@ -77,20 +77,23 @@ int main (int argc, char **argv)
     verify(&avl);
     
     printf("Inserting random values...\n");
+    int inserted = 0;
     BRandom_randomize((uint8_t *)values_ins, num_nodes * sizeof(int));
     for (int i = 0; i < num_nodes; i++) {
         nodes[i].num = values_ins[i];
         if (BAVL_Insert(&avl, &nodes[i].avl_node, NULL)) {
             nodes[i].used = 1;
+            inserted++;
         } else {
             nodes[i].used = 0;
             printf("Insert collision!\n");
         }
     }
+    printf("Inserted %d entries\n", inserted);
     verify(&avl);
     
     printf("Removing random entries...\n");
-    int removed = 0;
+    int removed1 = 0;
     BRandom_randomize((uint8_t *)values, num_random_delete * sizeof(int));
     for (int i = 0; i < num_random_delete; i++) {
         int index = (((unsigned int *)values)[i] % num_nodes);
@@ -98,12 +101,25 @@ int main (int argc, char **argv)
         if (node->used) {
             BAVL_Remove(&avl, &node->avl_node);
             node->used = 0;
-            removed++;
+            removed1++;
         }
     }
+    printf("Removed %d entries\n", removed1);
     verify(&avl);
     
-    printf("Removed %d entries\n", removed);
+    printf("Removing remaining...\n");
+    int removed2 = 0;
+    while (!BAVL_IsEmpty(&avl)) {
+        struct mynode *node = UPPER_OBJECT(BAVL_GetFirst(&avl), struct mynode, avl_node);
+        ASSERT_FORCE(node->used)
+        BAVL_Remove(&avl, &node->avl_node);
+        node->used = 0;
+        removed2++;
+    }
+    printf("Removed %d entries\n", removed2);
+    ASSERT_FORCE(BAVL_IsEmpty(&avl))
+    ASSERT_FORCE(removed1 + removed2 == inserted)
+    verify(&avl);
     
     BFree(nodes);
     BFree(values_ins);
