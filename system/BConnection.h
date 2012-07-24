@@ -213,7 +213,7 @@ static struct BConnection_source BConnection_source_pipe (int pipefd)
 {
     struct BConnection_source s;
     s.type = BCONNECTION_SOURCE_TYPE_PIPE;
-    s.u.pipe.pipefd;
+    s.u.pipe.pipefd = pipefd;
     return s;
 }
 #endif
