@@ -34,7 +34,9 @@
  *   value value::try_get(where)
  *   value value::getpath(list path)
  *   value value::insert(where, what)
+ *   value value::replace(where, what)
  *   value value::insert_undo(where, what)
+ *   value value::replace_undo(where, what)
  * 
  * Description:
  *   Value objects allow examining and manipulating values.
@@ -66,13 +68,20 @@
  *   For maps, 'where' is the key to insert under. If the key already exists in the
  *   map, its value is replaced; any references to the old value however remain valid.
  * 
- *   value::insert_undo(where, what) is like insert(), except that, on
- *   deinitialization, it attempts to revert the value to the original state.
- *   It does this by taking a reference to the old value at 'where' (if any) and
- *   before inserting the new value 'what' to that location. On deinitialization,
- *   it removes the value that it inserted from its parent and inserts the stored
- *   referenced value in its place, assuming this is possible (the inserted value
- *   has not been deleted and has a parent at deinitialization time).
+ *   value::replace(where, what) is like insert(), exept that, when inserting into a
+ *   list, the value at the specified index is replaced with the new value (unless
+ *   the index is equal to the length of the list).
+ * 
+ *   value::insert_undo(where, what) and value::replace_undo(where, what) are versions
+ *   of insert() and replace() which attempt to revert the modifications when they
+ *   deinitialize. Specifically, they work like that:
+ *   - On initiialization, they take an internal reference to the value being replaced
+ *     (if any; note that insert_undo() into a list never replaces a value).
+ *   - On deinitialization, they remove the the inserted value from its parent (if there
+ *     is one), and insert the old replaced value (to which a reference was kept) in that
+ *     place (if any, and assuming it has not been deleted).
+ *     Note that if the inserted value changes parents in between init and deinit, the
+ *     result of undoing may be unexpected.
  * 
  * Variables:
  *   (empty) - the value stored in the value object
@@ -200,7 +209,7 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value);
 static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NCDValRef *out_value);
 static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValRef where, int no_error);
 static struct value * value_get_path (NCDModuleInst *i, struct value *v, NCDValRef path);
-static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef where, NCDValRef what, struct value **out_oldv);
+static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef where, NCDValRef what, int is_replace, struct value **out_oldv);
 static int value_remove (NCDModuleInst *i, struct value *v, NCDValRef where);
 static void valref_init (struct valref *r, struct value *v);
 static void valref_free (struct valref *r);
@@ -698,11 +707,12 @@ fail:
     return NULL;
 }
 
-static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef where, NCDValRef what, struct value **out_oldv)
+static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef where, NCDValRef what, int is_replace, struct value **out_oldv)
 {
     ASSERT(v)
     ASSERT((NCDVal_Type(where), 1))
     ASSERT((NCDVal_Type(what), 1))
+    ASSERT(is_replace == !!is_replace)
     
     struct value *nv = value_init_fromvalue(i, what);
     if (!nv) {
@@ -729,8 +739,17 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef
                 goto fail1;
             }
             
-            if (!value_list_insert(i, v, nv, index)) {
-                goto fail1;
+            if (is_replace && index < value_list_len(v)) {
+                oldv = value_list_at(v, index);
+                
+                value_list_remove(v, oldv);
+                
+                int res = value_list_insert(i, v, nv, index);
+                ASSERT(res)
+            } else {
+                if (!value_list_insert(i, v, nv, index)) {
+                    goto fail1;
+                }
             }
         } break;
         
@@ -1090,7 +1109,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_insert (void *vo, NCDModuleInst *i)
+static void func_new_insert_replace_common (void *vo, NCDModuleInst *i, int is_replace)
 {
     NCDValRef where_arg;
     NCDValRef what_arg;
@@ -1107,7 +1126,7 @@ static void func_new_insert (void *vo, NCDModuleInst *i)
         goto fail0;
     }
     
-    struct value *v = value_insert(i, mov, where_arg, what_arg, NULL);
+    struct value *v = value_insert(i, mov, where_arg, what_arg, is_replace, NULL);
     if (!v) {
         goto fail0;
     }
@@ -1118,6 +1137,16 @@ static void func_new_insert (void *vo, NCDModuleInst *i)
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
+}
+
+static void func_new_insert (void *vo, NCDModuleInst *i)
+{
+    func_new_insert_replace_common(vo, i, 0);
+}
+
+static void func_new_replace (void *vo, NCDModuleInst *i)
+{
+    func_new_insert_replace_common(vo, i, 1);
 }
 
 struct insert_undo_deinit_data {
@@ -1166,7 +1195,7 @@ static void insert_undo_deinit_func (struct insert_undo_deinit_data *data, NCDMo
     free(data);
 }
 
-static void func_new_insert_undo (void *vo, NCDModuleInst *i)
+static void func_new_insert_replace_undo_common (void *vo, NCDModuleInst *i, int is_replace)
 {
     NCDValRef where_arg;
     NCDValRef what_arg;
@@ -1190,7 +1219,7 @@ static void func_new_insert_undo (void *vo, NCDModuleInst *i)
     }
     
     struct value *oldv;
-    struct value *v = value_insert(i, mov, where_arg, what_arg, &oldv);
+    struct value *v = value_insert(i, mov, where_arg, what_arg, is_replace, &oldv);
     if (!v) {
         goto fail1;
     }
@@ -1206,6 +1235,16 @@ fail1:
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
+}
+
+static void func_new_insert_undo (void *vo, NCDModuleInst *i)
+{
+    func_new_insert_replace_undo_common(vo, i, 0);
+}
+
+static void func_new_replace_undo (void *vo, NCDModuleInst *i)
+{
+    func_new_insert_replace_undo_common(vo, i, 1);
 }
 
 static void func_new_substr (void *vo, NCDModuleInst *i)
@@ -1357,9 +1396,23 @@ static const struct NCDModule modules[] = {
         .func_getvar = func_getvar,
         .alloc_size = sizeof(struct instance)
     }, {
+        .type = "value::replace",
+        .base_type = "value",
+        .func_new2 = func_new_replace,
+        .func_die = func_die,
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
+    }, {
         .type = "value::insert_undo",
         .base_type = "value",
         .func_new2 = func_new_insert_undo,
+        .func_die = func_die,
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
+    }, {
+        .type = "value::replace_undo",
+        .base_type = "value",
+        .func_new2 = func_new_replace_undo,
         .func_die = func_die,
         .func_getvar = func_getvar,
         .alloc_size = sizeof(struct instance)

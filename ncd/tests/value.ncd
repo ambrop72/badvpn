@@ -87,11 +87,33 @@ process main {
     val_equal(v, ["k1":"V1", "k3":"v3", "k4":"V4"]) a;
     assert(a);
 
+    value({"a", "b", "c"}) v;
+    v->replace("0", "A");
+    v->replace("1", "B");
+    v->replace("2", "C");
+    v->replace("3", "D");
+    val_equal(v, {"A", "B", "C", "D"}) a;
+    assert(a);
+
+    value({"a", "b", "c"}) v;
+    imperative("<none>", {}, "check2", {}, "10000");
+    v->replace_undo("0", "A");
+    v->replace_undo("1", "B");
+    v->replace_undo("2", "C");
+    v->replace_undo("3", "D");
+    val_equal(v, {"A", "B", "C", "D"}) a;
+    assert(a);
+
     println("succeeded");
     exit("0");
 }
 
 template check1 {
     val_equal(_caller.v, ["k1":"v1", "k3":"v3"]) a;
+    assert(a);
+}
+
+template check2 {
+    val_equal(_caller.v, {"a", "b", "c"}) a;
     assert(a);
 }
