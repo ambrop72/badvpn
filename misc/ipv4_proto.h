@@ -38,10 +38,12 @@
 
 #include <misc/debug.h>
 #include <misc/byteorder.h>
+#include <misc/packed.h>
 
 #define IPV4_PROTOCOL_IGMP 2
 #define IPV4_PROTOCOL_UDP 17
 
+B_START_PACKED
 struct ipv4_header {
     uint8_t version4_ihl4;
     uint8_t ds;
@@ -57,22 +59,25 @@ struct ipv4_header {
     uint32_t source_address;
     //
     uint32_t destination_address;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
 #define IPV4_GET_VERSION(_header) (((_header).version4_ihl4&0xF0)>>4)
 #define IPV4_GET_IHL(_header) (((_header).version4_ihl4&0x0F)>>0)
 
 #define IPV4_MAKE_VERSION_IHL(size) (((size)/4) + (4 << 4))
 
+B_START_PACKED
 struct ipv4_short {
     uint16_t v;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
 static uint16_t ipv4_checksum (uint8_t *ip_hdr, uint16_t len)
 {
     ASSERT(len % 2 == 0)
     
-    struct ipv4_short *s = (void *)ip_hdr;
+    struct ipv4_short *s = (struct ipv4_short *)ip_hdr;
     
     uint32_t t = 0;
     

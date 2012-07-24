@@ -131,7 +131,7 @@ void connector_handler (BSocksClient* o, int is_error)
     }
     
     // init connection
-    if (!BConnection_Init(&o->con, BCONNECTION_SOURCE_CONNECTOR(&o->connector), o->reactor, o, (BConnection_handler)connection_handler)) {
+    if (!BConnection_Init(&o->con, BConnection_source_connector(&o->connector), o->reactor, o, (BConnection_handler)connection_handler)) {
         BLog(BLOG_ERROR, "BConnection_Init failed");
         goto fail0;
     }

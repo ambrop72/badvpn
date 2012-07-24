@@ -179,12 +179,12 @@ int OTPChecker_Init (OTPChecker *mc, int num_otps, int cipher, int num_tables, B
     }
     
     // allocate tables
-    if (!(mc->tables = BAllocArray(mc->num_tables, sizeof(mc->tables[0])))) {
+    if (!(mc->tables = (struct OTPChecker_table *)BAllocArray(mc->num_tables, sizeof(mc->tables[0])))) {
         goto fail1;
     }
     
     // allocate entries
-    if (!(mc->entries = BAllocArray2(mc->num_tables, mc->num_entries, sizeof(mc->entries[0])))) {
+    if (!(mc->entries = (struct OTPChecker_entry *)BAllocArray2(mc->num_tables, mc->num_entries, sizeof(mc->entries[0])))) {
         goto fail2;
     }
     

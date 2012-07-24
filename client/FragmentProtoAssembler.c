@@ -396,17 +396,17 @@ int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, Packe
     o->time_tolerance = num_frames;
     
     // allocate frames
-    if (!(o->frames_entries = BAllocArray(num_frames, sizeof(o->frames_entries[0])))) {
+    if (!(o->frames_entries = (struct FragmentProtoAssembler_frame *)BAllocArray(num_frames, sizeof(o->frames_entries[0])))) {
         goto fail1;
     }
     
     // allocate chunks
-    if (!(o->frames_chunks = BAllocArray2(num_frames, o->num_chunks, sizeof(o->frames_chunks[0])))) {
+    if (!(o->frames_chunks = (struct FragmentProtoAssembler_chunk *)BAllocArray2(num_frames, o->num_chunks, sizeof(o->frames_chunks[0])))) {
         goto fail2;
     }
     
     // allocate buffers
-    if (!(o->frames_buffer = BAllocArray(num_frames, o->output_mtu))) {
+    if (!(o->frames_buffer = (uint8_t *)BAllocArray(num_frames, o->output_mtu))) {
         goto fail3;
     }
     

@@ -35,8 +35,8 @@
 
 #define TAPWIN32_MAX_REG_SIZE 256
 
-int tapwin32_parse_tap_spec (char *name, char *out_component_id, char *out_human_name);
-int tapwin32_parse_tun_spec (char *name, char *out_component_id, char *out_human_name, uint32_t out_addrs[3]);
+int tapwin32_parse_tap_spec (char *name, char **out_component_id, char **out_human_name);
+int tapwin32_parse_tun_spec (char *name, char **out_component_id, char **out_human_name, uint32_t out_addrs[3]);
 int tapwin32_find_device (char *device_component_id, char *device_name, char (*device_path)[TAPWIN32_MAX_REG_SIZE]);
 
 #endif

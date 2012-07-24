@@ -33,97 +33,96 @@
 #include <string.h>
 
 #include <misc/debug.h>
+#include <misc/ipaddr.h>
+#include <misc/maxalign.h>
+#include <misc/strdup.h>
 
 #include "wintap-common.h"
 
 #include <tuntap/tapwin32-funcs.h>
 
-static int split_spec (char *name, char *sep, char *out_fields[], int num_fields)
+static int split_spec (char *name, char *sep, char **out_fields[], int num_fields)
 {
     ASSERT(num_fields > 0)
     ASSERT(strlen(sep) > 0)
     
     size_t seplen = strlen(sep);
     
-    int i;
-    for (i = 0; i < num_fields - 1; i++) {
+    int i = 0;
+    while (i < num_fields - 1) {
         char *s = strstr(name, sep);
         if (!s) {
             DEBUG("missing separator number %d", (i + 1));
-            return 0;
+            goto fail;
         }
         
-        int flen = s - name;
-        memcpy(out_fields[i], name, flen);
-        out_fields[i][flen] = '\0';
+        if (!(*out_fields[i] = b_strdup_bin(name, s - name))) {
+            DEBUG("b_strdup_bin failed");
+            goto fail;
+        }
         
         name = s + seplen;
+        i++;
     }
     
-    int flen = strlen(name);
-    memcpy(out_fields[i], name, flen);
-    out_fields[i][flen] = '\0';
-    
-    return 1;
-}
-
-static int parse_ipv4_addr (char *name, uint8_t out_addr[4])
-{
-    if (strlen(name) > 15) {
-        return 0;
-    }
-    
-    char (nums[4])[16];
-    
-    char *out_fields[] = { nums[0], nums[1], nums[2], nums[3] };
-    
-    if (!split_spec(name, ".", out_fields, 4)) {
-        return 0;
-    }
-    
-    for (int i = 0; i < 4; i++) {
-        if (strlen(nums[i]) > 3) {
-            return 0;
-        }
-        
-        int num = atoi(nums[i]);
-        
-        if (!(num >= 0 && num < 256)) {
-            return 0;
-        }
-        
-        out_addr[i] = num;
+    if (!(*out_fields[i] = b_strdup(name))) {
+        DEBUG("b_strdup_bin failed");
+        goto fail;
     }
     
     return 1;
+    
+fail:
+    while (i-- > 0) {
+        free(*out_fields[i]);
+    }
+    return 0;
 }
 
-int tapwin32_parse_tap_spec (char *name, char *out_component_id, char *out_human_name)
+int tapwin32_parse_tap_spec (char *name, char **out_component_id, char **out_human_name)
 {
-    char *out_fields[] = { out_component_id, out_human_name };
+    char **out_fields[2];
+    out_fields[0] = out_component_id;
+    out_fields[1] = out_human_name;
     
     return split_spec(name, ":", out_fields, 2);
 }
 
-int tapwin32_parse_tun_spec (char *name, char *out_component_id, char *out_human_name, uint32_t out_addrs[3])
+int tapwin32_parse_tun_spec (char *name, char **out_component_id, char **out_human_name, uint32_t out_addrs[3])
 {
-    int namelen = strlen(name);
+    char *addr_strs[3];
     
-    char (addr_strs[3])[namelen + 1];
-    
-    char *out_fields[] = { out_component_id, out_human_name, addr_strs[0], addr_strs[1], addr_strs[2] };
+    char **out_fields[5];
+    out_fields[0] = out_component_id;
+    out_fields[1] = out_human_name;
+    out_fields[2] = &addr_strs[0];
+    out_fields[3] = &addr_strs[1];
+    out_fields[4] = &addr_strs[2];
     
     if (!split_spec(name, ":", out_fields, 5)) {
-        return 0;
+        goto fail0;
     }
     
     for (int i = 0; i < 3; i++) {
-        if (!parse_ipv4_addr(addr_strs[i], (uint8_t *)(out_addrs + i))) {
-            return 0;
+        if (!ipaddr_parse_ipv4_addr(addr_strs[i], &out_addrs[i])) {
+            goto fail1;
         }
     }
     
+    free(addr_strs[0]);
+    free(addr_strs[1]);
+    free(addr_strs[2]);
+    
     return 1;
+    
+fail1:
+    free(*out_component_id);
+    free(*out_human_name);
+    free(addr_strs[0]);
+    free(addr_strs[1]);
+    free(addr_strs[2]);
+fail0:
+    return 0;
 }
 
 int tapwin32_find_device (char *device_component_id, char *device_name, char (*device_path)[TAPWIN32_MAX_REG_SIZE])
@@ -138,6 +137,7 @@ int tapwin32_find_device (char *device_component_id, char *device_name, char (*d
     
     char net_cfg_instance_id[TAPWIN32_MAX_REG_SIZE];
     int found = 0;
+    int pres;
     
     DWORD i;
     for (i = 0;; i++) {
@@ -151,7 +151,10 @@ int tapwin32_find_device (char *device_component_id, char *device_name, char (*d
         }
         
         char unit_string[TAPWIN32_MAX_REG_SIZE];
-        snprintf(unit_string, sizeof(unit_string), "%s\\%s", ADAPTER_KEY, key_name);
+        pres = _snprintf(unit_string, sizeof(unit_string), "%s\\%s", ADAPTER_KEY, key_name);
+        if (pres < 0 || pres == sizeof(unit_string)) {
+            continue;
+        }
         HKEY unit_key;
         if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, unit_string, 0, KEY_READ, &unit_key) != ERROR_SUCCESS) {
             continue;
@@ -159,13 +162,13 @@ int tapwin32_find_device (char *device_component_id, char *device_name, char (*d
         
         char component_id[TAPWIN32_MAX_REG_SIZE];
         len = sizeof(component_id);
-        if (RegQueryValueEx(unit_key, "ComponentId", NULL, &type, component_id, &len) != ERROR_SUCCESS || type != REG_SZ) {
+        if (RegQueryValueEx(unit_key, "ComponentId", NULL, &type, (LPBYTE)component_id, &len) != ERROR_SUCCESS || type != REG_SZ) {
             ASSERT_FORCE(RegCloseKey(unit_key) == ERROR_SUCCESS)
             continue;
         }
         
         len = sizeof(net_cfg_instance_id);
-        if (RegQueryValueEx(unit_key, "NetCfgInstanceId", NULL, &type, net_cfg_instance_id, &len) != ERROR_SUCCESS || type != REG_SZ) {
+        if (RegQueryValueEx(unit_key, "NetCfgInstanceId", NULL, &type, (LPBYTE)net_cfg_instance_id, &len) != ERROR_SUCCESS || type != REG_SZ) {
             ASSERT_FORCE(RegCloseKey(unit_key) == ERROR_SUCCESS)
             continue;
         }
@@ -182,7 +185,10 @@ int tapwin32_find_device (char *device_component_id, char *device_name, char (*d
             
             // open connection key
             char conn_string[TAPWIN32_MAX_REG_SIZE];
-            snprintf(conn_string, sizeof(conn_string), "%s\\%s\\Connection", NETWORK_CONNECTIONS_KEY, net_cfg_instance_id);
+            pres = _snprintf(conn_string, sizeof(conn_string), "%s\\%s\\Connection", NETWORK_CONNECTIONS_KEY, net_cfg_instance_id);
+            if (pres < 0 || pres == sizeof(conn_string)) {
+                continue;
+            }
             HKEY conn_key;
             if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, conn_string, 0, KEY_READ, &conn_key) != ERROR_SUCCESS) {
                 continue;
@@ -191,7 +197,7 @@ int tapwin32_find_device (char *device_component_id, char *device_name, char (*d
             // read name
             char name[TAPWIN32_MAX_REG_SIZE];
             len = sizeof(name);
-            if (RegQueryValueEx(conn_key, "Name", NULL, &type, name, &len) != ERROR_SUCCESS || type != REG_SZ) {
+            if (RegQueryValueEx(conn_key, "Name", NULL, &type, (LPBYTE)name, &len) != ERROR_SUCCESS || type != REG_SZ) {
                 ASSERT_FORCE(RegCloseKey(conn_key) == ERROR_SUCCESS)
                 continue;
             }
@@ -212,7 +218,10 @@ int tapwin32_find_device (char *device_component_id, char *device_name, char (*d
         return 0;
     }
     
-    snprintf(*device_path, sizeof(*device_path), "\\\\.\\Global\\%s.tap", net_cfg_instance_id);
+    pres = _snprintf(*device_path, sizeof(*device_path), "\\\\.\\Global\\%s.tap", net_cfg_instance_id);
+    if (pres < 0 || pres == sizeof(*device_path)) {
+        return 0;
+    }
     
     return 1;
 }

@@ -104,7 +104,7 @@ int PacketBuffer_Init (PacketBuffer *buf, PacketRecvInterface *input, PacketPass
     if (num_blocks < 0) {
         goto fail0;
     }
-    if (!(buf->buf_data = BAllocArray(num_blocks, sizeof(buf->buf_data[0])))) {
+    if (!(buf->buf_data = (struct ChunkBuffer2_block *)BAllocArray(num_blocks, sizeof(buf->buf_data[0])))) {
         goto fail0;
     }
     

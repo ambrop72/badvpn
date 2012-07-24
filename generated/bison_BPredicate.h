@@ -1,4 +1,4 @@
-/* A Bison parser, made by GNU Bison 2.5.1.  */
+/* A Bison parser, made by GNU Bison 2.6.  */
 
 /* Bison interface for Yacc-like parsers in C
    
@@ -30,6 +30,15 @@
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
 
+#ifndef YY_GENERATED_BISON_BPREDICATE_H
+# define YY_GENERATED_BISON_BPREDICATE_H
+/* Enabling traces.  */
+#ifndef YYDEBUG
+# define YYDEBUG 0
+#endif
+#if YYDEBUG
+extern int yydebug;
+#endif
 
 /* Tokens.  */
 #ifndef YYTOKENTYPE
@@ -53,12 +62,11 @@
 #endif
 
 
-
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 typedef union YYSTYPE
 {
 
-/* Line 2072 of yacc.c  */
+/* Line 2050 of yacc.c  */
 #line 227 "predicate/BPredicate.y"
 
     char *text;
@@ -69,15 +77,13 @@ typedef union YYSTYPE
 
 
 
-/* Line 2072 of yacc.c  */
-#line 74 "generated//bison_BPredicate.h"
+/* Line 2050 of yacc.c  */
+#line 82 "generated//bison_BPredicate.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1
 #endif
-
-
 
 #if ! defined YYLTYPE && ! defined YYLTYPE_IS_DECLARED
 typedef struct YYLTYPE
@@ -93,4 +99,18 @@ typedef struct YYLTYPE
 #endif
 
 
+#ifdef YYPARSE_PARAM
+#if defined __STDC__ || defined __cplusplus
+int yyparse (void *YYPARSE_PARAM);
+#else
+int yyparse ();
+#endif
+#else /* ! YYPARSE_PARAM */
+#if defined __STDC__ || defined __cplusplus
+int yyparse (void *scanner, struct predicate_node **result);
+#else
+int yyparse ();
+#endif
+#endif /* ! YYPARSE_PARAM */
 
+#endif /* !YY_GENERATED_BISON_BPREDICATE_H  */

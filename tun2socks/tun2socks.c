@@ -337,7 +337,7 @@ int main (int argc, char **argv)
     BPending_Set(&lwip_init_job);
     
     // init device write buffer
-    if (!(device_write_buf = BAlloc(BTap_GetMTU(&device)))) {
+    if (!(device_write_buf = (uint8_t *)BAlloc(BTap_GetMTU(&device)))) {
         BLog(BLOG_ERROR, "BAlloc failed");
         goto fail5;
     }
@@ -703,8 +703,6 @@ void lwip_init_job_hadler (void *unused)
     // NOTE: the device may fail during this, but there's no harm in not checking
     // for that at every step
     
-    int res;
-    
     // init lwip
     lwip_init();
     
@@ -917,7 +915,7 @@ err_t netif_output_func (struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr)
         }
         
         SYNC_FROMHERE
-        BTap_Send(&device, p->payload, p->len);
+        BTap_Send(&device, (uint8_t *)p->payload, p->len);
         SYNC_COMMIT
     } else {
         int len = 0;
@@ -966,7 +964,7 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     tcp_accepted(listener);
     
     // allocate client structure
-    struct tcp_client *client = malloc(sizeof(*client));
+    struct tcp_client *client = (struct tcp_client *)malloc(sizeof(*client));
     if (!client) {
         BLog(BLOG_ERROR, "listener accept: malloc failed");
         return ERR_MEM;
@@ -1183,7 +1181,7 @@ void client_dealloc (struct tcp_client *client)
 
 void client_err_func (void *arg, err_t err)
 {
-    struct tcp_client *client = arg;
+    struct tcp_client *client = (struct tcp_client *)arg;
     ASSERT(!client->client_closed)
     
     client_log(client, BLOG_INFO, "client error (%d)", (int)err);
@@ -1194,7 +1192,7 @@ void client_err_func (void *arg, err_t err)
 
 err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
 {
-    struct tcp_client *client = arg;
+    struct tcp_client *client = (struct tcp_client *)arg;
     ASSERT(!client->client_closed)
     ASSERT(err == ERR_OK) // checked in lwIP source. Otherwise, I've no idea what should
                           // be done with the pbuf in case of an error.
@@ -1436,7 +1434,7 @@ int client_socks_recv_send_out (struct tcp_client *client)
 
 err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
 {
-    struct tcp_client *client = arg;
+    struct tcp_client *client = (struct tcp_client *)arg;
     
     ASSERT(!client->client_closed)
     ASSERT(client->socks_up)

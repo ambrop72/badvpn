@@ -27,7 +27,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <inttypes.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
@@ -71,10 +71,17 @@
 #define LOGGER_STDOUT 1
 #define LOGGER_SYSLOG 2
 
-// declares and initializes a pointer x to y
-#define POINTER(x, y) typeof (y) *(x) = &(y);
-
 // command-line options
+struct ext_addr_option  {
+    char *addr;
+    char *scope;
+};
+struct bind_addr_option {
+    char *addr;
+    int num_ports;
+    int num_ext_addrs;
+    struct ext_addr_option ext_addrs[MAX_EXT_ADDRS];
+};
 struct {
     int help;
     int version;
@@ -95,15 +102,7 @@ struct {
     int num_scopes;
     char *scopes[MAX_SCOPES];
     int num_bind_addrs;
-    struct {
-        char *addr;
-        int num_ports;
-        int num_ext_addrs;
-        struct {
-            char *addr;
-            char *scope;
-        } ext_addrs[MAX_EXT_ADDRS];
-    } bind_addrs[MAX_BIND_ADDRS];
+    struct bind_addr_option bind_addrs[MAX_BIND_ADDRS];
     int transport_mode;
     int encryption_mode;
     int hash_mode;
@@ -123,17 +122,19 @@ struct {
 } options;
 
 // bind addresses
-int num_bind_addrs;
-struct {
+struct ext_addr {
+    int server_reported_port;
+    BAddr addr; // if server_reported_port>=0, defined only after hello received
+    char scope[64];
+};
+struct bind_addr {
     BAddr addr;
     int num_ports;
     int num_ext_addrs;
-    struct {
-        int server_reported_port;
-        BAddr addr; // if server_reported_port>=0, defined only after hello received
-        char scope[64];
-    } ext_addrs[MAX_EXT_ADDRS];
-} bind_addrs[MAX_BIND_ADDRS];
+    struct ext_addr ext_addrs[MAX_EXT_ADDRS];
+};
+int num_bind_addrs;
+struct bind_addr bind_addrs[MAX_BIND_ADDRS];
 
 // TCP listeners
 PasswordListener listeners[MAX_BIND_ADDRS];
@@ -498,7 +499,7 @@ int main (int argc, char *argv[])
     int num_listeners = 0;
     if (options.transport_mode == TRANSPORT_MODE_TCP) {
         while (num_listeners < num_bind_addrs) {
-            POINTER(addr, bind_addrs[num_listeners])
+            struct bind_addr *addr = &bind_addrs[num_listeners];
             if (!PasswordListener_Init(&listeners[num_listeners], &ss, addr->addr, TCP_MAX_PASSWORD_LISTENER_CLIENTS, options.peer_ssl, client_cert, client_key)) {
                 BLog(BLOG_ERROR, "PasswordListener_Init failed");
                 goto fail8;
@@ -887,7 +888,7 @@ int parse_arguments (int argc, char *argv[])
                 fprintf(stderr, "%s: too many\n", arg);
                 return 0;
             }
-            POINTER(addr, options.bind_addrs[options.num_bind_addrs])
+            struct bind_addr_option *addr = &options.bind_addrs[options.num_bind_addrs];
             addr->addr = argv[i + 1];
             addr->num_ports = -1;
             addr->num_ext_addrs = 0;
@@ -903,7 +904,7 @@ int parse_arguments (int argc, char *argv[])
                 fprintf(stderr, "%s: must folow --bind-addr\n", arg);
                 return 0;
             }
-            POINTER(addr, options.bind_addrs[options.num_bind_addrs - 1])
+            struct bind_addr_option *addr = &options.bind_addrs[options.num_bind_addrs - 1];
             if ((addr->num_ports = atoi(argv[i + 1])) < 0) {
                 fprintf(stderr, "%s: wrong argument\n", arg);
                 return 0;
@@ -919,12 +920,12 @@ int parse_arguments (int argc, char *argv[])
                 fprintf(stderr, "%s: must folow --bind-addr\n", arg);
                 return 0;
             }
-            POINTER(addr, options.bind_addrs[options.num_bind_addrs - 1])
+            struct bind_addr_option *addr = &options.bind_addrs[options.num_bind_addrs - 1];
             if (addr->num_ext_addrs == MAX_EXT_ADDRS) {
                 fprintf(stderr, "%s: too many\n", arg);
                 return 0;
             }
-            POINTER(eaddr, addr->ext_addrs[addr->num_ext_addrs])
+            struct ext_addr_option *eaddr = &addr->ext_addrs[addr->num_ext_addrs];
             eaddr->addr = argv[i + 1];
             eaddr->scope = argv[i + 2];
             addr->num_ext_addrs++;
@@ -1185,14 +1186,18 @@ int process_arguments (void)
     
     // override server name if requested
     if (options.server_name) {
-        snprintf(server_name, sizeof(server_name), "%s", options.server_name);
+        if (strlen(options.server_name) >= sizeof(server_name)) {
+            BLog(BLOG_ERROR, "server name: too long");
+            return 0;
+        }
+        strcpy(server_name, options.server_name);
     }
     
     // resolve bind addresses and external addresses
     num_bind_addrs = 0;
     for (int i = 0; i < options.num_bind_addrs; i++) {
-        POINTER(addr, options.bind_addrs[i])
-        POINTER(out, bind_addrs[num_bind_addrs])
+        struct bind_addr_option *addr = &options.bind_addrs[i];
+        struct bind_addr *out = &bind_addrs[num_bind_addrs];
         
         // read addr
         if (!BAddr_Parse(&out->addr, addr->addr, NULL, 0)) {
@@ -1216,8 +1221,8 @@ int process_arguments (void)
         // read ext addrs
         out->num_ext_addrs = 0;
         for (int j = 0; j < addr->num_ext_addrs; j++) {
-            POINTER(eaddr, addr->ext_addrs[j])
-            POINTER(eout, out->ext_addrs[out->num_ext_addrs])
+            struct ext_addr_option *eaddr = &addr->ext_addrs[j];
+            struct ext_addr *eout = &out->ext_addrs[out->num_ext_addrs];
             
             // read addr
             if (string_begins_with(eaddr->addr, "{server_reported}:")) {
@@ -1239,7 +1244,11 @@ int process_arguments (void)
             }
             
             // read scope
-            snprintf(eout->scope, sizeof(eout->scope), "%s", eaddr->scope);
+            if (strlen(eaddr->scope) >= sizeof(eout->scope)) {
+                BLog(BLOG_ERROR, "ext addr: too long");
+                return 0;
+            }
+            strcpy(eout->scope, eaddr->scope);
             
             out->num_ext_addrs++;
         }
@@ -1277,7 +1286,7 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     ASSERT(cert_len <= SCID_NEWCLIENT_MAX_CERT_LEN)
     
     // allocate structure
-    struct peer_data *peer = malloc(sizeof(*peer));
+    struct peer_data *peer = (struct peer_data *)malloc(sizeof(*peer));
     if (!peer) {
         BLog(BLOG_ERROR, "peer %d: failed to allocate memory", (int)id);
         goto fail0;
@@ -1307,7 +1316,7 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
         // copy the certificate and append it a good load of zero bytes,
         // hopefully preventing the crappy CERT_DecodeCertFromPackage from crashing
         // by reading past the of its input
-        uint8_t *certbuf = malloc(cert_len + 100);
+        uint8_t *certbuf = (uint8_t *)malloc(cert_len + 100);
         if (!certbuf) {
             peer_log(peer, BLOG_ERROR, "malloc failed");
             goto fail1;
@@ -2247,8 +2256,6 @@ void peer_bind (struct peer_data *peer)
     ASSERT(peer->binding_addrpos >= 0)
     ASSERT(peer->binding_addrpos <= num_bind_addrs)
     
-    int res;
-    
     while (peer->binding_addrpos < num_bind_addrs) {
         // if there are no external addresses, skip bind address
         if (bind_addrs[peer->binding_addrpos].num_ext_addrs == 0) {
@@ -2301,7 +2308,7 @@ void peer_bind_one_address (struct peer_data *peer, int addr_index, int *cont)
     
     if (options.transport_mode == TRANSPORT_MODE_UDP) {
         // get addr
-        POINTER(addr, bind_addrs[addr_index]);
+        struct bind_addr *addr = &bind_addrs[addr_index];
         
         // try binding to all ports in the range
         int port_add;
@@ -2458,7 +2465,7 @@ void peer_send_conectinfo (struct peer_data *peer, int addr_index, int port_adju
     ASSERT(bind_addrs[addr_index].num_ext_addrs > 0)
     
     // get address
-    POINTER(bind_addr, bind_addrs[addr_index]);
+    struct bind_addr *bind_addr = &bind_addrs[addr_index];
     
     // remember encryption key size
     int key_size;
@@ -2682,9 +2689,9 @@ void server_handler_ready (void *user, peerid_t param_my_id, uint32_t ext_ip)
     
     // store server reported addresses
     for (int i = 0; i < num_bind_addrs; i++) {
-        POINTER(addr, bind_addrs[i]);
+        struct bind_addr *addr = &bind_addrs[i];
         for (int j = 0; j < addr->num_ext_addrs; j++) {
-            POINTER(eaddr, addr->ext_addrs[j]);
+            struct ext_addr *eaddr = &addr->ext_addrs[j];
             if (eaddr->server_reported_port >= 0) {
                 if (ext_ip == 0) {
                     BLog(BLOG_ERROR, "server did not provide our address");
@@ -2840,7 +2847,7 @@ struct server_flow * server_flow_init (void)
     ASSERT(server_ready)
     
     // allocate structure
-    struct server_flow *flow = malloc(sizeof(*flow));
+    struct server_flow *flow = (struct server_flow *)malloc(sizeof(*flow));
     if (!flow) {
         BLog(BLOG_ERROR, "malloc failed");
         goto fail0;

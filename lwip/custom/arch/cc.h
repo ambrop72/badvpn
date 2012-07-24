@@ -30,12 +30,15 @@
 #ifndef LWIP_CUSTOM_CC_H
 #define LWIP_CUSTOM_CC_H
 
-#include <inttypes.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include <stdint.h>
 
 #include <misc/debug.h>
+#include <misc/byteorder.h>
+#include <misc/packed.h>
+#include <misc/print_macros.h>
 #include <misc/byteorder.h>
 #include <base/BLog.h>
 
@@ -47,7 +50,9 @@
 #define s32_t int32_t
 #define mem_ptr_t uintptr_t
 
-#define PACK_STRUCT_STRUCT __attribute__((packed))
+#define PACK_STRUCT_BEGIN B_START_PACKED
+#define PACK_STRUCT_END B_END_PACKED
+#define PACK_STRUCT_STRUCT B_PACKED
 
 #define LWIP_PLATFORM_DIAG(x) { if (BLog_WouldLog(BLOG_CHANNEL_lwip, BLOG_INFO)) { BLog_Append x; BLog_Finish(BLOG_CHANNEL_lwip, BLOG_INFO); } }
 #define LWIP_PLATFORM_ASSERT(x) { fprintf(stderr, "%s: lwip assertion failure: %s\n", __FUNCTION__, (x)); abort(); }
@@ -65,14 +70,20 @@
 #define LWIP_PLATFORM_HTONL(x) hton32(x)
 
 // for BYTE_ORDER
-#ifdef BADVPN_USE_WINAPI
+#if defined(BADVPN_USE_WINAPI) && !defined(_MSC_VER)
     #include <sys/param.h>
-#endif
-#ifdef BADVPN_LINUX
+#elif defined(BADVPN_LINUX)
     #include <endian.h>
-#endif
-#ifdef BADVPN_FREEBSD
+#elif defined(BADVPN_FREEBSD)
     #include <machine/endian.h>
+#else
+    #define LITTLE_ENDIAN 1234
+    #define BIG_ENDIAN 4321
+    #if defined(BADVPN_LITTLE_ENDIAN)
+        #define BYTE_ORDER LITTLE_ENDIAN
+    #else
+        #define BYTE_ORDER BIG_ENDIAN
+    #endif
 #endif
 
 #endif

@@ -52,7 +52,7 @@ int OTPCalculator_Init (OTPCalculator *calc, int num_otps, int cipher)
     calc->num_blocks = bdivide_up(calc->num_otps * sizeof(otp_t), calc->block_size);
     
     // allocate buffer
-    if (!(calc->data = BAllocArray(calc->num_blocks, calc->block_size))) {
+    if (!(calc->data = (otp_t *)BAllocArray(calc->num_blocks, calc->block_size))) {
         goto fail0;
     }
     

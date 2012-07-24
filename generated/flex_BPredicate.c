@@ -29,9 +29,9 @@
 #ifndef FLEXINT_H
 #define FLEXINT_H
 
-/* C99 systems have <inttypes.h>. Non-C99 systems may or may not. */
+/* C99 systems have <stdint.h>. Non-C99 systems may or may not. */
 
-#if defined (__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+#if 1
 
 /* C99 says to define __STDC_LIMIT_MACROS before including stdint.h,
  * if you want the limit (max/min) macros for int types. 
@@ -40,7 +40,7 @@
 #define __STDC_LIMIT_MACROS 1
 #endif
 
-#include <inttypes.h>
+#include <stdint.h>
 typedef int8_t flex_int8_t;
 typedef uint8_t flex_uint8_t;
 typedef int16_t flex_int16_t;
@@ -502,13 +502,12 @@ static yyconst flex_int16_t yy_chk[70] =
 
 #include <generated/bison_BPredicate.h>
 
-#define YY_EXTRA_TYPE LexMemoryBufferInput *
-
 #define YY_INPUT(buffer, res, max_size) \
-    int bytes_read = LexMemoryBufferInput_Read(yyget_extra(yyscanner), buffer, max_size); \
+    int bytes_read = LexMemoryBufferInput_Read((LexMemoryBufferInput *)yyget_extra(yyscanner), buffer, max_size); \
     res = (bytes_read == 0 ? YY_NULL : bytes_read);
 
-#line 512 "generated//flex_BPredicate.c"
+#define YY_NO_UNISTD_H 1
+#line 511 "generated//flex_BPredicate.c"
 
 #define INITIAL 0
 
@@ -760,9 +759,9 @@ YY_DECL
 	register int yy_act;
     struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
 
-#line 54 "predicate/BPredicate.l"
+#line 52 "predicate/BPredicate.l"
 
-#line 766 "generated//flex_BPredicate.c"
+#line 765 "generated//flex_BPredicate.c"
 
     yylval = yylval_param;
 
@@ -825,16 +824,12 @@ yy_match:
 			yy_current_state = yy_nxt[yy_base[yy_current_state] + (unsigned int) yy_c];
 			++yy_cp;
 			}
-		while ( yy_base[yy_current_state] != 47 );
+		while ( yy_current_state != 33 );
+		yy_cp = yyg->yy_last_accepting_cpos;
+		yy_current_state = yyg->yy_last_accepting_state;
 
 yy_find_action:
 		yy_act = yy_accept[yy_current_state];
-		if ( yy_act == 0 )
-			{ /* have to back up */
-			yy_cp = yyg->yy_last_accepting_cpos;
-			yy_current_state = yyg->yy_last_accepting_state;
-			yy_act = yy_accept[yy_current_state];
-			}
 
 		YY_DO_BEFORE_ACTION;
 
@@ -851,50 +846,50 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 55 "predicate/BPredicate.l"
+#line 53 "predicate/BPredicate.l"
 return SPAR;
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 56 "predicate/BPredicate.l"
+#line 54 "predicate/BPredicate.l"
 return EPAR;
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 57 "predicate/BPredicate.l"
+#line 55 "predicate/BPredicate.l"
 return COMMA;
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 58 "predicate/BPredicate.l"
+#line 56 "predicate/BPredicate.l"
 return AND;
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 59 "predicate/BPredicate.l"
+#line 57 "predicate/BPredicate.l"
 return OR;
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 60 "predicate/BPredicate.l"
+#line 58 "predicate/BPredicate.l"
 return NOT;
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 61 "predicate/BPredicate.l"
+#line 59 "predicate/BPredicate.l"
 return CONSTANT_TRUE;
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 62 "predicate/BPredicate.l"
+#line 60 "predicate/BPredicate.l"
 return CONSTANT_FALSE;
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 63 "predicate/BPredicate.l"
+#line 61 "predicate/BPredicate.l"
 {
                     int l = strlen(yytext);
-                    char *p = malloc(l + 1);
+                    char *p = (char *)malloc(l + 1);
                     if (p) {
                         memcpy(p, yytext, l);
                         p[l] = '\0';
@@ -906,10 +901,10 @@ YY_RULE_SETUP
 case 10:
 /* rule 10 can match eol */
 YY_RULE_SETUP
-#line 73 "predicate/BPredicate.l"
+#line 71 "predicate/BPredicate.l"
 {
                     int l = strlen(yytext);
-                    char *p = malloc(l - 1);
+                    char *p = (char *)malloc(l - 1);
                     if (p) {
                         memcpy(p, yytext + 1, l - 2);
                         p[l - 2] = '\0';
@@ -921,20 +916,20 @@ YY_RULE_SETUP
 case 11:
 /* rule 11 can match eol */
 YY_RULE_SETUP
-#line 83 "predicate/BPredicate.l"
+#line 81 "predicate/BPredicate.l"
 ;
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 84 "predicate/BPredicate.l"
-LexMemoryBufferInput_SetError(yyget_extra(yyscanner)); return 0; // remember failure and report EOF
+#line 82 "predicate/BPredicate.l"
+LexMemoryBufferInput_SetError((LexMemoryBufferInput *)yyget_extra(yyscanner)); return 0; // remember failure and report EOF
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 85 "predicate/BPredicate.l"
+#line 83 "predicate/BPredicate.l"
 ECHO;
 	YY_BREAK
-#line 938 "generated//flex_BPredicate.c"
+#line 933 "generated//flex_BPredicate.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -1001,7 +996,8 @@ case YY_STATE_EOF(INITIAL):
 
 			else
 				{
-				yy_cp = yyg->yy_c_buf_p;
+				yy_cp = yyg->yy_last_accepting_cpos;
+				yy_current_state = yyg->yy_last_accepting_state;
 				goto yy_find_action;
 				}
 			}
@@ -1493,10 +1489,6 @@ static void yy_load_buffer_state  (yyscan_t yyscanner)
 	yyfree((void *) b ,yyscanner );
 }
 
-#ifndef __cplusplus
-extern int isatty (int );
-#endif /* __cplusplus */
-    
 /* Initializes or reinitializes a buffer.
  * This function is sometimes called more than once on the same buffer,
  * such as during a yyrestart() or at EOF.
@@ -1521,7 +1513,7 @@ extern int isatty (int );
         b->yy_bs_column = 0;
     }
 
-        b->yy_is_interactive = file ? (isatty( fileno(file) ) > 0) : 0;
+        b->yy_is_interactive = 0;
     
 	errno = oerrno;
 }
@@ -2153,7 +2145,7 @@ void yyfree (void * ptr , yyscan_t yyscanner)
 
 #define YYTABLES_NAME "yytables"
 
-#line 85 "predicate/BPredicate.l"
+#line 83 "predicate/BPredicate.l"
 
 
 

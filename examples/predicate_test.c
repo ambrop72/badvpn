@@ -55,8 +55,8 @@ static int func_conj (void *user, void **args)
 
 static int func_strcmp (void *user, void **args)
 {
-    char *arg1 = args[0];
-    char *arg2 = args[1];
+    char *arg1 = (char *)args[0];
+    char *arg2 = (char *)args[1];
     
     return (!strcmp(arg1, arg2));
 }
@@ -86,12 +86,15 @@ int main (int argc, char **argv)
     // init functions
     BPredicateFunction f_hello;
     BPredicateFunction_Init(&f_hello, &pr, "hello", NULL, 0, func_hello, NULL);
+    int arr1[] = {PREDICATE_TYPE_BOOL};
     BPredicateFunction f_neg;
-    BPredicateFunction_Init(&f_neg, &pr, "neg", (int []){PREDICATE_TYPE_BOOL}, 1, func_neg, NULL);
+    BPredicateFunction_Init(&f_neg, &pr, "neg", arr1, 1, func_neg, NULL);
+    int arr2[] = {PREDICATE_TYPE_BOOL, PREDICATE_TYPE_BOOL};
     BPredicateFunction f_conj;
-    BPredicateFunction_Init(&f_conj, &pr, "conj", (int []){PREDICATE_TYPE_BOOL, PREDICATE_TYPE_BOOL}, 2, func_conj, NULL);
+    BPredicateFunction_Init(&f_conj, &pr, "conj", arr2, 2, func_conj, NULL);
+    int arr3[] = {PREDICATE_TYPE_STRING, PREDICATE_TYPE_STRING};
     BPredicateFunction f_strcmp;
-    BPredicateFunction_Init(&f_strcmp, &pr, "strcmp", (int []){PREDICATE_TYPE_STRING, PREDICATE_TYPE_STRING}, 2, func_strcmp, NULL);
+    BPredicateFunction_Init(&f_strcmp, &pr, "strcmp", arr3, 2, func_strcmp, NULL);
     BPredicateFunction f_error;
     BPredicateFunction_Init(&f_error, &pr, "error", NULL, 0, func_error, NULL);
     

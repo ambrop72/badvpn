@@ -116,7 +116,7 @@ int LineBuffer_Init (LineBuffer *o, StreamRecvInterface *input, PacketPassInterf
     o->buf_used = 0;
     
     // allocate buffer
-    if (!(o->buf = malloc(o->buf_size))) {
+    if (!(o->buf = (uint8_t *)malloc(o->buf_size))) {
         BLog(BLOG_ERROR, "malloc failed");
         goto fail0;
     }

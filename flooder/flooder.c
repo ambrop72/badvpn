@@ -553,7 +553,11 @@ int resolve_arguments (void)
     
     // override server name if requested
     if (options.server_name) {
-        snprintf(server_name, sizeof(server_name), "%s", options.server_name);
+        if (strlen(options.server_name) >= sizeof(server_name)) {
+            BLog(BLOG_ERROR, "server name: too long");
+            return 0;
+        }
+        strcpy(server_name, options.server_name);
     }
     
     return 1;

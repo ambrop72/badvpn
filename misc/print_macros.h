@@ -1,5 +1,5 @@
 /**
- * @file packetproto.h
+ * @file print_macros.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -28,41 +28,71 @@
  * 
  * @section DESCRIPTION
  * 
- * Definitions for PacketProto, a protocol that allows sending of packets
- * over a reliable stream connection.
- * 
- * All multi-byte integers in structs are little-endian, unless stated otherwise.
- * 
- * Packets are encoded into a stream by representing each packet with:
- *   - a 16-bit little-endian unsigned integer representing the length
- *     of the payload
- *   - that many bytes of payload
+ * Format macros for printf() for non-standard compilers.
  */
 
-#ifndef BADVPN_PROTOCOL_PACKETPROTO_H
-#define BADVPN_PROTOCOL_PACKETPROTO_H
+#ifndef BADVPN_PRINT_MACROS
+#define BADVPN_PRINT_MACROS
 
-#include <stdint.h>
-#include <limits.h>
+#ifdef _MSC_VER
 
-#include <misc/packed.h>
+// size_t
+#define PRIsz "Iu"
 
-/**
- * PacketProto packet header.
- * Wraps a single uint16_t in a packed struct for easy access.
- */
-B_START_PACKED
-struct packetproto_header
-{
-    /**
-     * Length of the packet payload that follows.
-     */
-    uint16_t len;
-} B_PACKED;
-B_END_PACKED
+// signed exact width (intN_t)
+#define PRId8 "d"
+#define PRIi8 "i"
+#define PRId16 "d"
+#define PRIi16 "i"
+#define PRId32 "I32d"
+#define PRIi32 "I32i"
+#define PRId64 "I64d"
+#define PRIi64 "I64i"
 
-#define PACKETPROTO_ENCLEN(_len) (sizeof(struct packetproto_header) + (_len))
+// unsigned exact width (uintN_t)
+#define PRIo8 "o"
+#define PRIu8 "u"
+#define PRIx8 "x"
+#define PRIX8 "X"
+#define PRIo16 "o"
+#define PRIu16 "u"
+#define PRIx16 "x"
+#define PRIX16 "X"
+#define PRIo32 "I32o"
+#define PRIu32 "I32u"
+#define PRIx32 "I32x"
+#define PRIX32 "I32X"
+#define PRIo64 "I64o"
+#define PRIu64 "I64u"
+#define PRIx64 "I64x"
+#define PRIX64 "I64X"
 
-#define PACKETPROTO_MAXPAYLOAD UINT16_MAX
+// signed maximum width (intmax_t)
+#define PRIdMAX "I64d"
+#define PRIiMAX "I64i"
+
+// unsigned maximum width (uintmax_t)
+#define PRIoMAX "I64o"
+#define PRIuMAX "I64u"
+#define PRIxMAX "I64x"
+#define PRIXMAX "I64X"
+
+// signed pointer (intptr_t)
+#define PRIdPTR "Id"
+#define PRIiPTR "Ii"
+
+// unsigned pointer (uintptr_t)
+#define PRIoPTR "Io"
+#define PRIuPTR "Iu"
+#define PRIxPTR "Ix"
+#define PRIXPTR "IX"
+
+#else
+
+#include <inttypes.h>
+
+#define PRIsz "zu"
+
+#endif
 
 #endif

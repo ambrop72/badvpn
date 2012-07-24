@@ -39,6 +39,7 @@
 #include <misc/debug.h>
 #include <misc/debugerror.h>
 #include <misc/socks_proto.h>
+#include <misc/packed.h>
 #include <base/DebugObject.h>
 #include <system/BConnection.h>
 #include <flow/PacketStreamSender.h>
@@ -61,6 +62,33 @@
  */
 typedef void (*BSocksClient_handler) (void *user, int event);
 
+B_START_PACKED
+struct BSocksClient__client_hello {
+    struct socks_client_hello_header header;
+    struct socks_client_hello_method method;
+} B_PACKED;
+B_END_PACKED
+
+B_START_PACKED
+struct BSocksClient__request {
+    struct socks_request_header header;
+    union {
+        struct socks_addr_ipv4 ipv4;
+        struct socks_addr_ipv6 ipv6;
+    } addr;
+} B_PACKED;
+B_END_PACKED
+
+B_START_PACKED
+struct BSocksClient__reply {
+    struct socks_reply_header header;
+    union {
+        struct socks_addr_ipv4 ipv4;
+        struct socks_addr_ipv6 ipv6;
+    } addr;
+} B_PACKED;
+B_END_PACKED
+
 typedef struct {
     BAddr dest_addr;
     BSocksClient_handler handler;
@@ -75,25 +103,10 @@ typedef struct {
             PacketStreamSender send_sender;
             StreamRecvInterface *recv_if;
             union {
-                struct {
-                    struct socks_client_hello_header header;
-                    struct socks_client_hello_method method;
-                } __attribute__((packed)) client_hello;
+                struct BSocksClient__client_hello client_hello;
                 struct socks_server_hello server_hello;
-                struct {
-                    struct socks_request_header header;
-                    union {
-                        struct socks_addr_ipv4 ipv4;
-                        struct socks_addr_ipv6 ipv6;
-                    } addr;
-                } __attribute__((packed)) request;
-                struct {
-                    struct socks_reply_header header;
-                    union {
-                        struct socks_addr_ipv4 ipv4;
-                        struct socks_addr_ipv6 ipv6;
-                    } addr;
-                } __attribute__((packed)) reply;
+                struct BSocksClient__request request;
+                struct BSocksClient__reply reply;
             } msg;
             uint8_t *recv_dest;
             int recv_len;

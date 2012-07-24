@@ -1,5 +1,5 @@
 /**
- * @file packetproto.h
+ * @file strdup.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -28,41 +28,59 @@
  * 
  * @section DESCRIPTION
  * 
- * Definitions for PacketProto, a protocol that allows sending of packets
- * over a reliable stream connection.
- * 
- * All multi-byte integers in structs are little-endian, unless stated otherwise.
- * 
- * Packets are encoded into a stream by representing each packet with:
- *   - a 16-bit little-endian unsigned integer representing the length
- *     of the payload
- *   - that many bytes of payload
+ * Allocate memory for a string and copy it there.
  */
 
-#ifndef BADVPN_PROTOCOL_PACKETPROTO_H
-#define BADVPN_PROTOCOL_PACKETPROTO_H
+#ifndef BADVPN_STRDUP_H
+#define BADVPN_STRDUP_H
 
-#include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
 #include <limits.h>
 
-#include <misc/packed.h>
+#include <misc/debug.h>
 
 /**
- * PacketProto packet header.
- * Wraps a single uint16_t in a packed struct for easy access.
+ * Allocate and copy a null-terminated string.
  */
-B_START_PACKED
-struct packetproto_header
+static char * b_strdup (const char *str)
 {
-    /**
-     * Length of the packet payload that follows.
-     */
-    uint16_t len;
-} B_PACKED;
-B_END_PACKED
+    ASSERT(str)
+    
+    size_t len = strlen(str);
+    
+    char *s = (char *)malloc(len + 1);
+    if (!s) {
+        return NULL;
+    }
+    
+    memcpy(s, str, len + 1);
+    
+    return s;
+}
 
-#define PACKETPROTO_ENCLEN(_len) (sizeof(struct packetproto_header) + (_len))
-
-#define PACKETPROTO_MAXPAYLOAD UINT16_MAX
+/**
+ * Allocate memory for a null-terminated string and use the
+ * given data as its contents. A null terminator is appended
+ * after the specified data.
+ */
+static char * b_strdup_bin (const char *str, size_t len)
+{
+    ASSERT(str)
+    
+    if (len == SIZE_MAX) {
+        return NULL;
+    }
+    
+    char *s = (char *)malloc(len + 1);
+    if (!s) {
+        return NULL;
+    }
+    
+    memcpy(s, str, len);
+    s[len] = '\0';
+    
+    return s;
+}
 
 #endif

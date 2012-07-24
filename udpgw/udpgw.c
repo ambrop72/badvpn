@@ -27,7 +27,6 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
@@ -44,6 +43,7 @@
 #include <misc/open_standard_streams.h>
 #include <misc/balloc.h>
 #include <misc/compare.h>
+#include <misc/print_macros.h>
 #include <structure/LinkedList1.h>
 #include <structure/BAVL.h>
 #include <base/BLog.h>
@@ -586,14 +586,14 @@ void listener_handler (BListener *listener)
     }
     
     // allocate structure
-    struct client *client = malloc(sizeof(*client));
+    struct client *client = (struct client *)malloc(sizeof(*client));
     if (!client) {
         BLog(BLOG_ERROR, "malloc failed");
         goto fail0;
     }
     
     // accept client
-    if (!BConnection_Init(&client->con, BCONNECTION_SOURCE_LISTENER(listener, &client->addr), &ss, client, (BConnection_handler)client_connection_handler)) {
+    if (!BConnection_Init(&client->con, BConnection_source_listener(listener, &client->addr), &ss, client, (BConnection_handler)client_connection_handler)) {
         BLog(BLOG_ERROR, "BConnection_Init failed");
         goto fail1;
     }
@@ -832,7 +832,7 @@ uint8_t * build_port_usage_array_and_find_least_used_connection (BAddr remote_ad
     ASSERT(remote_addr.type == BADDR_TYPE_IPV4)
     
     // allocate port usage array
-    uint8_t *port_usage = BAllocSize(bsize_fromint(options.local_udp_num_ports));
+    uint8_t *port_usage = (uint8_t *)BAllocSize(bsize_fromint(options.local_udp_num_ports));
     if (!port_usage) {
         return NULL;
     }
@@ -890,7 +890,7 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, const u
     ASSERT(data_len <= options.udp_mtu)
     
     // allocate structure
-    struct connection *con = malloc(sizeof(*con));
+    struct connection *con = (struct connection *)malloc(sizeof(*con));
     if (!con) {
         client_log(client, BLOG_ERROR, "malloc failed");
         goto fail0;

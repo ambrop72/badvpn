@@ -44,6 +44,7 @@
 #include <stdint.h>
 
 #include <protocol/scproto.h>
+#include <misc/packed.h>
 
 #define DATAPROTO_MAX_PEER_IDS 1
 
@@ -52,6 +53,7 @@
 /**
  * DataProto header.
  */
+B_START_PACKED
 struct dataproto_header {
     /**
      * Bitwise OR of flags. Possible flags:
@@ -71,15 +73,18 @@ struct dataproto_header {
      * Must be <=DATAPROTO_MAX_PEER_IDS.
      */
     peerid_t num_peer_ids;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
 /**
  * Structure for a destination peer ID in DataProto.
  * Wraps a single peerid_t in a packed struct for easy access.
  */
+B_START_PACKED
 struct dataproto_peer_id {
     peerid_t id;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
 #define DATAPROTO_MAX_OVERHEAD (sizeof(struct dataproto_header) + DATAPROTO_MAX_PEER_IDS * sizeof(struct dataproto_peer_id))
 

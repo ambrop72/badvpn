@@ -95,7 +95,7 @@ EOD;
 EOD;
 
     $channels_list .= <<<EOD
-{.name = "{$ch_name[1]}", .loglevel = {$ch_priority[1]}},
+{"{$ch_name[1]}", {$ch_priority[1]}},
 
 EOD;
 

@@ -27,7 +27,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <inttypes.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stddef.h>
@@ -393,10 +393,11 @@ int main (int argc, char *argv[])
         }
         
         // init functions
-        BPredicateFunction_Init(&comm_predicate_func_p1name, &comm_predicate, "p1name", (int []){PREDICATE_TYPE_STRING}, 1, comm_predicate_func_p1name_cb, NULL);
-        BPredicateFunction_Init(&comm_predicate_func_p2name, &comm_predicate, "p2name", (int []){PREDICATE_TYPE_STRING}, 1, comm_predicate_func_p2name_cb, NULL);
-        BPredicateFunction_Init(&comm_predicate_func_p1addr, &comm_predicate, "p1addr", (int []){PREDICATE_TYPE_STRING}, 1, comm_predicate_func_p1addr_cb, NULL);
-        BPredicateFunction_Init(&comm_predicate_func_p2addr, &comm_predicate, "p2addr", (int []){PREDICATE_TYPE_STRING}, 1, comm_predicate_func_p2addr_cb, NULL);
+        int args[] = {PREDICATE_TYPE_STRING};
+        BPredicateFunction_Init(&comm_predicate_func_p1name, &comm_predicate, "p1name", args, 1, comm_predicate_func_p1name_cb, NULL);
+        BPredicateFunction_Init(&comm_predicate_func_p2name, &comm_predicate, "p2name", args, 1, comm_predicate_func_p2name_cb, NULL);
+        BPredicateFunction_Init(&comm_predicate_func_p1addr, &comm_predicate, "p1addr", args, 1, comm_predicate_func_p1addr_cb, NULL);
+        BPredicateFunction_Init(&comm_predicate_func_p2addr, &comm_predicate, "p2addr", args, 1, comm_predicate_func_p2addr_cb, NULL);
     }
     
     // init relay predicate
@@ -408,10 +409,11 @@ int main (int argc, char *argv[])
         }
         
         // init functions
-        BPredicateFunction_Init(&relay_predicate_func_pname, &relay_predicate, "pname", (int []){PREDICATE_TYPE_STRING}, 1, relay_predicate_func_pname_cb, NULL);
-        BPredicateFunction_Init(&relay_predicate_func_rname, &relay_predicate, "rname", (int []){PREDICATE_TYPE_STRING}, 1, relay_predicate_func_rname_cb, NULL);
-        BPredicateFunction_Init(&relay_predicate_func_paddr, &relay_predicate, "paddr", (int []){PREDICATE_TYPE_STRING}, 1, relay_predicate_func_paddr_cb, NULL);
-        BPredicateFunction_Init(&relay_predicate_func_raddr, &relay_predicate, "raddr", (int []){PREDICATE_TYPE_STRING}, 1, relay_predicate_func_raddr_cb, NULL);
+        int args[] = {PREDICATE_TYPE_STRING};
+        BPredicateFunction_Init(&relay_predicate_func_pname, &relay_predicate, "pname", args, 1, relay_predicate_func_pname_cb, NULL);
+        BPredicateFunction_Init(&relay_predicate_func_rname, &relay_predicate, "rname", args, 1, relay_predicate_func_rname_cb, NULL);
+        BPredicateFunction_Init(&relay_predicate_func_paddr, &relay_predicate, "paddr", args, 1, relay_predicate_func_paddr_cb, NULL);
+        BPredicateFunction_Init(&relay_predicate_func_raddr, &relay_predicate, "raddr", args, 1, relay_predicate_func_raddr_cb, NULL);
     }
     
     // init time
@@ -830,14 +832,14 @@ void listener_handler (BListener *listener)
     }
     
     // allocate the client structure
-    struct client_data *client = malloc(sizeof(*client));
+    struct client_data *client = (struct client_data *)malloc(sizeof(*client));
     if (!client) {
         BLog(BLOG_ERROR, "failed to allocate client");
         goto fail0;
     }
     
     // accept connection
-    if (!BConnection_Init(&client->con, BCONNECTION_SOURCE_LISTENER(listener, &client->addr), &ss, client, (BConnection_handler)client_connection_handler)) {
+    if (!BConnection_Init(&client->con, BConnection_source_listener(listener, &client->addr), &ss, client, (BConnection_handler)client_connection_handler)) {
         BLog(BLOG_ERROR, "BConnection_Init failed");
         goto fail1;
     }
@@ -1691,7 +1693,7 @@ struct peer_flow * peer_flow_create (struct client_data *src_client, struct clie
     ASSERT(!find_flow(src_client, dest_client->id))
     
     // allocate flow structure
-    struct peer_flow *flow = malloc(sizeof(*flow));
+    struct peer_flow *flow = (struct peer_flow *)malloc(sizeof(*flow));
     if (!flow) {
         BLog(BLOG_ERROR, "malloc failed");
         goto fail0;
@@ -2026,21 +2028,21 @@ int clients_allowed (struct client_data *client1, struct client_data *client2)
 
 int comm_predicate_func_p1name_cb (void *user, void **args)
 {
-    char *arg = args[0];
+    char *arg = (char *)args[0];
     
     return (!strcmp(arg, comm_predicate_p1name));
 }
 
 int comm_predicate_func_p2name_cb (void *user, void **args)
 {
-    char *arg = args[0];
+    char *arg = (char *)args[0];
     
     return (!strcmp(arg, comm_predicate_p2name));
 }
 
 int comm_predicate_func_p1addr_cb (void *user, void **args)
 {
-    char *arg = args[0];
+    char *arg = (char *)args[0];
     
     BIPAddr addr;
     if (!BIPAddr_Resolve(&addr, arg, 1)) {
@@ -2053,7 +2055,7 @@ int comm_predicate_func_p1addr_cb (void *user, void **args)
 
 int comm_predicate_func_p2addr_cb (void *user, void **args)
 {
-    char *arg = args[0];
+    char *arg = (char *)args[0];
     
     BIPAddr addr;
     if (!BIPAddr_Resolve(&addr, arg, 1)) {
@@ -2087,21 +2089,21 @@ int relay_allowed (struct client_data *client, struct client_data *relay)
 
 int relay_predicate_func_pname_cb (void *user, void **args)
 {
-    char *arg = args[0];
+    char *arg = (char *)args[0];
     
     return (!strcmp(arg, relay_predicate_pname));
 }
 
 int relay_predicate_func_rname_cb (void *user, void **args)
 {
-    char *arg = args[0];
+    char *arg = (char *)args[0];
     
     return (!strcmp(arg, relay_predicate_rname));
 }
 
 int relay_predicate_func_paddr_cb (void *user, void **args)
 {
-    char *arg = args[0];
+    char *arg = (char *)args[0];
     
     BIPAddr addr;
     if (!BIPAddr_Resolve(&addr, arg, 1)) {
@@ -2114,7 +2116,7 @@ int relay_predicate_func_paddr_cb (void *user, void **args)
 
 int relay_predicate_func_raddr_cb (void *user, void **args)
 {
-    char *arg = args[0];
+    char *arg = (char *)args[0];
     
     BIPAddr addr;
     if (!BIPAddr_Resolve(&addr, arg, 1)) {
@@ -2138,7 +2140,7 @@ struct peer_know * create_know (struct client_data *from, struct client_data *to
     ASSERT(!to->dying)
     
     // allocate structure
-    struct peer_know *k = malloc(sizeof(*k));
+    struct peer_know *k = (struct peer_know *)malloc(sizeof(*k));
     if (!k) {
         return NULL;
     }

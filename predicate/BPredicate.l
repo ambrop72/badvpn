@@ -41,15 +41,13 @@
 
 #include <generated/bison_BPredicate.h>
 
-#define YY_EXTRA_TYPE LexMemoryBufferInput *
-
 #define YY_INPUT(buffer, res, max_size) \
-    int bytes_read = LexMemoryBufferInput_Read(yyget_extra(yyscanner), buffer, max_size); \
+    int bytes_read = LexMemoryBufferInput_Read((LexMemoryBufferInput *)yyget_extra(yyscanner), buffer, max_size); \
     res = (bytes_read == 0 ? YY_NULL : bytes_read);
 
 %}
 
-%option reentrant stack noyywrap bison-bridge bison-locations
+%option reentrant stack noyywrap bison-bridge bison-locations never-interactive nounistd
 
 %%
 \(              return SPAR;
@@ -62,7 +60,7 @@ true            return CONSTANT_TRUE;
 false           return CONSTANT_FALSE;
 [a-zA-Z0-9_]+   {
                     int l = strlen(yytext);
-                    char *p = malloc(l + 1);
+                    char *p = (char *)malloc(l + 1);
                     if (p) {
                         memcpy(p, yytext, l);
                         p[l] = '\0';
@@ -72,7 +70,7 @@ false           return CONSTANT_FALSE;
                 }
 \"[^\"]*\"      {
                     int l = strlen(yytext);
-                    char *p = malloc(l - 1);
+                    char *p = (char *)malloc(l - 1);
                     if (p) {
                         memcpy(p, yytext + 1, l - 2);
                         p[l - 2] = '\0';
@@ -81,5 +79,5 @@ false           return CONSTANT_FALSE;
                     return STRING;
                 }
 [ \t\n]+        ;
-.               LexMemoryBufferInput_SetError(yyget_extra(yyscanner)); return 0; // remember failure and report EOF
+.               LexMemoryBufferInput_SetError((LexMemoryBufferInput *)yyget_extra(yyscanner)); return 0; // remember failure and report EOF
 %%

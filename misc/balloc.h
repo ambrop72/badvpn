@@ -35,7 +35,7 @@
 #define BADVPN_MISC_BALLOC_H
 
 #include <stddef.h>
-#include <inttypes.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #include <misc/debug.h>

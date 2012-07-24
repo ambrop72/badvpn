@@ -18,6 +18,8 @@ function do_flex() {
     local input="$1"
     local name="$2"
     "${FLEX_CMD[@]}" -o "${OUT_DIR}/flex_${name}.c" --header-file="${OUT_DIR}/flex_${name}.h" "${input}"
+    "${PHP_CMD[@]}" fix_flex.php "${OUT_DIR}/flex_${name}.c"
+    "${PHP_CMD[@]}" fix_flex.php "${OUT_DIR}/flex_${name}.h"
 }
 
 function do_bison() {

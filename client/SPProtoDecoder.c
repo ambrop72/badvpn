@@ -260,7 +260,7 @@ int SPProtoDecoder_Init (SPProtoDecoder *o, PacketPassInterface *output, struct 
     // allocate plaintext buffer
     if (SPPROTO_HAVE_ENCRYPTION(o->sp_params)) {
         int buf_size = balign_up((SPPROTO_HEADER_LEN(o->sp_params) + o->output_mtu + 1), o->enc_block_size);
-        if (!(o->buf = malloc(buf_size))) {
+        if (!(o->buf = (uint8_t *)malloc(buf_size))) {
             goto fail0;
         }
     }

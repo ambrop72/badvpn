@@ -198,24 +198,22 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     
     if (!devname) {
         BLog(BLOG_ERROR, "no device specification provided");
-        return 0;
+        goto fail0;
     }
     
-    int devname_len = strlen(devname);
-    
-    char device_component_id[devname_len + 1];
-    char device_name[devname_len + 1];
+    char *device_component_id;
+    char *device_name;
     uint32_t tun_addrs[3];
     
     if (tun) {
-        if (!tapwin32_parse_tun_spec(devname, device_component_id, device_name, tun_addrs)) {
+        if (!tapwin32_parse_tun_spec(devname, &device_component_id, &device_name, tun_addrs)) {
             BLog(BLOG_ERROR, "failed to parse TUN device specification");
-            return 0;
+            goto fail0;
         }
     } else {
-        if (!tapwin32_parse_tap_spec(devname, device_component_id, device_name)) {
+        if (!tapwin32_parse_tap_spec(devname, &device_component_id, &device_name)) {
             BLog(BLOG_ERROR, "failed to parse TAP device specification");
-            return 0;
+            goto fail0;
         }
     }
     
@@ -227,7 +225,7 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     
     if (!tapwin32_find_device(device_component_id, device_name, &device_path)) {
         BLog(BLOG_ERROR, "Could not find device");
-        goto fail0;
+        goto fail1;
     }
     
     // open device
@@ -237,7 +235,7 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     o->device = CreateFile(device_path, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_SYSTEM|FILE_FLAG_OVERLAPPED, 0);
     if (o->device == INVALID_HANDLE_VALUE) {
         BLog(BLOG_ERROR, "CreateFile failed");
-        goto fail0;
+        goto fail1;
     }
     
     // set TUN if needed
@@ -247,7 +245,7 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     if (tun) {
         if (!DeviceIoControl(o->device, TAP_IOCTL_CONFIG_TUN, tun_addrs, sizeof(tun_addrs), tun_addrs, sizeof(tun_addrs), &len, NULL)) {
             BLog(BLOG_ERROR, "DeviceIoControl(TAP_IOCTL_CONFIG_TUN) failed");
-            goto fail1;
+            goto fail2;
         }
     }
     
@@ -257,7 +255,7 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     
     if (!DeviceIoControl(o->device, TAP_IOCTL_GET_MTU, NULL, 0, &umtu, sizeof(umtu), &len, NULL)) {
         BLog(BLOG_ERROR, "DeviceIoControl(TAP_IOCTL_GET_MTU) failed");
-        goto fail1;
+        goto fail2;
     }
     
     if (tun) {
@@ -271,7 +269,7 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     ULONG upstatus = TRUE;
     if (!DeviceIoControl(o->device, TAP_IOCTL_SET_MEDIA_STATUS, &upstatus, sizeof(upstatus), &upstatus, sizeof(upstatus), &len, NULL)) {
         BLog(BLOG_ERROR, "DeviceIoControl(TAP_IOCTL_SET_MEDIA_STATUS) failed");
-        goto fail1;
+        goto fail2;
     }
     
     BLog(BLOG_INFO, "Device opened");
@@ -280,7 +278,7 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     
     if (!CreateIoCompletionPort(o->device, BReactor_GetIOCPHandle(o->reactor), 0, 0)) {
         BLog(BLOG_ERROR, "CreateIoCompletionPort failed");
-        goto fail1;
+        goto fail2;
     }
     
     // init send olap
@@ -289,10 +287,16 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     // init recv olap
     BReactorIOCPOverlapped_Init(&o->recv_olap, o->reactor, o, (BReactorIOCPOverlapped_handler)recv_olap_handler);
     
+    free(device_name);
+    free(device_component_id);
+    
     goto success;
     
-fail1:
+fail2:
     ASSERT_FORCE(CloseHandle(o->device))
+fail1:
+    free(device_name);
+    free(device_component_id);
 fail0:
     return 0;
     

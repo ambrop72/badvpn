@@ -40,18 +40,20 @@
 #include <misc/byteorder.h>
 #include <misc/ipv4_proto.h>
 
+B_START_PACKED
 struct udp_header {
     uint16_t source_port;
     uint16_t dest_port;
     uint16_t length;
     uint16_t checksum;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
 static uint32_t udp_checksum_summer (uint8_t *data, uint16_t len)
 {
     ASSERT(len % 2 == 0)
     
-    struct ipv4_short *s = (void *)data;
+    struct ipv4_short *s = (struct ipv4_short *)data;
     
     uint32_t t = 0;
     

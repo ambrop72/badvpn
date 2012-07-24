@@ -1,11 +1,12 @@
 #include <stdlib.h>
 #include <string.h>
-#include <inttypes.h>
+#include <stdio.h>
 #include <time.h>
 
 #include <misc/substring.h>
 #include <misc/debug.h>
 #include <misc/balloc.h>
+#include <misc/print_macros.h>
 
 static int find_substring_slow (const char *str, size_t str_len, const char *sub, size_t sub_len, size_t *out_pos)
 {
@@ -48,10 +49,10 @@ static void test_tables (int len, int count)
     ASSERT(len > 0)
     ASSERT(count >= 0)
     
-    char *word = BAllocSize(bsize_fromint(len));
+    char *word = (char *)BAllocSize(bsize_fromint(len));
     ASSERT_FORCE(word)
     
-    size_t *table = BAllocSize(bsize_mul(bsize_fromint(len), bsize_fromsize(sizeof(table[0]))));
+    size_t *table = (size_t *)BAllocSize(bsize_mul(bsize_fromint(len), bsize_fromsize(sizeof(table[0]))));
     ASSERT_FORCE(table)
     
     for (int i = 0; i < count; i++) {
@@ -82,13 +83,13 @@ static void test_substring (int word_len, int text_len, int word_count, int text
     assert(word_count >= 0);
     assert(text_count >= 0);
     
-    char *word = BAllocSize(bsize_fromint(word_len));
+    char *word = (char *)BAllocSize(bsize_fromint(word_len));
     ASSERT_FORCE(word)
     
-    size_t *table = BAllocSize(bsize_mul(bsize_fromint(word_len), bsize_fromsize(sizeof(table[0]))));
+    size_t *table = (size_t *)BAllocSize(bsize_mul(bsize_fromint(word_len), bsize_fromsize(sizeof(table[0]))));
     ASSERT_FORCE(table)
     
-    char *text = BAllocSize(bsize_fromint(text_len));
+    char *text = (char *)BAllocSize(bsize_fromint(text_len));
     ASSERT_FORCE(text)
     
     for (int i = 0; i < word_count; i++) {

@@ -45,12 +45,14 @@
 #include <stdint.h>
 
 #include <misc/balign.h>
+#include <misc/packed.h>
 
 typedef uint16_t fragmentproto_frameid;
 
 /**
  * FragmentProto chunk header.
  */
+B_START_PACKED
 struct fragmentproto_chunk_header {
     /**
      * Identifier of the frame this chunk belongs to.
@@ -74,7 +76,8 @@ struct fragmentproto_chunk_header {
      * the total length of the frame is chunk_start + chunk_len.
      */
     uint8_t is_last;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
 /**
  * Calculates how many chunks are needed at most for encoding one frame of the

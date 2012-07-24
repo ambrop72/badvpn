@@ -34,6 +34,7 @@
 
 #include <protocol/udpgw_proto.h>
 #include <misc/debug.h>
+#include <misc/packed.h>
 #include <structure/BAVL.h>
 #include <structure/LinkedList1.h>
 #include <base/DebugObject.h>
@@ -48,6 +49,13 @@
 
 typedef void (*UdpGwClient_handler_servererror) (void *user);
 typedef void (*UdpGwClient_handler_received) (void *user, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len);
+
+B_START_PACKED
+struct UdpGwClient__keepalive_packet {
+    struct packetproto_header pp;
+    struct udpgw_header udpgw;
+} B_PACKED;
+B_END_PACKED
 
 typedef struct {
     int udp_mtu;
@@ -68,10 +76,7 @@ typedef struct {
     PacketPassFairQueue send_queue;
     PacketPassInactivityMonitor send_monitor;
     PacketPassConnector send_connector;
-    struct {
-        struct packetproto_header pp;
-        struct udpgw_header udpgw;
-    } __attribute__((packed)) keepalive_packet;
+    struct UdpGwClient__keepalive_packet keepalive_packet;
     PacketPassInterface *keepalive_if;
     PacketPassFairQueueFlow keepalive_qflow;
     int keepalive_sending;

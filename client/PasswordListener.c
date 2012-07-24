@@ -99,13 +99,13 @@ void listener_handler (PasswordListener *l)
     LinkedList2_Append(&l->clients_used, &client->list_node);
     
     // allocate sslsocket structure
-    if (!(client->sock = malloc(sizeof(*client->sock)))) {
+    if (!(client->sock = (sslsocket *)malloc(sizeof(*client->sock)))) {
         BLog(BLOG_ERROR, "malloc failedt");
         goto fail0;
     }
     
     // accept connection
-    if (!BConnection_Init(&client->sock->con, BCONNECTION_SOURCE_LISTENER(&l->listener, NULL), l->bsys, client, (BConnection_handler)client_connection_handler)) {
+    if (!BConnection_Init(&client->sock->con, BConnection_source_listener(&l->listener, NULL), l->bsys, client, (BConnection_handler)client_connection_handler)) {
         BLog(BLOG_ERROR, "BConnection_Init failed");
         goto fail1;
     }
@@ -257,7 +257,7 @@ int PasswordListener_Init (PasswordListener *l, BReactor *bsys, BAddr listen_add
     l->ssl = ssl;
     
     // allocate client entries
-    if (!(l->clients_data = BAllocArray(max_clients, sizeof(struct PasswordListenerClient)))) {
+    if (!(l->clients_data = (struct PasswordListenerClient *)BAllocArray(max_clients, sizeof(struct PasswordListenerClient)))) {
         BLog(BLOG_ERROR, "BAllocArray failed");
         goto fail0;
     }

@@ -103,7 +103,8 @@ static void addr_any_to_sys (struct sys_addr *out, int family)
             out->addr.ipv6.sin6_family = AF_INET6;
             out->addr.ipv6.sin6_port = 0;
             out->addr.ipv6.sin6_flowinfo = 0;
-            out->addr.ipv6.sin6_addr = (struct in6_addr)IN6ADDR_ANY_INIT;
+            struct in6_addr any = IN6ADDR_ANY_INIT;
+            out->addr.ipv6.sin6_addr = any;
             out->addr.ipv6.sin6_scope_id = 0;
         } break;
         
@@ -317,7 +318,7 @@ static void connection_send_iface_handler_send (BConnection *o, uint8_t *data, i
     }
     
     WSABUF buf;
-    buf.buf = data;
+    buf.buf = (char *)data;
     buf.len = data_len;
     
     memset(&o->send.olap.olap, 0, sizeof(o->send.olap.olap));
@@ -350,7 +351,7 @@ static void connection_recv_iface_handler_recv (BConnection *o, uint8_t *data, i
     }
     
     WSABUF buf;
-    buf.buf = data;
+    buf.buf = (char *)data;
     buf.len = data_len;
     
     memset(&o->recv.olap.olap, 0, sizeof(o->recv.olap.olap));
@@ -484,19 +485,18 @@ int BListener_Init (BListener *o, BAddr addr, BReactor *reactor, void *user,
         goto fail1;
     }
     
-    GUID guid;
     DWORD out_bytes;
     
     // obtain AcceptEx
-    guid = (GUID)WSAID_ACCEPTEX;
-    if (WSAIoctl(o->sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &o->fnAcceptEx, sizeof(o->fnAcceptEx), &out_bytes, NULL, NULL) != 0) {
+    GUID guid1 = WSAID_ACCEPTEX;
+    if (WSAIoctl(o->sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid1, sizeof(guid1), &o->fnAcceptEx, sizeof(o->fnAcceptEx), &out_bytes, NULL, NULL) != 0) {
         BLog(BLOG_ERROR, "faild to obtain AcceptEx");
         goto fail1;
     }
     
     // obtain GetAcceptExSockaddrs
-    guid = (GUID)WSAID_GETACCEPTEXSOCKADDRS;
-    if (WSAIoctl(o->sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &o->fnGetAcceptExSockaddrs, sizeof(o->fnGetAcceptExSockaddrs), &out_bytes, NULL, NULL) != 0) {
+    GUID guid2 = WSAID_GETACCEPTEXSOCKADDRS;
+    if (WSAIoctl(o->sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid2, sizeof(guid2), &o->fnGetAcceptExSockaddrs, sizeof(o->fnGetAcceptExSockaddrs), &out_bytes, NULL, NULL) != 0) {
         BLog(BLOG_ERROR, "faild to obtain GetAcceptExSockaddrs");
         goto fail1;
     }
@@ -781,7 +781,7 @@ int BConnection_SetSendBuffer (BConnection *o, int buf_size)
 {
     DebugObject_Access(&o->d_obj);
     
-    if (setsockopt(o->sock, SOL_SOCKET, SO_SNDBUF, (void *)&buf_size, sizeof(buf_size)) < 0) {
+    if (setsockopt(o->sock, SOL_SOCKET, SO_SNDBUF, (char *)&buf_size, sizeof(buf_size)) < 0) {
         BLog(BLOG_ERROR, "setsockopt failed");
         return 0;
     }

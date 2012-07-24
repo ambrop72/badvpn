@@ -33,9 +33,9 @@
 #ifndef FLEXINT_H
 #define FLEXINT_H
 
-/* C99 systems have <inttypes.h>. Non-C99 systems may or may not. */
+/* C99 systems have <stdint.h>. Non-C99 systems may or may not. */
 
-#if defined (__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+#if 1
 
 /* C99 says to define __STDC_LIMIT_MACROS before including stdint.h,
  * if you want the limit (max/min) macros for int types. 
@@ -44,7 +44,7 @@
 #define __STDC_LIMIT_MACROS 1
 #endif
 
-#include <inttypes.h>
+#include <stdint.h>
 typedef int8_t flex_int8_t;
 typedef uint8_t flex_uint8_t;
 typedef int16_t flex_int16_t;
@@ -351,7 +351,7 @@ extern int yylex \
 #undef YY_DECL
 #endif
 
-#line 85 "predicate/BPredicate.l"
+#line 83 "predicate/BPredicate.l"
 
 
 #line 358 "generated//flex_BPredicate.h"

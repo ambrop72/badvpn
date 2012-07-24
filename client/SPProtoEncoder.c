@@ -303,7 +303,7 @@ int SPProtoEncoder_Init (SPProtoEncoder *o, PacketRecvInterface *input, struct s
     // allocate plaintext buffer
     if (SPPROTO_HAVE_ENCRYPTION(o->sp_params)) {
         int buf_size = balign_up((SPPROTO_HEADER_LEN(o->sp_params) + o->input_mtu + 1), o->enc_block_size);
-        if (!(o->buf = malloc(buf_size))) {
+        if (!(o->buf = (uint8_t *)malloc(buf_size))) {
             goto fail1;
         }
     }

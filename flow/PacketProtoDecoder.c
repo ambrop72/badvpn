@@ -149,7 +149,7 @@ int PacketProtoDecoder_Init (PacketProtoDecoder *enc, StreamRecvInterface *input
     enc->buf_used = 0;
     
     // allocate buffer
-    if (!(enc->buf = malloc(enc->buf_size))) {
+    if (!(enc->buf = (uint8_t *)malloc(enc->buf_size))) {
         goto fail0;
     }
     

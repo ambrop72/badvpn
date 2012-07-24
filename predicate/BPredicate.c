@@ -230,14 +230,14 @@ void BPredicate_Free (BPredicate *p)
     DebugObject_Free(&p->d_obj);
     
     // free tree
-    free_predicate_node(p->root);
+    free_predicate_node((struct predicate_node *)p->root);
 }
 
 int BPredicate_Eval (BPredicate *p)
 {
     ASSERT(!p->in_function)
     
-    if (!eval_predicate_node(p, p->root)) {
+    if (!eval_predicate_node(p, (struct predicate_node *)p->root)) {
         return -1;
     }
     

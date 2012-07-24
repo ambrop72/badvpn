@@ -34,7 +34,7 @@
 #ifndef BADVPN_MISC_PARSE_NUMBER_H
 #define BADVPN_MISC_PARSE_NUMBER_H
 
-#include <inttypes.h>
+#include <stdint.h>
 #include <string.h>
 #include <stddef.h>
 

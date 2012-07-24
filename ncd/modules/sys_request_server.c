@@ -188,7 +188,7 @@ static void listener_handler (struct instance *o)
     
     LinkedList0_Prepend(&o->connections_list, &c->connections_list_node);
     
-    if (!BConnection_Init(&c->con, BCONNECTION_SOURCE_LISTENER(&o->listener, &c->addr), reactor, c, (BConnection_handler)connection_con_handler)) {
+    if (!BConnection_Init(&c->con, BConnection_source_listener(&o->listener, &c->addr), reactor, c, (BConnection_handler)connection_con_handler)) {
         ModuleLog(o->i, BLOG_ERROR, "BConnection_Init failed");
         goto fail1;
     }

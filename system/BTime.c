@@ -31,6 +31,6 @@
 
 struct _BTime_global btime_global = {
     #ifndef NDEBUG
-    .initialized = 0,
+    0
     #endif
 };

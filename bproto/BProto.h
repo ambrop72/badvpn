@@ -36,6 +36,8 @@
 
 #include <stdint.h>
 
+#include <misc/packed.h>
+
 #define BPROTO_TYPE_UINT8 1
 #define BPROTO_TYPE_UINT16 2
 #define BPROTO_TYPE_UINT32 3
@@ -43,29 +45,41 @@
 #define BPROTO_TYPE_DATA 5
 #define BPROTO_TYPE_CONSTDATA 6
 
+B_START_PACKED
 struct BProto_header_s {
     uint16_t id;
     uint16_t type;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct BProto_uint8_s {
     uint8_t v;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct BProto_uint16_s {
     uint16_t v;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct BProto_uint32_s {
     uint32_t v;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct BProto_uint64_s {
     uint64_t v;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct BProto_data_header_s {
     uint32_t len;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
 #endif

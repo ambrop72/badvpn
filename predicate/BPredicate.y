@@ -42,7 +42,7 @@
 
 static struct predicate_node * make_constant (int val)
 {
-    struct predicate_node *n = malloc(sizeof(*n));
+    struct predicate_node *n = (struct predicate_node *)malloc(sizeof(*n));
     if (!n) {
         return NULL;
     }
@@ -59,7 +59,7 @@ static struct predicate_node * make_negation (struct predicate_node *op)
         goto fail;
     }
 
-    struct predicate_node *n = malloc(sizeof(*n));
+    struct predicate_node *n = (struct predicate_node *)malloc(sizeof(*n));
     if (!n) {
         goto fail;
     }
@@ -82,7 +82,7 @@ static struct predicate_node * make_conjunction (struct predicate_node *op1, str
         goto fail;
     }
 
-    struct predicate_node *n = malloc(sizeof(*n));
+    struct predicate_node *n = (struct predicate_node *)malloc(sizeof(*n));
     if (!n) {
         goto fail;
     }
@@ -109,7 +109,7 @@ static struct predicate_node * make_disjunction (struct predicate_node *op1, str
         goto fail;
     }
 
-    struct predicate_node *n = malloc(sizeof(*n));
+    struct predicate_node *n = (struct predicate_node *)malloc(sizeof(*n));
     if (!n) {
         goto fail;
     }
@@ -136,7 +136,7 @@ static struct predicate_node * make_function (char *name, struct arguments_node 
         goto fail;
     }
 
-    struct predicate_node *n = malloc(sizeof(*n));
+    struct predicate_node *n = (struct predicate_node *)malloc(sizeof(*n));
     if (!n) {
         goto fail;
     }
@@ -163,7 +163,7 @@ static struct arguments_node * make_arguments (struct arguments_arg arg, struct 
         goto fail;
     }
 
-    struct arguments_node *n = malloc(sizeof(*n));
+    struct arguments_node *n = (struct arguments_node *)malloc(sizeof(*n));
     if (!n) {
         goto fail;
     }

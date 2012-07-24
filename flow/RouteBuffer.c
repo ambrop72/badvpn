@@ -42,7 +42,7 @@ static struct RouteBuffer_packet * alloc_packet (int mtu)
     }
     
     // allocate memory
-    struct RouteBuffer_packet *p = malloc(sizeof(*p) + mtu);
+    struct RouteBuffer_packet *p = (struct RouteBuffer_packet *)malloc(sizeof(*p) + mtu);
     if (!p) {
         return NULL;
     }

@@ -66,13 +66,13 @@ int main (int argc, char **argv)
         return 1;
     }
     
-    struct mynode *nodes = BAllocArray(num_nodes, sizeof(*nodes));
+    struct mynode *nodes = (struct mynode *)BAllocArray(num_nodes, sizeof(*nodes));
     ASSERT_FORCE(nodes)
     
-    int *values_ins = BAllocArray(num_nodes, sizeof(int));
+    int *values_ins = (int *)BAllocArray(num_nodes, sizeof(int));
     ASSERT_FORCE(values_ins)
     
-    int *values = BAllocArray(num_random_delete, sizeof(int));
+    int *values = (int *)BAllocArray(num_random_delete, sizeof(int));
     ASSERT_FORCE(values)
     
     MyTree tree;

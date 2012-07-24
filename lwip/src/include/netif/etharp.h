@@ -212,10 +212,10 @@ err_t ethernet_input(struct pbuf *p, struct netif *netif);
 
 extern const struct eth_addr ethbroadcast, ethzero;
 
-#endif /* LWIP_ARP || LWIP_ETHERNET */
-
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* LWIP_ARP || LWIP_ETHERNET */
 
 #endif /* __NETIF_ARP_H__ */

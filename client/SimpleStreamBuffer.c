@@ -84,7 +84,7 @@ int SimpleStreamBuffer_Init (SimpleStreamBuffer *o, int buf_size, BPendingGroup 
     StreamRecvInterface_Init(&o->output, (StreamRecvInterface_handler_recv)output_handler_recv, o, pg);
     
     // allocate buffer
-    if (!(o->buf = BAlloc(buf_size))) {
+    if (!(o->buf = (uint8_t *)BAlloc(buf_size))) {
         goto fail1;
     }
     

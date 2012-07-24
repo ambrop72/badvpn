@@ -191,28 +191,32 @@ struct BConnection_source {
     } u;
 };
 
-#define BCONNECTION_SOURCE_LISTENER(_listener, _out_addr) \
-    ((struct BConnection_source){ \
-        .type = BCONNECTION_SOURCE_TYPE_LISTENER, \
-        .u.listener.listener = (_listener), \
-        .u.listener.out_addr = (_out_addr) \
-    })
+static struct BConnection_source BConnection_source_listener (BListener *listener, BAddr *out_addr)
+{
+    struct BConnection_source s;
+    s.type = BCONNECTION_SOURCE_TYPE_LISTENER;
+    s.u.listener.listener = listener;
+    s.u.listener.out_addr = out_addr;
+    return s;
+}
 
-#define BCONNECTION_SOURCE_CONNECTOR(_connector) \
-    ((struct BConnection_source){ \
-        .type = BCONNECTION_SOURCE_TYPE_CONNECTOR, \
-        .u.connector.connector = (_connector) \
-    })
+static struct BConnection_source BConnection_source_connector (BConnector *connector)
+{
+    struct BConnection_source s;
+    s.type = BCONNECTION_SOURCE_TYPE_CONNECTOR;
+    s.u.connector.connector = connector;
+    return s;
+}
 
 #ifndef BADVPN_USE_WINAPI
-#define BCONNECTION_SOURCE_PIPE(_pipefd) \
-    ((struct BConnection_source){ \
-        .type = BCONNECTION_SOURCE_TYPE_PIPE, \
-        .u.pipe.pipefd = (_pipefd) \
-    })
+static struct BConnection_source BConnection_source_pipe (int pipefd)
+{
+    struct BConnection_source s;
+    s.type = BCONNECTION_SOURCE_TYPE_PIPE;
+    s.u.pipe.pipefd;
+    return s;
+}
 #endif
-
-
 
 struct BConnection_s;
 

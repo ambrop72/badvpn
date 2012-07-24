@@ -184,7 +184,7 @@ static void start_send (BDatagram *o)
     addr_socket_to_sys(&o->send.sysaddr, o->send.remote_addr);
     
     WSABUF buf;
-    buf.buf = o->send.data;
+    buf.buf = (char *)o->send.data;
     buf.len = (o->send.data_len > ULONG_MAX ? ULONG_MAX : o->send.data_len);
     
     memset(&o->send.olap.olap, 0, sizeof(o->send.olap.olap));
@@ -260,7 +260,7 @@ static void start_recv (BDatagram *o)
     ASSERT(o->recv.started)
     
     WSABUF buf;
-    buf.buf = o->recv.data;
+    buf.buf = (char *)o->recv.data;
     buf.len = (o->recv.mtu > ULONG_MAX ? ULONG_MAX : o->recv.mtu);
     
     memset(&o->recv.olap.olap, 0, sizeof(o->recv.olap.olap));
@@ -499,18 +499,17 @@ int BDatagram_Init (BDatagram *o, int family, BReactor *reactor, void *user,
         goto fail0;
     }
     
-    GUID guid;
     DWORD out_bytes;
     
     // obtain WSASendMsg
-    guid = (GUID)WSAID_WSASENDMSG;
-    if (WSAIoctl(o->sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &o->fnWSASendMsg, sizeof(o->fnWSASendMsg), &out_bytes, NULL, NULL) != 0) {
+    GUID guid1 = WSAID_WSASENDMSG;
+    if (WSAIoctl(o->sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid1, sizeof(guid1), &o->fnWSASendMsg, sizeof(o->fnWSASendMsg), &out_bytes, NULL, NULL) != 0) {
         o->fnWSASendMsg = NULL;
     }
     
     // obtain WSARecvMsg
-    guid = (GUID)WSAID_WSARECVMSG;
-    if (WSAIoctl(o->sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &o->fnWSARecvMsg, sizeof(o->fnWSARecvMsg), &out_bytes, NULL, NULL) != 0) {
+    GUID guid2 = WSAID_WSARECVMSG;
+    if (WSAIoctl(o->sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid2, sizeof(guid2), &o->fnWSARecvMsg, sizeof(o->fnWSARecvMsg), &out_bytes, NULL, NULL) != 0) {
         BLog(BLOG_ERROR, "failed to obtain WSARecvMsg");
         o->fnWSARecvMsg = NULL;
     }

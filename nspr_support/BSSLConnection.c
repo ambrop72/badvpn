@@ -30,10 +30,10 @@
 #include <prerror.h>
 #include <ssl.h>
 
-#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
 
+#include <misc/print_macros.h>
 #include <base/BLog.h>
 
 #include "BSSLConnection.h"
@@ -548,7 +548,7 @@ int BSSLConnection_MakeBackend (PRFileDesc *prfd, StreamPassInterface *send_if, 
     ASSERT(bprconnection_initialized)
     
     // allocate backend
-    struct BSSLConnection_backend *b = malloc(sizeof(*b));
+    struct BSSLConnection_backend *b = (struct BSSLConnection_backend *)malloc(sizeof(*b));
     if (!b) {
         BLog(BLOG_ERROR, "malloc failed");
         return 0;

@@ -48,7 +48,7 @@ typedef struct {
 } DebugCounter;
 
 #ifndef NDEBUG
-#define DEBUGCOUNTER_STATIC { .c = 0 }
+#define DEBUGCOUNTER_STATIC { 0 }
 #else
 #define DEBUGCOUNTER_STATIC {}
 #endif

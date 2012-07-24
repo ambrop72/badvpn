@@ -36,6 +36,8 @@
 
 #include <stdint.h>
 
+#include <misc/packed.h>
+
 #define SOCKS_VERSION 0x05
 
 #define SOCKS_METHOD_NO_AUTHENTICATION_REQUIRED 0x00
@@ -61,42 +63,56 @@
 #define SOCKS_REP_COMMAND_NOT_SUPPORTED 0x07
 #define SOCKS_REP_ADDRESS_TYPE_NOT_SUPPORTED 0x08
 
+B_START_PACKED
 struct socks_client_hello_header {
     uint8_t ver;
     uint8_t nmethods;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct socks_client_hello_method {
     uint8_t method;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct socks_server_hello {
     uint8_t ver;
     uint8_t method;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct socks_request_header {
     uint8_t ver;
     uint8_t cmd;
     uint8_t rsv;
     uint8_t atyp;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct socks_reply_header {
     uint8_t ver;
     uint8_t rep;
     uint8_t rsv;
     uint8_t atyp;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct socks_addr_ipv4 {
     uint32_t addr;
     uint16_t port;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct socks_addr_ipv6 {
     uint8_t addr[16];
     uint16_t port;
-} __attribute__((packed));    
+} B_PACKED;    
+B_END_PACKED
 
 #endif

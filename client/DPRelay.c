@@ -44,7 +44,7 @@ static struct DPRelay_flow * create_flow (DPRelaySource *src, DPRelaySink *sink,
     ASSERT(num_packets > 0)
     
     // allocate structure
-    struct DPRelay_flow *flow = malloc(sizeof(*flow));
+    struct DPRelay_flow *flow = (struct DPRelay_flow *)malloc(sizeof(*flow));
     if (!flow) {
         BLog(BLOG_ERROR, "relay flow %d->%d: malloc failed", (int)src->source_id, (int)sink->dest_id);
         goto fail0;

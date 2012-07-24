@@ -62,6 +62,7 @@
 
 #include <misc/debug.h>
 #include <misc/balign.h>
+#include <misc/packed.h>
 #include <security/BHash.h>
 #include <security/BEncryption.h>
 #include <security/OTPCalculator.h>
@@ -113,10 +114,12 @@ struct spproto_security_params {
 
 #define SPPROTO_HAVE_OTP(_params) ((_params).otp_mode != SPPROTO_OTP_MODE_NONE)
 
+B_START_PACKED
 struct spproto_otpdata {
     uint16_t seed_id;
     otp_t otp;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
 #define SPPROTO_HEADER_OTPDATA_OFF(_params) 0
 #define SPPROTO_HEADER_OTPDATA_LEN(_params) (SPPROTO_HAVE_OTP(_params) ? sizeof(struct spproto_otpdata) : 0)

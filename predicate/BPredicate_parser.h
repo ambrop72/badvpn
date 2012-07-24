@@ -34,6 +34,8 @@
 #ifndef BADVPN_PREDICATE_BPREDICATE_PARSER_H
 #define BADVPN_PREDICATE_BPREDICATE_PARSER_H
 
+#define YY_NO_UNISTD_H
+
 #include <predicate/BPredicate_internal.h>
 
 #include <generated/bison_BPredicate.h>

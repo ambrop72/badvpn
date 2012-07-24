@@ -42,6 +42,7 @@
 // auto-generated channel numbers and number of channels
 #include <generated/blog_channels_defines.h>
 
+// keep in sync with level names in BLog.c!
 #define BLOG_ERROR 1
 #define BLOG_WARNING 2
 #define BLOG_NOTICE 3

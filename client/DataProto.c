@@ -407,7 +407,7 @@ int DataProtoFlow_Init (DataProtoFlow *o, DataProtoSource *source, peerid_t sour
     o->sink_desired = NULL;
     
     // allocate buffer structure
-    struct DataProtoFlow_buffer *b = malloc(sizeof(*b));
+    struct DataProtoFlow_buffer *b = (struct DataProtoFlow_buffer *)malloc(sizeof(*b));
     if (!b) {
         BLog(BLOG_ERROR, "malloc failed");
         goto fail0;

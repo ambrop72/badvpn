@@ -136,7 +136,7 @@ typedef struct {
     SECKEYPrivateKey *client_key;
     
     // server name if using SSL
-    char server_name[256];
+    char *server_name;
     
     // handlers
     void *user;

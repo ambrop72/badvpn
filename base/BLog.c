@@ -28,6 +28,7 @@
  */
 
 #include <stdio.h>
+#include <stddef.h>
 
 #include "BLog.h"
 
@@ -37,17 +38,12 @@ struct _BLog_channel blog_channel_list[] = {
 
 struct _BLog_global blog_global = {
     #ifndef NDEBUG
-    .initialized = 0,
+    0
     #endif
 };
 
-static char *level_names[] = {
-    [BLOG_ERROR] = "ERROR",
-    [BLOG_WARNING] = "WARNING",
-    [BLOG_NOTICE] = "NOTICE",
-    [BLOG_INFO] = "INFO",
-    [BLOG_DEBUG] = "DEBUG",
-};
+// keep in sync with level numbers in BLog.h!
+static char *level_names[] = { NULL, "ERROR", "WARNING", "NOTICE", "INFO", "DEBUG" };
 
 static void stdout_log (int channel, int level, const char *msg)
 {

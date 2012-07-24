@@ -37,16 +37,19 @@
 #include <stdint.h>
 
 #include <misc/bsize.h>
+#include <misc/packed.h>
 
 #define UDPGW_CLIENT_FLAG_KEEPALIVE (1 << 0)
 #define UDPGW_CLIENT_FLAG_REBIND (1 << 1)
 
+B_START_PACKED
 struct udpgw_header {
     uint8_t flags;
     uint16_t conid;
     uint32_t addr_ip;
     uint16_t addr_port;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
 static int udpgw_compute_mtu (int dgram_mtu)
 {

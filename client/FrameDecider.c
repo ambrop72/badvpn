@@ -29,7 +29,6 @@
 
 #include <string.h>
 #include <stddef.h>
-#include <inttypes.h>
 
 #include <misc/debug.h>
 #include <misc/offset.h>
@@ -39,6 +38,7 @@
 #include <misc/igmp_proto.h>
 #include <misc/byteorder.h>
 #include <misc/compare.h>
+#include <misc/print_macros.h>
 
 #include <client/FrameDecider.h>
 
@@ -553,13 +553,13 @@ int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d, void *user, BLo
     o->logfunc = logfunc;
     
     // allocate MAC entries
-    if (!(o->mac_entries = BAllocArray(d->max_peer_macs, sizeof(struct _FrameDecider_mac_entry)))) {
+    if (!(o->mac_entries = (struct _FrameDecider_mac_entry *)BAllocArray(d->max_peer_macs, sizeof(struct _FrameDecider_mac_entry)))) {
         PeerLog(o, BLOG_ERROR, "failed to allocate MAC entries");
         goto fail0;
     }
     
     // allocate group entries
-    if (!(o->group_entries = BAllocArray(d->max_peer_groups, sizeof(struct _FrameDecider_group_entry)))) {
+    if (!(o->group_entries = (struct _FrameDecider_group_entry *)BAllocArray(d->max_peer_groups, sizeof(struct _FrameDecider_group_entry)))) {
         PeerLog(o, BLOG_ERROR, "failed to allocate group entries");
         goto fail1;
     }

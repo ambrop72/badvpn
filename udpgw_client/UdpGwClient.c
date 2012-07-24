@@ -235,7 +235,7 @@ static void connection_init (UdpGwClient *o, struct UdpGwClient_conaddr conaddr,
     ASSERT(data_len <= o->udp_mtu)
     
     // allocate structure
-    struct UdpGwClient_connection *con = malloc(sizeof(*con));
+    struct UdpGwClient_connection *con = (struct UdpGwClient_connection *)malloc(sizeof(*con));
     if (!con) {
         BLog(BLOG_ERROR, "malloc failed");
         goto fail0;

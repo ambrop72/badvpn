@@ -39,7 +39,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <inttypes.h>
 
 #ifdef BADVPN_USE_WINAPI
 #include <ws2tcpip.h>
@@ -52,6 +51,8 @@
 
 #include <misc/byteorder.h>
 #include <misc/debug.h>
+#include <misc/print_macros.h>
+#include <misc/packed.h>
 
 #define BADDR_TYPE_NONE 0
 #define BADDR_TYPE_IPV4 1
@@ -421,10 +422,12 @@ void BAddr_SetPort (BAddr *addr, uint16_t port)
     }
 }
 
+B_START_PACKED
 struct _BAddr_ipv6_addr
 {
     uint16_t addr[8];
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
 void BIPAddr_Print (BIPAddr *addr, char *out)
 {
@@ -574,8 +577,6 @@ void BAddr_Print (BAddr *addr, char *out)
 
 int BAddr_Parse2 (BAddr *addr, char *str, char *name, int name_len, int noresolve)
 {
-    BAddr result;
-    
     int len = strlen(str);
     if (len < 1 || len > 1000) {
         return 0;
@@ -684,7 +685,10 @@ int BAddr_Parse2 (BAddr *addr, char *str, char *name, int name_len, int noresolv
     freeaddrinfo(addrs);
     
     if (name) {
-        snprintf(name, name_len, "%s", addr_str);
+        if (strlen(addr_str) >= name_len) {
+            return 0;
+        }
+        strcpy(name, addr_str);
     }
     
     return 1;

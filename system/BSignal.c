@@ -55,7 +55,7 @@ struct {
     BUnixSignal signal;
     #endif
 } bsignal_global = {
-    .initialized = 0,
+    0
 };
 
 #ifdef BADVPN_USE_WINAPI

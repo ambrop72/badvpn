@@ -1,5 +1,5 @@
 #include <string.h>
-#include <inttypes.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include <misc/debug.h>
@@ -21,7 +21,7 @@ int main ()
     
     int len = msg1_SIZEa + msg1_SIZEc + msg1_SIZEd + msg1_SIZEd + msg1_SIZEe + msg1_SIZEf(strlen(f)) + msg1_SIZEg;
     
-    uint8_t *msg = BAlloc(len);
+    uint8_t *msg = (uint8_t *)BAlloc(len);
     ASSERT_FORCE(msg)
     msg1Writer writer;
     msg1Writer_Init(&writer, msg);

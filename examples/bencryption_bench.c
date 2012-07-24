@@ -108,13 +108,13 @@ int main (int argc, char **argv)
     
     printf("unit size %d\n", unit_size);
     
-    uint8_t *buf1 = BAlloc(unit_size);
+    uint8_t *buf1 = (uint8_t *)BAlloc(unit_size);
     if (!buf1) {
         printf("BAlloc failed");
         goto fail0;
     }
     
-    uint8_t *buf2 = BAlloc(unit_size);
+    uint8_t *buf2 = (uint8_t *)BAlloc(unit_size);
     if (!buf2) {
         printf("BAlloc failed");
         goto fail1;

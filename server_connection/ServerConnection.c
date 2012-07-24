@@ -30,6 +30,7 @@
 #include <stdio.h>
 
 #include <misc/debug.h>
+#include <misc/strdup.h>
 #include <base/BLog.h>
 
 #include <server_connection/ServerConnection.h>
@@ -75,7 +76,7 @@ void connector_handler (ServerConnection *o, int is_error)
     BLog(BLOG_NOTICE, "connected");
     
     // init connection
-    if (!BConnection_Init(&o->con, BCONNECTION_SOURCE_CONNECTOR(&o->connector), o->reactor, o, (BConnection_handler)connection_handler)) {
+    if (!BConnection_Init(&o->con, BConnection_source_connector(&o->connector), o->reactor, o, (BConnection_handler)connection_handler)) {
         BLog(BLOG_ERROR, "BConnection_Init failed");
         goto fail0;
     }
@@ -493,6 +494,7 @@ int ServerConnection_Init (
     ASSERT(keepalive_interval > 0)
     ASSERT(buffer_size > 0)
     ASSERT(have_ssl == 0 || have_ssl == 1)
+    ASSERT(!have_ssl || server_name)
     
     // init arguments
     o->reactor = reactor;
@@ -502,7 +504,6 @@ int ServerConnection_Init (
     if (have_ssl) {
         o->client_cert = client_cert;
         o->client_key = client_key;
-        snprintf(o->server_name, sizeof(o->server_name), "%s", server_name);
     }
     o->user = user;
     o->handler_error = handler_error;
@@ -511,15 +512,21 @@ int ServerConnection_Init (
     o->handler_endclient = handler_endclient;
     o->handler_message = handler_message;
     
+    o->server_name = NULL;
+    if (have_ssl && !(o->server_name = b_strdup(server_name))) {
+        BLog(BLOG_ERROR, "malloc failed");
+        goto fail0;
+    }
+    
     if (!BConnection_AddressSupported(addr)) {
         BLog(BLOG_ERROR, "BConnection_AddressSupported failed");
-        goto fail0;
+        goto fail1;
     }
     
     // init connector
     if (!BConnector_Init(&o->connector, addr, o->reactor, o, (BConnector_handler)connector_handler)) {
         BLog(BLOG_ERROR, "BConnector_Init failed");
-        goto fail0;
+        goto fail1;
     }
     
     // init newclient job
@@ -532,6 +539,8 @@ int ServerConnection_Init (
     DebugObject_Init(&o->d_obj);
     return 1;
     
+fail1:
+    free(o->server_name);
 fail0:
     return 0;
 }
@@ -587,6 +596,9 @@ void ServerConnection_Free (ServerConnection *o)
     
     // free connector
     BConnector_Free(&o->connector);
+    
+    // free server name
+    free(o->server_name);
 }
 
 PacketPassInterface * ServerConnection_GetSendInterface (ServerConnection *o)

@@ -63,7 +63,7 @@ int SinglePacketBuffer_Init (SinglePacketBuffer *o, PacketRecvInterface *input, 
     PacketPassInterface_Sender_Init(o->output, (PacketPassInterface_handler_done)output_handler_done, o);
     
     // init buffer
-    if (!(o->buf = BAlloc(PacketRecvInterface_GetMTU(o->input)))) {
+    if (!(o->buf = (uint8_t *)BAlloc(PacketRecvInterface_GetMTU(o->input)))) {
         goto fail1;
     }
     
