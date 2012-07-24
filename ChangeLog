@@ -1,3 +1,4 @@
+- Port to compile with MSVC for Windows.
 
 - NCD: add Foreach clause
 
