@@ -7,6 +7,7 @@ only describes building natively from Windows using MSVC.
 2. Choose a directory where built stuff will be installed into; we call it <root>.
 
 3. Build the NSS library.
+   NOTE: you can also use the prebuilt version in the BadVPN windows download.
 
     - Install MozillaBuild:
         http://ftp.mozilla.org/pub/mozilla.org/mozilla/libraries/win32/MozillaBuildSetup-Latest.exe .
@@ -36,6 +37,7 @@ only describes building natively from Windows using MSVC.
       $ <badvpn_source_dir>/scripts/copy_nss ../../dist <root>
 
 4. Build the OpenSSL library.
+   NOTE: you can also use the prebuilt version in the BadVPN windows download.
 
     - Install ActivePerl.
 
@@ -44,7 +46,7 @@ only describes building natively from Windows using MSVC.
     - Open a compiler terminal, as was done when building NSS. Inside it, run:
 
       > cd <openssl_source_dir>
-      > perl Configure VC-WIN32 --prefix=<root> no-asm
+      > perl Configure VC-WIN32 --prefix=<root>
       > ms\do_ms
       > nmake -f ms\ntdll.mak
 
