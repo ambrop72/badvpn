@@ -104,6 +104,23 @@ process main {
     val_equal(v, {"A", "B", "C", "D"}) a;
     assert(a);
 
+    value("A") v;
+    v->set("B");
+    val_equal(v, "B") a;
+    assert(a);
+
+    value({"a", "c"}) v;
+    v->insert_undo("1", "b") vb;
+    val_equal(v, {"a", "b", "c"}) a;
+    assert(a);
+    val_equal(vb, "b") a;
+    assert(a);
+    vb->set("B");
+    val_equal(v, {"a", "c"}) a;
+    assert(a);
+    val_equal(vb, "B") a;
+    assert(a);
+
     println("succeeded");
     exit("0");
 }

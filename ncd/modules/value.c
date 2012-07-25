@@ -40,6 +40,8 @@
  * 
  * Description:
  *   Value objects allow examining and manipulating values.
+ *   These value objects are actually references to internal value structures, which
+ *   may be shared between value objects.
  * 
  *   value(value) constructs a new value object from the given value.
  * 
@@ -72,9 +74,9 @@
  *   list, the value at the specified index is replaced with the new value (unless
  *   the index is equal to the length of the list).
  * 
- *   value::insert_undo(where, what) and value::replace_undo(where, what) are versions
- *   of insert() and replace() which attempt to revert the modifications when they
- *   deinitialize. Specifically, they work like that:
+ *   insert_undo() and replace_undo() are versions of insert() and replace() which
+ *   attempt to revert the modifications when they deinitialize.
+ *   Specifically, they work like that:
  *   - On initiialization, they take an internal reference to the value being replaced
  *     (if any; note that insert_undo() into a list never replaces a value).
  *   - On deinitialization, they remove the the inserted value from its parent (if there
@@ -118,6 +120,16 @@
  *   'length' specifies the maximum number of characters to extract, if given.
  *   The newly constructed value is a copy of the extracted substring.
  *   The value must be a string value.
+ * 
+ * Synopsis:
+ *   value::set(what)
+ * 
+ * Description:
+ *   Effectively deconstructs and reconstructs the value object. More precisely,
+ *   it builds a new value structure from 'what', possibly invokes a scheduled undo
+ *   operation (as scheduled by insert_undo() and replace_undo()), sets up this
+ *   value object to reference the newly built value structure, without any scheduled
+ *   undo operation.
  */
 
 #include <stdlib.h>
@@ -1154,7 +1166,7 @@ struct insert_undo_deinit_data {
     struct valref oldval_ref;
 };
 
-static void insert_undo_deinit_func (struct insert_undo_deinit_data *data, NCDModuleInst *i)
+static void undo_deinit_func (struct insert_undo_deinit_data *data, NCDModuleInst *i)
 {
     struct value *val = valref_val(&data->val_ref);
     struct value *oldval = valref_val(&data->oldval_ref);
@@ -1227,7 +1239,7 @@ static void func_new_insert_replace_undo_common (void *vo, NCDModuleInst *i, int
     valref_init(&data->val_ref, v);
     valref_init(&data->oldval_ref, oldv);
     
-    func_new_common(vo, i, v, (value_deinit_func)insert_undo_deinit_func, data);
+    func_new_common(vo, i, v, (value_deinit_func)undo_deinit_func, data);
     return;
     
 fail1:
@@ -1360,6 +1372,44 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
+static void set_func_new (NCDModuleInst *i)
+{
+    NCDValRef what_arg;
+    if (!NCDVal_ListRead(i->args, 1, &what_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    
+    // build value from argument
+    struct value *newv = value_init_fromvalue(i, what_arg);
+    if (!newv) {
+        goto fail0;
+    }
+    
+    // deinit
+    if (mo->deinit_func) {
+        mo->deinit_func(mo->deinit_data, i);
+    }
+    
+    // free value reference
+    valref_free(&mo->ref);
+    
+    // set up value reference
+    valref_init(&mo->ref, newv);
+    
+    // set no deinit function
+    mo->deinit_func = NULL;
+    
+    NCDModuleInst_Backend_Up(i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "value",
@@ -1422,6 +1472,9 @@ static const struct NCDModule modules[] = {
     }, {
         .type = "value::delete",
         .func_new = delete_func_new
+    }, {
+        .type = "value::set",
+        .func_new = set_func_new
     }, {
         .type = "value::substr",
         .base_type = "value",
