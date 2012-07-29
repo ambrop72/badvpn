@@ -122,7 +122,7 @@
  *   The value must be a string value.
  * 
  * Synopsis:
- *   value::set(what)
+ *   value::reset(what)
  * 
  * Description:
  *   Effectively deconstructs and reconstructs the value object. More precisely,
@@ -1372,7 +1372,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void set_func_new (NCDModuleInst *i)
+static void reset_func_new (NCDModuleInst *i)
 {
     NCDValRef what_arg;
     if (!NCDVal_ListRead(i->args, 1, &what_arg)) {
@@ -1473,8 +1473,8 @@ static const struct NCDModule modules[] = {
         .type = "value::delete",
         .func_new = delete_func_new
     }, {
-        .type = "value::set",
-        .func_new = set_func_new
+        .type = "value::reset",
+        .func_new = reset_func_new
     }, {
         .type = "value::substr",
         .base_type = "value",
