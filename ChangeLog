@@ -1,3 +1,7 @@
+- NCD: add value::replace_this() and value::replace_this_undo()
+
+- NCD: add value::replace() and value::replace_undo()
+
 - Port to compile with MSVC for Windows.
 
 - NCD: add Foreach clause

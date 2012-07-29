@@ -121,6 +121,52 @@ process main {
     val_equal(vb, "B") a;
     assert(a);
 
+    value({"a", "b", "c"}) v;
+    v->get("1") vb;
+    vb->replace_this("B") vB;
+    val_equal(vb, "b") a;
+    assert(a);
+    val_equal(vB, "B") a;
+    assert(a);
+    v->get("1") vB2;
+    val_equal(vB2, "B") a;
+    assert(a);
+
+    value(["a":"va", "b":"vb", "c":"vc"]) v;
+    v->get("b") vb;
+    vb->replace_this("vB") vB;
+    val_equal(vB, "vB") a;
+    assert(a);
+    val_equal(vb, "vb") a;
+    assert(a);
+    v->get("b") vB2;
+    val_equal(vB2, "vB") a;
+    assert(a);
+
+    value({"a", "b", "c"}) v;
+    v->get("1") vb;
+    imperative("<none>", {}, "check3", {}, "10000");
+    vb->replace_this_undo("B") vB;
+    val_equal(vb, "b") a;
+    assert(a);
+    val_equal(vB, "B") a;
+    assert(a);
+    v->get("1") vB2;
+    val_equal(vB2, "B") a;
+    assert(a);
+
+    value(["a":"va", "b":"vb", "c":"vc"]) v;
+    v->get("b") vb;
+    imperative("<none>", {}, "check4", {}, "10000");
+    vb->replace_this_undo("vB") vB;
+    val_equal(vB, "vB") a;
+    assert(a);
+    val_equal(vb, "vb") a;
+    assert(a);
+    v->get("b") vB2;
+    val_equal(vB2, "vB") a;
+    assert(a);
+
     println("succeeded");
     exit("0");
 }
@@ -132,5 +178,15 @@ template check1 {
 
 template check2 {
     val_equal(_caller.v, {"a", "b", "c"}) a;
+    assert(a);
+}
+
+template check3 {
+    val_equal(_caller.v, {"a", "b", "c"}) a;
+    assert(a);
+}
+
+template check4 {
+    val_equal(_caller.v, ["a":"va", "b":"vb", "c":"vc"]) a;
     assert(a);
 }

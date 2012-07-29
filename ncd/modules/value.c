@@ -35,8 +35,10 @@
  *   value value::getpath(list path)
  *   value value::insert(where, what)
  *   value value::replace(where, what)
+ *   value value::replace_this(value)
  *   value value::insert_undo(where, what)
  *   value value::replace_undo(where, what)
+ *   value value::replace_this_undo(value)
  * 
  * Description:
  *   Value objects allow examining and manipulating values.
@@ -1259,6 +1261,123 @@ static void func_new_replace_undo (void *vo, NCDModuleInst *i)
     func_new_insert_replace_undo_common(vo, i, 1);
 }
 
+static void func_new_replace_this (void *vo, NCDModuleInst *i)
+{
+    NCDValRef value_arg;
+    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct value *mov = valref_val(&mo->ref);
+    
+    if (!mov) {
+        ModuleLog(i, BLOG_ERROR, "value was deleted");
+        goto fail0;
+    }
+    
+    struct value *v = value_init_fromvalue(i, value_arg);
+    if (!v) {
+        goto fail0;
+    }
+    
+    if (mov->parent) {
+        struct value *parent = mov->parent;
+        
+        switch (parent->type) {
+            case NCDVAL_LIST: {
+                size_t index = value_list_indexof(parent, mov);
+                value_list_remove(parent, mov);
+                int res = value_list_insert(i, parent, v, index);
+                ASSERT(res)
+            } break;
+            
+            case NCDVAL_MAP: {
+                NCDValMem key_mem;
+                NCDValSafeRef key;
+                value_map_remove2(parent, mov, &key_mem, &key);
+                int res = value_map_insert(parent, v, key_mem, key, i);
+                ASSERT(res)
+            } break;
+            
+            default: ASSERT(0);
+        }
+        
+        value_cleanup(mov);
+    }
+    
+    func_new_common(vo, i, v, NULL, NULL);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void func_new_replace_this_undo (void *vo, NCDModuleInst *i)
+{
+    NCDValRef value_arg;
+    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct value *mov = valref_val(&mo->ref);
+    
+    if (!mov) {
+        ModuleLog(i, BLOG_ERROR, "value was deleted");
+        goto fail0;
+    }
+    
+    struct value *v = value_init_fromvalue(i, value_arg);
+    if (!v) {
+        goto fail0;
+    }
+    
+    struct insert_undo_deinit_data *data = malloc(sizeof(*data));
+    if (!data) {
+        ModuleLog(i, BLOG_ERROR, "malloc failed");
+        goto fail1;
+    }
+    
+    valref_init(&data->val_ref, v);
+    valref_init(&data->oldval_ref, mov);
+    
+    if (mov->parent) {
+        struct value *parent = mov->parent;
+        
+        switch (parent->type) {
+            case NCDVAL_LIST: {
+                size_t index = value_list_indexof(parent, mov);
+                value_list_remove(parent, mov);
+                int res = value_list_insert(i, parent, v, index);
+                ASSERT(res)
+            } break;
+            
+            case NCDVAL_MAP: {
+                NCDValMem key_mem;
+                NCDValSafeRef key;
+                value_map_remove2(parent, mov, &key_mem, &key);
+                int res = value_map_insert(parent, v, key_mem, key, i);
+                ASSERT(res)
+            } break;
+            
+            default: ASSERT(0);
+        }
+    }
+    
+    func_new_common(vo, i, v, (value_deinit_func)undo_deinit_func, data);
+    return;
+    
+fail1:
+    value_cleanup(v);
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
 static void func_new_substr (void *vo, NCDModuleInst *i)
 {
     NCDValRef start_arg;
@@ -1453,6 +1572,13 @@ static const struct NCDModule modules[] = {
         .func_getvar = func_getvar,
         .alloc_size = sizeof(struct instance)
     }, {
+        .type = "value::replace_this",
+        .base_type = "value",
+        .func_new2 = func_new_replace_this,
+        .func_die = func_die,
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
+    }, {
         .type = "value::insert_undo",
         .base_type = "value",
         .func_new2 = func_new_insert_undo,
@@ -1463,6 +1589,13 @@ static const struct NCDModule modules[] = {
         .type = "value::replace_undo",
         .base_type = "value",
         .func_new2 = func_new_replace_undo,
+        .func_die = func_die,
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
+    }, {
+        .type = "value::replace_this_undo",
+        .base_type = "value",
+        .func_new2 = func_new_replace_this_undo,
         .func_die = func_die,
         .func_getvar = func_getvar,
         .alloc_size = sizeof(struct instance)
