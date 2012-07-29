@@ -629,7 +629,11 @@ void start_terminate (int exit_code)
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process)
 {
     // get num statements
-    int num_statements = NCDBlock_NumStatements(NCDProcess_Block(proc_ast));
+    size_t num_statements = NCDBlock_NumStatements(NCDProcess_Block(proc_ast));
+    if (num_statements > INT_MAX) {
+        BLog(BLOG_ERROR, "too many statements");
+        goto fail0;
+    }
     
     // calculate allocation size
     bsize_t alloc_size = bsize_add(bsize_fromsize(sizeof(struct process)), bsize_mul(bsize_fromsize(num_statements), bsize_fromsize(sizeof(struct statement))));
