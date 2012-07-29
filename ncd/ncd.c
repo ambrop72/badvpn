@@ -93,14 +93,14 @@ struct process {
     BTimer wait_timer;
     BPending work_job;
     LinkedList1Node list_node; // node in processes
-    char *mem;
     int mem_size;
     int state;
     int ap;
     int fp;
     int have_error;
     int num_statements;
-    struct statement statements[];
+    struct statement *statements;
+    char *mem;
 };
 
 // command-line options
@@ -636,11 +636,17 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
         goto fail0;
     }
     
-    // calculate allocation size
-    bsize_t alloc_size = bsize_add(bsize_fromsize(sizeof(struct process)), bsize_mul(bsize_fromsize(num_statements), bsize_fromsize(sizeof(struct statement))));
+    // calculate size of preallocated statement memory
+    int mem_size = NCDInterpBlock_PreallocSize(iblock);
+    if (mem_size < 0 || mem_size > SIZE_MAX) {
+        BLog(BLOG_ERROR, "NCDInterpBlock_PreallocSize failed");
+        goto fail0;
+    }
     
-    // allocate strucure
-    struct process *p = BAllocSize(alloc_size);
+    // allocate memory
+    void *v_statements;
+    void *v_mem;
+    struct process *p = BAllocThreeArrays(1, sizeof(*p), num_statements, sizeof(p->statements[0]), mem_size, 1, &v_statements, &v_mem);
     if (!p) {
         BLog(BLOG_ERROR, "BAllocSize failed");
         goto fail0;
@@ -650,23 +656,16 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
     p->proc_ast = proc_ast;
     p->iblock = iblock;
     p->module_process = module_process;
+    p->mem_size = mem_size;
     p->num_statements = num_statements;
+    p->statements = v_statements;
+    p->mem = v_mem;
     
     // set module process handlers
     if (p->module_process) {
         NCDModuleProcess_Interp_SetHandlers(p->module_process, p,
                                             (NCDModuleProcess_interp_func_event)process_moduleprocess_func_event,
                                             (NCDModuleProcess_interp_func_getobj)process_moduleprocess_func_getobj);
-    }
-    
-    // preallocate statement memory
-    if ((p->mem_size = NCDInterpBlock_PreallocSize(iblock)) < 0) {
-        BLog(BLOG_ERROR, "NCDInterpBlock_PreallocSize");
-        goto fail1;
-    }
-    if (!(p->mem = BAllocSize(bsize_fromint(p->mem_size)))) {
-        BLog(BLOG_ERROR, "BAllocSize failed");
-        goto fail1;
     }
     
     // init statements
@@ -705,8 +704,6 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
     
     return 1;
     
-fail1:
-    BFree(p);
 fail0:
     BLog(BLOG_ERROR, "failed to initialize process %s", NCDProcess_Name(proc_ast));
     return 0;
@@ -737,9 +734,6 @@ void process_free (struct process *p, NCDModuleProcess **out_mp)
     
     // free timer
     BReactor_RemoveTimer(&reactor, &p->wait_timer);
-    
-    // free preallocated memory
-    BFree(p->mem);
     
     // free strucure
     BFree(p);
