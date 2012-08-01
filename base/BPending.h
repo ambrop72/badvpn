@@ -37,8 +37,13 @@
 #include <stdint.h>
 
 #include <misc/debugcounter.h>
-#include <structure/LinkedList1.h>
+#include <structure/SLinkedList.h>
 #include <base/DebugObject.h>
+
+struct BPending_s;
+
+#include "BPending_list.h"
+#include <structure/SLinkedList_decl.h>
 
 /**
  * Job execution handler.
@@ -55,7 +60,7 @@ typedef void (*BPending_handler) (void *user);
  * Object that contains a list of jobs pending execution.
  */
 typedef struct {
-    LinkedList1 jobs;
+    BPending__List jobs;
     DebugCounter pending_ctr;
     DebugObject d_obj;
 } BPendingGroup;
@@ -63,12 +68,12 @@ typedef struct {
 /**
  * Object for queuing a job for execution.
  */
-typedef struct {
+typedef struct BPending_s {
     BPendingGroup *g;
     BPending_handler handler;
     void *user;
     uint8_t pending;
-    LinkedList1Node pending_node;
+    BPending__ListNode pending_node;
     DebugObject d_obj;
 } BPending;
 

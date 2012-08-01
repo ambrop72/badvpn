@@ -34,10 +34,13 @@
 
 #include "BPending.h"
 
+#include "BPending_list.h"
+#include <structure/SLinkedList_impl.h>
+
 void BPendingGroup_Init (BPendingGroup *g)
 {
     // init jobs list
-    LinkedList1_Init(&g->jobs);
+    BPending__List_Init(&g->jobs);
     
     // init pending counter
     DebugCounter_Init(&g->pending_ctr);
@@ -49,7 +52,7 @@ void BPendingGroup_Init (BPendingGroup *g)
 void BPendingGroup_Free (BPendingGroup *g)
 {
     DebugCounter_Free(&g->pending_ctr);
-    ASSERT(LinkedList1_IsEmpty(&g->jobs))
+    ASSERT(BPending__List_IsEmpty(&g->jobs))
     DebugObject_Free(&g->d_obj);
 }
 
@@ -57,21 +60,20 @@ int BPendingGroup_HasJobs (BPendingGroup *g)
 {
     DebugObject_Access(&g->d_obj);
     
-    return !LinkedList1_IsEmpty(&g->jobs);
+    return !BPending__List_IsEmpty(&g->jobs);
 }
 
 void BPendingGroup_ExecuteJob (BPendingGroup *g)
 {
-    ASSERT(!LinkedList1_IsEmpty(&g->jobs))
+    ASSERT(!BPending__List_IsEmpty(&g->jobs))
     DebugObject_Access(&g->d_obj);
     
     // get a job
-    LinkedList1Node *node = LinkedList1_GetLast(&g->jobs);
-    BPending *p = UPPER_OBJECT(node, BPending, pending_node);
+    BPending *p = BPending__List_First(&g->jobs);
     ASSERT(p->pending)
     
     // remove from jobs list
-    LinkedList1_Remove(&g->jobs, &p->pending_node);
+    BPending__List_Remove(&g->jobs, p);
     
     // set not pending
     p->pending = 0;
@@ -85,12 +87,7 @@ BPending * BPendingGroup_PeekJob (BPendingGroup *g)
 {
     DebugObject_Access(&g->d_obj);
     
-    LinkedList1Node *node = LinkedList1_GetLast(&g->jobs);
-    if (!node) {
-        return NULL;
-    }
-    
-    return UPPER_OBJECT(node, BPending, pending_node);
+    return BPending__List_First(&g->jobs);
 }
 
 void BPending_Init (BPending *o, BPendingGroup *g, BPending_handler handler, void *user)
@@ -117,7 +114,7 @@ void BPending_Free (BPending *o)
     
     // remove from jobs list
     if (o->pending) {
-        LinkedList1_Remove(&o->g->jobs, &o->pending_node);
+        BPending__List_Remove(&o->g->jobs, o);
     }
 }
 
@@ -127,11 +124,11 @@ void BPending_Set (BPending *o)
     
     // remove from jobs list
     if (o->pending) {
-        LinkedList1_Remove(&o->g->jobs, &o->pending_node);
+        BPending__List_Remove(&o->g->jobs, o);
     }
     
     // insert to jobs list
-    LinkedList1_Append(&o->g->jobs, &o->pending_node);
+    BPending__List_Prepend(&o->g->jobs, o);
     
     // set pending
     o->pending = 1;
@@ -143,7 +140,7 @@ void BPending_Unset (BPending *o)
     
     if (o->pending) {
         // remove from jobs list
-        LinkedList1_Remove(&o->g->jobs, &o->pending_node);
+        BPending__List_Remove(&o->g->jobs, o);
         
         // set not pending
         o->pending = 0;
