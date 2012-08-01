@@ -650,11 +650,15 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
         goto fail0;
     }
     
-    // set some stuff
+    // set variables
     p->proc_ast = proc_ast;
     p->iblock = iblock;
     p->module_process = module_process;
     p->mem_size = mem_size;
+    p->state = PSTATE_WORKING;
+    p->ap = 0;
+    p->fp = 0;
+    p->have_error = 0;
     p->num_statements = num_statements;
     p->statements = v_statements;
     p->mem = v_mem;
@@ -676,18 +680,6 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
         ps->mem = (ps->mem_size == 0 ? NULL : p->mem + NCDInterpBlock_StatementPreallocOffset(iblock, i));
     }
     
-    // set state working
-    p->state = PSTATE_WORKING;
-    
-    // set AP=0
-    p->ap = 0;
-    
-    // set FP=0
-    p->fp = 0;
-    
-    // set no error
-    p->have_error = 0;
-    
     // init timer
     BTimer_Init(&p->wait_timer, options.retry_time, (BTimer_handler)process_wait_timer_handler, p);
     
@@ -698,8 +690,7 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
     LinkedList1_Append(&processes, &p->list_node);
     
     // schedule work
-    BPending_Set(&p->work_job);
-    
+    BPending_Set(&p->work_job);   
     return 1;
     
 fail0:
