@@ -70,13 +70,17 @@ void BPendingGroup_ExecuteJob (BPendingGroup *g)
     
     // get a job
     BPending *p = BPending__List_First(&g->jobs);
+    ASSERT(p->pending_node.next != p)
     ASSERT(p->pending)
     
     // remove from jobs list
     BPending__List_Remove(&g->jobs, p);
     
     // set not pending
+    p->pending_node.next = p;
+#ifndef NDEBUG
     p->pending = 0;
+#endif
     
     // execute job
     p->handler(p->user);
@@ -98,7 +102,10 @@ void BPending_Init (BPending *o, BPendingGroup *g, BPending_handler handler, voi
     o->user = user;
     
     // set not pending
+    o->pending_node.next = o;
+#ifndef NDEBUG
     o->pending = 0;
+#endif
     
     // increment pending counter
     DebugCounter_Increment(&o->g->pending_ctr);
@@ -111,9 +118,10 @@ void BPending_Free (BPending *o)
 {
     DebugCounter_Decrement(&o->g->pending_ctr);
     DebugObject_Free(&o->d_obj);
+    ASSERT(o->pending == (o->pending_node.next != o))
     
     // remove from jobs list
-    if (o->pending) {
+    if (o->pending_node.next != o) {
         BPending__List_Remove(&o->g->jobs, o);
     }
 }
@@ -121,9 +129,10 @@ void BPending_Free (BPending *o)
 void BPending_Set (BPending *o)
 {
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->pending == (o->pending_node.next != o))
     
     // remove from jobs list
-    if (o->pending) {
+    if (o->pending_node.next != o) {
         BPending__List_Remove(&o->g->jobs, o);
     }
     
@@ -131,25 +140,32 @@ void BPending_Set (BPending *o)
     BPending__List_Prepend(&o->g->jobs, o);
     
     // set pending
+#ifndef NDEBUG
     o->pending = 1;
+#endif
 }
 
 void BPending_Unset (BPending *o)
 {
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->pending == (o->pending_node.next != o))
     
-    if (o->pending) {
+    if (o->pending_node.next != o) {
         // remove from jobs list
         BPending__List_Remove(&o->g->jobs, o);
         
         // set not pending
+        o->pending_node.next = o;
+#ifndef NDEBUG
         o->pending = 0;
+#endif
     }
 }
 
 int BPending_IsSet (BPending *o)
 {
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->pending == (o->pending_node.next != o))
     
-    return o->pending;
+    return (o->pending_node.next != o);
 }

@@ -72,8 +72,10 @@ typedef struct BPending_s {
     BPendingGroup *g;
     BPending_handler handler;
     void *user;
+    BPending__ListNode pending_node; // optimization: if not pending, .next is this
+#ifndef NDEBUG
     uint8_t pending;
-    BPending__ListNode pending_node;
+#endif
     DebugObject d_obj;
 } BPending;
 
