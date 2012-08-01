@@ -153,7 +153,7 @@ target_link_libraries(badvpn-ncd system flow flowextra dhcpclient arpprobe ncdva
 
 if (BADVPN_USE_LINUX_INPUT)
     string(REPLACE " " ";" FLAGS_LIST "${CMAKE_C_FLAGS}")
-    execute_process(COMMAND ${CMAKE_C_COMPILER} ${FLAGS_LIST} -E ${CMAKE_CURRENT_SOURCE_DIR}/include_linux_input.h
+    execute_process(COMMAND ${CMAKE_C_COMPILER} ${FLAGS_LIST} -E ${CMAKE_CURRENT_SOURCE_DIR}/include_linux_input.c
                     RESULT_VARIABLE LINUX_INPUT_PREPROCESS_RESULT
                     OUTPUT_VARIABLE LINUX_INPUT_PREPROCESS_OUTPUT)
     if (NOT LINUX_INPUT_PREPROCESS_RESULT EQUAL 0)
