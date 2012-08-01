@@ -91,14 +91,14 @@ struct process {
     BTimer wait_timer;
     BPending work_job;
     LinkedList1Node list_node; // node in processes
+    struct statement *statements;
+    char *mem;
     int mem_size;
     int state;
     int ap;
     int fp;
     int have_error;
     int num_statements;
-    struct statement *statements;
-    char *mem;
 };
 
 // command-line options
@@ -654,14 +654,14 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
     p->proc_ast = proc_ast;
     p->iblock = iblock;
     p->module_process = module_process;
+    p->statements = v_statements;
+    p->mem = v_mem;
     p->mem_size = mem_size;
     p->state = PSTATE_WORKING;
     p->ap = 0;
     p->fp = 0;
     p->have_error = 0;
     p->num_statements = num_statements;
-    p->statements = v_statements;
-    p->mem = v_mem;
     
     // set module process handlers
     if (p->module_process) {
