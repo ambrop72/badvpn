@@ -650,7 +650,7 @@ int build_method_type_string (const char *object_type, const char *method_name)
     return 1;
 }
 
-static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process)
+int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process)
 {
     // get num statements
     size_t num_statements = NCDBlock_NumStatements(NCDProcess_Block(proc_ast));
