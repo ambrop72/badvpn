@@ -68,7 +68,7 @@ static int compute_prealloc (NCDInterpBlock *o)
     return 1;
 }
 
-int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block)
+int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process)
 {
     if (NCDBlock_NumStatements(block) > INT_MAX) {
         BLog(BLOG_ERROR, "too many statements");
@@ -123,6 +123,8 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block)
     }
     
     ASSERT(o->num_stmts == num_stmts)
+    
+    o->process = process;
     
     DebugObject_Init(&o->d_obj);
     return 1;
@@ -254,4 +256,11 @@ int NCDInterpBlock_StatementPreallocOffset (NCDInterpBlock *o, int i)
     ASSERT(o->prealloc_size >= 0)
     
     return o->stmts[i].prealloc_offset;
+}
+
+NCDProcess * NCDInterpBlock_Process (NCDInterpBlock *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    return o->process;
 }

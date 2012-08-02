@@ -58,10 +58,11 @@ typedef struct {
     int num_stmts;
     int prealloc_size;
     NCDInterpBlock__Hash hash;
+    NCDProcess *process;
     DebugObject d_obj;
 } NCDInterpBlock;
 
-int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block) WARN_UNUSED;
+int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process) WARN_UNUSED;
 void NCDInterpBlock_Free (NCDInterpBlock *o);
 int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char *name);
 const char * NCDInterpBlock_StatementCmdName (NCDInterpBlock *o, int i);
@@ -71,5 +72,6 @@ void NCDInterpBlock_StatementBumpAllocSize (NCDInterpBlock *o, int i, int alloc_
 int NCDInterpBlock_StatementPreallocSize (NCDInterpBlock *o, int i);
 int NCDInterpBlock_PreallocSize (NCDInterpBlock *o);
 int NCDInterpBlock_StatementPreallocOffset (NCDInterpBlock *o, int i);
+NCDProcess * NCDInterpBlock_Process (NCDInterpBlock *o);
 
 #endif

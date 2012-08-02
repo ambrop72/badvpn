@@ -68,7 +68,7 @@ int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog)
         e->name = NCDProcess_Name(p);
         e->proc = p;
         
-        if (!NCDInterpBlock_Init(&e->iblock, NCDProcess_Block(p))) {
+        if (!NCDInterpBlock_Init(&e->iblock, NCDProcess_Block(p), p)) {
             BLog(BLOG_ERROR, "NCDInterpBlock_Init failed");
             goto fail2;
         }

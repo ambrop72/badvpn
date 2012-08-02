@@ -85,7 +85,6 @@ struct statement {
 };
 
 struct process {
-    NCDProcess *proc_ast;
     NCDInterpBlock *iblock;
     NCDModuleProcess *module_process;
     BTimer wait_timer;
@@ -651,7 +650,6 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
     }
     
     // set variables
-    p->proc_ast = proc_ast;
     p->iblock = iblock;
     p->module_process = module_process;
     p->statements = v_statements;
@@ -782,7 +780,7 @@ void process_assert_pointers (struct process *p)
 
 void process_logfunc (struct process *p)
 {
-    BLog_Append("process %s: ", NCDProcess_Name(p->proc_ast));
+    BLog_Append("process %s: ", NCDProcess_Name(NCDInterpBlock_Process(p->iblock)));
 }
 
 void process_log (struct process *p, int level, const char *fmt, ...)
