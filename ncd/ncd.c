@@ -171,7 +171,7 @@ static int process_resolve_object_expr (struct process *p, int pos, char **names
 static int process_resolve_variable_expr (struct process *p, int pos, char **names, NCDValMem *mem, NCDValRef *out_value);
 static void statement_logfunc (struct statement *ps);
 static void statement_log (struct statement *ps, int level, const char *fmt, ...);
-static int statement_allocate_memory (struct statement *ps, int alloc_size, void **out_mem);
+static int statement_allocate_memory (struct statement *ps, int alloc_size);
 static int statement_resolve_argument (struct statement *ps, NCDInterpValue *arg, NCDValMem *mem, NCDValRef *out);
 static void statement_instance_func_event (struct statement *ps, int event);
 static int statement_instance_func_getobj (struct statement *ps, const char *objname, NCDObject *out_object);
@@ -1027,11 +1027,11 @@ void process_advance (struct process *p)
     }
     
     // allocate memory
-    void *mem;
-    if (!statement_allocate_memory(ps, module->alloc_size, &mem)) {
+    if (!statement_allocate_memory(ps, module->alloc_size)) {
         statement_log(ps, BLOG_ERROR, "failed to allocate memory");
         goto fail1;
     }
+    char *mem = (module->alloc_size == 0 ? NULL : ps->mem);
     
     // set statement state CHILD
     ps->state = SSTATE_CHILD;
@@ -1173,15 +1173,9 @@ void statement_log (struct statement *ps, int level, const char *fmt, ...)
     va_end(vl);
 }
 
-int statement_allocate_memory (struct statement *ps, int alloc_size, void **out_mem)
+int statement_allocate_memory (struct statement *ps, int alloc_size)
 {
     ASSERT(alloc_size >= 0)
-    ASSERT(out_mem)
-    
-    if (alloc_size == 0) {
-        *out_mem = NULL;
-        return 1;
-    }
     
     if (alloc_size > ps->mem_size) {
         if (ps->mem && !process_mem_is_preallocated(ps->p, ps->mem)) {
@@ -1197,7 +1191,6 @@ int statement_allocate_memory (struct statement *ps, int alloc_size, void **out_
         ps->mem_size = alloc_size;
     }
     
-    *out_mem = ps->mem;
     return 1;
 }
 
