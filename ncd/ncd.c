@@ -153,6 +153,7 @@ static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static void start_terminate (int exit_code);
+static int build_method_type_string (const char *object_type, const char *method_name);
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process);
 static void process_free (struct process *p, NCDModuleProcess **out_mp);
 static int process_mem_is_preallocated (struct process *p, char *mem);
@@ -624,6 +625,31 @@ void start_terminate (int exit_code)
     }
 }
 
+int build_method_type_string (const char *object_type, const char *method_name)
+{
+    ASSERT(object_type)
+    ASSERT(method_name)
+    
+    // This writes "<object_type>::<method_name>" into method_concat_buf.
+    // strlen+memcpy is used because it is much faster than snprintf.
+    
+    size_t len1 = strlen(object_type);
+    size_t len2 = strlen(method_name);
+    
+    if (len1 > sizeof(method_concat_buf) ||
+        len2 > sizeof(method_concat_buf) - len1 ||
+        3 > sizeof(method_concat_buf) - len1 - len2
+    ) {
+        return 0;
+    }
+    
+    memcpy(method_concat_buf, object_type, len1);
+    memcpy(method_concat_buf + len1, "::", 2);
+    memcpy(method_concat_buf + len1 + 2, method_name, len2 + 1);
+    
+    return 1;
+}
+
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process)
 {
     // get num statements
@@ -972,8 +998,7 @@ void process_advance (struct process *p)
         }
         
         // build type string
-        int res = snprintf(method_concat_buf, sizeof(method_concat_buf), "%s::%s", object_type, type);
-        if (res >= sizeof(method_concat_buf) || res < 0) {
+        if (!build_method_type_string(object_type, type)) {
             statement_log(ps, BLOG_ERROR, "type/method name too long");
             goto fail0;
         }
