@@ -160,12 +160,13 @@ static CHashRef CHash_Lookup (const CHash *o, CHashArg arg, CHashKey key)
 {
     size_t index = CHASH_PARAM_HASHFUN(arg, key) % o->numBuckets;
     
-    CHashRef e = CHash_Deref(arg, o->buckets[index]);
-    while (e.link != CHashNullLink()) {
+    CHashLink link = o->buckets[index];
+    while (link != CHashNullLink()) {
+        CHashRef e = CHash_Deref(arg, link);
         if (CHASH_PARAM_KEYSEQUAL(arg, CHASH_PARAM_GETKEY(arg, e), key)) {
             return e;
         }
-        e = CHash_Deref(arg, e.ptr->CHASH_PARAM_ENTRY_NEXT);
+        link = e.ptr->CHASH_PARAM_ENTRY_NEXT;
     }
     
     return CHashNullRef();
