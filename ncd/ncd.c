@@ -157,7 +157,7 @@ static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleP
 static void process_free (struct process *p, NCDModuleProcess **out_mp);
 static int process_mem_is_preallocated (struct process *p, char *mem);
 static void process_start_terminating (struct process *p);
-static int process_rap (struct process *p);
+static int process_have_child (struct process *p);
 static void process_assert_pointers (struct process *p);
 static void process_logfunc (struct process *p);
 static void process_log (struct process *p, int level, const char *fmt, ...);
@@ -744,13 +744,9 @@ void process_start_terminating (struct process *p)
     process_schedule_work(p);
 }
 
-int process_rap (struct process *p)
+int process_have_child (struct process *p)
 {
-    if (p->ap > 0 && p->statements[p->ap - 1].state == SSTATE_CHILD) {
-        return (p->ap - 1);
-    } else {
-        return p->ap;
-    }
+    return (p->ap > 0 && p->statements[p->ap - 1].state == SSTATE_CHILD);
 }
 
 void process_assert_pointers (struct process *p)
@@ -855,7 +851,7 @@ void process_work_job_handler (struct process *p)
     }
     
     // process was up but is no longer?
-    if (p->state == PSTATE_UP && !(p->ap == process_rap(p) && p->ap == p->num_statements)) {
+    if (p->state == PSTATE_UP && !(!process_have_child(p) && p->ap == p->num_statements)) {
         // if we have module process, wait for its permission to continue
         if (p->module_process) {
             // set state waiting
@@ -888,7 +884,7 @@ void process_work_job_handler (struct process *p)
     }
     
     // clean?
-    if (p->ap > process_rap(p)) {
+    if (process_have_child(p)) {
         ASSERT(p->ap > 0)
         ASSERT(p->ap <= p->num_statements)
         
@@ -942,7 +938,7 @@ void process_advance (struct process *p)
 {
     process_assert_pointers(p);
     ASSERT(p->ap == p->fp)
-    ASSERT(p->ap == process_rap(p))
+    ASSERT(!process_have_child(p))
     ASSERT(p->ap < p->num_statements)
     ASSERT(!p->have_error)
     ASSERT(!BPending_IsSet(&p->work_job))
@@ -1041,7 +1037,7 @@ void process_wait_timer_handler (struct process *p)
 {
     process_assert_pointers(p);
     ASSERT(p->ap == p->fp)
-    ASSERT(p->ap == process_rap(p))
+    ASSERT(!process_have_child(p))
     ASSERT(p->ap < p->num_statements)
     ASSERT(!p->have_error)
     ASSERT(!BPending_IsSet(&p->work_job))
@@ -1182,7 +1178,7 @@ int statement_allocate_memory (struct statement *ps, int alloc_size, void **out_
 
 int statement_resolve_argument (struct statement *ps, NCDInterpValue *arg, NCDValMem *mem, NCDValRef *out)
 {
-    ASSERT(ps->i <= process_rap(ps->p))
+    ASSERT(ps->i <= ps->p->ap - process_have_child(ps->p))
     ASSERT(arg)
     ASSERT(mem)
     ASSERT(out)
