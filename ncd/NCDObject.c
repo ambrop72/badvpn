@@ -178,7 +178,7 @@ int NCDObject_ResolveVarExpr (NCDObject *o, char **names, NCDValMem *mem, NCDVal
 
 int NCDObject_ResolveVarExprCompact (NCDObject *o, const char *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value)
 {
-    ASSERT(names)
+    ASSERT(num_names == 0 || names)
     ASSERT(num_names >= 0)
     ASSERT(mem)
     ASSERT(out_value)
