@@ -36,6 +36,7 @@
 #include <misc/split_string.h>
 #include <misc/hashfun.h>
 #include <misc/maxalign.h>
+#include <misc/strdup.h>
 #include <base/BLog.h>
 
 #include "NCDInterpBlock.h"
@@ -177,6 +178,7 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         e->name = NCDStatement_Name(s);
         e->cmdname = NCDStatement_RegCmdName(s);
         e->objnames = NULL;
+        e->num_objnames = 0;
         e->alloc_size = 0;
         
         NCDValMem mem;
@@ -203,9 +205,12 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
             goto loop_fail1;
         }
         
-        if (NCDStatement_RegObjName(s) && !(e->objnames = split_string(NCDStatement_RegObjName(s), '.'))) {
-            BLog(BLOG_ERROR, "split_string failed");
-            goto loop_fail2;
+        if (NCDStatement_RegObjName(s)) {
+            if (!(e->objnames = b_strdup(NCDStatement_RegObjName(s)))) {
+                BLog(BLOG_ERROR, "b_strdup failed");
+                goto loop_fail2;
+            }
+            e->num_objnames = split_string_inplace2(e->objnames, '.') + 1;
         }
         
         if (e->name) {
@@ -232,9 +237,7 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
 fail2:
     while (o->num_stmts-- > 0) {
         struct NCDInterpBlock__stmt *e = &o->stmts[o->num_stmts];
-        if (e->objnames) {
-            free_strings(e->objnames);
-        }
+        free(e->objnames);
         BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
     }
@@ -250,9 +253,7 @@ void NCDInterpBlock_Free (NCDInterpBlock *o)
     
     while (o->num_stmts-- > 0) {
         struct NCDInterpBlock__stmt *e = &o->stmts[o->num_stmts];
-        if (e->objnames) {
-            free_strings(e->objnames);
-        }
+        free(e->objnames);
         BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
     }
@@ -298,13 +299,16 @@ const char * NCDInterpBlock_StatementCmdName (NCDInterpBlock *o, int i)
     return o->stmts[i].cmdname;
 }
 
-char ** NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i)
+void NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i, const char **out_objnames, size_t *out_num_objnames)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
     ASSERT(i < o->num_stmts)
+    ASSERT(out_objnames)
+    ASSERT(out_num_objnames)
     
-    return o->stmts[i].objnames;
+    *out_objnames = o->stmts[i].objnames;
+    *out_num_objnames = o->stmts[i].num_objnames;
 }
 
 int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg *out_prog)

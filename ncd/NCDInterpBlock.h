@@ -42,7 +42,8 @@
 struct NCDInterpBlock__stmt {
     const char *name;
     const char *cmdname;
-    char **objnames;
+    char *objnames;
+    size_t num_objnames;
     char *arg_data;
     size_t arg_len;
     NCDValSafeRef arg_ref;
@@ -72,7 +73,7 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
 void NCDInterpBlock_Free (NCDInterpBlock *o);
 int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char *name);
 const char * NCDInterpBlock_StatementCmdName (NCDInterpBlock *o, int i);
-char ** NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i);
+void NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i, const char **out_objnames, size_t *out_num_objnames);
 int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg *out_prog) WARN_UNUSED;
 void NCDInterpBlock_StatementBumpAllocSize (NCDInterpBlock *o, int i, int alloc_size);
 int NCDInterpBlock_StatementPreallocSize (NCDInterpBlock *o, int i);

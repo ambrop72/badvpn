@@ -171,7 +171,7 @@ static int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, N
 static void process_advance (struct process *p);
 static void process_wait_timer_handler (struct process *p);
 static int process_find_object (struct process *p, int pos, const char *name, NCDObject *out_object);
-static int process_resolve_object_expr (struct process *p, int pos, char **names, NCDObject *out_object);
+static int process_resolve_object_expr (struct process *p, int pos, const char *names, size_t num_names, NCDObject *out_object);
 static int process_resolve_variable_expr (struct process *p, int pos, const char *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value);
 static void statement_logfunc (struct statement *ps);
 static void statement_log (struct statement *ps, int level, const char *fmt, ...);
@@ -1005,13 +1005,16 @@ void process_advance (struct process *p)
     NCDObject object;
     NCDObject *object_ptr = NULL;
     
-    char **object_names = NCDInterpBlock_StatementObjNames(p->iblock, p->ap);
+    const char *objnames;
+    size_t num_objnames;
+    NCDInterpBlock_StatementObjNames(p->iblock, p->ap, &objnames, &num_objnames);
+    
     const char *type = NCDInterpBlock_StatementCmdName(p->iblock, p->ap);
     
     // if this is a method-like statement, type is really "base_type(object)::method_name"
-    if (object_names) {
+    if (objnames) {
         // get object
-        if (!process_resolve_object_expr(p, p->ap, object_names, &object)) {
+        if (!process_resolve_object_expr(p, p->ap, objnames, num_objnames, &object)) {
             goto fail0;
         }
         object_ptr = &object;
@@ -1131,27 +1134,27 @@ int process_find_object (struct process *p, int pos, const char *name, NCDObject
     return 0;
 }
 
-int process_resolve_object_expr (struct process *p, int pos, char **names, NCDObject *out_object)
+int process_resolve_object_expr (struct process *p, int pos, const char *names, size_t num_names, NCDObject *out_object)
 {
     ASSERT(pos >= 0)
     ASSERT(pos <= p->num_statements)
     ASSERT(names)
-    ASSERT(count_strings(names) > 0)
+    ASSERT(num_names > 0)
     ASSERT(out_object)
     
     NCDObject object;
-    if (!process_find_object(p, pos, names[0], &object)) {
+    if (!process_find_object(p, pos, names, &object)) {
         goto fail;
     }
     
-    if (!NCDObject_ResolveObjExpr(&object, names + 1, out_object)) {
+    if (!NCDObject_ResolveObjExprCompact(&object, names + strlen(names) + 1, num_names - 1, out_object)) {
         goto fail;
     }
     
     return 1;
     
 fail:;
-    char *name = implode_strings(names, '.');
+    char *name = implode_compact_strings(names, num_names, '.');
     process_log(p, BLOG_ERROR, "failed to resolve object (%s) from position %zu", (name ? name : ""), pos);
     free(name);
     return 0;
