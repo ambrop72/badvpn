@@ -172,7 +172,7 @@ static void process_advance (struct process *p);
 static void process_wait_timer_handler (struct process *p);
 static int process_find_object (struct process *p, int pos, const char *name, NCDObject *out_object);
 static int process_resolve_object_expr (struct process *p, int pos, char **names, NCDObject *out_object);
-static int process_resolve_variable_expr (struct process *p, int pos, char **names, NCDValMem *mem, NCDValRef *out_value);
+static int process_resolve_variable_expr (struct process *p, int pos, const char *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value);
 static void statement_logfunc (struct statement *ps);
 static void statement_log (struct statement *ps, int level, const char *fmt, ...);
 static int statement_allocate_memory (struct statement *ps, int alloc_size);
@@ -979,10 +979,11 @@ int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRe
     ASSERT(mem)
     ASSERT(out)
     
-    char **varnames = NCDPlaceholderDb_GetVariable(&placeholder_db, plid);
-    ASSERT(count_strings(varnames) > 0)
+    const char *varnames;
+    size_t num_names;
+    NCDPlaceholderDb_GetVariable(&placeholder_db, plid, &varnames, &num_names);
     
-    return process_resolve_variable_expr(ps->p, ps->i, varnames, mem, out);
+    return process_resolve_variable_expr(ps->p, ps->i, varnames, num_names, mem, out);
 }
 
 void process_advance (struct process *p)
@@ -1156,28 +1157,28 @@ fail:;
     return 0;
 }
 
-int process_resolve_variable_expr (struct process *p, int pos, char **names, NCDValMem *mem, NCDValRef *out_value)
+int process_resolve_variable_expr (struct process *p, int pos, const char *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value)
 {
     ASSERT(pos >= 0)
     ASSERT(pos <= p->num_statements)
     ASSERT(names)
-    ASSERT(count_strings(names) > 0)
+    ASSERT(num_names > 0)
     ASSERT(mem)
     ASSERT(out_value)
     
     NCDObject object;
-    if (!process_find_object(p, pos, names[0], &object)) {
+    if (!process_find_object(p, pos, names, &object)) {
         goto fail;
     }
     
-    if (!NCDObject_ResolveVarExpr(&object, names + 1, mem, out_value)) {
+    if (!NCDObject_ResolveVarExprCompact(&object, names + strlen(names) + 1, num_names - 1, mem, out_value)) {
         goto fail;
     }
     
     return 1;
     
 fail:;
-    char *name = implode_strings(names, '.');
+    char *name = implode_compact_strings(names, num_names, '.');
     process_log(p, BLOG_ERROR, "failed to resolve variable (%s) from position %zu", (name ? name : ""), pos);
     free(name);
     return 0;

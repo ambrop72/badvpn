@@ -32,6 +32,7 @@
 
 #include <misc/balloc.h>
 #include <misc/split_string.h>
+#include <misc/strdup.h>
 #include <base/BLog.h>
 
 #include "NCDPlaceholderDb.h"
@@ -54,7 +55,7 @@ int NCDPlaceholderDb_Init (NCDPlaceholderDb *o)
 void NCDPlaceholderDb_Free (NCDPlaceholderDb *o)
 {
     for (size_t i = 0; i < o->count; i++) {
-        free_strings(o->arr[i].varnames);
+        free(o->arr[i].varnames);
     }
     
     BFree(o->arr);
@@ -94,22 +95,30 @@ int NCDPlaceholderDb_AddVariable (NCDPlaceholderDb *o, const char *varname, int 
         return 0;
     }
     
-    char **varnames = split_string(varname, '.');
+    char *varnames = b_strdup(varname);
     if (!varnames) {
-        BLog(BLOG_ERROR, "split_string failed");
+        BLog(BLOG_ERROR, "b_strdup failed");
         return 0;
     }
     
+    size_t num_names = split_string_inplace2(varnames, '.') + 1;
+    
     *out_plid = o->count;
-    o->arr[o->count++].varnames = varnames;
+    
+    o->arr[o->count].varnames = varnames;
+    o->arr[o->count].num_names = num_names;
+    o->count++;
     
     return 1;
 }
 
-char ** NCDPlaceholderDb_GetVariable (NCDPlaceholderDb *o, int plid)
+void NCDPlaceholderDb_GetVariable (NCDPlaceholderDb *o, int plid, const char **out_varnames, size_t *out_num_names)
 {
     ASSERT(plid >= 0)
     ASSERT(plid < o->count)
+    ASSERT(out_varnames)
+    ASSERT(out_num_names)
     
-    return o->arr[plid].varnames;
+    *out_varnames = o->arr[plid].varnames;
+    *out_num_names = o->arr[plid].num_names;
 }

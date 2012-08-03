@@ -35,7 +35,8 @@
 #include <misc/debug.h>
 
 struct NCDPlaceholderDb__entry {
-    char **varnames;
+    char *varnames;
+    size_t num_names;
 };
 
 /**
@@ -87,6 +88,6 @@ int NCDPlaceholderDb_AddVariable (NCDPlaceholderDb *o, const char *varname, int 
  *         database is freed.
  *         Note that there will always be at least one string in the result.
  */
-char ** NCDPlaceholderDb_GetVariable (NCDPlaceholderDb *o, int plid);
+void NCDPlaceholderDb_GetVariable (NCDPlaceholderDb *o, int plid, const char **out_varnames, size_t *out_num_names);
 
 #endif
