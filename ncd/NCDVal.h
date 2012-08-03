@@ -101,6 +101,28 @@ typedef struct {
     NCDVal__idx elemidx;
 } NCDValMapElem;
 
+#define NCDVAL_INSTR_PLACEHOLDER 0
+#define NCDVAL_INSTR_REINSERT 1
+
+struct NCDVal__instr {
+    int type;
+    union {
+        struct {
+            NCDVal__idx plid;
+            NCDVal__idx plidx;
+        } placeholder;
+        struct {
+            NCDVal__idx mapidx;
+            NCDVal__idx elempos;
+        } reinsert;
+    };
+};
+
+typedef struct {
+    struct NCDVal__instr *instrs;
+    size_t num_instrs;
+} NCDValReplaceProg;
+
 //
 
 #define NCDVAL_STRING 1
@@ -219,31 +241,6 @@ int NCDVal_PlaceholderId (NCDValRef val);
  * an invalid reference.
  */
 NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val);
-
-/**
- * Callback used by {@link NCDVal_ReplacePlaceholders} to allow the caller to produce
- * values of placeholders.
- * This function should build a new value within the memory object 'mem' (which is
- * the same as of the value reference whose placeholders are being replaced), and
- * return a value reference.
- * On success, it should return 1, writing a valid value reference to *out.
- * On failure, it can either return 0, or return 1 but write an invalid value reference.
- * This callback must not access the memory object in any other way than building
- * new values in it; it must not modify any values ther were already present at the
- * point it was called.
- */
-typedef int (*NCDVal_replace_func) (void *arg, int plid, NCDValMem *mem, NCDValRef *out);
-
-/**
- * Replaces placeholders in a value.
- * The value reference must point to a valid value, and not a placeholder value.
- * This will call the callback 'replace', which should build the values to replace
- * the placeholders.
- * Returns 1 on success and 0 on failure. On failure, the entire memory object enters
- * and inconsistent state and must be freed using {@link NCDValMem_Free} before
- * performing any other operation on it.
- */
-int NCDVal_ReplacePlaceholders (NCDValRef val, NCDVal_replace_func replace, void *arg);
 
 /**
  * Compares two values, both of which must not be invalid references.
@@ -502,5 +499,48 @@ NCDValRef NCDVal_MapElemVal (NCDValRef map, NCDValMapElem me);
  * If the key does not exist, returns an invalid map entry reference.
  */
 NCDValMapElem NCDVal_MapFindKey (NCDValRef map, NCDValRef key);
+
+/**
+ * Builds a placeholder replacement program, which is a list of instructions for
+ * efficiently replacing placeholders in identical values in identical memory
+ * objects.
+ * To actually perform replacements, make copies of the memory object of this value
+ * using {@link NCDValMem_FreeExport} and {@link NCDValMem_InitImport}, then call
+ * {@link NCDValReplaceProg_Execute} on the copies.
+ * The value passed must be a valid value, and not a placeholder.
+ * Returns 1 on success, 0 on failure.
+ */
+int NCDValReplaceProg_Init (NCDValReplaceProg *o, NCDValRef val);
+
+/**
+ * Frees the placeholder replacement program.
+ */
+void NCDValReplaceProg_Free (NCDValReplaceProg *o);
+
+/**
+ * Callback used by {@link NCDValReplaceProg_Execute} to allow the caller to produce
+ * values of placeholders.
+ * This function should build a new value within the memory object 'mem' (which is
+ * the same as of the memory object where placeholders are being replaced).
+ * On success, it should return 1, writing a valid value reference to *out.
+ * On failure, it can either return 0, or return 1 but write an invalid value reference.
+ * This callback must not access the memory object in any other way than building
+ * new values in it; it must not modify any values that were already present at the
+ * point it was called.
+ */
+typedef int (*NCDVal_replace_func) (void *arg, int plid, NCDValMem *mem, NCDValRef *out);
+
+/**
+ * Executes the replacement program, replacing placeholders in a value.
+ * The memory object must given be identical to the memory object which was used in
+ * {@link NCDValReplaceProg_Init}; see {@link NCDValMem_FreeExport} and
+ * {@link NCDValMem_InitImport}.
+ * This will call the callback 'replace', which should build the values to replace
+ * the placeholders.
+ * Returns 1 on success and 0 on failure. On failure, the entire memory object enters
+ * and inconsistent state and must be freed using {@link NCDValMem_Free} before
+ * performing any other operation on it.
+ */
+int NCDValReplaceProg_Execute (NCDValReplaceProg *o, NCDValMem *mem, NCDVal_replace_func replace, void *arg);
 
 #endif

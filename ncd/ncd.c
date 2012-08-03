@@ -1042,18 +1042,16 @@ void process_advance (struct process *p)
     
     // copy arguments
     NCDValRef args;
-    int has_placeholders;
-    if (!NCDInterpBlock_CopyStatementArgs(p->iblock, ps->i, &ps->args_mem, &args, &has_placeholders)) {
+    NCDValReplaceProg *prog;
+    if (!NCDInterpBlock_CopyStatementArgs(p->iblock, ps->i, &ps->args_mem, &args, &prog)) {
         statement_log(ps, BLOG_ERROR, "NCDInterpBlock_CopyStatementArgs failed");
         goto fail0;
     }
     
     // replace placeholders with values of variables
-    if (has_placeholders) {
-        if (!NCDVal_ReplacePlaceholders(args, replace_placeholders_callback, ps)) {
-            statement_log(ps, BLOG_ERROR, "failed to replace variables in arguments with values");
-            goto fail1;
-        }
+    if (!NCDValReplaceProg_Execute(prog, &ps->args_mem, replace_placeholders_callback, ps)) {
+        statement_log(ps, BLOG_ERROR, "failed to replace variables in arguments with values");
+        goto fail1;
     }
     
     // allocate memory

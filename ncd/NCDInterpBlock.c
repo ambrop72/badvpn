@@ -68,7 +68,7 @@ static int compute_prealloc (NCDInterpBlock *o)
     return 1;
 }
 
-int convert_value_recurser (NCDPlaceholderDb *pdb, NCDValue *value, NCDValMem *mem, NCDValRef *out, int *out_has_placeholders)
+int convert_value_recurser (NCDPlaceholderDb *pdb, NCDValue *value, NCDValMem *mem, NCDValRef *out)
 {
     ASSERT(pdb)
     ASSERT((NCDValue_Type(value), 1))
@@ -91,7 +91,7 @@ int convert_value_recurser (NCDPlaceholderDb *pdb, NCDValue *value, NCDValMem *m
             
             for (NCDValue *e = NCDValue_ListFirst(value); e; e = NCDValue_ListNext(value, e)) {
                 NCDValRef vval;
-                if (!convert_value_recurser(pdb, e, mem, &vval, out_has_placeholders)) {
+                if (!convert_value_recurser(pdb, e, mem, &vval)) {
                     goto fail;
                 }
                 
@@ -110,8 +110,8 @@ int convert_value_recurser (NCDPlaceholderDb *pdb, NCDValue *value, NCDValMem *m
                 
                 NCDValRef vkey;
                 NCDValRef vval;
-                if (!convert_value_recurser(pdb, ekey, mem, &vkey, out_has_placeholders) ||
-                    !convert_value_recurser(pdb, eval, mem, &vval, out_has_placeholders)
+                if (!convert_value_recurser(pdb, ekey, mem, &vkey) ||
+                    !convert_value_recurser(pdb, eval, mem, &vval)
                 ) {
                     goto fail;
                 }
@@ -132,7 +132,6 @@ int convert_value_recurser (NCDPlaceholderDb *pdb, NCDValue *value, NCDValMem *m
             }
             
             *out = NCDVal_NewPlaceholder(mem, plid);
-            *out_has_placeholders = 1;
         } break;
         
         default:
@@ -184,8 +183,7 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         NCDValMem_Init(&mem);
         
         NCDValRef val;
-        e->arg_has_placeholders = 0;
-        if (!convert_value_recurser(pdb, NCDStatement_RegArgs(s), &mem, &val, &e->arg_has_placeholders)) {
+        if (!convert_value_recurser(pdb, NCDStatement_RegArgs(s), &mem, &val)) {
             BLog(BLOG_ERROR, "convert_value_recurser failed");
             NCDValMem_Free(&mem);
             goto loop_fail0;
@@ -193,15 +191,21 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         
         e->arg_ref = NCDVal_ToSafe(val);
         
-        if (!NCDValMem_FreeExport(&mem, &e->arg_data, &e->arg_len)) {
-            BLog(BLOG_ERROR, "NCDValMem_FreeExport failed");
+        if (!NCDValReplaceProg_Init(&e->arg_prog, val)) {
+            BLog(BLOG_ERROR, "NCDValReplaceProg_Init failed");
             NCDValMem_Free(&mem);
             goto loop_fail0;
         }
         
+        if (!NCDValMem_FreeExport(&mem, &e->arg_data, &e->arg_len)) {
+            BLog(BLOG_ERROR, "NCDValMem_FreeExport failed");
+            NCDValMem_Free(&mem);
+            goto loop_fail1;
+        }
+        
         if (NCDStatement_RegObjName(s) && !(e->objnames = split_string(NCDStatement_RegObjName(s), '.'))) {
             BLog(BLOG_ERROR, "split_string failed");
-            goto loop_fail1;
+            goto loop_fail2;
         }
         
         if (e->name) {
@@ -212,8 +216,10 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         o->num_stmts++;
         continue;
         
-    loop_fail1:
+    loop_fail2:
         BFree(e->arg_data);
+    loop_fail1:
+        NCDValReplaceProg_Free(&e->arg_prog);
     loop_fail0:
         goto fail2;
     }
@@ -230,6 +236,7 @@ fail2:
             free_strings(e->objnames);
         }
         BFree(e->arg_data);
+        NCDValReplaceProg_Free(&e->arg_prog);
     }
 fail1:
     BFree(o->stmts);
@@ -247,6 +254,7 @@ void NCDInterpBlock_Free (NCDInterpBlock *o)
             free_strings(e->objnames);
         }
         BFree(e->arg_data);
+        NCDValReplaceProg_Free(&e->arg_prog);
     }
     
     NCDInterpBlock__Hash_Free(&o->hash);
@@ -299,14 +307,14 @@ char ** NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i)
     return o->stmts[i].objnames;
 }
 
-int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, int *out_has_placeholders)
+int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg **out_prog)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
     ASSERT(i < o->num_stmts)
     ASSERT(out_valmem)
     ASSERT(out_val)
-    ASSERT(out_has_placeholders)
+    ASSERT(out_prog)
     
     struct NCDInterpBlock__stmt *e = &o->stmts[i];
     
@@ -315,7 +323,7 @@ int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_v
     }
     
     *out_val = NCDVal_FromSafe(out_valmem, e->arg_ref);
-    *out_has_placeholders = e->arg_has_placeholders;
+    *out_prog = &e->arg_prog;
     return 1;
 }
 

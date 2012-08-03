@@ -397,119 +397,6 @@ fail:
     return NCDVal_NewInvalid();
 }
 
-#define V_TYPE(ptr) ((int *)(ptr))
-#define V_LIST(ptr) ((struct NCDVal__list *)(ptr))
-#define V_MAP(ptr) ((struct NCDVal__map *)(ptr))
-
-static int replace_placeholders_recurser (NCDValMem *mem, NCDVal__idx idx, NCDVal_replace_func replace, void *arg)
-{
-    ASSERT(idx >= 0)
-    NCDVal__AssertValOnly(mem, idx);
-    
-    int res;
-    NCDValRef repval;
-    
-    int changed = 0;
-    void *ptr = NCDValMem__BufAt(mem, idx);
-    
-    switch (*V_TYPE(ptr)) {
-        case NCDVAL_STRING: {
-        } break;
-        
-        case NCDVAL_LIST: {
-            NCDVal__idx count = V_LIST(ptr)->count;
-            
-            for (NCDVal__idx i = 0; i < count; i++) {
-                if (V_LIST(ptr)->elem_indices[i] < -1) {
-                    int plid = V_LIST(ptr)->elem_indices[i] - NCDVAL_MINIDX;
-                    if (!replace(arg, plid, mem, &repval) || NCDVal_IsInvalid(repval)) {
-                        return -1;
-                    }
-                    ASSERT(repval.mem == mem)
-                    
-                    ptr = NCDValMem__BufAt(mem, idx);
-                    V_LIST(ptr)->elem_indices[i] = repval.idx;
-                    changed = 1;
-                } else {
-                    if ((res = replace_placeholders_recurser(mem, V_LIST(ptr)->elem_indices[i], replace, arg)) < 0) {
-                        return res;
-                    }
-                    ptr = NCDValMem__BufAt(mem, idx);
-                    changed |= res;
-                }
-            }
-        } break;
-        
-        case NCDVAL_MAP: {
-            NCDVal__idx count = V_MAP(ptr)->count;
-            
-            for (NCDVal__idx i = 0; i < count; i++) {
-                int key_changed = 0;
-                
-                if (V_MAP(ptr)->elems[i].key_idx < -1) {
-                    int plid = V_MAP(ptr)->elems[i].key_idx - NCDVAL_MINIDX;
-                    if (!replace(arg, plid, mem, &repval) || NCDVal_IsInvalid(repval)) {
-                        return -1;
-                    }
-                    ASSERT(repval.mem == mem)
-                    
-                    ptr = NCDValMem__BufAt(mem, idx);
-                    V_MAP(ptr)->elems[i].key_idx = repval.idx;
-                    changed = 1;
-                    key_changed = 1;
-                } else {
-                    if ((res = replace_placeholders_recurser(mem, V_MAP(ptr)->elems[i].key_idx, replace, arg)) < 0) {
-                        return res;
-                    }
-                    ptr = NCDValMem__BufAt(mem, idx);
-                    changed |= res;
-                    key_changed |= res;
-                }
-                
-                if (V_MAP(ptr)->elems[i].val_idx < -1) {
-                    int plid = V_MAP(ptr)->elems[i].val_idx - NCDVAL_MINIDX;
-                    if (!replace(arg, plid, mem, &repval) || NCDVal_IsInvalid(repval)) {
-                        return -1;
-                    }
-                    ASSERT(repval.mem == mem)
-                    
-                    ptr = NCDValMem__BufAt(mem, idx);
-                    V_MAP(ptr)->elems[i].val_idx = repval.idx;
-                    changed = 1;
-                } else {
-                    if ((res = replace_placeholders_recurser(mem, V_MAP(ptr)->elems[i].val_idx, replace, arg)) < 0) {
-                        return res;
-                    }
-                    ptr = NCDValMem__BufAt(mem, idx);
-                    changed |= res;
-                }
-                
-                if (key_changed) {
-                    NCDVal__MapTreeRef ref = {&V_MAP(ptr)->elems[i], NCDVal__MapElemIdx(idx, i)};
-                    NCDVal__MapTree_Remove(&V_MAP(ptr)->tree, mem, ref);
-                    if (!NCDVal__MapTree_Insert(&V_MAP(ptr)->tree, mem, ref, NULL)) {
-                        BLog(BLOG_ERROR, "duplicate key in map");
-                        return -1;
-                    }
-                }
-            }
-        } break;
-        
-        default: ASSERT(0);
-    }
-    
-    return changed;
-}
-
-int NCDVal_ReplacePlaceholders (NCDValRef val, NCDVal_replace_func replace, void *arg)
-{
-    NCDVal__AssertVal(val);
-    ASSERT(!NCDVal_IsPlaceholder(val))
-    ASSERT(replace)
-    
-    return (replace_placeholders_recurser(val.mem, val.idx, replace, arg) >= 0);
-}
-
 int NCDVal_Compare (NCDValRef val1, NCDValRef val2)
 {
     NCDVal__AssertVal(val1);
@@ -1026,4 +913,166 @@ NCDValMapElem NCDVal_MapFindKey (NCDValRef map, NCDValRef key)
     ASSERT(ref.link == -1 || (NCDVal__MapAssertElemOnly(map, ref.link), 1))
     
     return NCDVal__MapElem(ref.link);
+}
+
+static void replaceprog_build_recurser (NCDValMem *mem, NCDVal__idx idx, size_t *out_num_instr, NCDValReplaceProg *prog)
+{
+    ASSERT(idx >= 0)
+    NCDVal__AssertValOnly(mem, idx);
+    ASSERT(out_num_instr)
+    
+    *out_num_instr = 0;
+    
+    void *ptr = NCDValMem__BufAt(mem, idx);
+    
+    struct NCDVal__instr instr;
+    
+    switch (*((int *)(ptr))) {
+        case NCDVAL_STRING: {
+        } break;
+        
+        case NCDVAL_LIST: {
+            struct NCDVal__list *list_e = ptr;
+            
+            for (NCDVal__idx i = 0; i < list_e->count; i++) {
+                if (list_e->elem_indices[i] < -1) {
+                    if (prog) {
+                        instr.type = NCDVAL_INSTR_PLACEHOLDER;
+                        instr.placeholder.plid = list_e->elem_indices[i] - NCDVAL_MINIDX;
+                        instr.placeholder.plidx = idx + offsetof(struct NCDVal__list, elem_indices) + i * sizeof(NCDVal__idx);
+                        prog->instrs[prog->num_instrs++] = instr;
+                    }
+                    (*out_num_instr)++;
+                } else {
+                    size_t elem_num_instr;
+                    replaceprog_build_recurser(mem, list_e->elem_indices[i], &elem_num_instr, prog);
+                    (*out_num_instr) += elem_num_instr;
+                }
+            }
+        } break;
+        
+        case NCDVAL_MAP: {
+            struct NCDVal__map *map_e = ptr;
+            
+            for (NCDVal__idx i = 0; i < map_e->count; i++) {
+                int need_reinsert = 0;
+                
+                if (map_e->elems[i].key_idx < -1) {
+                    if (prog) {
+                        instr.type = NCDVAL_INSTR_PLACEHOLDER;
+                        instr.placeholder.plid = map_e->elems[i].key_idx - NCDVAL_MINIDX;
+                        instr.placeholder.plidx = idx + offsetof(struct NCDVal__map, elems) + i * sizeof(struct NCDVal__mapelem) + offsetof(struct NCDVal__mapelem, key_idx);
+                        prog->instrs[prog->num_instrs++] = instr;
+                    }
+                    (*out_num_instr)++;
+                    need_reinsert = 1;
+                } else {
+                    size_t key_num_instr;
+                    replaceprog_build_recurser(mem, map_e->elems[i].key_idx, &key_num_instr, prog);
+                    (*out_num_instr) += key_num_instr;
+                    if (key_num_instr > 0) {
+                        need_reinsert = 1;
+                    }
+                }
+                
+                if (map_e->elems[i].val_idx < -1) {
+                    if (prog) {
+                        instr.type = NCDVAL_INSTR_PLACEHOLDER;
+                        instr.placeholder.plid = map_e->elems[i].val_idx - NCDVAL_MINIDX;
+                        instr.placeholder.plidx = idx + offsetof(struct NCDVal__map, elems) + i * sizeof(struct NCDVal__mapelem) + offsetof(struct NCDVal__mapelem, val_idx);
+                        prog->instrs[prog->num_instrs++] = instr;
+                    }
+                    (*out_num_instr)++;
+                } else {
+                    size_t val_num_instr;
+                    replaceprog_build_recurser(mem, map_e->elems[i].val_idx, &val_num_instr, prog);
+                    (*out_num_instr) += val_num_instr;
+                }
+                
+                if (need_reinsert) {
+                    if (prog) {
+                        instr.type = NCDVAL_INSTR_REINSERT;
+                        instr.reinsert.mapidx = idx;
+                        instr.reinsert.elempos = i;
+                        prog->instrs[prog->num_instrs++] = instr;
+                    }
+                    (*out_num_instr)++;
+                }
+            }
+        } break;
+        
+        default: ASSERT(0);
+    }
+}
+
+int NCDValReplaceProg_Init (NCDValReplaceProg *o, NCDValRef val)
+{
+    NCDVal__AssertVal(val);
+    ASSERT(!NCDVal_IsPlaceholder(val))
+    
+    size_t num_instrs;
+    replaceprog_build_recurser(val.mem, val.idx, &num_instrs, NULL);
+    
+    if (!(o->instrs = BAllocArray(num_instrs, sizeof(o->instrs[0])))) {
+        BLog(BLOG_ERROR, "BAllocArray failed");
+        return 0;
+    }
+    
+    o->num_instrs = 0;
+    
+    size_t num_instrs2;
+    replaceprog_build_recurser(val.mem, val.idx, &num_instrs2, o);
+    
+    ASSERT(num_instrs2 == num_instrs)
+    ASSERT(o->num_instrs == num_instrs)
+    
+    return 1;
+}
+
+void NCDValReplaceProg_Free (NCDValReplaceProg *o)
+{
+    BFree(o->instrs);
+}
+
+int NCDValReplaceProg_Execute (NCDValReplaceProg *o, NCDValMem *mem, NCDVal_replace_func replace, void *arg)
+{
+    NCDVal__AssertMem(mem);
+    ASSERT(replace)
+    
+    for (size_t i = 0; i < o->num_instrs; i++) {
+        struct NCDVal__instr instr = o->instrs[i];
+        
+        if (instr.type == NCDVAL_INSTR_PLACEHOLDER) {
+#ifndef NDEBUG
+            NCDVal__idx *check_plptr = NCDValMem__BufAt(mem, instr.placeholder.plidx);
+            ASSERT(*check_plptr < -1)
+            ASSERT(*check_plptr - NCDVAL_MINIDX == instr.placeholder.plid)
+#endif
+            NCDValRef repval;
+            if (!replace(arg, instr.placeholder.plid, mem, &repval) || NCDVal_IsInvalid(repval)) {
+                return 0;
+            }
+            ASSERT(repval.mem == mem)
+            
+            NCDVal__idx *plptr = NCDValMem__BufAt(mem, instr.placeholder.plidx);
+            *plptr = repval.idx;
+        } else {
+            ASSERT(instr.type == NCDVAL_INSTR_REINSERT)
+            
+            NCDVal__AssertValOnly(mem, instr.reinsert.mapidx);
+            struct NCDVal__map *map_e = NCDValMem__BufAt(mem, instr.reinsert.mapidx);
+            ASSERT(map_e->type == NCDVAL_MAP)
+            ASSERT(instr.reinsert.elempos >= 0)
+            ASSERT(instr.reinsert.elempos < map_e->count)
+            
+            NCDVal__MapTreeRef ref = {&map_e->elems[instr.reinsert.elempos], NCDVal__MapElemIdx(instr.reinsert.mapidx, instr.reinsert.elempos)};
+            NCDVal__MapTree_Remove(&map_e->tree, mem, ref);
+            if (!NCDVal__MapTree_Insert(&map_e->tree, mem, ref, NULL)) {
+                BLog(BLOG_ERROR, "duplicate key in map");
+                return 0;
+            }
+        }
+    }
+    
+    return 1;
 }
