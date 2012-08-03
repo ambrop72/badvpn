@@ -1042,7 +1042,7 @@ void process_advance (struct process *p)
     
     // copy arguments
     NCDValRef args;
-    NCDValReplaceProg *prog;
+    NCDValReplaceProg prog;
     if (!NCDInterpBlock_CopyStatementArgs(p->iblock, ps->i, &ps->args_mem, &args, &prog)) {
         statement_log(ps, BLOG_ERROR, "NCDInterpBlock_CopyStatementArgs failed");
         goto fail0;

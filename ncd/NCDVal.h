@@ -540,7 +540,9 @@ typedef int (*NCDVal_replace_func) (void *arg, int plid, NCDValMem *mem, NCDValR
  * Returns 1 on success and 0 on failure. On failure, the entire memory object enters
  * and inconsistent state and must be freed using {@link NCDValMem_Free} before
  * performing any other operation on it.
+ * The program is passed by value instead of pointer because this appears to be faster.
+ * Is is not modified in any way.
  */
-int NCDValReplaceProg_Execute (NCDValReplaceProg *o, NCDValMem *mem, NCDVal_replace_func replace, void *arg);
+int NCDValReplaceProg_Execute (NCDValReplaceProg prog, NCDValMem *mem, NCDVal_replace_func replace, void *arg);
 
 #endif

@@ -307,7 +307,7 @@ char ** NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i)
     return o->stmts[i].objnames;
 }
 
-int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg **out_prog)
+int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg *out_prog)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
@@ -323,7 +323,7 @@ int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_v
     }
     
     *out_val = NCDVal_FromSafe(out_valmem, e->arg_ref);
-    *out_prog = &e->arg_prog;
+    *out_prog = e->arg_prog;
     return 1;
 }
 

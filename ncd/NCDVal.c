@@ -1034,13 +1034,13 @@ void NCDValReplaceProg_Free (NCDValReplaceProg *o)
     BFree(o->instrs);
 }
 
-int NCDValReplaceProg_Execute (NCDValReplaceProg *o, NCDValMem *mem, NCDVal_replace_func replace, void *arg)
+int NCDValReplaceProg_Execute (NCDValReplaceProg prog, NCDValMem *mem, NCDVal_replace_func replace, void *arg)
 {
     NCDVal__AssertMem(mem);
     ASSERT(replace)
     
-    for (size_t i = 0; i < o->num_instrs; i++) {
-        struct NCDVal__instr instr = o->instrs[i];
+    for (size_t i = 0; i < prog.num_instrs; i++) {
+        struct NCDVal__instr instr = prog.instrs[i];
         
         if (instr.type == NCDVAL_INSTR_PLACEHOLDER) {
 #ifndef NDEBUG

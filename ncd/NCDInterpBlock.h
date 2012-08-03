@@ -73,7 +73,7 @@ void NCDInterpBlock_Free (NCDInterpBlock *o);
 int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char *name);
 const char * NCDInterpBlock_StatementCmdName (NCDInterpBlock *o, int i);
 char ** NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i);
-int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg **out_prog) WARN_UNUSED;
+int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg *out_prog) WARN_UNUSED;
 void NCDInterpBlock_StatementBumpAllocSize (NCDInterpBlock *o, int i, int alloc_size);
 int NCDInterpBlock_StatementPreallocSize (NCDInterpBlock *o, int i);
 int NCDInterpBlock_PreallocSize (NCDInterpBlock *o);
