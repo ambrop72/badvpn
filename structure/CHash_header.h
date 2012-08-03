@@ -35,33 +35,37 @@
 // CHASH_PARAM_ARG - type of argument pass through to comparisons
 // CHASH_PARAM_NULL - invalid link
 // CHASH_PARAM_DEREF(arg, link) - dereference a non-null link
-// CHASH_PARAM_HASHFUN(arg, key) - hash function, return size_t
-// CHASH_PARAM_KEYSEQUAL(arg, key1, key2) - compares equality of two keys
-// CHASH_PARAM_GETKEY(arg, entry) - get key of entry
+// CHASH_PARAM_ENTRYHASH(arg, entry) - hash function for entries; returns size_t
+// CHASH_PARAM_KEYHASH(arg, key) - hash function for keys; returns size_t
+// CHASH_PARAM_COMPARE_ENTRIES(arg, entry1, entry2) - compares two entries; returns 1 for equality, 0 otherwise
+// CHASH_PARAM_COMPARE_KEY_ENTRY(arg, key1, entry2) - compares key and entry; returns 1 for equality, 0 otherwise
 // CHASH_PARAM_ENTRY_NEXT - next member in entry
 
 // types
 #define CHash CHASH_PARAM_NAME
 #define CHashEntry CHASH_PARAM_ENTRY
 #define CHashLink CHASH_PARAM_LINK
-#define CHashRef MERGE(CHASH_PARAM_NAME, Ref)
+#define CHashRef MERGE(CHash, Ref)
 #define CHashArg CHASH_PARAM_ARG
 #define CHashKey CHASH_PARAM_KEY
 
-// static values
+// non-object public functions
 #define CHashNullLink MERGE(CHash, NullLink)
 #define CHashNullRef MERGE(CHash, NullRef)
+#define CHashIsNullLink MERGE(CHash, IsNullLink)
+#define CHashIsNullRef MERGE(CHash, IsNullRef)
+#define CHashDerefMayNull MERGE(CHash, DerefMayNull)
+#define CHashDerefNonNull MERGE(CHash, DerefNonNull)
 
 // public functions
 #define CHash_Init MERGE(CHash, _Init)
 #define CHash_Free MERGE(CHash, _Free)
-#define CHash_Deref MERGE(CHash, _Deref)
 #define CHash_Insert MERGE(CHash, _Insert)
 #define CHash_InsertMulti MERGE(CHash, _InsertMulti)
 #define CHash_Remove MERGE(CHash, _Remove)
 #define CHash_Lookup MERGE(CHash, _Lookup)
-#define CHash_GetFirst MERGE(CHash, _GetFirst)
-#define CHash_GetNext MERGE(CHash, _GetNext)
 #define CHash_GetNextEqual MERGE(CHash, _GetNextEqual)
-#define CHash_NumEntries MERGE(CHash, _NumEntries)
-#define CHash_IsEmpty MERGE(CHash, _IsEmpty)
+
+// private things
+#define CHash_next(entry) ((entry).ptr->CHASH_PARAM_ENTRY_NEXT)
+#define CHash_assert_valid_entry MERGE(CHash, _assert_valid_entry)

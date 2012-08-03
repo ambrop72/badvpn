@@ -76,7 +76,7 @@ int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDPlaceholderDb *pd
             goto fail2;
         }
         
-        NCDInterpProg__HashRef ref = NCDInterpProg__Hash_Deref(o->procs, o->num_procs);
+        NCDInterpProg__HashRef ref = {e, o->num_procs};
         if (!NCDInterpProg__Hash_Insert(&o->hash, o->procs, ref, NULL)) {
             BLog(BLOG_ERROR, "duplicate process or template name: %s", e->name);
             NCDInterpBlock_Free(&e->iblock);

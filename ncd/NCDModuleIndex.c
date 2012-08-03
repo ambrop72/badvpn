@@ -142,10 +142,11 @@ int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *gro
         }
         
         struct NCDModuleIndex_module *m = &o->modules[o->num_modules];
-        NCDModuleIndex__MHashRef ref = NCDModuleIndex__MHash_Deref(o->modules, o->num_modules);
         
         strcpy(m->type, nm->type);
         m->module = nm;
+        
+        NCDModuleIndex__MHashRef ref = {m, o->num_modules};
         int res = NCDModuleIndex__MHash_Insert(&o->modules_hash, o->modules, ref, NULL);
         ASSERT(res)
         

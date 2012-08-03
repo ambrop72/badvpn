@@ -31,8 +31,7 @@
 
 typedef struct {
     CHashLink *buckets;
-    size_t numBuckets;
-    size_t numEntries;
+    size_t num_buckets;
 } CHash;
 
 typedef struct {
@@ -40,20 +39,19 @@ typedef struct {
     CHashLink link;
 } CHashRef;
 
-static CHashLink CHashNullLink ();
-static CHashRef CHashNullRef ();
+static CHashLink CHashNullLink (void);
+static CHashRef CHashNullRef (void);
+static int CHashIsNullLink (CHashLink link);
+static int CHashIsNullRef (CHashRef ref);
+static CHashRef CHashDerefMayNull (CHashArg arg, CHashLink link);
+static CHashRef CHashDerefNonNull (CHashArg arg, CHashLink link);
 
-static int CHash_Init (CHash *o, size_t numBuckets);
+static int CHash_Init (CHash *o, size_t num_buckets);
 static void CHash_Free (CHash *o);
-static CHashRef CHash_Deref (CHashArg arg, CHashLink link);
 static int CHash_Insert (CHash *o, CHashArg arg, CHashRef entry, CHashRef *out_existing);
 static void CHash_InsertMulti (CHash *o, CHashArg arg, CHashRef entry);
 static void CHash_Remove (CHash *o, CHashArg arg, CHashRef entry);
 static CHashRef CHash_Lookup (const CHash *o, CHashArg arg, CHashKey key);
-static CHashRef CHash_GetFirst (const CHash *o, CHashArg arg);
-static CHashRef CHash_GetNext (const CHash *o, CHashArg arg, CHashRef entry);
 static CHashRef CHash_GetNextEqual (const CHash *o, CHashArg arg, CHashRef entry);
-static size_t CHash_NumEntries (const CHash *o);
-static int CHash_IsEmpty (const CHash *o);
 
 #include "CHash_footer.h"

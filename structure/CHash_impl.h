@@ -29,32 +29,69 @@
 
 #include "CHash_header.h"
 
-static CHashLink CHashNullLink ()
+static void CHash_assert_valid_entry (CHashArg arg, CHashRef entry)
+{
+    ASSERT(entry.link != CHashNullLink())
+    ASSERT(entry.ptr == CHASH_PARAM_DEREF(arg, entry.link))
+}
+
+static CHashLink CHashNullLink (void)
 {
     return CHASH_PARAM_NULL;
 }
 
-static CHashRef CHashNullRef ()
+static CHashRef CHashNullRef (void)
 {
-    CHashRef entry = {NULL, CHASH_PARAM_NULL};
+    CHashRef entry = {NULL, CHashNullLink()};
     return entry;
 }
 
-static int CHash_Init (CHash *o, size_t numBuckets)
+static int CHashIsNullLink (CHashLink link)
 {
-    if (numBuckets == 0) {
-        numBuckets = 1;
+    return (link == CHashNullLink());
+}
+
+static int CHashIsNullRef (CHashRef ref)
+{
+    return CHashIsNullLink(ref.link);
+}
+
+static CHashRef CHashDerefMayNull (CHashArg arg, CHashLink link)
+{
+    if (link == CHashNullLink()) {
+        return CHashNullRef();
     }
     
-    o->numBuckets = numBuckets;
-    o->numEntries = 0;
+    CHashRef entry = {CHASH_PARAM_DEREF(arg, link), link};
+    ASSERT(entry.ptr)
     
-    o->buckets = (CHashLink *)BAllocArray(o->numBuckets, sizeof(o->buckets[0])); 
+    return entry;
+}
+
+static CHashRef CHashDerefNonNull (CHashArg arg, CHashLink link)
+{
+    ASSERT(link != CHashNullLink())
+    
+    CHashRef entry = {CHASH_PARAM_DEREF(arg, link), link};
+    ASSERT(entry.ptr)
+    
+    return entry;
+}
+
+static int CHash_Init (CHash *o, size_t num_buckets)
+{
+    if (num_buckets == 0) {
+        num_buckets = 1;
+    }
+    
+    o->num_buckets = num_buckets;
+    
+    o->buckets = (CHashLink *)BAllocArray(o->num_buckets, sizeof(o->buckets[0])); 
     if (!o->buckets) {
         return 0;
     }
     
-    for (size_t i = 0; i < o->numBuckets; i++) {
+    for (size_t i = 0; i < o->num_buckets; i++) {
         o->buckets[i] = CHashNullLink();
     }
     
@@ -66,172 +103,110 @@ static void CHash_Free (CHash *o)
     BFree(o->buckets);
 }
 
-static CHashRef CHash_Deref (CHashArg arg, CHashLink link)
-{
-    if (link == CHashNullLink()) {
-        return CHashNullRef();
-    }
-    
-    CHashRef entry;
-    entry.ptr = CHASH_PARAM_DEREF(arg, link);
-    entry.link = link;
-    
-    ASSERT(entry.ptr)
-    
-    return entry;
-}
-
 static int CHash_Insert (CHash *o, CHashArg arg, CHashRef entry, CHashRef *out_existing)
 {
-    CHashKey key = CHASH_PARAM_GETKEY(arg, entry);
-    size_t index = CHASH_PARAM_HASHFUN(arg, key) % o->numBuckets;
+    CHash_assert_valid_entry(arg, entry);
     
-    CHashRef e = CHash_Deref(arg, o->buckets[index]);
-    while (e.link != CHashNullLink()) {
-        if (CHASH_PARAM_KEYSEQUAL(arg, key, CHASH_PARAM_GETKEY(arg, e))) {
+    size_t index = CHASH_PARAM_ENTRYHASH(arg, entry) % o->num_buckets;
+    
+    CHashLink link = o->buckets[index];
+    while (link != CHashNullLink()) {
+        CHashRef cur = CHashDerefNonNull(arg, link);
+        if (CHASH_PARAM_COMPARE_ENTRIES(arg, cur, entry)) {
             if (out_existing) {
-                *out_existing = e;
+                *out_existing = cur;
+                return 0;
             }
-            return 0;
         }
-        e = CHash_Deref(arg, e.ptr->CHASH_PARAM_ENTRY_NEXT);
+        link = CHash_next(cur);
     }
     
-    entry.ptr->CHASH_PARAM_ENTRY_NEXT = o->buckets[index];
+    CHash_next(entry) = o->buckets[index];
     o->buckets[index] = entry.link;
     
-    o->numEntries++;
-    
-    if (out_existing) {
-        *out_existing = entry;
-    }
     return 1;
 }
 
 static void CHash_InsertMulti (CHash *o, CHashArg arg, CHashRef entry)
 {
-    CHashKey key = CHASH_PARAM_GETKEY(arg, entry);
-    size_t index = CHASH_PARAM_HASHFUN(arg, key) % o->numBuckets;
+    CHash_assert_valid_entry(arg, entry);
+    
+    size_t index = CHASH_PARAM_ENTRYHASH(arg, entry) % o->num_buckets;
     
     CHashRef prev = CHashNullRef();
-    CHashRef cur = CHash_Deref(arg, o->buckets[index]);
-    while (cur.link != CHashNullLink()) {
-        if (CHASH_PARAM_KEYSEQUAL(arg, CHASH_PARAM_GETKEY(arg, cur), key)) {
+    CHashLink link = o->buckets[index];
+    while (link != CHashNullLink()) {
+        CHashRef cur = CHashDerefNonNull(arg, link);
+        if (CHASH_PARAM_COMPARE_ENTRIES(arg, cur, entry)) {
             break;
         }
         prev = cur;
-        cur = CHash_Deref(arg, cur.ptr->CHASH_PARAM_ENTRY_NEXT);
+        link = CHash_next(cur);
     }
     
-    if (cur.link == CHashNullLink() || prev.link == CHashNullLink()) {
-        entry.ptr->CHASH_PARAM_ENTRY_NEXT = o->buckets[index];
+    if (link == CHashNullLink() || prev.link == CHashNullLink()) {
+        CHash_next(entry) = o->buckets[index];
         o->buckets[index] = entry.link;
     } else {
-        entry.ptr->CHASH_PARAM_ENTRY_NEXT = cur.link;
-        prev.ptr->CHASH_PARAM_ENTRY_NEXT = entry.link;
+        CHash_next(entry) = link;
+        CHash_next(prev) = entry.link;
     }
-    
-    o->numEntries++;
 }
 
 static void CHash_Remove (CHash *o, CHashArg arg, CHashRef entry)
 {
-    CHashKey key = CHASH_PARAM_GETKEY(arg, entry);
-    size_t index = CHASH_PARAM_HASHFUN(arg, key) % o->numBuckets;
+    CHash_assert_valid_entry(arg, entry);
+    
+    size_t index = CHASH_PARAM_ENTRYHASH(arg, entry) % o->num_buckets;
     
     CHashRef prev = CHashNullRef();
-    CHashRef cur = CHash_Deref(arg, o->buckets[index]);
-    while (cur.link != entry.link) {
+    CHashLink link = o->buckets[index];
+    while (link != entry.link) {
+        CHashRef cur = CHashDerefNonNull(arg, link);
         prev = cur;
-        cur = CHash_Deref(arg, cur.ptr->CHASH_PARAM_ENTRY_NEXT);
-        ASSERT(cur.link != CHashNullLink());
+        link = CHash_next(cur);
+        ASSERT(link != CHashNullLink())
     }
     
     if (prev.link == CHashNullLink()) {
-        o->buckets[index] = entry.ptr->CHASH_PARAM_ENTRY_NEXT;
+        o->buckets[index] = CHash_next(entry);
     } else {
-        prev.ptr->CHASH_PARAM_ENTRY_NEXT = entry.ptr->CHASH_PARAM_ENTRY_NEXT;
+        CHash_next(prev) = CHash_next(entry);
     }
-    
-    o->numEntries--;
 }
 
 static CHashRef CHash_Lookup (const CHash *o, CHashArg arg, CHashKey key) 
 {
-    size_t index = CHASH_PARAM_HASHFUN(arg, key) % o->numBuckets;
+    size_t index = CHASH_PARAM_KEYHASH(arg, key) % o->num_buckets;
     
     CHashLink link = o->buckets[index];
     while (link != CHashNullLink()) {
-        CHashRef e = CHash_Deref(arg, link);
-        if (CHASH_PARAM_KEYSEQUAL(arg, CHASH_PARAM_GETKEY(arg, e), key)) {
-            return e;
+        CHashRef cur = CHashDerefNonNull(arg, link);
+        if (CHASH_PARAM_COMPARE_KEY_ENTRY(arg, key, cur)) {
+            return cur;
         }
-        link = e.ptr->CHASH_PARAM_ENTRY_NEXT;
+        link = CHash_next(cur);
     }
     
     return CHashNullRef();
 }
 
-static CHashRef CHash_GetFirst (const CHash *o, CHashArg arg)
-{
-    size_t i = 0;
-    while (i < o->numBuckets && o->buckets[i] == CHashNullLink()) {
-        i++;
-    }
-    
-    if (i == o->numBuckets) {
-        return CHashNullRef();
-    }
-    
-    return CHash_Deref(arg, o->buckets[i]);
-}
-
-static CHashRef CHash_GetNext (const CHash *o, CHashArg arg, CHashRef entry)
-{
-    CHashLink next = entry.ptr->CHASH_PARAM_ENTRY_NEXT;
-    if (next != CHashNullLink()) {
-        return CHash_Deref(arg, next);
-    }
-    
-    CHashKey key = CHASH_PARAM_GETKEY(arg, entry);
-    size_t i = CHASH_PARAM_HASHFUN(arg, key) % o->numBuckets;
-    i++;
-    
-    while (i < o->numBuckets && o->buckets[i] == CHashNullLink()) {
-        i++;
-    }
-    
-    if (i == o->numBuckets) {
-        return CHashNullRef();
-    }
-    
-    return CHash_Deref(arg, o->buckets[i]);
-}
-
 static CHashRef CHash_GetNextEqual (const CHash *o, CHashArg arg, CHashRef entry)
 {
-    CHashLink next = entry.ptr->CHASH_PARAM_ENTRY_NEXT;
+    CHash_assert_valid_entry(arg, entry);
+    
+    CHashLink next = CHash_next(entry);
     
     if (next == CHashNullLink()) {
         return CHashNullRef();
     }
     
-    CHashRef next_ref = CHash_Deref(arg, next);
-    if (!CHASH_PARAM_KEYSEQUAL(arg, CHASH_PARAM_GETKEY(arg, next_ref), CHASH_PARAM_GETKEY(arg, entry))) {
+    CHashRef next_ref = CHashDerefNonNull(arg, next);
+    if (!CHASH_PARAM_COMPARE_ENTRIES(arg, next_ref, entry)) {
         return CHashNullRef();
     }
     
     return next_ref;
-}
-
-static size_t CHash_NumEntries (const CHash *o)
-{
-    return o->numEntries;
-}
-
-static int CHash_IsEmpty (const CHash *o)
-{
-    return o->numEntries == 0;
 }
 
 #include "CHash_footer.h"

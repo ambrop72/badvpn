@@ -205,7 +205,7 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         }
         
         if (e->name) {
-            NCDInterpBlock__HashRef ref = NCDInterpBlock__Hash_Deref(o->stmts, o->num_stmts);
+            NCDInterpBlock__HashRef ref = {e, o->num_stmts};
             NCDInterpBlock__Hash_InsertMulti(&o->hash, o->stmts, ref);
         }
         

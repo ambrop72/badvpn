@@ -27,7 +27,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Preprocessor inputs:
+// preprocessor inputs
 #undef CHASH_PARAM_NAME
 #undef CHASH_PARAM_ENTRY
 #undef CHASH_PARAM_LINK
@@ -35,9 +35,10 @@
 #undef CHASH_PARAM_ARG
 #undef CHASH_PARAM_NULL
 #undef CHASH_PARAM_DEREF
-#undef CHASH_PARAM_HASHFUN
-#undef CHASH_PARAM_KEYSEQUAL
-#undef CHASH_PARAM_GETKEY
+#undef CHASH_PARAM_ENTRYHASH
+#undef CHASH_PARAM_KEYHASH
+#undef CHASH_PARAM_COMPARE_ENTRIES
+#undef CHASH_PARAM_COMPARE_KEY_ENTRY
 #undef CHASH_PARAM_ENTRY_NEXT
 
 // types
@@ -48,20 +49,23 @@
 #undef CHashArg
 #undef CHashKey
 
-// static values
+// non-object public functions
 #undef CHashNullLink
 #undef CHashNullRef
+#undef CHashIsNullLink
+#undef CHashIsNullRef
+#undef CHashDerefMayNull
+#undef CHashDerefNonNull
 
 // public functions
 #undef CHash_Init
 #undef CHash_Free
-#undef CHash_Deref
 #undef CHash_Insert
 #undef CHash_InsertMulti
 #undef CHash_Remove
 #undef CHash_Lookup
-#undef CHash_GetFirst
-#undef CHash_GetNext
 #undef CHash_GetNextEqual
-#undef CHash_NumEntries
-#undef CHash_IsEmpty
+
+// private things
+#undef CHash_next
+#undef CHash_assert_valid_entry
