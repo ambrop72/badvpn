@@ -123,4 +123,6 @@
 #define BLOG_CHANNEL_ncd_assert 122
 #define BLOG_CHANNEL_ncd_reboot 123
 #define BLOG_CHANNEL_ncd_explode 124
-#define BLOG_NUM_CHANNELS 125
+#define BLOG_CHANNEL_NCDPlaceholderDb 125
+#define BLOG_CHANNEL_NCDVal 126
+#define BLOG_NUM_CHANNELS 127

@@ -135,6 +135,9 @@ NCDModuleIndex mindex;
 // program AST
 NCDProgram program;
 
+// placeholder database
+NCDPlaceholderDb placeholder_db;
+
 // structure for efficient interpretation
 NCDInterpProg iprogram;
 
@@ -164,6 +167,7 @@ static void process_logfunc (struct process *p);
 static void process_log (struct process *p, int level, const char *fmt, ...);
 static void process_schedule_work (struct process *p);
 static void process_work_job_handler (struct process *p);
+static int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRef *out);
 static void process_advance (struct process *p);
 static void process_wait_timer_handler (struct process *p);
 static int process_find_object (struct process *p, int pos, const char *name, NCDObject *out_object);
@@ -172,7 +176,6 @@ static int process_resolve_variable_expr (struct process *p, int pos, char **nam
 static void statement_logfunc (struct statement *ps);
 static void statement_log (struct statement *ps, int level, const char *fmt, ...);
 static int statement_allocate_memory (struct statement *ps, int alloc_size);
-static int statement_resolve_argument (struct statement *ps, NCDInterpValue *arg, NCDValMem *mem, NCDValRef *out);
 static void statement_instance_func_event (struct statement *ps, int event);
 static int statement_instance_func_getobj (struct statement *ps, const char *objname, NCDObject *out_object);
 static int statement_instance_func_initprocess (struct statement *ps, NCDModuleProcess *mp, const char *template_name);
@@ -314,10 +317,16 @@ int main (int argc, char **argv)
         goto fail4;
     }
     
-    // init interp program
-    if (!NCDInterpProg_Init(&iprogram, &program)) {
-        BLog(BLOG_ERROR, "NCDInterpProg_Init failed");
+    // init placeholder database
+    if (!NCDPlaceholderDb_Init(&placeholder_db)) {
+        BLog(BLOG_ERROR, "NCDPlaceholderDb_Init failed");
         goto fail4;
+    }
+    
+    // init interp program
+    if (!NCDInterpProg_Init(&iprogram, &program, &placeholder_db)) {
+        BLog(BLOG_ERROR, "NCDInterpProg_Init failed");
+        goto fail4a;
     }
     
     // init module params
@@ -395,6 +404,9 @@ fail5:
     }
     // free interp program
     NCDInterpProg_Free(&iprogram);
+fail4a:
+    // free placeholder database
+    NCDPlaceholderDb_Free(&placeholder_db);
 fail4:
     // free program AST
     NCDProgram_Free(&program);
@@ -960,6 +972,19 @@ void process_work_job_handler (struct process *p)
     }
 }
 
+int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRef *out)
+{
+    struct statement *ps = arg;
+    ASSERT(plid >= 0)
+    ASSERT(mem)
+    ASSERT(out)
+    
+    char **varnames = NCDPlaceholderDb_GetVariable(&placeholder_db, plid);
+    ASSERT(count_strings(varnames) > 0)
+    
+    return process_resolve_variable_expr(ps->p, ps->i, varnames, mem, out);
+}
+
 void process_advance (struct process *p)
 {
     process_assert_pointers(p);
@@ -1015,15 +1040,20 @@ void process_advance (struct process *p)
     // register alloc size for future preallocations
     NCDInterpBlock_StatementBumpAllocSize(p->iblock, p->ap, module->alloc_size);
     
-    // init args mem
-    NCDValMem_Init(&ps->args_mem);
-    
-    // resolve arguments
+    // copy arguments
     NCDValRef args;
-    NCDInterpValue *iargs = NCDInterpBlock_StatementInterpValue(p->iblock, ps->i);
-    if (!statement_resolve_argument(ps, iargs, &ps->args_mem, &args)) {
-        statement_log(ps, BLOG_ERROR, "failed to resolve arguments");
-        goto fail1;
+    int has_placeholders;
+    if (!NCDInterpBlock_CopyStatementArgs(p->iblock, ps->i, &ps->args_mem, &args, &has_placeholders)) {
+        statement_log(ps, BLOG_ERROR, "NCDInterpBlock_CopyStatementArgs failed");
+        goto fail0;
+    }
+    
+    // replace placeholders with values of variables
+    if (has_placeholders) {
+        if (!NCDVal_ReplacePlaceholders(args, replace_placeholders_callback, ps)) {
+            statement_log(ps, BLOG_ERROR, "failed to replace variables in arguments with values");
+            goto fail1;
+        }
     }
     
     // allocate memory
@@ -1189,84 +1219,6 @@ int statement_allocate_memory (struct statement *ps, int alloc_size)
         }
         
         ps->mem_size = alloc_size;
-    }
-    
-    return 1;
-}
-
-int statement_resolve_argument (struct statement *ps, NCDInterpValue *arg, NCDValMem *mem, NCDValRef *out)
-{
-    ASSERT(ps->i <= ps->p->ap - process_have_child(ps->p))
-    ASSERT(arg)
-    ASSERT(mem)
-    ASSERT(out)
-    
-    switch (arg->type) {
-        case NCDVALUE_STRING: {
-            *out = NCDVal_NewStringBin(mem, (uint8_t *)arg->string, arg->string_len);
-            if (NCDVal_IsInvalid(*out)) {
-                statement_log(ps, BLOG_ERROR, "NCDVal_NewStringBin failed");
-                return 0;
-            }
-        } break;
-        
-        case NCDVALUE_VAR: {
-            if (!process_resolve_variable_expr(ps->p, ps->i, arg->variable_names, mem, out)) {
-                return 0;
-            }
-            if (NCDVal_IsInvalid(*out)) {
-                return 0;
-            }
-        } break;
-        
-        case NCDVALUE_LIST: {
-            *out = NCDVal_NewList(mem, arg->list_count);
-            if (NCDVal_IsInvalid(*out)) {
-                statement_log(ps, BLOG_ERROR, "NCDVal_NewList failed");
-                return 0;
-            }
-            
-            for (LinkedList1Node *n = LinkedList1_GetFirst(&arg->list); n; n = LinkedList1Node_Next(n)) {
-                struct NCDInterpValueListElem *elem = UPPER_OBJECT(n, struct NCDInterpValueListElem, list_node);
-                
-                NCDValRef new_elem;
-                if (!statement_resolve_argument(ps, &elem->value, mem, &new_elem)) {
-                    return 0;
-                }
-                
-                NCDVal_ListAppend(*out, new_elem);
-            }
-        } break;
-        
-        case NCDVALUE_MAP: {
-            *out = NCDVal_NewMap(mem, arg->map_count);
-            if (NCDVal_IsInvalid(*out)) {
-                statement_log(ps, BLOG_ERROR, "NCDVal_NewMap failed");
-                return 0;
-            }
-            
-            for (LinkedList1Node *n = LinkedList1_GetFirst(&arg->maplist); n; n = LinkedList1Node_Next(n)) {
-                struct NCDInterpValueMapElem *elem = UPPER_OBJECT(n, struct NCDInterpValueMapElem, maplist_node);
-                
-                NCDValRef new_key;
-                if (!statement_resolve_argument(ps, &elem->key, mem, &new_key)) {
-                    return 0;
-                }
-                
-                NCDValRef new_val;
-                if (!statement_resolve_argument(ps, &elem->val, mem, &new_val)) {
-                    return 0;
-                }
-                
-                int res = NCDVal_MapInsert(*out, new_key, new_val);
-                if (!res) {
-                    statement_log(ps, BLOG_ERROR, "duplicate map keys");
-                    return 0;
-                }
-            }
-        } break;
-        
-        default: ASSERT(0);
     }
     
     return 1;

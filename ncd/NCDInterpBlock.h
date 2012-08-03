@@ -30,17 +30,23 @@
 #ifndef BADVPN_NCDINTERPBLOCK_H
 #define BADVPN_NCDINTERPBLOCK_H
 
+#include <stddef.h>
+
 #include <misc/debug.h>
 #include <base/DebugObject.h>
 #include <structure/CHash.h>
 #include <ncd/NCDAst.h>
-#include <ncd/NCDInterpValue.h>
+#include <ncd/NCDVal.h>
+#include <ncd/NCDPlaceholderDb.h>
 
 struct NCDInterpBlock__stmt {
     const char *name;
     const char *cmdname;
     char **objnames;
-    NCDInterpValue ivalue;
+    char *arg_data;
+    size_t arg_len;
+    NCDValSafeRef arg_ref;
+    int arg_has_placeholders;
     int alloc_size;
     int prealloc_offset;
     int hash_next;
@@ -62,12 +68,12 @@ typedef struct {
     DebugObject d_obj;
 } NCDInterpBlock;
 
-int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process) WARN_UNUSED;
+int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process, NCDPlaceholderDb *pdb) WARN_UNUSED;
 void NCDInterpBlock_Free (NCDInterpBlock *o);
 int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char *name);
 const char * NCDInterpBlock_StatementCmdName (NCDInterpBlock *o, int i);
 char ** NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i);
-NCDInterpValue * NCDInterpBlock_StatementInterpValue (NCDInterpBlock *o, int i);
+int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, int *out_has_placeholders) WARN_UNUSED;
 void NCDInterpBlock_StatementBumpAllocSize (NCDInterpBlock *o, int i, int alloc_size);
 int NCDInterpBlock_StatementPreallocSize (NCDInterpBlock *o, int i);
 int NCDInterpBlock_PreallocSize (NCDInterpBlock *o);

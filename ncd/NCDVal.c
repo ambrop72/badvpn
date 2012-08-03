@@ -34,11 +34,16 @@
 #include <stdarg.h>
 
 #include <misc/bsize.h>
+#include <misc/balloc.h>
+#include <base/BLog.h>
 
 #include "NCDVal.h"
 
+#include <generated/blog_channel_NCDVal.h>
+
 static void * NCDValMem__BufAt (NCDValMem *o, NCDVal__idx idx)
 {
+    ASSERT(idx >= 0)
     ASSERT(idx < o->used)
     
     return (o->buf ? o->buf : o->fastbuf) + idx;
@@ -94,7 +99,6 @@ static NCDVal__idx NCDValMem__Alloc (NCDValMem *o, bsize_t alloc_size, NCDVal__i
 
 static NCDValRef NCDVal__Ref (NCDValMem *mem, NCDVal__idx idx)
 {
-    ASSERT(idx >= 0 || idx == -1)
     ASSERT(idx == -1 || mem)
     
     NCDValRef ref = {mem, idx};
@@ -120,6 +124,11 @@ static void NCDVal_AssertExternal (NCDValMem *mem, const void *e_buf, size_t e_l
 
 static void NCDVal__AssertValOnly (NCDValMem *mem, NCDVal__idx idx)
 {
+    // placeholders
+    if (idx < -1) {
+        return;
+    }
+    
     ASSERT(idx >= 0)
     ASSERT(idx + sizeof(int) <= mem->used)
     
@@ -204,7 +213,59 @@ void NCDValMem_Init (NCDValMem *o)
 
 void NCDValMem_Free (NCDValMem *o)
 {
-    free(o->buf);
+    NCDVal__AssertMem(o);
+    
+    if (o->buf) {
+        BFree(o->buf);
+    }
+}
+
+int NCDValMem_FreeExport (NCDValMem *o, char **out_data, size_t *out_len)
+{
+    NCDVal__AssertMem(o);
+    ASSERT(out_data)
+    ASSERT(out_len)
+    
+    if (o->buf) {
+        *out_data = o->buf;
+    } else {
+        if (!(*out_data = BAlloc(o->used))) {
+            return 0;
+        }
+        memcpy(*out_data, o->fastbuf, o->used);
+    }
+    
+    *out_len = o->used;
+    
+    return 1;
+}
+
+int NCDValMem_InitImport (NCDValMem *o, const char *data, size_t len)
+{
+    ASSERT(data)
+    ASSERT(len <= NCDVAL_MAXIDX)
+    
+    if (len <= NCDVAL_FASTBUF_SIZE) {
+        memcpy(o->fastbuf, data, len);
+        o->buf = NULL;
+        o->size = NCDVAL_FASTBUF_SIZE;
+    } else {
+        size_t cap = len;
+        if (cap < NCDVAL_FIRST_SIZE) {
+            cap = NCDVAL_FIRST_SIZE;
+        }
+        
+        if (!(o->buf = BAlloc(cap))) {
+            return 0;
+        }
+        
+        memcpy(o->buf, data, len);
+        o->size = cap;
+    }
+    
+    o->used = len;
+    
+    return 1;
 }
 
 void NCDVal_Assert (NCDValRef val)
@@ -216,12 +277,23 @@ int NCDVal_IsInvalid (NCDValRef val)
 {
     NCDVal_Assert(val);
     
-    return val.idx < 0;
+    return (val.idx == -1);
+}
+
+int NCDVal_IsPlaceholder (NCDValRef val)
+{
+    NCDVal_Assert(val);
+    
+    return (val.idx < -1);
 }
 
 int NCDVal_Type (NCDValRef val)
 {
     NCDVal__AssertVal(val);
+    
+    if (val.idx < -1) {
+        return NCDVAL_PLACEHOLDER;
+    }
     
     int *type_ptr = NCDValMem__BufAt(val.mem, val.idx);
     
@@ -232,6 +304,23 @@ NCDValRef NCDVal_NewInvalid (void)
 {
     NCDValRef ref = {NULL, -1};
     return ref;
+}
+
+NCDValRef NCDVal_NewPlaceholder (NCDValMem *mem, int plid)
+{
+    NCDVal__AssertMem(mem);
+    ASSERT(plid >= 0)
+    ASSERT(NCDVAL_MINIDX + plid < -1)
+    
+    NCDValRef ref = {mem, NCDVAL_MINIDX + plid};
+    return ref;
+}
+
+int NCDVal_PlaceholderId (NCDValRef val)
+{
+    ASSERT(NCDVal_IsPlaceholder(val))
+    
+    return (val.idx - NCDVAL_MINIDX);
 }
 
 NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
@@ -295,6 +384,10 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
             return copy;
         } break;
         
+        case NCDVAL_PLACEHOLDER: {
+            return NCDVal_NewPlaceholder(mem, NCDVal_PlaceholderId(val));
+        } break;
+        
         default: ASSERT(0);
     }
     
@@ -302,6 +395,119 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
     
 fail:
     return NCDVal_NewInvalid();
+}
+
+#define V_TYPE(ptr) ((int *)(ptr))
+#define V_LIST(ptr) ((struct NCDVal__list *)(ptr))
+#define V_MAP(ptr) ((struct NCDVal__map *)(ptr))
+
+static int replace_placeholders_recurser (NCDValMem *mem, NCDVal__idx idx, NCDVal_replace_func replace, void *arg)
+{
+    ASSERT(idx >= 0)
+    NCDVal__AssertValOnly(mem, idx);
+    
+    int res;
+    NCDValRef repval;
+    
+    int changed = 0;
+    void *ptr = NCDValMem__BufAt(mem, idx);
+    
+    switch (*V_TYPE(ptr)) {
+        case NCDVAL_STRING: {
+        } break;
+        
+        case NCDVAL_LIST: {
+            NCDVal__idx count = V_LIST(ptr)->count;
+            
+            for (NCDVal__idx i = 0; i < count; i++) {
+                if (V_LIST(ptr)->elem_indices[i] < -1) {
+                    int plid = V_LIST(ptr)->elem_indices[i] - NCDVAL_MINIDX;
+                    if (!replace(arg, plid, mem, &repval) || NCDVal_IsInvalid(repval)) {
+                        return -1;
+                    }
+                    ASSERT(repval.mem == mem)
+                    
+                    ptr = NCDValMem__BufAt(mem, idx);
+                    V_LIST(ptr)->elem_indices[i] = repval.idx;
+                    changed = 1;
+                } else {
+                    if ((res = replace_placeholders_recurser(mem, V_LIST(ptr)->elem_indices[i], replace, arg)) < 0) {
+                        return res;
+                    }
+                    ptr = NCDValMem__BufAt(mem, idx);
+                    changed |= res;
+                }
+            }
+        } break;
+        
+        case NCDVAL_MAP: {
+            NCDVal__idx count = V_MAP(ptr)->count;
+            
+            for (NCDVal__idx i = 0; i < count; i++) {
+                int key_changed = 0;
+                
+                if (V_MAP(ptr)->elems[i].key_idx < -1) {
+                    int plid = V_MAP(ptr)->elems[i].key_idx - NCDVAL_MINIDX;
+                    if (!replace(arg, plid, mem, &repval) || NCDVal_IsInvalid(repval)) {
+                        return -1;
+                    }
+                    ASSERT(repval.mem == mem)
+                    
+                    ptr = NCDValMem__BufAt(mem, idx);
+                    V_MAP(ptr)->elems[i].key_idx = repval.idx;
+                    changed = 1;
+                    key_changed = 1;
+                } else {
+                    if ((res = replace_placeholders_recurser(mem, V_MAP(ptr)->elems[i].key_idx, replace, arg)) < 0) {
+                        return res;
+                    }
+                    ptr = NCDValMem__BufAt(mem, idx);
+                    changed |= res;
+                    key_changed |= res;
+                }
+                
+                if (V_MAP(ptr)->elems[i].val_idx < -1) {
+                    int plid = V_MAP(ptr)->elems[i].val_idx - NCDVAL_MINIDX;
+                    if (!replace(arg, plid, mem, &repval) || NCDVal_IsInvalid(repval)) {
+                        return -1;
+                    }
+                    ASSERT(repval.mem == mem)
+                    
+                    ptr = NCDValMem__BufAt(mem, idx);
+                    V_MAP(ptr)->elems[i].val_idx = repval.idx;
+                    changed = 1;
+                } else {
+                    if ((res = replace_placeholders_recurser(mem, V_MAP(ptr)->elems[i].val_idx, replace, arg)) < 0) {
+                        return res;
+                    }
+                    ptr = NCDValMem__BufAt(mem, idx);
+                    changed |= res;
+                }
+                
+                if (key_changed) {
+                    NCDVal__MapTreeRef ref = {&V_MAP(ptr)->elems[i], NCDVal__MapElemIdx(idx, i)};
+                    NCDVal__MapTree_Remove(&V_MAP(ptr)->tree, mem, ref);
+                    if (!NCDVal__MapTree_Insert(&V_MAP(ptr)->tree, mem, ref, NULL)) {
+                        BLog(BLOG_ERROR, "duplicate key in map");
+                        return -1;
+                    }
+                }
+            }
+        } break;
+        
+        default: ASSERT(0);
+    }
+    
+    return changed;
+}
+
+int NCDVal_ReplacePlaceholders (NCDValRef val, NCDVal_replace_func replace, void *arg)
+{
+    NCDVal__AssertVal(val);
+    ASSERT(!NCDVal_IsPlaceholder(val))
+    ASSERT(replace)
+    
+    return (replace_placeholders_recurser(val.mem, val.idx, replace, arg) >= 0);
 }
 
 int NCDVal_Compare (NCDValRef val1, NCDValRef val2)
@@ -378,6 +584,13 @@ int NCDVal_Compare (NCDValRef val1, NCDValRef val2)
                 e1 = NCDVal_MapOrderedNext(val1, e1);
                 e2 = NCDVal_MapOrderedNext(val2, e2);
             }
+        } break;
+        
+        case NCDVAL_PLACEHOLDER: {
+            int plid1 = NCDVal_PlaceholderId(val1);
+            int plid2 = NCDVal_PlaceholderId(val2);
+            
+            return (plid1 > plid2) - (plid1 < plid2);
         } break;
         
         default:

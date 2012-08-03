@@ -33,6 +33,7 @@ add_library(ncdvalue
 add_library(ncdval
     NCDVal.c
 )
+target_link_libraries(ncdval base)
 
 add_library(ncdvalcompat
     NCDValCompat.c
@@ -82,7 +83,7 @@ add_executable(badvpn-ncd
     NCDObject.c
     NCDInterpBlock.c
     NCDInterpProg.c
-    NCDInterpValue.c
+    NCDPlaceholderDb.c
     BEventLock.c
     modules/command_template.c
     modules/event_template.c

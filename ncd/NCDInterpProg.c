@@ -42,8 +42,11 @@
 #include "NCDInterpProg_hash.h"
 #include <structure/CHash_impl.h>
 
-int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog)
+int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDPlaceholderDb *pdb)
 {
+    ASSERT(prog)
+    ASSERT(pdb)
+    
     if (NCDProgram_NumProcesses(prog) > INT_MAX) {
         BLog(BLOG_ERROR, "too many processes");
         goto fail0;
@@ -68,7 +71,7 @@ int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog)
         e->name = NCDProcess_Name(p);
         e->proc = p;
         
-        if (!NCDInterpBlock_Init(&e->iblock, NCDProcess_Block(p), p)) {
+        if (!NCDInterpBlock_Init(&e->iblock, NCDProcess_Block(p), p, pdb)) {
             BLog(BLOG_ERROR, "NCDInterpBlock_Init failed");
             goto fail2;
         }

@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include <ncd/NCDVal.h>
+#include <base/BLog.h>
 #include <misc/debug.h>
 
 #define FORCE(cmd) if (!(cmd)) { fprintf(stderr, "failed\n"); exit(1); }
@@ -54,6 +55,8 @@ static void print_value (NCDValRef val, unsigned int indent)
 
 int main ()
 {
+    BLog_InitStdout();
+    
     // Some basic usage of values.
     
     NCDValMem mem;

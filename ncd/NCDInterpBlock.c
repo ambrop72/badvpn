@@ -68,8 +68,89 @@ static int compute_prealloc (NCDInterpBlock *o)
     return 1;
 }
 
-int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process)
+int convert_value_recurser (NCDPlaceholderDb *pdb, NCDValue *value, NCDValMem *mem, NCDValRef *out, int *out_has_placeholders)
 {
+    ASSERT(pdb)
+    ASSERT((NCDValue_Type(value), 1))
+    ASSERT(mem)
+    ASSERT(out)
+    
+    switch (NCDValue_Type(value)) {
+        case NCDVALUE_STRING: {
+            *out = NCDVal_NewStringBin(mem, (const uint8_t *)NCDValue_StringValue(value), NCDValue_StringLength(value));
+            if (NCDVal_IsInvalid(*out)) {
+                goto fail;
+            }
+        } break;
+        
+        case NCDVALUE_LIST: {
+            *out = NCDVal_NewList(mem, NCDValue_ListCount(value));
+            if (NCDVal_IsInvalid(*out)) {
+                goto fail;
+            }
+            
+            for (NCDValue *e = NCDValue_ListFirst(value); e; e = NCDValue_ListNext(value, e)) {
+                NCDValRef vval;
+                if (!convert_value_recurser(pdb, e, mem, &vval, out_has_placeholders)) {
+                    goto fail;
+                }
+                
+                NCDVal_ListAppend(*out, vval);
+            }
+        } break;
+        
+        case NCDVALUE_MAP: {
+            *out = NCDVal_NewMap(mem, NCDValue_MapCount(value));
+            if (NCDVal_IsInvalid(*out)) {
+                goto fail;
+            }
+            
+            for (NCDValue *ekey = NCDValue_MapFirstKey(value); ekey; ekey = NCDValue_MapNextKey(value, ekey)) {
+                NCDValue *eval = NCDValue_MapKeyValue(value, ekey);
+                
+                NCDValRef vkey;
+                NCDValRef vval;
+                if (!convert_value_recurser(pdb, ekey, mem, &vkey, out_has_placeholders) ||
+                    !convert_value_recurser(pdb, eval, mem, &vval, out_has_placeholders)
+                ) {
+                    goto fail;
+                }
+                
+                int res = NCDVal_MapInsert(*out, vkey, vval);
+                ASSERT(res) // we assume different variables get different placeholder ids
+            }
+        } break;
+        
+        case NCDVALUE_VAR: {
+            int plid;
+            if (!NCDPlaceholderDb_AddVariable(pdb, NCDValue_VarName(value), &plid)) {
+                goto fail;
+            }
+            
+            if (NCDVAL_MINIDX + plid >= -1) {
+                goto fail;
+            }
+            
+            *out = NCDVal_NewPlaceholder(mem, plid);
+            *out_has_placeholders = 1;
+        } break;
+        
+        default:
+            goto fail;
+    }
+    
+    return 1;
+    
+fail:
+    return 0;
+}
+
+int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process, NCDPlaceholderDb *pdb)
+{
+    ASSERT(block)
+    ASSERT(process)
+    ASSERT(pdb)
+    
     if (NCDBlock_NumStatements(block) > INT_MAX) {
         BLog(BLOG_ERROR, "too many statements");
         goto fail0;
@@ -88,6 +169,7 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
     
     o->num_stmts = 0;
     o->prealloc_size = -1;
+    o->process = process;
     
     for (NCDStatement *s = NCDBlock_FirstStatement(block); s; s = NCDBlock_NextStatement(block, s)) {
         ASSERT(NCDStatement_Type(s) == NCDSTATEMENT_REG)
@@ -98,8 +180,22 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         e->objnames = NULL;
         e->alloc_size = 0;
         
-        if (!NCDInterpValue_Init(&e->ivalue, NCDStatement_RegArgs(s))) {
-            BLog(BLOG_ERROR, "NCDInterpValue_Init failed");
+        NCDValMem mem;
+        NCDValMem_Init(&mem);
+        
+        NCDValRef val;
+        e->arg_has_placeholders = 0;
+        if (!convert_value_recurser(pdb, NCDStatement_RegArgs(s), &mem, &val, &e->arg_has_placeholders)) {
+            BLog(BLOG_ERROR, "convert_value_recurser failed");
+            NCDValMem_Free(&mem);
+            goto loop_fail0;
+        }
+        
+        e->arg_ref = NCDVal_ToSafe(val);
+        
+        if (!NCDValMem_FreeExport(&mem, &e->arg_data, &e->arg_len)) {
+            BLog(BLOG_ERROR, "NCDValMem_FreeExport failed");
+            NCDValMem_Free(&mem);
             goto loop_fail0;
         }
         
@@ -117,14 +213,12 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         continue;
         
     loop_fail1:
-        NCDInterpValue_Free(&e->ivalue);
+        BFree(e->arg_data);
     loop_fail0:
         goto fail2;
     }
     
     ASSERT(o->num_stmts == num_stmts)
-    
-    o->process = process;
     
     DebugObject_Init(&o->d_obj);
     return 1;
@@ -135,7 +229,7 @@ fail2:
         if (e->objnames) {
             free_strings(e->objnames);
         }
-        NCDInterpValue_Free(&e->ivalue);
+        BFree(e->arg_data);
     }
 fail1:
     BFree(o->stmts);
@@ -152,7 +246,7 @@ void NCDInterpBlock_Free (NCDInterpBlock *o)
         if (e->objnames) {
             free_strings(e->objnames);
         }
-        NCDInterpValue_Free(&e->ivalue);
+        BFree(e->arg_data);
     }
     
     NCDInterpBlock__Hash_Free(&o->hash);
@@ -205,13 +299,24 @@ char ** NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i)
     return o->stmts[i].objnames;
 }
 
-NCDInterpValue * NCDInterpBlock_StatementInterpValue (NCDInterpBlock *o, int i)
+int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, int *out_has_placeholders)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
     ASSERT(i < o->num_stmts)
+    ASSERT(out_valmem)
+    ASSERT(out_val)
+    ASSERT(out_has_placeholders)
     
-    return &o->stmts[i].ivalue;
+    struct NCDInterpBlock__stmt *e = &o->stmts[i];
+    
+    if (!NCDValMem_InitImport(out_valmem, e->arg_data, e->arg_len)) {
+        return 0;
+    }
+    
+    *out_val = NCDVal_FromSafe(out_valmem, e->arg_ref);
+    *out_has_placeholders = e->arg_has_placeholders;
+    return 1;
 }
 
 void NCDInterpBlock_StatementBumpAllocSize (NCDInterpBlock *o, int i, int alloc_size)

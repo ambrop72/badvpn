@@ -42,6 +42,7 @@
 #define NCDVAL_FIRST_SIZE 256
 
 #define NCDVAL_MAXIDX INT_MAX
+#define NCDVAL_MINIDX INT_MIN
 
 typedef int NCDVal__idx;
 
@@ -105,6 +106,7 @@ typedef struct {
 #define NCDVAL_STRING 1
 #define NCDVAL_LIST 2
 #define NCDVAL_MAP 3
+#define NCDVAL_PLACEHOLDER 4
 
 /**
  * Initializes a value memory object.
@@ -136,9 +138,31 @@ void NCDValMem_Init (NCDValMem *o);
 void NCDValMem_Free (NCDValMem *o);
 
 /**
+ * Attempts to free the value memory object, exporting its data to an external
+ * memory block.
+ * On success, 1 is returned, and *out_data and *out_len are set; *out_data
+ * receives a memory block which should be freed using {@link BFree}.
+ * After the memory object is exported, copies can be created using
+ * {@link NCDValMem_InitImport}. Any value references needed from the original
+ * should be turned to safe references using {@link NCDVal_ToSafe} before
+ * exporting the block, and imported to copies using {@link NCDVal_FromSafe}.
+ * On failure, 0 is returned, and the memory object is unchanged (it should
+ * still be freed using {@link NCDValMem_Free}.
+ */
+int NCDValMem_FreeExport (NCDValMem *o, char **out_data, size_t *out_len) WARN_UNUSED;
+
+/**
+ * Initializes the value memory object as a copy of an external memory block,
+ * which was obtained using {@link NCDValMem_FreeExport}.
+ * The memory block provided is only read, and is copied into this memory object.
+ * Returns 1 on success, 0 on failure.
+ */
+int NCDValMem_InitImport (NCDValMem *o, const char *data, size_t len) WARN_UNUSED;
+
+/**
  * Does nothing.
  * The value reference object must either point to a valid value within a valid
- * memory object, or must be an invalid reference (all functions operating on
+ * memory object, or must be an invalid reference (most functions operating on
  * {@link NCDValRef} implicitly require that).
  */
 void NCDVal_Assert (NCDValRef val);
@@ -149,15 +173,43 @@ void NCDVal_Assert (NCDValRef val);
 int NCDVal_IsInvalid (NCDValRef val);
 
 /**
+ * Determines if a value is a placeholder value.
+ * The value reference must not be an invalid reference.
+ */
+int NCDVal_IsPlaceholder (NCDValRef val);
+
+/**
  * Returns the type of the value reference, which must not be an invalid reference.
- * Possible values are NCDVAL_STRING, NCDVAL_LIST and NCDVAL_MAP.
+ * Possible values are NCDVAL_STRING, NCDVAL_LIST, NCDVAL_MAP and NCDVAL_PLACEHOLDER.
+ * The placeholder type is only used internally in the interpreter for argument
+ * resolution, and is never seen by modules; see {@link NCDVal_NewPlaceholder}.
  */
 int NCDVal_Type (NCDValRef val);
 
 /**
  * Returns an invalid reference.
+ * An invalid reference must not be passed to any function here, except:
+ *   {@link NCDVal_Assert}, {@link NCDVal_IsInvalid}, {@link NCDVal_ToSafe},
+ *   {@link NCDVal_FromSafe}, {@link NCDVal_Moved}.
  */
 NCDValRef NCDVal_NewInvalid (void);
+
+/**
+ * Returns a new placeholder value reference. A placeholder value is a valid value
+ * containing an integer placeholder identifier.
+ * This always succeeds; however, the caller must ensure the identifier is
+ * non-negative and satisfies (NCDVAL_MINIDX + plid < -1).
+ * 
+ * The placeholder type is only used internally in the interpreter for argument
+ * resolution, and is never seen by modules. Also see {@link NCDPlaceholderDb}.
+ */
+NCDValRef NCDVal_NewPlaceholder (NCDValMem *mem, int plid);
+
+/**
+ * Returns the indentifier of a placeholder value.
+ * The value reference must point to a placeholder value.
+ */
+int NCDVal_PlaceholderId (NCDValRef val);
 
 /**
  * Copies a value into the specified memory object. The source
@@ -167,6 +219,31 @@ NCDValRef NCDVal_NewInvalid (void);
  * an invalid reference.
  */
 NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val);
+
+/**
+ * Callback used by {@link NCDVal_ReplacePlaceholders} to allow the caller to produce
+ * values of placeholders.
+ * This function should build a new value within the memory object 'mem' (which is
+ * the same as of the value reference whose placeholders are being replaced), and
+ * return a value reference.
+ * On success, it should return 1, writing a valid value reference to *out.
+ * On failure, it can either return 0, or return 1 but write an invalid value reference.
+ * This callback must not access the memory object in any other way than building
+ * new values in it; it must not modify any values ther were already present at the
+ * point it was called.
+ */
+typedef int (*NCDVal_replace_func) (void *arg, int plid, NCDValMem *mem, NCDValRef *out);
+
+/**
+ * Replaces placeholders in a value.
+ * The value reference must point to a valid value, and not a placeholder value.
+ * This will call the callback 'replace', which should build the values to replace
+ * the placeholders.
+ * Returns 1 on success and 0 on failure. On failure, the entire memory object enters
+ * and inconsistent state and must be freed using {@link NCDValMem_Free} before
+ * performing any other operation on it.
+ */
+int NCDVal_ReplacePlaceholders (NCDValRef val, NCDVal_replace_func replace, void *arg);
 
 /**
  * Compares two values, both of which must not be invalid references.

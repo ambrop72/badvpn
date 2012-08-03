@@ -123,3 +123,5 @@
 {"ncd_assert", 4},
 {"ncd_reboot", 4},
 {"ncd_explode", 4},
+{"NCDPlaceholderDb", 4},
+{"NCDVal", 4},
