@@ -47,8 +47,8 @@ struct BStringTrie__node {
 
 typedef struct {
     struct BStringTrie__node *arr;
-    size_t count;
-    size_t capacity;
+    int count;
+    int capacity;
 } BStringTrie;
 
 static int BStringTrie_Init (BStringTrie *o) WARN_UNUSED;
@@ -62,13 +62,14 @@ static int BStringTrie__new_node (BStringTrie *o, int *out_nodeidx)
 {
     ASSERT(o->count <= o->capacity)
     ASSERT(o->capacity > 0)
+    ASSERT(o->count >= 0)
     ASSERT(out_nodeidx)
     
     if (o->count == o->capacity) {
-        if (o->capacity > SIZE_MAX / 2) {
+        if (o->capacity > INT_MAX / 2) {
             return 0;
         }
-        size_t newcap = 2 * o->capacity;
+        int newcap = 2 * o->capacity;
         
         struct BStringTrie__node *newarr = BAllocArray(newcap, sizeof(newarr[0]));
         if (!newarr) {
@@ -86,7 +87,7 @@ static int BStringTrie__new_node (BStringTrie *o, int *out_nodeidx)
     
     node->value_links[0] = BSTRINGTRIE_DEFAULT_VALUE;
     
-    for (size_t i = 0; i < BSTRINGTRIE_DEGREE; i++) {
+    for (int i = 0; i < BSTRINGTRIE_DEGREE; i++) {
         node->value_links[1 + i] = -1;
     }
     
