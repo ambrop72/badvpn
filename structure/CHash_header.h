@@ -37,6 +37,7 @@
 // CHASH_PARAM_DEREF(arg, link) - dereference a non-null link
 // CHASH_PARAM_ENTRYHASH(arg, entry) - hash function for entries; returns size_t
 // CHASH_PARAM_KEYHASH(arg, key) - hash function for keys; returns size_t
+// CHASH_PARAM_ENTRYHASH_IS_CHEAP - define to 1 if CHASH_PARAM_ENTRYHASH is cheap (e.g. hashes are precomputed)
 // CHASH_PARAM_COMPARE_ENTRIES(arg, entry1, entry2) - compares two entries; returns 1 for equality, 0 otherwise
 // CHASH_PARAM_COMPARE_KEY_ENTRY(arg, key1, entry2) - compares key and entry; returns 1 for equality, 0 otherwise
 // CHASH_PARAM_ENTRY_NEXT - next member in entry

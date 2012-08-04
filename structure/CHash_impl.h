@@ -177,12 +177,17 @@ static void CHash_Remove (CHash *o, CHashArg arg, CHashRef entry)
 
 static CHashRef CHash_Lookup (const CHash *o, CHashArg arg, CHashKey key) 
 {
-    size_t index = CHASH_PARAM_KEYHASH(arg, key) % o->num_buckets;
+    size_t hash = CHASH_PARAM_KEYHASH(arg, key);
+    size_t index = hash % o->num_buckets;
     
     CHashLink link = o->buckets[index];
     while (link != CHashNullLink()) {
         CHashRef cur = CHashDerefNonNull(arg, link);
+#if CHASH_PARAM_ENTRYHASH_IS_CHEAP
+        if (CHASH_PARAM_ENTRYHASH(arg, cur) == hash && CHASH_PARAM_COMPARE_KEY_ENTRY(arg, key, cur)) {
+#else
         if (CHASH_PARAM_COMPARE_KEY_ENTRY(arg, key, cur)) {
+#endif
             return cur;
         }
         link = CHash_next(cur);
