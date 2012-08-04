@@ -196,6 +196,7 @@ int NCDObject_ResolveVarExprCompact (NCDObject *o, const char *names, size_t num
         }
         
         object = dig_into_object(obj2);
+        
         names += strlen(names) + 1;
         num_names--;
     }
