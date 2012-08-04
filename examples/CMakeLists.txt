@@ -74,3 +74,5 @@ if (BUILDING_ARPPROBE)
 endif ()
 
 add_executable(substring_test substring_test.c)
+
+add_executable(bstringtrie_test bstringtrie_test.c)
