@@ -66,7 +66,7 @@ static int BStringTrie__new_node (BStringTrie *o, int *out_nodeidx)
     ASSERT(out_nodeidx)
     
     if (o->count == o->capacity) {
-        if (o->capacity > INT_MAX / 2) {
+        if (o->capacity > INT_MAX / 2 || o->capacity > SIZE_MAX / 2) {
             return 0;
         }
         int newcap = 2 * o->capacity;
