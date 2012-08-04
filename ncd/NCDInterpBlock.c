@@ -43,6 +43,9 @@
 
 #include <generated/blog_channel_ncd.h>
 
+#include "NCDInterpBlock_trie.h"
+#include <structure/CStringTrie_impl.h>
+
 static int compute_prealloc (NCDInterpBlock *o)
 {
     int size = 0;
@@ -159,7 +162,7 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         goto fail0;
     }
     
-    if (!BStringTrie_Init(&o->trie)) {
+    if (!NCDInterpBlock__Trie_Init(&o->trie)) {
         BLog(BLOG_ERROR, "BStringTrie_Init failed");
         goto fail1;
     }
@@ -211,15 +214,14 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         }
         
         if (e->name) {
-            int existing_idx = BStringTrie_Lookup(&o->trie, e->name);
-            ASSERT(existing_idx >= -1)
-            ASSERT(existing_idx < o->num_stmts)
-            ASSERT(existing_idx == -1 || !strcmp(o->stmts[existing_idx].name, e->name))
+            int next_idx = NCDInterpBlock__Trie_Get(&o->trie, e->name);
+            ASSERT(next_idx >= -1)
+            ASSERT(next_idx < o->num_stmts)
             
-            e->next_equal = existing_idx;
+            e->trie_next = next_idx;
             
-            if (!BStringTrie_Set(&o->trie, e->name, o->num_stmts)) {
-                BLog(BLOG_ERROR, "BStringTrie_Set failed");
+            if (!NCDInterpBlock__Trie_Set(&o->trie, e->name, o->num_stmts)) {
+                BLog(BLOG_ERROR, "NCDInterpBlock__Trie_Set failed");
                 goto loop_fail3;
             }
         }
@@ -249,7 +251,7 @@ fail2:
         BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
     }
-    BStringTrie_Free(&o->trie);
+    NCDInterpBlock__Trie_Free(&o->trie);
 fail1:
     BFree(o->stmts);
 fail0:
@@ -267,7 +269,7 @@ void NCDInterpBlock_Free (NCDInterpBlock *o)
         NCDValReplaceProg_Free(&e->arg_prog);
     }
     
-    BStringTrie_Free(&o->trie);
+    NCDInterpBlock__Trie_Free(&o->trie);
     
     BFree(o->stmts);
 }
@@ -279,18 +281,18 @@ int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char 
     ASSERT(from_index <= o->num_stmts)
     ASSERT(name)
     
-    int stmt_idx = BStringTrie_Lookup(&o->trie, name);
+    int stmt_idx = NCDInterpBlock__Trie_Get(&o->trie, name);
     ASSERT(stmt_idx >= -1)
     ASSERT(stmt_idx < o->num_stmts)
     
     while (stmt_idx >= 0) {
-        ASSERT(!strcmp(o->stmts[stmt_idx].name, name))
+        struct NCDInterpBlock__stmt *e = &o->stmts[stmt_idx];
         
-        if (stmt_idx < from_index) {
+        if (!strcmp(e->name, name) && stmt_idx < from_index) {
             return stmt_idx;
         }
         
-        stmt_idx = o->stmts[stmt_idx].next_equal;
+        stmt_idx = e->trie_next;
         ASSERT(stmt_idx >= -1)
         ASSERT(stmt_idx < o->num_stmts)
     }

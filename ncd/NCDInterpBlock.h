@@ -33,11 +33,14 @@
 #include <stddef.h>
 
 #include <misc/debug.h>
-#include <structure/BStringTrie.h>
+#include <structure/CStringTrie.h>
 #include <base/DebugObject.h>
 #include <ncd/NCDAst.h>
 #include <ncd/NCDVal.h>
 #include <ncd/NCDPlaceholderDb.h>
+
+#include "NCDInterpBlock_trie.h"
+#include <structure/CStringTrie_decl.h>
 
 struct NCDInterpBlock__stmt {
     const char *name;
@@ -50,14 +53,14 @@ struct NCDInterpBlock__stmt {
     NCDValReplaceProg arg_prog;
     int alloc_size;
     int prealloc_offset;
-    int next_equal;
+    int trie_next;
 };
 
 typedef struct {
     struct NCDInterpBlock__stmt *stmts;
     int num_stmts;
     int prealloc_size;
-    BStringTrie trie;
+    NCDInterpBlock__Trie trie;
     NCDProcess *process;
     DebugObject d_obj;
 } NCDInterpBlock;
