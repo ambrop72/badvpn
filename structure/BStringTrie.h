@@ -39,18 +39,16 @@
 
 #define BSTRINGTRIE_DEFAULT_VALUE ((int)-1)
 
-#define BSTRINGTRIE_DEGREE (((size_t)1) << CHAR_BIT)
+#define BSTRINGTRIE_DEGREE ((((size_t)1) << CHAR_BIT) - 1)
 
 struct BStringTrie__node {
-    int value[BSTRINGTRIE_DEGREE];
-    int link[BSTRINGTRIE_DEGREE];
+    int value_links[1 + BSTRINGTRIE_DEGREE];
 };
 
 typedef struct {
     struct BStringTrie__node *arr;
     size_t count;
     size_t capacity;
-    int empty_value;
 } BStringTrie;
 
 static int BStringTrie_Init (BStringTrie *o) WARN_UNUSED;
@@ -86,9 +84,10 @@ static int BStringTrie__new_node (BStringTrie *o, int *out_nodeidx)
     
     struct BStringTrie__node *node = &o->arr[o->count];
     
+    node->value_links[0] = BSTRINGTRIE_DEFAULT_VALUE;
+    
     for (size_t i = 0; i < BSTRINGTRIE_DEGREE; i++) {
-        node->value[i] = BSTRINGTRIE_DEFAULT_VALUE;
-        node->link[i] = -1;
+        node->value_links[1 + i] = -1;
     }
     
     *out_nodeidx = o->count;
@@ -101,7 +100,6 @@ static int BStringTrie_Init (BStringTrie *o)
 {
     o->count = 0;
     o->capacity = 1;
-    o->empty_value = BSTRINGTRIE_DEFAULT_VALUE;
     
     if (!(o->arr = BAllocArray(o->capacity, sizeof(o->arr[0])))) {
         return 0;
@@ -122,26 +120,21 @@ static int BStringTrie_Set (BStringTrie *o, const char *key, int value)
 {
     ASSERT(key)
     
-    if (!*key) {
-        o->empty_value = value;
-        return 1;
-    }
-    
     const unsigned char *ukey = (const unsigned char *)key;
     int nodeidx = 0;
     
-    while (*(ukey + 1)) {
-        ASSERT(o->arr[nodeidx].link[*ukey] >= -1)
+    while (*ukey) {
+        ASSERT(o->arr[nodeidx].value_links[*ukey] >= -1)
         
         int new_nodeidx;
         
-        if (o->arr[nodeidx].link[*ukey] >= 0) {
-            new_nodeidx = o->arr[nodeidx].link[*ukey];
+        if (o->arr[nodeidx].value_links[*ukey] >= 0) {
+            new_nodeidx = o->arr[nodeidx].value_links[*ukey];
         } else {
             if (!BStringTrie__new_node(o, &new_nodeidx)) {
                 return 0;
             }
-            o->arr[nodeidx].link[*ukey] = new_nodeidx;
+            o->arr[nodeidx].value_links[*ukey] = new_nodeidx;
         }
         
         ASSERT(new_nodeidx >= 0)
@@ -151,7 +144,7 @@ static int BStringTrie_Set (BStringTrie *o, const char *key, int value)
         ukey++;
     }
     
-    o->arr[nodeidx].value[*ukey] = value;
+    o->arr[nodeidx].value_links[0] = value;
     
     return 1;
 }
@@ -160,15 +153,11 @@ static int BStringTrie_Lookup (const BStringTrie *o, const char *key)
 {
     ASSERT(key)
     
-    if (!*key) {
-        return o->empty_value;
-    }
-    
     const unsigned char *ukey = (const unsigned char *)key;
     int nodeidx = 0;
     
-    while (*(ukey + 1)) {
-        nodeidx = o->arr[nodeidx].link[*ukey];
+    while (*ukey) {
+        nodeidx = o->arr[nodeidx].value_links[*ukey];
         ASSERT(nodeidx >= -1)
         if (nodeidx < 0) {
             return -1;
@@ -177,7 +166,7 @@ static int BStringTrie_Lookup (const BStringTrie *o, const char *key)
         ukey++;
     }
     
-    return o->arr[nodeidx].value[*ukey];
+    return o->arr[nodeidx].value_links[0];
 }
 
 #endif
