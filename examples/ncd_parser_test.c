@@ -1,5 +1,5 @@
 /**
- * @file ncd_tokenizer_test.c
+ * @file ncd_parser_test.c
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
