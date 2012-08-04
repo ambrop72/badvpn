@@ -176,6 +176,7 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         struct NCDInterpBlock__stmt *e = &o->stmts[o->num_stmts];
         
         e->name = NCDStatement_Name(s);
+        e->name_hash = (!e->name ? 0 : badvpn_djb2_hash((const uint8_t *)e->name));
         e->cmdname = NCDStatement_RegCmdName(s);
         e->objnames = NULL;
         e->num_objnames = 0;

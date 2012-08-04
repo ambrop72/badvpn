@@ -41,6 +41,7 @@
 
 struct NCDInterpBlock__stmt {
     const char *name;
+    size_t name_hash;
     const char *cmdname;
     char *objnames;
     size_t num_objnames;
