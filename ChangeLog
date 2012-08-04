@@ -1,3 +1,7 @@
+- NCD: performance improvements related to resolving object names
+
+- NCD: performance improvements related to instantiating statement arguments
+
 - NCD: add value::replace_this() and value::replace_this_undo()
 
 - NCD: add value::replace() and value::replace_undo()
