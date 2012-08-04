@@ -33,15 +33,14 @@
 #include <stddef.h>
 
 #include <misc/debug.h>
+#include <structure/BStringTrie.h>
 #include <base/DebugObject.h>
-#include <structure/CHash.h>
 #include <ncd/NCDAst.h>
 #include <ncd/NCDVal.h>
 #include <ncd/NCDPlaceholderDb.h>
 
 struct NCDInterpBlock__stmt {
     const char *name;
-    size_t name_hash;
     const char *cmdname;
     char *objnames;
     size_t num_objnames;
@@ -51,21 +50,14 @@ struct NCDInterpBlock__stmt {
     NCDValReplaceProg arg_prog;
     int alloc_size;
     int prealloc_offset;
-    int hash_next;
+    int next_equal;
 };
-
-typedef struct NCDInterpBlock__stmt NCDInterpBlock__hashentry;
-typedef const char *NCDInterpBlock__hashkey;
-typedef struct NCDInterpBlock__stmt *NCDInterpBlock__hasharg;
-
-#include "NCDInterpBlock_hash.h"
-#include <structure/CHash_decl.h>
 
 typedef struct {
     struct NCDInterpBlock__stmt *stmts;
     int num_stmts;
     int prealloc_size;
-    NCDInterpBlock__Hash hash;
+    BStringTrie trie;
     NCDProcess *process;
     DebugObject d_obj;
 } NCDInterpBlock;

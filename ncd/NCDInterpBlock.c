@@ -43,9 +43,6 @@
 
 #include <generated/blog_channel_ncd.h>
 
-#include "NCDInterpBlock_hash.h"
-#include <structure/CHash_impl.h>
-
 static int compute_prealloc (NCDInterpBlock *o)
 {
     int size = 0;
@@ -162,8 +159,8 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         goto fail0;
     }
     
-    if (!NCDInterpBlock__Hash_Init(&o->hash, num_stmts)) {
-        BLog(BLOG_ERROR, "NCDInterpBlock__Hash_Init failed");
+    if (!BStringTrie_Init(&o->trie)) {
+        BLog(BLOG_ERROR, "BStringTrie_Init failed");
         goto fail1;
     }
     
@@ -176,7 +173,6 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         struct NCDInterpBlock__stmt *e = &o->stmts[o->num_stmts];
         
         e->name = NCDStatement_Name(s);
-        e->name_hash = (!e->name ? 0 : badvpn_djb2_hash((const uint8_t *)e->name));
         e->cmdname = NCDStatement_RegCmdName(s);
         e->objnames = NULL;
         e->num_objnames = 0;
@@ -215,13 +211,24 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         }
         
         if (e->name) {
-            NCDInterpBlock__HashRef ref = {e, o->num_stmts};
-            NCDInterpBlock__Hash_InsertMulti(&o->hash, o->stmts, ref);
+            int existing_idx = BStringTrie_Lookup(&o->trie, e->name);
+            ASSERT(existing_idx >= -1)
+            ASSERT(existing_idx < o->num_stmts)
+            ASSERT(existing_idx == -1 || !strcmp(o->stmts[existing_idx].name, e->name))
+            
+            e->next_equal = existing_idx;
+            
+            if (!BStringTrie_Set(&o->trie, e->name, o->num_stmts)) {
+                BLog(BLOG_ERROR, "BStringTrie_Set failed");
+                goto loop_fail3;
+            }
         }
         
         o->num_stmts++;
         continue;
         
+    loop_fail3:
+        free(e->objnames);
     loop_fail2:
         BFree(e->arg_data);
     loop_fail1:
@@ -242,6 +249,7 @@ fail2:
         BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
     }
+    BStringTrie_Free(&o->trie);
 fail1:
     BFree(o->stmts);
 fail0:
@@ -259,7 +267,7 @@ void NCDInterpBlock_Free (NCDInterpBlock *o)
         NCDValReplaceProg_Free(&e->arg_prog);
     }
     
-    NCDInterpBlock__Hash_Free(&o->hash);
+    BStringTrie_Free(&o->trie);
     
     BFree(o->stmts);
 }
@@ -271,21 +279,20 @@ int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char 
     ASSERT(from_index <= o->num_stmts)
     ASSERT(name)
     
-    // We rely on that we get matching statements here in reverse order of insertion,
-    // to properly return the greatest matching statement lesser than from_index.
+    int stmt_idx = BStringTrie_Lookup(&o->trie, name);
+    ASSERT(stmt_idx >= -1)
+    ASSERT(stmt_idx < o->num_stmts)
     
-    NCDInterpBlock__HashRef ref = NCDInterpBlock__Hash_Lookup(&o->hash, o->stmts, name);
-    while (ref.link != NCDInterpBlock__HashNullLink()) {
-        ASSERT(ref.link >= 0)
-        ASSERT(ref.link < o->num_stmts)
-        ASSERT(ref.ptr == &o->stmts[ref.link])
-        ASSERT(!strcmp(ref.ptr->name, name))
+    while (stmt_idx >= 0) {
+        ASSERT(!strcmp(o->stmts[stmt_idx].name, name))
         
-        if (ref.link < from_index) {
-            return ref.link;
+        if (stmt_idx < from_index) {
+            return stmt_idx;
         }
         
-        ref = NCDInterpBlock__Hash_GetNextEqual(&o->hash, o->stmts, ref);
+        stmt_idx = o->stmts[stmt_idx].next_equal;
+        ASSERT(stmt_idx >= -1)
+        ASSERT(stmt_idx < o->num_stmts)
     }
     
     return -1;
