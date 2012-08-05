@@ -69,7 +69,7 @@ static int compute_prealloc (NCDInterpBlock *o)
     return 1;
 }
 
-int convert_value_recurser (NCDPlaceholderDb *pdb, NCDValue *value, NCDValMem *mem, NCDValRef *out)
+static int convert_value_recurser (NCDPlaceholderDb *pdb, NCDValue *value, NCDValMem *mem, NCDValRef *out)
 {
     ASSERT(pdb)
     ASSERT((NCDValue_Type(value), 1))
