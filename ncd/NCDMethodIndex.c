@@ -56,13 +56,13 @@
 
 #include <generated/blog_channel_ncd.h>
 
-static struct NCDMethodIndex__entry * find_method_name (NCDMethodIndex *o, const char *method_name, int *out_entry_idx)
+static int find_method_name (NCDMethodIndex *o, const char *method_name, int *out_entry_idx)
 {
     ASSERT(method_name)
     
     NCDMethodIndex__HashRef ref = NCDMethodIndex__Hash_Lookup(&o->hash, o->names, method_name);
     if (ref.link == -1) {
-        return NULL;
+        return 0;
     }
     
     ASSERT(ref.link >= 0)
@@ -76,10 +76,10 @@ static struct NCDMethodIndex__entry * find_method_name (NCDMethodIndex *o, const
     if (out_entry_idx) {
         *out_entry_idx = name_entry->first_entry;
     }
-    return &o->entries[name_entry->first_entry];
+    return 1;
 }
 
-static struct NCDMethodIndex__entry * add_method_name (NCDMethodIndex *o, const char *method_name, int *out_entry_idx)
+static int add_method_name (NCDMethodIndex *o, const char *method_name, int *out_entry_idx)
 {
     ASSERT(method_name)
     ASSERT(!find_method_name(o, method_name, NULL))
@@ -117,10 +117,10 @@ static struct NCDMethodIndex__entry * add_method_name (NCDMethodIndex *o, const 
     if (out_entry_idx) {
         *out_entry_idx = name_entry->first_entry;
     }
-    return entry;
+    return 1;
     
 fail0:
-    return NULL;
+    return 0;
 }
 
 int NCDMethodIndex_Init (NCDMethodIndex *o)
@@ -174,13 +174,18 @@ int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, const cha
     ASSERT(method_name)
     ASSERT(module)
     
-    struct NCDMethodIndex__entry *first_entry = find_method_name(o, method_name, NULL);
+    int first_entry_idx;
     
-    if (!first_entry) {
-        struct NCDMethodIndex__entry *entry = add_method_name(o, method_name, NULL);
-        if (!entry) {
+    if (!find_method_name(o, method_name, &first_entry_idx)) {
+        int entry_idx;
+        if (!add_method_name(o, method_name, &entry_idx)) {
             goto fail0;
         }
+        
+        ASSERT(entry_idx >= 0)
+        ASSERT(entry_idx < o->num_entries)
+        
+        struct NCDMethodIndex__entry *entry = &o->entries[entry_idx];
         
         if (!(entry->obj_type = b_strdup(obj_type))) {
             BLog(BLOG_ERROR, "b_strdup failed");
@@ -189,6 +194,9 @@ int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, const cha
         
         entry->module = module;
     } else {
+        ASSERT(first_entry_idx >= 0)
+        ASSERT(first_entry_idx < o->num_entries)
+        
         if (o->num_entries == o->entries_capacity && !EntriesArray_DoubleUp(o)) {
             BLog(BLOG_ERROR, "EntriesArray_DoubleUp failed");
             goto fail0;
@@ -203,8 +211,8 @@ int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, const cha
         
         entry->module = module;
         
-        entry->next = first_entry->next;
-        first_entry->next = o->num_entries;
+        entry->next = o->entries[first_entry_idx].next;
+        o->entries[first_entry_idx].next = o->num_entries;
         
         o->num_entries++;
     }
