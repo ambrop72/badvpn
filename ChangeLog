@@ -1,3 +1,5 @@
+- NCD: performance improvements related to finding modules for statements
+
 - NCD: performance improvements related to resolving object names
 
 - NCD: performance improvements related to instantiating statement arguments
