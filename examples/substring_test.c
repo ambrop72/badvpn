@@ -176,5 +176,29 @@ int main (int argc, char *argv[])
     
     test_substring(word_len, text_len, word_count, text_count);
     
+    {
+        char text[] = "aggagaa";
+        char word[] = "aga";
+        size_t table[sizeof(word) - 1];
+        build_substring_backtrack_table(word, strlen(word), table);
+        
+        size_t pos;
+        int res = find_substring(text, strlen(text), word, strlen(word), table, &pos);
+        ASSERT_FORCE(res)
+        ASSERT_FORCE(pos == 3)
+    }
+    
+    {
+        char text[] = "aagagga";
+        char word[] = "aga";
+        size_t table[sizeof(word) - 1];
+        build_substring_backtrack_table_reverse(word, strlen(word), table);
+        
+        size_t pos;
+        int res = find_substring_reverse(text, strlen(text), word, strlen(word), table, &pos);
+        ASSERT_FORCE(res)
+        ASSERT_FORCE(res == 1)
+    }
+    
     return 0;
 }
