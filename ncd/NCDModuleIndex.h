@@ -35,6 +35,7 @@
 #include <structure/CHash.h>
 #include <base/DebugObject.h>
 #include <ncd/NCDModule.h>
+#include <ncd/NCDMethodIndex.h>
 
 #define NCDMODULEINDEX_MAX_TYPE_LEN 35
 #define NCDMODULEINDEX_MAX_MODULES 256
@@ -69,7 +70,7 @@ typedef struct {
 
 int NCDModuleIndex_Init (NCDModuleIndex *o) WARN_UNUSED;
 void NCDModuleIndex_Free (NCDModuleIndex *o);
-int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *group) WARN_UNUSED;
+int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *group, NCDMethodIndex *method_index) WARN_UNUSED;
 const struct NCDModule * NCDModuleIndex_FindModule (NCDModuleIndex *o, const char *type);
 
 #endif

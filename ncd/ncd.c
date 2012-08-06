@@ -129,6 +129,9 @@ BProcessManager manager;
 // udev manager
 NCDUdevManager umanager;
 
+// method index
+NCDMethodIndex method_index;
+
 // module index
 NCDModuleIndex mindex;
 
@@ -148,15 +151,11 @@ struct NCDModuleInst_iparams module_iparams;
 // processes
 LinkedList1 processes;
 
-// buffer for concatenating base_type::method_name
-char method_concat_buf[200];
-
 static void print_help (const char *name);
 static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static void start_terminate (int exit_code);
-static int build_method_type_string (const char *object_type, const char *method_name);
 static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process);
 static void process_free (struct process *p, NCDModuleProcess **out_mp);
 static int process_mem_is_preallocated (struct process *p, char *mem);
@@ -273,15 +272,21 @@ int main (int argc, char **argv)
     // init udev manager
     NCDUdevManager_Init(&umanager, options.no_udev, &reactor, &manager);
     
+    // init method index
+    if (!NCDMethodIndex_Init(&method_index)) {
+        BLog(BLOG_ERROR, "NCDMethodIndex_Init failed");
+        goto fail1b;
+    }
+    
     // init module index
     if (!NCDModuleIndex_Init(&mindex)) {
         BLog(BLOG_ERROR, "NCDModuleIndex_Init failed");
-        goto fail1b;
+        goto fail1c;
     }
     
     // add module groups to index
     for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
-        if (!NCDModuleIndex_AddGroup(&mindex, *g)) {
+        if (!NCDModuleIndex_AddGroup(&mindex, *g, &method_index)) {
             BLog(BLOG_ERROR, "NCDModuleIndex_AddGroup failed");
             goto fail2;
         }
@@ -324,7 +329,7 @@ int main (int argc, char **argv)
     }
     
     // init interp program
-    if (!NCDInterpProg_Init(&iprogram, &program, &placeholder_db)) {
+    if (!NCDInterpProg_Init(&iprogram, &program, &placeholder_db, &mindex, &method_index)) {
         BLog(BLOG_ERROR, "NCDInterpProg_Init failed");
         goto fail4a;
     }
@@ -416,6 +421,9 @@ fail3:
 fail2:
     // free module index
     NCDModuleIndex_Free(&mindex);
+fail1c:
+    // free method index
+    NCDMethodIndex_Free(&method_index);
 fail1b:
     // free udev manager
     NCDUdevManager_Free(&umanager);
@@ -635,31 +643,6 @@ void start_terminate (int exit_code)
             process_start_terminating(p);
         }
     }
-}
-
-int build_method_type_string (const char *object_type, const char *method_name)
-{
-    ASSERT(object_type)
-    ASSERT(method_name)
-    
-    // This writes "<object_type>::<method_name>" into method_concat_buf.
-    // strlen+memcpy is used because it is much faster than snprintf.
-    
-    size_t len1 = strlen(object_type);
-    size_t len2 = strlen(method_name);
-    
-    if (len1 > sizeof(method_concat_buf) ||
-        len2 > sizeof(method_concat_buf) - len1 ||
-        3 > sizeof(method_concat_buf) - len1 - len2
-    ) {
-        return 0;
-    }
-    
-    memcpy(method_concat_buf, object_type, len1);
-    memcpy(method_concat_buf + len1, "::", 2);
-    memcpy(method_concat_buf + len1 + 2, method_name, len2 + 1);
-    
-    return 1;
 }
 
 int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process)
@@ -1002,17 +985,26 @@ void process_advance (struct process *p)
     
     statement_log(ps, BLOG_INFO, "initializing");
     
+    // need to determine the module and object to use it on (if it's a method)
+    const struct NCDModule *module;
     NCDObject object;
     NCDObject *object_ptr = NULL;
     
+    // get object names, e.g. "my.cat" in "my.cat->meow();"
+    // (or NULL if this is not a method statement)
     const char *objnames;
     size_t num_objnames;
     NCDInterpBlock_StatementObjNames(p->iblock, p->ap, &objnames, &num_objnames);
     
-    const char *type = NCDInterpBlock_StatementCmdName(p->iblock, p->ap);
-    
-    // if this is a method-like statement, type is really "base_type(object)::method_name"
-    if (objnames) {
+    if (!objnames) {
+        // not a method; module is already known by NCDInterpBlock
+        module = NCDInterpBlock_StatementGetSimpleModule(p->iblock, p->ap);
+        
+        if (!module) {
+            statement_log(ps, BLOG_ERROR, "unknown simple statement: %s", NCDInterpBlock_StatementCmdName(p->iblock, p->ap));
+            goto fail0;
+        }
+    } else {
         // get object
         if (!process_resolve_object_expr(p, p->ap, objnames, num_objnames, &object)) {
             goto fail0;
@@ -1026,19 +1018,13 @@ void process_advance (struct process *p)
             goto fail0;
         }
         
-        // build type string
-        if (!build_method_type_string(object_type, type)) {
-            statement_log(ps, BLOG_ERROR, "type/method name too long");
+        // find module based on type of object
+        module = NCDInterpBlock_StatementGetMethodModule(p->iblock, p->ap, object_type, &method_index);
+        
+        if (!module) {
+            statement_log(ps, BLOG_ERROR, "unknown method statement: %s::%s", object_type, NCDInterpBlock_StatementCmdName(p->iblock, p->ap));
             goto fail0;
         }
-        type = method_concat_buf;
-    }
-    
-    // find module to instantiate
-    const struct NCDModule *module = NCDModuleIndex_FindModule(&mindex, type);
-    if (!module) {
-        statement_log(ps, BLOG_ERROR, "failed to find module: %s", type);
-        goto fail0;
     }
     
     // register alloc size for future preallocations

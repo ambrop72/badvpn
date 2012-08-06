@@ -34,6 +34,7 @@
 #include <misc/balloc.h>
 #include <misc/hashfun.h>
 #include <misc/compare.h>
+#include <misc/substring.h>
 #include <base/BLog.h>
 
 #include "NCDModuleIndex.h"
@@ -72,6 +73,40 @@ static struct NCDModuleIndex_base_type * find_base_type (NCDModuleIndex *o, cons
     ASSERT(!strcmp(bt->base_type, base_type))
     
     return bt;
+}
+
+static int add_method (char *type, const struct NCDModule *module, NCDMethodIndex *method_index)
+{
+    ASSERT(type)
+    ASSERT(module)
+    ASSERT(method_index)
+    
+    const char search[] = "::";
+    size_t search_len = sizeof(search) - 1;
+    
+    size_t table[sizeof(search) - 1];
+    build_substring_backtrack_table_reverse(search, search_len, table);
+    
+    size_t pos;
+    if (!find_substring_reverse(type, strlen(type), search, search_len, table, &pos)) {
+        return 1;
+    }
+    
+    ASSERT(pos >= 0)
+    ASSERT(pos <= strlen(type) - search_len)
+    ASSERT(!memcmp(type + pos, search, search_len))
+    
+    char save = type[pos];
+    type[pos] = '\0';
+    int res = NCDMethodIndex_AddMethod(method_index, type, type + pos + search_len, module);
+    type[pos] = save;
+    
+    if (!res) {
+        BLog(BLOG_ERROR, "NCDMethodIndex_AddMethod failed");
+        return 0;
+    }
+    
+    return 1;
 }
 
 int NCDModuleIndex_Init (NCDModuleIndex *o)
@@ -121,9 +156,11 @@ void NCDModuleIndex_Free (NCDModuleIndex *o)
     BFree(o->modules);
 }
 
-int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *group)
+int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *group, NCDMethodIndex *method_index)
 {
     DebugObject_Access(&o->d_obj);
+    ASSERT(group)
+    ASSERT(method_index)
     
     for (const struct NCDModule *nm = group->modules; nm->type; nm++) {
         if (find_module(o, nm->type)) {
@@ -170,6 +207,12 @@ int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *gro
         }
         
         o->num_modules++;
+        
+        if (!add_method(m->type, nm, method_index)) {
+            BLog(BLOG_ERROR, "failed to add method to method index");
+            return 0;
+        }
+        
         continue;
         
     loop_fail1:

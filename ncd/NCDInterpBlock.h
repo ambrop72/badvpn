@@ -38,6 +38,9 @@
 #include <ncd/NCDAst.h>
 #include <ncd/NCDVal.h>
 #include <ncd/NCDPlaceholderDb.h>
+#include <ncd/NCDModule.h>
+#include <ncd/NCDModuleIndex.h>
+#include <ncd/NCDMethodIndex.h>
 
 #include "NCDInterpBlock_trie.h"
 #include <structure/CStringTrie_decl.h>
@@ -49,6 +52,10 @@ struct NCDInterpBlock__stmt {
     size_t num_objnames;
     char *arg_data;
     size_t arg_len;
+    union {
+        const struct NCDModule *simple_module;
+        int method_name_id;
+    } binding;
     NCDValSafeRef arg_ref;
     NCDValReplaceProg arg_prog;
     int alloc_size;
@@ -65,11 +72,13 @@ typedef struct {
     DebugObject d_obj;
 } NCDInterpBlock;
 
-int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process, NCDPlaceholderDb *pdb) WARN_UNUSED;
+int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
 void NCDInterpBlock_Free (NCDInterpBlock *o);
 int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char *name);
 const char * NCDInterpBlock_StatementCmdName (NCDInterpBlock *o, int i);
 void NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i, const char **out_objnames, size_t *out_num_objnames);
+const struct NCDModule * NCDInterpBlock_StatementGetSimpleModule (NCDInterpBlock *o, int i);
+const struct NCDModule * NCDInterpBlock_StatementGetMethodModule (NCDInterpBlock *o, int i, const char *obj_type, NCDMethodIndex *method_index);
 int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg *out_prog) WARN_UNUSED;
 void NCDInterpBlock_StatementBumpAllocSize (NCDInterpBlock *o, int i, int alloc_size);
 int NCDInterpBlock_StatementPreallocSize (NCDInterpBlock *o, int i);

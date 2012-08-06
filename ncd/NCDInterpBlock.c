@@ -145,11 +145,13 @@ fail:
     return 0;
 }
 
-int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process, NCDPlaceholderDb *pdb)
+int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index)
 {
     ASSERT(block)
     ASSERT(process)
     ASSERT(pdb)
+    ASSERT(module_index)
+    ASSERT(method_index)
     
     if (NCDBlock_NumStatements(block) > INT_MAX) {
         BLog(BLOG_ERROR, "too many statements");
@@ -211,6 +213,14 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
                 goto loop_fail2;
             }
             e->num_objnames = split_string_inplace2(e->objnames, '.') + 1;
+            
+            e->binding.method_name_id = NCDMethodIndex_GetMethodNameId(method_index, NCDStatement_RegCmdName(s));
+            if (e->binding.method_name_id == -1) {
+                BLog(BLOG_ERROR, "NCDMethodIndex_GetMethodNameId failed");
+                goto loop_fail3;
+            }
+        } else {
+            e->binding.simple_module = NCDModuleIndex_FindModule(module_index, NCDStatement_RegCmdName(s));
         }
         
         if (e->name) {
@@ -319,6 +329,28 @@ void NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i, const char **ou
     
     *out_objnames = o->stmts[i].objnames;
     *out_num_objnames = o->stmts[i].num_objnames;
+}
+
+const struct NCDModule * NCDInterpBlock_StatementGetSimpleModule (NCDInterpBlock *o, int i)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(i >= 0)
+    ASSERT(i < o->num_stmts)
+    ASSERT(!o->stmts[i].objnames)
+    
+    return o->stmts[i].binding.simple_module;
+}
+
+const struct NCDModule * NCDInterpBlock_StatementGetMethodModule (NCDInterpBlock *o, int i, const char *obj_type, NCDMethodIndex *method_index)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(i >= 0)
+    ASSERT(i < o->num_stmts)
+    ASSERT(o->stmts[i].objnames)
+    ASSERT(obj_type)
+    ASSERT(method_index)
+    
+    return NCDMethodIndex_GetMethodModule(method_index, obj_type, o->stmts[i].binding.method_name_id);
 }
 
 int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg *out_prog)
