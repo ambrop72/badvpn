@@ -167,7 +167,6 @@ process main {
     val_equal(vB2, "vB") a;
     assert(a);
 
-    println("succeeded");
     exit("0");
 }
 
