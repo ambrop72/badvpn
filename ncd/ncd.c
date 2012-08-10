@@ -156,7 +156,7 @@ static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static void start_terminate (int exit_code);
-static int process_new (NCDProcess *proc_ast, NCDInterpProcess *iblock, NCDModuleProcess *module_process);
+static int process_new (NCDInterpProcess *iblock, NCDModuleProcess *module_process);
 static void process_free (struct process *p, NCDModuleProcess **out_mp);
 static int process_mem_is_preallocated (struct process *p, char *mem);
 static void process_start_terminating (struct process *p);
@@ -376,7 +376,7 @@ int main (int argc, char **argv)
         ASSERT(iprocess)
         ASSERT(NCDInterpProcess_Process(iprocess) == p)
         
-        if (!process_new(p, iprocess, NULL)) {
+        if (!process_new(iprocess, NULL)) {
             BLog(BLOG_ERROR, "failed to initialize process, exiting");
             goto fail6;
         }
@@ -643,10 +643,12 @@ void start_terminate (int exit_code)
     }
 }
 
-int process_new (NCDProcess *proc_ast, NCDInterpProcess *iblock, NCDModuleProcess *module_process)
+int process_new (NCDInterpProcess *iblock, NCDModuleProcess *module_process)
 {
+    ASSERT(iblock)
+    
     // get num statements
-    size_t num_statements = NCDBlock_NumStatements(NCDProcess_Block(proc_ast));
+    size_t num_statements = NCDBlock_NumStatements(NCDProcess_Block(NCDInterpProcess_Process(iblock)));
     if (num_statements > INT_MAX) {
         BLog(BLOG_ERROR, "too many statements");
         goto fail0;
@@ -711,7 +713,7 @@ int process_new (NCDProcess *proc_ast, NCDInterpProcess *iblock, NCDModuleProces
     return 1;
     
 fail0:
-    BLog(BLOG_ERROR, "failed to initialize process %s", NCDProcess_Name(proc_ast));
+    BLog(BLOG_ERROR, "failed to initialize process %s", NCDProcess_Name(NCDInterpProcess_Process(iblock)));
     return 0;
 }
 
@@ -1304,14 +1306,13 @@ int statement_instance_func_initprocess (struct statement *ps, NCDModuleProcess 
     }
     
     // make sure it's a template
-    NCDProcess *p_ast = NCDInterpProcess_Process(iprocess);
-    if (!NCDProcess_IsTemplate(p_ast)) {
+    if (!NCDProcess_IsTemplate(NCDInterpProcess_Process(iprocess))) {
         statement_log(ps, BLOG_ERROR, "need template to create a process, but %s is a process", template_name);
         return 0;
     }
     
     // create process
-    if (!process_new(p_ast, iprocess, mp)) {
+    if (!process_new(iprocess, mp)) {
         statement_log(ps, BLOG_ERROR, "failed to create process from template %s", template_name);
         return 0;
     }
