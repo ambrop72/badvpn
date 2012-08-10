@@ -81,7 +81,7 @@ add_executable(badvpn-ncd
     NCDModuleIndex.c
     NCDIfConfig.c
     NCDObject.c
-    NCDInterpBlock.c
+    NCDInterpProcess.c
     NCDInterpProg.c
     NCDPlaceholderDb.c
     NCDMethodIndex.c

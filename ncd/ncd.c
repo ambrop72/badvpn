@@ -85,7 +85,7 @@ struct statement {
 };
 
 struct process {
-    NCDInterpBlock *iblock;
+    NCDInterpProcess *iblock;
     NCDModuleProcess *module_process;
     BTimer wait_timer;
     BPending work_job;
@@ -156,7 +156,7 @@ static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static void start_terminate (int exit_code);
-static int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process);
+static int process_new (NCDProcess *proc_ast, NCDInterpProcess *iblock, NCDModuleProcess *module_process);
 static void process_free (struct process *p, NCDModuleProcess **out_mp);
 static int process_mem_is_preallocated (struct process *p, char *mem);
 static void process_start_terminating (struct process *p);
@@ -373,7 +373,7 @@ int main (int argc, char **argv)
         
         // find iblock
         NCDProcess *f_proc;
-        NCDInterpBlock *iblock;
+        NCDInterpProcess *iblock;
         int res = NCDInterpProg_FindProcess(&iprogram, NCDProcess_Name(p), &f_proc, &iblock);
         ASSERT(res)
         ASSERT(f_proc == p)
@@ -645,7 +645,7 @@ void start_terminate (int exit_code)
     }
 }
 
-int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess *module_process)
+int process_new (NCDProcess *proc_ast, NCDInterpProcess *iblock, NCDModuleProcess *module_process)
 {
     // get num statements
     size_t num_statements = NCDBlock_NumStatements(NCDProcess_Block(proc_ast));
@@ -655,9 +655,9 @@ int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess 
     }
     
     // calculate size of preallocated statement memory
-    int mem_size = NCDInterpBlock_PreallocSize(iblock);
+    int mem_size = NCDInterpProcess_PreallocSize(iblock);
     if (mem_size < 0 || mem_size > SIZE_MAX) {
-        BLog(BLOG_ERROR, "NCDInterpBlock_PreallocSize failed");
+        BLog(BLOG_ERROR, "NCDInterpProcess_PreallocSize failed");
         goto fail0;
     }
     
@@ -695,8 +695,8 @@ int process_new (NCDProcess *proc_ast, NCDInterpBlock *iblock, NCDModuleProcess 
         ps->p = p;
         ps->i = i;
         ps->state = SSTATE_FORGOTTEN;
-        ps->mem_size = NCDInterpBlock_StatementPreallocSize(iblock, i);
-        ps->mem = (ps->mem_size == 0 ? NULL : p->mem + NCDInterpBlock_StatementPreallocOffset(iblock, i));
+        ps->mem_size = NCDInterpProcess_StatementPreallocSize(iblock, i);
+        ps->mem = (ps->mem_size == 0 ? NULL : p->mem + NCDInterpProcess_StatementPreallocOffset(iblock, i));
     }
     
     // init timer
@@ -797,7 +797,7 @@ void process_assert_pointers (struct process *p)
 
 void process_logfunc (struct process *p)
 {
-    BLog_Append("process %s: ", NCDProcess_Name(NCDInterpBlock_Process(p->iblock)));
+    BLog_Append("process %s: ", NCDProcess_Name(NCDInterpProcess_Process(p->iblock)));
 }
 
 void process_log (struct process *p, int level, const char *fmt, ...)
@@ -994,14 +994,14 @@ void process_advance (struct process *p)
     // (or NULL if this is not a method statement)
     const char *objnames;
     size_t num_objnames;
-    NCDInterpBlock_StatementObjNames(p->iblock, p->ap, &objnames, &num_objnames);
+    NCDInterpProcess_StatementObjNames(p->iblock, p->ap, &objnames, &num_objnames);
     
     if (!objnames) {
-        // not a method; module is already known by NCDInterpBlock
-        module = NCDInterpBlock_StatementGetSimpleModule(p->iblock, p->ap);
+        // not a method; module is already known by NCDInterpProcess
+        module = NCDInterpProcess_StatementGetSimpleModule(p->iblock, p->ap);
         
         if (!module) {
-            statement_log(ps, BLOG_ERROR, "unknown simple statement: %s", NCDInterpBlock_StatementCmdName(p->iblock, p->ap));
+            statement_log(ps, BLOG_ERROR, "unknown simple statement: %s", NCDInterpProcess_StatementCmdName(p->iblock, p->ap));
             goto fail0;
         }
     } else {
@@ -1019,22 +1019,22 @@ void process_advance (struct process *p)
         }
         
         // find module based on type of object
-        module = NCDInterpBlock_StatementGetMethodModule(p->iblock, p->ap, object_type, &method_index);
+        module = NCDInterpProcess_StatementGetMethodModule(p->iblock, p->ap, object_type, &method_index);
         
         if (!module) {
-            statement_log(ps, BLOG_ERROR, "unknown method statement: %s::%s", object_type, NCDInterpBlock_StatementCmdName(p->iblock, p->ap));
+            statement_log(ps, BLOG_ERROR, "unknown method statement: %s::%s", object_type, NCDInterpProcess_StatementCmdName(p->iblock, p->ap));
             goto fail0;
         }
     }
     
     // register alloc size for future preallocations
-    NCDInterpBlock_StatementBumpAllocSize(p->iblock, p->ap, module->alloc_size);
+    NCDInterpProcess_StatementBumpAllocSize(p->iblock, p->ap, module->alloc_size);
     
     // copy arguments
     NCDValRef args;
     NCDValReplaceProg prog;
-    if (!NCDInterpBlock_CopyStatementArgs(p->iblock, ps->i, &ps->args_mem, &args, &prog)) {
-        statement_log(ps, BLOG_ERROR, "NCDInterpBlock_CopyStatementArgs failed");
+    if (!NCDInterpProcess_CopyStatementArgs(p->iblock, ps->i, &ps->args_mem, &args, &prog)) {
+        statement_log(ps, BLOG_ERROR, "NCDInterpProcess_CopyStatementArgs failed");
         goto fail0;
     }
     
@@ -1099,7 +1099,7 @@ int process_find_object (struct process *p, int pos, const char *name, NCDObject
     ASSERT(name)
     ASSERT(out_object)
     
-    int i = NCDInterpBlock_FindStatement(p->iblock, pos, name);
+    int i = NCDInterpProcess_FindStatement(p->iblock, pos, name);
     if (i >= 0) {
         struct statement *ps = &p->statements[i];
         ASSERT(i < p->num_statements)
@@ -1300,7 +1300,7 @@ int statement_instance_func_initprocess (struct statement *ps, NCDModuleProcess 
     
     // find template
     NCDProcess *p_ast;
-    NCDInterpBlock *iblock;
+    NCDInterpProcess *iblock;
     if (!NCDInterpProg_FindProcess(&iprogram, template_name, &p_ast, &iblock) || !NCDProcess_IsTemplate(p_ast)) {
         statement_log(ps, BLOG_ERROR, "no template named %s", template_name);
         return 0;

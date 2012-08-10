@@ -1,5 +1,5 @@
 /**
- * @file NCDInterpBlock.c
+ * @file NCDInterpProcess.c
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -39,14 +39,14 @@
 #include <misc/strdup.h>
 #include <base/BLog.h>
 
-#include "NCDInterpBlock.h"
+#include "NCDInterpProcess.h"
 
 #include <generated/blog_channel_ncd.h>
 
-#include "NCDInterpBlock_trie.h"
+#include "NCDInterpProcess_trie.h"
 #include <structure/CStringTrie_impl.h>
 
-static int compute_prealloc (NCDInterpBlock *o)
+static int compute_prealloc (NCDInterpProcess *o)
 {
     int size = 0;
     
@@ -145,7 +145,7 @@ fail:
     return 0;
 }
 
-int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index)
+int NCDInterpProcess_Init (NCDInterpProcess *o, NCDBlock *block, NCDProcess *process, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index)
 {
     ASSERT(block)
     ASSERT(process)
@@ -164,7 +164,7 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         goto fail0;
     }
     
-    if (!NCDInterpBlock__Trie_Init(&o->trie)) {
+    if (!NCDInterpProcess__Trie_Init(&o->trie)) {
         BLog(BLOG_ERROR, "BStringTrie_Init failed");
         goto fail1;
     }
@@ -175,7 +175,7 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
     
     for (NCDStatement *s = NCDBlock_FirstStatement(block); s; s = NCDBlock_NextStatement(block, s)) {
         ASSERT(NCDStatement_Type(s) == NCDSTATEMENT_REG)
-        struct NCDInterpBlock__stmt *e = &o->stmts[o->num_stmts];
+        struct NCDInterpProcess__stmt *e = &o->stmts[o->num_stmts];
         
         e->name = NCDStatement_Name(s);
         e->cmdname = NCDStatement_RegCmdName(s);
@@ -224,14 +224,14 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
         }
         
         if (e->name) {
-            int next_idx = NCDInterpBlock__Trie_Get(&o->trie, e->name);
+            int next_idx = NCDInterpProcess__Trie_Get(&o->trie, e->name);
             ASSERT(next_idx >= -1)
             ASSERT(next_idx < o->num_stmts)
             
             e->trie_next = next_idx;
             
-            if (!NCDInterpBlock__Trie_Set(&o->trie, e->name, o->num_stmts)) {
-                BLog(BLOG_ERROR, "NCDInterpBlock__Trie_Set failed");
+            if (!NCDInterpProcess__Trie_Set(&o->trie, e->name, o->num_stmts)) {
+                BLog(BLOG_ERROR, "NCDInterpProcess__Trie_Set failed");
                 goto loop_fail3;
             }
         }
@@ -256,47 +256,47 @@ int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process
     
 fail2:
     while (o->num_stmts-- > 0) {
-        struct NCDInterpBlock__stmt *e = &o->stmts[o->num_stmts];
+        struct NCDInterpProcess__stmt *e = &o->stmts[o->num_stmts];
         free(e->objnames);
         BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
     }
-    NCDInterpBlock__Trie_Free(&o->trie);
+    NCDInterpProcess__Trie_Free(&o->trie);
 fail1:
     BFree(o->stmts);
 fail0:
     return 0;
 }
 
-void NCDInterpBlock_Free (NCDInterpBlock *o)
+void NCDInterpProcess_Free (NCDInterpProcess *o)
 {
     DebugObject_Free(&o->d_obj);
     
     while (o->num_stmts-- > 0) {
-        struct NCDInterpBlock__stmt *e = &o->stmts[o->num_stmts];
+        struct NCDInterpProcess__stmt *e = &o->stmts[o->num_stmts];
         free(e->objnames);
         BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
     }
     
-    NCDInterpBlock__Trie_Free(&o->trie);
+    NCDInterpProcess__Trie_Free(&o->trie);
     
     BFree(o->stmts);
 }
 
-int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char *name)
+int NCDInterpProcess_FindStatement (NCDInterpProcess *o, int from_index, const char *name)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(from_index >= 0)
     ASSERT(from_index <= o->num_stmts)
     ASSERT(name)
     
-    int stmt_idx = NCDInterpBlock__Trie_Get(&o->trie, name);
+    int stmt_idx = NCDInterpProcess__Trie_Get(&o->trie, name);
     ASSERT(stmt_idx >= -1)
     ASSERT(stmt_idx < o->num_stmts)
     
     while (stmt_idx >= 0) {
-        struct NCDInterpBlock__stmt *e = &o->stmts[stmt_idx];
+        struct NCDInterpProcess__stmt *e = &o->stmts[stmt_idx];
         
         if (!strcmp(e->name, name) && stmt_idx < from_index) {
             return stmt_idx;
@@ -310,7 +310,7 @@ int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char 
     return -1;
 }
 
-const char * NCDInterpBlock_StatementCmdName (NCDInterpBlock *o, int i)
+const char * NCDInterpProcess_StatementCmdName (NCDInterpProcess *o, int i)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
@@ -319,7 +319,7 @@ const char * NCDInterpBlock_StatementCmdName (NCDInterpBlock *o, int i)
     return o->stmts[i].cmdname;
 }
 
-void NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i, const char **out_objnames, size_t *out_num_objnames)
+void NCDInterpProcess_StatementObjNames (NCDInterpProcess *o, int i, const char **out_objnames, size_t *out_num_objnames)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
@@ -331,7 +331,7 @@ void NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i, const char **ou
     *out_num_objnames = o->stmts[i].num_objnames;
 }
 
-const struct NCDModule * NCDInterpBlock_StatementGetSimpleModule (NCDInterpBlock *o, int i)
+const struct NCDModule * NCDInterpProcess_StatementGetSimpleModule (NCDInterpProcess *o, int i)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
@@ -341,7 +341,7 @@ const struct NCDModule * NCDInterpBlock_StatementGetSimpleModule (NCDInterpBlock
     return o->stmts[i].binding.simple_module;
 }
 
-const struct NCDModule * NCDInterpBlock_StatementGetMethodModule (NCDInterpBlock *o, int i, const char *obj_type, NCDMethodIndex *method_index)
+const struct NCDModule * NCDInterpProcess_StatementGetMethodModule (NCDInterpProcess *o, int i, const char *obj_type, NCDMethodIndex *method_index)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
@@ -353,7 +353,7 @@ const struct NCDModule * NCDInterpBlock_StatementGetMethodModule (NCDInterpBlock
     return NCDMethodIndex_GetMethodModule(method_index, obj_type, o->stmts[i].binding.method_name_id);
 }
 
-int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg *out_prog)
+int NCDInterpProcess_CopyStatementArgs (NCDInterpProcess *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg *out_prog)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
@@ -362,7 +362,7 @@ int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_v
     ASSERT(out_val)
     ASSERT(out_prog)
     
-    struct NCDInterpBlock__stmt *e = &o->stmts[i];
+    struct NCDInterpProcess__stmt *e = &o->stmts[i];
     
     if (!NCDValMem_InitImport(out_valmem, e->arg_data, e->arg_len)) {
         return 0;
@@ -373,7 +373,7 @@ int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_v
     return 1;
 }
 
-void NCDInterpBlock_StatementBumpAllocSize (NCDInterpBlock *o, int i, int alloc_size)
+void NCDInterpProcess_StatementBumpAllocSize (NCDInterpProcess *o, int i, int alloc_size)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
@@ -386,7 +386,7 @@ void NCDInterpBlock_StatementBumpAllocSize (NCDInterpBlock *o, int i, int alloc_
     }
 }
 
-int NCDInterpBlock_StatementPreallocSize (NCDInterpBlock *o, int i)
+int NCDInterpProcess_StatementPreallocSize (NCDInterpProcess *o, int i)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
@@ -395,7 +395,7 @@ int NCDInterpBlock_StatementPreallocSize (NCDInterpBlock *o, int i)
     return o->stmts[i].alloc_size;
 }
 
-int NCDInterpBlock_PreallocSize (NCDInterpBlock *o)
+int NCDInterpProcess_PreallocSize (NCDInterpProcess *o)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(o->prealloc_size == -1 || o->prealloc_size >= 0)
@@ -407,7 +407,7 @@ int NCDInterpBlock_PreallocSize (NCDInterpBlock *o)
     return o->prealloc_size;
 }
 
-int NCDInterpBlock_StatementPreallocOffset (NCDInterpBlock *o, int i)
+int NCDInterpProcess_StatementPreallocOffset (NCDInterpProcess *o, int i)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
@@ -417,7 +417,7 @@ int NCDInterpBlock_StatementPreallocOffset (NCDInterpBlock *o, int i)
     return o->stmts[i].prealloc_offset;
 }
 
-NCDProcess * NCDInterpBlock_Process (NCDInterpBlock *o)
+NCDProcess * NCDInterpProcess_Process (NCDInterpProcess *o)
 {
     DebugObject_Access(&o->d_obj);
     

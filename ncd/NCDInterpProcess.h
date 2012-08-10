@@ -1,5 +1,5 @@
 /**
- * @file NCDInterpBlock.h
+ * @file NCDInterpProcess.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -42,10 +42,10 @@
 #include <ncd/NCDModuleIndex.h>
 #include <ncd/NCDMethodIndex.h>
 
-#include "NCDInterpBlock_trie.h"
+#include "NCDInterpProcess_trie.h"
 #include <structure/CStringTrie_decl.h>
 
-struct NCDInterpBlock__stmt {
+struct NCDInterpProcess__stmt {
     const char *name;
     const char *cmdname;
     char *objnames;
@@ -64,26 +64,26 @@ struct NCDInterpBlock__stmt {
 };
 
 typedef struct {
-    struct NCDInterpBlock__stmt *stmts;
+    struct NCDInterpProcess__stmt *stmts;
     int num_stmts;
     int prealloc_size;
-    NCDInterpBlock__Trie trie;
+    NCDInterpProcess__Trie trie;
     NCDProcess *process;
     DebugObject d_obj;
-} NCDInterpBlock;
+} NCDInterpProcess;
 
-int NCDInterpBlock_Init (NCDInterpBlock *o, NCDBlock *block, NCDProcess *process, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
-void NCDInterpBlock_Free (NCDInterpBlock *o);
-int NCDInterpBlock_FindStatement (NCDInterpBlock *o, int from_index, const char *name);
-const char * NCDInterpBlock_StatementCmdName (NCDInterpBlock *o, int i);
-void NCDInterpBlock_StatementObjNames (NCDInterpBlock *o, int i, const char **out_objnames, size_t *out_num_objnames);
-const struct NCDModule * NCDInterpBlock_StatementGetSimpleModule (NCDInterpBlock *o, int i);
-const struct NCDModule * NCDInterpBlock_StatementGetMethodModule (NCDInterpBlock *o, int i, const char *obj_type, NCDMethodIndex *method_index);
-int NCDInterpBlock_CopyStatementArgs (NCDInterpBlock *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg *out_prog) WARN_UNUSED;
-void NCDInterpBlock_StatementBumpAllocSize (NCDInterpBlock *o, int i, int alloc_size);
-int NCDInterpBlock_StatementPreallocSize (NCDInterpBlock *o, int i);
-int NCDInterpBlock_PreallocSize (NCDInterpBlock *o);
-int NCDInterpBlock_StatementPreallocOffset (NCDInterpBlock *o, int i);
-NCDProcess * NCDInterpBlock_Process (NCDInterpBlock *o);
+int NCDInterpProcess_Init (NCDInterpProcess *o, NCDBlock *block, NCDProcess *process, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
+void NCDInterpProcess_Free (NCDInterpProcess *o);
+int NCDInterpProcess_FindStatement (NCDInterpProcess *o, int from_index, const char *name);
+const char * NCDInterpProcess_StatementCmdName (NCDInterpProcess *o, int i);
+void NCDInterpProcess_StatementObjNames (NCDInterpProcess *o, int i, const char **out_objnames, size_t *out_num_objnames);
+const struct NCDModule * NCDInterpProcess_StatementGetSimpleModule (NCDInterpProcess *o, int i);
+const struct NCDModule * NCDInterpProcess_StatementGetMethodModule (NCDInterpProcess *o, int i, const char *obj_type, NCDMethodIndex *method_index);
+int NCDInterpProcess_CopyStatementArgs (NCDInterpProcess *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg *out_prog) WARN_UNUSED;
+void NCDInterpProcess_StatementBumpAllocSize (NCDInterpProcess *o, int i, int alloc_size);
+int NCDInterpProcess_StatementPreallocSize (NCDInterpProcess *o, int i);
+int NCDInterpProcess_PreallocSize (NCDInterpProcess *o);
+int NCDInterpProcess_StatementPreallocOffset (NCDInterpProcess *o, int i);
+NCDProcess * NCDInterpProcess_Process (NCDInterpProcess *o);
 
 #endif

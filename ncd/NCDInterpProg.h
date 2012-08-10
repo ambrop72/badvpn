@@ -33,13 +33,13 @@
 #include <misc/debug.h>
 #include <base/DebugObject.h>
 #include <ncd/NCDAst.h>
-#include <ncd/NCDInterpBlock.h>
+#include <ncd/NCDInterpProcess.h>
 #include <structure/CHash.h>
 
 struct NCDInterpProg__process {
     const char *name;
     NCDProcess *proc;
-    NCDInterpBlock iblock;
+    NCDInterpProcess iblock;
     int hash_next;
 };
 
@@ -59,6 +59,6 @@ typedef struct {
 
 int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
 void NCDInterpProg_Free (NCDInterpProg *o);
-int NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name, NCDProcess **out_proc, NCDInterpBlock **out_iblock) WARN_UNUSED;
+int NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name, NCDProcess **out_proc, NCDInterpProcess **out_iblock) WARN_UNUSED;
 
 #endif

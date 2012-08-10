@@ -41,12 +41,12 @@ struct NCDPlaceholderDb__entry {
 
 /**
  * Associates variable placeholder numbers to variable names.
- * This is populated by {@link NCDInterpBlock_Init} when converting the {@link NCDValue}
+ * This is populated by {@link NCDInterpProcess_Init} when converting the {@link NCDValue}
  * objects in the AST to compact representations in {@link NCDValMem}. Variables are
  * replaced with placeholder identifiers (integers), which this object associates
  * with their names.
  * During interpretation, when a statement is being initialized, the compact form held
- * by {@link NCDInterpBlock} is byte-copied, and placeholders are replaced with the
+ * by {@link NCDInterpProcess} is byte-copied, and placeholders are replaced with the
  * values of corresponding variables using {@link NCDVal_ReplacePlaceholders}.
  */
 typedef struct {

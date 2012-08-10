@@ -73,15 +73,15 @@ int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDPlaceholderDb *pd
         e->name = NCDProcess_Name(p);
         e->proc = p;
         
-        if (!NCDInterpBlock_Init(&e->iblock, NCDProcess_Block(p), p, pdb, module_index, method_index)) {
-            BLog(BLOG_ERROR, "NCDInterpBlock_Init failed");
+        if (!NCDInterpProcess_Init(&e->iblock, NCDProcess_Block(p), p, pdb, module_index, method_index)) {
+            BLog(BLOG_ERROR, "NCDInterpProcess_Init failed");
             goto fail2;
         }
         
         NCDInterpProg__HashRef ref = {e, o->num_procs};
         if (!NCDInterpProg__Hash_Insert(&o->hash, o->procs, ref, NULL)) {
             BLog(BLOG_ERROR, "duplicate process or template name: %s", e->name);
-            NCDInterpBlock_Free(&e->iblock);
+            NCDInterpProcess_Free(&e->iblock);
             goto fail2;
         }
         
@@ -95,7 +95,7 @@ int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDPlaceholderDb *pd
     
 fail2:
     while (o->num_procs-- > 0) {
-        NCDInterpBlock_Free(&o->procs[o->num_procs].iblock);
+        NCDInterpProcess_Free(&o->procs[o->num_procs].iblock);
     }
     NCDInterpProg__Hash_Free(&o->hash);
 fail1:
@@ -109,7 +109,7 @@ void NCDInterpProg_Free (NCDInterpProg *o)
     DebugObject_Free(&o->d_obj);
     
     while (o->num_procs-- > 0) {
-        NCDInterpBlock_Free(&o->procs[o->num_procs].iblock);
+        NCDInterpProcess_Free(&o->procs[o->num_procs].iblock);
     }
     
     NCDInterpProg__Hash_Free(&o->hash);
@@ -117,7 +117,7 @@ void NCDInterpProg_Free (NCDInterpProg *o)
     BFree(o->procs);
 }
 
-int NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name, NCDProcess **out_proc, NCDInterpBlock **out_iblock)
+int NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name, NCDProcess **out_proc, NCDInterpProcess **out_iblock)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(name)
