@@ -33,7 +33,7 @@ static int GrowArray_Init (GrowArrayObject *o, size_t capacity)
     if (!(o->GROWARRAY_ARRAY_MEMBER = BAllocArray(capacity, sizeof(o->GROWARRAY_ARRAY_MEMBER[0])))) {
         return 0;
     }
-        
+    
     o->GROWARRAY_CAPACITY_MEMBER = capacity;
     
     return 1;
