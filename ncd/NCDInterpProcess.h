@@ -72,7 +72,7 @@ typedef struct {
     DebugObject d_obj;
 } NCDInterpProcess;
 
-int NCDInterpProcess_Init (NCDInterpProcess *o, NCDBlock *block, NCDProcess *process, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
+int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
 void NCDInterpProcess_Free (NCDInterpProcess *o);
 int NCDInterpProcess_FindStatement (NCDInterpProcess *o, int from_index, const char *name);
 const char * NCDInterpProcess_StatementCmdName (NCDInterpProcess *o, int i);

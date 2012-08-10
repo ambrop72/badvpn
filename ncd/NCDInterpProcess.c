@@ -145,13 +145,14 @@ fail:
     return 0;
 }
 
-int NCDInterpProcess_Init (NCDInterpProcess *o, NCDBlock *block, NCDProcess *process, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index)
+int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index)
 {
-    ASSERT(block)
     ASSERT(process)
     ASSERT(pdb)
     ASSERT(module_index)
     ASSERT(method_index)
+    
+    NCDBlock *block = NCDProcess_Block(process);
     
     if (NCDBlock_NumStatements(block) > INT_MAX) {
         BLog(BLOG_ERROR, "too many statements");

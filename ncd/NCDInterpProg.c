@@ -73,7 +73,7 @@ int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDPlaceholderDb *pd
         e->name = NCDProcess_Name(p);
         e->proc = p;
         
-        if (!NCDInterpProcess_Init(&e->iblock, NCDProcess_Block(p), p, pdb, module_index, method_index)) {
+        if (!NCDInterpProcess_Init(&e->iblock, p, pdb, module_index, method_index)) {
             BLog(BLOG_ERROR, "NCDInterpProcess_Init failed");
             goto fail2;
         }
