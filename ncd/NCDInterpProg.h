@@ -39,7 +39,7 @@
 struct NCDInterpProg__process {
     const char *name;
     NCDProcess *proc;
-    NCDInterpProcess iblock;
+    NCDInterpProcess iprocess;
     int hash_next;
 };
 
@@ -59,6 +59,6 @@ typedef struct {
 
 int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
 void NCDInterpProg_Free (NCDInterpProg *o);
-int NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name, NCDProcess **out_proc, NCDInterpProcess **out_iblock) WARN_UNUSED;
+int NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name, NCDProcess **out_proc, NCDInterpProcess **out_iprocess) WARN_UNUSED;
 
 #endif
