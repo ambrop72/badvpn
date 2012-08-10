@@ -71,7 +71,6 @@ int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDPlaceholderDb *pd
         struct NCDInterpProg__process *e = &o->procs[o->num_procs];
         
         e->name = NCDProcess_Name(p);
-        e->proc = p;
         
         if (!NCDInterpProcess_Init(&e->iprocess, p, pdb, module_index, method_index)) {
             BLog(BLOG_ERROR, "NCDInterpProcess_Init failed");

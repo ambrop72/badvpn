@@ -38,7 +38,6 @@
 
 struct NCDInterpProg__process {
     const char *name;
-    NCDProcess *proc;
     NCDInterpProcess iprocess;
     int hash_next;
 };
