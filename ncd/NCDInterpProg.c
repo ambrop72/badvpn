@@ -117,21 +117,17 @@ void NCDInterpProg_Free (NCDInterpProg *o)
     BFree(o->procs);
 }
 
-int NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name, NCDProcess **out_proc, NCDInterpProcess **out_iprocess)
+NCDInterpProcess * NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(name)
-    ASSERT(out_proc)
-    ASSERT(out_iprocess)
     
     NCDInterpProg__HashRef ref = NCDInterpProg__Hash_Lookup(&o->hash, o->procs, name);
     if (ref.link == NCDInterpProg__HashNullLink()) {
-        return 0;
+        return NULL;
     }
     
     ASSERT(!strcmp(ref.ptr->name, name))
     
-    *out_proc = ref.ptr->proc;
-    *out_iprocess = &ref.ptr->iprocess;
-    return 1;
+    return &ref.ptr->iprocess;
 }

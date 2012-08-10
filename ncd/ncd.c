@@ -372,13 +372,11 @@ int main (int argc, char **argv)
         }
         
         // find iblock
-        NCDProcess *f_proc;
-        NCDInterpProcess *iblock;
-        int res = NCDInterpProg_FindProcess(&iprogram, NCDProcess_Name(p), &f_proc, &iblock);
-        ASSERT(res)
-        ASSERT(f_proc == p)
+        NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&iprogram, NCDProcess_Name(p));
+        ASSERT(iprocess)
+        ASSERT(NCDInterpProcess_Process(iprocess) == p)
         
-        if (!process_new(p, iblock, NULL)) {
+        if (!process_new(p, iprocess, NULL)) {
             BLog(BLOG_ERROR, "failed to initialize process, exiting");
             goto fail6;
         }
@@ -1298,16 +1296,22 @@ int statement_instance_func_initprocess (struct statement *ps, NCDModuleProcess 
 {
     ASSERT(ps->state != SSTATE_FORGOTTEN)
     
-    // find template
-    NCDProcess *p_ast;
-    NCDInterpProcess *iblock;
-    if (!NCDInterpProg_FindProcess(&iprogram, template_name, &p_ast, &iblock) || !NCDProcess_IsTemplate(p_ast)) {
+    // find process
+    NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&iprogram, template_name);
+    if (!iprocess) {
         statement_log(ps, BLOG_ERROR, "no template named %s", template_name);
         return 0;
     }
     
+    // make sure it's a template
+    NCDProcess *p_ast = NCDInterpProcess_Process(iprocess);
+    if (!NCDProcess_IsTemplate(p_ast)) {
+        statement_log(ps, BLOG_ERROR, "need template to create a process, but %s is a process", template_name);
+        return 0;
+    }
+    
     // create process
-    if (!process_new(p_ast, iblock, mp)) {
+    if (!process_new(p_ast, iprocess, mp)) {
         statement_log(ps, BLOG_ERROR, "failed to create process from template %s", template_name);
         return 0;
     }

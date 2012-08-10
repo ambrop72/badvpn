@@ -59,6 +59,6 @@ typedef struct {
 
 int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
 void NCDInterpProg_Free (NCDInterpProg *o);
-int NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name, NCDProcess **out_proc, NCDInterpProcess **out_iprocess) WARN_UNUSED;
+NCDInterpProcess * NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name);
 
 #endif
