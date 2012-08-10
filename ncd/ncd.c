@@ -85,7 +85,7 @@ struct statement {
 };
 
 struct process {
-    NCDInterpProcess *iblock;
+    NCDInterpProcess *iprocess;
     NCDModuleProcess *module_process;
     BTimer wait_timer;
     BPending work_job;
@@ -156,7 +156,7 @@ static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static void start_terminate (int exit_code);
-static int process_new (NCDInterpProcess *iblock, NCDModuleProcess *module_process);
+static int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process);
 static void process_free (struct process *p, NCDModuleProcess **out_mp);
 static int process_mem_is_preallocated (struct process *p, char *mem);
 static void process_start_terminating (struct process *p);
@@ -371,7 +371,7 @@ int main (int argc, char **argv)
             continue;
         }
         
-        // find iblock
+        // find iprocess
         NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&iprogram, NCDProcess_Name(p));
         ASSERT(iprocess)
         
@@ -642,19 +642,19 @@ void start_terminate (int exit_code)
     }
 }
 
-int process_new (NCDInterpProcess *iblock, NCDModuleProcess *module_process)
+int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
 {
-    ASSERT(iblock)
+    ASSERT(iprocess)
     
     // get num statements
-    int num_statements = NCDInterpProcess_NumStatements(iblock);
+    int num_statements = NCDInterpProcess_NumStatements(iprocess);
     if (num_statements > SIZE_MAX) {
         BLog(BLOG_ERROR, "too many statements");
         goto fail0;
     }
     
     // calculate size of preallocated statement memory
-    int mem_size = NCDInterpProcess_PreallocSize(iblock);
+    int mem_size = NCDInterpProcess_PreallocSize(iprocess);
     if (mem_size < 0 || mem_size > SIZE_MAX) {
         BLog(BLOG_ERROR, "NCDInterpProcess_PreallocSize failed");
         goto fail0;
@@ -670,7 +670,7 @@ int process_new (NCDInterpProcess *iblock, NCDModuleProcess *module_process)
     }
     
     // set variables
-    p->iblock = iblock;
+    p->iprocess = iprocess;
     p->module_process = module_process;
     p->statements = v_statements;
     p->mem = v_mem;
@@ -694,8 +694,8 @@ int process_new (NCDInterpProcess *iblock, NCDModuleProcess *module_process)
         ps->p = p;
         ps->i = i;
         ps->state = SSTATE_FORGOTTEN;
-        ps->mem_size = NCDInterpProcess_StatementPreallocSize(iblock, i);
-        ps->mem = (ps->mem_size == 0 ? NULL : p->mem + NCDInterpProcess_StatementPreallocOffset(iblock, i));
+        ps->mem_size = NCDInterpProcess_StatementPreallocSize(iprocess, i);
+        ps->mem = (ps->mem_size == 0 ? NULL : p->mem + NCDInterpProcess_StatementPreallocOffset(iprocess, i));
     }
     
     // init timer
@@ -712,7 +712,7 @@ int process_new (NCDInterpProcess *iblock, NCDModuleProcess *module_process)
     return 1;
     
 fail0:
-    BLog(BLOG_ERROR, "failed to initialize process %s", NCDInterpProcess_Name(iblock));
+    BLog(BLOG_ERROR, "failed to initialize process %s", NCDInterpProcess_Name(iprocess));
     return 0;
 }
 
@@ -796,7 +796,7 @@ void process_assert_pointers (struct process *p)
 
 void process_logfunc (struct process *p)
 {
-    BLog_Append("process %s: ", NCDInterpProcess_Name(p->iblock));
+    BLog_Append("process %s: ", NCDInterpProcess_Name(p->iprocess));
 }
 
 void process_log (struct process *p, int level, const char *fmt, ...)
@@ -993,14 +993,14 @@ void process_advance (struct process *p)
     // (or NULL if this is not a method statement)
     const char *objnames;
     size_t num_objnames;
-    NCDInterpProcess_StatementObjNames(p->iblock, p->ap, &objnames, &num_objnames);
+    NCDInterpProcess_StatementObjNames(p->iprocess, p->ap, &objnames, &num_objnames);
     
     if (!objnames) {
         // not a method; module is already known by NCDInterpProcess
-        module = NCDInterpProcess_StatementGetSimpleModule(p->iblock, p->ap);
+        module = NCDInterpProcess_StatementGetSimpleModule(p->iprocess, p->ap);
         
         if (!module) {
-            statement_log(ps, BLOG_ERROR, "unknown simple statement: %s", NCDInterpProcess_StatementCmdName(p->iblock, p->ap));
+            statement_log(ps, BLOG_ERROR, "unknown simple statement: %s", NCDInterpProcess_StatementCmdName(p->iprocess, p->ap));
             goto fail0;
         }
     } else {
@@ -1018,21 +1018,21 @@ void process_advance (struct process *p)
         }
         
         // find module based on type of object
-        module = NCDInterpProcess_StatementGetMethodModule(p->iblock, p->ap, object_type, &method_index);
+        module = NCDInterpProcess_StatementGetMethodModule(p->iprocess, p->ap, object_type, &method_index);
         
         if (!module) {
-            statement_log(ps, BLOG_ERROR, "unknown method statement: %s::%s", object_type, NCDInterpProcess_StatementCmdName(p->iblock, p->ap));
+            statement_log(ps, BLOG_ERROR, "unknown method statement: %s::%s", object_type, NCDInterpProcess_StatementCmdName(p->iprocess, p->ap));
             goto fail0;
         }
     }
     
     // register alloc size for future preallocations
-    NCDInterpProcess_StatementBumpAllocSize(p->iblock, p->ap, module->alloc_size);
+    NCDInterpProcess_StatementBumpAllocSize(p->iprocess, p->ap, module->alloc_size);
     
     // copy arguments
     NCDValRef args;
     NCDValReplaceProg prog;
-    if (!NCDInterpProcess_CopyStatementArgs(p->iblock, ps->i, &ps->args_mem, &args, &prog)) {
+    if (!NCDInterpProcess_CopyStatementArgs(p->iprocess, ps->i, &ps->args_mem, &args, &prog)) {
         statement_log(ps, BLOG_ERROR, "NCDInterpProcess_CopyStatementArgs failed");
         goto fail0;
     }
@@ -1098,7 +1098,7 @@ int process_find_object (struct process *p, int pos, const char *name, NCDObject
     ASSERT(name)
     ASSERT(out_object)
     
-    int i = NCDInterpProcess_FindStatement(p->iblock, pos, name);
+    int i = NCDInterpProcess_FindStatement(p->iprocess, pos, name);
     if (i >= 0) {
         struct statement *ps = &p->statements[i];
         ASSERT(i < p->num_statements)
