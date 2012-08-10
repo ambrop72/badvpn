@@ -166,7 +166,7 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDPlacehol
     }
     
     if (!NCDInterpProcess__Trie_Init(&o->trie)) {
-        BLog(BLOG_ERROR, "BStringTrie_Init failed");
+        BLog(BLOG_ERROR, "NCDInterpProcess__Trie_Init failed");
         goto fail1;
     }
     
@@ -321,6 +321,7 @@ int NCDInterpProcess_FindStatement (NCDInterpProcess *o, int from_index, const c
     
     while (stmt_idx >= 0) {
         struct NCDInterpProcess__stmt *e = &o->stmts[stmt_idx];
+        ASSERT(e->name)
         
         if (!strcmp(e->name, name) && stmt_idx < from_index) {
             return stmt_idx;
@@ -339,6 +340,7 @@ const char * NCDInterpProcess_StatementCmdName (NCDInterpProcess *o, int i)
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
     ASSERT(i < o->num_stmts)
+    ASSERT(o->stmts[i].cmdname)
     
     return o->stmts[i].cmdname;
 }
@@ -410,15 +412,6 @@ void NCDInterpProcess_StatementBumpAllocSize (NCDInterpProcess *o, int i, int al
     }
 }
 
-int NCDInterpProcess_StatementPreallocSize (NCDInterpProcess *o, int i)
-{
-    DebugObject_Access(&o->d_obj);
-    ASSERT(i >= 0)
-    ASSERT(i < o->num_stmts)
-    
-    return o->stmts[i].alloc_size;
-}
-
 int NCDInterpProcess_PreallocSize (NCDInterpProcess *o)
 {
     DebugObject_Access(&o->d_obj);
@@ -429,6 +422,16 @@ int NCDInterpProcess_PreallocSize (NCDInterpProcess *o)
     }
     
     return o->prealloc_size;
+}
+
+int NCDInterpProcess_StatementPreallocSize (NCDInterpProcess *o, int i)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(i >= 0)
+    ASSERT(i < o->num_stmts)
+    ASSERT(o->prealloc_size >= 0)
+    
+    return o->stmts[i].alloc_size;
 }
 
 int NCDInterpProcess_StatementPreallocOffset (NCDInterpProcess *o, int i)

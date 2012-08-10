@@ -63,6 +63,15 @@ struct NCDInterpProcess__stmt {
     int trie_next;
 };
 
+/**
+ * A data structure which contains information about a process or
+ * template, suitable for efficient interpretation. These structures
+ * are built at startup from the program AST for all processes and
+ * templates by \link NCDInterpProg. They are not modified after
+ * the program is loaded Inn case of template processes, the same
+ * NCDInterpProcess is shared by all processes created from the same
+ * template.
+ */
 typedef struct {
     struct NCDInterpProcess__stmt *stmts;
     char *name;
@@ -82,8 +91,8 @@ const struct NCDModule * NCDInterpProcess_StatementGetSimpleModule (NCDInterpPro
 const struct NCDModule * NCDInterpProcess_StatementGetMethodModule (NCDInterpProcess *o, int i, const char *obj_type, NCDMethodIndex *method_index);
 int NCDInterpProcess_CopyStatementArgs (NCDInterpProcess *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg *out_prog) WARN_UNUSED;
 void NCDInterpProcess_StatementBumpAllocSize (NCDInterpProcess *o, int i, int alloc_size);
-int NCDInterpProcess_StatementPreallocSize (NCDInterpProcess *o, int i);
 int NCDInterpProcess_PreallocSize (NCDInterpProcess *o);
+int NCDInterpProcess_StatementPreallocSize (NCDInterpProcess *o, int i);
 int NCDInterpProcess_StatementPreallocOffset (NCDInterpProcess *o, int i);
 const char * NCDInterpProcess_Name (NCDInterpProcess *o);
 int NCDInterpProcess_IsTemplate (NCDInterpProcess *o);
