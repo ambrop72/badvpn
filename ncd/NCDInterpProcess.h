@@ -46,8 +46,8 @@
 #include <structure/CStringTrie_decl.h>
 
 struct NCDInterpProcess__stmt {
-    const char *name;
-    const char *cmdname;
+    char *name;
+    char *cmdname;
     char *objnames;
     size_t num_objnames;
     char *arg_data;
@@ -65,10 +65,11 @@ struct NCDInterpProcess__stmt {
 
 typedef struct {
     struct NCDInterpProcess__stmt *stmts;
+    char *name;
     int num_stmts;
     int prealloc_size;
+    int is_template;
     NCDInterpProcess__Trie trie;
-    NCDProcess *process;
     DebugObject d_obj;
 } NCDInterpProcess;
 
@@ -84,6 +85,8 @@ void NCDInterpProcess_StatementBumpAllocSize (NCDInterpProcess *o, int i, int al
 int NCDInterpProcess_StatementPreallocSize (NCDInterpProcess *o, int i);
 int NCDInterpProcess_PreallocSize (NCDInterpProcess *o);
 int NCDInterpProcess_StatementPreallocOffset (NCDInterpProcess *o, int i);
-NCDProcess * NCDInterpProcess_Process (NCDInterpProcess *o);
+const char * NCDInterpProcess_Name (NCDInterpProcess *o);
+int NCDInterpProcess_IsTemplate (NCDInterpProcess *o);
+int NCDInterpProcess_NumStatements (NCDInterpProcess *o);
 
 #endif

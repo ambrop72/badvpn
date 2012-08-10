@@ -170,19 +170,34 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDPlacehol
         goto fail1;
     }
     
+    if (!(o->name = b_strdup(NCDProcess_Name(process)))) {
+        BLog(BLOG_ERROR, "b_strdup failed");
+        goto fail2;
+    }
+    
     o->num_stmts = 0;
     o->prealloc_size = -1;
-    o->process = process;
+    o->is_template = NCDProcess_IsTemplate(process);
     
     for (NCDStatement *s = NCDBlock_FirstStatement(block); s; s = NCDBlock_NextStatement(block, s)) {
         ASSERT(NCDStatement_Type(s) == NCDSTATEMENT_REG)
         struct NCDInterpProcess__stmt *e = &o->stmts[o->num_stmts];
         
-        e->name = NCDStatement_Name(s);
-        e->cmdname = NCDStatement_RegCmdName(s);
+        e->name = NULL;
+        e->cmdname = NULL;
         e->objnames = NULL;
         e->num_objnames = 0;
         e->alloc_size = 0;
+        
+        if (NCDStatement_Name(s) && !(e->name = b_strdup(NCDStatement_Name(s)))) {
+            BLog(BLOG_ERROR, "b_strdup failed");
+            goto loop_fail0;
+        }
+        
+        if (!(e->cmdname = b_strdup(NCDStatement_RegCmdName(s)))) {
+            BLog(BLOG_ERROR, "b_strdup failed");
+            goto loop_fail0;
+        }
         
         NCDValMem mem;
         NCDValMem_Init(&mem);
@@ -247,7 +262,9 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDPlacehol
     loop_fail1:
         NCDValReplaceProg_Free(&e->arg_prog);
     loop_fail0:
-        goto fail2;
+        free(e->cmdname);
+        free(e->name);
+        goto fail3;
     }
     
     ASSERT(o->num_stmts == num_stmts)
@@ -255,13 +272,17 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDPlacehol
     DebugObject_Init(&o->d_obj);
     return 1;
     
-fail2:
+fail3:
     while (o->num_stmts-- > 0) {
         struct NCDInterpProcess__stmt *e = &o->stmts[o->num_stmts];
         free(e->objnames);
         BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
+        free(e->cmdname);
+        free(e->name);
     }
+    free(o->name);
+fail2:
     NCDInterpProcess__Trie_Free(&o->trie);
 fail1:
     BFree(o->stmts);
@@ -278,10 +299,12 @@ void NCDInterpProcess_Free (NCDInterpProcess *o)
         free(e->objnames);
         BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
+        free(e->cmdname);
+        free(e->name);
     }
     
+    free(o->name);
     NCDInterpProcess__Trie_Free(&o->trie);
-    
     BFree(o->stmts);
 }
 
@@ -418,9 +441,23 @@ int NCDInterpProcess_StatementPreallocOffset (NCDInterpProcess *o, int i)
     return o->stmts[i].prealloc_offset;
 }
 
-NCDProcess * NCDInterpProcess_Process (NCDInterpProcess *o)
+const char * NCDInterpProcess_Name (NCDInterpProcess *o)
 {
     DebugObject_Access(&o->d_obj);
     
-    return o->process;
+    return o->name;
+}
+
+int NCDInterpProcess_IsTemplate (NCDInterpProcess *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    return o->is_template;
+}
+
+int NCDInterpProcess_NumStatements (NCDInterpProcess *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    return o->num_stmts;
 }

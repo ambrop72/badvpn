@@ -374,7 +374,6 @@ int main (int argc, char **argv)
         // find iblock
         NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&iprogram, NCDProcess_Name(p));
         ASSERT(iprocess)
-        ASSERT(NCDInterpProcess_Process(iprocess) == p)
         
         if (!process_new(iprocess, NULL)) {
             BLog(BLOG_ERROR, "failed to initialize process, exiting");
@@ -648,8 +647,8 @@ int process_new (NCDInterpProcess *iblock, NCDModuleProcess *module_process)
     ASSERT(iblock)
     
     // get num statements
-    size_t num_statements = NCDBlock_NumStatements(NCDProcess_Block(NCDInterpProcess_Process(iblock)));
-    if (num_statements > INT_MAX) {
+    int num_statements = NCDInterpProcess_NumStatements(iblock);
+    if (num_statements > SIZE_MAX) {
         BLog(BLOG_ERROR, "too many statements");
         goto fail0;
     }
@@ -713,7 +712,7 @@ int process_new (NCDInterpProcess *iblock, NCDModuleProcess *module_process)
     return 1;
     
 fail0:
-    BLog(BLOG_ERROR, "failed to initialize process %s", NCDProcess_Name(NCDInterpProcess_Process(iblock)));
+    BLog(BLOG_ERROR, "failed to initialize process %s", NCDInterpProcess_Name(iblock));
     return 0;
 }
 
@@ -797,7 +796,7 @@ void process_assert_pointers (struct process *p)
 
 void process_logfunc (struct process *p)
 {
-    BLog_Append("process %s: ", NCDProcess_Name(NCDInterpProcess_Process(p->iblock)));
+    BLog_Append("process %s: ", NCDInterpProcess_Name(p->iblock));
 }
 
 void process_log (struct process *p, int level, const char *fmt, ...)
@@ -1306,7 +1305,7 @@ int statement_instance_func_initprocess (struct statement *ps, NCDModuleProcess 
     }
     
     // make sure it's a template
-    if (!NCDProcess_IsTemplate(NCDInterpProcess_Process(iprocess))) {
+    if (!NCDInterpProcess_IsTemplate(iprocess)) {
         statement_log(ps, BLOG_ERROR, "need template to create a process, but %s is a process", template_name);
         return 0;
     }
