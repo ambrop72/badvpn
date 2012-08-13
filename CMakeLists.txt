@@ -77,7 +77,6 @@ include_directories(
     ${LIBCRYPTO_INCLUDE_DIRS}
     ${NSPR_INCLUDE_DIRS}
     ${NSS_INCLUDE_DIRS}
-    ${FUSE_INCLUDE_DIRS}
     ${GLIB2_INCLUDE_DIR}
     lwip/custom
     lwip/src/include
@@ -88,11 +87,6 @@ link_directories(
     ${LIBCRYPTO_LIBRARY_DIRS}
     ${NSPR_LIBRARY_DIRS}
     ${NSS_LIBRARY_DIRS}
-    ${FUSE_LIBRARY_DIRS}
-)
-
-add_definitions(
-    ${FUSE_CFLAGS}
 )
 
 test_big_endian(BIG_ENDIAN)
