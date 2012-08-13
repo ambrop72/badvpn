@@ -135,7 +135,6 @@ int msgParser_Init (msgParser *o, uint8_t *buf, int buf_len)
                 if (!(left >= sizeof(struct BProto_uint8_s))) {
                     return 0;
                 }
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
 
@@ -148,7 +147,6 @@ int msgParser_Init (msgParser *o, uint8_t *buf, int buf_len)
                 if (!(left >= sizeof(struct BProto_uint16_s))) {
                     return 0;
                 }
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
 
@@ -168,7 +166,6 @@ int msgParser_Init (msgParser *o, uint8_t *buf, int buf_len)
                 if (!(left >= sizeof(struct BProto_uint32_s))) {
                     return 0;
                 }
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
 
@@ -181,7 +178,6 @@ int msgParser_Init (msgParser *o, uint8_t *buf, int buf_len)
                 if (!(left >= sizeof(struct BProto_uint64_s))) {
                     return 0;
                 }
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
 
@@ -264,7 +260,6 @@ int msgParser_Gettype (msgParser *o, uint16_t *v)
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->type_start + o->type_pos);
                 o->type_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
             } break;
@@ -281,13 +276,11 @@ int msgParser_Gettype (msgParser *o, uint16_t *v)
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->type_start + o->type_pos);
                 o->type_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
             case BPROTO_TYPE_UINT64: {
                 ASSERT(left >= sizeof(struct BProto_uint64_s))
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + o->type_start + o->type_pos);
                 o->type_pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
             } break;
@@ -301,7 +294,6 @@ int msgParser_Gettype (msgParser *o, uint16_t *v)
 
                 uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
-                uint8_t *payload = o->buf + o->type_start + o->type_pos;
                 o->type_pos += payload_len;
                 left -= payload_len;
             } break;
@@ -341,25 +333,21 @@ int msgParser_Getpayload (msgParser *o, uint8_t **data, int *data_len)
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->payload_start + o->payload_pos);
                 o->payload_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
             } break;
             case BPROTO_TYPE_UINT16: {
                 ASSERT(left >= sizeof(struct BProto_uint16_s))
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + o->payload_start + o->payload_pos);
                 o->payload_pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->payload_start + o->payload_pos);
                 o->payload_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
             case BPROTO_TYPE_UINT64: {
                 ASSERT(left >= sizeof(struct BProto_uint64_s))
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + o->payload_start + o->payload_pos);
                 o->payload_pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
             } break;
@@ -562,7 +550,6 @@ int msg_youconnectParser_Init (msg_youconnectParser *o, uint8_t *buf, int buf_le
                 if (!(left >= sizeof(struct BProto_uint8_s))) {
                     return 0;
                 }
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
 
@@ -575,7 +562,6 @@ int msg_youconnectParser_Init (msg_youconnectParser *o, uint8_t *buf, int buf_le
                 if (!(left >= sizeof(struct BProto_uint16_s))) {
                     return 0;
                 }
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
 
@@ -588,7 +574,6 @@ int msg_youconnectParser_Init (msg_youconnectParser *o, uint8_t *buf, int buf_le
                 if (!(left >= sizeof(struct BProto_uint32_s))) {
                     return 0;
                 }
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
 
@@ -601,7 +586,6 @@ int msg_youconnectParser_Init (msg_youconnectParser *o, uint8_t *buf, int buf_le
                 if (!(left >= sizeof(struct BProto_uint64_s))) {
                     return 0;
                 }
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
 
@@ -706,25 +690,21 @@ int msg_youconnectParser_Getaddr (msg_youconnectParser *o, uint8_t **data, int *
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->addr_start + o->addr_pos);
                 o->addr_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
             } break;
             case BPROTO_TYPE_UINT16: {
                 ASSERT(left >= sizeof(struct BProto_uint16_s))
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + o->addr_start + o->addr_pos);
                 o->addr_pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->addr_start + o->addr_pos);
                 o->addr_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
             case BPROTO_TYPE_UINT64: {
                 ASSERT(left >= sizeof(struct BProto_uint64_s))
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + o->addr_start + o->addr_pos);
                 o->addr_pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
             } break;
@@ -784,25 +764,21 @@ int msg_youconnectParser_Getkey (msg_youconnectParser *o, uint8_t **data, int *d
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->key_start + o->key_pos);
                 o->key_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
             } break;
             case BPROTO_TYPE_UINT16: {
                 ASSERT(left >= sizeof(struct BProto_uint16_s))
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + o->key_start + o->key_pos);
                 o->key_pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->key_start + o->key_pos);
                 o->key_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
             case BPROTO_TYPE_UINT64: {
                 ASSERT(left >= sizeof(struct BProto_uint64_s))
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + o->key_start + o->key_pos);
                 o->key_pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
             } break;
@@ -862,19 +838,16 @@ int msg_youconnectParser_Getpassword (msg_youconnectParser *o, uint64_t *v)
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->password_start + o->password_pos);
                 o->password_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
             } break;
             case BPROTO_TYPE_UINT16: {
                 ASSERT(left >= sizeof(struct BProto_uint16_s))
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + o->password_start + o->password_pos);
                 o->password_pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->password_start + o->password_pos);
                 o->password_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
@@ -899,7 +872,6 @@ int msg_youconnectParser_Getpassword (msg_youconnectParser *o, uint64_t *v)
 
                 uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
-                uint8_t *payload = o->buf + o->password_start + o->password_pos;
                 o->password_pos += payload_len;
                 left -= payload_len;
             } break;
@@ -1051,7 +1023,6 @@ int msg_youconnect_addrParser_Init (msg_youconnect_addrParser *o, uint8_t *buf, 
                 if (!(left >= sizeof(struct BProto_uint8_s))) {
                     return 0;
                 }
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
 
@@ -1064,7 +1035,6 @@ int msg_youconnect_addrParser_Init (msg_youconnect_addrParser *o, uint8_t *buf, 
                 if (!(left >= sizeof(struct BProto_uint16_s))) {
                     return 0;
                 }
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
 
@@ -1077,7 +1047,6 @@ int msg_youconnect_addrParser_Init (msg_youconnect_addrParser *o, uint8_t *buf, 
                 if (!(left >= sizeof(struct BProto_uint32_s))) {
                     return 0;
                 }
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
 
@@ -1090,7 +1059,6 @@ int msg_youconnect_addrParser_Init (msg_youconnect_addrParser *o, uint8_t *buf, 
                 if (!(left >= sizeof(struct BProto_uint64_s))) {
                     return 0;
                 }
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
 
@@ -1183,25 +1151,21 @@ int msg_youconnect_addrParser_Getname (msg_youconnect_addrParser *o, uint8_t **d
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->name_start + o->name_pos);
                 o->name_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
             } break;
             case BPROTO_TYPE_UINT16: {
                 ASSERT(left >= sizeof(struct BProto_uint16_s))
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + o->name_start + o->name_pos);
                 o->name_pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->name_start + o->name_pos);
                 o->name_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
             case BPROTO_TYPE_UINT64: {
                 ASSERT(left >= sizeof(struct BProto_uint64_s))
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + o->name_start + o->name_pos);
                 o->name_pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
             } break;
@@ -1261,25 +1225,21 @@ int msg_youconnect_addrParser_Getaddr (msg_youconnect_addrParser *o, uint8_t **d
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->addr_start + o->addr_pos);
                 o->addr_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
             } break;
             case BPROTO_TYPE_UINT16: {
                 ASSERT(left >= sizeof(struct BProto_uint16_s))
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + o->addr_start + o->addr_pos);
                 o->addr_pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->addr_start + o->addr_pos);
                 o->addr_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
             case BPROTO_TYPE_UINT64: {
                 ASSERT(left >= sizeof(struct BProto_uint64_s))
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + o->addr_start + o->addr_pos);
                 o->addr_pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
             } break;
@@ -1482,7 +1442,6 @@ int msg_seedParser_Init (msg_seedParser *o, uint8_t *buf, int buf_len)
                 if (!(left >= sizeof(struct BProto_uint8_s))) {
                     return 0;
                 }
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
 
@@ -1495,7 +1454,6 @@ int msg_seedParser_Init (msg_seedParser *o, uint8_t *buf, int buf_len)
                 if (!(left >= sizeof(struct BProto_uint16_s))) {
                     return 0;
                 }
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
 
@@ -1515,7 +1473,6 @@ int msg_seedParser_Init (msg_seedParser *o, uint8_t *buf, int buf_len)
                 if (!(left >= sizeof(struct BProto_uint32_s))) {
                     return 0;
                 }
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
 
@@ -1528,7 +1485,6 @@ int msg_seedParser_Init (msg_seedParser *o, uint8_t *buf, int buf_len)
                 if (!(left >= sizeof(struct BProto_uint64_s))) {
                     return 0;
                 }
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
 
@@ -1626,7 +1582,6 @@ int msg_seedParser_Getseed_id (msg_seedParser *o, uint16_t *v)
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->seed_id_start + o->seed_id_pos);
                 o->seed_id_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
             } break;
@@ -1643,13 +1598,11 @@ int msg_seedParser_Getseed_id (msg_seedParser *o, uint16_t *v)
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->seed_id_start + o->seed_id_pos);
                 o->seed_id_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
             case BPROTO_TYPE_UINT64: {
                 ASSERT(left >= sizeof(struct BProto_uint64_s))
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + o->seed_id_start + o->seed_id_pos);
                 o->seed_id_pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
             } break;
@@ -1663,7 +1616,6 @@ int msg_seedParser_Getseed_id (msg_seedParser *o, uint16_t *v)
 
                 uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
-                uint8_t *payload = o->buf + o->seed_id_start + o->seed_id_pos;
                 o->seed_id_pos += payload_len;
                 left -= payload_len;
             } break;
@@ -1703,25 +1655,21 @@ int msg_seedParser_Getkey (msg_seedParser *o, uint8_t **data, int *data_len)
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->key_start + o->key_pos);
                 o->key_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
             } break;
             case BPROTO_TYPE_UINT16: {
                 ASSERT(left >= sizeof(struct BProto_uint16_s))
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + o->key_start + o->key_pos);
                 o->key_pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->key_start + o->key_pos);
                 o->key_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
             case BPROTO_TYPE_UINT64: {
                 ASSERT(left >= sizeof(struct BProto_uint64_s))
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + o->key_start + o->key_pos);
                 o->key_pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
             } break;
@@ -1781,25 +1729,21 @@ int msg_seedParser_Getiv (msg_seedParser *o, uint8_t **data, int *data_len)
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->iv_start + o->iv_pos);
                 o->iv_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
             } break;
             case BPROTO_TYPE_UINT16: {
                 ASSERT(left >= sizeof(struct BProto_uint16_s))
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + o->iv_start + o->iv_pos);
                 o->iv_pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->iv_start + o->iv_pos);
                 o->iv_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
             case BPROTO_TYPE_UINT64: {
                 ASSERT(left >= sizeof(struct BProto_uint64_s))
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + o->iv_start + o->iv_pos);
                 o->iv_pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
             } break;
@@ -1930,7 +1874,6 @@ int msg_confirmseedParser_Init (msg_confirmseedParser *o, uint8_t *buf, int buf_
                 if (!(left >= sizeof(struct BProto_uint8_s))) {
                     return 0;
                 }
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
 
@@ -1943,7 +1886,6 @@ int msg_confirmseedParser_Init (msg_confirmseedParser *o, uint8_t *buf, int buf_
                 if (!(left >= sizeof(struct BProto_uint16_s))) {
                     return 0;
                 }
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
 
@@ -1963,7 +1905,6 @@ int msg_confirmseedParser_Init (msg_confirmseedParser *o, uint8_t *buf, int buf_
                 if (!(left >= sizeof(struct BProto_uint32_s))) {
                     return 0;
                 }
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
 
@@ -1976,7 +1917,6 @@ int msg_confirmseedParser_Init (msg_confirmseedParser *o, uint8_t *buf, int buf_
                 if (!(left >= sizeof(struct BProto_uint64_s))) {
                     return 0;
                 }
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
 
@@ -2044,7 +1984,6 @@ int msg_confirmseedParser_Getseed_id (msg_confirmseedParser *o, uint16_t *v)
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->seed_id_start + o->seed_id_pos);
                 o->seed_id_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
             } break;
@@ -2061,13 +2000,11 @@ int msg_confirmseedParser_Getseed_id (msg_confirmseedParser *o, uint16_t *v)
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->seed_id_start + o->seed_id_pos);
                 o->seed_id_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
             case BPROTO_TYPE_UINT64: {
                 ASSERT(left >= sizeof(struct BProto_uint64_s))
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + o->seed_id_start + o->seed_id_pos);
                 o->seed_id_pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
             } break;
@@ -2081,7 +2018,6 @@ int msg_confirmseedParser_Getseed_id (msg_confirmseedParser *o, uint16_t *v)
 
                 uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
-                uint8_t *payload = o->buf + o->seed_id_start + o->seed_id_pos;
                 o->seed_id_pos += payload_len;
                 left -= payload_len;
             } break;

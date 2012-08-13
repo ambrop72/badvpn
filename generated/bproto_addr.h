@@ -207,7 +207,6 @@ int addrParser_Init (addrParser *o, uint8_t *buf, int buf_len)
                 if (!(left >= sizeof(struct BProto_uint8_s))) {
                     return 0;
                 }
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
 
@@ -227,7 +226,6 @@ int addrParser_Init (addrParser *o, uint8_t *buf, int buf_len)
                 if (!(left >= sizeof(struct BProto_uint16_s))) {
                     return 0;
                 }
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
 
@@ -240,7 +238,6 @@ int addrParser_Init (addrParser *o, uint8_t *buf, int buf_len)
                 if (!(left >= sizeof(struct BProto_uint32_s))) {
                     return 0;
                 }
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
 
@@ -253,7 +250,6 @@ int addrParser_Init (addrParser *o, uint8_t *buf, int buf_len)
                 if (!(left >= sizeof(struct BProto_uint64_s))) {
                     return 0;
                 }
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
 
@@ -386,19 +382,16 @@ int addrParser_Gettype (addrParser *o, uint8_t *v)
             } break;
             case BPROTO_TYPE_UINT16: {
                 ASSERT(left >= sizeof(struct BProto_uint16_s))
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + o->type_start + o->type_pos);
                 o->type_pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->type_start + o->type_pos);
                 o->type_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
             case BPROTO_TYPE_UINT64: {
                 ASSERT(left >= sizeof(struct BProto_uint64_s))
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + o->type_start + o->type_pos);
                 o->type_pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
             } break;
@@ -412,7 +405,6 @@ int addrParser_Gettype (addrParser *o, uint8_t *v)
 
                 uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
-                uint8_t *payload = o->buf + o->type_start + o->type_pos;
                 o->type_pos += payload_len;
                 left -= payload_len;
             } break;
@@ -452,25 +444,21 @@ int addrParser_Getip_port (addrParser *o, uint8_t **data)
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->ip_port_start + o->ip_port_pos);
                 o->ip_port_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
             } break;
             case BPROTO_TYPE_UINT16: {
                 ASSERT(left >= sizeof(struct BProto_uint16_s))
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + o->ip_port_start + o->ip_port_pos);
                 o->ip_port_pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->ip_port_start + o->ip_port_pos);
                 o->ip_port_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
             case BPROTO_TYPE_UINT64: {
                 ASSERT(left >= sizeof(struct BProto_uint64_s))
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + o->ip_port_start + o->ip_port_pos);
                 o->ip_port_pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
             } break;
@@ -529,25 +517,21 @@ int addrParser_Getipv4_addr (addrParser *o, uint8_t **data)
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->ipv4_addr_start + o->ipv4_addr_pos);
                 o->ipv4_addr_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
             } break;
             case BPROTO_TYPE_UINT16: {
                 ASSERT(left >= sizeof(struct BProto_uint16_s))
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + o->ipv4_addr_start + o->ipv4_addr_pos);
                 o->ipv4_addr_pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->ipv4_addr_start + o->ipv4_addr_pos);
                 o->ipv4_addr_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
             case BPROTO_TYPE_UINT64: {
                 ASSERT(left >= sizeof(struct BProto_uint64_s))
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + o->ipv4_addr_start + o->ipv4_addr_pos);
                 o->ipv4_addr_pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
             } break;
@@ -606,25 +590,21 @@ int addrParser_Getipv6_addr (addrParser *o, uint8_t **data)
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->ipv6_addr_start + o->ipv6_addr_pos);
                 o->ipv6_addr_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
             } break;
             case BPROTO_TYPE_UINT16: {
                 ASSERT(left >= sizeof(struct BProto_uint16_s))
-                struct BProto_uint16_s *val = (struct BProto_uint16_s *)(o->buf + o->ipv6_addr_start + o->ipv6_addr_pos);
                 o->ipv6_addr_pos += sizeof(struct BProto_uint16_s);
                 left -= sizeof(struct BProto_uint16_s);
             } break;
             case BPROTO_TYPE_UINT32: {
                 ASSERT(left >= sizeof(struct BProto_uint32_s))
-                struct BProto_uint32_s *val = (struct BProto_uint32_s *)(o->buf + o->ipv6_addr_start + o->ipv6_addr_pos);
                 o->ipv6_addr_pos += sizeof(struct BProto_uint32_s);
                 left -= sizeof(struct BProto_uint32_s);
             } break;
             case BPROTO_TYPE_UINT64: {
                 ASSERT(left >= sizeof(struct BProto_uint64_s))
-                struct BProto_uint64_s *val = (struct BProto_uint64_s *)(o->buf + o->ipv6_addr_start + o->ipv6_addr_pos);
                 o->ipv6_addr_pos += sizeof(struct BProto_uint64_s);
                 left -= sizeof(struct BProto_uint64_s);
             } break;

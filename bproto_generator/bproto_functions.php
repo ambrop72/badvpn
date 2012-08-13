@@ -467,7 +467,6 @@ EOD;
                 if (!(left >= sizeof(struct BProto_uint{$bits}_s))) {
                     return 0;
                 }
-                struct BProto_uint{$bits}_s *val = (struct BProto_uint{$bits}_s *)(o->buf + pos);
                 pos += sizeof(struct BProto_uint{$bits}_s);
                 left -= sizeof(struct BProto_uint{$bits}_s);
 
@@ -659,7 +658,15 @@ EOD;
                 echo <<<EOD
             case BPROTO_TYPE_UINT{$bits}: {
                 ASSERT(left >= sizeof(struct BProto_uint{$bits}_s))
+
+EOD;
+                if ($entry["type"]["type"] == "uint" && $entry["type"]["size"] == $bits) {
+                    echo <<<EOD
                 struct BProto_uint{$bits}_s *val = (struct BProto_uint{$bits}_s *)(o->buf + o->{$entry["name"]}_start + o->{$entry["name"]}_pos);
+
+EOD;
+                }
+                echo <<<EOD
                 o->{$entry["name"]}_pos += sizeof(struct BProto_uint{$bits}_s);
                 left -= sizeof(struct BProto_uint{$bits}_s);
 
@@ -692,7 +699,15 @@ EOD;
 
                 uint32_t payload_len = ltoh32(val->len);
                 ASSERT(left >= payload_len)
+
+EOD;
+            if ($entry["type"]["type"] == "data" || $entry["type"]["type"] == "constdata") {
+                    echo <<<EOD
                 uint8_t *payload = o->buf + o->{$entry["name"]}_start + o->{$entry["name"]}_pos;
+
+EOD;
+            }
+            echo <<<EOD
                 o->{$entry["name"]}_pos += payload_len;
                 left -= payload_len;
 
