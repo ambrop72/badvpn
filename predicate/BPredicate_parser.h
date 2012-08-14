@@ -44,7 +44,4 @@
 // implemented in BPredicate.c
 void yyerror (YYLTYPE *yylloc, yyscan_t scanner, struct predicate_node **result, char *str);
 
-// implemented in parser
-int yyparse (void *scanner, struct predicate_node **result);
-
 #endif
