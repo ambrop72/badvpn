@@ -745,7 +745,6 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int fr
                                 PeerLog(o, BLOG_INFO, "analyze: IGMP: short source");
                                 goto out;
                             }
-                            struct igmp_source *source = (struct igmp_source *)pos;
                             pos += sizeof(struct igmp_source);
                             len -= sizeof(struct igmp_source);
                         }

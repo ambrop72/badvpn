@@ -218,9 +218,6 @@ static void listener_handler (struct instance *o)
     ModuleLog(o->i, BLOG_INFO, "connection initialized");
     return;
     
-fail3:
-    PacketStreamSender_Free(&c->send_pss);
-    PacketProtoDecoder_Free(&c->recv_decoder);
 fail2:
     PacketPassInterface_Free(&c->recv_if);
     BConnection_RecvAsync_Free(&c->con);

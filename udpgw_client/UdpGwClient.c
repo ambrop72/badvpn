@@ -133,7 +133,6 @@ static void recv_interface_handler_send (UdpGwClient *o, uint8_t *data, int data
     struct udpgw_header *header = (struct udpgw_header *)data;
     data += sizeof(*header);
     data_len -= sizeof(*header);
-    uint8_t flags = ltoh8(header->flags);
     uint16_t conid = ltoh16(header->conid);
     
     // check remaining data

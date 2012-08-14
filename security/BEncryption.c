@@ -144,7 +144,9 @@ fail1:
             ;
     }
     
+    #ifdef BADVPN_USE_CRYPTODEV
 success:
+    #endif
     // init debug object
     DebugObject_Init(&enc->d_obj);
 }

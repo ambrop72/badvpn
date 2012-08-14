@@ -147,7 +147,7 @@ static struct elem * insert_value (NCDModuleInst *i, struct instance *o, NCDValR
     struct elem *e = malloc(sizeof(*e));
     if (!e) {
         ModuleLog(i, BLOG_ERROR, "malloc failed");
-        return NULL;
+        goto fail0;
     }
     
     NCDValMem_Init(&e->mem);
