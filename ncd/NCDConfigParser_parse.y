@@ -104,7 +104,8 @@ static void free_value (struct value o) { if (o.have) NCDValue_Free(&o.v); }
 %type name_maybe { char * }
 %type process_or_template { int }
 
-%destructor processes { free_program($$); }
+// mention parser_out in some destructor to a void unused variable warning
+%destructor processes { (void)parser_out; free_program($$); }
 %destructor statement { free_statement($$); }
 %destructor elif_maybe { free_ifblock($$); }
 %destructor elif { free_ifblock($$); }

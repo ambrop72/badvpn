@@ -39,7 +39,8 @@
 %type map  { struct value }
 %type value  { struct value }
 
-%destructor list_contents { free_value($$); }
+// mention parser_out in some destructor to a void unused variable warning
+%destructor list_contents { (void)parser_out; free_value($$); }
 %destructor list { free_value($$); }
 %destructor map_contents { free_value($$); }
 %destructor map { free_value($$); }
