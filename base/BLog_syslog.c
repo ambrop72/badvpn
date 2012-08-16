@@ -119,7 +119,7 @@ static int convert_level (int level)
     }
 }
 
-struct {
+static struct {
     char ident[200];
 } syslog_global;
 
