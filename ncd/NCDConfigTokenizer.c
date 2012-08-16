@@ -117,8 +117,14 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
         else if (l = data_begins_with(str, left, "If")) {
             token = NCD_TOKEN_IF;
         }
+        else if (l = data_begins_with(str, left, "Elif")) {
+            token = NCD_TOKEN_ELIF;
+        }
         else if (l = data_begins_with(str, left, "elif")) {
             token = NCD_TOKEN_ELIF;
+        }
+        else if (l = data_begins_with(str, left, "Else")) {
+            token = NCD_TOKEN_ELSE;
         }
         else if (l = data_begins_with(str, left, "else")) {
             token = NCD_TOKEN_ELSE;
