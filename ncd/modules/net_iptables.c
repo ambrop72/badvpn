@@ -108,7 +108,7 @@
 
 static void template_free_func (void *vo, int is_error);
 
-BEventLock iptables_lock;
+static BEventLock iptables_lock;
 
 struct instance {
     NCDModuleInst *i;
