@@ -101,7 +101,7 @@ struct process {
 };
 
 // command-line options
-struct {
+static struct {
     int help;
     int version;
     int logger;
@@ -117,39 +117,39 @@ struct {
 } options;
 
 // reactor
-BReactor reactor;
+static BReactor reactor;
 
 // are we terminating
-int terminating;
-int main_exit_code;
+static int terminating;
+static int main_exit_code;
 
 // process manager
-BProcessManager manager;
+static BProcessManager manager;
 
 // udev manager
-NCDUdevManager umanager;
+static NCDUdevManager umanager;
 
 // method index
-NCDMethodIndex method_index;
+static NCDMethodIndex method_index;
 
 // module index
-NCDModuleIndex mindex;
+static NCDModuleIndex mindex;
 
 // program AST
-NCDProgram program;
+static NCDProgram program;
 
 // placeholder database
-NCDPlaceholderDb placeholder_db;
+static NCDPlaceholderDb placeholder_db;
 
 // structure for efficient interpretation
-NCDInterpProg iprogram;
+static NCDInterpProg iprogram;
 
 // common module parameters
-struct NCDModuleInst_params module_params;
-struct NCDModuleInst_iparams module_iparams;
+static struct NCDModuleInst_params module_params;
+static struct NCDModuleInst_iparams module_iparams;
 
 // processes
-LinkedList1 processes;
+static LinkedList1 processes;
 
 static void print_help (const char *name);
 static void print_version (void);
