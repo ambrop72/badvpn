@@ -41,7 +41,7 @@
 
 #include <generated/blog_channel_BSignal.h>
 
-struct {
+static struct {
     int initialized;
     int finished;
     BReactor *reactor;
