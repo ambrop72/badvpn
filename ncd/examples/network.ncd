@@ -69,7 +69,7 @@ process wired_example_dhcp {
 # This will use the wpa_supplicant configuration file /etc/wpa_supplicant/all.conf
 # which should specify the wireless networks and other options.
 process wireless_example_dhcp {
-    #if("false"); # remove/comment to enable
+    if("false"); # remove/comment to enable
 
     # Set device.
     var("wlan0") dev;
