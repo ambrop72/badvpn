@@ -99,8 +99,8 @@ process wireless_example_dhcp {
 }
 
 # This process sets up routes and DNS servers for at most one of
-# the working interfaces. It will change the configuration of a more
-# important interface comes up after one is already up.
+# the working interfaces. It will change the configuration if a
+# more important interface comes up while one is already up.
 process NETCONF {
     # Choose devices and priorities; put preferred devices to the front.
     var({"NET-eth0", "NET-eth1", "NET-wlan0"}) provide_names;
