@@ -72,8 +72,6 @@
 #define PSTATE_WAITING 3
 #define PSTATE_TERMINATING 4
 
-struct process;
-
 struct statement {
     struct process *p;
     NCDModuleInst inst;
