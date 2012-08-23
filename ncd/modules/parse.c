@@ -36,6 +36,15 @@
  * Variables:
  *   succeeded - "true" or "false", reflecting success of the parsing
  *   (empty) - normalized parsed value (only if succeeded)
+ * 
+ * Synopsis:
+ *   parse_ipv4_cidr_addr(string str)
+ * 
+ * Variables:
+ *   succeeded - "true" or "false", reflecting success of the parsing
+ *   (empty) - normalized CIDR notation address (only if succeeded)
+ *   addr - normalized address without prefix (only if succeeded)
+ *   prefix - normalized prefix without address (only if succeeded)
  */
 
 #include <stdio.h>
@@ -57,6 +66,12 @@ struct instance {
     NCDValMem mem;
     NCDValRef value;
     int succeeded;
+};
+
+struct ipv4_cidr_instance {
+    NCDModuleInst *i;
+    int succeeded;
+    struct ipv4_ifaddr ifaddr;
 };
 
 typedef int (*parse_func) (NCDModuleInst *i, const char *str, NCDValMem *mem, NCDValRef *out);
@@ -210,6 +225,70 @@ static void func_new_parse_ipv4_addr (NCDModuleInst *i)
     new_templ(i, parse_ipv4_addr);
 }
 
+static void ipv4_cidr_addr_func_new (void *vo, NCDModuleInst *i)
+{
+    struct ipv4_cidr_instance *o = vo;
+    o->i = i;
+    
+    NCDValRef str_arg;
+    if (!NCDVal_ListRead(i->args, 1, &str_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (!NCDVal_IsString(str_arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    
+    o->succeeded = ipaddr_parse_ipv4_ifaddr_bin(NCDVal_StringValue(str_arg), NCDVal_StringLength(str_arg), &o->ifaddr);
+    
+    NCDModuleInst_Backend_Up(i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static int ipv4_cidr_addr_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+{
+    struct ipv4_cidr_instance *o = vo;
+    
+    if (!strcmp(name, "succeeded")) {
+        const char *str = o->succeeded ? "true" : "false";
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+        }
+        return 1;
+    }
+    
+    if (!o->succeeded) {
+        return 0;
+    }
+    
+    char str[IPADDR_PRINT_MAX];
+    
+    if (!strcmp(name, "")) {
+        ipaddr_print_ifaddr(o->ifaddr, str);
+    }
+    else if (!strcmp(name, "addr")) {
+        ipaddr_print_addr(o->ifaddr.addr, str);
+    }
+    else if (!strcmp(name, "prefix")) {
+        sprintf(str, "%d", o->ifaddr.prefix);
+    }
+    else {
+        return 0;
+    }
+    
+    *out = NCDVal_NewString(mem, str);
+    if (NCDVal_IsInvalid(*out)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+    }
+    return 1;
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "parse_number",
@@ -226,6 +305,11 @@ static const struct NCDModule modules[] = {
         .func_new = func_new_parse_ipv4_addr,
         .func_die = func_die,
         .func_getvar = func_getvar
+    }, {
+        .type = "parse_ipv4_cidr_addr",
+        .func_new2 = ipv4_cidr_addr_func_new,
+        .func_getvar = ipv4_cidr_addr_func_getvar,
+        .alloc_size = sizeof(struct ipv4_cidr_instance)
     }, {
         .type = NULL
     }

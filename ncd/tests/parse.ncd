@@ -21,6 +21,19 @@ process main {
     parse_value("{syntax error") x;
     not(x.succeeded) a;
     assert(a);
-
+    
+    parse_ipv4_cidr_addr("192.168.61.007/24") x;
+    assert(x.succeeded);
+    val_equal(x, "192.168.61.7/24") a;
+    assert(a);
+    val_equal(x.addr, "192.168.61.7") a;
+    assert(a);
+    val_equal(x.prefix, "24") a;
+    assert(a);
+    
+    parse_ipv4_cidr_addr("192.168.61.007/33") x;
+    not(x.succeeded) a;
+    assert(a);
+    
     exit("0");
 }
