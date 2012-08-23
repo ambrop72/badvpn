@@ -34,7 +34,7 @@
 #ifndef BADVPN_MISC_IPADDR_H
 #define BADVPN_MISC_IPADDR_H
 
-#include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -58,6 +58,11 @@ static int ipaddr_ipv4_ifaddr_from_addr_mask (uint32_t addr, uint32_t mask, stru
 static uint32_t ipaddr_ipv4_mask_from_prefix (int prefix);
 static int ipaddr_ipv4_prefix_from_mask (uint32_t mask, int *out_prefix);
 static int ipaddr_ipv4_addrs_in_network (uint32_t addr1, uint32_t addr2, int netprefix);
+
+#define IPADDR_PRINT_MAX 19
+
+static void ipaddr_print_addr (uint32_t addr, char *out);
+static void ipaddr_print_ifaddr (struct ipv4_ifaddr ifaddr, char *out);
 
 int ipaddr_parse_ipv4_addr_bin (const char *name, size_t name_len, uint32_t *out_addr)
 {
@@ -186,6 +191,28 @@ int ipaddr_ipv4_addrs_in_network (uint32_t addr1, uint32_t addr2, int netprefix)
     uint32_t mask = ipaddr_ipv4_mask_from_prefix(netprefix);
     
     return !!((addr1 & mask) == (addr2 & mask));
+}
+
+void ipaddr_print_addr (uint32_t addr, char *out)
+{
+    ASSERT(out)
+    
+    uint8_t *b = (uint8_t *)&addr;
+    
+    sprintf(out, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8,
+            b[0], b[1], b[2], b[3]);
+}
+
+void ipaddr_print_ifaddr (struct ipv4_ifaddr ifaddr, char *out)
+{
+    ASSERT(ifaddr.prefix >= 0)
+    ASSERT(ifaddr.prefix <= 32)
+    ASSERT(out)
+    
+    uint8_t *b = (uint8_t *)&ifaddr.addr;
+    
+    sprintf(out, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"/%d",
+            b[0], b[1], b[2], b[3], ifaddr.prefix);
 }
 
 #endif
