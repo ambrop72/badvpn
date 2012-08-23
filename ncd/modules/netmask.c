@@ -181,9 +181,8 @@ static int addr_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
     struct addr_instance *o = vo;
     
     if (!strcmp(name, "")) {
-        uint8_t *x = (void *)&o->addr;
-        char buf[20];
-        sprintf(buf, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, x[0], x[1], x[2], x[3]);
+        char buf[IPADDR_PRINT_MAX];
+        ipaddr_print_addr(o->addr, buf);
         
         *out = NCDVal_NewString(mem, buf);
         if (NCDVal_IsInvalid(*out)) {
