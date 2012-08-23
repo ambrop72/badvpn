@@ -32,9 +32,12 @@
  * 
  * Synopsis:
  *     net.ipv4.route(string dest, string dest_prefix, string gateway, string metric, string ifname)
+ *     net.ipv4.route(string cidr_dest, string gateway, string metric, string ifname)
+ * 
  * Description:
- *     Adds an IPv4 route to the system's routing table on initiailzation, and removes it on
- *     deinitialization.
+ *     Adds an IPv4 route to the system's routing table on initiailzation, and
+ *     removes it on deinitialization. The second form takes the destination in
+ *     CIDR notation (a.b.c.d/n).
  *     If 'gateway' is "none", the route will only be associated with an interface.
  *     If 'gateway' is "blackhole", the route will be a blackhole route (and 'ifname' is unused).
  */
@@ -75,28 +78,39 @@ static void func_new (NCDModuleInst *i)
     
     // read arguments
     NCDValRef dest_arg;
-    NCDValRef dest_prefix_arg;
+    NCDValRef dest_prefix_arg = NCDVal_NewInvalid();
     NCDValRef gateway_arg;
     NCDValRef metric_arg;
     NCDValRef ifname_arg;
-    if (!NCDVal_ListRead(o->i->args, 5, &dest_arg, &dest_prefix_arg, &gateway_arg, &metric_arg, &ifname_arg)) {
+    if (!NCDVal_ListRead(i->args, 4, &dest_arg, &gateway_arg, &metric_arg, &ifname_arg) &&
+        !NCDVal_ListRead(i->args, 5, &dest_arg, &dest_prefix_arg, &gateway_arg, &metric_arg, &ifname_arg)
+    ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDVal_IsStringNoNulls(dest_arg) || !NCDVal_IsStringNoNulls(dest_prefix_arg) || !NCDVal_IsStringNoNulls(gateway_arg) ||
-        !NCDVal_IsStringNoNulls(metric_arg) || !NCDVal_IsStringNoNulls(ifname_arg)) {
+    if (!NCDVal_IsStringNoNulls(dest_arg) || !NCDVal_IsStringNoNulls(gateway_arg) ||
+        !NCDVal_IsStringNoNulls(metric_arg) || !NCDVal_IsStringNoNulls(ifname_arg) ||
+        (!NCDVal_IsInvalid(dest_prefix_arg) && !NCDVal_IsStringNoNulls(dest_prefix_arg))
+    ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
     
     // read dest
-    if (!ipaddr_parse_ipv4_addr((char *)NCDVal_StringValue(dest_arg), &o->dest.addr)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong dest addr");
-        goto fail1;
-    }
-    if (!ipaddr_parse_ipv4_prefix((char *)NCDVal_StringValue(dest_prefix_arg), &o->dest.prefix)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong dest prefix");
-        goto fail1;
+    if (NCDVal_IsInvalid(dest_prefix_arg)) {
+        if (!ipaddr_parse_ipv4_ifaddr(NCDVal_StringValue(dest_arg), &o->dest)) {
+            ModuleLog(o->i, BLOG_ERROR, "wrong CIDR notation dest");
+            goto fail1;
+        }
+    } else {
+        if (!ipaddr_parse_ipv4_addr(NCDVal_StringValue(dest_arg), &o->dest.addr)) {
+            ModuleLog(o->i, BLOG_ERROR, "wrong dest addr");
+            goto fail1;
+        }
+        if (!ipaddr_parse_ipv4_prefix(NCDVal_StringValue(dest_prefix_arg), &o->dest.prefix)) {
+            ModuleLog(o->i, BLOG_ERROR, "wrong dest prefix");
+            goto fail1;
+        }
     }
     
     // read gateway and choose type
@@ -107,7 +121,7 @@ static void func_new (NCDModuleInst *i)
     else if (!strcmp(gateway_str, "blackhole")) {
         o->type = TYPE_BLACKHOLE;
     } else {
-        if (!ipaddr_parse_ipv4_addr((char *)gateway_str, &o->gateway)) {
+        if (!ipaddr_parse_ipv4_addr(gateway_str, &o->gateway)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong gateway");
             goto fail1;
         }
