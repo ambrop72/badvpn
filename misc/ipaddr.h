@@ -41,23 +41,25 @@
 #include <misc/debug.h>
 #include <misc/byteorder.h>
 #include <misc/parse_number.h>
+#include <misc/find_char.h>
 
 struct ipv4_ifaddr {
     uint32_t addr;
     int prefix;
 };
 
-static int ipaddr_parse_ipv4_addr_bin (char *name, size_t name_len, uint32_t *out_addr);
-static int ipaddr_parse_ipv4_addr (char *name, uint32_t *out_addr);
-static int ipaddr_parse_ipv4_prefix_bin (char *str, size_t str_len, int *num);
-static int ipaddr_parse_ipv4_prefix (char *str, int *num);
-static int ipaddr_parse_ipv4_ifaddr (char *str, struct ipv4_ifaddr *out);
+static int ipaddr_parse_ipv4_addr_bin (const char *name, size_t name_len, uint32_t *out_addr);
+static int ipaddr_parse_ipv4_addr (const char *name, uint32_t *out_addr);
+static int ipaddr_parse_ipv4_prefix_bin (const char *str, size_t str_len, int *num);
+static int ipaddr_parse_ipv4_prefix (const char *str, int *num);
+static int ipaddr_parse_ipv4_ifaddr_bin (const char *str, size_t str_len, struct ipv4_ifaddr *out);
+static int ipaddr_parse_ipv4_ifaddr (const char *str, struct ipv4_ifaddr *out);
 static int ipaddr_ipv4_ifaddr_from_addr_mask (uint32_t addr, uint32_t mask, struct ipv4_ifaddr *out);
 static uint32_t ipaddr_ipv4_mask_from_prefix (int prefix);
 static int ipaddr_ipv4_prefix_from_mask (uint32_t mask, int *out_prefix);
 static int ipaddr_ipv4_addrs_in_network (uint32_t addr1, uint32_t addr2, int netprefix);
 
-int ipaddr_parse_ipv4_addr_bin (char *name, size_t name_len, uint32_t *out_addr)
+int ipaddr_parse_ipv4_addr_bin (const char *name, size_t name_len, uint32_t *out_addr)
 {
     for (size_t i = 0; ; i++) {
         size_t j;
@@ -91,12 +93,12 @@ int ipaddr_parse_ipv4_addr_bin (char *name, size_t name_len, uint32_t *out_addr)
     }
 }
 
-int ipaddr_parse_ipv4_addr (char *name, uint32_t *out_addr)
+int ipaddr_parse_ipv4_addr (const char *name, uint32_t *out_addr)
 {
     return ipaddr_parse_ipv4_addr_bin(name, strlen(name), out_addr);
 }
 
-int ipaddr_parse_ipv4_prefix_bin (char *str, size_t str_len, int *num)
+int ipaddr_parse_ipv4_prefix_bin (const char *str, size_t str_len, int *num)
 {
     uintmax_t d;
     if (!parse_unsigned_integer_bin(str, str_len, &d)) {
@@ -110,27 +112,25 @@ int ipaddr_parse_ipv4_prefix_bin (char *str, size_t str_len, int *num)
     return 1;
 }
 
-int ipaddr_parse_ipv4_prefix (char *str, int *num)
+int ipaddr_parse_ipv4_prefix (const char *str, int *num)
 {
     return ipaddr_parse_ipv4_prefix_bin(str, strlen(str), num);
 }
 
-int ipaddr_parse_ipv4_ifaddr (char *str, struct ipv4_ifaddr *out)
+int ipaddr_parse_ipv4_ifaddr_bin (const char *str, size_t str_len, struct ipv4_ifaddr *out)
 {
-    char *slash = strstr(str, "/");
-    if (!slash) {
+    size_t slash_pos;
+    if (!b_find_char_bin(str, str_len, '/', &slash_pos)) {
         return 0;
     }
     
-    if (!ipaddr_parse_ipv4_addr_bin(str, (slash - str), &out->addr)) {
-        return 0;
-    }
-    
-    if (!ipaddr_parse_ipv4_prefix(slash + 1, &out->prefix)) {
-        return 0;
-    }
-    
-    return 1;
+    return (ipaddr_parse_ipv4_addr_bin(str, slash_pos, &out->addr) &&
+            ipaddr_parse_ipv4_prefix_bin(str + slash_pos + 1, str_len - slash_pos - 1, &out->prefix));
+}
+
+int ipaddr_parse_ipv4_ifaddr (const char *str, struct ipv4_ifaddr *out)
+{
+    return ipaddr_parse_ipv4_ifaddr_bin(str, strlen(str), out);
 }
 
 int ipaddr_ipv4_ifaddr_from_addr_mask (uint32_t addr, uint32_t mask, struct ipv4_ifaddr *out)
