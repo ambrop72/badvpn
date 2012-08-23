@@ -30,7 +30,9 @@
  * 
  * DHCP client module.
  * 
- * Synopsis: net.ipv4.dhcp(string ifname, [list opts])
+ * Synopsis:
+ *   net.ipv4.dhcp(string ifname [, list opts])
+ * 
  * Description:
  *   Runs a DHCP client on a network interface. When an address is obtained,
  *   transitions up (but does not assign anything). If the lease times out,
@@ -40,9 +42,11 @@
  *   - "hostname", (string value): send this hostname to the DHCP server
  *   - "vendorclassid", (string value): send this vendor class identifier
  *   - "auto_clientid": send a client identifier generated from the MAC address
+ * 
  * Variables:
  *   string addr - assigned IP address ("A.B.C.D")
  *   string prefix - address prefix length ("N")
+ *   string cidr_addr - address and prefix in CIDR notation ("A.B.C.D/N")
  *   string gateway - router address ("A.B.C.D"), or "none" if not provided
  *   list(string) dns_servers - DNS server addresses ("A.B.C.D" ...)
  *   string server_mac - MAC address of the DHCP server (6 two-digit caps hexadecimal values
@@ -234,6 +238,29 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         
         char str[10];
         sprintf(str, "%d", ifaddr.prefix);
+        
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+        }
+        return 1;
+    }
+    
+    if (!strcmp(name, "cidr_addr")) {
+        uint32_t addr;
+        BDHCPClient_GetClientIP(&o->dhcp, &addr);
+        uint32_t mask;
+        BDHCPClient_GetClientMask(&o->dhcp, &mask);
+        
+        struct ipv4_ifaddr ifaddr;
+        if (!ipaddr_ipv4_ifaddr_from_addr_mask(addr, mask, &ifaddr)) {
+            ModuleLog(o->i, BLOG_ERROR, "bad netmask");
+            return 0;
+        }
+        
+        uint8_t *b = (uint8_t *)&addr;
+        char str[60];
+        sprintf(str, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"/%d", b[0], b[1], b[2], b[3], ifaddr.prefix);
         
         *out = NCDVal_NewString(mem, str);
         if (NCDVal_IsInvalid(*out)) {
