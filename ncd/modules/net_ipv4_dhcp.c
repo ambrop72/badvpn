@@ -213,9 +213,8 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         uint32_t addr;
         BDHCPClient_GetClientIP(&o->dhcp, &addr);
         
-        uint8_t *b = (uint8_t *)&addr;
-        char str[50];
-        sprintf(str, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, b[0], b[1], b[2], b[3]);
+        char str[IPADDR_PRINT_MAX];
+        ipaddr_print_addr(addr, str);
         
         *out = NCDVal_NewString(mem, str);
         if (NCDVal_IsInvalid(*out)) {
@@ -258,9 +257,8 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
             return 0;
         }
         
-        uint8_t *b = (uint8_t *)&addr;
-        char str[60];
-        sprintf(str, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"/%d", b[0], b[1], b[2], b[3], ifaddr.prefix);
+        char str[IPADDR_PRINT_MAX];
+        ipaddr_print_ifaddr(ifaddr, str);
         
         *out = NCDVal_NewString(mem, str);
         if (NCDVal_IsInvalid(*out)) {
@@ -270,14 +268,13 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     }
     
     if (!strcmp(name, "gateway")) {
-        char str[50];
+        char str[IPADDR_PRINT_MAX];
         
         uint32_t addr;
         if (!BDHCPClient_GetRouter(&o->dhcp, &addr)) {
             strcpy(str, "none");
         } else {
-            uint8_t *b = (uint8_t *)&addr;
-            sprintf(str, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, b[0], b[1], b[2], b[3]);
+            ipaddr_print_addr(addr, str);
         }
         
         *out = NCDVal_NewString(mem, str);
@@ -298,9 +295,8 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         }
         
         for (int i = 0; i < num_servers; i++) {
-            uint8_t *b = (uint8_t *)&servers[i];
-            char str[50];
-            sprintf(str, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, b[0], b[1], b[2], b[3]);
+            char str[IPADDR_PRINT_MAX];
+            ipaddr_print_addr(servers[i], str);
             
             NCDValRef server = NCDVal_NewString(mem, str);
             if (NCDVal_IsInvalid(server)) {
