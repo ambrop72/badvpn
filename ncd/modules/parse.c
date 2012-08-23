@@ -114,10 +114,8 @@ static int parse_ipv4_addr (NCDModuleInst *i, const char *str, NCDValMem *mem, N
         return 0;
     }
     
-    uint8_t *x = (void *)&addr;
-    
-    char buf[20];
-    sprintf(buf, "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8, x[0], x[1], x[2], x[3]);
+    char buf[IPADDR_PRINT_MAX];
+    ipaddr_print_addr(addr, buf);
     
     *out = NCDVal_NewString(mem, buf);
     if (NCDVal_IsInvalid(*out)) {
