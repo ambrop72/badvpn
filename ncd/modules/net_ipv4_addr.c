@@ -30,7 +30,14 @@
  * 
  * IPv4 address module.
  * 
- * Synopsis: net.ipv4.addr(string ifname, string addr, string prefix)
+ * Synopsis:
+ *     net.ipv4.addr(string ifname, string addr, string prefix)
+ *     net.ipv4.addr(string ifname, string cidr_addr)
+ * 
+ * Description:
+ *     Adds the given address to the given network interface on initialization,
+ *     and removes it on deinitialization. The second form takes the address and
+ *     prefix in CIDR notation (a.b.c.d/n).
  */
 
 #include <stdlib.h>
@@ -63,23 +70,37 @@ static void func_new (NCDModuleInst *i)
     // read arguments
     NCDValRef ifname_arg;
     NCDValRef addr_arg;
-    NCDValRef prefix_arg;
-    if (!NCDVal_ListRead(o->i->args, 3, &ifname_arg, &addr_arg, &prefix_arg)) {
+    NCDValRef prefix_arg = NCDVal_NewInvalid();
+    if (!NCDVal_ListRead(i->args, 2, &ifname_arg, &addr_arg) &&
+        !NCDVal_ListRead(i->args, 3, &ifname_arg, &addr_arg, &prefix_arg)
+    ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDVal_IsStringNoNulls(ifname_arg) || !NCDVal_IsStringNoNulls(addr_arg) || !NCDVal_IsStringNoNulls(prefix_arg)) {
+    if (!NCDVal_IsStringNoNulls(ifname_arg) || !NCDVal_IsStringNoNulls(addr_arg) ||
+        (!NCDVal_IsInvalid(prefix_arg) && !NCDVal_IsStringNoNulls(prefix_arg))
+    ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
+    
     o->ifname = NCDVal_StringValue(ifname_arg);
-    if (!ipaddr_parse_ipv4_addr((char *)NCDVal_StringValue(addr_arg), &o->ifaddr.addr)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong address");
-        goto fail1;
-    }
-    if (!ipaddr_parse_ipv4_prefix((char *)NCDVal_StringValue(prefix_arg), &o->ifaddr.prefix)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong prefix");
-        goto fail1;
+    
+    if (NCDVal_IsInvalid(prefix_arg)) {
+        if (!ipaddr_parse_ipv4_ifaddr(NCDVal_StringValue(addr_arg), &o->ifaddr)) {
+            ModuleLog(o->i, BLOG_ERROR, "wrong CIDR notation address");
+            goto fail1;
+        }
+    } else {
+        if (!ipaddr_parse_ipv4_addr(NCDVal_StringValue(addr_arg), &o->ifaddr.addr)) {
+            ModuleLog(o->i, BLOG_ERROR, "wrong address");
+            goto fail1;
+        }
+        
+        if (!ipaddr_parse_ipv4_prefix(NCDVal_StringValue(prefix_arg), &o->ifaddr.prefix)) {
+            ModuleLog(o->i, BLOG_ERROR, "wrong prefix");
+            goto fail1;
+        }
     }
     
     // add address
