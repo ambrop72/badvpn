@@ -34,11 +34,9 @@
 #ifndef BADVPN_MISC_IPADDR6_H
 #define BADVPN_MISC_IPADDR6_H
 
-#include <stdint.h>
 #include <string.h>
-#include <netdb.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
+#include <stdio.h>
+#include <inttypes.h>
 
 #include <misc/debug.h>
 
@@ -54,26 +52,54 @@ struct ipv6_ifaddr {
     int scope;
 };
 
-#define IPADDR6_PRINT_MAX INET6_ADDRSTRLEN
+#define IPADDR6_PRINT_MAX 46
 
-static int ipaddr6_print_addr (const uint8_t *addr, char *out_buf) WARN_UNUSED;
+static void ipaddr6_print_addr (const uint8_t *addr, char *out_buf);
 
-
-int ipaddr6_print_addr (const uint8_t *addr, char *out_buf)
+void ipaddr6_print_addr (const uint8_t *addr, char *out_buf)
 {
-    struct sockaddr_in6 a;
-    memset(&a, 0, sizeof(a));
-    a.sin6_family = AF_INET6;
-    a.sin6_port = 0;
-    a.sin6_flowinfo= 0;
-    memcpy(a.sin6_addr.s6_addr, addr, 16);
-    a.sin6_scope_id = 0;
+    int largest_start = 0;
+    int largest_len = 0;
+    int current_start = 0;
+    int current_len = 0;
     
-    if (getnameinfo((struct sockaddr *)&a, sizeof(a), out_buf, IPADDR6_PRINT_MAX, NULL, 0, NI_NUMERICHOST) < 0) {
-        return 0;
+    for (int i = 0; i < 8; i++) {
+        if (addr[2 * i] == 0 && addr[2 * i + 1] == 0) {
+            current_len++;
+            if (current_len > largest_len) {
+                largest_start = current_start;
+                largest_len = current_len;
+            }
+        } else {
+            current_start = i + 1;
+            current_len = 0;
+        }
     }
     
-    return 1;
+    if (largest_len > 1) {
+        for (int i = 0; i < largest_start; i++) {
+            uint16_t block = ((uint16_t)addr[2 * i] << 8) | addr[2 * i + 1];
+            out_buf += sprintf(out_buf, "%"PRIx16":", block);
+        }
+        if (largest_start == 0) {
+            out_buf += sprintf(out_buf, ":");
+        }
+        
+        for (int i = largest_start + largest_len; i < 8; i++) {
+            uint16_t block = ((uint16_t)addr[2 * i] << 8) | addr[2 * i + 1];
+            out_buf += sprintf(out_buf, ":%"PRIx16, block);
+        }
+        if (largest_start + largest_len == 8) {
+            out_buf += sprintf(out_buf, ":");
+        }
+    } else {
+        const char *prefix = "";
+        for (int i = 0; i < 8; i++) {
+            uint16_t block = ((uint16_t)addr[2 * i] << 8) | addr[2 * i + 1];
+            out_buf += sprintf(out_buf, "%s%"PRIx16, prefix, block);
+            prefix = ":";
+        }
+    }
 }
 
 #endif

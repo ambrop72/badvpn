@@ -129,10 +129,7 @@ void monitor_handler (void *unused, struct NCDInterfaceMonitor_event event)
             const char *type = (event.event == NCDIFMONITOR_EVENT_IPV6_ADDR_ADDED) ? "added" : "removed";
             
             char str[IPADDR6_PRINT_MAX];
-            if (!ipaddr6_print_addr(event.u.ipv6_addr.addr.addr, str)) {
-                DEBUG("ipaddr6_print_addr failed");
-                return;
-            }
+            ipaddr6_print_addr(event.u.ipv6_addr.addr.addr, str);
             
             int dynamic = !!(event.u.ipv6_addr.addr_flags & NCDIFMONITOR_ADDR_FLAG_DYNAMIC);
             

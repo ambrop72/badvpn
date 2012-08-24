@@ -165,10 +165,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     
     if (!strcmp(name, "addr")) {
         char str[IPADDR6_PRINT_MAX];
-        if (!ipaddr6_print_addr(o->ifaddr.addr, str)) {
-            ModuleLog(o->i, BLOG_ERROR, "ipaddr6_print_addr failed");
-            return 0;
-        }
+        ipaddr6_print_addr(o->ifaddr.addr, str);
         *out = NCDVal_NewString(mem, str);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");

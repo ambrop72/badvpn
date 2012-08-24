@@ -33,6 +33,7 @@
 
 #include <sys/socket.h>
 #include <net/if.h>
+#include <netinet/in.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <asm/types.h>
