@@ -126,3 +126,4 @@
 {"NCDPlaceholderDb", 4},
 {"NCDVal", 4},
 {"ncd_net_ipv6_addr", 4},
+{"ncd_net_ipv6_route", 4},

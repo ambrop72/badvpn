@@ -105,6 +105,7 @@ extern const struct NCDModuleGroup ncdmodule_assert;
 extern const struct NCDModuleGroup ncdmodule_reboot;
 extern const struct NCDModuleGroup ncdmodule_explode;
 extern const struct NCDModuleGroup ncdmodule_net_ipv6_addr;
+extern const struct NCDModuleGroup ncdmodule_net_ipv6_route;
 
 static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_var,
@@ -178,6 +179,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_reboot,
     &ncdmodule_explode,
     &ncdmodule_net_ipv6_addr,
+    &ncdmodule_net_ipv6_route,
     NULL
 };
 

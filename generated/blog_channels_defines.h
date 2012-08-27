@@ -126,4 +126,5 @@
 #define BLOG_CHANNEL_NCDPlaceholderDb 125
 #define BLOG_CHANNEL_NCDVal 126
 #define BLOG_CHANNEL_ncd_net_ipv6_addr 127
-#define BLOG_NUM_CHANNELS 128
+#define BLOG_CHANNEL_ncd_net_ipv6_route 128
+#define BLOG_NUM_CHANNELS 129
