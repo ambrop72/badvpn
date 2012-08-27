@@ -40,10 +40,30 @@
 
 #include <misc/debug.h>
 
+static int decode_decimal_digit (char c);
+static int decode_hex_digit (char c);
 static int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out) WARN_UNUSED;
 static int parse_unsigned_integer (const char *str, uintmax_t *out) WARN_UNUSED;
 static int parse_unsigned_hex_integer_bin (const char *str, size_t str_len, uintmax_t *out) WARN_UNUSED;
 static int parse_unsigned_hex_integer (const char *str, uintmax_t *out) WARN_UNUSED;
+
+static int decode_decimal_digit (char c)
+{
+    switch (c) {
+        case '0': return 0;
+        case '1': return 1;
+        case '2': return 2;
+        case '3': return 3;
+        case '4': return 4;
+        case '5': return 5;
+        case '6': return 6;
+        case '7': return 7;
+        case '8': return 8;
+        case '9': return 9;
+    }
+    
+    return -1;
+}
 
 static int decode_hex_digit (char c)
 {
