@@ -56,16 +56,10 @@ struct instance {
     struct ipv4_ifaddr ifaddr;
 };
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef ifname_arg;
@@ -75,13 +69,13 @@ static void func_new (NCDModuleInst *i)
         !NCDVal_ListRead(i->args, 3, &ifname_arg, &addr_arg, &prefix_arg)
     ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(ifname_arg) || !NCDVal_IsStringNoNulls(addr_arg) ||
         (!NCDVal_IsInvalid(prefix_arg) && !NCDVal_IsStringNoNulls(prefix_arg))
     ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     
     o->ifname = NCDVal_StringValue(ifname_arg);
@@ -89,32 +83,30 @@ static void func_new (NCDModuleInst *i)
     if (NCDVal_IsInvalid(prefix_arg)) {
         if (!ipaddr_parse_ipv4_ifaddr(NCDVal_StringValue(addr_arg), &o->ifaddr)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong CIDR notation address");
-            goto fail1;
+            goto fail0;
         }
     } else {
         if (!ipaddr_parse_ipv4_addr(NCDVal_StringValue(addr_arg), &o->ifaddr.addr)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong address");
-            goto fail1;
+            goto fail0;
         }
         
         if (!ipaddr_parse_ipv4_prefix(NCDVal_StringValue(prefix_arg), &o->ifaddr.prefix)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong prefix");
-            goto fail1;
+            goto fail0;
         }
     }
     
     // add address
     if (!NCDIfConfig_add_ipv4_addr(o->ifname, o->ifaddr)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to add IP address");
-        goto fail1;
+        goto fail0;
     }
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -123,24 +115,21 @@ fail0:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // remove address
     if (!NCDIfConfig_remove_ipv4_addr(o->ifname, o->ifaddr)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to remove IP address");
     }
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static const struct NCDModule modules[] = {
     {
         .type = "net.ipv4.addr",
-        .func_new = func_new,
-        .func_die = func_die
+        .func_new2 = func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }
