@@ -172,6 +172,44 @@ int NCDIfConfig_remove_ipv4_addr (const char *ifname, struct ipv4_ifaddr ifaddr)
     return !run_command(cmd);
 }
 
+int NCDIfConfig_add_ipv6_addr (const char *ifname, struct ipv6_ifaddr ifaddr)
+{
+    ASSERT(ifaddr.prefix >= 0)
+    ASSERT(ifaddr.prefix <= 128)
+    
+    if (strlen(ifname) >= IFNAMSIZ) {
+        BLog(BLOG_ERROR, "ifname too long");
+        return 0;
+    }
+    
+    char addr_str[IPADDR6_PRINT_MAX];
+    ipaddr6_print_addr(ifaddr.addr, addr_str);
+    
+    char cmd[40 + IPADDR6_PRINT_MAX + IFNAMSIZ];
+    sprintf(cmd, IP_CMD" addr add %s/%d dev %s", addr_str, ifaddr.prefix, ifname);
+    
+    return !run_command(cmd);
+}
+
+int NCDIfConfig_remove_ipv6_addr (const char *ifname, struct ipv6_ifaddr ifaddr)
+{
+    ASSERT(ifaddr.prefix >= 0)
+    ASSERT(ifaddr.prefix <= 128)
+    
+    if (strlen(ifname) >= IFNAMSIZ) {
+        BLog(BLOG_ERROR, "ifname too long");
+        return 0;
+    }
+    
+    char addr_str[IPADDR6_PRINT_MAX];
+    ipaddr6_print_addr(ifaddr.addr, addr_str);
+    
+    char cmd[40 + IPADDR6_PRINT_MAX + IFNAMSIZ];
+    sprintf(cmd, IP_CMD" addr del %s/%d dev %s", addr_str, ifaddr.prefix, ifname);
+    
+    return !run_command(cmd);
+}
+
 static int route_cmd (const char *cmdtype, struct ipv4_ifaddr dest, const uint32_t *gateway, int metric, const char *ifname)
 {
     ASSERT(!strcmp(cmdtype, "add") || !strcmp(cmdtype, "del"))

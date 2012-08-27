@@ -33,6 +33,7 @@
 #include <stddef.h>
 
 #include <misc/ipaddr.h>
+#include <misc/ipaddr6.h>
 
 #define NCDIFCONFIG_FLAG_EXISTS (1 << 0)
 #define NCDIFCONFIG_FLAG_UP (1 << 1)
@@ -45,6 +46,9 @@ int NCDIfConfig_set_down (const char *ifname);
 
 int NCDIfConfig_add_ipv4_addr (const char *ifname, struct ipv4_ifaddr ifaddr);
 int NCDIfConfig_remove_ipv4_addr (const char *ifname, struct ipv4_ifaddr ifaddr);
+
+int NCDIfConfig_add_ipv6_addr (const char *ifname, struct ipv6_ifaddr ifaddr);
+int NCDIfConfig_remove_ipv6_addr (const char *ifname, struct ipv6_ifaddr ifaddr);
 
 int NCDIfConfig_add_ipv4_route (struct ipv4_ifaddr dest, const uint32_t *gateway, int metric, const char *device);
 int NCDIfConfig_remove_ipv4_route (struct ipv4_ifaddr dest, const uint32_t *gateway, int metric, const char *device);
