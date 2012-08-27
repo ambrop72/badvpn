@@ -28,6 +28,8 @@
  */
 
 #include <string.h>
+#include <inttypes.h>
+#include <stdio.h>
 
 #include <misc/get_iface_info.h>
 #include <misc/ipaddr6.h>
@@ -133,7 +135,7 @@ void monitor_handler (void *unused, struct NCDInterfaceMonitor_event event)
             
             int dynamic = !!(event.u.ipv6_addr.addr_flags & NCDIFMONITOR_ADDR_FLAG_DYNAMIC);
             
-            printf("ipv6 addr %s %s/%d scope=%d dynamic=%d\n", type, str, event.u.ipv6_addr.addr.prefix, event.u.ipv6_addr.addr.scope, dynamic);
+            printf("ipv6 addr %s %s/%d scope=%"PRIu8" dynamic=%d\n", type, str, event.u.ipv6_addr.addr.prefix, event.u.ipv6_addr.scope, dynamic);
         } break;
         
         default: ASSERT(0);
