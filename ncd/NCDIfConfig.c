@@ -248,6 +248,45 @@ int NCDIfConfig_remove_ipv4_route (struct ipv4_ifaddr dest, const uint32_t *gate
     return route_cmd("del", dest, gateway, metric, device);
 }
 
+static int route_cmd6 (const char *cmdtype, struct ipv6_ifaddr dest, const struct ipv6_addr *gateway, int metric, const char *ifname)
+{
+    ASSERT(!strcmp(cmdtype, "add") || !strcmp(cmdtype, "del"))
+    ASSERT(dest.prefix >= 0)
+    ASSERT(dest.prefix <= 128)
+    
+    if (strlen(ifname) >= IFNAMSIZ) {
+        BLog(BLOG_ERROR, "ifname too long");
+        return 0;
+    }
+    
+    char dest_str[IPADDR6_PRINT_MAX];
+    ipaddr6_print_addr(dest.addr, dest_str);
+    
+    char gwstr[10 + IPADDR6_PRINT_MAX];
+    if (gateway) {
+        strcpy(gwstr, " via ");
+        ipaddr6_print_addr(*gateway, gwstr + strlen(gwstr));
+    } else {
+        gwstr[0] = '\0';
+    }
+    
+    char cmd[70 + IPADDR6_PRINT_MAX + IPADDR6_PRINT_MAX + IFNAMSIZ];
+    sprintf(cmd, IP_CMD" route %s %s/%d%s metric %d dev %s",
+            cmdtype, dest_str, dest.prefix, gwstr, metric, ifname);
+    
+    return !run_command(cmd);
+}
+
+int NCDIfConfig_add_ipv6_route (struct ipv6_ifaddr dest, const struct ipv6_addr *gateway, int metric, const char *device)
+{
+    return route_cmd6("add", dest, gateway, metric, device);
+}
+
+int NCDIfConfig_remove_ipv6_route (struct ipv6_ifaddr dest, const struct ipv6_addr *gateway, int metric, const char *device)
+{
+    return route_cmd6("del", dest, gateway, metric, device);
+}
+
 static int blackhole_route_cmd (const char *cmdtype, struct ipv4_ifaddr dest, int metric)
 {
     ASSERT(!strcmp(cmdtype, "add") || !strcmp(cmdtype, "del"))
@@ -271,6 +310,32 @@ int NCDIfConfig_add_ipv4_blackhole_route (struct ipv4_ifaddr dest, int metric)
 int NCDIfConfig_remove_ipv4_blackhole_route (struct ipv4_ifaddr dest, int metric)
 {
     return blackhole_route_cmd("del", dest, metric);
+}
+
+static int blackhole_route_cmd6 (const char *cmdtype, struct ipv6_ifaddr dest, int metric)
+{
+    ASSERT(!strcmp(cmdtype, "add") || !strcmp(cmdtype, "del"))
+    ASSERT(dest.prefix >= 0)
+    ASSERT(dest.prefix <= 128)
+    
+    char dest_str[IPADDR6_PRINT_MAX];
+    ipaddr6_print_addr(dest.addr, dest_str);
+    
+    char cmd[70 + IPADDR6_PRINT_MAX];
+    sprintf(cmd, IP_CMD" route %s blackhole %s/%d metric %d",
+            cmdtype, dest_str, dest.prefix, metric);
+    
+    return !run_command(cmd);
+}
+
+int NCDIfConfig_add_ipv6_blackhole_route (struct ipv6_ifaddr dest, int metric)
+{
+    return blackhole_route_cmd6("add", dest, metric);
+}
+
+int NCDIfConfig_remove_ipv6_blackhole_route (struct ipv6_ifaddr dest, int metric)
+{
+    return blackhole_route_cmd6("del", dest, metric);
 }
 
 int NCDIfConfig_set_dns_servers (uint32_t *servers, size_t num_servers)

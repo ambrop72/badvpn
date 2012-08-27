@@ -53,8 +53,14 @@ int NCDIfConfig_remove_ipv6_addr (const char *ifname, struct ipv6_ifaddr ifaddr)
 int NCDIfConfig_add_ipv4_route (struct ipv4_ifaddr dest, const uint32_t *gateway, int metric, const char *device);
 int NCDIfConfig_remove_ipv4_route (struct ipv4_ifaddr dest, const uint32_t *gateway, int metric, const char *device);
 
+int NCDIfConfig_add_ipv6_route (struct ipv6_ifaddr dest, const struct ipv6_addr *gateway, int metric, const char *device);
+int NCDIfConfig_remove_ipv6_route (struct ipv6_ifaddr dest, const struct ipv6_addr *gateway, int metric, const char *device);
+
 int NCDIfConfig_add_ipv4_blackhole_route (struct ipv4_ifaddr dest, int metric);
 int NCDIfConfig_remove_ipv4_blackhole_route (struct ipv4_ifaddr dest, int metric);
+
+int NCDIfConfig_add_ipv6_blackhole_route (struct ipv6_ifaddr dest, int metric);
+int NCDIfConfig_remove_ipv6_blackhole_route (struct ipv6_ifaddr dest, int metric);
 
 int NCDIfConfig_set_dns_servers (uint32_t *servers, size_t num_servers);
 
