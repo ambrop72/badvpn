@@ -65,16 +65,10 @@ struct instance {
     const char *ifname;
 };
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef dest_arg;
@@ -86,30 +80,30 @@ static void func_new (NCDModuleInst *i)
         !NCDVal_ListRead(i->args, 5, &dest_arg, &dest_prefix_arg, &gateway_arg, &metric_arg, &ifname_arg)
     ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(dest_arg) || !NCDVal_IsStringNoNulls(gateway_arg) ||
         !NCDVal_IsStringNoNulls(metric_arg) || !NCDVal_IsStringNoNulls(ifname_arg) ||
         (!NCDVal_IsInvalid(dest_prefix_arg) && !NCDVal_IsStringNoNulls(dest_prefix_arg))
     ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     
     // read dest
     if (NCDVal_IsInvalid(dest_prefix_arg)) {
         if (!ipaddr_parse_ipv4_ifaddr(NCDVal_StringValue(dest_arg), &o->dest)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong CIDR notation dest");
-            goto fail1;
+            goto fail0;
         }
     } else {
         if (!ipaddr_parse_ipv4_addr(NCDVal_StringValue(dest_arg), &o->dest.addr)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong dest addr");
-            goto fail1;
+            goto fail0;
         }
         if (!ipaddr_parse_ipv4_prefix(NCDVal_StringValue(dest_prefix_arg), &o->dest.prefix)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong dest prefix");
-            goto fail1;
+            goto fail0;
         }
     }
     
@@ -123,7 +117,7 @@ static void func_new (NCDModuleInst *i)
     } else {
         if (!ipaddr_parse_ipv4_addr(gateway_str, &o->gateway)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong gateway");
-            goto fail1;
+            goto fail0;
         }
         o->type = TYPE_NORMAL;
     }
@@ -150,15 +144,13 @@ static void func_new (NCDModuleInst *i)
     }
     if (!res) {
         ModuleLog(o->i, BLOG_ERROR, "failed to add route");
-        goto fail1;
+        goto fail0;
     }
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -167,7 +159,6 @@ fail0:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // remove route
     int res;
@@ -187,17 +178,15 @@ static void func_die (void *vo)
         ModuleLog(o->i, BLOG_ERROR, "failed to remove route");
     }
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static const struct NCDModule modules[] = {
     {
         .type = "net.ipv4.route",
-        .func_new = func_new,
-        .func_die = func_die
+        .func_new2 = func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }
