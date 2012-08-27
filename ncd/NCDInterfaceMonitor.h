@@ -30,6 +30,7 @@
 #ifndef BADVPN_NCD_NCDINTERFACEMONITOR_H
 #define BADVPN_NCD_NCDINTERFACEMONITOR_H
 
+#include <stdint.h>
 #include <sys/socket.h>
 #include <linux/netlink.h>
 
@@ -63,6 +64,7 @@ struct NCDInterfaceMonitor_event {
         struct {
             struct ipv6_ifaddr addr;
             int addr_flags;
+            uint8_t scope;
         } ipv6_addr;
     } u;
 };

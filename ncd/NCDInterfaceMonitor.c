@@ -226,10 +226,10 @@ void process_buffer (NCDInterfaceMonitor *o)
                     }
                     
                     ev.event = (buf->nlmsg_type == RTM_NEWADDR) ? NCDIFMONITOR_EVENT_IPV6_ADDR_ADDED : NCDIFMONITOR_EVENT_IPV6_ADDR_REMOVED;
-                    memcpy(ev.u.ipv6_addr.addr.addr, ((struct in6_addr *)addr)->s6_addr, 16);
+                    memcpy(ev.u.ipv6_addr.addr.addr.bytes, ((struct in6_addr *)addr)->s6_addr, 16);
                     ev.u.ipv6_addr.addr.prefix = msg->ifa_prefixlen;
-                    ev.u.ipv6_addr.addr.scope = msg->ifa_scope;
                     ev.u.ipv6_addr.addr_flags = 0;
+                    ev.u.ipv6_addr.scope = msg->ifa_scope;
                     if (!(msg->ifa_flags & IFA_F_PERMANENT)) {
                         ev.u.ipv6_addr.addr_flags |= NCDIFMONITOR_ADDR_FLAG_DYNAMIC;
                     }

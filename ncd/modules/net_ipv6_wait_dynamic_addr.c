@@ -75,7 +75,7 @@ static void monitor_handler (struct instance *o, struct NCDInterfaceMonitor_even
         // signal up
         NCDModuleInst_Backend_Up(o->i);
     }
-    else if (o->up && event.event == NCDIFMONITOR_EVENT_IPV6_ADDR_REMOVED && !memcmp(event.u.ipv6_addr.addr.addr, o->ifaddr.addr, 16) && event.u.ipv6_addr.addr.prefix == o->ifaddr.prefix) {
+    else if (o->up && event.event == NCDIFMONITOR_EVENT_IPV6_ADDR_REMOVED && !memcmp(event.u.ipv6_addr.addr.addr.bytes, o->ifaddr.addr.bytes, 16) && event.u.ipv6_addr.addr.prefix == o->ifaddr.prefix) {
         // set not up
         o->up = 0;
         
