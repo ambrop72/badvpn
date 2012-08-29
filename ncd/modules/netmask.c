@@ -72,30 +72,19 @@ struct prefix_instance {
     int prefix;
 };
 
-static void addr_func_init_templ (NCDModuleInst *i, uint32_t addr)
+static void addr_func_init_templ (void *vo, NCDModuleInst *i, uint32_t addr)
 {
-    // allocate structure
-    struct addr_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
+    struct addr_instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // remember address
     o->addr = addr;
     
     // signal up
     NCDModuleInst_Backend_Up(i);
-    return;
-    
-fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
 }
 
-static void prefix_to_mask_func_init (NCDModuleInst *i)
+static void prefix_to_mask_func_init (void *vo, NCDModuleInst *i)
 {
     // read arguments
     NCDValRef prefix_arg;
@@ -118,7 +107,7 @@ static void prefix_to_mask_func_init (NCDModuleInst *i)
     // make mask
     uint32_t mask = ipaddr_ipv4_mask_from_prefix(prefix);
     
-    addr_func_init_templ(i, mask);
+    addr_func_init_templ(vo, i, mask);
     return;
     
 fail0:
@@ -126,7 +115,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void ipv4_net_from_addr_and_prefix_func_init (NCDModuleInst *i)
+static void ipv4_net_from_addr_and_prefix_func_init (void *vo, NCDModuleInst *i)
 {
     // read arguments
     NCDValRef addr_arg;
@@ -157,7 +146,7 @@ static void ipv4_net_from_addr_and_prefix_func_init (NCDModuleInst *i)
     // make network
     uint32_t network = (addr & ipaddr_ipv4_mask_from_prefix(prefix));
     
-    addr_func_init_templ(i, network);
+    addr_func_init_templ(vo, i, network);
     return;
     
 fail0:
@@ -168,12 +157,8 @@ fail0:
 static void addr_func_die (void *vo)
 {
     struct addr_instance *o = vo;
-    NCDModuleInst *i = o->i;
     
-    // free structure
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int addr_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -194,47 +179,39 @@ static int addr_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
     return 0;
 }
 
-static void mask_to_prefix_func_init (NCDModuleInst *i)
+static void mask_to_prefix_func_init (void *vo, NCDModuleInst *i)
 {
-    // allocate structure
-    struct prefix_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
+    struct prefix_instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef mask_arg;
     if (!NCDVal_ListRead(i->args, 1, &mask_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(mask_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     
     // parse mask
     uint32_t mask;
     if (!ipaddr_parse_ipv4_addr((char *)NCDVal_StringValue(mask_arg), &mask)) {
         ModuleLog(i, BLOG_ERROR, "bad mask");
-        goto fail1;
+        goto fail0;
     }
     
     // build prefix
     if (!ipaddr_ipv4_prefix_from_mask(mask, &o->prefix)) {
         ModuleLog(i, BLOG_ERROR, "bad mask");
-        goto fail1;
+        goto fail0;
     }
     
     // signal up
     NCDModuleInst_Backend_Up(i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -243,12 +220,8 @@ fail0:
 static void prefix_func_die (void *vo)
 {
     struct prefix_instance *o = vo;
-    NCDModuleInst *i = o->i;
     
-    // free structure
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int prefix_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -272,19 +245,22 @@ static int prefix_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDVa
 static const struct NCDModule modules[] = {
     {
         .type = "ipv4_prefix_to_mask",
-        .func_new = prefix_to_mask_func_init,
+        .func_new2 = prefix_to_mask_func_init,
         .func_die = addr_func_die,
-        .func_getvar = addr_func_getvar
+        .func_getvar = addr_func_getvar,
+        .alloc_size = sizeof(struct addr_instance)
     }, {
         .type = "ipv4_mask_to_prefix",
-        .func_new = mask_to_prefix_func_init,
+        .func_new2 = mask_to_prefix_func_init,
         .func_die = prefix_func_die,
-        .func_getvar = prefix_func_getvar
+        .func_getvar = prefix_func_getvar,
+        .alloc_size = sizeof(struct prefix_instance)
     }, {
         .type = "ipv4_net_from_addr_and_prefix",
-        .func_new = ipv4_net_from_addr_and_prefix_func_init,
+        .func_new2 = ipv4_net_from_addr_and_prefix_func_init,
         .func_die = addr_func_die,
-        .func_getvar = addr_func_getvar
+        .func_getvar = addr_func_getvar,
+        .alloc_size = sizeof(struct addr_instance)
     }, {
         .type = NULL
     }

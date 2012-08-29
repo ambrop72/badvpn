@@ -100,21 +100,16 @@ static int compute_different (NCDValRef v1, NCDValRef v2)
     return NCDVal_Compare(v1, v2) != 0;
 }
 
-static void new_templ (NCDModuleInst *i, compute_func cfunc)
+static void new_templ (void *vo, NCDModuleInst *i, compute_func cfunc)
 {
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     NCDValRef v1_arg;
     NCDValRef v2_arg;
     if (!NCDVal_ListRead(i->args, 2, &v1_arg, &v2_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     
     o->result = cfunc(v1_arg, v2_arg);
@@ -122,8 +117,6 @@ static void new_templ (NCDModuleInst *i, compute_func cfunc)
     NCDModuleInst_Backend_Up(i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -132,12 +125,8 @@ fail0:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -157,67 +146,73 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return 0;
 }
 
-static void func_new_lesser (NCDModuleInst *i)
+static void func_new_lesser (void *vo, NCDModuleInst *i)
 {
-    new_templ(i, compute_lesser);
+    new_templ(vo, i, compute_lesser);
 }
 
-static void func_new_greater (NCDModuleInst *i)
+static void func_new_greater (void *vo, NCDModuleInst *i)
 {
-    new_templ(i, compute_greater);
+    new_templ(vo, i, compute_greater);
 }
 
-static void func_new_lesser_equal (NCDModuleInst *i)
+static void func_new_lesser_equal (void *vo, NCDModuleInst *i)
 {
-    new_templ(i, compute_lesser_equal);
+    new_templ(vo, i, compute_lesser_equal);
 }
 
-static void func_new_greater_equal (NCDModuleInst *i)
+static void func_new_greater_equal (void *vo, NCDModuleInst *i)
 {
-    new_templ(i, compute_greater_equal);
+    new_templ(vo, i, compute_greater_equal);
 }
 
-static void func_new_equal (NCDModuleInst *i)
+static void func_new_equal (void *vo, NCDModuleInst *i)
 {
-    new_templ(i, compute_equal);
+    new_templ(vo, i, compute_equal);
 }
 
-static void func_new_different (NCDModuleInst *i)
+static void func_new_different (void *vo, NCDModuleInst *i)
 {
-    new_templ(i, compute_different);
+    new_templ(vo, i, compute_different);
 }
 
 static const struct NCDModule modules[] = {
     {
         .type = "val_lesser",
-        .func_new = func_new_lesser,
+        .func_new2 = func_new_lesser,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "val_greater",
-        .func_new = func_new_greater,
+        .func_new2 = func_new_greater,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "val_lesser_equal",
-        .func_new = func_new_lesser_equal,
+        .func_new2 = func_new_lesser_equal,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "val_greater_equal",
-        .func_new = func_new_greater_equal,
+        .func_new2 = func_new_greater_equal,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "val_equal",
-        .func_new = func_new_equal,
+        .func_new2 = func_new_equal,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "val_different",
-        .func_new = func_new_different,
+        .func_new2 = func_new_different,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

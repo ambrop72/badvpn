@@ -344,23 +344,15 @@ out:
     }
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct instance *o = vo;
     o->i = i;
     
     // check arguments
     if (!NCDVal_ListRead(o->i->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     
     // init client
@@ -372,28 +364,26 @@ static void func_new (NCDModuleInst *i)
     // compile regex's
     if (regcomp(&o->reg, DEVPATH_REGEX, REG_EXTENDED)) {
         ModuleLog(o->i, BLOG_ERROR, "regcomp failed");
-        goto fail2;
+        goto fail1;
     }
     if (regcomp(&o->usb_reg, DEVPATH_USB_REGEX, REG_EXTENDED)) {
         ModuleLog(o->i, BLOG_ERROR, "regcomp failed");
-        goto fail3;
+        goto fail2;
     }
     if (regcomp(&o->pci_reg, DEVPATH_PCI_REGEX, REG_EXTENDED)) {
         ModuleLog(o->i, BLOG_ERROR, "regcomp failed");
-        goto fail4;
+        goto fail3;
     }
     
     event_template_new(&o->templ, o->i, BLOG_CURRENT_CHANNEL, 3, o, (event_template_func_free)templ_func_free);
     return;
     
-fail4:
-    regfree(&o->usb_reg);
 fail3:
-    regfree(&o->reg);
+    regfree(&o->usb_reg);
 fail2:
-    NCDUdevClient_Free(&o->client);
+    regfree(&o->reg);
 fail1:
-    free(o);
+    NCDUdevClient_Free(&o->client);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -401,8 +391,6 @@ fail0:
 
 static void templ_func_free (struct instance *o)
 {
-    NCDModuleInst *i = o->i;
-    
     // free devices
     LinkedList1Node *list_node;
     while (list_node = LinkedList1_GetFirst(&o->devices_list)) {
@@ -418,10 +406,7 @@ static void templ_func_free (struct instance *o)
     // free client
     NCDUdevClient_Free(&o->client);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -470,9 +455,10 @@ fail0:
 static const struct NCDModule modules[] = {
     {
         .type = "net.watch_interfaces",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "net.watch_interfaces::nextevent",
         .func_new = nextevent_func_new

@@ -118,27 +118,21 @@ static void arpprobe_handler (struct instance *o, int event)
     }
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef arg_ifname;
     NCDValRef arg_addr;
     if (!NCDVal_ListRead(i->args, 2, &arg_ifname, &arg_addr)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(arg_ifname) || !NCDVal_IsStringNoNulls(arg_addr)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     const char *ifname = NCDVal_StringValue(arg_ifname);
     const char *addr_str = NCDVal_StringValue(arg_addr);
@@ -147,21 +141,19 @@ static void func_new (NCDModuleInst *i)
     uint32_t addr;
     if (!ipaddr_parse_ipv4_addr((char *)addr_str, &addr)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong address");
-        goto fail1;
+        goto fail0;
     }
     
     // init arpprobe
     if (!BArpProbe_Init(&o->arpprobe, ifname, addr, i->iparams->reactor, o, (BArpProbe_handler)arpprobe_handler)) {
         ModuleLog(o->i, BLOG_ERROR, "BArpProbe_Init failed");
-        goto fail1;
+        goto fail0;
     }
     
     // set state unknown
     o->state = STATE_UNKNOWN;
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -169,15 +161,10 @@ fail0:
 
 static void instance_free (struct instance *o)
 {
-    NCDModuleInst *i = o->i;
-    
     // free arpprobe
     BArpProbe_Free(&o->arpprobe);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -208,9 +195,10 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
 static const struct NCDModule modules[] = {
     {
         .type = "net.ipv4.arp_probe",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

@@ -92,26 +92,20 @@ static void monitor_handler_error (struct instance *o)
     instance_free(o);
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef ifname_arg;
     if (!NCDVal_ListRead(i->args, 1, &ifname_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(ifname_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     const char *ifname = NCDVal_StringValue(ifname_arg);
     
@@ -119,21 +113,19 @@ static void func_new (NCDModuleInst *i)
     int ifindex;
     if (!get_iface_info(ifname, NULL, NULL, &ifindex)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to get interface index");
-        goto fail1;
+        goto fail0;
     }
     
     // init monitor
     if (!NCDInterfaceMonitor_Init(&o->monitor, ifindex, NCDIFMONITOR_WATCH_IPV6_ADDR, i->iparams->reactor, o, (NCDInterfaceMonitor_handler)monitor_handler, (NCDInterfaceMonitor_handler_error)monitor_handler_error)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDInterfaceMonitor_Init failed");
-        goto fail1;
+        goto fail0;
     }
     
     // set not up
     o->up = 0;
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -141,15 +133,10 @@ fail0:
 
 static void instance_free (struct instance *o)
 {
-    NCDModuleInst *i = o->i;
-    
     // free monitor
     NCDInterfaceMonitor_Free(&o->monitor);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -199,9 +186,10 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
 static const struct NCDModule modules[] = {
     {
         .type = "net.ipv6.wait_dynamic_addr",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

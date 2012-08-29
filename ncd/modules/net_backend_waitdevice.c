@@ -115,28 +115,20 @@ out:
     }
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct instance *o = vo;
     o->i = i;
     
     // check arguments
     NCDValRef arg;
     if (!NCDVal_ListRead(i->args, 1, &arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     o->ifname = NCDVal_StringValue(arg);
     
@@ -146,17 +138,15 @@ static void func_new (NCDModuleInst *i)
     // compile regex
     if (regcomp(&o->reg, DEVPATH_REGEX, REG_EXTENDED)) {
         ModuleLog(o->i, BLOG_ERROR, "regcomp failed");
-        goto fail2;
+        goto fail1;
     }
     
     // set no devpath
     o->devpath = NULL;
     return;
     
-fail2:
-    NCDUdevClient_Free(&o->client);
 fail1:
-    free(o);
+    NCDUdevClient_Free(&o->client);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -165,7 +155,6 @@ fail0:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // free devpath
     if (o->devpath) {
@@ -178,17 +167,15 @@ static void func_die (void *vo)
     // free client
     NCDUdevClient_Free(&o->client);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static const struct NCDModule modules[] = {
     {
         .type = "net.backend.waitdevice",
-        .func_new = func_new,
-        .func_die = func_die
+        .func_new2 = func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

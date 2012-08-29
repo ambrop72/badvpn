@@ -379,67 +379,52 @@ static void func_globalfree (void)
     BEventLock_Free(&iptables_lock);
 }
 
-static void func_new (NCDModuleInst *i, command_template_build_cmdline build_cmdline)
+static void func_new (void *vo, NCDModuleInst *i, command_template_build_cmdline build_cmdline)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        BLog(BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     command_template_new(&o->cti, i, build_cmdline, template_free_func, o, BLOG_CURRENT_CHANNEL, &iptables_lock);
-    return;
-    
-fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
 }
 
 void template_free_func (void *vo, int is_error)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
-    
-    // free instance
-    free(o);
     
     if (is_error) {
-        NCDModuleInst_Backend_SetError(i);
+        NCDModuleInst_Backend_SetError(o->i);
     }
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
-static void append_iptables_func_new (NCDModuleInst *i)
+static void append_iptables_func_new (void *vo, NCDModuleInst *i)
 {
-    func_new(i, build_iptables_append_cmdline);
+    func_new(vo, i, build_iptables_append_cmdline);
 }
 
-static void policy_iptables_func_new (NCDModuleInst *i)
+static void policy_iptables_func_new (void *vo, NCDModuleInst *i)
 {
-    func_new(i, build_iptables_policy_cmdline);
+    func_new(vo, i, build_iptables_policy_cmdline);
 }
 
-static void newchain_iptables_func_new (NCDModuleInst *i)
+static void newchain_iptables_func_new (void *vo, NCDModuleInst *i)
 {
-    func_new(i, build_iptables_newchain_cmdline);
+    func_new(vo, i, build_iptables_newchain_cmdline);
 }
 
-static void append_ebtables_func_new (NCDModuleInst *i)
+static void append_ebtables_func_new (void *vo, NCDModuleInst *i)
 {
-    func_new(i, build_ebtables_append_cmdline);
+    func_new(vo, i, build_ebtables_append_cmdline);
 }
 
-static void policy_ebtables_func_new (NCDModuleInst *i)
+static void policy_ebtables_func_new (void *vo, NCDModuleInst *i)
 {
-    func_new(i, build_ebtables_policy_cmdline);
+    func_new(vo, i, build_ebtables_policy_cmdline);
 }
 
-static void newchain_ebtables_func_new (NCDModuleInst *i)
+static void newchain_ebtables_func_new (void *vo, NCDModuleInst *i)
 {
-    func_new(i, build_ebtables_newchain_cmdline);
+    func_new(vo, i, build_ebtables_newchain_cmdline);
 }
 
 static void func_die (void *vo)
@@ -449,17 +434,9 @@ static void func_die (void *vo)
     command_template_die(&o->cti);
 }
 
-static void lock_func_new (NCDModuleInst *i)
+static void lock_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct lock_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        BLog(BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct lock_instance *o = vo;
     o->i = i;
     
     // init lock job
@@ -471,17 +448,11 @@ static void lock_func_new (NCDModuleInst *i)
     
     // set state locking
     o->state = LOCK_STATE_LOCKING;
-    return;
-    
-fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
 }
 
 static void lock_func_die (void *vo)
 {
     struct lock_instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     if (o->state == LOCK_STATE_UNLOCKED) {
         ASSERT(o->unlock)
@@ -500,24 +471,13 @@ static void lock_func_die (void *vo)
     // free lock job
     BEventLockJob_Free(&o->lock_job);
     
-    // free instance
-    free(o);
-    
     // dead
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
-static void unlock_func_new (NCDModuleInst *i)
+static void unlock_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct unlock_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        BLog(BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct unlock_instance *o = vo;
     o->i = i;
     
     // get lock lock
@@ -526,13 +486,13 @@ static void unlock_func_new (NCDModuleInst *i)
     // make sure lock doesn't already have an unlock
     if (lock->unlock) {
         BLog(BLOG_ERROR, "lock already has an unlock");
-        goto fail1;
+        goto fail0;
     }
     
     // make sure lock is locked
     if (lock->state != LOCK_STATE_LOCKED) {
         BLog(BLOG_ERROR, "lock is not locked");
-        goto fail1;
+        goto fail0;
     }
     
     // set lock
@@ -551,8 +511,6 @@ static void unlock_func_new (NCDModuleInst *i)
     lock->state = LOCK_STATE_UNLOCKED;
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -580,47 +538,50 @@ static void unlock_func_die (void *vo)
 
 static void unlock_free (struct unlock_instance *o)
 {
-    NCDModuleInst *i = o->i;
-    
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static const struct NCDModule modules[] = {
     {
         .type = "net.iptables.append",
-        .func_new = append_iptables_func_new,
-        .func_die = func_die
+        .func_new2 = append_iptables_func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "net.iptables.policy",
-        .func_new = policy_iptables_func_new,
-        .func_die = func_die
+        .func_new2 = policy_iptables_func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "net.iptables.newchain",
-        .func_new = newchain_iptables_func_new,
-        .func_die = func_die
+        .func_new2 = newchain_iptables_func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "net.ebtables.append",
-        .func_new = append_ebtables_func_new,
-        .func_die = func_die
+        .func_new2 = append_ebtables_func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "net.ebtables.policy",
-        .func_new = policy_ebtables_func_new,
-        .func_die = func_die
+        .func_new2 = policy_ebtables_func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "net.ebtables.newchain",
-        .func_new = newchain_ebtables_func_new,
-        .func_die = func_die
+        .func_new2 = newchain_ebtables_func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "net.iptables.lock",
-        .func_new = lock_func_new,
-        .func_die = lock_func_die
+        .func_new2 = lock_func_new,
+        .func_die = lock_func_die,
+        .alloc_size = sizeof(struct lock_instance)
     }, {
         .type = "net.iptables.lock::unlock",
-        .func_new = unlock_func_new,
-        .func_die = unlock_func_die
+        .func_new2 = unlock_func_new,
+        .func_die = unlock_func_die,
+        .alloc_size = sizeof(struct unlock_instance)
     }, {
         .type = NULL
     }

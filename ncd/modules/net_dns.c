@@ -197,16 +197,10 @@ static int func_globalinit (struct NCDModuleInitParams params)
     return 1;
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // init servers list
     LinkedList2_Init(&o->ipv4_dns_servers);
@@ -264,8 +258,6 @@ fail2:
     LinkedList2_Remove(&instances, &o->instances_node);
 fail1:
     remove_ipv4_dns_entries(o);
-    free(o);
-fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
 }
@@ -273,7 +265,6 @@ fail0:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // remove from instances
     LinkedList2_Remove(&instances, &o->instances_node);
@@ -284,17 +275,15 @@ static void func_die (void *vo)
     // free servers
     remove_ipv4_dns_entries(o);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static const struct NCDModule modules[] = {
     {
         .type = "net.dns",
-        .func_new = func_new,
-        .func_die = func_die
+        .func_new2 = func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

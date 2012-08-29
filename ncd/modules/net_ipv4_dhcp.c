@@ -99,27 +99,21 @@ static void dhcp_handler (struct instance *o, int event)
     }
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
     NCDValRef ifname_arg;
     NCDValRef opts_arg = NCDVal_NewInvalid();
     if (!NCDVal_ListRead(i->args, 1, &ifname_arg) && !NCDVal_ListRead(i->args, 2, &ifname_arg, &opts_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(ifname_arg) || (!NCDVal_IsInvalid(opts_arg) && !NCDVal_IsList(opts_arg))) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     const char *ifname = NCDVal_StringValue(ifname_arg);
     
@@ -133,7 +127,7 @@ static void func_new (NCDModuleInst *i)
         // read name
         if (!NCDVal_IsStringNoNulls(opt)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong option name type");
-            goto fail1;
+            goto fail0;
         }
         const char *optname = NCDVal_StringValue(opt);
         
@@ -141,12 +135,12 @@ static void func_new (NCDModuleInst *i)
             // read value
             if (j == count) {
                 ModuleLog(o->i, BLOG_ERROR, "option value missing");
-                goto fail1;
+                goto fail0;
             }
             NCDValRef val = NCDVal_ListGet(opts_arg, j + 1);
             if (!NCDVal_IsStringNoNulls(val)) {
                 ModuleLog(o->i, BLOG_ERROR, "wrong option value type");
-                goto fail1;
+                goto fail0;
             }
             const char *optval = NCDVal_StringValue(val);
             
@@ -163,22 +157,20 @@ static void func_new (NCDModuleInst *i)
         }
         else {
             ModuleLog(o->i, BLOG_ERROR, "unknown option name");
-            goto fail1;
+            goto fail0;
         }
     }
     
     // init DHCP
     if (!BDHCPClient_Init(&o->dhcp, ifname, opts, o->i->iparams->reactor, (BDHCPClient_handler)dhcp_handler, o)) {
         ModuleLog(o->i, BLOG_ERROR, "BDHCPClient_Init failed");
-        goto fail1;
+        goto fail0;
     }
     
     // set not up
     o->up = 0;
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -186,15 +178,10 @@ fail0:
 
 static void instance_free (struct instance *o)
 {
-    NCDModuleInst *i = o->i;
-    
     // free DHCP
     BDHCPClient_Free(&o->dhcp);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -335,9 +322,10 @@ fail:
 static const struct NCDModule modules[] = {
     {
         .type = "net.ipv4.dhcp",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

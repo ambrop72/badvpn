@@ -49,35 +49,27 @@ struct instance {
     const char *ifname;
 };
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct instance *o = vo;
     o->i = i;
     
     // read arguments
     NCDValRef ifname_arg;
     if (!NCDVal_ListRead(o->i->args, 1, &ifname_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(ifname_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     o->ifname = NCDVal_StringValue(ifname_arg);
     
     // set interface up
     if (!NCDIfConfig_set_up(o->ifname)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to set interface up");
-        goto fail1;
+        goto fail0;
     }
     
     // signal up
@@ -85,8 +77,6 @@ static void func_new (NCDModuleInst *i)
     
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -95,24 +85,21 @@ fail0:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // set interface down
     if (!NCDIfConfig_set_down(o->ifname)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to set interface down");
     }
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static const struct NCDModule modules[] = {
     {
         .type = "net.up",
-        .func_new = func_new,
-        .func_die = func_die
+        .func_new2 = func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

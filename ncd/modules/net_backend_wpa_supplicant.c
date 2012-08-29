@@ -397,17 +397,9 @@ void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len)
     }
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct instance *o = vo;
     o->i = i;
     
     // read arguments
@@ -417,12 +409,12 @@ static void func_new (NCDModuleInst *i)
     NCDValRef args_arg;
     if (!NCDVal_ListRead(o->i->args, 4, &ifname_arg, &conf_arg, &exec_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(ifname_arg) || !NCDVal_IsStringNoNulls(conf_arg)  ||
         !NCDVal_IsStringNoNulls(exec_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     o->ifname = NCDVal_StringValue(ifname_arg);
     o->conf = NCDVal_StringValue(conf_arg);
@@ -439,7 +431,7 @@ static void func_new (NCDModuleInst *i)
     CmdLine c;
     if (!build_cmdline(o, &c)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to build cmdline");
-        goto fail1;
+        goto fail0;
     }
     
     // init process
@@ -448,7 +440,7 @@ static void func_new (NCDModuleInst *i)
                             (BInputProcess_handler_closed)process_handler_closed
     )) {
         ModuleLog(o->i, BLOG_ERROR, "BInputProcess_Init failed");
-        goto fail2;
+        goto fail1;
     }
     
     // init input interface
@@ -457,7 +449,7 @@ static void func_new (NCDModuleInst *i)
     // init buffer
     if (!LineBuffer_Init(&o->pipe_buffer, BInputProcess_GetInput(&o->process), &o->pipe_input, MAX_LINE_LEN, '\n')) {
         ModuleLog(o->i, BLOG_ERROR, "LineBuffer_Init failed");
-        goto fail3;
+        goto fail2;
     }
     
     // set have pipe
@@ -466,25 +458,22 @@ static void func_new (NCDModuleInst *i)
     // start process
     if (!BInputProcess_Start(&o->process, ((char **)c.arr.v)[0], (char **)c.arr.v, NULL)) {
         ModuleLog(o->i, BLOG_ERROR, "BInputProcess_Start failed");
-        goto fail4;
+        goto fail3;
     }
     
     // set not have info
     o->have_info = 0;
     
     CmdLine_Free(&c);
-    
     return;
     
-fail4:
-    LineBuffer_Free(&o->pipe_buffer);
 fail3:
+    LineBuffer_Free(&o->pipe_buffer);
+fail2:
     PacketPassInterface_Free(&o->pipe_input);
     BInputProcess_Free(&o->process);
-fail2:
-    CmdLine_Free(&c);
 fail1:
-    free(o);
+    CmdLine_Free(&c);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -492,8 +481,6 @@ fail0:
 
 void instance_free (struct instance *o)
 {
-    NCDModuleInst *i = o->i;
-    
     // free info
     if (o->have_info) {
         free_info(o);
@@ -510,10 +497,7 @@ void instance_free (struct instance *o)
     // free process
     BInputProcess_Free(&o->process);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -565,9 +549,10 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
 static const struct NCDModule modules[] = {
     {
         .type = "net.backend.wpa_supplicant",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }
