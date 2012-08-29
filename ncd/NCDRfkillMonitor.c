@@ -96,7 +96,9 @@ int NCDRfkillMonitor_Init (NCDRfkillMonitor *o, BReactor *reactor, NCDRfkillMoni
     return 1;
     
 fail1:
-    ASSERT_FORCE(close(o->rfkill_fd) == 0)
+    if (close(o->rfkill_fd) < 0) {
+        BLog(BLOG_ERROR, "close failed");
+    }
 fail0:
     return 0;
 }
@@ -109,5 +111,7 @@ void NCDRfkillMonitor_Free (NCDRfkillMonitor *o)
     BReactor_RemoveFileDescriptor(o->reactor, &o->bfd);
     
     // close rfkill
-    ASSERT_FORCE(close(o->rfkill_fd) == 0)
+    if (close(o->rfkill_fd) < 0) {
+        BLog(BLOG_ERROR, "close failed");
+    }
 }

@@ -182,7 +182,9 @@ static void func_new (void *vo, NCDModuleInst *i)
     return;
     
 fail1:
-    ASSERT_FORCE(close(o->evdev_fd) == 0)
+    if (close(o->evdev_fd) < 0) {
+        ModuleLog(o->i, BLOG_ERROR, "close failed");
+    }
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);

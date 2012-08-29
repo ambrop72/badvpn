@@ -302,7 +302,9 @@ fail3:
     // free BFileDescriptor
     BReactor_RemoveFileDescriptor(o->i->iparams->reactor, &o->bfd);
 fail2:
-    ASSERT_FORCE(close(o->inotify_fd) == 0)
+    if (close(o->inotify_fd) < 0) {
+        ModuleLog(o->i, BLOG_ERROR, "close failed");
+    }
 fail1:
     free(o);
 fail0:
