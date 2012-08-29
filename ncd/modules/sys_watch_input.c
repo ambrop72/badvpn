@@ -342,28 +342,20 @@ out:
     }
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct instance *o = vo;
     o->i = i;
     
     // check arguments
     NCDValRef devnode_type_arg;
     if (!NCDVal_ListRead(o->i->args, 1, &devnode_type_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(devnode_type_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     o->devnode_type = NCDVal_StringValue(devnode_type_arg);
     
@@ -376,8 +368,6 @@ static void func_new (NCDModuleInst *i)
     event_template_new(&o->templ, o->i, BLOG_CURRENT_CHANNEL, 3, o, (event_template_func_free)templ_func_free);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -385,8 +375,6 @@ fail0:
 
 static void templ_func_free (struct instance *o)
 {
-    NCDModuleInst *i = o->i;
-    
     // free devices
     LinkedList1Node *list_node;
     while (list_node = LinkedList1_GetFirst(&o->devices_list)) {
@@ -397,10 +385,7 @@ static void templ_func_free (struct instance *o)
     // free client
     NCDUdevClient_Free(&o->client);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -449,9 +434,10 @@ fail0:
 static const struct NCDModule modules[] = {
     {
         .type = "sys.watch_input",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "sys.watch_input::nextevent",
         .func_new = nextevent_func_new

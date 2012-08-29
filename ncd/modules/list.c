@@ -316,16 +316,10 @@ fail:
     return 0;
 }
 
-static void func_new_list (NCDModuleInst *i)
+static void func_new_list (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // init list
     IndexedList_Init(&o->il);
@@ -341,22 +335,14 @@ static void func_new_list (NCDModuleInst *i)
     
 fail1:
     cut_list_front(o, 0);
-    free(o);
-fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_listfrom (NCDModuleInst *i)
+static void func_new_listfrom (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // init list
     IndexedList_Init(&o->il);
@@ -372,8 +358,6 @@ static void func_new_listfrom (NCDModuleInst *i)
     
 fail1:
     cut_list_front(o, 0);
-    free(o);
-fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
 }
@@ -381,15 +365,11 @@ fail0:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // free list elements
     cut_list_front(o, 0);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -474,23 +454,15 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void length_func_new (NCDModuleInst *i)
+static void length_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct length_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct length_instance *o = vo;
     o->i = i;
     
     // check arguments
     if (!NCDVal_ListRead(o->i->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     
     // get method object
@@ -504,8 +476,6 @@ static void length_func_new (NCDModuleInst *i)
     
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -514,12 +484,8 @@ fail0:
 static void length_func_die (void *vo)
 {
     struct length_instance *o = vo;
-    NCDModuleInst *i = o->i;
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int length_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -540,33 +506,25 @@ static int length_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDVa
     return 0;
 }
     
-static void get_func_new (NCDModuleInst *i)
+static void get_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct get_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct get_instance *o = vo;
     o->i = i;
     
     // check arguments
     NCDValRef index_arg;
     if (!NCDVal_ListRead(o->i->args, 1, &index_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(index_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     uintmax_t index;
     if (!parse_unsigned_integer(NCDVal_StringValue(index_arg), &index)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong value");
-        goto fail1;
+        goto fail0;
     }
     
     // get method object
@@ -575,7 +533,7 @@ static void get_func_new (NCDModuleInst *i)
     // check index
     if (index >= list_count(mo)) {
         ModuleLog(o->i, BLOG_ERROR, "no element at index %"PRIuMAX, index);
-        goto fail1;
+        goto fail0;
     }
     
     // get element
@@ -588,17 +546,15 @@ static void get_func_new (NCDModuleInst *i)
     o->val = NCDVal_NewCopy(&o->mem, e->val);
     if (NCDVal_IsInvalid(o->val)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
-        goto fail2;
+        goto fail1;
     }
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail2:
-    NCDValMem_Free(&o->mem);
 fail1:
-    free(o);
+    NCDValMem_Free(&o->mem);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -607,15 +563,11 @@ fail0:
 static void get_func_die (void *vo)
 {
     struct get_instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // free mem
     NCDValMem_Free(&o->mem);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int get_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -662,24 +614,16 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void contains_func_new (NCDModuleInst *i)
+static void contains_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct contains_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct contains_instance *o = vo;
     o->i = i;
     
     // read arguments
     NCDValRef value_arg;
     if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     
     // get method object
@@ -692,8 +636,6 @@ static void contains_func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -702,12 +644,8 @@ fail0:
 static void contains_func_die (void *vo)
 {
     struct contains_instance *o = vo;
-    NCDModuleInst *i = o->i;
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int contains_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -727,17 +665,9 @@ static int contains_func_getvar (void *vo, const char *name, NCDValMem *mem, NCD
     return 0;
 }
 
-static void find_func_new (NCDModuleInst *i)
+static void find_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct find_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct find_instance *o = vo;
     o->i = i;
     
     // read arguments
@@ -745,18 +675,18 @@ static void find_func_new (NCDModuleInst *i)
     NCDValRef value_arg;
     if (!NCDVal_ListRead(i->args, 2, &start_pos_arg, &value_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(start_pos_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     
     // read start position
     uintmax_t start_pos;
     if (!parse_unsigned_integer(NCDVal_StringValue(start_pos_arg), &start_pos) || start_pos > UINT64_MAX) {
         ModuleLog(o->i, BLOG_ERROR, "wrong start pos");
-        goto fail1;
+        goto fail0;
     }
     
     // get method object
@@ -769,8 +699,6 @@ static void find_func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -779,12 +707,8 @@ fail0:
 static void find_func_die (void *vo)
 {
     struct find_instance *o = vo;
-    NCDModuleInst *i = o->i;
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int find_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -920,21 +844,24 @@ fail0:
 static const struct NCDModule modules[] = {
     {
         .type = "list",
-        .func_new = func_new_list,
+        .func_new2 = func_new_list,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "listfrom",
         .base_type = "list",
-        .func_new = func_new_listfrom,
+        .func_new2 = func_new_listfrom,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "concatlist", // alias for listfrom
         .base_type = "list",
-        .func_new = func_new_listfrom,
+        .func_new2 = func_new_listfrom,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "list::append",
         .func_new = append_func_new
@@ -943,27 +870,31 @@ static const struct NCDModule modules[] = {
         .func_new = appendv_func_new
     }, {
         .type = "list::length",
-        .func_new = length_func_new,
+        .func_new2 = length_func_new,
         .func_die = length_func_die,
-        .func_getvar = length_func_getvar
+        .func_getvar = length_func_getvar,
+        .alloc_size = sizeof(struct length_instance)
     }, {
         .type = "list::get",
-        .func_new = get_func_new,
+        .func_new2 = get_func_new,
         .func_die = get_func_die,
-        .func_getvar = get_func_getvar
+        .func_getvar = get_func_getvar,
+        .alloc_size = sizeof(struct get_instance)
     }, {
         .type = "list::shift",
         .func_new = shift_func_new
     }, {
         .type = "list::contains",
-        .func_new = contains_func_new,
+        .func_new2 = contains_func_new,
         .func_die = contains_func_die,
-        .func_getvar = contains_func_getvar
+        .func_getvar = contains_func_getvar,
+        .alloc_size = sizeof(struct contains_instance)
     }, {
         .type = "list::find",
-        .func_new = find_func_new,
+        .func_new2 = find_func_new,
         .func_die = find_func_die,
-        .func_getvar = find_func_getvar
+        .func_getvar = find_func_getvar,
+        .alloc_size = sizeof(struct find_instance)
     }, {
         .type = "list::remove_at",
         .func_new = removeat_func_new

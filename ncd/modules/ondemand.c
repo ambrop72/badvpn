@@ -208,17 +208,9 @@ static void ondemand_process_handler (struct ondemand *o, int event)
     }
 }
 
-static void ondemand_func_new (NCDModuleInst *i)
+static void ondemand_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct ondemand *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct ondemand *o = vo;
     o->i = i;
     
     // read arguments
@@ -226,11 +218,11 @@ static void ondemand_func_new (NCDModuleInst *i)
     NCDValRef arg_args;
     if (!NCDVal_ListRead(i->args, 2, &arg_template_name, &arg_args)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(arg_template_name) || !NCDVal_IsList(arg_args)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     o->template_name = NCDVal_StringValue(arg_template_name);
     o->args = arg_args;
@@ -248,8 +240,6 @@ static void ondemand_func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -258,7 +248,6 @@ fail0:
 static void ondemand_free (struct ondemand *o)
 {
     ASSERT(!o->have_process)
-    NCDModuleInst *i = o->i;
     
     // die demands
     while (!LinkedList1_IsEmpty(&o->demands_list)) {
@@ -267,10 +256,7 @@ static void ondemand_free (struct ondemand *o)
         demand_free(demand);
     }
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void ondemand_func_die (void *vo)
@@ -293,23 +279,15 @@ static void ondemand_func_die (void *vo)
     }
 }
 
-static void demand_func_new (NCDModuleInst *i)
+static void demand_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct demand *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct demand *o = vo;
     o->i = i;
     
     // read arguments
     if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     
     // set ondemand
@@ -323,7 +301,7 @@ static void demand_func_new (NCDModuleInst *i)
         ASSERT(!o->od->dying)
         
         if (!ondemand_start_process(o->od)) {
-            goto fail2;
+            goto fail1;
         }
     }
     
@@ -334,10 +312,8 @@ static void demand_func_new (NCDModuleInst *i)
     
     return;
     
-fail2:
-    LinkedList1_Remove(&o->od->demands_list, &o->demands_list_node);
 fail1:
-    free(o);
+    LinkedList1_Remove(&o->od->demands_list, &o->demands_list_node);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -345,8 +321,6 @@ fail0:
 
 static void demand_free (struct demand *o)
 {
-    NCDModuleInst *i = o->i;
-    
     // remove from ondemand's demands list
     LinkedList1_Remove(&o->od->demands_list, &o->demands_list_node);
     
@@ -355,10 +329,7 @@ static void demand_free (struct demand *o)
         ondemand_terminate_process(o->od);
     }
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void demand_func_die (void *vo)
@@ -380,13 +351,15 @@ static int demand_func_getobj (void *vo, const char *objname, NCDObject *out_obj
 static const struct NCDModule modules[] = {
     {
         .type = "ondemand",
-        .func_new = ondemand_func_new,
-        .func_die = ondemand_func_die
+        .func_new2 = ondemand_func_new,
+        .func_die = ondemand_func_die,
+        .alloc_size = sizeof(struct ondemand)
     }, {
         .type = "ondemand::demand",
-        .func_new = demand_func_new,
+        .func_new2 = demand_func_new,
         .func_die = demand_func_die,
-        .func_getobj = demand_func_getobj
+        .func_getobj = demand_func_getobj,
+        .alloc_size = sizeof(struct demand)
     }, {
         .type = NULL
     }

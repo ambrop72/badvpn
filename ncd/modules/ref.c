@@ -67,23 +67,15 @@ struct ref_instance {
 
 static void ref_instance_free (struct ref_instance *o);
 
-static void refhere_func_new (NCDModuleInst *i)
+static void refhere_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct refhere_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct refhere_instance *o = vo;
     o->i = i;
     
     // check arguments
     if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     
     // init refs list
@@ -93,8 +85,6 @@ static void refhere_func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -103,7 +93,6 @@ fail0:
 static void refhere_func_die (void *vo)
 {
     struct refhere_instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // die refs
     while (!LinkedList0_IsEmpty(&o->refs_list)) {
@@ -112,10 +101,7 @@ static void refhere_func_die (void *vo)
         ref_instance_free(ref);
     }
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int refhere_func_getobj (void *vo, const char *objname, NCDObject *out_object)
@@ -131,23 +117,15 @@ static int refhere_func_getobj (void *vo, const char *objname, NCDObject *out_ob
     return NCDModuleInst_Backend_GetObj(o->i, objname, out_object);
 }
 
-static void ref_func_new_templ (NCDModuleInst *i, struct refhere_instance *rh)
+static void ref_func_new_templ (void *vo, NCDModuleInst *i, struct refhere_instance *rh)
 {
-    // allocate instance
-    struct ref_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct ref_instance *o = vo;
     o->i = i;
     
     // check arguments
     if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     
     // set refhere
@@ -160,38 +138,31 @@ static void ref_func_new_templ (NCDModuleInst *i, struct refhere_instance *rh)
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void ref_func_new_from_refhere (NCDModuleInst *i)
+static void ref_func_new_from_refhere (void *vo, NCDModuleInst *i)
 {
     struct refhere_instance *rh = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
-    return ref_func_new_templ(i, rh);
+    return ref_func_new_templ(vo, i, rh);
 }
 
-static void ref_func_new_from_ref (NCDModuleInst *i)
+static void ref_func_new_from_ref (void *vo, NCDModuleInst *i)
 {
     struct ref_instance *ref = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
-    return ref_func_new_templ(i, ref->rh);
+    return ref_func_new_templ(vo, i, ref->rh);
 }
 
 static void ref_instance_free (struct ref_instance *o)
 {
-    NCDModuleInst *i = o->i;
-    
     // remove from refhere's reft list
     LinkedList0_Remove(&o->rh->refs_list, &o->refs_list_node);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void ref_func_die (void *vo)
@@ -217,21 +188,24 @@ static int ref_func_getobj (void *vo, const char *objname, NCDObject *out_object
 static const struct NCDModule modules[] = {
     {
         .type = "refhere",
-        .func_new = refhere_func_new,
+        .func_new2 = refhere_func_new,
         .func_die = refhere_func_die,
-        .func_getobj = refhere_func_getobj
+        .func_getobj = refhere_func_getobj,
+        .alloc_size = sizeof(struct refhere_instance)
     }, {
         .type = "refhere::ref",
         .base_type = "ref",
-        .func_new = ref_func_new_from_refhere,
+        .func_new2 = ref_func_new_from_refhere,
         .func_die = ref_func_die,
-        .func_getobj = ref_func_getobj
+        .func_getobj = ref_func_getobj,
+        .alloc_size = sizeof(struct ref_instance)
     }, {
         .type = "ref::ref",
         .base_type = "ref",
-        .func_new = ref_func_new_from_ref,
+        .func_new2 = ref_func_new_from_ref,
         .func_die = ref_func_die,
-        .func_getobj = ref_func_getobj
+        .func_getobj = ref_func_getobj,
+        .alloc_size = sizeof(struct ref_instance)
     }, {
         .type = NULL
     }

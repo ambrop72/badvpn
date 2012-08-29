@@ -60,30 +60,19 @@ struct instance {
     size_t value;
 };
 
-static void func_new_templ (NCDModuleInst *i, size_t value)
+static void func_new_templ (void *vo, NCDModuleInst *i, size_t value)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // set value
     o->value = value;
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
-    return;
-    
-fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_from_value (NCDModuleInst *i)
+static void func_new_from_value (void *vo, NCDModuleInst *i)
 {
     // read arguments
     NCDValRef arg_value;
@@ -109,7 +98,7 @@ static void func_new_from_value (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_templ(i, value);
+    func_new_templ(vo, i, value);
     return;
     
 fail0:
@@ -117,7 +106,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_from_index (NCDModuleInst *i)
+static void func_new_from_index (void *vo, NCDModuleInst *i)
 {
     struct instance *index = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
@@ -127,7 +116,7 @@ static void func_new_from_index (NCDModuleInst *i)
         goto fail0;
     }
     
-    func_new_templ(i, index->value + 1);
+    func_new_templ(vo, i, index->value + 1);
     return;
     
 fail0:
@@ -138,12 +127,8 @@ fail0:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -167,15 +152,17 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
 static const struct NCDModule modules[] = {
     {
         .type = "index",
-        .func_new = func_new_from_value,
+        .func_new2 = func_new_from_value,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "index::next",
         .base_type = "index",
-        .func_new = func_new_from_index,
+        .func_new2 = func_new_from_index,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

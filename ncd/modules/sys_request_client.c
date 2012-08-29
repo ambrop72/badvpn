@@ -541,28 +541,22 @@ bad:
     return 0;
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate structure
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
     NCDValRef connect_addr_arg;
     if (!NCDVal_ListRead(i->args, 1, &connect_addr_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     
     // get address
     struct NCDRequestClient_addr addr;
     if (!get_connect_addr(o, connect_addr_arg, &addr)) {
-        goto fail1;
+        goto fail0;
     }
     
     // init client
@@ -570,7 +564,7 @@ static void func_new (NCDModuleInst *i)
         (NCDRequestClient_handler_error)client_handler_error,
         (NCDRequestClient_handler_connected)client_handler_connected)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDRequestClient_Init failed");
-        goto fail1;
+        goto fail0;
     }
     
     // init requests list
@@ -580,8 +574,6 @@ static void func_new (NCDModuleInst *i)
     o->state = CSTATE_CONNECTING;
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -589,8 +581,6 @@ fail0:
 
 static void instance_free (struct instance *o, int with_error)
 {
-    NCDModuleInst *i = o->i;
-    
     // deal with requests
     LinkedList0Node *ln;
     while (ln = LinkedList0_GetFirst(&o->requests_list)) {
@@ -601,13 +591,10 @@ static void instance_free (struct instance *o, int with_error)
     // free client
     NCDRequestClient_Free(&o->client);
     
-    // free structure
-    free(o);
-    
     if (with_error) {
-        NCDModuleInst_Backend_SetError(i);
+        NCDModuleInst_Backend_SetError(o->i);
     }
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -617,16 +604,10 @@ static void func_die (void *vo)
     instance_free(o, 0);
 }
 
-static void request_func_new (NCDModuleInst *i)
+static void request_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate structure
-    struct request_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
+    struct request_instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
     NCDValRef request_data_arg;
@@ -635,13 +616,13 @@ static void request_func_new (NCDModuleInst *i)
     NCDValRef args_arg;
     if (!NCDVal_ListRead(i->args, 4, &request_data_arg, &reply_handler_arg, &finished_handler_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(reply_handler_arg) || !NCDVal_IsStringNoNulls(finished_handler_arg) ||
         !NCDVal_IsList(args_arg)
     ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     o->reply_handler = NCDVal_StringValue(reply_handler_arg);
     o->finished_handler = NCDVal_StringValue(finished_handler_arg);
@@ -654,14 +635,14 @@ static void request_func_new (NCDModuleInst *i)
     // check client state
     if (client->state != CSTATE_CONNECTED) {
         ModuleLog(o->i, BLOG_ERROR, "client is not connected");
-        goto fail1;
+        goto fail0;
     }
     
     // convert argument to old format
     NCDValue request_data_compat;
     if (!NCDValCompat_ValToValue(request_data_arg, &request_data_compat)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDValCompat_ValToValue failed");
-        goto fail1;
+        goto fail0;
     }
     
     // init request
@@ -671,7 +652,7 @@ static void request_func_new (NCDModuleInst *i)
         (NCDRequestClientRequest_handler_finished)request_handler_finished)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDRequestClientRequest_Init failed");
         NCDValue_Free(&request_data_compat);
-        goto fail1;
+        goto fail0;
     }
     
     NCDValue_Free(&request_data_compat);
@@ -688,8 +669,6 @@ static void request_func_new (NCDModuleInst *i)
     o->dstate = RDSTATE_NONE;
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -698,7 +677,6 @@ fail0:
 static void request_instance_free (struct request_instance *o, int with_error)
 {
     ASSERT(o->pstate == RPSTATE_NONE)
-    NCDModuleInst *i = o->i;
     
     // free replies
     LinkedList1Node *ln;
@@ -712,13 +690,10 @@ static void request_instance_free (struct request_instance *o, int with_error)
         request_gone(o, 1);
     }
     
-    // free structure
-    free(o);
-    
     if (with_error) {
-        NCDModuleInst_Backend_SetError(i);
+        NCDModuleInst_Backend_SetError(o->i);
     }
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void request_func_die (void *vo)
@@ -731,12 +706,14 @@ static void request_func_die (void *vo)
 static const struct NCDModule modules[] = {
     {
         .type = "sys.request_client",
-        .func_new = func_new,
-        .func_die = func_die
+        .func_new2 = func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "sys.request_client::request",
-        .func_new = request_func_new,
-        .func_die = request_func_die
+        .func_new2 = request_func_new,
+        .func_die = request_func_die,
+        .alloc_size = sizeof(struct request_instance)
     }, {
         .type = NULL
     }

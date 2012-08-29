@@ -235,60 +235,52 @@ static void next_event (struct instance *o)
     }
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct instance *o = vo;
     o->i = i;
     
     // check arguments
     NCDValRef dir_arg;
     if (!NCDVal_ListRead(o->i->args, 1, &dir_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(dir_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     o->dir = NCDVal_StringValue(dir_arg);
     
     // open inotify
     if ((o->inotify_fd = inotify_init()) < 0) {
         ModuleLog(o->i, BLOG_ERROR, "inotify_init failed");
-        goto fail1;
+        goto fail0;
     }
     
     // add watch
     if (inotify_add_watch(o->inotify_fd, o->dir, IN_CREATE | IN_DELETE | IN_MODIFY | IN_MOVED_FROM | IN_MOVED_TO) < 0) {
         ModuleLog(o->i, BLOG_ERROR, "inotify_add_watch failed");
-        goto fail2;
+        goto fail1;
     }
     
     // set non-blocking
     if (!badvpn_set_nonblocking(o->inotify_fd)) {
         ModuleLog(o->i, BLOG_ERROR, "badvpn_set_nonblocking failed");
-        goto fail2;
+        goto fail1;
     }
     
     // init BFileDescriptor
     BFileDescriptor_Init(&o->bfd, o->inotify_fd, (BFileDescriptor_handler)inotify_fd_handler, o);
     if (!BReactor_AddFileDescriptor(o->i->iparams->reactor, &o->bfd)) {
         ModuleLog(o->i, BLOG_ERROR, "BReactor_AddFileDescriptor failed");
-        goto fail2;
+        goto fail1;
     }
     
     // open directory
     if (!(o->dir_handle = opendir(o->dir))) {
         ModuleLog(o->i, BLOG_ERROR, "opendir failed");
-        goto fail3;
+        goto fail2;
     }
     
     // set not processing
@@ -298,15 +290,12 @@ static void func_new (NCDModuleInst *i)
     next_dir_event(o);
     return;
     
-fail3:
-    // free BFileDescriptor
-    BReactor_RemoveFileDescriptor(o->i->iparams->reactor, &o->bfd);
 fail2:
+    BReactor_RemoveFileDescriptor(o->i->iparams->reactor, &o->bfd);
+fail1:
     if (close(o->inotify_fd) < 0) {
         ModuleLog(o->i, BLOG_ERROR, "close failed");
     }
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -314,8 +303,6 @@ fail0:
 
 void instance_free (struct instance *o, int is_error)
 {
-    NCDModuleInst *i = o->i;
-    
     // close directory
     if (o->dir_handle) {
         if (closedir(o->dir_handle) < 0) {
@@ -331,13 +318,10 @@ void instance_free (struct instance *o, int is_error)
         ModuleLog(o->i, BLOG_ERROR, "close failed");
     }
     
-    // free instance
-    free(o);
-    
     if (is_error) {
-        NCDModuleInst_Backend_SetError(i);
+        NCDModuleInst_Backend_SetError(o->i);
     }
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -424,9 +408,10 @@ fail0:
 static const struct NCDModule modules[] = {
     {
         .type = "sys.watch_directory",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "sys.watch_directory::nextevent",
         .func_new = nextevent_func_new

@@ -725,16 +725,10 @@ bad:
     return 0;
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate structure
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
     NCDValRef listen_addr_arg;
@@ -742,18 +736,18 @@ static void func_new (NCDModuleInst *i)
     NCDValRef args_arg;
     if (!NCDVal_ListRead(i->args, 3, &listen_addr_arg, &request_handler_template_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(request_handler_template_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     o->request_handler_template = NCDVal_StringValue(request_handler_template_arg);
     o->args = args_arg;
     
     // init listener
     if (!init_listen(o, listen_addr_arg)) {
-        goto fail1;
+        goto fail0;
     }
     
     // init connections list
@@ -766,8 +760,6 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -775,14 +767,10 @@ fail0:
 
 static void instance_free (struct instance *o)
 {
-    NCDModuleInst *i = o->i;
     ASSERT(o->dying)
     ASSERT(LinkedList0_IsEmpty(&o->connections_list))
     
-    // free structure
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -882,8 +870,9 @@ fail:
 static const struct NCDModule modules[] = {
     {
         .type = "sys.request_server",
-        .func_new = func_new,
-        .func_die = func_die
+        .func_new2 = func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "sys.request_server.request::reply",
         .func_new = reply_func_new

@@ -224,16 +224,10 @@ static void deinit_timer_handler (struct instance *o)
     o->state = STATE_DEINIT_CLEANING;
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // check arguments
     NCDValRef init_template_arg;
@@ -242,13 +236,13 @@ static void func_new (NCDModuleInst *i)
     NCDValRef deinit_timeout_arg;
     if (!NCDVal_ListRead(i->args, 5, &init_template_arg, &init_args, &deinit_template_arg, &o->deinit_args, &deinit_timeout_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(init_template_arg) || !NCDVal_IsList(init_args)  ||
         !NCDVal_IsStringNoNulls(deinit_template_arg) || !NCDVal_IsList(o->deinit_args) ||
         !NCDVal_IsStringNoNulls(deinit_timeout_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     const char *init_template = NCDVal_StringValue(init_template_arg);
     o->deinit_template = NCDVal_StringValue(deinit_template_arg);
@@ -257,7 +251,7 @@ static void func_new (NCDModuleInst *i)
     uintmax_t timeout;
     if (!parse_unsigned_integer(NCDVal_StringValue(deinit_timeout_arg), &timeout) || timeout > UINT64_MAX) {
         ModuleLog(i, BLOG_ERROR, "wrong timeout");
-        goto fail1;
+        goto fail0;
     }
     
     // init timer
@@ -272,7 +266,7 @@ static void func_new (NCDModuleInst *i)
     } else {
         // start init process
         if (!start_process(o, init_template, init_args, (NCDModuleProcess_handler_event)init_process_handler_event)) {
-            goto fail1;
+            goto fail0;
         }
         
         // set state init working
@@ -283,8 +277,6 @@ static void func_new (NCDModuleInst *i)
     o->dying = 0;
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -292,12 +284,7 @@ fail0:
 
 static void instance_free (struct instance *o)
 {
-    NCDModuleInst *i = o->i;
-    
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -317,8 +304,9 @@ static void func_die (void *vo)
 static const struct NCDModule modules[] = {
     {
         .type = "imperative",
-        .func_new = func_new,
-        .func_die = func_die
+        .func_new2 = func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }
