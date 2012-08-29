@@ -105,40 +105,32 @@ struct stat_instance {
     struct stat result;
 };
 
-static void read_func_new (NCDModuleInst *i)
+static void read_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct read_instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct read_instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef filename_arg;
     if (!NCDVal_ListRead(i->args, 1, &filename_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(filename_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     
     // read file
     if (!read_file(NCDVal_StringValue(filename_arg), &o->file_data, &o->file_len)) {
         ModuleLog(i, BLOG_ERROR, "failed to read file");
-        goto fail1;
+        goto fail0;
     }
     
     // signal up
     NCDModuleInst_Backend_Up(i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -147,15 +139,11 @@ fail0:
 static void read_func_die (void *vo)
 {
     struct read_instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // free data
     free(o->file_data);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int read_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -320,9 +308,10 @@ static int stat_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
 static const struct NCDModule modules[] = {
     {
         .type = "file_read",
-        .func_new = read_func_new,
+        .func_new2 = read_func_new,
         .func_die = read_func_die,
-        .func_getvar = read_func_getvar
+        .func_getvar = read_func_getvar,
+        .alloc_size = sizeof(struct read_instance)
     }, {
         .type = "file_write",
         .func_new = write_func_new

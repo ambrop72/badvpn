@@ -126,26 +126,20 @@ static int parse_ipv4_addr (NCDModuleInst *i, const char *str, NCDValMem *mem, N
     return 1;
 }
 
-static void new_templ (NCDModuleInst *i, parse_func pfunc)
+static void new_templ (void *vo, NCDModuleInst *i, parse_func pfunc)
 {
-    // allocate structure
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef str_arg;
     if (!NCDVal_ListRead(i->args, 1, &str_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsString(str_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     
     // init mem
@@ -163,8 +157,6 @@ static void new_templ (NCDModuleInst *i, parse_func pfunc)
     NCDModuleInst_Backend_Up(i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -173,15 +165,11 @@ fail0:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // free mem
     NCDValMem_Free(&o->mem);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -208,19 +196,19 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return 0;
 }
 
-static void func_new_parse_number (NCDModuleInst *i)
+static void func_new_parse_number (void *vo, NCDModuleInst *i)
 {
-    new_templ(i, parse_number);
+    new_templ(vo, i, parse_number);
 }
 
-static void func_new_parse_value (NCDModuleInst *i)
+static void func_new_parse_value (void *vo, NCDModuleInst *i)
 {
-    new_templ(i, parse_value);
+    new_templ(vo, i, parse_value);
 }
 
-static void func_new_parse_ipv4_addr (NCDModuleInst *i)
+static void func_new_parse_ipv4_addr (void *vo, NCDModuleInst *i)
 {
-    new_templ(i, parse_ipv4_addr);
+    new_templ(vo, i, parse_ipv4_addr);
 }
 
 static void ipv4_cidr_addr_func_new (void *vo, NCDModuleInst *i)
@@ -290,19 +278,22 @@ static int ipv4_cidr_addr_func_getvar (void *vo, const char *name, NCDValMem *me
 static const struct NCDModule modules[] = {
     {
         .type = "parse_number",
-        .func_new = func_new_parse_number,
+        .func_new2 = func_new_parse_number,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "parse_value",
-        .func_new = func_new_parse_value,
+        .func_new2 = func_new_parse_value,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "parse_ipv4_addr",
-        .func_new = func_new_parse_ipv4_addr,
+        .func_new2 = func_new_parse_ipv4_addr,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "parse_ipv4_cidr_addr",
         .func_new2 = ipv4_cidr_addr_func_new,

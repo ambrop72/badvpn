@@ -52,34 +52,28 @@ struct instance {
     size_t result_len;
 };
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate structure
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef glue_arg;
     NCDValRef pieces_arg;
     if (!NCDVal_ListRead(i->args, 2, &glue_arg, &pieces_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsString(glue_arg) || !NCDVal_IsList(pieces_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     
     // init result string
     ExpString str;
     if (!ExpString_Init(&str)) {
         ModuleLog(i, BLOG_ERROR, "ExpString_Init failed");
-        goto fail1;
+        goto fail0;
     }
     
     size_t count = NCDVal_ListCount(pieces_arg);
@@ -89,21 +83,21 @@ static void func_new (NCDModuleInst *i)
         // check piece type
         if (!NCDVal_IsString(piece)) {
             ModuleLog(i, BLOG_ERROR, "wrong piece type");
-            goto fail2;
+            goto fail1;
         }
         
         // append glue
         if (j > 0) {
             if (!ExpString_AppendBinary(&str, (const uint8_t *)NCDVal_StringValue(glue_arg), NCDVal_StringLength(glue_arg))) {
                 ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
-                goto fail2;
+                goto fail1;
             }
         }
         
         // append piece
         if (!ExpString_AppendBinary(&str, (const uint8_t *)NCDVal_StringValue(piece), NCDVal_StringLength(piece))) {
             ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
-            goto fail2;
+            goto fail1;
         }
     }
     
@@ -115,10 +109,8 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(i);
     return;
     
-fail2:
-    ExpString_Free(&str);
 fail1:
-    free(o);
+    ExpString_Free(&str);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -127,15 +119,11 @@ fail0:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
     // free result
     free(o->result);
     
-    // free structure
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -156,9 +144,10 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
 static const struct NCDModule modules[] = {
     {
         .type = "implode",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

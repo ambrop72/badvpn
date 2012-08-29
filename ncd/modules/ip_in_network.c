@@ -51,16 +51,10 @@ struct instance {
     int value;
 };
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct instance *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef arg_addr1;
@@ -68,11 +62,11 @@ static void func_new (NCDModuleInst *i)
     NCDValRef arg_netprefix;
     if (!NCDVal_ListRead(o->i->args, 3, &arg_addr1, &arg_addr2, &arg_netprefix)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(arg_addr1) || !NCDVal_IsStringNoNulls(arg_addr2) || !NCDVal_IsStringNoNulls(arg_netprefix)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     
     // parse
@@ -81,15 +75,15 @@ static void func_new (NCDModuleInst *i)
     int netprefix;
     if (!ipaddr_parse_ipv4_addr((char *)NCDVal_StringValue(arg_addr1), &addr1)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong addr1");
-        goto fail1;
+        goto fail0;
     }
     if (!ipaddr_parse_ipv4_addr((char *)NCDVal_StringValue(arg_addr2), &addr2)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong addr2");
-        goto fail1;
+        goto fail0;
     }
     if (!ipaddr_parse_ipv4_prefix((char *)NCDVal_StringValue(arg_netprefix), &netprefix)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong netprefix");
-        goto fail1;
+        goto fail0;
     }
     
     // test
@@ -99,8 +93,6 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -109,12 +101,8 @@ fail0:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -137,9 +125,10 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
 static const struct NCDModule modules[] = {
     {
         .type = "ip_in_network",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

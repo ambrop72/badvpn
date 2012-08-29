@@ -141,59 +141,48 @@ static void device_nextevent (struct instance *o)
     NCDModuleInst_Backend_Down(o->i);
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct instance *o = vo;
     o->i = i;
     
     // check arguments
     NCDValRef device_arg;
     if (!NCDVal_ListRead(o->i->args, 1, &device_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(device_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     
     // open device
     if ((o->evdev_fd = open(NCDVal_StringValue(device_arg), O_RDONLY)) < 0) {
         ModuleLog(o->i, BLOG_ERROR, "open failed");
-        goto fail1;
+        goto fail0;
     }
     
     // set non-blocking
     if (!badvpn_set_nonblocking(o->evdev_fd)) {
         ModuleLog(o->i, BLOG_ERROR, "badvpn_set_nonblocking failed");
-        goto fail2;
+        goto fail1;
     }
     
     // init BFileDescriptor
     BFileDescriptor_Init(&o->bfd, o->evdev_fd, (BFileDescriptor_handler)device_handler, o);
     if (!BReactor_AddFileDescriptor(o->i->iparams->reactor, &o->bfd)) {
         ModuleLog(o->i, BLOG_ERROR, "BReactor_AddFileDescriptor failed");
-        goto fail2;
+        goto fail1;
     }
     BReactor_SetFileDescriptorEvents(o->i->iparams->reactor, &o->bfd, BREACTOR_READ);
     
     // set not processing
     o->processing = 0;
-    
     return;
     
-fail2:
-    ASSERT_FORCE(close(o->evdev_fd) == 0)
 fail1:
-    free(o);
+    ASSERT_FORCE(close(o->evdev_fd) == 0)
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -201,8 +190,6 @@ fail0:
 
 void instance_free (struct instance *o, int is_error)
 {
-    NCDModuleInst *i = o->i;
-    
     // free BFileDescriptor
     BReactor_RemoveFileDescriptor(o->i->iparams->reactor, &o->bfd);
     
@@ -212,13 +199,10 @@ void instance_free (struct instance *o, int is_error)
         ModuleLog(o->i, BLOG_ERROR, "close failed");
     }
     
-    // free instance
-    free(o);
-    
     if (is_error) {
-        NCDModuleInst_Backend_SetError(i);
+        NCDModuleInst_Backend_SetError(o->i);
     }
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -342,9 +326,10 @@ fail0:
 static const struct NCDModule modules[] = {
     {
         .type = "sys.evdev",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "sys.evdev::nextevent",
         .func_new = nextevent_func_new
