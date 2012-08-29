@@ -38,9 +38,9 @@
  *   for an address.
  * 
  * Variables:
- *   string addr - dynamic address obtained on the interface, as formatted
- *                 by getnameinfo(..., NI_NUMERICHOST)
+ *   string addr - dynamic address obtained on the interface
  *   string prefix - prefix length
+ *   string cidr_addr - address and prefix (addr/prefix)
  */
 
 #include <stdlib.h>
@@ -176,6 +176,16 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     if (!strcmp(name, "prefix")) {
         char str[10];
         sprintf(str, "%d", o->ifaddr.prefix);
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+        }
+        return 1;
+    }
+    
+    if (!strcmp(name, "cidr_addr")) {
+        char str[IPADDR6_PRINT_MAX];
+        ipaddr6_print_ifaddr(o->ifaddr, str);
         *out = NCDVal_NewString(mem, str);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
