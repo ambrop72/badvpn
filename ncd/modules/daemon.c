@@ -204,23 +204,15 @@ static void process_handler (struct instance *o, int normally, uint8_t normally_
     o->state = STATE_RETRYING;
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct instance *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // init arguments
+    struct instance *o = vo;
     o->i = i;
     
     // read arguments
     if (!NCDVal_ListRead(i->args, 1, &o->cmd_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     
     // init timer
@@ -233,8 +225,6 @@ static void func_new (NCDModuleInst *i)
     start_process(o);
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -242,15 +232,10 @@ fail0:
 
 static void instance_free (struct instance *o)
 {
-    NCDModuleInst *i = o->i;
-    
     // free timer
     BReactor_RemoveTimer(o->i->iparams->reactor, &o->timer);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -274,8 +259,9 @@ static void func_die (void *vo)
 static const struct NCDModule modules[] = {
     {
         .type = "daemon",
-        .func_new = func_new,
-        .func_die = func_die
+        .func_new2 = func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

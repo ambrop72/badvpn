@@ -155,33 +155,27 @@ static int func_globalinit (struct NCDModuleInitParams params)
     return 1;
 }
 
-static void provide_func_new (NCDModuleInst *i)
+static void provide_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct provide *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct provide *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef name_arg;
     if (!NCDVal_ListRead(o->i->args, 1, &name_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsStringNoNulls(name_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     o->name = NCDVal_StringValue(name_arg);
     
     // check for existing provide with this name
     if (find_provide(o->name)) {
         ModuleLog(o->i, BLOG_ERROR, "a provide with this name already exists");
-        goto fail1;
+        goto fail0;
     }
     
     // insert to provides list
@@ -209,8 +203,6 @@ static void provide_func_new (NCDModuleInst *i)
     
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -219,15 +211,11 @@ fail0:
 static void provide_free (struct provide *o)
 {
     ASSERT(LinkedList2_IsEmpty(&o->depends))
-    NCDModuleInst *i = o->i;
     
     // remove from provides list
     LinkedList2_Remove(&provides, &o->provides_node);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void provide_func_die (void *vo)
@@ -257,26 +245,20 @@ static void provide_func_die (void *vo)
     }
 }
 
-static void depend_func_new (NCDModuleInst *i)
+static void depend_func_new (void *vo, NCDModuleInst *i)
 {
-    // allocate instance
-    struct depend *o = malloc(sizeof(*o));
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
-        goto fail0;
-    }
+    struct depend *o = vo;
     o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
     
     // read arguments
     NCDValRef names_arg;
     if (!NCDVal_ListRead(o->i->args, 1, &names_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail1;
+        goto fail0;
     }
     if (!NCDVal_IsList(names_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail1;
+        goto fail0;
     }
     o->names = names_arg;
     
@@ -286,7 +268,7 @@ static void depend_func_new (NCDModuleInst *i)
         NCDValRef e = NCDVal_ListGet(o->names, j);
         if (!NCDVal_IsStringNoNulls(e)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong type");
-            goto fail1;
+            goto fail0;
         }
     }
     
@@ -301,8 +283,6 @@ static void depend_func_new (NCDModuleInst *i)
     
     return;
     
-fail1:
-    free(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -310,8 +290,6 @@ fail0:
 
 static void depend_free (struct depend *o)
 {
-    NCDModuleInst *i = o->i;
-    
     if (o->provide) {
         // remove from provide's list
         LinkedList2_Remove(&o->provide->depends, &o->provide_node);
@@ -325,10 +303,7 @@ static void depend_free (struct depend *o)
     // remove from depends list
     LinkedList2_Remove(&depends, &o->depends_node);
     
-    // free instance
-    free(o);
-    
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void depend_func_die (void *vo)
@@ -375,15 +350,17 @@ static int depend_func_getobj (void *vo, const char *objname, NCDObject *out_obj
 static const struct NCDModule modules[] = {
     {
         .type = "multiprovide",
-        .func_new = provide_func_new,
-        .func_die = provide_func_die
+        .func_new2 = provide_func_new,
+        .func_die = provide_func_die,
+        .alloc_size = sizeof(struct provide)
     }, {
         .type = "multidepend",
-        .func_new = depend_func_new,
+        .func_new2 = depend_func_new,
         .func_die = depend_func_die,
         .func_clean = depend_func_clean,
         .func_getobj = depend_func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
+        .alloc_size = sizeof(struct depend)
     }, {
         .type = NULL
     }
