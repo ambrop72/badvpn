@@ -65,9 +65,10 @@ static void ipaddr6_ipv6_mask_from_prefix (int prefix, struct ipv6_addr *out_mas
 static int ipaddr6_ipv6_prefix_from_mask (struct ipv6_addr mask, int *out_prefix);
 static int ipaddr6_ipv6_addrs_in_network (struct ipv6_addr addr1, struct ipv6_addr addr2, int netprefix);
 
-#define IPADDR6_PRINT_MAX 46
+#define IPADDR6_PRINT_MAX 44
 
 static void ipaddr6_print_addr (struct ipv6_addr addr, char *out_buf);
+static void ipaddr6_print_ifaddr (struct ipv6_ifaddr addr, char *out_buf);
 
 int ipaddr6_parse_ipv6_addr_bin (const char *name, size_t name_len, struct ipv6_addr *out_addr)
 {
@@ -381,6 +382,15 @@ void ipaddr6_print_addr (struct ipv6_addr addr, char *out_buf)
             prefix = ":";
         }
     }
+}
+
+void ipaddr6_print_ifaddr (struct ipv6_ifaddr addr, char *out_buf)
+{
+    ASSERT(addr.prefix >= 0)
+    ASSERT(addr.prefix <= 128)
+    
+    ipaddr6_print_addr(addr.addr, out_buf);
+    sprintf(out_buf + strlen(out_buf), "/%d", addr.prefix);
 }
 
 #endif
