@@ -158,6 +158,11 @@ static const struct NCDModule modules[] = {
         .func_getvar = func_getvar,
         .alloc_size = sizeof(struct instance)
     }, {
+        .type = "ip_in_network", // compatibility name
+        .func_new2 = func_new_normal,
+        .func_getvar = func_getvar,
+        .alloc_size = sizeof(struct instance)
+    }, {
         .type = "net.ipv4.ifnot_addr_in_network",
         .func_new2 = func_new_ifnot,
         .func_getvar = func_getvar,

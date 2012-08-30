@@ -102,7 +102,6 @@ add_executable(badvpn-ncd
     modules/sleep.c
     modules/print.c
     modules/blocker.c
-    modules/ip_in_network.c
     modules/run.c
     modules/runonce.c
     modules/daemon.c

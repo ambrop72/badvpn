@@ -17,7 +17,6 @@
 {"ncd_sleep", 4},
 {"ncd_print", 4},
 {"ncd_blocker", 4},
-{"ncd_ip_in_network", 4},
 {"ncd_run", 4},
 {"ncd_runonce", 4},
 {"ncd_daemon", 4},
