@@ -1,4 +1,4 @@
-#define SAVL_PARAM_NAME PacketPassFairQueue_Tree
+#define SAVL_PARAM_NAME PacketPassFairQueue__Tree
 #define SAVL_PARAM_FEATURE_COUNTS 0
 #define SAVL_PARAM_FEATURE_NOKEYS 1
 #define SAVL_PARAM_TYPE_ENTRY struct PacketPassFairQueueFlow_s

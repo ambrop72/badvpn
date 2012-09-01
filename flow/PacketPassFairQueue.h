@@ -63,7 +63,7 @@ typedef struct PacketPassFairQueueFlow_s {
     LinkedList2Node list_node;
     int is_queued;
     struct {
-        PacketPassFairQueue_TreeNode tree_node;
+        PacketPassFairQueue__TreeNode tree_node;
         uint8_t *data;
         int data_len;
     } queued;
@@ -81,7 +81,7 @@ typedef struct PacketPassFairQueue_s {
     struct PacketPassFairQueueFlow_s *sending_flow;
     int sending_len;
     struct PacketPassFairQueueFlow_s *previous_flow;
-    PacketPassFairQueue_Tree queued_tree;
+    PacketPassFairQueue__Tree queued_tree;
     LinkedList2 flows_list;
     int freeing;
     BPending schedule_job;
