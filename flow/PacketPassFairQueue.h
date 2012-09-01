@@ -38,7 +38,7 @@
 
 #include <misc/debug.h>
 #include <misc/debugcounter.h>
-#include <structure/BHeap.h>
+#include <structure/SAvl.h>
 #include <structure/LinkedList2.h>
 #include <base/DebugObject.h>
 #include <base/BPending.h>
@@ -51,27 +51,11 @@ typedef void (*PacketPassFairQueue_handler_busy) (void *user);
 
 struct PacketPassFairQueueFlow_s;
 
-/**
- * Fair queue using {@link PacketPassInterface}.
- */
-typedef struct {
-    PacketPassInterface *output;
-    BPendingGroup *pg;
-    int use_cancel;
-    int packet_weight;
-    struct PacketPassFairQueueFlow_s *sending_flow;
-    int sending_len;
-    struct PacketPassFairQueueFlow_s *previous_flow;
-    BHeap queued_heap;
-    LinkedList2 flows_list;
-    int freeing;
-    BPending schedule_job;
-    DebugObject d_obj;
-    DebugCounter d_ctr;
-} PacketPassFairQueue;
+#include "PacketPassFairQueue_tree.h"
+#include <structure/SAvl_decl.h>
 
 typedef struct PacketPassFairQueueFlow_s {
-    PacketPassFairQueue *m;
+    struct PacketPassFairQueue_s *m;
     PacketPassFairQueue_handler_busy handler_busy;
     void *user;
     PacketPassInterface input;
@@ -79,12 +63,31 @@ typedef struct PacketPassFairQueueFlow_s {
     LinkedList2Node list_node;
     int is_queued;
     struct {
-        BHeapNode heap_node;
+        PacketPassFairQueue_TreeNode tree_node;
         uint8_t *data;
         int data_len;
     } queued;
     DebugObject d_obj;
 } PacketPassFairQueueFlow;
+
+/**
+ * Fair queue using {@link PacketPassInterface}.
+ */
+typedef struct PacketPassFairQueue_s {
+    PacketPassInterface *output;
+    BPendingGroup *pg;
+    int use_cancel;
+    int packet_weight;
+    struct PacketPassFairQueueFlow_s *sending_flow;
+    int sending_len;
+    struct PacketPassFairQueueFlow_s *previous_flow;
+    PacketPassFairQueue_Tree queued_tree;
+    LinkedList2 flows_list;
+    int freeing;
+    BPending schedule_job;
+    DebugObject d_obj;
+    DebugCounter d_ctr;
+} PacketPassFairQueue;
 
 /**
  * Initializes the queue.

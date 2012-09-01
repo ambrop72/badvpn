@@ -36,10 +36,18 @@
 
 #include <flow/PacketPassFairQueue.h>
 
-static int time_comparator (void *user, uint64_t *time1, uint64_t *time2)
+static int compare_flows (PacketPassFairQueueFlow *f1, PacketPassFairQueueFlow *f2)
 {
-    return B_COMPARE(*time1, *time2);
+    int cmp = B_COMPARE(f1->time, f2->time);
+    if (cmp) {
+        return cmp;
+    }
+    
+    return B_COMPARE((uintptr_t)f1, (uintptr_t)f2);
 }
+
+#include "PacketPassFairQueue_tree.h"
+#include <structure/SAvl_impl.h>
 
 static uint64_t get_current_time (PacketPassFairQueue *m)
 {
@@ -50,9 +58,8 @@ static uint64_t get_current_time (PacketPassFairQueue *m)
     uint64_t time;
     int have = 0;
     
-    BHeapNode *heap_node = BHeap_GetFirst(&m->queued_heap);
-    if (heap_node) {
-        PacketPassFairQueueFlow *first_flow = UPPER_OBJECT(heap_node, PacketPassFairQueueFlow, queued.heap_node);
+    PacketPassFairQueueFlow *first_flow = PacketPassFairQueue_Tree_GetFirst(&m->queued_tree, 0);
+    if (first_flow) {
         ASSERT(first_flow->is_queued)
         
         time = first_flow->time;
@@ -81,11 +88,10 @@ static void increment_sent_flow (PacketPassFairQueueFlow *flow, uint64_t amount)
     if (amount > FAIRQUEUE_MAX_TIME - flow->time) {
         // get time to subtract
         uint64_t subtract;
-        BHeapNode *heap_node = BHeap_GetFirst(&m->queued_heap);
-        if (!heap_node) {
+        PacketPassFairQueueFlow *first_flow = PacketPassFairQueue_Tree_GetFirst(&m->queued_tree, 0);
+        if (!first_flow) {
             subtract = flow->time;
         } else {
-            PacketPassFairQueueFlow *first_flow = UPPER_OBJECT(heap_node, PacketPassFairQueueFlow, queued.heap_node);
             ASSERT(first_flow->is_queued)
             subtract = first_flow->time;
         }
@@ -117,14 +123,14 @@ static void schedule (PacketPassFairQueue *m)
     ASSERT(!m->sending_flow)
     ASSERT(!m->previous_flow)
     ASSERT(!m->freeing)
-    ASSERT(BHeap_GetFirst(&m->queued_heap))
+    ASSERT(!PacketPassFairQueue_Tree_IsEmpty(&m->queued_tree))
     
     // get first queued flow
-    PacketPassFairQueueFlow *qflow = UPPER_OBJECT(BHeap_GetFirst(&m->queued_heap), PacketPassFairQueueFlow, queued.heap_node);
+    PacketPassFairQueueFlow *qflow = PacketPassFairQueue_Tree_GetFirst(&m->queued_tree, 0);
     ASSERT(qflow->is_queued)
     
     // remove flow from queue
-    BHeap_Remove(&m->queued_heap, &qflow->queued.heap_node);
+    PacketPassFairQueue_Tree_Remove(&m->queued_tree, 0, qflow);
     qflow->is_queued = 0;
     
     // schedule send
@@ -142,7 +148,7 @@ static void schedule_job_handler (PacketPassFairQueue *m)
     // remove previous flow
     m->previous_flow = NULL;
     
-    if (BHeap_GetFirst(&m->queued_heap)) {
+    if (!PacketPassFairQueue_Tree_IsEmpty(&m->queued_tree)) {
         schedule(m);
     }
 }
@@ -167,7 +173,8 @@ static void input_handler_send (PacketPassFairQueueFlow *flow, uint8_t *data, in
     // queue flow
     flow->queued.data = data;
     flow->queued.data_len = data_len;
-    BHeap_Insert(&m->queued_heap, &flow->queued.heap_node);
+    int res = PacketPassFairQueue_Tree_Insert(&m->queued_tree, 0, flow, NULL);
+    ASSERT(res)
     flow->is_queued = 1;
     
     if (!m->sending_flow && !BPending_IsSet(&m->schedule_job)) {
@@ -241,8 +248,8 @@ int PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *outpu
     // no previous flow
     m->previous_flow = NULL;
     
-    // init queued heap
-    BHeap_Init(&m->queued_heap, OFFSET_DIFF(PacketPassFairQueueFlow, time, queued.heap_node), (BHeap_comparator)time_comparator, NULL);
+    // init queued tree
+    PacketPassFairQueue_Tree_Init(&m->queued_tree);
     
     // init flows list
     LinkedList2_Init(&m->flows_list);
@@ -264,7 +271,7 @@ fail0:
 void PacketPassFairQueue_Free (PacketPassFairQueue *m)
 {
     ASSERT(LinkedList2_IsEmpty(&m->flows_list))
-    ASSERT(!BHeap_GetFirst(&m->queued_heap))
+    ASSERT(PacketPassFairQueue_Tree_IsEmpty(&m->queued_tree))
     ASSERT(!m->previous_flow)
     ASSERT(!m->sending_flow)
     DebugCounter_Free(&m->d_ctr);
@@ -336,7 +343,7 @@ void PacketPassFairQueueFlow_Free (PacketPassFairQueueFlow *flow)
     
     // remove from queue
     if (flow->is_queued) {
-        BHeap_Remove(&m->queued_heap, &flow->queued.heap_node);
+        PacketPassFairQueue_Tree_Remove(&m->queued_tree, 0, flow);
     }
     
     // remove from flows list
