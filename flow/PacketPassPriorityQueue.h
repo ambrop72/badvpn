@@ -37,7 +37,7 @@
 #include <stdint.h>
 
 #include <misc/debugcounter.h>
-#include <structure/BHeap.h>
+#include <structure/SAvl.h>
 #include <base/DebugObject.h>
 #include <base/BPending.h>
 #include <flow/PacketPassInterface.h>
@@ -46,35 +46,38 @@ typedef void (*PacketPassPriorityQueue_handler_busy) (void *user);
 
 struct PacketPassPriorityQueueFlow_s;
 
-/**
- * Priority queue using {@link PacketPassInterface}.
- */
-typedef struct {
-    PacketPassInterface *output;
-    BPendingGroup *pg;
-    int use_cancel;
-    struct PacketPassPriorityQueueFlow_s *sending_flow;
-    BHeap queued_heap;
-    int freeing;
-    BPending schedule_job;
-    DebugObject d_obj;
-    DebugCounter d_ctr;
-} PacketPassPriorityQueue;
+#include "PacketPassPriorityQueue_tree.h"
+#include <structure/SAvl_decl.h>
 
 typedef struct PacketPassPriorityQueueFlow_s {
-    PacketPassPriorityQueue *m;
+    struct PacketPassPriorityQueue_s *m;
     int priority;
     PacketPassPriorityQueue_handler_busy handler_busy;
     void *user;
     PacketPassInterface input;
     int is_queued;
     struct {
-        BHeapNode heap_node;
+        PacketPassPriorityQueue__TreeNode tree_node;
         uint8_t *data;
         int data_len;
     } queued;
     DebugObject d_obj;
 } PacketPassPriorityQueueFlow;
+
+/**
+ * Priority queue using {@link PacketPassInterface}.
+ */
+typedef struct PacketPassPriorityQueue_s {
+    PacketPassInterface *output;
+    BPendingGroup *pg;
+    int use_cancel;
+    struct PacketPassPriorityQueueFlow_s *sending_flow;
+    PacketPassPriorityQueue__Tree queued_tree;
+    int freeing;
+    BPending schedule_job;
+    DebugObject d_obj;
+    DebugCounter d_ctr;
+} PacketPassPriorityQueue;
 
 /**
  * Initializes the queue.

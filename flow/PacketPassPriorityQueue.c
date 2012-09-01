@@ -35,23 +35,31 @@
 
 #include <flow/PacketPassPriorityQueue.h>
 
-static int int_comparator (void *user, int *prio1, int *prio2)
+static int compare_flows (PacketPassPriorityQueueFlow *f1, PacketPassPriorityQueueFlow *f2)
 {
-    return B_COMPARE(*prio1, *prio2);
+    int cmp = B_COMPARE(f1->priority, f2->priority);
+    if (cmp) {
+        return cmp;
+    }
+    
+    return B_COMPARE((uintptr_t)f1, (uintptr_t)f2);
 }
+
+#include "PacketPassPriorityQueue_tree.h"
+#include <structure/SAvl_impl.h>
 
 static void schedule (PacketPassPriorityQueue *m)
 {
     ASSERT(!m->sending_flow)
     ASSERT(!m->freeing)
-    ASSERT(BHeap_GetFirst(&m->queued_heap))
+    ASSERT(!PacketPassPriorityQueue__Tree_IsEmpty(&m->queued_tree))
     
     // get first queued flow
-    PacketPassPriorityQueueFlow *qflow = UPPER_OBJECT(BHeap_GetFirst(&m->queued_heap), PacketPassPriorityQueueFlow, queued.heap_node);
+    PacketPassPriorityQueueFlow *qflow = PacketPassPriorityQueue__Tree_GetFirst(&m->queued_tree, 0);
     ASSERT(qflow->is_queued)
     
     // remove flow from queue
-    BHeap_Remove(&m->queued_heap, &qflow->queued.heap_node);
+    PacketPassPriorityQueue__Tree_Remove(&m->queued_tree, 0, qflow);
     qflow->is_queued = 0;
     
     // schedule send
@@ -65,7 +73,7 @@ static void schedule_job_handler (PacketPassPriorityQueue *m)
     ASSERT(!m->freeing)
     DebugObject_Access(&m->d_obj);
     
-    if (BHeap_GetFirst(&m->queued_heap)) {
+    if (!PacketPassPriorityQueue__Tree_IsEmpty(&m->queued_tree)) {
         schedule(m);
     }
 }
@@ -82,7 +90,8 @@ static void input_handler_send (PacketPassPriorityQueueFlow *flow, uint8_t *data
     // queue flow
     flow->queued.data = data;
     flow->queued.data_len = data_len;
-    BHeap_Insert(&m->queued_heap, &flow->queued.heap_node);
+    int res = PacketPassPriorityQueue__Tree_Insert(&m->queued_tree, 0, flow, NULL);
+    ASSERT(res)
     flow->is_queued = 1;
     
     if (!m->sending_flow && !BPending_IsSet(&m->schedule_job)) {
@@ -136,8 +145,8 @@ void PacketPassPriorityQueue_Init (PacketPassPriorityQueue *m, PacketPassInterfa
     // not sending
     m->sending_flow = NULL;
     
-    // init queued heap
-    BHeap_Init(&m->queued_heap, OFFSET_DIFF(PacketPassPriorityQueueFlow, priority, queued.heap_node), (BHeap_comparator)int_comparator, NULL);
+    // init queued tree
+    PacketPassPriorityQueue__Tree_Init(&m->queued_tree);
     
     // not freeing
     m->freeing = 0;
@@ -151,7 +160,7 @@ void PacketPassPriorityQueue_Init (PacketPassPriorityQueue *m, PacketPassInterfa
 
 void PacketPassPriorityQueue_Free (PacketPassPriorityQueue *m)
 {
-    ASSERT(!BHeap_GetFirst(&m->queued_heap))
+    ASSERT(PacketPassPriorityQueue__Tree_IsEmpty(&m->queued_tree))
     ASSERT(!m->sending_flow)
     DebugCounter_Free(&m->d_ctr);
     DebugObject_Free(&m->d_obj);
@@ -212,7 +221,7 @@ void PacketPassPriorityQueueFlow_Free (PacketPassPriorityQueueFlow *flow)
     
     // remove from queue
     if (flow->is_queued) {
-        BHeap_Remove(&m->queued_heap, &flow->queued.heap_node);
+        PacketPassPriorityQueue__Tree_Remove(&m->queued_tree, 0, flow);
     }
     
     // free input
