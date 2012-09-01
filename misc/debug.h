@@ -78,6 +78,14 @@
  * Insert at the end of the declaration of a function before the semicolon.
  */
 
+/**
+ * @def B_USE
+ * 
+ * This can be used to suppress warnings about unused variables. It can
+ * be applied to a variable or any expression. It does not evaluate the
+ * expression.
+ */
+
 #ifndef BADVPN_MISC_DEBUG_H
 #define BADVPN_MISC_DEBUG_H
 
@@ -126,5 +134,7 @@
 #else
     #define WARN_UNUSED
 #endif
+
+#define B_USE(expr) (void)(sizeof((expr)));
 
 #endif
