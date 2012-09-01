@@ -227,7 +227,7 @@ static void provide_func_die (void *vo)
     
     // start collapsing our depends
     for (LinkedList1Node *n = LinkedList1_GetFirst(&o->depends); n; n = LinkedList1Node_Next(n)) {
-        struct depend *d = UPPER_OBJECT(n, struct depend, depends_node);
+        struct depend *d = UPPER_OBJECT(n, struct depend, provide_node);
         ASSERT(d->provide == o)
         
         // update depend to make sure it is collapsing
