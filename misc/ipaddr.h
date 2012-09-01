@@ -34,7 +34,6 @@
 #ifndef BADVPN_MISC_IPADDR_H
 #define BADVPN_MISC_IPADDR_H
 
-#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -42,6 +41,7 @@
 #include <misc/byteorder.h>
 #include <misc/parse_number.h>
 #include <misc/find_char.h>
+#include <misc/print_macros.h>
 
 struct ipv4_ifaddr {
     uint32_t addr;

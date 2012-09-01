@@ -42,7 +42,7 @@ static int CStringTrie__new_node (CStringTrie *o, int *out_nodeidx)
         }
         int newcap = 2 * o->capacity;
         
-        struct CStringTrie__node *newarr = BAllocArray(newcap, sizeof(newarr[0]));
+        struct CStringTrie__node *newarr = (struct CStringTrie__node *)BAllocArray(newcap, sizeof(newarr[0]));
         if (!newarr) {
             return 0;
         }
@@ -73,7 +73,7 @@ static int CStringTrie_Init (CStringTrie *o)
     o->count = 0;
     o->capacity = 1;
     
-    if (!(o->arr = BAllocArray(o->capacity, sizeof(o->arr[0])))) {
+    if (!(o->arr = (struct CStringTrie__node *)BAllocArray(o->capacity, sizeof(o->arr[0])))) {
         return 0;
     }
     
