@@ -229,16 +229,16 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
     int dhcp_message_type = -1;
     
     int have_dhcp_server_identifier = 0;
-    uint32_t dhcp_server_identifier;
+    uint32_t dhcp_server_identifier = 0; // to remove warning
     
     int have_ip_address_lease_time = 0;
-    uint32_t ip_address_lease_time;
+    uint32_t ip_address_lease_time = 0; // to remove warning
     
     int have_subnet_mask = 0;
-    uint32_t subnet_mask;
+    uint32_t subnet_mask = 0; // to remove warning
     
     int have_router = 0;
-    uint32_t router;
+    uint32_t router = 0; // to remove warning
     
     int domain_name_servers_count = 0;
     uint32_t domain_name_servers[BDHCPCLIENTCORE_MAX_DOMAIN_NAME_SERVERS];

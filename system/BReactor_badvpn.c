@@ -295,7 +295,7 @@ static void wait_for_events (BReactor *bsys)
     // timeout vars
     int have_timeout = 0;
     btime_t timeout_abs;
-    btime_t now;
+    btime_t now = 0; // to remove warning
     
     // compute timeout
     BTimer *first_timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0);
@@ -317,8 +317,8 @@ static void wait_for_events (BReactor *bsys)
     // wait until the timeout is reached or the file descriptor / handle in ready
     while (1) {
         // compute timeout
-        btime_t timeout_rel;
-        btime_t timeout_rel_trunc;
+        btime_t timeout_rel = 0; // to remove warning
+        btime_t timeout_rel_trunc = 0; // to remove warning
         if (have_timeout) {
             timeout_rel = timeout_abs - now;
             timeout_rel_trunc = timeout_rel;
@@ -980,7 +980,7 @@ void BReactor_SetTimerAbsolute (BReactor *bsys, BTimer *bt, btime_t time)
 
     // insert to running timers tree
     int res = BReactor__TimersTree_Insert(&bsys->timers_tree, 0, bt, NULL);
-    ASSERT(res)
+    ASSERT_EXECUTE(res)
 }
 
 void BReactor_RemoveTimer (BReactor *bsys, BTimer *bt)

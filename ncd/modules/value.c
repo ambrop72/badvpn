@@ -489,7 +489,7 @@ static int value_map_insert (struct value *map, struct value *v, NCDValMem mem, 
     v->map_parent.key_mem = mem;
     v->map_parent.key = NCDVal_FromSafe(&v->map_parent.key_mem, key);
     int res = MapTree_Insert(&map->map.map_tree, 0, v, NULL);
-    ASSERT(res)
+    ASSERT_EXECUTE(res)
     v->parent = map;
     
     return 1;
@@ -584,7 +584,9 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value)
             }
         } break;
         
-        default: ASSERT(0);
+        default:
+            ASSERT(0);
+            return NULL;
     }
     
     return v;
@@ -648,7 +650,7 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
                 }
                 
                 int res = NCDVal_MapInsert(*out_value, key, val);
-                ASSERT(res)
+                ASSERT_EXECUTE(res)
             }
         } break;
         
@@ -759,7 +761,7 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef
                 value_list_remove(v, oldv);
                 
                 int res = value_list_insert(i, v, nv, index);
-                ASSERT(res)
+                ASSERT_EXECUTE(res)
             } else {
                 if (!value_list_insert(i, v, nv, index)) {
                     goto fail1;
@@ -790,7 +792,7 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef
             }
             
             int res = value_map_insert(v, nv, key_mem, NCDVal_ToSafe(key), i);
-            ASSERT(res)
+            ASSERT_EXECUTE(res)
         } break;
         
         default: ASSERT(0);
@@ -1184,7 +1186,7 @@ static void undo_deinit_func (struct insert_undo_deinit_data *data, NCDModuleIns
                 value_list_remove(parent, val);
                 if (oldval) {
                     int res = value_list_insert(i, parent, oldval, index);
-                    ASSERT(res)
+                    ASSERT_EXECUTE(res)
                 }
             } break;
             
@@ -1194,7 +1196,7 @@ static void undo_deinit_func (struct insert_undo_deinit_data *data, NCDModuleIns
                 value_map_remove2(parent, val, &key_mem, &key);
                 if (oldval) {
                     int res = value_map_insert(parent, oldval, key_mem, key, i);
-                    ASSERT(res)
+                    ASSERT_EXECUTE(res)
                 } else {
                     NCDValMem_Free(&key_mem);
                 }
@@ -1290,7 +1292,7 @@ static void func_new_replace_this (void *vo, NCDModuleInst *i)
                 size_t index = value_list_indexof(parent, mov);
                 value_list_remove(parent, mov);
                 int res = value_list_insert(i, parent, v, index);
-                ASSERT(res)
+                ASSERT_EXECUTE(res)
             } break;
             
             case NCDVAL_MAP: {
@@ -1298,7 +1300,7 @@ static void func_new_replace_this (void *vo, NCDModuleInst *i)
                 NCDValSafeRef key;
                 value_map_remove2(parent, mov, &key_mem, &key);
                 int res = value_map_insert(parent, v, key_mem, key, i);
-                ASSERT(res)
+                ASSERT_EXECUTE(res)
             } break;
             
             default: ASSERT(0);
@@ -1353,7 +1355,7 @@ static void func_new_replace_this_undo (void *vo, NCDModuleInst *i)
                 size_t index = value_list_indexof(parent, mov);
                 value_list_remove(parent, mov);
                 int res = value_list_insert(i, parent, v, index);
-                ASSERT(res)
+                ASSERT_EXECUTE(res)
             } break;
             
             case NCDVAL_MAP: {
@@ -1361,7 +1363,7 @@ static void func_new_replace_this_undo (void *vo, NCDModuleInst *i)
                 NCDValSafeRef key;
                 value_map_remove2(parent, mov, &key_mem, &key);
                 int res = value_map_insert(parent, v, key_mem, key, i);
-                ASSERT(res)
+                ASSERT_EXECUTE(res)
             } break;
             
             default: ASSERT(0);

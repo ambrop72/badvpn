@@ -87,6 +87,8 @@ static int _ChunkBuffer2_end (ChunkBuffer2 *buf)
     }
 }
 
+#ifndef NDEBUG
+
 static void _ChunkBuffer2_assert_buffer (ChunkBuffer2 *buf)
 {
     ASSERT(buf->size > 0)
@@ -147,6 +149,8 @@ static void _ChunkBuffer2_assert_io (ChunkBuffer2 *buf)
     }
 }
 
+#endif
+
 static void _ChunkBuffer2_update_input (ChunkBuffer2 *buf)
 {
     int end = _ChunkBuffer2_end(buf);
@@ -183,9 +187,11 @@ static void _ChunkBuffer2_update_output (ChunkBuffer2 *buf)
     if (buf->used > 0) {
         int datalen = buf->buffer[buf->start].len;
         ASSERT(datalen >= 0)
+#ifndef NDEBUG
         int blocklen = bdivide_up(datalen, sizeof(struct ChunkBuffer2_block));
         ASSERT(blocklen <= buf->used - 1)
         ASSERT(blocklen <= buf->wrap - buf->start - 1)
+#endif
         buf->output_dest = (uint8_t *)&buf->buffer[buf->start + 1];
         buf->output_avail = datalen;
     } else {

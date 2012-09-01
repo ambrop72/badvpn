@@ -323,6 +323,7 @@ static void connection_first_job_handler (struct UdpGwClient_connection *con)
 static void connection_send (struct UdpGwClient_connection *con, uint8_t flags, const uint8_t *data, int data_len)
 {
     UdpGwClient *o = con->client;
+    B_USE(o)
     ASSERT(data_len >= 0)
     ASSERT(data_len <= o->udp_mtu)
     

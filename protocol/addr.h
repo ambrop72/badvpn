@@ -145,6 +145,7 @@ void addr_write (uint8_t *out, BAddr addr)
     }
     
     int len = addrWriter_Finish(&writer);
+    B_USE(len)
     
     ASSERT(len == addr_size(addr))
 }
@@ -159,7 +160,7 @@ int addr_read (uint8_t *data, int data_len, BAddr *out_addr)
         return 0;
     }
     
-    uint8_t type;
+    uint8_t type = 0; // to remove warning
     addrParser_Gettype(&parser, &type);
     
     switch (type) {

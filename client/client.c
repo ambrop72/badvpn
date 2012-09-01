@@ -1918,10 +1918,10 @@ void peer_chat_handler_message (struct peer_data *peer, uint8_t *data, int data_
     }
     
     // read message
-    uint16_t type;
+    uint16_t type = 0; // to remove warning
     ASSERT_EXECUTE(msgParser_Gettype(&parser, &type))
-    uint8_t *payload;
-    int payload_len;
+    uint8_t *payload = NULL; // to remove warning
+    int payload_len = 0; // to remove warning
     ASSERT_EXECUTE(msgParser_Getpayload(&parser, &payload, &payload_len))
     
     // dispatch according to message type
@@ -1979,8 +1979,8 @@ void peer_msg_youconnect (struct peer_data *peer, uint8_t *data, int data_len)
         }
         
         // check if the address scope is known
-        uint8_t *name_data;
-        int name_len;
+        uint8_t *name_data = NULL; // to remove warning
+        int name_len = 0; // to remove warning
         ASSERT_EXECUTE(msg_youconnect_addrParser_Getname(&aparser, &name_data, &name_len))
         char *name;
         if (!(name = address_scope_known(name_data, name_len))) {
@@ -1988,8 +1988,8 @@ void peer_msg_youconnect (struct peer_data *peer, uint8_t *data, int data_len)
         }
         
         // read address
-        uint8_t *addr_data;
-        int addr_len;
+        uint8_t *addr_data = NULL; // to remove warning
+        int addr_len = 0; // to remove warning
         ASSERT_EXECUTE(msg_youconnect_addrParser_Getaddr(&aparser, &addr_data, &addr_len))
         if (!addr_read(addr_data, addr_len, &addr)) {
             peer_log(peer, BLOG_WARNING, "msg_youconnect: failed to read address");
@@ -2082,13 +2082,13 @@ void peer_msg_seed (struct peer_data *peer, uint8_t *data, int data_len)
     }
     
     // read message
-    uint16_t seed_id;
+    uint16_t seed_id = 0; // to remove warning
     ASSERT_EXECUTE(msg_seedParser_Getseed_id(&parser, &seed_id))
-    uint8_t *key;
-    int key_len;
+    uint8_t *key = NULL; // to remove warning
+    int key_len = 0; // to remove warning
     ASSERT_EXECUTE(msg_seedParser_Getkey(&parser, &key, &key_len))
-    uint8_t *iv;
-    int iv_len;
+    uint8_t *iv = NULL; // to remove warning
+    int iv_len = 0; // to remove warning
     ASSERT_EXECUTE(msg_seedParser_Getiv(&parser, &iv, &iv_len))
     
     if (options.transport_mode != TRANSPORT_MODE_UDP) {
@@ -2134,7 +2134,7 @@ void peer_msg_confirmseed (struct peer_data *peer, uint8_t *data, int data_len)
     }
     
     // read message
-    uint16_t seed_id;
+    uint16_t seed_id = 0; // to remove warning
     ASSERT_EXECUTE(msg_confirmseedParser_Getseed_id(&parser, &seed_id))
     
     if (options.transport_mode != TRANSPORT_MODE_UDP) {
@@ -2468,7 +2468,7 @@ void peer_send_conectinfo (struct peer_data *peer, int addr_index, int port_adju
     struct bind_addr *bind_addr = &bind_addrs[addr_index];
     
     // remember encryption key size
-    int key_size;
+    int key_size = 0; // to remove warning
     if (options.transport_mode == TRANSPORT_MODE_UDP && SPPROTO_HAVE_ENCRYPTION(sp_params)) {
         key_size = BEncryption_cipher_key_size(sp_params.encryption_mode);
     }

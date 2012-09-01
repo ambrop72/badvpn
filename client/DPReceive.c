@@ -83,7 +83,7 @@ static void receiver_recv_handler_send (DPReceiveReceiver *o, uint8_t *packet, i
         BLog(BLOG_WARNING, "wrong number of destinations");
         goto out;
     }
-    peerid_t to_id;
+    peerid_t to_id = 0; // to remove warning
     if (num_ids == 1) {
         if (data_len < sizeof(to_id)) {
             BLog(BLOG_WARNING, "missing destination");

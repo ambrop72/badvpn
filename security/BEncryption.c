@@ -132,11 +132,11 @@ fail1:
         case BENCRYPTION_CIPHER_AES:
             if (enc->mode&BENCRYPTION_MODE_ENCRYPT) {
                 res = AES_set_encrypt_key(key, 128, &enc->aes.encrypt);
-                ASSERT(res >= 0)
+                ASSERT_EXECUTE(res >= 0)
             }
             if (enc->mode&BENCRYPTION_MODE_DECRYPT) {
                 res = AES_set_decrypt_key(key, 128, &enc->aes.decrypt);
-                ASSERT(res >= 0)
+                ASSERT_EXECUTE(res >= 0)
             }
             break;
         default:

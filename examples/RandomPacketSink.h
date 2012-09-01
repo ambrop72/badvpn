@@ -32,6 +32,7 @@
 
 #include <stdio.h>
 
+#include <misc/debug.h>
 #include <security/BRandom.h>
 #include <system/BReactor.h>
 #include <base/DebugObject.h>
@@ -49,7 +50,8 @@ static void _RandomPacketSink_input_handler_send (RandomPacketSink *s, uint8_t *
     DebugObject_Access(&s->d_obj);
     
     printf("sink: send '");
-    fwrite(data, data_len, 1, stdout);
+    size_t res = fwrite(data, data_len, 1, stdout);
+    B_USE(res)
     
     uint8_t r;
     BRandom_randomize(&r, sizeof(r));

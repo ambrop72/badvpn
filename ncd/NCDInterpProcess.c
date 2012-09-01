@@ -118,7 +118,7 @@ static int convert_value_recurser (NCDPlaceholderDb *pdb, NCDValue *value, NCDVa
                 }
                 
                 int res = NCDVal_MapInsert(*out, vkey, vval);
-                ASSERT(res) // we assume different variables get different placeholder ids
+                ASSERT_EXECUTE(res) // we assume different variables get different placeholder ids
             }
         } break;
         

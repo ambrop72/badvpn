@@ -38,6 +38,7 @@
 #include <stdint.h>
 
 #include <misc/offset.h>
+#include <misc/debug.h>
 #include <structure/CAvl.h>
 
 typedef struct IndexedList_s IndexedList;
@@ -164,6 +165,7 @@ static void IndexedList_InsertAt (IndexedList *o, IndexedListNode *node, uint64_
     ASSERT(IndexedList__Tree_Count(&o->tree, 0) < UINT64_MAX - 1)
     
     uint64_t orig_count = IndexedList__Tree_Count(&o->tree, 0);
+    B_USE(orig_count)
     
     IndexedList__Tree_InsertAt(&o->tree, 0, IndexedList__TreeDeref(0, node), index);
     

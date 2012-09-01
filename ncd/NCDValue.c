@@ -589,7 +589,7 @@ NCDValue * NCDValue_MapInsert (NCDValue *o, NCDValue key, NCDValue val)
     e->key = key;
     e->val = val;
     int res = NCDValue__MapTree_Insert(&o->map_tree, 0, e, NULL);
-    ASSERT(res)
+    ASSERT_EXECUTE(res)
     
     o->map_count++;
     

@@ -50,6 +50,7 @@
 #include <string.h>
 
 #include <misc/offset.h>
+#include <misc/debug.h>
 #include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
 
@@ -203,6 +204,7 @@ void process_free (struct process *p)
 void process_retry_timer_handler (struct process *p)
 {
     struct instance *o = p->manager;
+    B_USE(o)
     ASSERT(p->state == PROCESS_STATE_RETRYING)
     ASSERT(!o->dying)
     ASSERT(p->have_params)

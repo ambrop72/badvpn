@@ -32,6 +32,7 @@
 
 #include <stdio.h>
 
+#include <misc/debug.h>
 #include <system/BReactor.h>
 #include <flow/PacketPassInterface.h>
 
@@ -44,7 +45,8 @@ typedef struct {
 static void _TimerPacketSink_input_handler_send (TimerPacketSink *s, uint8_t *data, int data_len)
 {
     printf("sink: send '");
-    fwrite(data, data_len, 1, stdout);
+    size_t res = fwrite(data, data_len, 1, stdout);
+    B_USE(res)
     printf("'\n");
     
     BReactor_SetTimer(s->reactor, &s->timer);

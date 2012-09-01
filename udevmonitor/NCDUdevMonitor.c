@@ -129,7 +129,7 @@ int NCDUdevMonitor_Init (NCDUdevMonitor *o, BReactor *reactor, BProcessManager *
     const char *argv_info[] = {stdbuf_exec, "-o", "L", udevadm_exec, "info", "--query", "all", "--export-db", NULL};
     
     // choose arguments based on mode
-    const char **argv;
+    const char **argv = NULL; // to remove warning
     switch (mode) {
         case NCDUDEVMONITOR_MODE_MONITOR_UDEV:   argv = argv_monitor_udev; break;
         case NCDUDEVMONITOR_MODE_INFO:           argv = argv_info; break;

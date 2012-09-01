@@ -117,9 +117,11 @@ static void NCDVal__AssertMem (NCDValMem *mem)
 
 static void NCDVal_AssertExternal (NCDValMem *mem, const void *e_buf, size_t e_len)
 {
+#ifndef NDEBUG
     const char *e_cbuf = e_buf;
     char *buf = (mem->buf ? mem->buf : mem->fastbuf);
     ASSERT(e_cbuf >= buf + mem->size || e_cbuf + e_len <= buf)
+#endif
 }
 
 static void NCDVal__AssertValOnly (NCDValMem *mem, NCDVal__idx idx)
@@ -378,7 +380,7 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
                 }
                 
                 int res = NCDVal_MapInsert(copy, key_copy, val_copy);
-                ASSERT(res)
+                ASSERT_EXECUTE(res)
             }
             
             return copy;

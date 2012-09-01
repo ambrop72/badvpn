@@ -583,7 +583,7 @@ int NCDRequestClientRequest_Init (NCDRequestClientRequest *o, NCDRequestClient *
     
     // insert to reqs tree
     int res = BAVL_Insert(&client->reqs_tree, &req->reqs_tree_node, NULL);
-    ASSERT(res)
+    ASSERT_EXECUTE(res)
     
     // set pointers
     o->req = req;

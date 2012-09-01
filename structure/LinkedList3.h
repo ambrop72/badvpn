@@ -338,7 +338,7 @@ LinkedList3Node * LinkedList3Iterator_Next (LinkedList3Iterator *it)
     // jump to next entry
     if (it->e) {
         // get next entry
-        LinkedList3Node *next;
+        LinkedList3Node *next = NULL; // to remove warning
         switch (it->dir) {
             case 1:
                 next = it->e->n;

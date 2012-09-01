@@ -55,7 +55,7 @@ static uint64_t get_current_time (PacketPassFairQueue *m)
         return m->sending_flow->time;
     }
     
-    uint64_t time;
+    uint64_t time = 0; // to remove warning
     int have = 0;
     
     PacketPassFairQueueFlow *first_flow = PacketPassFairQueue__Tree_GetFirst(&m->queued_tree, 0);
@@ -171,7 +171,7 @@ static void input_handler_send (PacketPassFairQueueFlow *flow, uint8_t *data, in
     flow->queued.data = data;
     flow->queued.data_len = data_len;
     int res = PacketPassFairQueue__Tree_Insert(&m->queued_tree, 0, flow, NULL);
-    ASSERT(res)
+    ASSERT_EXECUTE(res)
     flow->is_queued = 1;
     
     if (!m->sending_flow && !BPending_IsSet(&m->schedule_job)) {
@@ -353,6 +353,7 @@ void PacketPassFairQueueFlow_Free (PacketPassFairQueueFlow *flow)
 void PacketPassFairQueueFlow_AssertFree (PacketPassFairQueueFlow *flow)
 {
     PacketPassFairQueue *m = flow->m;
+    B_USE(m)
     
     ASSERT(m->freeing || flow != m->sending_flow)
     DebugObject_Access(&flow->d_obj);
@@ -385,6 +386,7 @@ void PacketPassFairQueueFlow_RequestCancel (PacketPassFairQueueFlow *flow)
 void PacketPassFairQueueFlow_SetBusyHandler (PacketPassFairQueueFlow *flow, PacketPassFairQueue_handler_busy handler, void *user)
 {
     PacketPassFairQueue *m = flow->m;
+    B_USE(m)
     
     ASSERT(flow == m->sending_flow)
     ASSERT(!m->freeing)

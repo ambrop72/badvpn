@@ -109,7 +109,7 @@ static int add_method_name (NCDMethodIndex *o, const char *method_name, int *out
     
     NCDMethodIndex__HashRef ref = {name_entry, o->num_names};
     int res = NCDMethodIndex__Hash_Insert(&o->hash, o->names, ref, NULL);
-    ASSERT(res)
+    ASSERT_EXECUTE(res)
     
     o->num_entries++;
     o->num_names++;

@@ -114,7 +114,7 @@ static void add_mac_to_peer (FrameDeciderPeer *o, uint8_t *mac)
     // add to used
     LinkedList1_Append(&o->mac_entries_used, &entry->list_node);
     int res = FDMacsTree_Insert(&d->macs_tree, 0, entry, NULL);
-    ASSERT(res)
+    ASSERT_EXECUTE(res)
 }
 
 static uint32_t compute_sig_for_group (uint32_t group)
@@ -156,7 +156,7 @@ static void add_to_multicast (FrameDecider *d, struct _FrameDecider_group_entry 
         
         // insert to multicast tree
         int res = FDMulticastTree_Insert(&d->multicast_tree, 0, group_entry, NULL);
-        ASSERT(res)
+        ASSERT_EXECUTE(res)
         
         // init list node
         LinkedList3Node_InitLonely(&group_entry->sig_list_node);
@@ -188,7 +188,7 @@ static void remove_from_multicast (FrameDecider *d, struct _FrameDecider_group_e
             
             // insert to multicast tree
             int res = FDMulticastTree_Insert(&d->multicast_tree, 0, newmaster, NULL);
-            ASSERT(res)
+            ASSERT_EXECUTE(res)
         }
     }
     
@@ -240,7 +240,7 @@ static void add_group_to_peer (FrameDeciderPeer *o, uint32_t group)
         
         // insert to peer's groups tree
         int res = FDGroupsTree_Insert(&o->groups_tree, 0, group_entry, NULL);
-        ASSERT(res)
+        ASSERT_EXECUTE(res)
         
         // add to multicast
         add_to_multicast(d, group_entry);

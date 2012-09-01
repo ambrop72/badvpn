@@ -35,7 +35,7 @@ int main ()
     uint8_t *g_dst = msg1Writer_Addg(&writer);
     memcpy(g_dst, g, strlen(g));
     int len2 = msg1Writer_Finish(&writer);
-    ASSERT(len2 == len)
+    ASSERT_EXECUTE(len2 == len)
     
     // parse message
     

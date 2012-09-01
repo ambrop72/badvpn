@@ -185,7 +185,7 @@ int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *gro
         
         NCDModuleIndex__MHashRef ref = {m, o->num_modules};
         int res = NCDModuleIndex__MHash_Insert(&o->modules_hash, o->modules, ref, NULL);
-        ASSERT(res)
+        ASSERT_EXECUTE(res)
         
         const char *base_type = (nm->base_type ? nm->base_type : nm->type);
         

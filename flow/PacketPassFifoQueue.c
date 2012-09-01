@@ -206,6 +206,7 @@ void PacketPassFifoQueueFlow_Free (PacketPassFifoQueueFlow *o)
 void PacketPassFifoQueueFlow_AssertFree (PacketPassFifoQueueFlow *o)
 {
     PacketPassFifoQueue *queue = o->queue;
+    B_USE(queue)
     DebugObject_Access(&o->d_obj);
     ASSERT(queue->freeing || o != queue->sending_flow)
 }
@@ -222,6 +223,7 @@ int PacketPassFifoQueueFlow_IsBusy (PacketPassFifoQueueFlow *o)
 void PacketPassFifoQueueFlow_SetBusyHandler (PacketPassFifoQueueFlow *o, PacketPassFifoQueue_handler_busy handler_busy, void *user)
 {
     PacketPassFifoQueue *queue = o->queue;
+    B_USE(queue)
     DebugObject_Access(&o->d_obj);
     ASSERT(!queue->freeing)
     ASSERT(o == queue->sending_flow)

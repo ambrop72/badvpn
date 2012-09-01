@@ -75,7 +75,7 @@ int NCDValCompat_ValueToVal (NCDValue *value, NCDValMem *mem, NCDValRef *out)
                 }
                 
                 int res = NCDVal_MapInsert(*out, vkey, vval);
-                ASSERT(res)
+                ASSERT_EXECUTE(res)
             }
         } break;
         

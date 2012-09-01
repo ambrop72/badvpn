@@ -97,7 +97,7 @@ static struct FragmentProtoAssembler_frame * allocate_new_frame (FragmentProtoAs
     LinkedList1_Append(&o->frames_used, &frame->list_node);
     // insert to used tree
     int res = FPAFramesTree_Insert(&o->frames_used_tree, 0, frame, NULL);
-    ASSERT(res)
+    ASSERT_EXECUTE(res)
     
     return frame;
 }

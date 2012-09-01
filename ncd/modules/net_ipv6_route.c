@@ -132,7 +132,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     o->ifname = NCDVal_StringValue(ifname_arg);
     
     // add route
-    int res;
+    int res = 0; // to remove warning
     switch (o->type) {
         case TYPE_NORMAL:
             res = NCDIfConfig_add_ipv6_route(o->dest, &o->gateway, o->metric, o->ifname);
@@ -164,7 +164,7 @@ static void func_die (void *vo)
     struct instance *o = vo;
     
     // remove route
-    int res;
+    int res = 0; // to remove warning
     switch (o->type) {
         case TYPE_NORMAL:
             res = NCDIfConfig_remove_ipv6_route(o->dest, &o->gateway, o->metric, o->ifname);

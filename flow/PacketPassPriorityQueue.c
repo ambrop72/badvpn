@@ -91,7 +91,7 @@ static void input_handler_send (PacketPassPriorityQueueFlow *flow, uint8_t *data
     flow->queued.data = data;
     flow->queued.data_len = data_len;
     int res = PacketPassPriorityQueue__Tree_Insert(&m->queued_tree, 0, flow, NULL);
-    ASSERT(res)
+    ASSERT_EXECUTE(res)
     flow->is_queued = 1;
     
     if (!m->sending_flow && !BPending_IsSet(&m->schedule_job)) {
@@ -231,6 +231,7 @@ void PacketPassPriorityQueueFlow_Free (PacketPassPriorityQueueFlow *flow)
 void PacketPassPriorityQueueFlow_AssertFree (PacketPassPriorityQueueFlow *flow)
 {
     PacketPassPriorityQueue *m = flow->m;
+    B_USE(m)
     
     ASSERT(m->freeing || flow != m->sending_flow)
     DebugObject_Access(&flow->d_obj);
@@ -263,6 +264,7 @@ void PacketPassPriorityQueueFlow_RequestCancel (PacketPassPriorityQueueFlow *flo
 void PacketPassPriorityQueueFlow_SetBusyHandler (PacketPassPriorityQueueFlow *flow, PacketPassPriorityQueue_handler_busy handler, void *user)
 {
     PacketPassPriorityQueue *m = flow->m;
+    B_USE(m)
     
     ASSERT(flow == m->sending_flow)
     ASSERT(!m->freeing)
