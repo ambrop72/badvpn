@@ -33,11 +33,11 @@
 
 static void exec_job_handler (BEventLock *o)
 {
-    ASSERT(!LinkedList2_IsEmpty(&o->jobs))
+    ASSERT(!LinkedList1_IsEmpty(&o->jobs))
     DebugObject_Access(&o->d_obj);
     
     // get job
-    BEventLockJob *j = UPPER_OBJECT(LinkedList2_GetFirst(&o->jobs), BEventLockJob, pending_node);
+    BEventLockJob *j = UPPER_OBJECT(LinkedList1_GetFirst(&o->jobs), BEventLockJob, pending_node);
     ASSERT(j->pending)
     
     // call handler
@@ -48,7 +48,7 @@ static void exec_job_handler (BEventLock *o)
 void BEventLock_Init (BEventLock *o, BPendingGroup *pg)
 {
     // init jobs list
-    LinkedList2_Init(&o->jobs);
+    LinkedList1_Init(&o->jobs);
     
     // init exec job
     BPending_Init(&o->exec_job, pg, (BPending_handler)exec_job_handler, o);
@@ -59,7 +59,7 @@ void BEventLock_Init (BEventLock *o, BPendingGroup *pg)
 
 void BEventLock_Free (BEventLock *o)
 {
-    ASSERT(LinkedList2_IsEmpty(&o->jobs))
+    ASSERT(LinkedList1_IsEmpty(&o->jobs))
     DebugCounter_Free(&o->pending_ctr);
     DebugObject_Free(&o->d_obj);
     
@@ -89,14 +89,14 @@ void BEventLockJob_Free (BEventLockJob *o)
     DebugObject_Free(&o->d_obj);
     
     if (o->pending) {
-        int was_first = (&o->pending_node == LinkedList2_GetFirst(&l->jobs));
+        int was_first = (&o->pending_node == LinkedList1_GetFirst(&l->jobs));
         
         // remove from jobs list
-        LinkedList2_Remove(&l->jobs, &o->pending_node);
+        LinkedList1_Remove(&l->jobs, &o->pending_node);
         
         // schedule/unschedule job
         if (was_first) {
-            if (LinkedList2_IsEmpty(&l->jobs)) {
+            if (LinkedList1_IsEmpty(&l->jobs)) {
                 BPending_Unset(&l->exec_job);
             } else {
                 BPending_Set(&l->exec_job);
@@ -111,13 +111,13 @@ void BEventLockJob_Wait (BEventLockJob *o)
     ASSERT(!o->pending)
     
     // append to jobs
-    LinkedList2_Append(&l->jobs, &o->pending_node);
+    LinkedList1_Append(&l->jobs, &o->pending_node);
     
     // set pending
     o->pending = 1;
     
     // schedule next job if needed
-    if (&o->pending_node == LinkedList2_GetFirst(&l->jobs)) {
+    if (&o->pending_node == LinkedList1_GetFirst(&l->jobs)) {
         BPending_Set(&l->exec_job);
     }
 }
@@ -127,17 +127,17 @@ void BEventLockJob_Release (BEventLockJob *o)
     BEventLock *l = o->l;
     ASSERT(o->pending)
     
-    int was_first = (&o->pending_node == LinkedList2_GetFirst(&l->jobs));
+    int was_first = (&o->pending_node == LinkedList1_GetFirst(&l->jobs));
     
     // remove from jobs list
-    LinkedList2_Remove(&l->jobs, &o->pending_node);
+    LinkedList1_Remove(&l->jobs, &o->pending_node);
     
     // set not pending
     o->pending = 0;
     
     // schedule/unschedule job
     if (was_first) {
-        if (LinkedList2_IsEmpty(&l->jobs)) {
+        if (LinkedList1_IsEmpty(&l->jobs)) {
             BPending_Unset(&l->exec_job);
         } else {
             BPending_Set(&l->exec_job);

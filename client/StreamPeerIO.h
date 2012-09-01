@@ -44,7 +44,7 @@
 #include <base/BLog.h>
 #include <system/BReactor.h>
 #include <system/BConnection.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <flow/PacketProtoDecoder.h>
 #include <flow/PacketStreamSender.h>
 #include <flow/SinglePacketBuffer.h>

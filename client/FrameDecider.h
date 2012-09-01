@@ -37,7 +37,7 @@
 
 #include <stdint.h>
 
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <structure/LinkedList3.h>
 #include <structure/SAvl.h>
 #include <base/DebugObject.h>
@@ -61,7 +61,7 @@ typedef const uint8_t *FDMacsTree_key;
 
 struct _FrameDecider_mac_entry {
     struct _FrameDeciderPeer *peer;
-    LinkedList2Node list_node; // node in FrameDeciderPeer.mac_entries_free or FrameDeciderPeer.mac_entries_used
+    LinkedList1Node list_node; // node in FrameDeciderPeer.mac_entries_free or FrameDeciderPeer.mac_entries_used
     // defined when used:
     uint8_t mac[6];
     FDMacsTreeNode tree_node; // node in FrameDecider.macs_tree, indexed by mac
@@ -69,7 +69,7 @@ struct _FrameDecider_mac_entry {
 
 struct _FrameDecider_group_entry {
     struct _FrameDeciderPeer *peer;
-    LinkedList2Node list_node; // node in FrameDeciderPeer.group_entries_free or FrameDeciderPeer.group_entries_used
+    LinkedList1Node list_node; // node in FrameDeciderPeer.group_entries_free or FrameDeciderPeer.group_entries_used
     BTimer timer; // timer for removing the group entry, running when used
     // defined when used:
     // basic group data
@@ -95,11 +95,11 @@ typedef struct {
     btime_t igmp_group_membership_interval;
     btime_t igmp_last_member_query_time;
     BReactor *reactor;
-    LinkedList2 peers_list;
+    LinkedList1 peers_list;
     FDMacsTree macs_tree;
     FDMulticastTree multicast_tree;
     int decide_state;
-    LinkedList2Iterator decide_flood_it;
+    LinkedList1Node *decide_flood_current;
     struct _FrameDeciderPeer *decide_unicast_peer;
     LinkedList3Iterator decide_multicast_it;
     DebugObject d_obj;
@@ -114,11 +114,11 @@ typedef struct _FrameDeciderPeer {
     BLog_logfunc logfunc;
     struct _FrameDecider_mac_entry *mac_entries;
     struct _FrameDecider_group_entry *group_entries;
-    LinkedList2Node list_node; // node in FrameDecider.peers_list
-    LinkedList2 mac_entries_free;
-    LinkedList2 mac_entries_used;
-    LinkedList2 group_entries_free;
-    LinkedList2 group_entries_used;
+    LinkedList1Node list_node; // node in FrameDecider.peers_list
+    LinkedList1 mac_entries_free;
+    LinkedList1 mac_entries_used;
+    LinkedList1 group_entries_free;
+    LinkedList1 group_entries_used;
     FDGroupsTree groups_tree;
     DebugObject d_obj;
 } FrameDeciderPeer;

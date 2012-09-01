@@ -43,7 +43,7 @@
 #include <misc/byteorder.h>
 #include <misc/balloc.h>
 #include <misc/open_standard_streams.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <base/BLog.h>
 #include <system/BReactor.h>
 #include <system/BSignal.h>
@@ -107,7 +107,7 @@ struct {
 struct tcp_client {
     dead_t dead;
     dead_t dead_client;
-    LinkedList2Node list_node;
+    LinkedList1Node list_node;
     BAddr local_addr;
     BAddr remote_addr;
     struct tcp_pcb *pcb;
@@ -172,7 +172,7 @@ struct netif netif;
 struct tcp_pcb *listener;
 
 // TCP clients
-LinkedList2 tcp_clients;
+LinkedList1 tcp_clients;
 
 // number of clients
 int num_clients;
@@ -354,7 +354,7 @@ int main (int argc, char **argv)
     listener = NULL;
     
     // init clients list
-    LinkedList2_Init(&tcp_clients);
+    LinkedList1_Init(&tcp_clients);
     
     // init number of clients
     num_clients = 0;
@@ -364,8 +364,8 @@ int main (int argc, char **argv)
     BReactor_Exec(&ss);
     
     // free clients
-    LinkedList2Node *node;
-    while (node = LinkedList2_GetFirst(&tcp_clients)) {
+    LinkedList1Node *node;
+    while (node = LinkedList1_GetFirst(&tcp_clients)) {
         struct tcp_client *client = UPPER_OBJECT(node, struct tcp_client, list_node);
         client_murder(client);
     }
@@ -991,7 +991,7 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     DEAD_INIT(client->dead_client);
     
     // add to linked list
-    LinkedList2_Append(&tcp_clients, &client->list_node);
+    LinkedList1_Append(&tcp_clients, &client->list_node);
     
     // increment counter
     ASSERT(num_clients >= 0)
@@ -1170,7 +1170,7 @@ void client_dealloc (struct tcp_client *client)
     num_clients--;
     
     // remove client entry
-    LinkedList2_Remove(&tcp_clients, &client->list_node);
+    LinkedList1_Remove(&tcp_clients, &client->list_node);
     
     // kill dead var
     DEAD_KILL(client->dead);

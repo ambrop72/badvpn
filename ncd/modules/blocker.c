@@ -74,7 +74,7 @@
 
 #include <misc/offset.h>
 #include <misc/debug.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <structure/LinkedList0.h>
 #include <ncd/NCDModule.h>
 
@@ -84,7 +84,7 @@
 
 struct instance {
     NCDModuleInst *i;
-    LinkedList2 users;
+    LinkedList1 users;
     LinkedList0 rdownups_list;
     int up;
     int dying;
@@ -99,7 +99,7 @@ struct rdownup_instance {
 struct use_instance {
     NCDModuleInst *i;
     struct instance *blocker;
-    LinkedList2Node blocker_node;
+    LinkedList1Node blocker_node;
 };
 
 static void func_new (void *vo, NCDModuleInst *i)
@@ -114,7 +114,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     }
     
     // init users list
-    LinkedList2_Init(&o->users);
+    LinkedList1_Init(&o->users);
     
     // init rdownups list
     LinkedList0_Init(&o->rdownups_list);
@@ -136,7 +136,7 @@ fail0:
 
 static void instance_free (struct instance *o)
 {
-    ASSERT(LinkedList2_IsEmpty(&o->users))
+    ASSERT(LinkedList1_IsEmpty(&o->users))
     
     // break any rdownups
     LinkedList0Node *ln;
@@ -156,7 +156,7 @@ static void func_die (void *vo)
     ASSERT(!o->dying)
     
     // if we have no users, die right away, else wait for users
-    if (LinkedList2_IsEmpty(&o->users)) {
+    if (LinkedList1_IsEmpty(&o->users)) {
         instance_free(o);
         return;
     }
@@ -183,10 +183,7 @@ static void updown_func_new_templ (NCDModuleInst *i, int up, int first_down)
     
     if (first_down || mo->up != up) {
         // signal users
-        LinkedList2Iterator it;
-        LinkedList2Iterator_InitForward(&it, &mo->users);
-        LinkedList2Node *node;
-        while (node = LinkedList2Iterator_Next(&it)) {
+        for (LinkedList1Node *node = LinkedList1_GetFirst(&mo->users); node; node = LinkedList1Node_Next(node)) {
             struct use_instance *user = UPPER_OBJECT(node, struct use_instance, blocker_node);
             ASSERT(user->blocker == mo)
             if (first_down && mo->up) {
@@ -265,7 +262,7 @@ static void rdownup_func_die (void *vo)
         LinkedList0_Remove(&blk->rdownups_list, &o->rdownups_list_node);
         
         // downup users
-        for (LinkedList2Node *ln = LinkedList2_GetFirst(&blk->users); ln; ln = LinkedList2Node_Next(ln)) {
+        for (LinkedList1Node *ln = LinkedList1_GetFirst(&blk->users); ln; ln = LinkedList1Node_Next(ln)) {
             struct use_instance *user = UPPER_OBJECT(ln, struct use_instance, blocker_node);
             ASSERT(user->blocker == blk)
             if (blk->up) {
@@ -296,7 +293,7 @@ static void use_func_new (void *vo, NCDModuleInst *i)
     o->blocker = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
     
     // add to blocker's list
-    LinkedList2_Append(&o->blocker->users, &o->blocker_node);
+    LinkedList1_Append(&o->blocker->users, &o->blocker_node);
     
     // signal up if needed
     if (o->blocker->up) {
@@ -315,10 +312,10 @@ static void use_func_die (void *vo)
     struct use_instance *o = vo;
     
     // remove from blocker's list
-    LinkedList2_Remove(&o->blocker->users, &o->blocker_node);
+    LinkedList1_Remove(&o->blocker->users, &o->blocker_node);
     
     // make the blocker die if needed
-    if (o->blocker->dying && LinkedList2_IsEmpty(&o->blocker->users)) {
+    if (o->blocker->dying && LinkedList1_IsEmpty(&o->blocker->users)) {
         instance_free(o->blocker);
     }
     

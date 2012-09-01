@@ -57,16 +57,16 @@ static void * dispatcher_thread (struct BThreadWorkDispatcher_thread *t)
             break;
         }
         
-        if (LinkedList2_IsEmpty(&o->pending_list)) {
+        if (LinkedList1_IsEmpty(&o->pending_list)) {
             // wait for event
             ASSERT_FORCE(pthread_cond_wait(&t->new_cond, &o->mutex) == 0)
             continue;
         }
         
         // grab the work
-        BThreadWork *w = UPPER_OBJECT(LinkedList2_GetFirst(&o->pending_list), BThreadWork, list_node);
+        BThreadWork *w = UPPER_OBJECT(LinkedList1_GetFirst(&o->pending_list), BThreadWork, list_node);
         ASSERT(w->state == BTHREADWORK_STATE_PENDING)
-        LinkedList2_Remove(&o->pending_list, &w->list_node);
+        LinkedList1_Remove(&o->pending_list, &w->list_node);
         t->running_work = w;
         w->state = BTHREADWORK_STATE_RUNNING;
         
@@ -77,7 +77,7 @@ static void * dispatcher_thread (struct BThreadWorkDispatcher_thread *t)
         
         // release the work
         t->running_work = NULL;
-        LinkedList2_Append(&o->finished_list, &w->list_node);
+        LinkedList1_Append(&o->finished_list, &w->list_node);
         w->state = BTHREADWORK_STATE_FINISHED;
         ASSERT_FORCE(sem_post(&w->finished_sem) == 0)
         
@@ -103,18 +103,18 @@ static void dispatch_job (BThreadWorkDispatcher *o)
     ASSERT_FORCE(pthread_mutex_lock(&o->mutex) == 0)
     
     // check for finished job
-    if (LinkedList2_IsEmpty(&o->finished_list)) {
+    if (LinkedList1_IsEmpty(&o->finished_list)) {
         ASSERT_FORCE(pthread_mutex_unlock(&o->mutex) == 0)
         return;
     }
     
     // grab finished job
-    BThreadWork *w = UPPER_OBJECT(LinkedList2_GetFirst(&o->finished_list), BThreadWork, list_node);
+    BThreadWork *w = UPPER_OBJECT(LinkedList1_GetFirst(&o->finished_list), BThreadWork, list_node);
     ASSERT(w->state == BTHREADWORK_STATE_FINISHED)
-    LinkedList2_Remove(&o->finished_list, &w->list_node);
+    LinkedList1_Remove(&o->finished_list, &w->list_node);
     
     // schedule more
-    if (!LinkedList2_IsEmpty(&o->finished_list)) {
+    if (!LinkedList1_IsEmpty(&o->finished_list)) {
         BPending_Set(&o->more_job);
     }
     
@@ -213,10 +213,10 @@ int BThreadWorkDispatcher_Init (BThreadWorkDispatcher *o, BReactor *reactor, int
     
     if (num_threads_hint > 0) {
         // init pending list
-        LinkedList2_Init(&o->pending_list);
+        LinkedList1_Init(&o->pending_list);
         
         // init finished list
-        LinkedList2_Init(&o->finished_list);
+        LinkedList1_Init(&o->finished_list);
         
         // init mutex
         if (pthread_mutex_init(&o->mutex, NULL) != 0) {
@@ -309,9 +309,9 @@ void BThreadWorkDispatcher_Free (BThreadWorkDispatcher *o)
 {
     #ifdef BADVPN_THREADWORK_USE_PTHREAD
     if (o->num_threads > 0) {
-        ASSERT(LinkedList2_IsEmpty(&o->pending_list))
+        ASSERT(LinkedList1_IsEmpty(&o->pending_list))
         for (int i = 0; i < o->num_threads; i++) { ASSERT(!o->threads[i].running_work) }
-        ASSERT(LinkedList2_IsEmpty(&o->finished_list))
+        ASSERT(LinkedList1_IsEmpty(&o->finished_list))
     }
     #endif
     DebugObject_Free(&o->d_obj);
@@ -370,7 +370,7 @@ void BThreadWork_Init (BThreadWork *o, BThreadWorkDispatcher *d, BThreadWork_han
         
         // post work
         ASSERT_FORCE(pthread_mutex_lock(&d->mutex) == 0)
-        LinkedList2_Append(&d->pending_list, &o->list_node);
+        LinkedList1_Append(&d->pending_list, &o->list_node);
         for (int i = 0; i < d->num_threads; i++) {
             if (!d->threads[i].running_work) {
                 ASSERT_FORCE(pthread_cond_signal(&d->threads[i].new_cond) == 0)
@@ -406,7 +406,7 @@ void BThreadWork_Free (BThreadWork *o)
                 BLog(BLOG_DEBUG, "remove pending work");
                 
                 // remove from pending list
-                LinkedList2_Remove(&d->pending_list, &o->list_node);
+                LinkedList1_Remove(&d->pending_list, &o->list_node);
             } break;
             
             case BTHREADWORK_STATE_RUNNING: {
@@ -420,14 +420,14 @@ void BThreadWork_Free (BThreadWork *o)
                 ASSERT(o->state == BTHREADWORK_STATE_FINISHED)
                 
                 // remove from finished list
-                LinkedList2_Remove(&d->finished_list, &o->list_node);
+                LinkedList1_Remove(&d->finished_list, &o->list_node);
             } break;
             
             case BTHREADWORK_STATE_FINISHED: {
                 BLog(BLOG_DEBUG, "remove finished work");
                 
                 // remove from finished list
-                LinkedList2_Remove(&d->finished_list, &o->list_node);
+                LinkedList1_Remove(&d->finished_list, &o->list_node);
             } break;
             
             case BTHREADWORK_STATE_FORGOTTEN: {

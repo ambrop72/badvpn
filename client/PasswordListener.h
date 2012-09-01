@@ -44,7 +44,7 @@
 
 #include <misc/debug.h>
 #include <misc/sslsocket.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <structure/BAVL.h>
 #include <base/DebugObject.h>
 #include <flow/SingleStreamReceiver.h>
@@ -77,8 +77,8 @@ typedef struct {
     PRFileDesc model_dprfd;
     PRFileDesc *model_prfd;
     struct PasswordListenerClient *clients_data;
-    LinkedList2 clients_free;
-    LinkedList2 clients_used;
+    LinkedList1 clients_free;
+    LinkedList1 clients_used;
     BAVL passwords;
     BListener listener;
     DebugObject d_obj;
@@ -93,7 +93,7 @@ typedef struct {
 
 struct PasswordListenerClient {
     PasswordListener *l;
-    LinkedList2Node list_node;
+    LinkedList1Node list_node;
     sslsocket *sock;
     BSSLConnection sslcon;
     SingleStreamReceiver receiver;

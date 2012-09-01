@@ -153,7 +153,7 @@ int clients_num;
 peerid_t clients_nextid;
 
 // clients list
-LinkedList2 clients;
+LinkedList1 clients;
 
 // clients tree (by ID)
 BAVL clients_tree;
@@ -489,7 +489,7 @@ int main (int argc, char *argv[])
     clients_nextid = 0;
     
     // initialize clients linked list
-    LinkedList2_Init(&clients);
+    LinkedList1_Init(&clients);
     
     // initialize clients tree
     BAVL_Init(&clients_tree, OFFSET_DIFF(struct client_data, id, tree_node), (BAVL_comparator)peerid_comparator, NULL);
@@ -509,27 +509,27 @@ int main (int argc, char *argv[])
     BReactor_Exec(&ss);
     
     // free clients
-    LinkedList2Node *node;
-    while (node = LinkedList2_GetFirst(&clients)) {
+    LinkedList1Node *node;
+    while (node = LinkedList1_GetFirst(&clients)) {
         struct client_data *client = UPPER_OBJECT(node, struct client_data, list_node);
         
         // remove outgoing knows
-        LinkedList2Node *node2;
-        while (node2 = LinkedList2_GetFirst(&client->know_out_list)) {
+        LinkedList1Node *node2;
+        while (node2 = LinkedList1_GetFirst(&client->know_out_list)) {
             struct peer_know *k = UPPER_OBJECT(node2, struct peer_know, from_node);
             remove_know(k);
         }
         
         // remove incoming knows
-        LinkedList2Node *node3;
-        while (node3 = LinkedList2_GetFirst(&client->know_in_list)) {
+        LinkedList1Node *node3;
+        while (node3 = LinkedList1_GetFirst(&client->know_in_list)) {
             struct peer_know *k = UPPER_OBJECT(node3, struct peer_know, to_node);
             remove_know(k);
         }
         
         // remove outgoing flows
-        LinkedList2Node *flow_node;
-        while (flow_node = LinkedList2_GetFirst(&client->peer_out_flows_list)) {
+        LinkedList1Node *flow_node;
+        while (flow_node = LinkedList1_GetFirst(&client->peer_out_flows_list)) {
             struct peer_flow *flow = UPPER_OBJECT(flow_node, struct peer_flow, src_list_node);
             ASSERT(flow->src_client == client)
             
@@ -908,15 +908,15 @@ void listener_handler (BListener *listener)
     
     // link in
     clients_num++;
-    LinkedList2_Append(&clients, &client->list_node);
+    LinkedList1_Append(&clients, &client->list_node);
     ASSERT_EXECUTE(BAVL_Insert(&clients_tree, &client->tree_node, NULL))
     
     // init knowledge lists
-    LinkedList2_Init(&client->know_out_list);
-    LinkedList2_Init(&client->know_in_list);
+    LinkedList1_Init(&client->know_out_list);
+    LinkedList1_Init(&client->know_in_list);
     
     // initialize peer flows from us list and tree (flows for sending messages to other clients)
-    LinkedList2_Init(&client->peer_out_flows_list);
+    LinkedList1_Init(&client->peer_out_flows_list);
     BAVL_Init(&client->peer_out_flows_tree, OFFSET_DIFF(struct peer_flow, dest_client_id, src_tree_node), (BAVL_comparator)peerid_comparator, NULL);
     
     // init dying
@@ -946,9 +946,9 @@ fail0:
 
 void client_dealloc (struct client_data *client)
 {
-    ASSERT(LinkedList2_IsEmpty(&client->know_out_list))
-    ASSERT(LinkedList2_IsEmpty(&client->know_in_list))
-    ASSERT(LinkedList2_IsEmpty(&client->peer_out_flows_list))
+    ASSERT(LinkedList1_IsEmpty(&client->know_out_list))
+    ASSERT(LinkedList1_IsEmpty(&client->know_in_list))
+    ASSERT(LinkedList1_IsEmpty(&client->peer_out_flows_list))
     
     // free I/O
     if (client->initstatus >= INITSTATUS_WAITHELLO && !client->dying) {
@@ -960,7 +960,7 @@ void client_dealloc (struct client_data *client)
     
     // link out
     BAVL_Remove(&clients_tree, &client->tree_node);
-    LinkedList2_Remove(&clients, &client->list_node);
+    LinkedList1_Remove(&clients, &client->list_node);
     clients_num--;
     
     // stop disconnect timer
@@ -1043,7 +1043,7 @@ int client_init_io (struct client_data *client)
     }
     
     // init list of flows
-    LinkedList2_Init(&client->output_peers_flows);
+    LinkedList1_Init(&client->output_peers_flows);
     
     return 1;
     
@@ -1068,8 +1068,8 @@ void client_dealloc_io (struct client_data *client)
     PacketPassFairQueue_PrepareFree(&client->output_peers_fairqueue);
     
     // remove flows to us
-    LinkedList2Node *node;
-    while (node = LinkedList2_GetFirst(&client->output_peers_flows)) {
+    LinkedList1Node *node;
+    while (node = LinkedList1_GetFirst(&client->output_peers_flows)) {
         struct peer_flow *flow = UPPER_OBJECT(node, struct peer_flow, dest_list_node);
         ASSERT(flow->dest_client == client)
         peer_flow_dealloc(flow);
@@ -1110,14 +1110,14 @@ void client_remove (struct client_data *client)
     }
     
     // remove outgoing knows
-    LinkedList2Node *node;
-    while (node = LinkedList2_GetFirst(&client->know_out_list)) {
+    LinkedList1Node *node;
+    while (node = LinkedList1_GetFirst(&client->know_out_list)) {
         struct peer_know *k = UPPER_OBJECT(node, struct peer_know, from_node);
         remove_know(k);
     }
     
     // remove outgoing flows
-    while (node = LinkedList2_GetFirst(&client->peer_out_flows_list)) {
+    while (node = LinkedList1_GetFirst(&client->peer_out_flows_list)) {
         struct peer_flow *flow = UPPER_OBJECT(node, struct peer_flow, src_list_node);
         ASSERT(flow->src_client == client)
         ASSERT(flow->dest_client->initstatus == INITSTATUS_COMPLETE)
@@ -1136,18 +1136,19 @@ void client_remove (struct client_data *client)
     BPending_Set(&client->dying_job);
     
     // inform other clients that 'client' is no more
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &client->know_in_list);
-    while (node = LinkedList2Iterator_Next(&it)) {
+    node = LinkedList1_GetFirst(&client->know_in_list);
+    while (node) {
+        LinkedList1Node *next = LinkedList1Node_Next(node);
         struct peer_know *k = UPPER_OBJECT(node, struct peer_know, to_node);
         uninform_know(k);
+        node = next;
     }
 }
 
 void client_dying_job (struct client_data *client)
 {
     ASSERT(client->dying)
-    ASSERT(LinkedList2_IsEmpty(&client->know_in_list))
+    ASSERT(LinkedList1_IsEmpty(&client->know_in_list))
     
     client_dealloc(client);
     return;
@@ -1480,7 +1481,7 @@ void process_packet_hello (struct client_data *client, uint8_t *data, int data_l
     client->initstatus = INITSTATUS_COMPLETE;
     
     // publish client
-    for (LinkedList2Node *list_node = LinkedList2_GetFirst(&clients); list_node; list_node = LinkedList2Node_Next(list_node)) {
+    for (LinkedList1Node *list_node = LinkedList1_GetFirst(&clients); list_node; list_node = LinkedList1Node_Next(list_node)) {
         struct client_data *client2 = UPPER_OBJECT(list_node, struct client_data, list_node);
         if (client2 == client || client2->initstatus != INITSTATUS_COMPLETE || client2->dying || !clients_allowed(client, client2)) {
             continue;
@@ -1705,11 +1706,11 @@ struct peer_flow * peer_flow_create (struct client_data *src_client, struct clie
     flow->dest_client_id = dest_client->id;
     
     // add to source list and tree
-    LinkedList2_Append(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
+    LinkedList1_Append(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
     ASSERT_EXECUTE(BAVL_Insert(&flow->src_client->peer_out_flows_tree, &flow->src_tree_node, NULL))
     
     // add to destination client list
-    LinkedList2_Append(&flow->dest_client->output_peers_flows, &flow->dest_list_node);
+    LinkedList1_Append(&flow->dest_client->output_peers_flows, &flow->dest_list_node);
     
     // have no I/O
     flow->have_io = 0;
@@ -1736,12 +1737,12 @@ void peer_flow_dealloc (struct peer_flow *flow)
     }
     
     // remove from destination client list
-    LinkedList2_Remove(&flow->dest_client->output_peers_flows, &flow->dest_list_node);
+    LinkedList1_Remove(&flow->dest_client->output_peers_flows, &flow->dest_list_node);
     
     // remove from source list and hash table
     if (flow->src_client) {
         BAVL_Remove(&flow->src_client->peer_out_flows_tree, &flow->src_tree_node);
-        LinkedList2_Remove(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
+        LinkedList1_Remove(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
     }
     
     // free memory
@@ -1806,7 +1807,7 @@ void peer_flow_disconnect (struct peer_flow *flow)
     
     // remove from source list and hash table
     BAVL_Remove(&flow->src_client->peer_out_flows_tree, &flow->src_tree_node);
-    LinkedList2_Remove(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
+    LinkedList1_Remove(&flow->src_client->peer_out_flows_list, &flow->src_list_node);
     
     // set no source
     flow->src_client = NULL;
@@ -2152,8 +2153,8 @@ struct peer_know * create_know (struct client_data *from, struct client_data *to
     k->relay_client = relay_client;
     
     // append to lists
-    LinkedList2_Append(&from->know_out_list, &k->from_node);
-    LinkedList2_Append(&to->know_in_list, &k->to_node);
+    LinkedList1_Append(&from->know_out_list, &k->from_node);
+    LinkedList1_Append(&to->know_in_list, &k->to_node);
     
     // init and set inform job to inform client 'from' about client 'to'
     BPending_Init(&k->inform_job, BReactor_PendingGroup(&ss), (BPending_handler)know_inform_job_handler, k);
@@ -2174,8 +2175,8 @@ void remove_know (struct peer_know *k)
     BPending_Free(&k->inform_job);
     
     // remove from lists
-    LinkedList2_Remove(&k->to->know_in_list, &k->to_node);
-    LinkedList2_Remove(&k->from->know_out_list, &k->from_node);
+    LinkedList1_Remove(&k->to->know_in_list, &k->to_node);
+    LinkedList1_Remove(&k->from->know_out_list, &k->from_node);
     
     // free structure
     free(k);

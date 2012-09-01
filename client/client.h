@@ -31,7 +31,7 @@
 #include <stdint.h>
 
 #include <protocol/scproto.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <flow/PacketPassFairQueue.h>
 #include <flow/SinglePacketBuffer.h>
 #include <flow/PacketRecvConnector.h>
@@ -170,24 +170,24 @@ struct peer_data {
     
     // relaying objects
     struct peer_data *relaying_peer; // peer through which we are relaying, or NULL
-    LinkedList2Node relaying_list_node; // node in relay peer's relay_users
+    LinkedList1Node relaying_list_node; // node in relay peer's relay_users
     
     // waiting for relay data
     int waiting_relay;
-    LinkedList2Node waiting_relay_list_node;
+    LinkedList1Node waiting_relay_list_node;
     
     // retry timer
     BTimer reset_timer;
     
     // relay server specific
     int is_relay;
-    LinkedList2Node relay_list_node;
-    LinkedList2 relay_users;
+    LinkedList1Node relay_list_node;
+    LinkedList1 relay_users;
     
     // binding state
     int binding;
     int binding_addrpos;
     
     // peers linked list node
-    LinkedList2Node list_node;
+    LinkedList1Node list_node;
 };

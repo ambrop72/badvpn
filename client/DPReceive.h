@@ -37,7 +37,7 @@
 #include <protocol/scproto.h>
 #include <misc/debugcounter.h>
 #include <misc/debug.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <base/DebugObject.h>
 #include <client/DataProto.h>
 #include <client/DPRelay.h>
@@ -58,7 +58,7 @@ typedef struct {
     DPRelayRouter relay_router;
     int have_peer_id;
     peerid_t peer_id;
-    LinkedList2 peers_list;
+    LinkedList1 peers_list;
     DebugObject d_obj;
 } DPReceiveDevice;
 
@@ -70,7 +70,7 @@ typedef struct {
     DPRelaySource relay_source;
     DPRelaySink relay_sink;
     DataProtoSink *dp_sink;
-    LinkedList2Node list_node;
+    LinkedList1Node list_node;
     DebugObject d_obj;
     DebugCounter d_receivers_ctr;
 } DPReceivePeer;

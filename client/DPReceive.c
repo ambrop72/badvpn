@@ -41,7 +41,7 @@
 
 static DPReceivePeer * find_peer (DPReceiveDevice *o, peerid_t id)
 {
-    for (LinkedList2Node *node = LinkedList2_GetFirst(&o->peers_list); node; node = LinkedList2Node_Next(node)) {
+    for (LinkedList1Node *node = LinkedList1_GetFirst(&o->peers_list); node; node = LinkedList1Node_Next(node)) {
         DPReceivePeer *p = UPPER_OBJECT(node, DPReceivePeer, list_node);
         if (p->peer_id == id) {
             return p;
@@ -192,7 +192,7 @@ int DPReceiveDevice_Init (DPReceiveDevice *o, int device_mtu, DPReceiveDevice_ou
     o->have_peer_id = 0;
     
     // init peers list
-    LinkedList2_Init(&o->peers_list);
+    LinkedList1_Init(&o->peers_list);
     
     DebugObject_Init(&o->d_obj);
     return 1;
@@ -204,7 +204,7 @@ fail0:
 void DPReceiveDevice_Free (DPReceiveDevice *o)
 {
     DebugObject_Free(&o->d_obj);
-    ASSERT(LinkedList2_IsEmpty(&o->peers_list))
+    ASSERT(LinkedList1_IsEmpty(&o->peers_list))
     
     // free relay router
     DPRelayRouter_Free(&o->relay_router);
@@ -240,7 +240,7 @@ void DPReceivePeer_Init (DPReceivePeer *o, DPReceiveDevice *device, peerid_t pee
     o->dp_sink = NULL;
     
     // insert to peers list
-    LinkedList2_Append(&device->peers_list, &o->list_node);
+    LinkedList1_Append(&device->peers_list, &o->list_node);
     
     DebugCounter_Init(&o->d_receivers_ctr);
     DebugObject_Init(&o->d_obj);
@@ -253,7 +253,7 @@ void DPReceivePeer_Free (DPReceivePeer *o)
     ASSERT(!o->dp_sink)
     
     // remove from peers list
-    LinkedList2_Remove(&o->device->peers_list, &o->list_node);
+    LinkedList1_Remove(&o->device->peers_list, &o->list_node);
     
     // free relay sink
     DPRelaySink_Free(&o->relay_sink);

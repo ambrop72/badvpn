@@ -50,7 +50,7 @@
 #include <string.h>
 
 #include <misc/offset.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_process_manager.h>
@@ -66,7 +66,7 @@
 
 struct instance {
     NCDModuleInst *i;
-    LinkedList2 processes_list;
+    LinkedList1 processes_list;
     int dying;
 };
 
@@ -74,7 +74,7 @@ struct process {
     struct instance *manager;
     char *name;
     BTimer retry_timer;
-    LinkedList2Node processes_list_node;
+    LinkedList1Node processes_list_node;
     int have_params;
     char *params_template_name;
     NCDValMem params_mem;
@@ -101,13 +101,13 @@ static void instance_free (struct instance *o);
 
 struct process * find_process (struct instance *o, const char *name)
 {
-    LinkedList2Node *n = LinkedList2_GetFirst(&o->processes_list);
+    LinkedList1Node *n = LinkedList1_GetFirst(&o->processes_list);
     while (n) {
         struct process *p = UPPER_OBJECT(n, struct process, processes_list_node);
         if (!strcmp(p->name, name)) {
             return p;
         }
-        n = LinkedList2Node_Next(n);
+        n = LinkedList1Node_Next(n);
     }
     
     return NULL;
@@ -139,7 +139,7 @@ int process_new (struct instance *o, const char *name, const char *template_name
     BTimer_Init(&p->retry_timer, RETRY_TIME, (BTimer_handler)process_retry_timer_handler, p);
     
     // insert to processes list
-    LinkedList2_Append(&o->processes_list, &p->processes_list_node);
+    LinkedList1_Append(&o->processes_list, &p->processes_list_node);
     
     // have no params
     p->have_params = 0;
@@ -168,7 +168,7 @@ int process_new (struct instance *o, const char *name, const char *template_name
     
 fail2:
     NCDValMem_Free(&mem);
-    LinkedList2_Remove(&o->processes_list, &p->processes_list_node);
+    LinkedList1_Remove(&o->processes_list, &p->processes_list_node);
     free(p->name);
 fail1:
     free(p);
@@ -188,7 +188,7 @@ void process_free (struct process *p)
     }
     
     // remove from processes list
-    LinkedList2_Remove(&o->processes_list, &p->processes_list_node);
+    LinkedList1_Remove(&o->processes_list, &p->processes_list_node);
     
     // free timer
     BReactor_RemoveTimer(o->i->iparams->reactor, &p->retry_timer);
@@ -241,7 +241,7 @@ void process_module_process_handler_event (struct process *p, int event)
             process_free(p);
         
             // if manager is dying and there are no more processes, let it die
-            if (o->dying && LinkedList2_IsEmpty(&o->processes_list)) {
+            if (o->dying && LinkedList1_IsEmpty(&o->processes_list)) {
                 instance_free(o);
             }
             
@@ -425,7 +425,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     }
     
     // init processes list
-    LinkedList2_Init(&o->processes_list);
+    LinkedList1_Init(&o->processes_list);
     
     // set not dying
     o->dying = 0;
@@ -441,7 +441,7 @@ fail0:
 
 void instance_free (struct instance *o)
 {
-    ASSERT(LinkedList2_IsEmpty(&o->processes_list))
+    ASSERT(LinkedList1_IsEmpty(&o->processes_list))
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -452,16 +452,16 @@ static void func_die (void *vo)
     ASSERT(!o->dying)
     
     // request all processes to die
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &o->processes_list);
-    LinkedList2Node *n;
-    while (n = LinkedList2Iterator_Next(&it)) {
+    LinkedList1Node *n = LinkedList1_GetFirst(&o->processes_list);
+    while (n) {
+        LinkedList1Node *next = LinkedList1Node_Next(n);
         struct process *p = UPPER_OBJECT(n, struct process, processes_list_node);
         process_stop(p);
+        n = next;
     }
     
     // if there are no processes, die immediately
-    if (LinkedList2_IsEmpty(&o->processes_list)) {
+    if (LinkedList1_IsEmpty(&o->processes_list)) {
         instance_free(o);
         return;
     }

@@ -46,20 +46,20 @@
 static void free_frame (FragmentProtoAssembler *o, struct FragmentProtoAssembler_frame *frame)
 {
     // remove from used list
-    LinkedList2_Remove(&o->frames_used, &frame->list_node);
+    LinkedList1_Remove(&o->frames_used, &frame->list_node);
     // remove from used tree
     FPAFramesTree_Remove(&o->frames_used_tree, 0, frame);
     
     // append to free list
-    LinkedList2_Append(&o->frames_free, &frame->list_node);
+    LinkedList1_Append(&o->frames_free, &frame->list_node);
 }
 
 static void free_oldest_frame (FragmentProtoAssembler *o)
 {
-    ASSERT(!LinkedList2_IsEmpty(&o->frames_used))
+    ASSERT(!LinkedList1_IsEmpty(&o->frames_used))
     
     // obtain oldest frame (first on the list)
-    LinkedList2Node *list_node = LinkedList2_GetFirst(&o->frames_used);
+    LinkedList1Node *list_node = LinkedList1_GetFirst(&o->frames_used);
     ASSERT(list_node)
     struct FragmentProtoAssembler_frame *frame = UPPER_OBJECT(list_node, struct FragmentProtoAssembler_frame, list_node);
     
@@ -72,18 +72,18 @@ static struct FragmentProtoAssembler_frame * allocate_new_frame (FragmentProtoAs
     ASSERT(!FPAFramesTree_LookupExact(&o->frames_used_tree, 0, id))
     
     // if there are no free entries, free the oldest used one
-    if (LinkedList2_IsEmpty(&o->frames_free)) {
+    if (LinkedList1_IsEmpty(&o->frames_free)) {
         PeerLog(o, BLOG_INFO, "freeing used frame");
         free_oldest_frame(o);
     }
     
     // obtain frame entry
-    LinkedList2Node *list_node = LinkedList2_GetFirst(&o->frames_free);
+    LinkedList1Node *list_node = LinkedList1_GetFirst(&o->frames_free);
     ASSERT(list_node)
     struct FragmentProtoAssembler_frame *frame = UPPER_OBJECT(list_node, struct FragmentProtoAssembler_frame, list_node);
     
     // remove from free list
-    LinkedList2_Remove(&o->frames_free, &frame->list_node);
+    LinkedList1_Remove(&o->frames_free, &frame->list_node);
     
     // initialize values
     frame->id = id;
@@ -94,7 +94,7 @@ static struct FragmentProtoAssembler_frame * allocate_new_frame (FragmentProtoAs
     frame->length_so_far = 0;
     
     // append to used list
-    LinkedList2_Append(&o->frames_used, &frame->list_node);
+    LinkedList1_Append(&o->frames_used, &frame->list_node);
     // insert to used tree
     int res = FPAFramesTree_Insert(&o->frames_used_tree, 0, frame, NULL);
     ASSERT(res)
@@ -118,10 +118,9 @@ static void reduce_times (FragmentProtoAssembler *o)
 {
     // find the frame with minimal time, removing timed out frames
     struct FragmentProtoAssembler_frame *minframe = NULL;
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &o->frames_used);
-    LinkedList2Node *list_node;
-    while (list_node = LinkedList2Iterator_Next(&it)) {
+    LinkedList1Node *list_node = LinkedList1_GetFirst(&o->frames_used);
+    while (list_node) {
+        LinkedList1Node *next = LinkedList1Node_Next(list_node);
         struct FragmentProtoAssembler_frame *frame = UPPER_OBJECT(list_node, struct FragmentProtoAssembler_frame, list_node);
         if (frame_is_timed_out(o, frame)) {
             PeerLog(o, BLOG_INFO, "freeing timed out frame (while reducing times)");
@@ -131,6 +130,7 @@ static void reduce_times (FragmentProtoAssembler *o)
                 minframe = frame;
             }
         }
+        list_node = next;
     }
     
     if (!minframe) {
@@ -142,8 +142,7 @@ static void reduce_times (FragmentProtoAssembler *o)
     uint32_t min_time = minframe->time;
     
     // subtract minimal time from all frames
-    LinkedList2Iterator_InitForward(&it, &o->frames_used);
-    while (list_node = LinkedList2Iterator_Next(&it)) {
+    for (list_node = LinkedList1_GetFirst(&o->frames_used); list_node; list_node = LinkedList1Node_Next(list_node)) {
         struct FragmentProtoAssembler_frame *frame = UPPER_OBJECT(list_node, struct FragmentProtoAssembler_frame, list_node);
         frame->time -= min_time;
     }
@@ -326,7 +325,7 @@ static void process_input (FragmentProtoAssembler *o)
     // increment packet time
     if (o->time == FPA_MAX_TIME) {
         reduce_times(o);
-        if (!LinkedList2_IsEmpty(&o->frames_used)) {
+        if (!LinkedList1_IsEmpty(&o->frames_used)) {
             ASSERT(o->time < FPA_MAX_TIME) // If there was a frame with zero time, it was removed because
                                            // time_tolerance < FPA_MAX_TIME. So something >0 was subtracted.
             o->time++;
@@ -411,8 +410,8 @@ int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, Packe
     }
     
     // init frame lists
-    LinkedList2_Init(&o->frames_free);
-    LinkedList2_Init(&o->frames_used);
+    LinkedList1_Init(&o->frames_free);
+    LinkedList1_Init(&o->frames_used);
     
     // initialize frame entries
     for (int i = 0; i < num_frames; i++) {
@@ -422,7 +421,7 @@ int FragmentProtoAssembler_Init (FragmentProtoAssembler *o, int input_mtu, Packe
         // set buffer pointer
         frame->buffer = o->frames_buffer + (size_t)i * o->output_mtu;
         // add to free list
-        LinkedList2_Append(&o->frames_free, &frame->list_node);
+        LinkedList1_Append(&o->frames_free, &frame->list_node);
     }
     
     // init tree

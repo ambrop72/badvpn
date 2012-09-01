@@ -44,7 +44,7 @@
 #include <misc/loggers_string.h>
 #include <misc/string_begins_with.h>
 #include <misc/open_standard_streams.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <base/DebugObject.h>
 #include <base/BLog.h>
 #include <security/BSecurity.h>
@@ -174,17 +174,17 @@ DPReceiveDevice device_output_dprd;
 int data_mtu;
 
 // peers list
-LinkedList2 peers;
+LinkedList1 peers;
 int num_peers;
 
 // frame decider
 FrameDecider frame_decider;
 
 // peers that can be user as relays
-LinkedList2 relays;
+LinkedList1 relays;
 
 // peers than need a relay
-LinkedList2 waiting_relay_peers;
+LinkedList1 waiting_relay_peers;
 
 // server connection
 ServerConnection server;
@@ -539,17 +539,17 @@ int main (int argc, char *argv[])
     }
     
     // init peers list
-    LinkedList2_Init(&peers);
+    LinkedList1_Init(&peers);
     num_peers = 0;
     
     // init frame decider
     FrameDecider_Init(&frame_decider, options.max_macs, options.max_groups, options.igmp_group_membership_interval, options.igmp_last_member_query_time, &ss);
     
     // init relays list
-    LinkedList2_Init(&relays);
+    LinkedList1_Init(&relays);
     
     // init need relay list
-    LinkedList2_Init(&waiting_relay_peers);
+    LinkedList1_Init(&waiting_relay_peers);
     
     // start connecting to server
     if (!ServerConnection_Init(&server, &ss, server_addr, SC_KEEPALIVE_INTERVAL, SERVER_BUFFER_MIN_PACKETS, options.ssl, client_cert, client_key, server_name, NULL,
@@ -575,8 +575,8 @@ int main (int argc, char *argv[])
     }
     
     // free peers
-    LinkedList2Node *node;
-    while (node = LinkedList2_GetFirst(&peers)) {
+    LinkedList1Node *node;
+    while (node = LinkedList1_GetFirst(&peers)) {
         struct peer_data *peer = UPPER_OBJECT(node, struct peer_data, list_node);
         peer_remove(peer, 1);
     }
@@ -1426,7 +1426,7 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     peer->binding = 0;
     
     // add to peers list
-    LinkedList2_Append(&peers, &peer->list_node);
+    LinkedList1_Append(&peers, &peer->list_node);
     num_peers++;
     
     switch (chat_ssl_mode) {
@@ -1474,7 +1474,7 @@ void peer_remove (struct peer_data *peer, int exiting)
     ASSERT(!peer->is_relay)
     
     // remove from peers list
-    LinkedList2_Remove(&peers, &peer->list_node);
+    LinkedList1_Remove(&peers, &peer->list_node);
     num_peers--;
     
     // free reset timer
@@ -1711,10 +1711,10 @@ void peer_enable_relay_provider (struct peer_data *peer)
     ASSERT(!peer->waiting_relay)
     
     // add to relays list
-    LinkedList2_Append(&relays, &peer->relay_list_node);
+    LinkedList1_Append(&relays, &peer->relay_list_node);
     
     // init users list
-    LinkedList2_Init(&peer->relay_users);
+    LinkedList1_Init(&peer->relay_users);
     
     // set is relay
     peer->is_relay = 1;
@@ -1732,8 +1732,8 @@ void peer_disable_relay_provider (struct peer_data *peer)
     ASSERT(!peer->waiting_relay)
     
     // disconnect relay users
-    LinkedList2Node *list_node;
-    while (list_node = LinkedList2_GetFirst(&peer->relay_users)) {
+    LinkedList1Node *list_node;
+    while (list_node = LinkedList1_GetFirst(&peer->relay_users)) {
         struct peer_data *relay_user = UPPER_OBJECT(list_node, struct peer_data, relaying_list_node);
         ASSERT(relay_user->relaying_peer == peer)
         
@@ -1745,7 +1745,7 @@ void peer_disable_relay_provider (struct peer_data *peer)
     }
     
     // remove from relays list
-    LinkedList2_Remove(&relays, &peer->relay_list_node);
+    LinkedList1_Remove(&relays, &peer->relay_list_node);
     
     // set is not relay
     peer->is_relay = 0;
@@ -1767,7 +1767,7 @@ void peer_install_relaying (struct peer_data *peer, struct peer_data *relay)
     peer_log(peer, BLOG_INFO, "installing relaying through %d", (int)relay->id);
     
     // add to relay's users list
-    LinkedList2_Append(&relay->relay_users, &peer->relaying_list_node);
+    LinkedList1_Append(&relay->relay_users, &peer->relaying_list_node);
     
     // attach local flow to relay
     DataProtoFlow_Attach(&peer->local_dpflow, &relay->send_dp);
@@ -1793,7 +1793,7 @@ void peer_free_relaying (struct peer_data *peer)
     DataProtoFlow_Detach(&peer->local_dpflow);
     
     // remove from relay's users list
-    LinkedList2_Remove(&relay->relay_users, &peer->relaying_list_node);
+    LinkedList1_Remove(&relay->relay_users, &peer->relaying_list_node);
     
     // set not relaying
     peer->relaying_peer = NULL;
@@ -1831,7 +1831,7 @@ void peer_register_need_relay (struct peer_data *peer)
     ASSERT(!peer->is_relay)
     
     // add to need relay list
-    LinkedList2_Append(&waiting_relay_peers, &peer->waiting_relay_list_node);
+    LinkedList1_Append(&waiting_relay_peers, &peer->waiting_relay_list_node);
     
     // set waiting relay
     peer->waiting_relay = 1;
@@ -1846,7 +1846,7 @@ void peer_unregister_need_relay (struct peer_data *peer)
     ASSERT(!peer->is_relay)
     
     // remove from need relay list
-    LinkedList2_Remove(&waiting_relay_peers, &peer->waiting_relay_list_node);
+    LinkedList1_Remove(&waiting_relay_peers, &peer->waiting_relay_list_node);
     
     // set not waiting relay
     peer->waiting_relay = 0;
@@ -2598,7 +2598,7 @@ void peer_dataproto_handler (struct peer_data *peer, int up)
 
 struct peer_data * find_peer_by_id (peerid_t id)
 {
-    for (LinkedList2Node *node = LinkedList2_GetFirst(&peers); node; node = LinkedList2Node_Next(node)) {
+    for (LinkedList1Node *node = LinkedList1_GetFirst(&peers); node; node = LinkedList1Node_Next(node)) {
         struct peer_data *peer = UPPER_OBJECT(node, struct peer_data, list_node);
         if (peer->id == id) {
             return peer;
@@ -2635,8 +2635,8 @@ void device_dpsource_handler (void *unused, const uint8_t *frame, int frame_len)
 
 void assign_relays (void)
 {
-    LinkedList2Node *list_node;
-    while (list_node = LinkedList2_GetFirst(&waiting_relay_peers)) {
+    LinkedList1Node *list_node;
+    while (list_node = LinkedList1_GetFirst(&waiting_relay_peers)) {
         struct peer_data *peer = UPPER_OBJECT(list_node, struct peer_data, waiting_relay_list_node);
         ASSERT(peer->waiting_relay)
         
@@ -2644,7 +2644,7 @@ void assign_relays (void)
         ASSERT(!peer->have_link)
         
         // get a relay
-        LinkedList2Node *list_node2 = LinkedList2_GetFirst(&relays);
+        LinkedList1Node *list_node2 = LinkedList1_GetFirst(&relays);
         if (!list_node2) {
             BLog(BLOG_NOTICE, "no relays");
             return;

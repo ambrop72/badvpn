@@ -81,8 +81,8 @@ void remove_client (struct PasswordListenerClient *client)
     free(client->sock);
     
     // move to free list
-    LinkedList2_Remove(&l->clients_used, &client->list_node);
-    LinkedList2_Append(&l->clients_free, &client->list_node);
+    LinkedList1_Remove(&l->clients_used, &client->list_node);
+    LinkedList1_Append(&l->clients_free, &client->list_node);
 }
 
 void listener_handler (PasswordListener *l)
@@ -90,13 +90,13 @@ void listener_handler (PasswordListener *l)
     DebugObject_Access(&l->d_obj);
     
     // obtain client entry
-    if (LinkedList2_IsEmpty(&l->clients_free)) {
-        struct PasswordListenerClient *client = UPPER_OBJECT(LinkedList2_GetFirst(&l->clients_used), struct PasswordListenerClient, list_node);
+    if (LinkedList1_IsEmpty(&l->clients_free)) {
+        struct PasswordListenerClient *client = UPPER_OBJECT(LinkedList1_GetFirst(&l->clients_used), struct PasswordListenerClient, list_node);
         remove_client(client);
     }
-    struct PasswordListenerClient *client = UPPER_OBJECT(LinkedList2_GetLast(&l->clients_free), struct PasswordListenerClient, list_node);
-    LinkedList2_Remove(&l->clients_free, &client->list_node);
-    LinkedList2_Append(&l->clients_used, &client->list_node);
+    struct PasswordListenerClient *client = UPPER_OBJECT(LinkedList1_GetLast(&l->clients_free), struct PasswordListenerClient, list_node);
+    LinkedList1_Remove(&l->clients_free, &client->list_node);
+    LinkedList1_Append(&l->clients_used, &client->list_node);
     
     // allocate sslsocket structure
     if (!(client->sock = (sslsocket *)malloc(sizeof(*client->sock)))) {
@@ -172,8 +172,8 @@ fail2:
 fail1:
     free(client->sock);
 fail0:
-    LinkedList2_Remove(&l->clients_used, &client->list_node);
-    LinkedList2_Append(&l->clients_free, &client->list_node);
+    LinkedList1_Remove(&l->clients_used, &client->list_node);
+    LinkedList1_Append(&l->clients_free, &client->list_node);
 }
 
 void client_connection_handler (struct PasswordListenerClient *client, int event)
@@ -238,8 +238,8 @@ void client_receiver_handler (struct PasswordListenerClient *client)
     BConnection_SetHandlers(&client->sock->con, NULL, NULL);
     
     // move client entry to free list
-    LinkedList2_Remove(&l->clients_used, &client->list_node);
-    LinkedList2_Append(&l->clients_free, &client->list_node);
+    LinkedList1_Remove(&l->clients_used, &client->list_node);
+    LinkedList1_Append(&l->clients_free, &client->list_node);
     
     // give the socket to the handler
     pw_entry->handler_client(pw_entry->user, client->sock);
@@ -279,12 +279,12 @@ int PasswordListener_Init (PasswordListener *l, BReactor *bsys, BAddr listen_add
     }
     
     // initialize client entries
-    LinkedList2_Init(&l->clients_free);
-    LinkedList2_Init(&l->clients_used);
+    LinkedList1_Init(&l->clients_free);
+    LinkedList1_Init(&l->clients_used);
     for (int i = 0; i < max_clients; i++) {
         struct PasswordListenerClient *conn = &l->clients_data[i];
         conn->l = l;
-        LinkedList2_Append(&l->clients_free, &conn->list_node);
+        LinkedList1_Append(&l->clients_free, &conn->list_node);
     }
     
     // initialize passwords tree
@@ -315,8 +315,8 @@ void PasswordListener_Free (PasswordListener *l)
     DebugObject_Free(&l->d_obj);
 
     // free clients
-    LinkedList2Node *node;
-    while (node = LinkedList2_GetFirst(&l->clients_used)) {
+    LinkedList1Node *node;
+    while (node = LinkedList1_GetFirst(&l->clients_used)) {
         struct PasswordListenerClient *client = UPPER_OBJECT(node, struct PasswordListenerClient, list_node);
         remove_client(client);
     }

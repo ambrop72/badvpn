@@ -39,7 +39,7 @@
 #include <misc/debug.h>
 #include <misc/debugcounter.h>
 #include <structure/SAvl.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <base/DebugObject.h>
 #include <base/BPending.h>
 #include <flow/PacketPassInterface.h>
@@ -60,7 +60,7 @@ typedef struct PacketPassFairQueueFlow_s {
     void *user;
     PacketPassInterface input;
     uint64_t time;
-    LinkedList2Node list_node;
+    LinkedList1Node list_node;
     int is_queued;
     struct {
         PacketPassFairQueue__TreeNode tree_node;
@@ -82,7 +82,7 @@ typedef struct PacketPassFairQueue_s {
     int sending_len;
     struct PacketPassFairQueueFlow_s *previous_flow;
     PacketPassFairQueue__Tree queued_tree;
-    LinkedList2 flows_list;
+    LinkedList1 flows_list;
     int freeing;
     BPending schedule_job;
     DebugObject d_obj;

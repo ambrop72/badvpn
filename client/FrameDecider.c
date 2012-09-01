@@ -75,35 +75,35 @@ static void add_mac_to_peer (FrameDeciderPeer *o, uint8_t *mac)
     if (e_entry) {
         if (e_entry->peer == o) {
             // this is our MAC; only move it to the end of the used list
-            LinkedList2_Remove(&o->mac_entries_used, &e_entry->list_node);
-            LinkedList2_Append(&o->mac_entries_used, &e_entry->list_node);
+            LinkedList1_Remove(&o->mac_entries_used, &e_entry->list_node);
+            LinkedList1_Append(&o->mac_entries_used, &e_entry->list_node);
             return;
         }
         
         // some other peer has that MAC; disassociate it
         FDMacsTree_Remove(&d->macs_tree, 0, e_entry);
-        LinkedList2_Remove(&e_entry->peer->mac_entries_used, &e_entry->list_node);
-        LinkedList2_Append(&e_entry->peer->mac_entries_free, &e_entry->list_node);
+        LinkedList1_Remove(&e_entry->peer->mac_entries_used, &e_entry->list_node);
+        LinkedList1_Append(&e_entry->peer->mac_entries_free, &e_entry->list_node);
     }
     
     // aquire MAC address entry, if there are no free ones reuse the oldest used one
-    LinkedList2Node *list_node;
+    LinkedList1Node *list_node;
     struct _FrameDecider_mac_entry *entry;
-    if (list_node = LinkedList2_GetFirst(&o->mac_entries_free)) {
+    if (list_node = LinkedList1_GetFirst(&o->mac_entries_free)) {
         entry = UPPER_OBJECT(list_node, struct _FrameDecider_mac_entry, list_node);
         ASSERT(entry->peer == o)
         
         // remove from free
-        LinkedList2_Remove(&o->mac_entries_free, &entry->list_node);
+        LinkedList1_Remove(&o->mac_entries_free, &entry->list_node);
     } else {
-        list_node = LinkedList2_GetFirst(&o->mac_entries_used);
+        list_node = LinkedList1_GetFirst(&o->mac_entries_used);
         ASSERT(list_node)
         entry = UPPER_OBJECT(list_node, struct _FrameDecider_mac_entry, list_node);
         ASSERT(entry->peer == o)
         
         // remove from used
         FDMacsTree_Remove(&d->macs_tree, 0, entry);
-        LinkedList2_Remove(&o->mac_entries_used, &entry->list_node);
+        LinkedList1_Remove(&o->mac_entries_used, &entry->list_node);
     }
     
     PeerLog(o, BLOG_INFO, "adding MAC %02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8":%02"PRIx8"", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -112,7 +112,7 @@ static void add_mac_to_peer (FrameDeciderPeer *o, uint8_t *mac)
     memcpy(entry->mac, mac, sizeof(entry->mac));
     
     // add to used
-    LinkedList2_Append(&o->mac_entries_used, &entry->list_node);
+    LinkedList1_Append(&o->mac_entries_used, &entry->list_node);
     int res = FDMacsTree_Insert(&d->macs_tree, 0, entry, NULL);
     ASSERT(res)
 }
@@ -203,22 +203,22 @@ static void add_group_to_peer (FrameDeciderPeer *o, uint32_t group)
     struct _FrameDecider_group_entry *group_entry = FDGroupsTree_LookupExact(&o->groups_tree, 0, group);
     if (group_entry) {
         // move to end of used list
-        LinkedList2_Remove(&o->group_entries_used, &group_entry->list_node);
-        LinkedList2_Append(&o->group_entries_used, &group_entry->list_node);
+        LinkedList1_Remove(&o->group_entries_used, &group_entry->list_node);
+        LinkedList1_Append(&o->group_entries_used, &group_entry->list_node);
     } else {
         PeerLog(o, BLOG_INFO, "joined group %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8"",
             ((uint8_t *)&group)[0], ((uint8_t *)&group)[1], ((uint8_t *)&group)[2], ((uint8_t *)&group)[3]
         );
         
         // aquire group entry, if there are no free ones reuse the earliest used one
-        LinkedList2Node *node;
-        if (node = LinkedList2_GetFirst(&o->group_entries_free)) {
+        LinkedList1Node *node;
+        if (node = LinkedList1_GetFirst(&o->group_entries_free)) {
             group_entry = UPPER_OBJECT(node, struct _FrameDecider_group_entry, list_node);
             
             // remove from free list
-            LinkedList2_Remove(&o->group_entries_free, &group_entry->list_node);
+            LinkedList1_Remove(&o->group_entries_free, &group_entry->list_node);
         } else {
-            node = LinkedList2_GetFirst(&o->group_entries_used);
+            node = LinkedList1_GetFirst(&o->group_entries_used);
             ASSERT(node)
             group_entry = UPPER_OBJECT(node, struct _FrameDecider_group_entry, list_node);
             
@@ -229,11 +229,11 @@ static void add_group_to_peer (FrameDeciderPeer *o, uint32_t group)
             FDGroupsTree_Remove(&o->groups_tree, 0, group_entry);
             
             // remove from used list
-            LinkedList2_Remove(&o->group_entries_used, &group_entry->list_node);
+            LinkedList1_Remove(&o->group_entries_used, &group_entry->list_node);
         }
         
         // add entry to used list
-        LinkedList2_Append(&o->group_entries_used, &group_entry->list_node);
+        LinkedList1_Append(&o->group_entries_used, &group_entry->list_node);
         
         // set group address
         group_entry->group = group;
@@ -269,10 +269,10 @@ static void remove_group_entry (struct _FrameDecider_group_entry *group_entry)
     FDGroupsTree_Remove(&peer->groups_tree, 0, group_entry);
     
     // remove from used list
-    LinkedList2_Remove(&peer->group_entries_used, &group_entry->list_node);
+    LinkedList1_Remove(&peer->group_entries_used, &group_entry->list_node);
     
     // add to free list
-    LinkedList2_Append(&peer->group_entries_free, &group_entry->list_node);
+    LinkedList1_Append(&peer->group_entries_free, &group_entry->list_node);
     
     // stop timer
     BReactor_RemoveTimer(d->reactor, &group_entry->timer);
@@ -333,7 +333,7 @@ void FrameDecider_Init (FrameDecider *o, int max_peer_macs, int max_peer_groups,
     o->reactor = reactor;
     
     // init peers list
-    LinkedList2_Init(&o->peers_list);
+    LinkedList1_Init(&o->peers_list);
     
     // init MAC tree
     FDMacsTree_Init(&o->macs_tree);
@@ -344,6 +344,9 @@ void FrameDecider_Init (FrameDecider *o, int max_peer_macs, int max_peer_groups,
     // init decide state
     o->decide_state = DECIDE_STATE_NONE;
     
+    // set no current flood peer
+    o->decide_flood_current = NULL;
+    
     DebugObject_Init(&o->d_obj);
 }
 
@@ -351,7 +354,7 @@ void FrameDecider_Free (FrameDecider *o)
 {
     ASSERT(FDMulticastTree_IsEmpty(&o->multicast_tree))
     ASSERT(FDMacsTree_IsEmpty(&o->macs_tree))
-    ASSERT(LinkedList2_IsEmpty(&o->peers_list))
+    ASSERT(LinkedList1_IsEmpty(&o->peers_list))
     DebugObject_Free(&o->d_obj);
 }
 
@@ -367,7 +370,6 @@ void FrameDecider_AnalyzeAndDecide (FrameDecider *o, const uint8_t *frame, int f
         case DECIDE_STATE_UNICAST:
             break;
         case DECIDE_STATE_FLOOD:
-            LinkedList2Iterator_Free(&o->decide_flood_it);
             break;
         case DECIDE_STATE_MULTICAST:
             LinkedList3Iterator_Free(&o->decide_multicast_it);
@@ -376,6 +378,7 @@ void FrameDecider_AnalyzeAndDecide (FrameDecider *o, const uint8_t *frame, int f
             ASSERT(0);
     }
     o->decide_state = DECIDE_STATE_NONE;
+    o->decide_flood_current = NULL;
     
     // analyze frame
     
@@ -467,7 +470,7 @@ out:;
     // if it's broadcast or IGMP, flood it
     if (is_igmp || !memcmp(eh->dest, broadcast_mac, sizeof(broadcast_mac))) {
         o->decide_state = DECIDE_STATE_FLOOD;
-        LinkedList2Iterator_InitForward(&o->decide_flood_it, &o->peers_list);
+        o->decide_flood_current = LinkedList1_GetFirst(&o->peers_list);
         return;
     }
     
@@ -498,7 +501,7 @@ out:;
     
     // unknown destination MAC, flood
     o->decide_state = DECIDE_STATE_FLOOD;
-    LinkedList2Iterator_InitForward(&o->decide_flood_it, &o->peers_list);
+    o->decide_flood_current = LinkedList1_GetFirst(&o->peers_list);
     return;
 }
 
@@ -518,11 +521,14 @@ FrameDeciderPeer * FrameDecider_NextDestination (FrameDecider *o)
         } break;
         
         case DECIDE_STATE_FLOOD: {
-            LinkedList2Node *list_node = LinkedList2Iterator_Next(&o->decide_flood_it);
-            if (!list_node) {
+            if (!o->decide_flood_current) {
                 o->decide_state = DECIDE_STATE_NONE;
                 return NULL;
             }
+            
+            LinkedList1Node *list_node = o->decide_flood_current;
+            o->decide_flood_current = LinkedList1Node_Next(o->decide_flood_current);
+            
             FrameDeciderPeer *peer = UPPER_OBJECT(list_node, FrameDeciderPeer, list_node);
             
             return peer;
@@ -565,11 +571,11 @@ int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d, void *user, BLo
     }
     
     // insert to peers list
-    LinkedList2_Append(&d->peers_list, &o->list_node);
+    LinkedList1_Append(&d->peers_list, &o->list_node);
     
     // init MAC entry lists
-    LinkedList2_Init(&o->mac_entries_free);
-    LinkedList2_Init(&o->mac_entries_used);
+    LinkedList1_Init(&o->mac_entries_free);
+    LinkedList1_Init(&o->mac_entries_used);
     
     // initialize MAC entries
     for (int i = 0; i < d->max_peer_macs; i++) {
@@ -579,12 +585,12 @@ int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d, void *user, BLo
         entry->peer = o;
         
         // insert to free list
-        LinkedList2_Append(&o->mac_entries_free, &entry->list_node);
+        LinkedList1_Append(&o->mac_entries_free, &entry->list_node);
     }
     
     // init group entry lists
-    LinkedList2_Init(&o->group_entries_free);
-    LinkedList2_Init(&o->group_entries_used);
+    LinkedList1_Init(&o->group_entries_free);
+    LinkedList1_Init(&o->group_entries_used);
     
     // initialize group entries
     for (int i = 0; i < d->max_peer_groups; i++) {
@@ -594,7 +600,7 @@ int FrameDeciderPeer_Init (FrameDeciderPeer *o, FrameDecider *d, void *user, BLo
         entry->peer = o;
         
         // insert to free list
-        LinkedList2_Append(&o->group_entries_free, &entry->list_node);
+        LinkedList1_Append(&o->group_entries_free, &entry->list_node);
         
         // init timer
         BTimer_Init(&entry->timer, 0, (BTimer_handler)group_entry_timer_handler, entry);
@@ -624,12 +630,10 @@ void FrameDeciderPeer_Free (FrameDeciderPeer *o)
         d->decide_state = DECIDE_STATE_NONE;
     }
     
-    LinkedList2Iterator it;
-    LinkedList2Node *node;
+    LinkedList1Node *node;
     
     // free group entries
-    LinkedList2Iterator_InitForward(&it, &o->group_entries_used);
-    while (node = LinkedList2Iterator_Next(&it)) {
+    for (node = LinkedList1_GetFirst(&o->group_entries_used); node; node = LinkedList1Node_Next(node)) {
         struct _FrameDecider_group_entry *entry = UPPER_OBJECT(node, struct _FrameDecider_group_entry, list_node);
         
         // remove from multicast
@@ -640,8 +644,7 @@ void FrameDeciderPeer_Free (FrameDeciderPeer *o)
     }
     
     // remove used MAC entries from tree
-    LinkedList2Iterator_InitForward(&it, &o->mac_entries_used);
-    while (node = LinkedList2Iterator_Next(&it)) {
+    for (node = LinkedList1_GetFirst(&o->mac_entries_used); node; node = LinkedList1Node_Next(node)) {
         struct _FrameDecider_mac_entry *entry = UPPER_OBJECT(node, struct _FrameDecider_mac_entry, list_node);
         
         // remove from tree
@@ -649,7 +652,10 @@ void FrameDeciderPeer_Free (FrameDeciderPeer *o)
     }
     
     // remove from peers list
-    LinkedList2_Remove(&d->peers_list, &o->list_node);
+    if (d->decide_flood_current == &o->list_node) {
+        d->decide_flood_current = LinkedList1Node_Next(d->decide_flood_current);
+    }
+    LinkedList1_Remove(&d->peers_list, &o->list_node);
     
     // free group entries
     BFree(o->group_entries);

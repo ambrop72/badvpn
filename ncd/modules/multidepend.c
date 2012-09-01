@@ -49,7 +49,7 @@
 
 #include <misc/offset.h>
 #include <misc/debug.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_multidepend.h>
@@ -59,32 +59,28 @@
 struct provide {
     NCDModuleInst *i;
     const char *name;
-    LinkedList2Node provides_node;
-    LinkedList2 depends;
+    LinkedList1Node provides_node;
+    LinkedList1 depends;
     int dying;
 };
 
 struct depend {
     NCDModuleInst *i;
     NCDValRef names;
-    LinkedList2Node depends_node;
+    LinkedList1Node depends_node;
     struct provide *provide;
-    LinkedList2Node provide_node;
+    LinkedList1Node provide_node;
     int provide_collapsing;
 };
 
-static LinkedList2 provides;
-static LinkedList2 depends;
+static LinkedList1 provides;
+static LinkedList1 depends;
 
 static struct provide * find_provide (const char *name)
 {
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &provides);
-    LinkedList2Node *n;
-    while (n = LinkedList2Iterator_Next(&it)) {
+    for (LinkedList1Node *n = LinkedList1_GetFirst(&provides); n; n = LinkedList1Node_Next(n)) {
         struct provide *p = UPPER_OBJECT(n, struct provide, provides_node);
         if (!strcmp(p->name, name)) {
-            LinkedList2Iterator_Free(&it);
             return p;
         }
     }
@@ -131,7 +127,7 @@ static void depend_update (struct depend *o)
         NCDModuleInst_Backend_Down(o->i);
     } else {
         // insert to provide's list
-        LinkedList2_Append(&bp->depends, &o->provide_node);
+        LinkedList1_Append(&bp->depends, &o->provide_node);
         
         // set not collapsing
         o->provide_collapsing = 0;
@@ -147,10 +143,10 @@ static void depend_update (struct depend *o)
 static int func_globalinit (struct NCDModuleInitParams params)
 {
     // init provides list
-    LinkedList2_Init(&provides);
+    LinkedList1_Init(&provides);
     
     // init depends list
-    LinkedList2_Init(&depends);
+    LinkedList1_Init(&depends);
     
     return 1;
 }
@@ -179,10 +175,10 @@ static void provide_func_new (void *vo, NCDModuleInst *i)
     }
     
     // insert to provides list
-    LinkedList2_Append(&provides, &o->provides_node);
+    LinkedList1_Append(&provides, &o->provides_node);
     
     // init depends list
-    LinkedList2_Init(&o->depends);
+    LinkedList1_Init(&o->depends);
     
     // set not dying
     o->dying = 0;
@@ -193,10 +189,7 @@ static void provide_func_new (void *vo, NCDModuleInst *i)
     NCDModuleInst_Backend_Up(o->i);
     
     // update depends
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &depends);
-    LinkedList2Node *n;
-    while (n = LinkedList2Iterator_Next(&it)) {
+    for (LinkedList1Node *n = LinkedList1_GetFirst(&depends); n; n = LinkedList1Node_Next(n)) {
         struct depend *d = UPPER_OBJECT(n, struct depend, depends_node);
         depend_update(d);
     }
@@ -210,10 +203,10 @@ fail0:
 
 static void provide_free (struct provide *o)
 {
-    ASSERT(LinkedList2_IsEmpty(&o->depends))
+    ASSERT(LinkedList1_IsEmpty(&o->depends))
     
     // remove from provides list
-    LinkedList2_Remove(&provides, &o->provides_node);
+    LinkedList1_Remove(&provides, &o->provides_node);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -224,7 +217,7 @@ static void provide_func_die (void *vo)
     ASSERT(!o->dying)
     
     // if we have no depends, die immediately
-    if (LinkedList2_IsEmpty(&o->depends)) {
+    if (LinkedList1_IsEmpty(&o->depends)) {
         provide_free(o);
         return;
     }
@@ -233,11 +226,8 @@ static void provide_func_die (void *vo)
     o->dying = 1;
     
     // start collapsing our depends
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &o->depends);
-    LinkedList2Node *n;
-    while (n = LinkedList2Iterator_Next(&it)) {
-        struct depend *d = UPPER_OBJECT(n, struct depend, provide_node);
+    for (LinkedList1Node *n = LinkedList1_GetFirst(&o->depends); n; n = LinkedList1Node_Next(n)) {
+        struct depend *d = UPPER_OBJECT(n, struct depend, depends_node);
         ASSERT(d->provide == o)
         
         // update depend to make sure it is collapsing
@@ -273,7 +263,7 @@ static void depend_func_new (void *vo, NCDModuleInst *i)
     }
     
     // insert to depends list
-    LinkedList2_Append(&depends, &o->depends_node);
+    LinkedList1_Append(&depends, &o->depends_node);
     
     // set no provide
     o->provide = NULL;
@@ -292,16 +282,16 @@ static void depend_free (struct depend *o)
 {
     if (o->provide) {
         // remove from provide's list
-        LinkedList2_Remove(&o->provide->depends, &o->provide_node);
+        LinkedList1_Remove(&o->provide->depends, &o->provide_node);
         
         // if provide is dying and is empty, let it die
-        if (o->provide->dying && LinkedList2_IsEmpty(&o->provide->depends)) {
+        if (o->provide->dying && LinkedList1_IsEmpty(&o->provide->depends)) {
             provide_free(o->provide);
         }
     }
     
     // remove from depends list
-    LinkedList2_Remove(&depends, &o->depends_node);
+    LinkedList1_Remove(&depends, &o->depends_node);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -322,10 +312,10 @@ static void depend_func_clean (void *vo)
     }
     
     // remove from provide's list
-    LinkedList2_Remove(&o->provide->depends, &o->provide_node);
+    LinkedList1_Remove(&o->provide->depends, &o->provide_node);
     
     // if provide is dying and is empty, let it die
-    if (o->provide->dying && LinkedList2_IsEmpty(&o->provide->depends)) {
+    if (o->provide->dying && LinkedList1_IsEmpty(&o->provide->depends)) {
         provide_free(o->provide);
     }
     

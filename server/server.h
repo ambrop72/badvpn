@@ -30,7 +30,7 @@
 #include <stdint.h>
 
 #include <protocol/scproto.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <structure/BAVL.h>
 #include <flow/PacketProtoDecoder.h>
 #include <flow/PacketStreamSender.h>
@@ -87,9 +87,9 @@ struct peer_flow {
     // node in source client hash table (by destination), only when src_client != NULL
     BAVLNode src_tree_node;
     // node in source client list, only when src_client != NULL
-    LinkedList2Node src_list_node;
+    LinkedList1Node src_list_node;
     // node in destination client list
-    LinkedList2Node dest_list_node;
+    LinkedList1Node dest_list_node;
     // output chain
     int have_io;
     PacketPassFairQueueFlow qflow;
@@ -112,8 +112,8 @@ struct peer_know {
     struct client_data *to;
     int relay_server;
     int relay_client;
-    LinkedList2Node from_node;
-    LinkedList2Node to_node;
+    LinkedList1Node from_node;
+    LinkedList1Node to_node;
     BPending inform_job;
     BPending uninform_job;
 };
@@ -148,16 +148,16 @@ struct client_data {
     peerid_t id;
     
     // node in clients linked list
-    LinkedList2Node list_node;
+    LinkedList1Node list_node;
     // node in clients tree (by ID)
     BAVLNode tree_node;
     
     // knowledge lists
-    LinkedList2 know_out_list;
-    LinkedList2 know_in_list;
+    LinkedList1 know_out_list;
+    LinkedList1 know_in_list;
     
     // flows from us
-    LinkedList2 peer_out_flows_list;
+    LinkedList1 peer_out_flows_list;
     BAVL peer_out_flows_tree;
     
     // whether it's being removed
@@ -182,5 +182,5 @@ struct client_data {
     // output peers flow
     PacketPassPriorityQueueFlow output_peers_qflow;
     PacketPassFairQueue output_peers_fairqueue;
-    LinkedList2 output_peers_flows;
+    LinkedList1 output_peers_flows;
 };

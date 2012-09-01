@@ -35,7 +35,7 @@
 #define BADVPN_BEVENTLOCK_H
 
 #include <misc/debugcounter.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <base/DebugObject.h>
 #include <base/BPending.h>
 
@@ -53,7 +53,7 @@ typedef void (*BEventLock_handler) (void *user);
  * A FIFO lock for events using the job queue ({@link BPending}).
  */
 typedef struct {
-    LinkedList2 jobs;
+    LinkedList1 jobs;
     BPending exec_job;
     DebugObject d_obj;
     DebugCounter pending_ctr;
@@ -67,7 +67,7 @@ typedef struct {
     BEventLock_handler handler;
     void *user;
     int pending;
-    LinkedList2Node pending_node;
+    LinkedList1Node pending_node;
     DebugObject d_obj;
 } BEventLockJob;
 

@@ -35,7 +35,7 @@
 
 #include <misc/debug.h>
 #include <misc/debugerror.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <base/DebugObject.h>
 #include <system/BUnixSignal.h>
 #include <base/BPending.h>
@@ -48,7 +48,7 @@
 typedef struct {
     BReactor *reactor;
     BUnixSignal signal;
-    LinkedList2 processes;
+    LinkedList1 processes;
     BPending wait_job;
     DebugObject d_obj;
 } BProcessManager;
@@ -74,7 +74,7 @@ typedef struct {
     BProcess_handler handler;
     void *user;
     pid_t pid;
-    LinkedList2Node list_node; // node in BProcessManager.processes
+    LinkedList1Node list_node; // node in BProcessManager.processes
     DebugObject d_obj;
     DebugError d_err;
 } BProcess;

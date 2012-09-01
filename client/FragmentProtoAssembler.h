@@ -41,7 +41,7 @@
 #include <misc/compare.h>
 #include <base/DebugObject.h>
 #include <base/BLog.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <structure/SAvl.h>
 #include <flow/PacketPassInterface.h>
 
@@ -58,7 +58,7 @@ struct FragmentProtoAssembler_chunk {
 };
 
 struct FragmentProtoAssembler_frame {
-    LinkedList2Node list_node; // node in free or used list
+    LinkedList1Node list_node; // node in free or used list
     struct FragmentProtoAssembler_chunk *chunks; // array of chunks, up to num_chunks
     uint8_t *buffer; // buffer with frame data, size output_mtu
     // everything below only defined when frame entry is used
@@ -89,8 +89,8 @@ typedef struct {
     struct FragmentProtoAssembler_frame *frames_entries;
     struct FragmentProtoAssembler_chunk *frames_chunks;
     uint8_t *frames_buffer;
-    LinkedList2 frames_free;
-    LinkedList2 frames_used;
+    LinkedList1 frames_free;
+    LinkedList1 frames_used;
     FPAFramesTree frames_used_tree;
     int in_len;
     uint8_t *in;

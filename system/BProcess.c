@@ -56,13 +56,9 @@ static void call_handler (BProcess *o, int normally, uint8_t normally_exit_statu
 
 static BProcess * find_process (BProcessManager *o, pid_t pid)
 {
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &o->processes);
-    LinkedList2Node *node;
-    while (node = LinkedList2Iterator_Next(&it)) {
+    for (LinkedList1Node *node = LinkedList1_GetFirst(&o->processes); node; node = LinkedList1Node_Next(node)) {
         BProcess *p = UPPER_OBJECT(node, BProcess, list_node);
         if (p->pid == pid) {
-            LinkedList2Iterator_Free(&it);
             return p;
         }
     }
@@ -145,7 +141,7 @@ int BProcessManager_Init (BProcessManager *o, BReactor *reactor)
     }
     
     // init processes list
-    LinkedList2_Init(&o->processes);
+    LinkedList1_Init(&o->processes);
     
     // init wait job
     BPending_Init(&o->wait_job, BReactor_PendingGroup(o->reactor), (BPending_handler)wait_job_handler, o);
@@ -160,7 +156,7 @@ fail0:
 
 void BProcessManager_Free (BProcessManager *o)
 {
-    ASSERT(LinkedList2_IsEmpty(&o->processes))
+    ASSERT(LinkedList1_IsEmpty(&o->processes))
     DebugObject_Free(&o->d_obj);
     
     // free wait job
@@ -335,7 +331,7 @@ int BProcess_Init2 (BProcess *o, BProcessManager *m, BProcess_handler handler, v
     o->pid = pid;
     
     // add to processes list
-    LinkedList2_Append(&o->m->processes, &o->list_node);
+    LinkedList1_Append(&o->m->processes, &o->list_node);
     
     DebugObject_Init(&o->d_obj);
     DebugError_Init(&o->d_err, BReactor_PendingGroup(m->reactor));
@@ -370,7 +366,7 @@ void BProcess_Free (BProcess *o)
     DebugObject_Free(&o->d_obj);
     
     // remove from processes list
-    LinkedList2_Remove(&o->m->processes, &o->list_node);
+    LinkedList1_Remove(&o->m->processes, &o->list_node);
 }
 
 int BProcess_Terminate (BProcess *o)

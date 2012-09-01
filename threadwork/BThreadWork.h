@@ -41,7 +41,7 @@
 #endif
 
 #include <misc/debug.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <base/DebugObject.h>
 #include <system/BReactor.h>
 
@@ -82,8 +82,8 @@ struct BThreadWorkDispatcher_thread {
 typedef struct BThreadWorkDispatcher_s {
     BReactor *reactor;
     #ifdef BADVPN_THREADWORK_USE_PTHREAD
-    LinkedList2 pending_list;
-    LinkedList2 finished_list;
+    LinkedList1 pending_list;
+    LinkedList1 finished_list;
     pthread_mutex_t mutex;
     int pipe[2];
     BFileDescriptor bfd;
@@ -105,7 +105,7 @@ typedef struct BThreadWork_s {
     union {
         #ifdef BADVPN_THREADWORK_USE_PTHREAD
         struct {
-            LinkedList2Node list_node;
+            LinkedList1Node list_node;
             int state;
             sem_t finished_sem;
         };

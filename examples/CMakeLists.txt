@@ -1,5 +1,3 @@
-add_executable(linkedlist2_example linkedlist2_example.c)
-
 add_executable(btimer_example btimer_example.c)
 target_link_libraries(btimer_example system)
 

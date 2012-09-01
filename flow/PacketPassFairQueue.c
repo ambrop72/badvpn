@@ -97,10 +97,7 @@ static void increment_sent_flow (PacketPassFairQueueFlow *flow, uint64_t amount)
         }
         
         // subtract time from all flows
-        LinkedList2Iterator it;
-        LinkedList2Iterator_InitForward(&it, &m->flows_list);
-        LinkedList2Node *list_node;
-        while (list_node = LinkedList2Iterator_Next(&it)) {
+        for (LinkedList1Node *list_node = LinkedList1_GetFirst(&m->flows_list); list_node; list_node = LinkedList1Node_Next(list_node)) {
             PacketPassFairQueueFlow *someflow = UPPER_OBJECT(list_node, PacketPassFairQueueFlow, list_node);
             
             // don't subtract more time than there is, except for the just finished flow,
@@ -252,7 +249,7 @@ int PacketPassFairQueue_Init (PacketPassFairQueue *m, PacketPassInterface *outpu
     PacketPassFairQueue__Tree_Init(&m->queued_tree);
     
     // init flows list
-    LinkedList2_Init(&m->flows_list);
+    LinkedList1_Init(&m->flows_list);
     
     // not freeing
     m->freeing = 0;
@@ -270,7 +267,7 @@ fail0:
 
 void PacketPassFairQueue_Free (PacketPassFairQueue *m)
 {
-    ASSERT(LinkedList2_IsEmpty(&m->flows_list))
+    ASSERT(LinkedList1_IsEmpty(&m->flows_list))
     ASSERT(PacketPassFairQueue__Tree_IsEmpty(&m->queued_tree))
     ASSERT(!m->previous_flow)
     ASSERT(!m->sending_flow)
@@ -314,7 +311,7 @@ void PacketPassFairQueueFlow_Init (PacketPassFairQueueFlow *flow, PacketPassFair
     flow->time = 0;
     
     // add to flows list
-    LinkedList2_Append(&m->flows_list, &flow->list_node);
+    LinkedList1_Append(&m->flows_list, &flow->list_node);
     
     // is not queued
     flow->is_queued = 0;
@@ -347,7 +344,7 @@ void PacketPassFairQueueFlow_Free (PacketPassFairQueueFlow *flow)
     }
     
     // remove from flows list
-    LinkedList2_Remove(&m->flows_list, &flow->list_node);
+    LinkedList1_Remove(&m->flows_list, &flow->list_node);
     
     // free input
     PacketPassInterface_Free(&flow->input);

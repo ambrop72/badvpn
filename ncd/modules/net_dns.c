@@ -40,7 +40,7 @@
 #include <misc/bsort.h>
 #include <misc/balloc.h>
 #include <misc/compare.h>
-#include <structure/LinkedList2.h>
+#include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDIfConfig.h>
 
@@ -50,17 +50,17 @@
 
 struct instance {
     NCDModuleInst *i;
-    LinkedList2 ipv4_dns_servers;
-    LinkedList2Node instances_node; // node in instances
+    LinkedList1 ipv4_dns_servers;
+    LinkedList1Node instances_node; // node in instances
 };
 
 struct ipv4_dns_entry {
-    LinkedList2Node list_node; // node in instance.ipv4_dns_servers
+    LinkedList1Node list_node; // node in instance.ipv4_dns_servers
     uint32_t addr;
     int priority;
 };
 
-static LinkedList2 instances;
+static LinkedList1 instances;
 
 static struct ipv4_dns_entry * add_ipv4_dns_entry (struct instance *o, uint32_t addr, int priority)
 {
@@ -75,7 +75,7 @@ static struct ipv4_dns_entry * add_ipv4_dns_entry (struct instance *o, uint32_t 
     entry->priority = priority;
     
     // add to list
-    LinkedList2_Append(&o->ipv4_dns_servers, &entry->list_node);
+    LinkedList1_Append(&o->ipv4_dns_servers, &entry->list_node);
     
     return entry;
 }
@@ -83,7 +83,7 @@ static struct ipv4_dns_entry * add_ipv4_dns_entry (struct instance *o, uint32_t 
 static void remove_ipv4_dns_entry (struct instance *o, struct ipv4_dns_entry *entry)
 {
     // remove from list
-    LinkedList2_Remove(&o->ipv4_dns_servers, &entry->list_node);
+    LinkedList1_Remove(&o->ipv4_dns_servers, &entry->list_node);
     
     // free entry
     free(entry);
@@ -91,8 +91,8 @@ static void remove_ipv4_dns_entry (struct instance *o, struct ipv4_dns_entry *en
 
 static void remove_ipv4_dns_entries (struct instance *o)
 {
-    LinkedList2Node *n;
-    while (n = LinkedList2_GetFirst(&o->ipv4_dns_servers)) {
+    LinkedList1Node *n;
+    while (n = LinkedList1_GetFirst(&o->ipv4_dns_servers)) {
         struct ipv4_dns_entry *e = UPPER_OBJECT(n, struct ipv4_dns_entry, list_node);
         remove_ipv4_dns_entry(o, e);
     }
@@ -102,14 +102,9 @@ static size_t num_servers (void)
 {
     size_t c = 0;
     
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &instances);
-    LinkedList2Node *n;
-    while (n = LinkedList2Iterator_Next(&it)) {
+    for (LinkedList1Node *n = LinkedList1_GetFirst(&instances); n; n = LinkedList1Node_Next(n)) {
         struct instance *o = UPPER_OBJECT(n, struct instance, instances_node);
-        LinkedList2Iterator eit;
-        LinkedList2Iterator_InitForward(&eit, &o->ipv4_dns_servers);
-        while (LinkedList2Iterator_Next(&eit)) {
+        for (LinkedList1Node *en = LinkedList1_GetFirst(&o->ipv4_dns_servers); en; en = LinkedList1Node_Next(en)) {
             c++;
         }
     }
@@ -144,15 +139,9 @@ static int set_servers (void)
     size_t num_servers = 0;
     
     // fill sort array
-    LinkedList2Iterator it;
-    LinkedList2Iterator_InitForward(&it, &instances);
-    LinkedList2Node *n;
-    while (n = LinkedList2Iterator_Next(&it)) {
+    for (LinkedList1Node *n = LinkedList1_GetFirst(&instances); n; n = LinkedList1Node_Next(n)) {
         struct instance *o = UPPER_OBJECT(n, struct instance, instances_node);
-        LinkedList2Iterator eit;
-        LinkedList2Iterator_InitForward(&eit, &o->ipv4_dns_servers);
-        LinkedList2Node *en;
-        while (en = LinkedList2Iterator_Next(&eit)) {
+        for (LinkedList1Node *en = LinkedList1_GetFirst(&o->ipv4_dns_servers); en; en = LinkedList1Node_Next(en)) {
             struct ipv4_dns_entry *e = UPPER_OBJECT(en, struct ipv4_dns_entry, list_node);
             servers[num_servers].addr = e->addr;
             servers[num_servers].priority= e->priority;
@@ -192,7 +181,7 @@ fail0:
 
 static int func_globalinit (struct NCDModuleInitParams params)
 {
-    LinkedList2_Init(&instances);
+    LinkedList1_Init(&instances);
     
     return 1;
 }
@@ -203,7 +192,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     o->i = i;
     
     // init servers list
-    LinkedList2_Init(&o->ipv4_dns_servers);
+    LinkedList1_Init(&o->ipv4_dns_servers);
     
     // get arguments
     NCDValRef servers_arg;
@@ -242,7 +231,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     }
     
     // add to instances
-    LinkedList2_Append(&instances, &o->instances_node);
+    LinkedList1_Append(&instances, &o->instances_node);
     
     // set servers
     if (!set_servers()) {
@@ -255,7 +244,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     return;
     
 fail2:
-    LinkedList2_Remove(&instances, &o->instances_node);
+    LinkedList1_Remove(&instances, &o->instances_node);
 fail1:
     remove_ipv4_dns_entries(o);
     NCDModuleInst_Backend_SetError(i);
@@ -267,7 +256,7 @@ static void func_die (void *vo)
     struct instance *o = vo;
     
     // remove from instances
-    LinkedList2_Remove(&instances, &o->instances_node);
+    LinkedList1_Remove(&instances, &o->instances_node);
     
     // set servers
     set_servers();
