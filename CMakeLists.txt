@@ -34,6 +34,7 @@ else ()
     build_switch(NCD "build badvpn-ncd" OFF)
     build_switch(TUNCTL "build badvpn-tunctl" OFF)
 endif ()
+build_switch(DOSTEST "build dostest-server and dostest-attacker" OFF)
 
 if (BUILD_NCD AND NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux"))
     message(FATAL_ERROR "NCD is only available on Linux")
@@ -294,6 +295,11 @@ endif ()
 if (BUILD_NCD)
     add_subdirectory(ncd)
     add_subdirectory(ncd-request)
+endif ()
+
+# dostest
+if (BUILD_DOSTEST)
+    add_subdirectory(dostest)
 endif ()
 
 message(STATUS "Building components:")

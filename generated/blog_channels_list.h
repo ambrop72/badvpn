@@ -128,3 +128,5 @@
 {"ncd_net_ipv6_route", 4},
 {"ncd_net_ipv4_addr_in_network", 4},
 {"ncd_net_ipv6_addr_in_network", 4},
+{"dostest_server", 4},
+{"dostest_attacker", 4},

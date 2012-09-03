@@ -128,4 +128,6 @@
 #define BLOG_CHANNEL_ncd_net_ipv6_route 127
 #define BLOG_CHANNEL_ncd_net_ipv4_addr_in_network 128
 #define BLOG_CHANNEL_ncd_net_ipv6_addr_in_network 129
-#define BLOG_NUM_CHANNELS 130
+#define BLOG_CHANNEL_dostest_server 130
+#define BLOG_CHANNEL_dostest_attacker 131
+#define BLOG_NUM_CHANNELS 132
