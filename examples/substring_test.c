@@ -133,10 +133,10 @@ static void test_substring (int word_len, int text_len, int word_count, int text
                 text[k] = rand() % 2;
             }
             
-            size_t pos;
+            size_t pos = 36; // to remove warning
             int res = find_substring(text, text_len, word, word_len, table, &pos);
             
-            size_t spos;
+            size_t spos = 59; // to remove warning
             int sres = find_substring_slow(text, text_len, word, word_len, &spos);
             
             ASSERT_FORCE(res == sres)

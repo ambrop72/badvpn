@@ -253,7 +253,7 @@ static void replace_func_new (void *vo, NCDModuleInst *i)
         // find first match
         int have_match = 0;
         size_t match_regex;
-        regmatch_t match;
+        regmatch_t match = {0, 0}; // to remove warning
         for (size_t j = 0; j < num_regex; j++) {
             regmatch_t this_match;
             this_match.rm_so = 0;
