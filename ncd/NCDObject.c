@@ -108,26 +108,6 @@ static NCDObject dig_into_object (NCDObject object)
     return object;
 }
 
-int NCDObject_ResolveObjExpr (NCDObject *o, char **names, NCDObject *out_object)
-{
-    ASSERT(names)
-    ASSERT(out_object)
-    
-    NCDObject object = dig_into_object(*o);
-    
-    for (size_t i = 0; names[i]; i++) {
-        NCDObject obj2;
-        if (!NCDObject_GetObj(&object, names[i], &obj2)) {
-            return 0;
-        }
-        
-        object = dig_into_object(obj2);
-    }
-    
-    *out_object = object;
-    return 1;
-}
-
 int NCDObject_ResolveObjExprCompact (NCDObject *o, const char *names, size_t num_names, NCDObject *out_object)
 {
     ASSERT(num_names == 0 || names)
@@ -150,30 +130,6 @@ int NCDObject_ResolveObjExprCompact (NCDObject *o, const char *names, size_t num
     
     *out_object = object;
     return 1;
-}
-
-int NCDObject_ResolveVarExpr (NCDObject *o, char **names, NCDValMem *mem, NCDValRef *out_value)
-{
-    ASSERT(names)
-    ASSERT(mem)
-    ASSERT(out_value)
-    
-    NCDObject object = dig_into_object(*o);
-    
-    for (size_t i = 0; names[i]; i++) {
-        NCDObject obj2;
-        if (!NCDObject_GetObj(&object, names[i], &obj2)) {
-            if (!names[i + 1] && NCDObject_GetVar(&object, names[i], mem, out_value)) {
-                return 1;
-            }
-            
-            return 0;
-        }
-        
-        object = dig_into_object(obj2);
-    }
-    
-    return NCDObject_GetVar(&object, "", mem, out_value);
 }
 
 int NCDObject_ResolveVarExprCompact (NCDObject *o, const char *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value)
