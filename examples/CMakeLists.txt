@@ -75,3 +75,8 @@ add_executable(cstringtrie_test cstringtrie_test.c)
 if (NOT WIN32)
     add_executable(ipaddr6_test ipaddr6_test.c)
 endif ()
+
+if (BUILDING_RANDOM)
+    add_executable(brandom2_test brandom2_test.c)
+    target_link_libraries(brandom2_test badvpn_random)
+endif ()
