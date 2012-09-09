@@ -36,6 +36,7 @@
 #include <base/BLog.h>
 #include <system/BProcess.h>
 #include <udevmonitor/NCDUdevManager.h>
+#include <random/BRandom2.h>
 #include <ncd/NCDObject.h>
 
 #define NCDMODULE_EVENT_UP 1
@@ -225,6 +226,7 @@ struct NCDModuleInitParams {
     BReactor *reactor;
     BProcessManager *manager;
     NCDUdevManager *umanager;
+    BRandom2 *random2;
 };
 
 /**
@@ -264,6 +266,10 @@ struct NCDModuleInst_iparams {
      * Udev manager.
      */
     NCDUdevManager *umanager;
+    /**
+     * Random number generator.
+     */
+    BRandom2 *random2;
     /**
      * Callback to create a new template process.
      */

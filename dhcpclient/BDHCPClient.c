@@ -173,7 +173,7 @@ fail0:
     return 0;
 }
 
-int BDHCPClient_Init (BDHCPClient *o, const char *ifname, struct BDHCPClient_opts opts, BReactor *reactor, BDHCPClient_handler handler, void *user)
+int BDHCPClient_Init (BDHCPClient *o, const char *ifname, struct BDHCPClient_opts opts, BReactor *reactor, BRandom2 *random2, BDHCPClient_handler handler, void *user)
 {
     // init arguments
     o->reactor = reactor;
@@ -283,7 +283,7 @@ int BDHCPClient_Init (BDHCPClient *o, const char *ifname, struct BDHCPClient_opt
     }
     
     // init dhcp
-    if (!BDHCPClientCore_Init(&o->dhcp, PacketCopier_GetInput(&o->send_copier), PacketCopier_GetOutput(&o->recv_copier), if_mac, core_opts, o->reactor, o,
+    if (!BDHCPClientCore_Init(&o->dhcp, PacketCopier_GetInput(&o->send_copier), PacketCopier_GetOutput(&o->recv_copier), if_mac, core_opts, o->reactor, random2, o,
                               (BDHCPClientCore_func_getsendermac)dhcp_func_getsendermac,
                               (BDHCPClientCore_handler)dhcp_handler
     )) {

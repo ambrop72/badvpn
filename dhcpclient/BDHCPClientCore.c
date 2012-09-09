@@ -34,7 +34,6 @@
 #include <misc/minmax.h>
 #include <misc/balloc.h>
 #include <misc/bsize.h>
-#include <security/BRandom.h>
 #include <base/BLog.h>
 
 #include <dhcpclient/BDHCPClientCore.h>
@@ -527,7 +526,10 @@ static void start_process (BDHCPClientCore *o, int force_new_xid)
 {
     if (force_new_xid || o->xid_reuse_counter == XID_REUSE_MAX) {
         // generate xid
-        BRandom_randomize((uint8_t *)&o->xid, sizeof(o->xid));
+        if (!BRandom2_GenBytes(o->random2, &o->xid, sizeof(o->xid))) {
+            BLog(BLOG_ERROR, "BRandom2_GenBytes failed");
+            o->xid = UINT32_C(3416960072);
+        }
         
         // reset counter
         o->xid_reuse_counter = 0;
@@ -640,7 +642,9 @@ static bsize_t maybe_len (const char *str)
     return bsize_fromsize(str ? strlen(str) : 0);
 }
 
-int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, PacketRecvInterface *recv_if, uint8_t *client_mac_addr, struct BDHCPClientCore_opts opts, BReactor *reactor, void *user,
+int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, PacketRecvInterface *recv_if,
+                          uint8_t *client_mac_addr, struct BDHCPClientCore_opts opts, BReactor *reactor,
+                          BRandom2 *random2, void *user,
                           BDHCPClientCore_func_getsendermac func_getsendermac,
                           BDHCPClientCore_handler handler)
 {
@@ -654,6 +658,7 @@ int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, Pack
     o->recv_if = recv_if;
     memcpy(o->client_mac_addr, client_mac_addr, sizeof(o->client_mac_addr));
     o->reactor = reactor;
+    o->random2 = random2;
     o->user = user;
     o->func_getsendermac = func_getsendermac;
     o->handler = handler;

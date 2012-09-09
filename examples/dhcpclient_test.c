@@ -39,6 +39,7 @@
 #include <dhcpclient/BDHCPClient.h>
 
 BReactor reactor;
+BRandom2 random2;
 BDHCPClient dhcp;
 
 static void signal_handler (void *user);
@@ -71,6 +72,11 @@ int main (int argc, char **argv)
         goto fail1;
     }
     
+    if (!BRandom2_Init(&random2, 0)) {
+        DEBUG("BRandom2_Init failed");
+        goto fail1a;
+    }
+    
     if (!BSignal_Init(&reactor, signal_handler, NULL)) {
         DEBUG("BSignal_Init failed");
         goto fail2;
@@ -78,7 +84,7 @@ int main (int argc, char **argv)
     
     struct BDHCPClient_opts opts = {};
     
-    if (!BDHCPClient_Init(&dhcp, ifname, opts, &reactor, dhcp_handler, NULL)) {
+    if (!BDHCPClient_Init(&dhcp, ifname, opts, &reactor, &random2, dhcp_handler, NULL)) {
         DEBUG("BDHCPClient_Init failed");
         goto fail3;
     }
@@ -89,6 +95,8 @@ int main (int argc, char **argv)
 fail3:
     BSignal_Finish();
 fail2:
+    BRandom2_Free(&random2);
+fail1a:
     BReactor_Free(&reactor);
 fail1:
     BLog_Free();

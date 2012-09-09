@@ -47,6 +47,7 @@
 #include <system/BSignal.h>
 #include <system/BProcess.h>
 #include <udevmonitor/NCDUdevManager.h>
+#include <random/BRandom2.h>
 #include <ncd/NCDConfigParser.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDModuleIndex.h>
@@ -126,6 +127,9 @@ static BProcessManager manager;
 
 // udev manager
 static NCDUdevManager umanager;
+
+// random number generator
+static BRandom2 random2;
 
 // method index
 static NCDMethodIndex method_index;
@@ -270,6 +274,12 @@ int main (int argc, char **argv)
     // init udev manager
     NCDUdevManager_Init(&umanager, options.no_udev, &reactor, &manager);
     
+    // init random number generator
+    if (!BRandom2_Init(&random2, BRANDOM2_INIT_LAZY)) {
+        BLog(BLOG_ERROR, "BRandom2_Init failed");
+        goto fail1aa;
+    }
+    
     // init method index
     if (!NCDMethodIndex_Init(&method_index)) {
         BLog(BLOG_ERROR, "NCDMethodIndex_Init failed");
@@ -337,6 +347,7 @@ int main (int argc, char **argv)
     params.reactor = &reactor;
     params.manager = &manager;
     params.umanager = &umanager;
+    params.random2 = &random2;
     
     // init modules
     size_t num_inited_modules = 0;
@@ -355,6 +366,7 @@ int main (int argc, char **argv)
     module_iparams.reactor = &reactor;
     module_iparams.manager = &manager;
     module_iparams.umanager = &umanager;
+    module_iparams.random2 = &random2;
     module_iparams.func_initprocess = (NCDModuleInst_func_initprocess)statement_instance_func_initprocess;
     module_iparams.func_interp_exit = (NCDModuleInst_func_interp_exit)statement_instance_func_interp_exit;
     module_iparams.func_interp_getargs = (NCDModuleInst_func_interp_getargs)statement_instance_func_interp_getargs;
@@ -420,6 +432,9 @@ fail1c:
     // free method index
     NCDMethodIndex_Free(&method_index);
 fail1b:
+    // free random number generator
+    BRandom2_Free(&random2);
+fail1aa:
     // free udev manager
     NCDUdevManager_Free(&umanager);
     

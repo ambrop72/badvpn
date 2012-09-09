@@ -40,6 +40,7 @@
 #include <misc/dhcp_proto.h>
 #include <system/BReactor.h>
 #include <base/DebugObject.h>
+#include <random/BRandom2.h>
 #include <flow/PacketPassInterface.h>
 #include <flow/PacketRecvInterface.h>
 
@@ -63,6 +64,7 @@ typedef struct {
     PacketRecvInterface *recv_if;
     uint8_t client_mac_addr[6];
     BReactor *reactor;
+    BRandom2 *random2;
     void *user;
     BDHCPClientCore_func_getsendermac func_getsendermac;
     BDHCPClientCore_handler handler;
@@ -98,7 +100,9 @@ typedef struct {
     DebugObject d_obj;
 } BDHCPClientCore;
 
-int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, PacketRecvInterface *recv_if, uint8_t *client_mac_addr, struct BDHCPClientCore_opts opts, BReactor *reactor, void *user,
+int BDHCPClientCore_Init (BDHCPClientCore *o, PacketPassInterface *send_if, PacketRecvInterface *recv_if,
+                          uint8_t *client_mac_addr, struct BDHCPClientCore_opts opts, BReactor *reactor,
+                          BRandom2 *random2, void *user,
                           BDHCPClientCore_func_getsendermac func_getsendermac,
                           BDHCPClientCore_handler handler);
 void BDHCPClientCore_Free (BDHCPClientCore *o);
