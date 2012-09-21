@@ -197,7 +197,7 @@ int main (int argc, char *argv[])
         size_t pos;
         int res = find_substring_reverse(text, strlen(text), word, strlen(word), table, &pos);
         ASSERT_FORCE(res)
-        ASSERT_FORCE(res == 1)
+        ASSERT_FORCE(pos == 1)
     }
     
     return 0;
