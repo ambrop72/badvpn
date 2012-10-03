@@ -33,7 +33,6 @@
 
 #include <base/BLog.h>
 #include <ncd/NCDConfigTokenizer.h>
-#include <ncd/NCDValCompat.h>
 #include <ncd/NCDValCons.h>
 
 #include "NCDValueParser.h"
@@ -215,30 +214,4 @@ fail1:
     NCDValCons_Free(&state.cons);
 fail0:
     return ret;
-}
-
-int NCDValueParser_Parse (const char *str, size_t str_len, NCDValue *out_value)
-{
-    ASSERT(str_len == 0 || str)
-    ASSERT(out_value)
-    
-    int res = 0;
-    
-    NCDValMem mem;
-    NCDValMem_Init(&mem);
-    
-    NCDValRef val;
-    if (!NCDValParser_Parse(str, str_len, &mem, &val)) {
-        goto fail;
-    }
-    
-    if (!NCDValCompat_ValToValue(val, out_value)) {
-        goto fail;
-    }
-    
-    res = 1;
-    
-fail:
-    NCDValMem_Free(&mem);
-    return res;
 }

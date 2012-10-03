@@ -33,7 +33,6 @@
 #include <stddef.h>
 
 #include <misc/debug.h>
-#include <ncd/NCDValue.h>
 #include <ncd/NCDVal.h>
 
 /**
@@ -47,12 +46,5 @@
  * @return 1 on success, 0 on failure
  */
 int NCDValParser_Parse (const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out_value) WARN_UNUSED;
-
-/**
- * Parses an NCD value string into the old {@link NCDValue} representation.
- * This is just a wrapper around {@link NCDValParser_Parse} and
- * {@link NCDValCompat_ValToValue}.
- */
-int NCDValueParser_Parse (const char *str, size_t str_len, NCDValue *out_value) WARN_UNUSED;
 
 #endif
