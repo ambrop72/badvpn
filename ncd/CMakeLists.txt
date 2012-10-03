@@ -48,7 +48,7 @@ target_link_libraries(ncdvaluegenerator base ncdvalue ncdval)
 add_library(ncdvalueparser
     NCDValueParser.c
 )
-target_link_libraries(ncdvalueparser base ncdvalue ncdval ncdtokenizer ncdvalcompat)
+target_link_libraries(ncdvalueparser base ncdvalue ncdval ncdtokenizer ncdvalcompat ncdvalcons)
 
 add_library(ncdast
     NCDAst.c

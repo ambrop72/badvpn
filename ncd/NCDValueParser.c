@@ -34,6 +34,7 @@
 #include <base/BLog.h>
 #include <ncd/NCDConfigTokenizer.h>
 #include <ncd/NCDValCompat.h>
+#include <ncd/NCDValCons.h>
 
 #include "NCDValueParser.h"
 
@@ -46,27 +47,40 @@ struct token {
 
 struct value {
     int have;
-    NCDValue v;
+    NCDValConsVal v;
 };
 
+#define ERROR_FLAG_MEMORY        (1 << 0)
+#define ERROR_FLAG_TOKENIZATION  (1 << 1)
+#define ERROR_FLAG_SYNTAX        (1 << 2)
+#define ERROR_FLAG_DUPLICATE_KEY (1 << 3)
+
 struct parser_state {
-    int have_value;
-    NCDValue value;
-    int out_of_memory;
-    int syntax_error;
-    int error;
+    NCDValCons cons;
+    NCDValRef value;
+    int cons_error;
+    int error_flags;
     void *parser;
 };
 
 static void free_token (struct token o)
 {
-    free(o.str);
+    if (o.str) {
+        free(o.str);
+    }
 };
 
-static void free_value (struct value o)
+static void handle_cons_error (struct parser_state *state)
 {
-    if (o.have) {
-        NCDValue_Free(&o.v);
+    switch (state->cons_error) {
+        case NCDVALCONS_ERROR_MEMORY:
+            state->error_flags |= ERROR_FLAG_MEMORY;
+            break;
+        case NCDVALCONS_ERROR_DUPLICATE_KEY:
+            state->error_flags |= ERROR_FLAG_DUPLICATE_KEY;
+            break;
+        default:
+            ASSERT(0);
     }
 }
 
@@ -77,18 +91,17 @@ static void free_value (struct value o)
 #define ParseFree ParseFree_NCDValueParser
 #define Parse Parse_NCDValueParser
 
+// include the generated Lemon parser
 #include "../generated/NCDValueParser_parse.c"
 #include "../generated/NCDValueParser_parse.h"
 
 static int tokenizer_output (void *user, int token, char *value, size_t value_len, size_t line, size_t line_char)
 {
     struct parser_state *state = user;
-    ASSERT(!state->out_of_memory)
-    ASSERT(!state->syntax_error)
-    ASSERT(!state->error)
+    ASSERT(!state->error_flags)
     
     if (token == NCD_ERROR) {
-        BLog(BLOG_ERROR, "line %zu, character %zu: tokenizer error", line, line_char);
+        state->error_flags |= ERROR_FLAG_TOKENIZATION;
         goto fail;
     }
     
@@ -130,59 +143,37 @@ static int tokenizer_output (void *user, int token, char *value, size_t value_le
         } break;
         
         default:
-            BLog(BLOG_ERROR, "line %zu, character %zu: invalid token", line, line_char);
+            state->error_flags |= ERROR_FLAG_TOKENIZATION;
             free_token(minor);
             goto fail;
     }
     
-    if (state->syntax_error) {
-        BLog(BLOG_ERROR, "line %zu, character %zu: syntax error", line, line_char);
-        goto fail;
-    }
-    
-    if (state->out_of_memory) {
-        BLog(BLOG_ERROR, "line %zu, character %zu: out of memory", line, line_char);
+    if (state->error_flags) {
         goto fail;
     }
     
     return 1;
     
 fail:
-    state->error = 1;
+    ASSERT(state->error_flags)
+    
+    if ((state->error_flags & ERROR_FLAG_MEMORY)) {
+        BLog(BLOG_ERROR, "line %zu, character %zu: memory allocation error", line, line_char);
+    }
+    
+    if ((state->error_flags & ERROR_FLAG_TOKENIZATION)) {
+        BLog(BLOG_ERROR, "line %zu, character %zu: tokenization error", line, line_char);
+    }
+    
+    if ((state->error_flags & ERROR_FLAG_SYNTAX)) {
+        BLog(BLOG_ERROR, "line %zu, character %zu: syntax error", line, line_char);
+    }
+    
+    if ((state->error_flags & ERROR_FLAG_DUPLICATE_KEY)) {
+        BLog(BLOG_ERROR, "line %zu, character %zu: duplicate key in map error", line, line_char);
+    }
+    
     return 0;
-}
-
-int NCDValueParser_Parse (const char *str, size_t str_len, NCDValue *out_value)
-{
-    ASSERT(str_len == 0 || str)
-    ASSERT(out_value)
-    
-    struct parser_state state;
-    state.have_value = 0;
-    state.out_of_memory = 0;
-    state.syntax_error = 0;
-    state.error = 0;
-    
-    if (!(state.parser = ParseAlloc(malloc))) {
-        BLog(BLOG_ERROR, "ParseAlloc failed");
-        return 0;
-    }
-    
-    NCDConfigTokenizer_Tokenize((char *)str, str_len, tokenizer_output, &state);
-    
-    ParseFree(state.parser, free);
-    
-    if (state.error) {
-        if (state.have_value) {
-            NCDValue_Free(&state.value);
-        }
-        return 0;
-    }
-    
-    ASSERT(state.have_value)
-    
-    *out_value = state.value;
-    return 1;
 }
 
 int NCDValParser_Parse (const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out_value)
@@ -191,17 +182,63 @@ int NCDValParser_Parse (const char *str, size_t str_len, NCDValMem *mem, NCDValR
     ASSERT(mem)
     ASSERT(out_value)
     
-    NCDValue value;
-    if (!NCDValueParser_Parse(str, str_len, &value)) {
-        return 0;
+    int ret = 0;
+    
+    struct parser_state state;
+    state.value = NCDVal_NewInvalid();
+    state.error_flags = 0;
+    
+    if (!NCDValCons_Init(&state.cons, mem)) {
+        BLog(BLOG_ERROR, "NCDValCons_Init failed");
+        goto fail0;
     }
     
-    if (!NCDValCompat_ValueToVal(&value, mem, out_value)) {
-        BLog(BLOG_ERROR, "NCDValCompat_ValueToVal failed");
-        NCDValue_Free(&value);
-        return 0;
+    if (!(state.parser = ParseAlloc(malloc))) {
+        BLog(BLOG_ERROR, "ParseAlloc failed");
+        goto fail1;
     }
     
-    NCDValue_Free(&value);
-    return 1;
+    NCDConfigTokenizer_Tokenize((char *)str, str_len, tokenizer_output, &state);
+    
+    ParseFree(state.parser, free);
+    
+    if (state.error_flags) {
+        goto fail1;
+    }
+    
+    ASSERT(!NCDVal_IsInvalid(state.value))
+    
+    *out_value = state.value;
+    ret = 1;
+    
+fail1:
+    NCDValCons_Free(&state.cons);
+fail0:
+    return ret;
+}
+
+int NCDValueParser_Parse (const char *str, size_t str_len, NCDValue *out_value)
+{
+    ASSERT(str_len == 0 || str)
+    ASSERT(out_value)
+    
+    int res = 0;
+    
+    NCDValMem mem;
+    NCDValMem_Init(&mem);
+    
+    NCDValRef val;
+    if (!NCDValParser_Parse(str, str_len, &mem, &val)) {
+        goto fail;
+    }
+    
+    if (!NCDValCompat_ValToValue(val, out_value)) {
+        goto fail;
+    }
+    
+    res = 1;
+    
+fail:
+    NCDValMem_Free(&mem);
+    return res;
 }
