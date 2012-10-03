@@ -50,19 +50,18 @@ static int alloc_elem (NCDValCons *o)
     return o->elems_size++;
 }
 
-static void assert_cons_val (NCDValCons *o, NCDValConsVal *val)
+static void assert_cons_val (NCDValCons *o, NCDValConsVal val)
 {
-    ASSERT(val)
-    
 #ifndef NDEBUG
-    switch (val->cons_type) {
+    switch (val.cons_type) {
         case NCDVALCONS_TYPE_COMPLETE: {
-            ASSERT(!NCDVal_IsInvalid(NCDVal_FromSafe(o->mem, val->u.complete_ref)))
+            ASSERT(!NCDVal_IsInvalid(NCDVal_FromSafe(o->mem, val.u.complete_ref)))
         } break;
         case NCDVALCONS_TYPE_INCOMPLETE_LIST:
         case NCDVALCONS_TYPE_INCOMPLETE_MAP: {
-            ASSERT(val->u.incomplete.elems_idx >= -1)
-            ASSERT(val->u.incomplete.elems_idx < o->elems_size)
+            ASSERT(val.u.incomplete.elems_idx >= -1)
+            ASSERT(val.u.incomplete.elems_idx < o->elems_size)
+            ASSERT(val.u.incomplete.count >= 0)
         } break;
         default:
             ASSERT(0);
@@ -72,7 +71,7 @@ static void assert_cons_val (NCDValCons *o, NCDValConsVal *val)
 
 static int complete_value (NCDValCons *o, NCDValConsVal val, NCDValSafeRef *out, int *out_error)
 {
-    assert_cons_val(o, &val);
+    assert_cons_val(o, val);
     ASSERT(out)
     ASSERT(out_error)
     
@@ -200,9 +199,9 @@ void NCDValCons_NewMap (NCDValCons *o, NCDValConsVal *out)
 
 int NCDValCons_ListPrepend (NCDValCons *o, NCDValConsVal *list, NCDValConsVal elem, int *out_error)
 {
-    assert_cons_val(o, list);
+    assert_cons_val(o, *list);
     ASSERT(list->cons_type == NCDVALCONS_TYPE_INCOMPLETE_LIST)
-    assert_cons_val(o, &elem);
+    assert_cons_val(o, elem);
     ASSERT(out_error)
     
     int elemidx = alloc_elem(o);
@@ -225,10 +224,10 @@ int NCDValCons_ListPrepend (NCDValCons *o, NCDValConsVal *list, NCDValConsVal el
 
 int NCDValCons_MapInsert (NCDValCons *o, NCDValConsVal *map, NCDValConsVal key, NCDValConsVal value, int *out_error)
 {
-    assert_cons_val(o, map);
+    assert_cons_val(o, *map);
     ASSERT(map->cons_type == NCDVALCONS_TYPE_INCOMPLETE_MAP)
-    assert_cons_val(o, &key);
-    assert_cons_val(o, &value);
+    assert_cons_val(o, key);
+    assert_cons_val(o, value);
     ASSERT(out_error)
     
     int validx = alloc_elem(o);
@@ -262,7 +261,7 @@ int NCDValCons_MapInsert (NCDValCons *o, NCDValConsVal *map, NCDValConsVal key, 
 
 int NCDValCons_Complete (NCDValCons *o, NCDValConsVal val, NCDValRef *out, int *out_error)
 {
-    assert_cons_val(o, &val);
+    assert_cons_val(o, val);
     ASSERT(out)
     ASSERT(out_error)
     
