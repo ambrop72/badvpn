@@ -18,6 +18,34 @@ process main {
     val_equal(x, {"Hello World", {}}) a;
     assert(a);
 
+    var({"Hello", "fw", {}, {}, ["key":{{}}, [[]:[]]:["k":"v"]], {"st", {"ri", {"ng", [[{}:{}]:[]]}}}}) v;
+    to_string(v) str;
+    from_string(str) v2;
+    to_string(v2) str2;
+    val_equal(v, v2) a;
+    assert(a);
+    val_equal(str, str2) a;
+    assert(a);
+    
+    parse_value("{\"Hello\", \"fw\", {}, {}, [\"key\":{{}}, [[]:[]]:[\"k\":\"v\"]], {\"st\", {\"ri\", {\"ng\", [[{}:{}]:[]]}}}}") x;
+    assert(x.succeeded);
+    
+    parse_value("{\"Hello\", \"fw\", {}, {}, \"key\":{{}}, [[]:[]]:[\"k\":\"v\"]], {\"st, {\"ri\", {\"ng\", [[{}:{}]:[]]}}}}") x;
+    not(x.succeeded) a;
+    assert(a);
+    
+    parse_value("{\"Hello\", \"fw\", {}, {}, [\"key\":{{}}, [[]:[]]:[\"k\":\"v\"]], {\"st\", \"ri\", \"ng\", [[{}:{}]:[]]}}}}") x;
+    not(x.succeeded) a;
+    assert(a);
+    
+    parse_value("{\"Hello\", \"fw\", {}, {}, [\"key\":{{}}, [[]:[]]:[\"k\":\"v\"]], {\"st\", {\"ri\", {\"ng\", [[{}:{}]:[]]}}}}}") x;
+    not(x.succeeded) a;
+    assert(a);
+    
+    parse_value("{\"Hello\", \"fw\", {}, {}, [\"key\":{{}}, [[]:[]]:[\"k\":\"v\"]], {\"st\", {\"ri\", {\"ng\", [[{}:{}]:[]]}}}") x;
+    not(x.succeeded) a;
+    assert(a);
+    
     parse_value("{syntax error") x;
     not(x.succeeded) a;
     assert(a);
