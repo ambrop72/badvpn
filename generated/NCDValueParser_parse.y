@@ -168,7 +168,7 @@ doneT:;
 }
 
 map(R) ::= BRACKET_OPEN BRACKET_CLOSE. {
-    NCDValCons_NewList(&parser_out->cons, &R.v);
+    NCDValCons_NewMap(&parser_out->cons, &R.v);
     R.have = 1;
 }
 

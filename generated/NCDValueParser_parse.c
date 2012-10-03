@@ -819,7 +819,7 @@ doneT:;
       case 7: /* map ::= BRACKET_OPEN BRACKET_CLOSE */
 #line 170 "NCDValueParser_parse.y"
 {
-    NCDValCons_NewList(&parser_out->cons, &yygotominor.yy1.v);
+    NCDValCons_NewMap(&parser_out->cons, &yygotominor.yy1.v);
     yygotominor.yy1.have = 1;
   yy_destructor(yypParser,5,&yymsp[-1].minor);
   yy_destructor(yypParser,6,&yymsp[0].minor);
