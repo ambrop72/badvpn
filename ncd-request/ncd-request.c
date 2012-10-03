@@ -47,12 +47,13 @@
 static void client_handler_error (void *user);
 static void client_handler_connected (void *user);
 static void request_handler_sent (void *user);
-static void request_handler_reply (void *user, NCDValue reply_data);
+static void request_handler_reply (void *user, NCDValMem reply_mem, NCDValRef reply_value);
 static void request_handler_finished (void *user, int is_error);
 static int write_all (int fd, const uint8_t *data, size_t len);
 static int make_connect_addr (const char *str, struct NCDRequestClient_addr *out_addr);
 
-NCDValue request_payload;
+NCDValMem request_mem;
+NCDValRef request_value;
 BReactor reactor;
 NCDRequestClient client;
 NCDRequestClientRequest request;
@@ -74,29 +75,31 @@ int main (int argc, char *argv[])
     
     BTime_Init();
     
-    if (!NCDValueParser_Parse(request_payload_string, strlen(request_payload_string), &request_payload)) {
+    NCDValMem_Init(&request_mem);
+    
+    if (!NCDValParser_Parse(request_payload_string, strlen(request_payload_string), &request_mem, &request_value)) {
         BLog(BLOG_ERROR, "BReactor_Init failed");
         goto fail1;
     }
     
     if (!BNetwork_GlobalInit()) {
         BLog(BLOG_ERROR, "BNetwork_Init failed");
-        goto fail2;
+        goto fail1;
     }
     
     if (!BReactor_Init(&reactor)) {
         BLog(BLOG_ERROR, "BReactor_Init failed");
-        goto fail2;
+        goto fail1;
     }
     
     struct NCDRequestClient_addr addr;
     if (!make_connect_addr(connect_address, &addr)) {
-        goto fail3;
+        goto fail2;
     }
     
     if (!NCDRequestClient_Init(&client, addr, &reactor, NULL, client_handler_error, client_handler_connected)) {
         BLog(BLOG_ERROR, "NCDRequestClient_Init failed");
-        goto fail3;
+        goto fail2;
     }
     
     have_request = 0;
@@ -107,11 +110,10 @@ int main (int argc, char *argv[])
         NCDRequestClientRequest_Free(&request);
     }
     NCDRequestClient_Free(&client);
-fail3:
-    BReactor_Free(&reactor);
 fail2:
-    NCDValue_Free(&request_payload);
+    BReactor_Free(&reactor);
 fail1:
+    NCDValMem_Free(&request_mem);
     BLog_Free();
 fail0:
     DebugObjectGlobal_Finish();
@@ -153,7 +155,7 @@ static void client_handler_connected (void *user)
 {
     ASSERT(!have_request)
     
-    if (!NCDRequestClientRequest_Init(&request, &client, &request_payload, NULL, request_handler_sent, request_handler_reply, request_handler_finished)) {
+    if (!NCDRequestClientRequest_Init(&request, &client, request_value, NULL, request_handler_sent, request_handler_reply, request_handler_finished)) {
         BLog(BLOG_ERROR, "NCDRequestClientRequest_Init failed");
         BReactor_Quit(&reactor, 1);
         return;
@@ -167,13 +169,13 @@ static void request_handler_sent (void *user)
     ASSERT(have_request)
 }
 
-static void request_handler_reply (void *user, NCDValue reply_data)
+static void request_handler_reply (void *user, NCDValMem reply_mem, NCDValRef reply_value)
 {
     ASSERT(have_request)
     
-    char *str = NCDValueGenerator_Generate(&reply_data);
+    char *str = NCDValGenerator_Generate(reply_value);
     if (!str) {
-        BLog(BLOG_ERROR, "NCDValueGenerator_Generate failed");
+        BLog(BLOG_ERROR, "NCDValGenerator_Generate failed");
         goto fail0;
     }
     
@@ -185,13 +187,13 @@ static void request_handler_reply (void *user, NCDValue reply_data)
     }
     
     free(str);
-    NCDValue_Free(&reply_data);
+    NCDValMem_Free(&reply_mem);
     return;
     
 fail1:
     free(str);
 fail0:
-    NCDValue_Free(&reply_data);
+    NCDValMem_Free(&reply_mem);
     BReactor_Quit(&reactor, 1);
 }
 

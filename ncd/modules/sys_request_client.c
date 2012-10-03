@@ -148,7 +148,7 @@ struct reply {
 static void client_handler_error (struct instance *o);
 static void client_handler_connected (struct instance *o);
 static void request_handler_sent (struct request_instance *o);
-static void request_handler_reply (struct request_instance *o, NCDValue reply_data);
+static void request_handler_reply (struct request_instance *o, NCDValMem reply_mem, NCDValRef reply_value);
 static void request_handler_finished (struct request_instance *o, int is_error);
 static void request_process_handler_event (struct request_instance *o, int event);
 static int request_process_func_getspecialobj (struct request_instance *o, const char *name, NCDObject *out_object);
@@ -194,20 +194,9 @@ static void request_handler_sent (struct request_instance *o)
     o->rstate = RRSTATE_READY;
 }
 
-static void request_handler_reply (struct request_instance *o, NCDValue reply_data)
+static void request_handler_reply (struct request_instance *o, NCDValMem reply_mem, NCDValRef reply_value)
 {
     ASSERT(o->rstate == RRSTATE_READY)
-    
-    NCDValMem mem;
-    NCDValMem_Init(&mem);
-    
-    NCDValRef val;
-    int res = NCDValCompat_ValueToVal(&reply_data, &mem, &val);
-    NCDValue_Free(&reply_data);
-    if (!res) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValCompat_ValueToVal failed");
-        goto fail1;
-    }
     
     // queue reply if process is running
     if (o->pstate != RPSTATE_NONE) {
@@ -216,21 +205,21 @@ static void request_handler_reply (struct request_instance *o, NCDValue reply_da
             ModuleLog(o->i, BLOG_ERROR, "malloc failed");
             goto fail1;
         }
-        r->mem = mem;
-        r->val = NCDVal_Moved(&r->mem, val);
+        r->mem = reply_mem;
+        r->val = NCDVal_Moved(&r->mem, reply_value);
         LinkedList1_Append(&o->replies_list, &r->replies_list_node);
         return;
     }
     
     // start reply process
-    if (!request_init_reply_process(o, mem, NCDVal_ToSafe(val))) {
+    if (!request_init_reply_process(o, reply_mem, NCDVal_ToSafe(reply_value))) {
         goto fail1;
     }
     
     return;
     
 fail1:
-    NCDValMem_Free(&mem);
+    NCDValMem_Free(&reply_mem);
     request_die(o, 1);
 }
 
@@ -638,24 +627,14 @@ static void request_func_new (void *vo, NCDModuleInst *i)
         goto fail0;
     }
     
-    // convert argument to old format
-    NCDValue request_data_compat;
-    if (!NCDValCompat_ValToValue(request_data_arg, &request_data_compat)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDValCompat_ValToValue failed");
-        goto fail0;
-    }
-    
     // init request
-    if (!NCDRequestClientRequest_Init(&o->request, &client->client, &request_data_compat, o,
+    if (!NCDRequestClientRequest_Init(&o->request, &client->client, request_data_arg, o,
         (NCDRequestClientRequest_handler_sent)request_handler_sent,
         (NCDRequestClientRequest_handler_reply)request_handler_reply,
         (NCDRequestClientRequest_handler_finished)request_handler_finished)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDRequestClientRequest_Init failed");
-        NCDValue_Free(&request_data_compat);
         goto fail0;
     }
-    
-    NCDValue_Free(&request_data_compat);
     
     // add to requests list
     LinkedList0_Prepend(&client->requests_list, &o->requests_list_node);

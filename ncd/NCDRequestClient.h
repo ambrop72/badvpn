@@ -49,7 +49,7 @@ struct NCDRequestClient_req;
 typedef void (*NCDRequestClient_handler_error) (void *user);
 typedef void (*NCDRequestClient_handler_connected) (void *user);
 typedef void (*NCDRequestClientRequest_handler_sent) (void *user);
-typedef void (*NCDRequestClientRequest_handler_reply) (void *user, NCDValue reply_data);
+typedef void (*NCDRequestClientRequest_handler_reply) (void *user, NCDValMem reply_mem, NCDValRef reply_value);
 typedef void (*NCDRequestClientRequest_handler_finished) (void *user, int is_error);
 
 typedef struct {
@@ -117,7 +117,7 @@ int NCDRequestClient_Init (NCDRequestClient *o, struct NCDRequestClient_addr add
                            NCDRequestClient_handler_connected handler_connected) WARN_UNUSED;
 void NCDRequestClient_Free (NCDRequestClient *o);
 
-int NCDRequestClientRequest_Init (NCDRequestClientRequest *o, NCDRequestClient *client, NCDValue *payload_value, void *user,
+int NCDRequestClientRequest_Init (NCDRequestClientRequest *o, NCDRequestClient *client, NCDValRef payload_value, void *user,
                                   NCDRequestClientRequest_handler_sent handler_sent,
                                   NCDRequestClientRequest_handler_reply handler_reply,
                                   NCDRequestClientRequest_handler_finished handler_finished) WARN_UNUSED;

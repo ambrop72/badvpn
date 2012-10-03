@@ -70,7 +70,7 @@ static void decoder_handler_error (NCDRequestClient *o);
 static void recv_if_handler_send (NCDRequestClient *o, uint8_t *data, int data_len);
 static struct NCDRequestClient_req * find_req (NCDRequestClient *o, uint32_t request_id);
 static int get_free_request_id (NCDRequestClient *o, uint32_t *out);
-static int build_requestproto_packet (uint32_t request_id, uint32_t type, NCDValue *payload_value, uint8_t **out_data, int *out_len);
+static int build_requestproto_packet (uint32_t request_id, uint32_t type, NCDValRef payload_value, uint8_t **out_data, int *out_len);
 static void build_nodata_packet (uint32_t request_id, uint32_t type, uint8_t *data, int *out_len);
 static int req_is_aborted (struct NCDRequestClient_req *req);
 static void req_abort (struct NCDRequestClient_req *req);
@@ -213,15 +213,20 @@ static void recv_if_handler_send (NCDRequestClient *o, uint8_t *data, int data_l
         case REQUESTPROTO_TYPE_SERVER_REPLY: {
             switch (o->state) {
                 case RSTATE_READY: {
+                    // init memory
+                    NCDValMem mem;
+                    NCDValMem_Init(&mem);
+                    
                     // parse payload
-                    NCDValue payload_value;
-                    if (!NCDValueParser_Parse((char *)payload, payload_len, &payload_value)) {
+                    NCDValRef payload_value;
+                    if (!NCDValParser_Parse((char *)payload, payload_len, &mem, &payload_value)) {
                         BLog(BLOG_ERROR, "failed to parse reply payload");
+                        NCDValMem_Free(&mem);
                         goto fail;
                     }
                     
                     // call reply handler
-                    req->creq->handler_reply(req->creq->user, payload_value);
+                    req->creq->handler_reply(req->creq->user, mem, payload_value);
                     return;
                 } break;
                 
@@ -308,7 +313,7 @@ static int get_free_request_id (NCDRequestClient *o, uint32_t *out)
     return 0;
 }
 
-static int build_requestproto_packet (uint32_t request_id, uint32_t type, NCDValue *payload_value, uint8_t **out_data, int *out_len)
+static int build_requestproto_packet (uint32_t request_id, uint32_t type, NCDValRef payload_value, uint8_t **out_data, int *out_len)
 {
     struct header {
         struct packetproto_header pp;
@@ -326,8 +331,8 @@ static int build_requestproto_packet (uint32_t request_id, uint32_t type, NCDVal
         goto fail1;
     }
     
-    if (payload_value && !NCDValueGenerator_AppendGenerate(payload_value, &str)) {
-        BLog(BLOG_ERROR, "NCDValueGenerator_AppendGenerate failed");
+    if (!NCDVal_IsInvalid(payload_value) && !NCDValGenerator_AppendGenerate(payload_value, &str)) {
+        BLog(BLOG_ERROR, "NCDValGenerator_AppendGenerate failed");
         goto fail1;
     }
     
@@ -549,14 +554,14 @@ void NCDRequestClient_Free (NCDRequestClient *o)
     BConnector_Free(&o->connector);
 }
 
-int NCDRequestClientRequest_Init (NCDRequestClientRequest *o, NCDRequestClient *client, NCDValue *payload_value, void *user,
+int NCDRequestClientRequest_Init (NCDRequestClientRequest *o, NCDRequestClient *client, NCDValRef payload_value, void *user,
                                   NCDRequestClientRequest_handler_sent handler_sent,
                                   NCDRequestClientRequest_handler_reply handler_reply,
                                   NCDRequestClientRequest_handler_finished handler_finished)
 {
     ASSERT(client->state == CSTATE_CONNECTED)
     DebugError_AssertNoError(&client->d_err);
-    ASSERT(payload_value)
+    ASSERT(!NCDVal_IsInvalid(payload_value))
     ASSERT(handler_sent)
     ASSERT(handler_reply)
     ASSERT(handler_finished)
