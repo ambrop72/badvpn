@@ -40,6 +40,9 @@ if (BUILD_NCD)
 
     add_executable(ncdval_test ncdval_test.c)
     target_link_libraries(ncdval_test ncdval)
+    
+    add_executable(ncdvalcons_test ncdvalcons_test.c)
+    target_link_libraries(ncdvalcons_test ncdvalcons ncdvaluegenerator)
 endif ()
 
 if (BUILDING_UDEVMONITOR)

@@ -75,6 +75,11 @@ add_library(ncdinterfacemonitor
 )
 target_link_libraries(ncdinterfacemonitor base system)
 
+add_library(ncdvalcons
+    NCDValCons.c
+)
+target_link_libraries(ncdvalcons ncdval)
+
 add_executable(badvpn-ncd
     ncd.c
     NCDModule.c
