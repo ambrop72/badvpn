@@ -32,11 +32,7 @@
 
 #include <misc/debug.h>
 #include <misc/expstring.h>
-#include <ncd/NCDValue.h>
 #include <ncd/NCDVal.h>
-
-char * NCDValueGenerator_Generate (NCDValue *value);
-int NCDValueGenerator_AppendGenerate (NCDValue *value, ExpString *str) WARN_UNUSED;
 
 char * NCDValGenerator_Generate (NCDValRef value);
 int NCDValGenerator_AppendGenerate (NCDValRef value, ExpString *str) WARN_UNUSED;

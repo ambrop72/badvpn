@@ -37,6 +37,7 @@
 #include <ncd/NCDConfigParser.h>
 #include <ncd/NCDValueGenerator.h>
 #include <ncd/NCDSugar.h>
+#include <ncd/NCDValCompat.h>
 
 int error;
 
@@ -50,9 +51,18 @@ static void print_indent (unsigned int indent)
 
 static void print_value (NCDValue *v, unsigned int indent)
 {
-    char *str = NCDValueGenerator_Generate(v);
+    NCDValMem mem;
+    NCDValMem_Init(&mem);
+    
+    NCDValRef vref;
+    if (!NCDValCompat_ValueToVal(v, &mem, &vref)) {
+        DEBUG("NCDValCompat_ValueToVal failed");
+        exit(1);
+    }
+    
+    char *str = NCDValGenerator_Generate(vref);
     if (!str) {
-        DEBUG("NCDValueGenerator_Generate failed");
+        DEBUG("NCDValGenerator_Generate failed");
         exit(1);
     }
     
@@ -60,6 +70,7 @@ static void print_value (NCDValue *v, unsigned int indent)
     printf("%s\n", str);
     
     free(str);
+    NCDValMem_Free(&mem);
 }
 
 static void print_block (NCDBlock *block, unsigned int indent)
