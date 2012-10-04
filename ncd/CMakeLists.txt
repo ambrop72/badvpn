@@ -26,10 +26,6 @@ add_library(ncdtokenizer
 )
 target_link_libraries(ncdtokenizer base)
 
-add_library(ncdvalue
-    NCDValue.c
-)
-
 add_library(ncdval
     NCDVal.c
 )
@@ -38,7 +34,7 @@ target_link_libraries(ncdval base)
 add_library(ncdvalcompat
     NCDValCompat.c
 )
-target_link_libraries(ncdvalcompat ncdvalue ncdval)
+target_link_libraries(ncdvalcompat ncdast ncdval)
 
 add_library(ncdvaluegenerator
     NCDValueGenerator.c
@@ -53,7 +49,6 @@ target_link_libraries(ncdvalueparser base ncdval ncdtokenizer ncdvalcons)
 add_library(ncdast
     NCDAst.c
 )
-target_link_libraries(ncdast ncdvalue)
 
 add_library(ncdconfigparser
     NCDConfigParser.c
@@ -68,7 +63,7 @@ target_link_libraries(ncdsugar ncdast)
 add_library(ncdrequest
     NCDRequestClient.c
 )
-target_link_libraries(ncdrequest base system ncdvalue ncdvaluegenerator ncdvalueparser)
+target_link_libraries(ncdrequest base system ncdvaluegenerator ncdvalueparser)
 
 add_library(ncdinterfacemonitor
     NCDInterfaceMonitor.c
@@ -160,7 +155,7 @@ add_executable(badvpn-ncd
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(badvpn-ncd
-    system flow flowextra dhcpclient arpprobe ncdvalue ncdval ncdvalcompat ncdvaluegenerator
+    system flow flowextra dhcpclient arpprobe ncdval ncdvalcompat ncdvaluegenerator
     ncdvalueparser ncdconfigparser ncdsugar udevmonitor ncdinterfacemonitor ncdrequest
     badvpn_random
 )

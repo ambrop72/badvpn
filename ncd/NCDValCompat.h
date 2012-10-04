@@ -31,7 +31,7 @@
 #define BADVPN_NCDVALCOMPAT_H
 
 #include <misc/debug.h>
-#include <ncd/NCDValue.h>
+#include <ncd/NCDAst.h>
 #include <ncd/NCDVal.h>
 
 /**
