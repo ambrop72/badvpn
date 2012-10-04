@@ -117,8 +117,10 @@ static int convert_value_recurser (NCDPlaceholderDb *pdb, NCDValue *value, NCDVa
                     goto fail;
                 }
                 
-                int res = NCDVal_MapInsert(*out, vkey, vval);
-                ASSERT_EXECUTE(res) // we assume different variables get different placeholder ids
+                if (!NCDVal_MapInsert(*out, vkey, vval)) {
+                    BLog(BLOG_ERROR, "duplicate key in map");
+                    goto fail;
+                }
             }
         } break;
         

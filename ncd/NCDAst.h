@@ -35,7 +35,6 @@
 
 #include <misc/debug.h>
 #include <structure/LinkedList1.h>
-#include <structure/SAvl.h>
 
 typedef struct NCDValue_s NCDValue;
 typedef struct NCDProgram_s NCDProgram;
@@ -44,12 +43,6 @@ typedef struct NCDBlock_s NCDBlock;
 typedef struct NCDStatement_s NCDStatement;
 typedef struct NCDIfBlock_s NCDIfBlock;
 typedef struct NCDIf_s NCDIf;
-
-struct NCDValue__map_element;
-typedef NCDValue *NCDValue__maptree_key;
-
-#include "NCDAst_maptree.h"
-#include <structure/SAvl_decl.h>
 
 struct NCDValue_s {
     int type;
@@ -63,7 +56,7 @@ struct NCDValue_s {
             size_t list_count;
         };
         struct {
-            NCDValue__MapTree map_tree;
+            LinkedList1 map_list;
             size_t map_count;
         };
         struct {
@@ -164,8 +157,7 @@ size_t NCDValue_MapCount (NCDValue *o);
 NCDValue * NCDValue_MapFirstKey (NCDValue *o);
 NCDValue * NCDValue_MapNextKey (NCDValue *o, NCDValue *ekey);
 NCDValue * NCDValue_MapKeyValue (NCDValue *o, NCDValue *ekey);
-NCDValue * NCDValue_MapFindKey (NCDValue *o, NCDValue *key);
-NCDValue * NCDValue_MapInsert (NCDValue *o, NCDValue key, NCDValue val) WARN_UNUSED;
+NCDValue * NCDValue_MapPrepend (NCDValue *o, NCDValue key, NCDValue val) WARN_UNUSED;
 int NCDValue_InitVar (NCDValue *o, const char *var_name) WARN_UNUSED;
 const char * NCDValue_VarName (NCDValue *o);
 int NCDValue_Compare (NCDValue *o, NCDValue *v);

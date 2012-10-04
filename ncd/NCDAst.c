@@ -41,13 +41,10 @@ struct NCDValue__list_element {
 };
 
 struct NCDValue__map_element {
-    NCDValue__MapTreeNode tree_node;
+    LinkedList1Node list_node;
     NCDValue key;
     NCDValue val;
 };
-
-#include "NCDAst_maptree.h"
-#include <structure/SAvl_impl.h>
 
 static void value_assert (NCDValue *o)
 {
@@ -81,9 +78,11 @@ void NCDValue_Free (NCDValue *o)
         } break;
         
         case NCDVALUE_MAP: {
-            struct NCDValue__map_element *e;
-            while (e = NCDValue__MapTree_GetFirst(&o->map_tree, 0)) {
-                NCDValue__MapTree_Remove(&o->map_tree, 0, e);
+            LinkedList1Node *n;
+            while (n = LinkedList1_GetFirst(&o->map_list)) {
+                struct NCDValue__map_element *e = UPPER_OBJECT(n, struct NCDValue__map_element, list_node);
+                
+                LinkedList1_Remove(&o->map_list, &e->list_node);
                 NCDValue_Free(&e->key);
                 NCDValue_Free(&e->val);
                 free(e);
@@ -146,54 +145,9 @@ size_t NCDValue_StringLength (NCDValue *o)
 
 void NCDValue_InitList (NCDValue *o)
 {
+    o->type = NCDVALUE_LIST;
     LinkedList1_Init(&o->list);
     o->list_count = 0;
-    
-    o->type = NCDVALUE_LIST;
-}
-
-int NCDValue_ListAppend (NCDValue *o, NCDValue v)
-{
-    value_assert(o);
-    value_assert(&v);
-    ASSERT(o->type == NCDVALUE_LIST)
-    
-    if (o->list_count == SIZE_MAX) {
-        return 0;
-    }
-    
-    struct NCDValue__list_element *e = malloc(sizeof(*e));
-    if (!e) {
-        return 0;
-    }
-    
-    LinkedList1_Append(&o->list, &e->list_node);
-    o->list_count++;
-    e->v = v;
-    
-    return 1;
-}
-
-int NCDValue_ListPrepend (NCDValue *o, NCDValue v)
-{
-    value_assert(o);
-    value_assert(&v);
-    ASSERT(o->type == NCDVALUE_LIST)
-    
-    if (o->list_count == SIZE_MAX) {
-        return 0;
-    }
-    
-    struct NCDValue__list_element *e = malloc(sizeof(*e));
-    if (!e) {
-        return 0;
-    }
-    
-    LinkedList1_Prepend(&o->list, &e->list_node);
-    o->list_count++;
-    e->v = v;
-    
-    return 1;
 }
 
 size_t NCDValue_ListCount (NCDValue *o)
@@ -202,6 +156,52 @@ size_t NCDValue_ListCount (NCDValue *o)
     ASSERT(o->type == NCDVALUE_LIST)
     
     return o->list_count;
+}
+
+int NCDValue_ListAppend (NCDValue *o, NCDValue v)
+{
+    value_assert(o);
+    ASSERT(o->type == NCDVALUE_LIST)
+    value_assert(&v);
+    
+    if (o->list_count == SIZE_MAX) {
+        return 0;
+    }
+    
+    struct NCDValue__list_element *e = malloc(sizeof(*e));
+    if (!e) {
+        return 0;
+    }
+    
+    e->v = v;
+    LinkedList1_Append(&o->list, &e->list_node);
+    
+    o->list_count++;
+    
+    return 1;
+}
+
+int NCDValue_ListPrepend (NCDValue *o, NCDValue v)
+{
+    value_assert(o);
+    ASSERT(o->type == NCDVALUE_LIST)
+    value_assert(&v);
+    
+    if (o->list_count == SIZE_MAX) {
+        return 0;
+    }
+    
+    struct NCDValue__list_element *e = malloc(sizeof(*e));
+    if (!e) {
+        return 0;
+    }
+    
+    e->v = v;
+    LinkedList1_Prepend(&o->list, &e->list_node);
+    
+    o->list_count++;
+    
+    return 1;
 }
 
 NCDValue * NCDValue_ListFirst (NCDValue *o)
@@ -240,7 +240,7 @@ NCDValue * NCDValue_ListNext (NCDValue *o, NCDValue *ev)
 void NCDValue_InitMap (NCDValue *o)
 {
     o->type = NCDVALUE_MAP;
-    NCDValue__MapTree_Init(&o->map_tree);
+    LinkedList1_Init(&o->map_list);
     o->map_count = 0;
 }
 
@@ -252,15 +252,43 @@ size_t NCDValue_MapCount (NCDValue *o)
     return o->map_count;
 }
 
+NCDValue * NCDValue_MapPrepend (NCDValue *o, NCDValue key, NCDValue val)
+{
+    value_assert(o);
+    ASSERT(o->type == NCDVALUE_MAP)
+    value_assert(&key);
+    value_assert(&val);
+    
+    if (o->map_count == SIZE_MAX) {
+        return NULL;
+    }
+    
+    struct NCDValue__map_element *e = malloc(sizeof(*e));
+    if (!e) {
+        return NULL;
+    }
+    
+    e->key = key;
+    e->val = val;
+    LinkedList1_Prepend(&o->map_list, &e->list_node);
+    
+    o->map_count++;
+    
+    return &e->key;
+}
+
 NCDValue * NCDValue_MapFirstKey (NCDValue *o)
 {
     value_assert(o);
     ASSERT(o->type == NCDVALUE_MAP)
     
-    struct NCDValue__map_element *e = NCDValue__MapTree_GetFirst(&o->map_tree, 0);
-    if (!e) {
+    LinkedList1Node *ln = LinkedList1_GetFirst(&o->map_list);
+    
+    if (!ln) {
         return NULL;
     }
+    
+    struct NCDValue__map_element *e = UPPER_OBJECT(ln, struct NCDValue__map_element, list_node);
     
     value_assert(&e->key);
     value_assert(&e->val);
@@ -277,10 +305,13 @@ NCDValue * NCDValue_MapNextKey (NCDValue *o, NCDValue *ekey)
     value_assert(&e0->key);
     value_assert(&e0->val);
     
-    struct NCDValue__map_element *e = NCDValue__MapTree_GetNext(&o->map_tree, 0, e0);
-    if (!e) {
+    LinkedList1Node *ln = LinkedList1Node_Next(&e0->list_node);
+    
+    if (!ln) {
         return NULL;
     }
+    
+    struct NCDValue__map_element *e = UPPER_OBJECT(ln, struct NCDValue__map_element, list_node);
     
     value_assert(&e->key);
     value_assert(&e->val);
@@ -298,51 +329,6 @@ NCDValue * NCDValue_MapKeyValue (NCDValue *o, NCDValue *ekey)
     value_assert(&e->val);
     
     return &e->val;
-}
-
-NCDValue * NCDValue_MapFindKey (NCDValue *o, NCDValue *key)
-{
-    value_assert(o);
-    ASSERT(o->type == NCDVALUE_MAP)
-    value_assert(key);
-    
-    struct NCDValue__map_element *e = NCDValue__MapTree_LookupExact(&o->map_tree, 0, key);
-    if (!e) {
-        return NULL;
-    }
-    
-    value_assert(&e->key);
-    value_assert(&e->val);
-    ASSERT(!NCDValue_Compare(&e->key, key))
-    
-    return &e->key;
-}
-
-NCDValue * NCDValue_MapInsert (NCDValue *o, NCDValue key, NCDValue val)
-{
-    value_assert(o);
-    ASSERT(o->type == NCDVALUE_MAP)
-    value_assert(&key);
-    value_assert(&val);
-    ASSERT(!NCDValue_MapFindKey(o, &key))
-    
-    if (o->map_count == SIZE_MAX) {
-        return NULL;
-    }
-    
-    struct NCDValue__map_element *e = malloc(sizeof(*e));
-    if (!e) {
-        return NULL;
-    }
-    
-    e->key = key;
-    e->val = val;
-    int res = NCDValue__MapTree_Insert(&o->map_tree, 0, e, NULL);
-    ASSERT_EXECUTE(res)
-    
-    o->map_count++;
-    
-    return &e->key;
 }
 
 int NCDValue_InitVar (NCDValue *o, const char *var_name)

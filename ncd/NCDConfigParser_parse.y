@@ -565,7 +565,7 @@ map_contents(R) ::= value(A) COLON value(B). {
 
     NCDValue_InitMap(&R.v);
 
-    if (!NCDValue_MapInsert(&R.v, A.v, B.v)) {
+    if (!NCDValue_MapPrepend(&R.v, A.v, B.v)) {
         goto failS1;
     }
     A.have = 0;
@@ -589,14 +589,7 @@ map_contents(R) ::= value(A) COLON value(B) COMMA map_contents(N). {
         goto failT0;
     }
 
-    if (NCDValue_MapFindKey(&N.v, &A.v)) {
-        BLog(BLOG_ERROR, "duplicate key in map");
-        R.have = 0;
-        parser_out->syntax_error = 1;
-        goto doneT;
-    }
-
-    if (!NCDValue_MapInsert(&N.v, A.v, B.v)) {
+    if (!NCDValue_MapPrepend(&N.v, A.v, B.v)) {
         goto failT0;
     }
     A.have = 0;

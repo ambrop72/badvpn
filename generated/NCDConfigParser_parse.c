@@ -1448,7 +1448,7 @@ doneM:
 
     NCDValue_InitMap(&yygotominor.yy27.v);
 
-    if (!NCDValue_MapInsert(&yygotominor.yy27.v, yymsp[-2].minor.yy27.v, yymsp[0].minor.yy27.v)) {
+    if (!NCDValue_MapPrepend(&yygotominor.yy27.v, yymsp[-2].minor.yy27.v, yymsp[0].minor.yy27.v)) {
         goto failS1;
     }
     yymsp[-2].minor.yy27.have = 0;
@@ -1476,14 +1476,7 @@ doneS:
         goto failT0;
     }
 
-    if (NCDValue_MapFindKey(&yymsp[0].minor.yy27.v, &yymsp[-4].minor.yy27.v)) {
-        BLog(BLOG_ERROR, "duplicate key in map");
-        yygotominor.yy27.have = 0;
-        parser_out->syntax_error = 1;
-        goto doneT;
-    }
-
-    if (!NCDValue_MapInsert(&yymsp[0].minor.yy27.v, yymsp[-4].minor.yy27.v, yymsp[-2].minor.yy27.v)) {
+    if (!NCDValue_MapPrepend(&yymsp[0].minor.yy27.v, yymsp[-4].minor.yy27.v, yymsp[-2].minor.yy27.v)) {
         goto failT0;
     }
     yymsp[-4].minor.yy27.have = 0;
@@ -1504,29 +1497,29 @@ doneT:
   yy_destructor(yypParser,11,&yymsp[-3].minor);
   yy_destructor(yypParser,15,&yymsp[-1].minor);
 }
-#line 1508 "NCDConfigParser_parse.c"
+#line 1501 "NCDConfigParser_parse.c"
         break;
       case 26: /* map ::= BRACKET_OPEN BRACKET_CLOSE */
-#line 619 "NCDConfigParser_parse.y"
+#line 612 "NCDConfigParser_parse.y"
 {
     yygotominor.yy27.have = 1;
     NCDValue_InitMap(&yygotominor.yy27.v);
   yy_destructor(yypParser,16,&yymsp[-1].minor);
   yy_destructor(yypParser,17,&yymsp[0].minor);
 }
-#line 1518 "NCDConfigParser_parse.c"
+#line 1511 "NCDConfigParser_parse.c"
         break;
       case 27: /* map ::= BRACKET_OPEN map_contents BRACKET_CLOSE */
-#line 624 "NCDConfigParser_parse.y"
+#line 617 "NCDConfigParser_parse.y"
 {
     yygotominor.yy27 = yymsp[-1].minor.yy27;
   yy_destructor(yypParser,16,&yymsp[-2].minor);
   yy_destructor(yypParser,17,&yymsp[0].minor);
 }
-#line 1527 "NCDConfigParser_parse.c"
+#line 1520 "NCDConfigParser_parse.c"
         break;
       case 28: /* value ::= STRING */
-#line 628 "NCDConfigParser_parse.y"
+#line 621 "NCDConfigParser_parse.y"
 {
     ASSERT(yymsp[0].minor.yy0.str)
 
@@ -1543,10 +1536,10 @@ failU0:
 doneU:
     free_token(yymsp[0].minor.yy0);
 }
-#line 1547 "NCDConfigParser_parse.c"
+#line 1540 "NCDConfigParser_parse.c"
         break;
       case 29: /* value ::= dotted_name */
-#line 645 "NCDConfigParser_parse.y"
+#line 638 "NCDConfigParser_parse.y"
 {
     if (!yymsp[0].minor.yy9) {
         goto failV0;
@@ -1565,30 +1558,30 @@ failV0:
 doneV:
     free(yymsp[0].minor.yy9);
 }
-#line 1569 "NCDConfigParser_parse.c"
+#line 1562 "NCDConfigParser_parse.c"
         break;
       case 32: /* name_maybe ::= */
-#line 672 "NCDConfigParser_parse.y"
+#line 665 "NCDConfigParser_parse.y"
 {
     yygotominor.yy9 = NULL;
 }
-#line 1576 "NCDConfigParser_parse.c"
+#line 1569 "NCDConfigParser_parse.c"
         break;
       case 34: /* process_or_template ::= PROCESS */
-#line 682 "NCDConfigParser_parse.y"
+#line 675 "NCDConfigParser_parse.y"
 {
     yygotominor.yy8 = 0;
   yy_destructor(yypParser,19,&yymsp[0].minor);
 }
-#line 1584 "NCDConfigParser_parse.c"
+#line 1577 "NCDConfigParser_parse.c"
         break;
       case 35: /* process_or_template ::= TEMPLATE */
-#line 686 "NCDConfigParser_parse.y"
+#line 679 "NCDConfigParser_parse.y"
 {
     yygotominor.yy8 = 1;
   yy_destructor(yypParser,20,&yymsp[0].minor);
 }
-#line 1592 "NCDConfigParser_parse.c"
+#line 1585 "NCDConfigParser_parse.c"
         break;
       default:
         break;
@@ -1653,7 +1646,7 @@ static void yy_syntax_error(
 #line 125 "NCDConfigParser_parse.y"
 
     parser_out->syntax_error = 1;
-#line 1657 "NCDConfigParser_parse.c"
+#line 1650 "NCDConfigParser_parse.c"
   ParseARG_STORE; /* Suppress warning about unused %extra_argument variable */
 }
 
