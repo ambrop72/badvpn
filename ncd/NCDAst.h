@@ -147,218 +147,27 @@ struct IfBlockIf {
 #define NCDSTATEMENT_IF 2
 #define NCDSTATEMENT_FOREACH 3
 
-/**
- * Frees a value.
- * 
- * @param o value to free
- */
 void NCDValue_Free (NCDValue *o);
-
-/**
- * Returns the type of a value.
- * 
- * @param o the value
- * @return type of value; one of NCDVALUE_STRING, NCDVALUE_LIST and NCDVALUE_MAP.
- */
 int NCDValue_Type (NCDValue *o);
-
-/**
- * Initializes a string value from a null-terminated string.
- * This function can only be used to create string values which do
- * not contain any null bytes. To create a string which may contain
- * null bytes, use {@link NCDValue_InitStringBin}.
- * 
- * @param o value structure to initialize
- * @param str null-terminated string
- * @return 1 on success, 0 on failure
- */
 int NCDValue_InitString (NCDValue *o, const char *str) WARN_UNUSED;
-
-/**
- * Initializes a string value from a byte array.
- * 
- * @param o value structure to initialize
- * @param str byte array
- * @param len number of bytes in byte array
- * @return 1 on success, 0 on failure
- */
 int NCDValue_InitStringBin (NCDValue *o, const uint8_t *str, size_t len) WARN_UNUSED;
-
-/**
- * Returns the pointer to the bytes of a string value. The string is always
- * null-terminated (but it itself contain null bytes).
- * 
- * @param o string value
- * @return pointer to null-terminated array of bytes
- */
 char * NCDValue_StringValue (NCDValue *o);
-
-/**
- * Returns the length of the string (excuding the internal null termination,
- * but including any null bytes in the data).
- * 
- * @param o string value
- * @return length of string
- */
 size_t NCDValue_StringLength (NCDValue *o);
-
-/**
- * Initializes an empty list value.
- * 
- * @param o value structure to initialize
- */
 void NCDValue_InitList (NCDValue *o);
-
-/**
- * Appends a value to the end of a list.
- * On success, the value that was passed for insertion must be assumed freed;
- * on failure, it is unaffected.
- * 
- * @param o list value
- * @param v value to append
- * @return 1 on success, 0 on failure
- */
 int NCDValue_ListAppend (NCDValue *o, NCDValue v) WARN_UNUSED;
-
-/**
- * Prepends a value to the beginning of a list.
- * On success, the value that was passed for insertion must be assumed freed;
- * on failure, it is unaffected.
- * 
- * @param o list value
- * @param v value to prepend
- * @return 1 on success, 0 on failure
- */
 int NCDValue_ListPrepend (NCDValue *o, NCDValue v) WARN_UNUSED;
-
-/**
- * Returns the number of elements in a list.
- * 
- * @param o list value
- * @return number of elements
- */
 size_t NCDValue_ListCount (NCDValue *o);
-
-/**
- * Returns a pointer to the first elements in a list, or NULL if there are no
- * elements.
- * 
- * @param o list value
- * @return pointer to first value, or NULL
- */
 NCDValue * NCDValue_ListFirst (NCDValue *o);
-
-/**
- * Given a pointer to an existing element in a list, returns a pointer to the
- * element that follows it, or NULL if it is the last.
- * Note that the element pointer must point to a value that is really in the list
- * right now, and not just equal.
- * 
- * @param o list value
- * @param ev pointer to an existing element in the list
- * @return pointer to next value, or NULL
- */
 NCDValue * NCDValue_ListNext (NCDValue *o, NCDValue *ev);
-
-/**
- * Initializes an empty map value.
- * 
- * @param o value structure to initialize
- */
 void NCDValue_InitMap (NCDValue *o);
-
-/**
- * Returns the number of entries in a map.
- * 
- * @param o map value
- * @return number of entries
- */
 size_t NCDValue_MapCount (NCDValue *o);
-
-/**
- * Returns the pointer to the first key in the map, or NULL if
- * the map is empty.
- * The keys are ordered according to {@link NCDValue_Compare}.
- * 
- * @param o map value
- * @return pointer to first key, or NULL
- */
 NCDValue * NCDValue_MapFirstKey (NCDValue *o);
-
-/**
- * Given a pointer to an existing key in a map, returns a pointer to the
- * key that follows it, or NULL if this is the last key.
- * Note that the key pointer must point to a value that is really a key in the map
- * right now, and not just equal to some key.
- * 
- * @param o map value
- * @param ekey pointer to an existing key in the map
- * @return pointer to next key, or NULL
- */
 NCDValue * NCDValue_MapNextKey (NCDValue *o, NCDValue *ekey);
-
-/**
- * Given a pointer to an existing key in a map, returns a pointer to the
- * value associated with it.
- * Note that the key pointer must point to a value that is really a key in the
- * map right now, and not just equal.
- * 
- * @param o map value
- * @param ekey pointer to an existing key in the map
- * @return pointer to the associated value
- */
 NCDValue * NCDValue_MapKeyValue (NCDValue *o, NCDValue *ekey);
-
-/**
- * Looks for a key in a map that is equal to the given key.
- * 
- * @param o map value
- * @param key key to look for
- * @return pointer to the key in the map, or NULL if not found
- */
 NCDValue * NCDValue_MapFindKey (NCDValue *o, NCDValue *key);
-
-/**
- * Inserts a (key, value) entry into the map.
- * The map must not already contain a key equal to the provided key.
- * On success, the key and value that were passed for insertion must be assumed freed;
- * on failure, they are unaffected.
- * 
- * @param o map value
- * @param key key to insert
- * @param val value to insert
- * @return pointer to the newly inserted key in the map, or NULL if insertion failed.
- */
 NCDValue * NCDValue_MapInsert (NCDValue *o, NCDValue key, NCDValue val) WARN_UNUSED;
-
-/**
- * Initializes a variable value.
- * WARNING: variable values are only used internally by NCD as part of
- * the AST, and must never be used as statement or template arguments
- * during program execution.
- * 
- * @param o value structure to initialize
- * @param var_name name of the variable
- * @return 1 on success, 0 on failure
- */
 int NCDValue_InitVar (NCDValue *o, const char *var_name) WARN_UNUSED;
-
-/**
- * Returns the name of the variable.
- * 
- * @param o variable value
- * @return variable name
- */
 const char * NCDValue_VarName (NCDValue *o);
-
-/**
- * Compares a value with another value.
- * This function defines a total order on the set of all possible values.
- * 
- * @param o first value
- * @param v second value
- * @return -1 if 'o' is lesser than 'v', 0 if equal, 1 if greater
- */
 int NCDValue_Compare (NCDValue *o, NCDValue *v);
 
 void NCDProgram_Init (NCDProgram *o);
