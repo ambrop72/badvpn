@@ -92,7 +92,6 @@
 #include <system/BAddr.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDRequestClient.h>
-#include <ncd/NCDValCompat.h>
 
 #include <generated/blog_channel_ncd_sys_request_client.h>
 

@@ -31,15 +31,124 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 #include <misc/debug.h>
+#include <misc/expstring.h>
 #include <base/BLog.h>
 #include <ncd/NCDConfigParser.h>
 #include <ncd/NCDValueGenerator.h>
 #include <ncd/NCDSugar.h>
-#include <ncd/NCDValCompat.h>
 
-int error;
+static int generate_val (NCDValue *value, ExpString *out_str)
+{
+    switch (NCDValue_Type(value)) {
+        case NCDVALUE_STRING: {
+            const char *str = NCDValue_StringValue(value);
+            size_t len = NCDValue_StringLength(value);
+            
+            if (!ExpString_AppendChar(out_str, '"')) {
+                goto fail;
+            }
+            
+            for (size_t i = 0; i < len; i++) {
+                if (str[i] == '\0') {
+                    char buf[5];
+                    snprintf(buf, sizeof(buf), "\\x%02"PRIx8, (uint8_t)str[i]);
+                    
+                    if (!ExpString_Append(out_str, buf)) {
+                        goto fail;
+                    }
+                    
+                    continue;
+                }
+                
+                if (str[i] == '"' || str[i] == '\\') {
+                    if (!ExpString_AppendChar(out_str, '\\')) {
+                        goto fail;
+                    }
+                }
+                
+                if (!ExpString_AppendChar(out_str, str[i])) {
+                    goto fail;
+                }
+            }
+            
+            if (!ExpString_AppendChar(out_str, '"')) {
+                goto fail;
+            }
+        } break;
+        
+        case NCDVALUE_LIST: {
+            if (!ExpString_AppendChar(out_str, '{')) {
+                goto fail;
+            }
+            
+            int is_first = 1;
+            
+            for (NCDValue *e = NCDValue_ListFirst(value); e; e = NCDValue_ListNext(value, e)) {
+                if (!is_first) {
+                    if (!ExpString_Append(out_str, ", ")) {
+                        goto fail;
+                    }
+                }
+                
+                if (!generate_val(e, out_str)) {
+                    goto fail;
+                }
+                
+                is_first = 0;
+            }
+            
+            if (!ExpString_AppendChar(out_str, '}')) {
+                goto fail;
+            }
+        } break;
+        
+        case NCDVALUE_MAP: {
+            if (!ExpString_AppendChar(out_str, '[')) {
+                goto fail;
+            }
+            
+            int is_first = 1;
+            
+            for (NCDValue *ekey = NCDValue_MapFirstKey(value); ekey; ekey = NCDValue_MapNextKey(value, ekey)) {
+                NCDValue *eval = NCDValue_MapKeyValue(value, ekey);
+                
+                if (!is_first) {
+                    if (!ExpString_Append(out_str, ", ")) {
+                        goto fail;
+                    }
+                }
+                
+                if (!generate_val(ekey, out_str)) {
+                    goto fail;
+                }
+                
+                if (!ExpString_AppendChar(out_str, ':')) {
+                    goto fail;
+                }
+                
+                if (!generate_val(eval, out_str)) {
+                    goto fail;
+                }
+                
+                is_first = 0;
+            }
+            
+            if (!ExpString_AppendChar(out_str, ']')) {
+                goto fail;
+            }
+        } break;
+        
+        default: ASSERT(0);
+    }
+    
+    return 1;
+    
+fail:
+    return 0;
+}
 
 static void print_indent (unsigned int indent)
 {
@@ -51,26 +160,21 @@ static void print_indent (unsigned int indent)
 
 static void print_value (NCDValue *v, unsigned int indent)
 {
-    NCDValMem mem;
-    NCDValMem_Init(&mem);
-    
-    NCDValRef vref;
-    if (!NCDValCompat_ValueToVal(v, &mem, &vref)) {
-        DEBUG("NCDValCompat_ValueToVal failed");
+    ExpString estr;
+    if (!ExpString_Init(&estr)) {
+        DEBUG("ExpString_Init failed");
         exit(1);
     }
     
-    char *str = NCDValGenerator_Generate(vref);
-    if (!str) {
-        DEBUG("NCDValGenerator_Generate failed");
+    if (!generate_val(v, &estr)) {
+        DEBUG("generate_val failed");
         exit(1);
     }
     
     print_indent(indent);
-    printf("%s\n", str);
+    printf("%s\n", ExpString_Get(&estr));
     
-    free(str);
-    NCDValMem_Free(&mem);
+    ExpString_Free(&estr);
 }
 
 static void print_block (NCDBlock *block, unsigned int indent)
