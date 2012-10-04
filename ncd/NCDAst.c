@@ -29,7 +29,6 @@
 
 #include <stdlib.h>
 #include <limits.h>
-#include <stdarg.h>
 #include <string.h>
 
 #include <misc/offset.h>
@@ -61,80 +60,6 @@ static void value_assert (NCDValue *o)
         default:
             ASSERT(0);
     }
-}
-
-int NCDValue_InitCopy (NCDValue *o, NCDValue *v)
-{
-    value_assert(v);
-    
-    switch (v->type) {
-        case NCDVALUE_STRING: {
-            return NCDValue_InitStringBin(o, v->string, v->string_len);
-        } break;
-        
-        case NCDVALUE_LIST: {
-            NCDValue_InitList(o);
-            
-            for (LinkedList1Node *n = LinkedList1_GetFirst(&v->list); n; n = LinkedList1Node_Next(n)) {
-                struct NCDValue__list_element *e = UPPER_OBJECT(n, struct NCDValue__list_element, list_node);
-                
-                NCDValue tmp;
-                if (!NCDValue_InitCopy(&tmp, &e->v)) {
-                    goto fail;
-                }
-                
-                if (!NCDValue_ListAppend(o, tmp)) {
-                    NCDValue_Free(&tmp);
-                    goto fail;
-                }
-            }
-            
-            return 1;
-            
-        fail:
-            NCDValue_Free(o);
-            return 0;
-        } break;
-        
-        case NCDVALUE_MAP: {
-            NCDValue_InitMap(o);
-            
-            for (NCDValue *ekey = NCDValue_MapFirstKey(v); ekey; ekey = NCDValue_MapNextKey(v, ekey)) {
-                NCDValue *eval = NCDValue_MapKeyValue(v, ekey);
-                
-                NCDValue tmp_key;
-                NCDValue tmp_val;
-                if (!NCDValue_InitCopy(&tmp_key, ekey)) {
-                    goto mapfail;
-                }
-                if (!NCDValue_InitCopy(&tmp_val, eval)) {
-                    NCDValue_Free(&tmp_key);
-                    goto mapfail;
-                }
-                
-                if (!NCDValue_MapInsert(o, tmp_key, tmp_val)) {
-                    NCDValue_Free(&tmp_key);
-                    NCDValue_Free(&tmp_val);
-                    goto mapfail;
-                }
-            }
-            
-            return 1;
-            
-        mapfail:
-            NCDValue_Free(o);
-            return 0;
-        } break;
-        
-        case NCDVALUE_VAR: {
-            return NCDValue_InitVar(o, v->var_name);
-        } break;
-        
-        default:
-            ASSERT(0);
-    }
-    
-    return 0;
 }
 
 void NCDValue_Free (NCDValue *o)
@@ -181,18 +106,6 @@ int NCDValue_Type (NCDValue *o)
     return o->type;
 }
 
-int NCDValue_IsString (NCDValue *o)
-{
-    value_assert(o);
-    
-    return o->type == NCDVALUE_STRING;
-}
-
-int NCDValue_IsStringNoNulls (NCDValue *o)
-{
-    return NCDValue_IsString(o) && NCDValue_StringHasNoNulls(o);
-}
-
 int NCDValue_InitString (NCDValue *o, const char *str)
 {
     return NCDValue_InitStringBin(o, (const uint8_t *)str, strlen(str));
@@ -229,34 +142,6 @@ size_t NCDValue_StringLength (NCDValue *o)
     ASSERT(o->type == NCDVALUE_STRING)
     
     return o->string_len;
-}
-
-int NCDValue_StringHasNoNulls (NCDValue *o)
-{
-    ASSERT(o->type == NCDVALUE_STRING)
-    
-    return strlen((char *)o->string) == o->string_len;
-}
-
-int NCDValue_StringHasNulls (NCDValue *o)
-{
-    ASSERT(o->type == NCDVALUE_STRING)
-    
-    return !NCDValue_StringHasNoNulls(o);
-}
-
-int NCDValue_StringEquals (NCDValue *o, const char *str)
-{
-    ASSERT(o->type == NCDVALUE_STRING)
-    
-    return NCDValue_StringHasNoNulls(o) && !strcmp((const char *)o->string, str);
-}
-
-int NCDValue_IsList (NCDValue *o)
-{
-    value_assert(o);
-    
-    return o->type == NCDVALUE_LIST;
 }
 
 void NCDValue_InitList (NCDValue *o)
@@ -311,29 +196,6 @@ int NCDValue_ListPrepend (NCDValue *o, NCDValue v)
     return 1;
 }
 
-int NCDValue_ListAppendList (NCDValue *o, NCDValue l)
-{
-    value_assert(o);
-    value_assert(&l);
-    ASSERT(o->type == NCDVALUE_LIST)
-    ASSERT(l.type == NCDVALUE_LIST)
-    
-    if (l.list_count > SIZE_MAX - o->list_count) {
-        return 0;
-    }
-    
-    LinkedList1Node *n;
-    while (n = LinkedList1_GetFirst(&l.list)) {
-        struct NCDValue__list_element *e = UPPER_OBJECT(n, struct NCDValue__list_element, list_node);
-        LinkedList1_Remove(&l.list, &e->list_node);
-        LinkedList1_Append(&o->list, &e->list_node);
-    }
-    
-    o->list_count += l.list_count;
-    
-    return 1;
-}
-
 size_t NCDValue_ListCount (NCDValue *o)
 {
     value_assert(o);
@@ -373,121 +235,6 @@ NCDValue * NCDValue_ListNext (NCDValue *o, NCDValue *ev)
     struct NCDValue__list_element *e = UPPER_OBJECT(ln, struct NCDValue__list_element, list_node);
     
     return &e->v;
-}
-
-int NCDValue_ListRead (NCDValue *o, int num, ...)
-{
-    value_assert(o);
-    ASSERT(o->type == NCDVALUE_LIST)
-    ASSERT(num >= 0)
-    
-    if (num != NCDValue_ListCount(o)) {
-        return 0;
-    }
-    
-    va_list ap;
-    va_start(ap, num);
-    
-    for (LinkedList1Node *n = LinkedList1_GetFirst(&o->list); n; n = LinkedList1Node_Next(n)) {
-        struct NCDValue__list_element *e = UPPER_OBJECT(n, struct NCDValue__list_element, list_node);
-        
-        NCDValue **dest = va_arg(ap, NCDValue **);
-        *dest = &e->v;
-    }
-    
-    va_end(ap);
-    
-    return 1;
-}
-
-int NCDValue_ListReadHead (NCDValue *o, int num, ...)
-{
-    value_assert(o);
-    ASSERT(o->type == NCDVALUE_LIST)
-    ASSERT(num >= 0)
-    
-    if (num > NCDValue_ListCount(o)) {
-        return 0;
-    }
-    
-    va_list ap;
-    va_start(ap, num);
-    
-    LinkedList1Node *n = LinkedList1_GetFirst(&o->list);
-    while (num > 0) {
-        ASSERT(n)
-        struct NCDValue__list_element *e = UPPER_OBJECT(n, struct NCDValue__list_element, list_node);
-        
-        NCDValue **dest = va_arg(ap, NCDValue **);
-        *dest = &e->v;
-        
-        n = LinkedList1Node_Next(n);
-        num--;
-    }
-    
-    va_end(ap);
-    
-    return 1;
-}
-
-NCDValue * NCDValue_ListGet (NCDValue *o, size_t pos)
-{
-    value_assert(o);
-    ASSERT(o->type == NCDVALUE_LIST)
-    ASSERT(pos < o->list_count)
-    
-    NCDValue *e = NCDValue_ListFirst(o);
-    while (e) {
-        if (pos == 0) {
-            break;
-        }
-        pos--;
-        e = NCDValue_ListNext(o, e);
-    }
-    ASSERT(e)
-    
-    return e;
-}
-
-NCDValue NCDValue_ListShift (NCDValue *o)
-{
-    value_assert(o);
-    ASSERT(o->type == NCDVALUE_LIST)
-    ASSERT(o->list_count > 0)
-    
-    struct NCDValue__list_element *e = UPPER_OBJECT(LinkedList1_GetFirst(&o->list), struct NCDValue__list_element, list_node);
-    
-    NCDValue v = e->v;
-    
-    LinkedList1_Remove(&o->list, &e->list_node);
-    o->list_count--;
-    free(e);
-    
-    return v;
-}
-
-NCDValue NCDValue_ListRemove (NCDValue *o, NCDValue *ev)
-{
-    value_assert(o);
-    ASSERT(o->type == NCDVALUE_LIST)
-    ASSERT(o->list_count > 0)
-    
-    struct NCDValue__list_element *e = UPPER_OBJECT(ev, struct NCDValue__list_element, v);
-    
-    NCDValue v = e->v;
-    
-    LinkedList1_Remove(&o->list, &e->list_node);
-    o->list_count--;
-    free(e);
-    
-    return v;
-}
-
-int NCDValue_IsMap (NCDValue *o)
-{
-    value_assert(o);
-    
-    return o->type == NCDVALUE_MAP;
 }
 
 void NCDValue_InitMap (NCDValue *o)
@@ -596,54 +343,6 @@ NCDValue * NCDValue_MapInsert (NCDValue *o, NCDValue key, NCDValue val)
     o->map_count++;
     
     return &e->key;
-}
-
-void NCDValue_MapRemove (NCDValue *o, NCDValue *ekey, NCDValue *out_key, NCDValue *out_val)
-{
-    value_assert(o);
-    ASSERT(o->type == NCDVALUE_MAP)
-    ASSERT(out_key)
-    ASSERT(out_val)
-    ASSERT(o->map_count > 0)
-    
-    struct NCDValue__map_element *e = UPPER_OBJECT(ekey, struct NCDValue__map_element, key);
-    value_assert(&e->key);
-    value_assert(&e->val);
-    
-    NCDValue__MapTree_Remove(&o->map_tree, 0, e);
-    
-    *out_key = e->key;
-    *out_val = e->val;
-    
-    o->map_count--;
-    
-    free(e);
-}
-
-NCDValue * NCDValue_MapFindValueByString (NCDValue *o, const char *key_str)
-{
-    value_assert(o);
-    ASSERT(o->type == NCDVALUE_MAP)
-    ASSERT(key_str)
-    
-    NCDValue key;
-    key.type = NCDVALUE_STRING;
-    key.string = (uint8_t *)key_str;
-    key.string_len = strlen(key_str);
-    
-    NCDValue *ekey = NCDValue_MapFindKey(o, &key);
-    if (!ekey) {
-        return NULL;
-    }
-    
-    return NCDValue_MapKeyValue(o, ekey);
-}
-
-int NCDValue_IsVar (NCDValue *o)
-{
-    value_assert(o);
-    
-    return o->type == NCDVALUE_VAR;
 }
 
 int NCDValue_InitVar (NCDValue *o, const char *var_name)
@@ -961,7 +660,7 @@ size_t NCDBlock_NumStatements (NCDBlock *o)
 int NCDStatement_InitReg (NCDStatement *o, const char *name, const char *objname, const char *cmdname, NCDValue args)
 {
     ASSERT(cmdname)
-    ASSERT(NCDValue_IsList(&args))
+    ASSERT(NCDValue_Type(&args) == NCDVALUE_LIST)
     
     o->name = NULL;
     o->reg.objname = NULL;

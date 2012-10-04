@@ -148,15 +148,6 @@ struct IfBlockIf {
 #define NCDSTATEMENT_FOREACH 3
 
 /**
- * Initializes a value by copying an existing value.
- * 
- * @param o value structure to initialize
- * @param v an existing value to copy
- * @return 1 on success, 0 on failure
- */
-int NCDValue_InitCopy (NCDValue *o, NCDValue *v) WARN_UNUSED;
-
-/**
  * Frees a value.
  * 
  * @param o value to free
@@ -170,23 +161,6 @@ void NCDValue_Free (NCDValue *o);
  * @return type of value; one of NCDVALUE_STRING, NCDVALUE_LIST and NCDVALUE_MAP.
  */
 int NCDValue_Type (NCDValue *o);
-
-/**
- * Checks if the value is a string value.
- * 
- * @param o the value
- * @return 1 if string, 0 if not
- */
-int NCDValue_IsString (NCDValue *o);
-
-/**
- * Checks if the value is a string value and does not contain
- * any null bytes.
- * 
- * @param o the value
- * @return 1 if string with no nulls, 0 if not
- */
-int NCDValue_IsStringNoNulls (NCDValue *o);
 
 /**
  * Initializes a string value from a null-terminated string.
@@ -229,40 +203,6 @@ char * NCDValue_StringValue (NCDValue *o);
 size_t NCDValue_StringLength (NCDValue *o);
 
 /**
- * Checks whether a string contains no null bytes in its data, i.e. strlen(str)==length.
- * 
- * @param o string value
- * @return 1 if no null, 0 if nulls
- */
-int NCDValue_StringHasNoNulls (NCDValue *o);
-
-/**
- * Checks whether a string contains any null bytes in its data, i.e. strlen(str) < length.
- * 
- * @param o string value
- * @return 1 if nulls, 0 if no nulls
- */
-int NCDValue_StringHasNulls (NCDValue *o);
-
-/**
- * Checks whether the string value is equal to the given null-terminated string.
- * Note that this is not equivalent to strcmp()==0, because the string value may
- * 
- * @param o string value
- * @param str null-terminated string to compare against
- * @return 1 if equal, 0 if not
- */
-int NCDValue_StringEquals (NCDValue *o, const char *str);
-
-/**
- * Checks if the value is a list value.
- * 
- * @param o the value
- * @return 1 if list, 0 if not
- */
-int NCDValue_IsList (NCDValue *o);
-
-/**
  * Initializes an empty list value.
  * 
  * @param o value structure to initialize
@@ -292,17 +232,6 @@ int NCDValue_ListAppend (NCDValue *o, NCDValue v) WARN_UNUSED;
 int NCDValue_ListPrepend (NCDValue *o, NCDValue v) WARN_UNUSED;
 
 /**
- * Appends values from a list to the end of a list.
- * On success, the list value that was passed with elements for insertion must be
- * assumed freed; on failure, it is unaffected.
- * 
- * @param o list value
- * @param l list value whose elements to append
- * @return 1 on success, 0 on failure
- */
-int NCDValue_ListAppendList (NCDValue *o, NCDValue l) WARN_UNUSED;
-
-/**
  * Returns the number of elements in a list.
  * 
  * @param o list value
@@ -330,66 +259,6 @@ NCDValue * NCDValue_ListFirst (NCDValue *o);
  * @return pointer to next value, or NULL
  */
 NCDValue * NCDValue_ListNext (NCDValue *o, NCDValue *ev);
-
-/**
- * Attempts to retrieve pointers to elements from a list.
- * Pass exactly 'num' extra NCDValue ** arguments. If the list has exactly
- * 'num' elements, this function succeeds, and returns pointers to them via the
- * passed variable arguments; if not, it fails.
- * 
- * @param o list value
- * @param num number of values to read. Must be >=0, and exactly that many
- *            variable arguments of type NCDValue ** must follow, all non-NULL.
- * @return 1 on succees, 0 on failure
- */
-int NCDValue_ListRead (NCDValue *o, int num, ...) WARN_UNUSED;
-
-/**
- * Like {@link NCDValue_ListRead}, but the list only needs to have >= 'num' values,
- * instead of exactly 'num'.
- */
-int NCDValue_ListReadHead (NCDValue *o, int num, ...) WARN_UNUSED;
-
-/**
- * Returns a pointer to the element of the list at the given position.
- * This performs a linear search from the beginning.
- * 
- * @param o list value
- * @param pos index of element to retrieve; must be < length.
- */
-NCDValue * NCDValue_ListGet (NCDValue *o, size_t pos);
-
-/**
- * Removes the first element from a list and returns it.
- * The caller takes ownership of the removed value and is responsible for freeing
- * it.
- * The list must have at least one element.
- * 
- * @param o list value
- * @return value that was the first on the list
- */
-NCDValue NCDValue_ListShift (NCDValue *o);
-
-/**
- * Removes an element from a list and returns it.
- * The caller takes ownership of the removed value and is responsible for freeing
- * it; the passed element pointer becomes invalid.
- * Note that the element pointer must point to a value that is really in the list
- * right now, and not just equal.
- * 
- * @param o list value
- * @param ev pointer to element of list to remove
- * @return value that was just removed
- */
-NCDValue NCDValue_ListRemove (NCDValue *o, NCDValue *ev);
-
-/**
- * Checks if the value is a map value.
- * 
- * @param o the value
- * @return 1 if map, 0 if not
- */
-int NCDValue_IsMap (NCDValue *o);
 
 /**
  * Initializes an empty map value.
@@ -461,43 +330,6 @@ NCDValue * NCDValue_MapFindKey (NCDValue *o, NCDValue *key);
  * @return pointer to the newly inserted key in the map, or NULL if insertion failed.
  */
 NCDValue * NCDValue_MapInsert (NCDValue *o, NCDValue key, NCDValue val) WARN_UNUSED;
-
-/**
- * Removes an entry from the map and returns the key and value that were just removed.
- * The entry to remove is specified by a pointer to an existing key in the map.
- * The caller takes ownership of the removed key and value value and is responsible for
- * freeing them; the passed key pointer becomes invalid.
- * Note that the key pointer must point to a value that is really a key in the map
- * right now, and not just equal to some key.
- * 
- * @param o map value
- * @param ekey pointer to an existing key in the map whose entry to remove
- * @param out_key the key of the removed entry will be returned here; must not be NULL.
- * @param out_val the value of the removed entry will be returned here; must not be NULL.
- */
-void NCDValue_MapRemove (NCDValue *o, NCDValue *ekey, NCDValue *out_key, NCDValue *out_val);
-
-/**
- * Looks for an entry in the map with a string key equal to the given null-terminated
- * string.
- * If such key exists, it returns a pointer to its associated value; if not, it returns
- * NULL.
- * NOTE: this returns a pointer to the value, not the key, unlike
- *       {@link NCDValue_MapFindKey}.
- * 
- * @param o map value
- * @param key_str null-terminated string specifying the key to look for
- * @return pointer to value, or NULL if there is no such key
- */
-NCDValue * NCDValue_MapFindValueByString (NCDValue *o, const char *key_str);
-
-/**
- * Checks if the value is a variable value.
- * 
- * @param o the value
- * @return 1 if variable, 0 if not
- */
-int NCDValue_IsVar (NCDValue *o);
 
 /**
  * Initializes a variable value.
