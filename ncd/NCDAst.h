@@ -144,7 +144,7 @@ void NCDValue_Free (NCDValue *o);
 int NCDValue_Type (NCDValue *o);
 int NCDValue_InitString (NCDValue *o, const char *str) WARN_UNUSED;
 int NCDValue_InitStringBin (NCDValue *o, const uint8_t *str, size_t len) WARN_UNUSED;
-char * NCDValue_StringValue (NCDValue *o);
+const char * NCDValue_StringValue (NCDValue *o);
 size_t NCDValue_StringLength (NCDValue *o);
 void NCDValue_InitList (NCDValue *o);
 size_t NCDValue_ListCount (NCDValue *o);
