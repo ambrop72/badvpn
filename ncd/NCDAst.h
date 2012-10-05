@@ -160,7 +160,6 @@ NCDValue * NCDValue_MapNextKey (NCDValue *o, NCDValue *ekey);
 NCDValue * NCDValue_MapKeyValue (NCDValue *o, NCDValue *ekey);
 int NCDValue_InitVar (NCDValue *o, const char *var_name) WARN_UNUSED;
 const char * NCDValue_VarName (NCDValue *o);
-int NCDValue_Compare (NCDValue *o, NCDValue *v);
 
 void NCDProgram_Init (NCDProgram *o);
 void NCDProgram_Free (NCDProgram *o);
