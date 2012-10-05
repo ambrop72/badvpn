@@ -147,9 +147,9 @@ int NCDValue_InitStringBin (NCDValue *o, const uint8_t *str, size_t len) WARN_UN
 char * NCDValue_StringValue (NCDValue *o);
 size_t NCDValue_StringLength (NCDValue *o);
 void NCDValue_InitList (NCDValue *o);
+size_t NCDValue_ListCount (NCDValue *o);
 int NCDValue_ListAppend (NCDValue *o, NCDValue v) WARN_UNUSED;
 int NCDValue_ListPrepend (NCDValue *o, NCDValue v) WARN_UNUSED;
-size_t NCDValue_ListCount (NCDValue *o);
 NCDValue * NCDValue_ListFirst (NCDValue *o);
 NCDValue * NCDValue_ListNext (NCDValue *o, NCDValue *ev);
 void NCDValue_InitMap (NCDValue *o);
