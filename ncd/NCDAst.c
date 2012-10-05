@@ -252,7 +252,7 @@ size_t NCDValue_MapCount (NCDValue *o)
     return o->map_count;
 }
 
-NCDValue * NCDValue_MapPrepend (NCDValue *o, NCDValue key, NCDValue val)
+int NCDValue_MapPrepend (NCDValue *o, NCDValue key, NCDValue val)
 {
     value_assert(o);
     ASSERT(o->type == NCDVALUE_MAP)
@@ -260,12 +260,12 @@ NCDValue * NCDValue_MapPrepend (NCDValue *o, NCDValue key, NCDValue val)
     value_assert(&val);
     
     if (o->map_count == SIZE_MAX) {
-        return NULL;
+        return 0;
     }
     
     struct NCDValue__map_element *e = malloc(sizeof(*e));
     if (!e) {
-        return NULL;
+        return 0;
     }
     
     e->key = key;
@@ -274,7 +274,7 @@ NCDValue * NCDValue_MapPrepend (NCDValue *o, NCDValue key, NCDValue val)
     
     o->map_count++;
     
-    return &e->key;
+    return 1;
 }
 
 NCDValue * NCDValue_MapFirstKey (NCDValue *o)

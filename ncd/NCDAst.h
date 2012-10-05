@@ -154,7 +154,7 @@ NCDValue * NCDValue_ListFirst (NCDValue *o);
 NCDValue * NCDValue_ListNext (NCDValue *o, NCDValue *ev);
 void NCDValue_InitMap (NCDValue *o);
 size_t NCDValue_MapCount (NCDValue *o);
-NCDValue * NCDValue_MapPrepend (NCDValue *o, NCDValue key, NCDValue val) WARN_UNUSED;
+int NCDValue_MapPrepend (NCDValue *o, NCDValue key, NCDValue val) WARN_UNUSED;
 NCDValue * NCDValue_MapFirstKey (NCDValue *o);
 NCDValue * NCDValue_MapNextKey (NCDValue *o, NCDValue *ekey);
 NCDValue * NCDValue_MapKeyValue (NCDValue *o, NCDValue *ekey);
