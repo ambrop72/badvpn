@@ -30,11 +30,15 @@
  * 
  * Synopsis:
  *   assert(string cond)
+ *   assert_false(string cond)
  * 
  * Description:
- *   If 'cond' is equal to the string "true", does nothing.
- *   Otherwise, logs an error and initiates interpreter termination with exit code 1,
- *   i.e. it is equivalent to calling exit("1").
+ *   If 'cond' is equal to the string "true" (assert) or "false" (assert_false),
+ *   does nothing. Otherwise, logs an error and initiates interpreter termination
+ *   with exit code 1, i.e. it is equivalent to calling exit("1").
+ *   Note that "assert_false(cond);" is not completely equivalent to
+ *   "not(cond) a; assert(a);", in case 'cond'  is something other than "true"
+ *   or "false".
  */
 
 #include <ncd/NCDModule.h>
@@ -43,7 +47,7 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-static void func_new (NCDModuleInst *i)
+static void func_new_common (NCDModuleInst *i, int is_false)
 {
     // check arguments
     NCDValRef cond_arg;
@@ -60,7 +64,7 @@ static void func_new (NCDModuleInst *i)
     NCDModuleInst_Backend_Up(i);
     
     // if failed, initiate exit (before up!)
-    if (!NCDVal_StringEquals(cond_arg, "true")) {
+    if (!NCDVal_StringEquals(cond_arg, (is_false ? "false" : "true"))) {
         ModuleLog(i, BLOG_ERROR, "assertion failed");
         NCDModuleInst_Backend_InterpExit(i, 1);
     }
@@ -72,10 +76,23 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
+static void func_new (NCDModuleInst *i)
+{
+    func_new_common(i, 0);
+}
+
+static void func_new_false (NCDModuleInst *i)
+{
+    func_new_common(i, 1);
+}
+
 static const struct NCDModule modules[] = {
     {
         .type = "assert",
         .func_new = func_new
+    }, {
+        .type = "assert_false",
+        .func_new = func_new_false
     }, {
         .type = NULL
     }
