@@ -30,10 +30,10 @@ if (BUILD_NCD)
     target_link_libraries(ncd_tokenizer_test ncdtokenizer)
 
     add_executable(ncd_parser_test ncd_parser_test.c)
-    target_link_libraries(ncd_parser_test ncdconfigparser ncdvaluegenerator ncdsugar)
+    target_link_libraries(ncd_parser_test ncdconfigparser ncdvalgenerator ncdsugar)
 
     add_executable(ncd_value_parser_test ncd_value_parser_test.c)
-    target_link_libraries(ncd_value_parser_test ncdvalueparser ncdvaluegenerator)
+    target_link_libraries(ncd_value_parser_test ncdvalparser ncdvalgenerator)
 
     add_executable(ncdinterfacemonitor_test ncdinterfacemonitor_test.c)
     target_link_libraries(ncdinterfacemonitor_test ncdinterfacemonitor)
@@ -42,7 +42,7 @@ if (BUILD_NCD)
     target_link_libraries(ncdval_test ncdval)
     
     add_executable(ncdvalcons_test ncdvalcons_test.c)
-    target_link_libraries(ncdvalcons_test ncdvalcons ncdvaluegenerator)
+    target_link_libraries(ncdvalcons_test ncdvalcons ncdvalgenerator)
 endif ()
 
 if (BUILDING_UDEVMONITOR)

@@ -1,5 +1,5 @@
 /**
- * @file NCDValueParser.c
+ * @file NCDValParser.c
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -35,9 +35,9 @@
 #include <ncd/NCDConfigTokenizer.h>
 #include <ncd/NCDValCons.h>
 
-#include "NCDValueParser.h"
+#include "NCDValParser.h"
 
-#include <generated/blog_channel_NCDValueParser.h>
+#include <generated/blog_channel_NCDValParser.h>
 
 struct token {
     char *str;
@@ -85,14 +85,14 @@ static void handle_cons_error (struct parser_state *state)
 
 // rename non-static functions defined by our Lemon parser
 // to avoid clashes with other Lemon parsers
-#define ParseTrace ParseTrace_NCDValueParser
-#define ParseAlloc ParseAlloc_NCDValueParser
-#define ParseFree ParseFree_NCDValueParser
-#define Parse Parse_NCDValueParser
+#define ParseTrace ParseTrace_NCDValParser
+#define ParseAlloc ParseAlloc_NCDValParser
+#define ParseFree ParseFree_NCDValParser
+#define Parse Parse_NCDValParser
 
 // include the generated Lemon parser
-#include "../generated/NCDValueParser_parse.c"
-#include "../generated/NCDValueParser_parse.h"
+#include "../generated/NCDValParser_parse.c"
+#include "../generated/NCDValParser_parse.h"
 
 static int tokenizer_output (void *user, int token, char *value, size_t value_len, size_t line, size_t line_char)
 {

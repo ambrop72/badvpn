@@ -1,5 +1,5 @@
 /**
- * @file NCDValueGenerator.h
+ * @file NCDValParser.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -27,14 +27,24 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef BADVPN_NCDVALUEGENERATOR_H
-#define BADVPN_NCDVALUEGENERATOR_H
+#ifndef BADVPN_NCDVALUEPARSER_H
+#define BADVPN_NCDVALUEPARSER_H
+
+#include <stddef.h>
 
 #include <misc/debug.h>
-#include <misc/expstring.h>
 #include <ncd/NCDVal.h>
 
-char * NCDValGenerator_Generate (NCDValRef value);
-int NCDValGenerator_AppendGenerate (NCDValRef value, ExpString *str) WARN_UNUSED;
+/**
+ * Parses an NCD value string into {@link NCDVal} compact representation.
+ * 
+ * @param str pointer to the string to be parsed
+ * @param str_len length of the string in bytes
+ * @param mem value memory object which the result will be stored in
+ * @param out_value on success, the value reference of the result will be
+ *                  written here
+ * @return 1 on success, 0 on failure
+ */
+int NCDValParser_Parse (const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out_value) WARN_UNUSED;
 
 #endif

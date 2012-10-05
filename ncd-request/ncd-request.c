@@ -38,8 +38,8 @@
 #include <system/BNetwork.h>
 #include <system/BReactor.h>
 #include <system/BAddr.h>
-#include <ncd/NCDValueParser.h>
-#include <ncd/NCDValueGenerator.h>
+#include <ncd/NCDValParser.h>
+#include <ncd/NCDValGenerator.h>
 #include <ncd/NCDRequestClient.h>
 
 #include <generated/blog_channel_ncd_request.h>

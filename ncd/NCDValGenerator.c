@@ -1,5 +1,5 @@
 /**
- * @file NCDValueGenerator.c
+ * @file NCDValGenerator.c
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -35,9 +35,9 @@
 #include <misc/expstring.h>
 #include <base/BLog.h>
 
-#include <ncd/NCDValueGenerator.h>
+#include "NCDValGenerator.h"
 
-#include <generated/blog_channel_NCDValueGenerator.h>
+#include <generated/blog_channel_NCDValGenerator.h>
 
 static int generate_val (NCDValRef value, ExpString *out_str)
 {

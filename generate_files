@@ -48,4 +48,4 @@ do_flex predicate/BPredicate.l BPredicate
 do_bison predicate/BPredicate.y BPredicate
 "${PHP_CMD[@]}" blog_generator/blog.php --input-file blog_channels.txt --output-dir "${OUT_DIR}"
 do_lemon ncd/NCDConfigParser_parse.y
-do_lemon ncd/NCDValueParser_parse.y
+do_lemon ncd/NCDValParser_parse.y

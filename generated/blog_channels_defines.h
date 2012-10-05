@@ -82,7 +82,7 @@
 #define BLOG_CHANNEL_lwip 81
 #define BLOG_CHANNEL_NCDConfigTokenizer 82
 #define BLOG_CHANNEL_NCDConfigParser 83
-#define BLOG_CHANNEL_NCDValueParser 84
+#define BLOG_CHANNEL_NCDValParser 84
 #define BLOG_CHANNEL_nsskey 85
 #define BLOG_CHANNEL_addr 86
 #define BLOG_CHANNEL_PasswordListener 87
@@ -99,7 +99,7 @@
 #define BLOG_CHANNEL_BArpProbe 98
 #define BLOG_CHANNEL_NCDModuleIndex 99
 #define BLOG_CHANNEL_NCDModuleProcess 100
-#define BLOG_CHANNEL_NCDValueGenerator 101
+#define BLOG_CHANNEL_NCDValGenerator 101
 #define BLOG_CHANNEL_ncd_from_string 102
 #define BLOG_CHANNEL_ncd_to_string 103
 #define BLOG_CHANNEL_ncd_value 104

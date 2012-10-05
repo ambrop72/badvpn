@@ -41,8 +41,8 @@
 #include <flow/PacketProtoDecoder.h>
 #include <flow/PacketStreamSender.h>
 #include <flow/PacketPassFifoQueue.h>
-#include <ncd/NCDValueGenerator.h>
-#include <ncd/NCDValueParser.h>
+#include <ncd/NCDValGenerator.h>
+#include <ncd/NCDValParser.h>
 
 struct NCDRequestClient_req;
 

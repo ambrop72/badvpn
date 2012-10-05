@@ -54,7 +54,7 @@
 
 #include <misc/parse_number.h>
 #include <misc/ipaddr.h>
-#include <ncd/NCDValueParser.h>
+#include <ncd/NCDValParser.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_parse.h>

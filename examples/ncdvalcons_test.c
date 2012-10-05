@@ -32,7 +32,7 @@
 
 #include <misc/debug.h>
 #include <ncd/NCDValCons.h>
-#include <ncd/NCDValueGenerator.h>
+#include <ncd/NCDValGenerator.h>
 
 static NCDValMem mem;
 static NCDValCons cons;

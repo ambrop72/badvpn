@@ -87,8 +87,8 @@
 #include <flow/PacketProtoDecoder.h>
 #include <flow/PacketStreamSender.h>
 #include <flow/PacketPassFifoQueue.h>
-#include <ncd/NCDValueParser.h>
-#include <ncd/NCDValueGenerator.h>
+#include <ncd/NCDValParser.h>
+#include <ncd/NCDValGenerator.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_sys_request_server.h>

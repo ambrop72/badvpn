@@ -37,7 +37,7 @@
 #include <misc/expstring.h>
 #include <base/BLog.h>
 #include <ncd/NCDConfigParser.h>
-#include <ncd/NCDValueGenerator.h>
+#include <ncd/NCDValGenerator.h>
 #include <ncd/NCDSugar.h>
 
 static int generate_val (NCDValue *value, ExpString *out_str)

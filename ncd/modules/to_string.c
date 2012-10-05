@@ -38,7 +38,7 @@
 #include <string.h>
 
 #include <ncd/NCDModule.h>
-#include <ncd/NCDValueGenerator.h>
+#include <ncd/NCDValGenerator.h>
 
 #include <generated/blog_channel_ncd_to_string.h>
 

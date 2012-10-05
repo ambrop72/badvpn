@@ -33,8 +33,8 @@
 
 #include <misc/debug.h>
 #include <base/BLog.h>
-#include <ncd/NCDValueParser.h>
-#include <ncd/NCDValueGenerator.h>
+#include <ncd/NCDValParser.h>
+#include <ncd/NCDValGenerator.h>
 
 int main (int argc, char *argv[])
 {
