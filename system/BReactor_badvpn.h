@@ -90,9 +90,6 @@ typedef struct BTimer_t {
     btime_t msTime;
     BTimer_handler handler;
     void *handler_pointer;
-
-    uint8_t active;
-    uint8_t expired;
     btime_t absTime;
     union {
         BReactor__TimersTreeNode tree_node;

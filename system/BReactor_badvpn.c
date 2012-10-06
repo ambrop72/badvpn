@@ -54,6 +54,11 @@
 #define KEVENT_TAG_FD 1
 #define KEVENT_TAG_KEVENT 2
 
+#define BTIMER_INACTIVE_TIME (BTIME_MIN + 0)
+#define BTIMER_EXPIRED_TIME (BTIME_MIN + 1)
+#define BTIMER_MIN_RUNNING_TIME (BTIME_MIN + 2)
+#define BTIMER_IS_RUNNING_TIME(x) ((x) >= BTIMER_MIN_RUNNING_TIME)
+
 static int compare_timers (BTimer *t1, BTimer *t2)
 {
     int cmp = B_COMPARE(t1->absTime, t2->absTime);
@@ -74,7 +79,7 @@ static int move_expired_timers (BReactor *bsys, btime_t now)
     // move timed out timers to the expired list
     BTimer *timer;
     while (timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0)) {
-        ASSERT(timer->active)
+        ASSERT(BTIMER_IS_RUNNING_TIME(timer->absTime))
         
         // if it's in the future, stop
         if (timer->absTime > now) {
@@ -89,7 +94,7 @@ static int move_expired_timers (BReactor *bsys, btime_t now)
         LinkedList1_Append(&bsys->timers_expired_list, &timer->list_node);
 
         // set expired
-        timer->expired = 1;
+        timer->absTime = BTIMER_EXPIRED_TIME;
     }
 
     return moved;
@@ -100,7 +105,7 @@ static void move_first_timers (BReactor *bsys)
     // get the time of the first timer
     BTimer *first_timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0);
     ASSERT(first_timer)
-    ASSERT(first_timer->active)
+    ASSERT(BTIMER_IS_RUNNING_TIME(first_timer->absTime))
     btime_t first_time = first_timer->absTime;
     
     // remove from running timers tree
@@ -110,12 +115,12 @@ static void move_first_timers (BReactor *bsys)
     LinkedList1_Append(&bsys->timers_expired_list, &first_timer->list_node);
     
     // set expired
-    first_timer->expired = 1;
+    first_timer->absTime = BTIMER_EXPIRED_TIME;
     
     // also move other timers with the same timeout
     BTimer *timer;
     while (timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0)) {
-        ASSERT(timer->active)
+        ASSERT(BTIMER_IS_RUNNING_TIME(timer->absTime))
         ASSERT(timer->absTime >= first_time)
         
         // if it's in the future, stop
@@ -130,7 +135,7 @@ static void move_first_timers (BReactor *bsys)
         LinkedList1_Append(&bsys->timers_expired_list, &timer->list_node);
         
         // set expired
-        timer->expired = 1;
+        timer->absTime = BTIMER_EXPIRED_TIME;
     }
 }
 
@@ -300,6 +305,8 @@ static void wait_for_events (BReactor *bsys)
     // compute timeout
     BTimer *first_timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0);
     if (first_timer) {
+        ASSERT(BTIMER_IS_RUNNING_TIME(first_timer->absTime))
+        
         // get current time
         now = btime_gettime();
         
@@ -550,15 +557,12 @@ void BTimer_Init (BTimer *bt, btime_t msTime, BTimer_handler handler, void *hand
     bt->msTime = msTime;
     bt->handler = handler;
     bt->handler_pointer = handler_pointer;
-
-    bt->active = 0;
+    bt->absTime = BTIMER_INACTIVE_TIME;
 }
 
 int BTimer_IsRunning (BTimer *bt)
 {
-    ASSERT(bt->active == 0 || bt->active == 1)
-    
-    return bt->active;
+    return (bt->absTime != BTIMER_INACTIVE_TIME);
 }
 
 int BReactor_Init (BReactor *bsys)
@@ -751,14 +755,13 @@ int BReactor_Exec (BReactor *bsys)
         LinkedList1Node *list_node = LinkedList1_GetFirst(&bsys->timers_expired_list);
         if (list_node) {
             BTimer *timer = UPPER_OBJECT(list_node, BTimer, list_node);
-            ASSERT(timer->active)
-            ASSERT(timer->expired)
+            ASSERT(timer->absTime == BTIMER_EXPIRED_TIME)
             
             // remove from expired list
             LinkedList1_Remove(&bsys->timers_expired_list, &timer->list_node);
             
             // set inactive
-            timer->active = 0;
+            timer->absTime = BTIMER_INACTIVE_TIME;
             
             // call handler
             BLog(BLOG_DEBUG, "Dispatching timer");
@@ -972,10 +975,13 @@ void BReactor_SetTimerAbsolute (BReactor *bsys, BTimer *bt, btime_t time)
 {
     // unlink it if it's already in the list
     BReactor_RemoveTimer(bsys, bt);
+    
+    // don't allow reserved times
+    if (!BTIMER_IS_RUNNING_TIME(time)) {
+        time = BTIMER_MIN_RUNNING_TIME;
+    }
 
     // initialize timer
-    bt->active = 1;
-    bt->expired = 0;
     bt->absTime = time;
 
     // insert to running timers tree
@@ -985,11 +991,11 @@ void BReactor_SetTimerAbsolute (BReactor *bsys, BTimer *bt, btime_t time)
 
 void BReactor_RemoveTimer (BReactor *bsys, BTimer *bt)
 {
-    if (!bt->active) {
+    if (bt->absTime == BTIMER_INACTIVE_TIME) {
         return;
     }
 
-    if (bt->expired) {
+    if (bt->absTime == BTIMER_EXPIRED_TIME) {
         // remove from expired list
         LinkedList1_Remove(&bsys->timers_expired_list, &bt->list_node);
     } else {
@@ -998,7 +1004,7 @@ void BReactor_RemoveTimer (BReactor *bsys, BTimer *bt)
     }
 
     // set inactive
-    bt->active = 0;
+    bt->absTime = BTIMER_INACTIVE_TIME;
 }
 
 BPendingGroup * BReactor_PendingGroup (BReactor *bsys)
