@@ -102,7 +102,7 @@ void BReactor_SetTimerAfter (BReactor *bsys, BTimer *bt, btime_t after);
 void BReactor_SetTimerAbsolute (BReactor *bsys, BTimer *bt, btime_t time);
 void BReactor_RemoveTimer (BReactor *bsys, BTimer *bt);
 BPendingGroup * BReactor_PendingGroup (BReactor *bsys);
-int BReactor_Synchronize (BReactor *bsys, BPending *ref);
+int BReactor_Synchronize (BReactor *bsys, BSmallPending *ref);
 int BReactor_AddFileDescriptor (BReactor *bsys, BFileDescriptor *bs) WARN_UNUSED;
 void BReactor_RemoveFileDescriptor (BReactor *bsys, BFileDescriptor *bs);
 void BReactor_SetFileDescriptorEvents (BReactor *bsys, BFileDescriptor *bs, int events);

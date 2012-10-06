@@ -1039,7 +1039,7 @@ BPendingGroup * BReactor_PendingGroup (BReactor *bsys)
     return &bsys->pending_jobs;
 }
 
-int BReactor_Synchronize (BReactor *bsys, BPending *ref)
+int BReactor_Synchronize (BReactor *bsys, BSmallPending *ref)
 {
     ASSERT(ref)
     

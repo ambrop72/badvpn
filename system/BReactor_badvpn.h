@@ -292,8 +292,8 @@ int BReactor_Init (BReactor *bsys) WARN_UNUSED;
 /**
  * Frees the reactor.
  * Must not be called from within the event loop ({@link BReactor_Exec}).
- * There must be no {@link BPending} objects using the pending group
- * returned by {@link BReactor_PendingGroup}.
+ * There must be no {@link BPending} or {@link BSmallPending} objects using the
+ * pending group returned by {@link BReactor_PendingGroup}.
  * There must be no running timers in this reactor.
  * There must be no limit objects in this reactor.
  * There must be no file descriptors or handles registered
@@ -398,8 +398,8 @@ void BReactor_RemoveTimer (BReactor *bsys, BTimer *bt);
  * (timers, file descriptors and Windows handles).
  * The returned pending group may only be used as an argument to {@link BPending_Init},
  * and must not be accessed by other means.
- * All {@link BPending} objects using this group must be freed before freeing
- * the reactor.
+ * All {@link BPending} and {@link BSmallPending} objects using this group must be
+ * freed before freeing the reactor.
  * 
  * @param bsys the object
  * @return pending group for scheduling jobs for the reactor to execute
@@ -424,7 +424,7 @@ BPendingGroup * BReactor_PendingGroup (BReactor *bsys);
  * @return 1 if the reference job was reached,
  *         0 if {@link BReactor_Quit} was called (either while executing a job, or before)
  */
-int BReactor_Synchronize (BReactor *bsys, BPending *ref);
+int BReactor_Synchronize (BReactor *bsys, BSmallPending *ref);
 
 #ifndef BADVPN_USE_WINAPI
 

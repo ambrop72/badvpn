@@ -40,10 +40,21 @@
 #include <structure/SLinkedList.h>
 #include <base/DebugObject.h>
 
-struct BPending_s;
+struct BSmallPending_s;
 
 #include "BPending_list.h"
 #include <structure/SLinkedList_decl.h>
+
+/**
+ * Job execution handler.
+ * It is guaranteed that the associated {@link BSmallPending} object was
+ * in set state.
+ * The {@link BSmallPending} object enters not set state before the handler
+ * is called.
+ * 
+ * @param user as in {@link BSmallPending_Init}
+ */
+typedef void (*BSmallPending_handler) (void *user);
 
 /**
  * Job execution handler.
@@ -68,8 +79,7 @@ typedef struct {
 /**
  * Object for queuing a job for execution.
  */
-typedef struct BPending_s {
-    BPendingGroup *g;
+typedef struct BSmallPending_s {
     BPending_handler handler;
     void *user;
     BPending__ListNode pending_node; // optimization: if not pending, .next is this
@@ -77,6 +87,16 @@ typedef struct BPending_s {
     uint8_t pending;
 #endif
     DebugObject d_obj;
+} BSmallPending;
+
+/**
+ * Object for queuing a job for execution. This is a convenience wrapper
+ * around {@link BSmallPending} with an extra field to remember the
+ * {@link BPendingGroup} being used.
+ */
+typedef struct {
+    BSmallPending base;
+    BPendingGroup *g;
 } BPending;
 
 /**
@@ -88,7 +108,8 @@ void BPendingGroup_Init (BPendingGroup *g);
 
 /**
  * Frees the object.
- * There must be no {@link BPending} objects using this group.
+ * There must be no {@link BPending} or {@link BSmallPending} objects using
+ * this group.
  * 
  * @param g the object
  */
@@ -118,7 +139,57 @@ void BPendingGroup_ExecuteJob (BPendingGroup *g);
  * @param g the object
  * @return the top job if there is at least one job, NULL if not
  */
-BPending * BPendingGroup_PeekJob (BPendingGroup *g);
+BSmallPending * BPendingGroup_PeekJob (BPendingGroup *g);
+
+/**
+ * Initializes the object.
+ * The object is initialized in not set state.
+ * 
+ * @param o the object
+ * @param g pending group to use
+ * @param handler job execution handler
+ * @param user value to pass to handler
+ */
+void BSmallPending_Init (BSmallPending *o, BPendingGroup *g, BSmallPending_handler handler, void *user);
+
+/**
+ * Frees the object.
+ * The execution handler will not be called after the object
+ * is freed.
+ * 
+ * @param o the object
+ * @param g pending group. Must be the same as was used in {@link BSmallPending_Init}.
+ */
+void BSmallPending_Free (BSmallPending *o, BPendingGroup *g);
+
+/**
+ * Enables the job, pushing it to the top of the job list.
+ * If the object was already in set state, the job is removed from its
+ * current position in the list before being pushed.
+ * The object enters set state.
+ * 
+ * @param o the object
+ * @param g pending group. Must be the same as was used in {@link BSmallPending_Init}.
+ */
+void BSmallPending_Set (BSmallPending *o, BPendingGroup *g);
+
+/**
+ * Disables the job, removing it from the job list.
+ * If the object was not in set state, nothing is done.
+ * The object enters not set state.
+ * 
+ * @param o the object
+ * @param g pending group. Must be the same as was used in {@link BSmallPending_Init}.
+ */
+void BSmallPending_Unset (BSmallPending *o, BPendingGroup *g);
+
+/**
+ * Checks if the job is in set state.
+ * 
+ * @param o the object
+ * @return 1 if in set state, 0 if not
+ */
+int BSmallPending_IsSet (BSmallPending *o);
 
 /**
  * Initializes the object.

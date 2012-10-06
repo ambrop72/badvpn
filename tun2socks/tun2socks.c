@@ -80,7 +80,7 @@
     BPending_Free(&sync_mark);
 
 #define SYNC_COMMIT \
-    BReactor_Synchronize(&ss, &sync_mark); \
+    BReactor_Synchronize(&ss, &sync_mark.base); \
     BPending_Free(&sync_mark);
 
 // command-line options
