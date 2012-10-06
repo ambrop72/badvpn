@@ -89,8 +89,6 @@ struct process {
     BSmallTimer wait_timer;
     BSmallPending work_job;
     LinkedList1Node list_node; // node in processes
-    char *mem;
-    int mem_size;
     int state;
     int ap;
     int fp;
@@ -160,7 +158,6 @@ static void signal_handler (void *unused);
 static void start_terminate (int exit_code);
 static int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process);
 static void process_free (struct process *p, NCDModuleProcess **out_mp);
-static int process_mem_is_preallocated (struct process *p, char *mem);
 static void process_start_terminating (struct process *p);
 static int process_have_child (struct process *p);
 static void process_assert_pointers (struct process *p);
@@ -176,6 +173,8 @@ static int process_resolve_object_expr (struct process *p, int pos, const char *
 static int process_resolve_variable_expr (struct process *p, int pos, const char *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value);
 static void statement_logfunc (struct statement *ps);
 static void statement_log (struct statement *ps, int level, const char *fmt, ...);
+static int statement_mem_is_allocated (struct statement *ps);
+static int statement_mem_size (struct statement *ps);
 static int statement_allocate_memory (struct statement *ps, int alloc_size);
 static void statement_instance_func_event (struct statement *ps, int event);
 static int statement_instance_func_getobj (struct statement *ps, const char *objname, NCDObject *out_object);
@@ -699,8 +698,6 @@ int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
     // set variables
     p->iprocess = iprocess;
     p->module_process = module_process;
-    p->mem = (char *)p + mem_off;
-    p->mem_size = mem_size;
     p->state = PSTATE_WORKING;
     p->ap = 0;
     p->fp = 0;
@@ -715,13 +712,14 @@ int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
     }
     
     // init statements
+    char *mem = (char *)p + mem_off;
     for (int i = 0; i < num_statements; i++) {
         struct statement *ps = &p->statements[i];
         ps->p = p;
         ps->i = i;
         ps->state = SSTATE_FORGOTTEN;
         ps->mem_size = NCDInterpProcess_StatementPreallocSize(iprocess, i);
-        ps->mem = (ps->mem_size == 0 ? NULL : p->mem + NCDInterpProcess_StatementPreallocOffset(iprocess, i));
+        ps->mem = (ps->mem_size == 0 ? NULL : mem + NCDInterpProcess_StatementPreallocOffset(iprocess, i));
     }
     
     // init timer
@@ -754,7 +752,7 @@ void process_free (struct process *p, NCDModuleProcess **out_mp)
     // free statement memory
     for (int i = 0; i < p->num_statements; i++) {
         struct statement *ps = &p->statements[i];
-        if (ps->mem && !process_mem_is_preallocated(p, ps->mem)) {
+        if (statement_mem_is_allocated(ps)) {
             free(ps->mem);
         }
     }
@@ -770,13 +768,6 @@ void process_free (struct process *p, NCDModuleProcess **out_mp)
     
     // free strucure
     BFree(p);
-}
-
-int process_mem_is_preallocated (struct process *p, char *mem)
-{
-    ASSERT(mem)
-    
-    return (mem >= p->mem && mem < p->mem + p->mem_size);
 }
 
 void process_start_terminating (struct process *p)
@@ -1217,12 +1208,22 @@ void statement_log (struct statement *ps, int level, const char *fmt, ...)
     va_end(vl);
 }
 
+int statement_mem_is_allocated (struct statement *ps)
+{
+    return (ps->mem_size < 0);
+}
+
+int statement_mem_size (struct statement *ps)
+{
+    return (ps->mem_size >= 0 ? ps->mem_size : -ps->mem_size);
+}
+
 int statement_allocate_memory (struct statement *ps, int alloc_size)
 {
     ASSERT(alloc_size >= 0)
     
-    if (alloc_size > ps->mem_size) {
-        if (ps->mem && !process_mem_is_preallocated(ps->p, ps->mem)) {
+    if (alloc_size > statement_mem_size(ps)) {
+        if (statement_mem_is_allocated(ps)) {
             free(ps->mem);
         }
         
@@ -1232,7 +1233,7 @@ int statement_allocate_memory (struct statement *ps, int alloc_size)
             return 0;
         }
         
-        ps->mem_size = alloc_size;
+        ps->mem_size = -alloc_size;
     }
     
     return 1;
