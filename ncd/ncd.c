@@ -87,7 +87,7 @@ struct process {
     NCDInterpProcess *iprocess;
     NCDModuleProcess *module_process;
     BSmallTimer wait_timer;
-    BPending work_job;
+    BSmallPending work_job;
     LinkedList1Node list_node; // node in processes
     struct statement *statements;
     char *mem;
@@ -715,13 +715,13 @@ int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
     BSmallTimer_Init(&p->wait_timer, (BSmallTimer_handler)process_wait_timer_handler, p);
     
     // init work job
-    BPending_Init(&p->work_job, BReactor_PendingGroup(&reactor), (BPending_handler)process_work_job_handler, p);
+    BSmallPending_Init(&p->work_job, BReactor_PendingGroup(&reactor), (BSmallPending_handler)process_work_job_handler, p);
     
     // insert to processes list
     LinkedList1_Append(&processes, &p->list_node);
     
     // schedule work
-    BPending_Set(&p->work_job);   
+    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(&reactor));   
     return 1;
     
 fail0:
@@ -750,7 +750,7 @@ void process_free (struct process *p, NCDModuleProcess **out_mp)
     LinkedList1_Remove(&processes, &p->list_node);
     
     // free work job
-    BPending_Free(&p->work_job);
+    BSmallPending_Free(&p->work_job, BReactor_PendingGroup(&reactor));
     
     // free timer
     BReactor_RemoveSmallTimer(&reactor, &p->wait_timer);
@@ -828,7 +828,7 @@ void process_schedule_work (struct process *p)
     BReactor_RemoveSmallTimer(&reactor, &p->wait_timer);
     
     // schedule work
-    BPending_Set(&p->work_job);
+    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(&reactor));
 }
 
 void process_work_job_handler (struct process *p)
@@ -988,7 +988,7 @@ void process_advance (struct process *p)
     ASSERT(!process_have_child(p))
     ASSERT(p->ap < p->num_statements)
     ASSERT(!p->have_error)
-    ASSERT(!BPending_IsSet(&p->work_job))
+    ASSERT(!BSmallPending_IsSet(&p->work_job))
     ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
     ASSERT(p->state == PSTATE_WORKING)
     
@@ -1095,7 +1095,7 @@ void process_wait_timer_handler (struct process *p)
     ASSERT(!process_have_child(p))
     ASSERT(p->ap < p->num_statements)
     ASSERT(!p->have_error)
-    ASSERT(!BPending_IsSet(&p->work_job))
+    ASSERT(!BSmallPending_IsSet(&p->work_job))
     ASSERT(p->state == PSTATE_WORKING)
     
     process_log(p, BLOG_INFO, "retrying");
