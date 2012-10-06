@@ -86,7 +86,7 @@ struct statement {
 struct process {
     NCDInterpProcess *iprocess;
     NCDModuleProcess *module_process;
-    BTimer wait_timer;
+    BSmallTimer wait_timer;
     BPending work_job;
     LinkedList1Node list_node; // node in processes
     struct statement *statements;
@@ -712,7 +712,7 @@ int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
     }
     
     // init timer
-    BTimer_Init(&p->wait_timer, options.retry_time, (BTimer_handler)process_wait_timer_handler, p);
+    BSmallTimer_Init(&p->wait_timer, (BSmallTimer_handler)process_wait_timer_handler, p);
     
     // init work job
     BPending_Init(&p->work_job, BReactor_PendingGroup(&reactor), (BPending_handler)process_work_job_handler, p);
@@ -753,7 +753,7 @@ void process_free (struct process *p, NCDModuleProcess **out_mp)
     BPending_Free(&p->work_job);
     
     // free timer
-    BReactor_RemoveTimer(&reactor, &p->wait_timer);
+    BReactor_RemoveSmallTimer(&reactor, &p->wait_timer);
     
     // free strucure
     BFree(p);
@@ -825,7 +825,7 @@ void process_schedule_work (struct process *p)
     process_assert_pointers(p);
     
     // stop timer
-    BReactor_RemoveTimer(&reactor, &p->wait_timer);
+    BReactor_RemoveSmallTimer(&reactor, &p->wait_timer);
     
     // schedule work
     BPending_Set(&p->work_job);
@@ -834,7 +834,7 @@ void process_schedule_work (struct process *p)
 void process_work_job_handler (struct process *p)
 {
     process_assert_pointers(p);
-    ASSERT(!BTimer_IsRunning(&p->wait_timer))
+    ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
     
     if (p->state == PSTATE_WAITING) {
         return;
@@ -944,7 +944,7 @@ void process_work_job_handler (struct process *p)
             p->have_error = 0;
             
             // set wait timer
-            BReactor_SetTimer(&reactor, &p->wait_timer);
+            BReactor_SetSmallTimer(&reactor, &p->wait_timer, BTIMER_SET_RELATIVE, options.retry_time);
         } else {
             // advance
             process_advance(p);
@@ -989,7 +989,7 @@ void process_advance (struct process *p)
     ASSERT(p->ap < p->num_statements)
     ASSERT(!p->have_error)
     ASSERT(!BPending_IsSet(&p->work_job))
-    ASSERT(!BTimer_IsRunning(&p->wait_timer))
+    ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
     ASSERT(p->state == PSTATE_WORKING)
     
     struct statement *ps = &p->statements[p->ap];
