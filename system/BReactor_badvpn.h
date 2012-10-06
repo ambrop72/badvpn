@@ -63,14 +63,15 @@
 #include <misc/debugcounter.h>
 #include <base/DebugObject.h>
 #include <structure/LinkedList1.h>
-#include <structure/SAvl.h>
+#include <structure/CAvl.h>
 #include <system/BTime.h>
 #include <base/BPending.h>
 
 struct BSmallTimer_t;
+typedef struct BSmallTimer_t *BReactor_timerstree_link;
 
 #include "BReactor_badvpn_timerstree.h"
-#include <structure/SAvl_decl.h>
+#include <structure/CAvl_decl.h>
 
 /**
  * Handler function invoked when the timer expires.
@@ -79,40 +80,10 @@ struct BSmallTimer_t;
  * This function is being called from within the timer's previosly
  * associated reactor.
  *
- * @param user value passed to {@link BSmallTimer_Init}
+ * @param timer pointer to the timer. Use the {@link UPPER_OBJECT} macro
+ *              to obtain the pointer to the containing structure.
  */
-typedef void (*BSmallTimer_handler) (void *user);
-
-/**
- * Timer object used with {@link BReactor}.
- */
-typedef struct BSmallTimer_t {
-    BSmallTimer_handler handler;
-    void *handler_pointer;
-    btime_t absTime;
-    union {
-        BReactor__TimersTreeNode tree_node;
-        LinkedList1Node list_node;
-    };
-} BSmallTimer;
-
-/**
- * Initializes the timer object.
- * The timer object is initialized in not running state.
- *
- * @param bt the object
- * @param handler handler function invoked when the timer expires
- * @param user value to pass to the handler function
- */
-void BSmallTimer_Init (BSmallTimer *bt, BSmallTimer_handler handler, void *user);
-
-/**
- * Checks if the timer is running.
- *
- * @param bt the object
- * @return 1 if running, 0 if not running
- */
-int BSmallTimer_IsRunning (BSmallTimer *bt);
+typedef void (*BSmallTimer_handler) (struct BSmallTimer_t *timer);
 
 /**
  * Handler function invoked when the timer expires.
@@ -126,11 +97,48 @@ int BSmallTimer_IsRunning (BSmallTimer *bt);
 typedef void (*BTimer_handler) (void *user);
 
 /**
+ * Timer object used with {@link BReactor}.
+ */
+typedef struct BSmallTimer_t {
+    union {
+        BSmallTimer_handler small;
+        BTimer_handler heavy;
+    } handler;
+    union {
+        LinkedList1Node list_node;
+        struct BSmallTimer_t *tree_child[2];
+    } u;
+    struct BSmallTimer_t *tree_parent;
+    btime_t absTime;
+    int8_t tree_balance;
+    uint8_t state;
+    uint8_t is_small;
+} BSmallTimer;
+
+/**
+ * Initializes the timer object.
+ * The timer object is initialized in not running state.
+ *
+ * @param bt the object
+ * @param handler handler function invoked when the timer expires
+ */
+void BSmallTimer_Init (BSmallTimer *bt, BSmallTimer_handler handler);
+
+/**
+ * Checks if the timer is running.
+ *
+ * @param bt the object
+ * @return 1 if running, 0 if not running
+ */
+int BSmallTimer_IsRunning (BSmallTimer *bt);
+
+/**
  * Timer object used with {@link BReactor}. This is a legacy wrapper
  * around {@link BSmallTimer} with an extra field for the default time.
  */
 typedef struct {
     BSmallTimer base;
+    void *user;
     btime_t msTime;
 } BTimer;
 

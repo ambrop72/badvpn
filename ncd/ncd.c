@@ -170,7 +170,7 @@ static void process_schedule_work (struct process *p);
 static void process_work_job_handler (struct process *p);
 static int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRef *out);
 static void process_advance (struct process *p);
-static void process_wait_timer_handler (struct process *p);
+static void process_wait_timer_handler (BSmallTimer *timer);
 static int process_find_object (struct process *p, int pos, const char *name, NCDObject *out_object);
 static int process_resolve_object_expr (struct process *p, int pos, const char *names, size_t num_names, NCDObject *out_object);
 static int process_resolve_variable_expr (struct process *p, int pos, const char *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value);
@@ -725,7 +725,7 @@ int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
     }
     
     // init timer
-    BSmallTimer_Init(&p->wait_timer, (BSmallTimer_handler)process_wait_timer_handler, p);
+    BSmallTimer_Init(&p->wait_timer, process_wait_timer_handler);
     
     // init work job
     BSmallPending_Init(&p->work_job, BReactor_PendingGroup(&reactor), (BSmallPending_handler)process_work_job_handler, p);
@@ -1101,8 +1101,9 @@ fail0:
     process_schedule_work(p);
 }
 
-void process_wait_timer_handler (struct process *p)
+void process_wait_timer_handler (BSmallTimer *timer)
 {
+    struct process *p = UPPER_OBJECT(timer, struct process, wait_timer);
     process_assert_pointers(p);
     ASSERT(p->ap == p->fp)
     ASSERT(!process_have_child(p))
