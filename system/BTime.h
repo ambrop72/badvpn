@@ -51,6 +51,8 @@
 
 typedef int64_t btime_t;
 
+#define BTIME_MIN INT64_MIN
+
 struct _BTime_global {
     #ifndef NDEBUG
     int initialized; // initialized statically
