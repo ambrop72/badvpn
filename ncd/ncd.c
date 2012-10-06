@@ -89,7 +89,6 @@ struct process {
     BSmallTimer wait_timer;
     BSmallPending work_job;
     LinkedList1Node list_node; // node in processes
-    struct statement *statements;
     char *mem;
     int mem_size;
     int state;
@@ -97,6 +96,7 @@ struct process {
     int fp;
     int have_error;
     int num_statements;
+    struct statement statements[];
 };
 
 // command-line options
@@ -659,34 +659,47 @@ int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
 {
     ASSERT(iprocess)
     
-    // get num statements
+    // get number of statements
     int num_statements = NCDInterpProcess_NumStatements(iprocess);
-    if (num_statements > SIZE_MAX) {
-        BLog(BLOG_ERROR, "too many statements");
+    
+    // get size of preallocated memory
+    int mem_size = NCDInterpProcess_PreallocSize(iprocess);
+    if (mem_size < 0) {
         goto fail0;
     }
     
-    // calculate size of preallocated statement memory
-    int mem_size = NCDInterpProcess_PreallocSize(iprocess);
-    if (mem_size < 0 || mem_size > SIZE_MAX) {
-        BLog(BLOG_ERROR, "NCDInterpProcess_PreallocSize failed");
+    // start with size of process structure
+    size_t alloc_size = sizeof(struct process);
+    
+    // add size of statements array
+    if (num_statements > SIZE_MAX / sizeof(struct statement)) {
+        goto fail0;
+    }
+    if (!BSizeAdd(&alloc_size, num_statements * sizeof(struct statement))) {
+        goto fail0;
+    }
+    
+    // align for preallocated memory
+    if (!BSizeAlign(&alloc_size, BMAX_ALIGN)) {
+        goto fail0;
+    }
+    size_t mem_off = alloc_size;
+    
+    // add size of preallocated memory
+    if (mem_size > SIZE_MAX || !BSizeAdd(&alloc_size, mem_size)) {
         goto fail0;
     }
     
     // allocate memory
-    void *v_statements;
-    void *v_mem;
-    struct process *p = BAllocThreeArrays(1, sizeof(*p), num_statements, sizeof(p->statements[0]), mem_size, 1, &v_statements, &v_mem);
+    struct process *p = BAlloc(alloc_size);
     if (!p) {
-        BLog(BLOG_ERROR, "BAllocSize failed");
         goto fail0;
     }
     
     // set variables
     p->iprocess = iprocess;
     p->module_process = module_process;
-    p->statements = v_statements;
-    p->mem = v_mem;
+    p->mem = (char *)p + mem_off;
     p->mem_size = mem_size;
     p->state = PSTATE_WORKING;
     p->ap = 0;
@@ -725,7 +738,7 @@ int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
     return 1;
     
 fail0:
-    BLog(BLOG_ERROR, "failed to initialize process %s", NCDInterpProcess_Name(iprocess));
+    BLog(BLOG_ERROR, "failed to allocate memory for process %s", NCDInterpProcess_Name(iprocess));
     return 0;
 }
 
