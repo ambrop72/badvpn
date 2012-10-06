@@ -32,7 +32,6 @@
 
 #include <misc/debug.h>
 #include <system/BReactor.h>
-#include <base/BPending.h>
 #include <base/BLog.h>
 #include <system/BProcess.h>
 #include <udevmonitor/NCDUdevManager.h>
