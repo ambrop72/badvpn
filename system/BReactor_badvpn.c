@@ -59,7 +59,7 @@
 #define BTIMER_MIN_RUNNING_TIME (BTIME_MIN + 2)
 #define BTIMER_IS_RUNNING_TIME(x) ((x) >= BTIMER_MIN_RUNNING_TIME)
 
-static int compare_timers (BTimer *t1, BTimer *t2)
+static int compare_timers (BSmallTimer *t1, BSmallTimer *t2)
 {
     int cmp = B_COMPARE(t1->absTime, t2->absTime);
     if (cmp) {
@@ -77,7 +77,7 @@ static int move_expired_timers (BReactor *bsys, btime_t now)
     int moved = 0;
     
     // move timed out timers to the expired list
-    BTimer *timer;
+    BSmallTimer *timer;
     while (timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0)) {
         ASSERT(BTIMER_IS_RUNNING_TIME(timer->absTime))
         
@@ -103,7 +103,7 @@ static int move_expired_timers (BReactor *bsys, btime_t now)
 static void move_first_timers (BReactor *bsys)
 {
     // get the time of the first timer
-    BTimer *first_timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0);
+    BSmallTimer *first_timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0);
     ASSERT(first_timer)
     ASSERT(BTIMER_IS_RUNNING_TIME(first_timer->absTime))
     btime_t first_time = first_timer->absTime;
@@ -118,7 +118,7 @@ static void move_first_timers (BReactor *bsys)
     first_timer->absTime = BTIMER_EXPIRED_TIME;
     
     // also move other timers with the same timeout
-    BTimer *timer;
+    BSmallTimer *timer;
     while (timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0)) {
         ASSERT(BTIMER_IS_RUNNING_TIME(timer->absTime))
         ASSERT(timer->absTime >= first_time)
@@ -303,7 +303,7 @@ static void wait_for_events (BReactor *bsys)
     btime_t now = 0; // to remove warning
     
     // compute timeout
-    BTimer *first_timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0);
+    BSmallTimer *first_timer = BReactor__TimersTree_GetFirst(&bsys->timers_tree, 0);
     if (first_timer) {
         ASSERT(BTIMER_IS_RUNNING_TIME(first_timer->absTime))
         
@@ -552,17 +552,27 @@ void BFileDescriptor_Init (BFileDescriptor *bs, int fd, BFileDescriptor_handler 
 
 #endif
 
-void BTimer_Init (BTimer *bt, btime_t msTime, BTimer_handler handler, void *handler_pointer)
+void BSmallTimer_Init (BSmallTimer *bt, BSmallTimer_handler handler, void *handler_pointer)
 {
-    bt->msTime = msTime;
     bt->handler = handler;
     bt->handler_pointer = handler_pointer;
     bt->absTime = BTIMER_INACTIVE_TIME;
 }
 
-int BTimer_IsRunning (BTimer *bt)
+int BSmallTimer_IsRunning (BSmallTimer *bt)
 {
     return (bt->absTime != BTIMER_INACTIVE_TIME);
+}
+
+void BTimer_Init (BTimer *bt, btime_t msTime, BTimer_handler handler, void *user)
+{
+    BSmallTimer_Init(&bt->base, handler, user);
+    bt->msTime = msTime;
+}
+
+int BTimer_IsRunning (BTimer *bt)
+{
+    return BSmallTimer_IsRunning(&bt->base);
 }
 
 int BReactor_Init (BReactor *bsys)
@@ -754,7 +764,7 @@ int BReactor_Exec (BReactor *bsys)
         // dispatch timer
         LinkedList1Node *list_node = LinkedList1_GetFirst(&bsys->timers_expired_list);
         if (list_node) {
-            BTimer *timer = UPPER_OBJECT(list_node, BTimer, list_node);
+            BSmallTimer *timer = UPPER_OBJECT(list_node, BSmallTimer, list_node);
             ASSERT(timer->absTime == BTIMER_EXPIRED_TIME)
             
             // remove from expired list
@@ -961,20 +971,17 @@ void BReactor_Quit (BReactor *bsys, int code)
     bsys->exit_code = code;
 }
 
-void BReactor_SetTimer (BReactor *bsys, BTimer *bt)
+void BReactor_SetSmallTimer (BReactor *bsys, BSmallTimer *bt, int mode, btime_t time)
 {
-    BReactor_SetTimerAfter(bsys, bt, bt->msTime);
-}
-
-void BReactor_SetTimerAfter (BReactor *bsys, BTimer *bt, btime_t after)
-{
-    BReactor_SetTimerAbsolute(bsys, bt, btime_add(btime_gettime(), after));
-}
-
-void BReactor_SetTimerAbsolute (BReactor *bsys, BTimer *bt, btime_t time)
-{
+    ASSERT(mode == BTIMER_SET_ABSOLUTE || mode == BTIMER_SET_RELATIVE)
+    
     // unlink it if it's already in the list
-    BReactor_RemoveTimer(bsys, bt);
+    BReactor_RemoveSmallTimer(bsys, bt);
+    
+    // if mode is relative, add current time
+    if (mode == BTIMER_SET_RELATIVE) {
+        time = btime_add(btime_gettime(), time);
+    }
     
     // don't allow reserved times
     if (!BTIMER_IS_RUNNING_TIME(time)) {
@@ -989,7 +996,7 @@ void BReactor_SetTimerAbsolute (BReactor *bsys, BTimer *bt, btime_t time)
     ASSERT_EXECUTE(res)
 }
 
-void BReactor_RemoveTimer (BReactor *bsys, BTimer *bt)
+void BReactor_RemoveSmallTimer (BReactor *bsys, BSmallTimer *bt)
 {
     if (bt->absTime == BTIMER_INACTIVE_TIME) {
         return;
@@ -1005,6 +1012,26 @@ void BReactor_RemoveTimer (BReactor *bsys, BTimer *bt)
 
     // set inactive
     bt->absTime = BTIMER_INACTIVE_TIME;
+}
+
+void BReactor_SetTimer (BReactor *bsys, BTimer *bt)
+{
+    BReactor_SetSmallTimer(bsys, &bt->base, BTIMER_SET_RELATIVE, bt->msTime);
+}
+
+void BReactor_SetTimerAfter (BReactor *bsys, BTimer *bt, btime_t after)
+{
+    BReactor_SetSmallTimer(bsys, &bt->base, BTIMER_SET_RELATIVE, after);
+}
+
+void BReactor_SetTimerAbsolute (BReactor *bsys, BTimer *bt, btime_t time)
+{
+    BReactor_SetSmallTimer(bsys, &bt->base, BTIMER_SET_ABSOLUTE, time);
+}
+
+void BReactor_RemoveTimer (BReactor *bsys, BTimer *bt)
+{
+    return BReactor_RemoveSmallTimer(bsys, &bt->base);
 }
 
 BPendingGroup * BReactor_PendingGroup (BReactor *bsys)

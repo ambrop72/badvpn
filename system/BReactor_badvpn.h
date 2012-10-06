@@ -67,10 +67,52 @@
 #include <system/BTime.h>
 #include <base/BPending.h>
 
-struct BTimer_t;
+struct BSmallTimer_t;
 
 #include "BReactor_badvpn_timerstree.h"
 #include <structure/SAvl_decl.h>
+
+/**
+ * Handler function invoked when the timer expires.
+ * The timer was in running state.
+ * The timer enters not running state before this function is invoked.
+ * This function is being called from within the timer's previosly
+ * associated reactor.
+ *
+ * @param user value passed to {@link BSmallTimer_Init}
+ */
+typedef void (*BSmallTimer_handler) (void *user);
+
+/**
+ * Timer object used with {@link BReactor}.
+ */
+typedef struct BSmallTimer_t {
+    BSmallTimer_handler handler;
+    void *handler_pointer;
+    btime_t absTime;
+    union {
+        BReactor__TimersTreeNode tree_node;
+        LinkedList1Node list_node;
+    };
+} BSmallTimer;
+
+/**
+ * Initializes the timer object.
+ * The timer object is initialized in not running state.
+ *
+ * @param bt the object
+ * @param handler handler function invoked when the timer expires
+ * @param user value to pass to the handler function
+ */
+void BSmallTimer_Init (BSmallTimer *bt, BSmallTimer_handler handler, void *user);
+
+/**
+ * Checks if the timer is running.
+ *
+ * @param bt the object
+ * @return 1 if running, 0 if not running
+ */
+int BSmallTimer_IsRunning (BSmallTimer *bt);
 
 /**
  * Handler function invoked when the timer expires.
@@ -84,17 +126,12 @@ struct BTimer_t;
 typedef void (*BTimer_handler) (void *user);
 
 /**
- * Timer object used with {@link BReactor}.
+ * Timer object used with {@link BReactor}. This is a legacy wrapper
+ * around {@link BSmallTimer} with an extra field for the default time.
  */
-typedef struct BTimer_t {
+typedef struct {
+    BSmallTimer base;
     btime_t msTime;
-    BTimer_handler handler;
-    void *handler_pointer;
-    btime_t absTime;
-    union {
-        BReactor__TimersTreeNode tree_node;
-        LinkedList1Node list_node;
-    };
 } BTimer;
 
 /**
@@ -123,6 +160,9 @@ struct BFileDescriptor_t;
 #define BREACTOR_READ (1 << 0)
 #define BREACTOR_WRITE (1 << 1)
 #define BREACTOR_ERROR (1 << 2)
+
+#define BTIMER_SET_ABSOLUTE 1
+#define BTIMER_SET_RELATIVE 2
 
 /**
  * Handler function invoked by the reactor when one or more events are detected.
@@ -282,6 +322,29 @@ int BReactor_Exec (BReactor *bsys);
  *             called more than once, it will return the last code.
  */
 void BReactor_Quit (BReactor *bsys, int code);
+
+/**
+ * Starts a timer to expire at the specified time.
+ * The timer must have been initialized with {@link BSmallTimer_Init}.
+ * If the timer is in running state, it must be associated with this reactor.
+ * The timer enters running state, associated with this reactor.
+ *
+ * @param bsys the object
+ * @param bt timer to start
+ * @param mode interpretation of time (BTIMER_SET_ABSOLUTE or BTIMER_SET_RELATIVE)
+ * @param time absolute or relative expiration time
+ */
+void BReactor_SetSmallTimer (BReactor *bsys, BSmallTimer *bt, int mode, btime_t time);
+
+/**
+ * Stops a timer.
+ * If the timer is in running state, it must be associated with this reactor.
+ * The timer enters not running state.
+ *
+ * @param bsys the object
+ * @param bt timer to stop
+ */
+void BReactor_RemoveSmallTimer (BReactor *bsys, BSmallTimer *bt);
 
 /**
  * Starts a timer to expire after its default time.
