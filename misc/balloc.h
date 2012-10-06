@@ -141,6 +141,24 @@ static void * BAllocTwoArrays (size_t count1, size_t bytes1, size_t count2, size
  */
 static void * BAllocThreeArrays (size_t count1, size_t bytes1, size_t count2, size_t bytes2, size_t count3, size_t bytes3, void **out2, void **out3);
 
+/**
+ * Adds to a size_t with overflow detection.
+ * 
+ * @param s pointer to a size_t to add to
+ * @param add number to add
+ * @return 1 on success, 0 on failure
+ */
+static int BSizeAdd (size_t *s, size_t add);
+
+/**
+ * Aligns a size_t upwards with overflow detection.
+ * 
+ * @param s pointer to a size_t to align
+ * @param align alignment value. Must be >0.
+ * @return 1 on success, 0 on failure
+ */
+static int BSizeAlign (size_t *s, size_t align);
+
 void * BAlloc (size_t bytes)
 {
     if (bytes == 0) {
@@ -281,6 +299,32 @@ void * BAllocThreeArrays (size_t count1, size_t bytes1, size_t count2, size_t by
     }
     
     return arr;
+}
+
+int BSizeAdd (size_t *s, size_t add)
+{
+    ASSERT(s)
+    
+    if (add > SIZE_MAX - *s) {
+        return 0;
+    }
+    *s += add;
+    return 1;
+}
+
+int BSizeAlign (size_t *s, size_t align)
+{
+    ASSERT(s)
+    ASSERT(align > 0)
+    
+    size_t mod = *s % align;
+    if (mod > 0) {
+        if (align - mod > SIZE_MAX - *s) {
+            return 0;
+        }
+        *s += align - mod;
+    }
+    return 1;
 }
 
 #endif
