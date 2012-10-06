@@ -80,7 +80,6 @@
 #define PROCESS_ERROR_SHIFT 2
 
 struct statement {
-    struct process *p;
     NCDModuleInst inst;
     NCDValMem args_mem;
     char *mem;
@@ -182,6 +181,7 @@ static int process_resolve_object_expr (struct process *p, int pos, const char *
 static int process_resolve_variable_expr (struct process *p, int pos, const char *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value);
 static void statement_logfunc (struct statement *ps);
 static void statement_log (struct statement *ps, int level, const char *fmt, ...);
+static struct process * statement_process (struct statement *ps);
 static int statement_mem_is_allocated (struct statement *ps);
 static int statement_mem_size (struct statement *ps);
 static int statement_allocate_memory (struct statement *ps, int alloc_size);
@@ -723,7 +723,6 @@ int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
     char *mem = (char *)p + mem_off;
     for (int i = 0; i < num_statements; i++) {
         struct statement *ps = &p->statements[i];
-        ps->p = p;
         ps->i = i;
         ps->state = SSTATE_FORGOTTEN;
         ps->mem_size = NCDInterpProcess_StatementPreallocSize(iprocess, i);
@@ -1013,7 +1012,7 @@ int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRe
     size_t num_names;
     NCDPlaceholderDb_GetVariable(&placeholder_db, plid, &varnames, &num_names);
     
-    return process_resolve_variable_expr(ps->p, ps->i, varnames, num_names, mem, out);
+    return process_resolve_variable_expr(statement_process(ps), ps->i, varnames, num_names, mem, out);
 }
 
 void process_advance (struct process *p)
@@ -1223,7 +1222,7 @@ fail:;
 
 void statement_logfunc (struct statement *ps)
 {
-    process_logfunc(ps->p);
+    process_logfunc(statement_process(ps));
     BLog_Append("statement %zu: ", ps->i);
 }
 
@@ -1237,6 +1236,11 @@ void statement_log (struct statement *ps, int level, const char *fmt, ...)
     va_start(vl, fmt);
     BLog_LogViaFuncVarArg((BLog_logfunc)statement_logfunc, ps, BLOG_CURRENT_CHANNEL, level, fmt, vl);
     va_end(vl);
+}
+
+struct process * statement_process (struct statement *ps)
+{
+    return UPPER_OBJECT(ps - ps->i, struct process, statements);
 }
 
 int statement_mem_is_allocated (struct statement *ps)
@@ -1274,7 +1278,7 @@ void statement_instance_func_event (struct statement *ps, int event)
 {
     ASSERT(ps->state == SSTATE_CHILD || ps->state == SSTATE_ADULT || ps->state == SSTATE_DYING)
     
-    struct process *p = ps->p;
+    struct process *p = statement_process(ps);
     process_assert_pointers(p);
     
     // schedule work
@@ -1349,7 +1353,7 @@ int statement_instance_func_getobj (struct statement *ps, const char *objname, N
 {
     ASSERT(ps->state != SSTATE_FORGOTTEN)
     
-    return process_find_object(ps->p, ps->i, objname, out_object);
+    return process_find_object(statement_process(ps), ps->i, objname, out_object);
 }
 
 int statement_instance_func_initprocess (struct statement *ps, NCDModuleProcess *mp, const char *template_name)
