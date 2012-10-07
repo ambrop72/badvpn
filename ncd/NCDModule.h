@@ -70,10 +70,10 @@ struct NCDModuleProcess_s;
  * from within this function. The only exception is that it may free the
  * instance from within the NCDMODULE_EVENT_DEAD event.
  * 
- * @param user as in {@link NCDModuleInst_Init}
+ * @param inst the module instance
  * @param event event number
  */
-typedef void (*NCDModuleInst_func_event) (void *user, int event);
+typedef void (*NCDModuleInst_func_event) (struct NCDModuleInst_s *inst, int event);
 
 /**
  * Function called when the module instance wants the interpreter to
@@ -81,12 +81,12 @@ typedef void (*NCDModuleInst_func_event) (void *user, int event);
  * The instance will not be in dead state.
  * This function must not have any side effects.
  * 
- * @param user as in {@link NCDModuleInst_Init}
+ * @param inst the module instance
  * @param name name of the object
  * @param out_object the object will be returned here
  * @return 1 on success, 0 on failure
  */
-typedef int (*NCDModuleInst_func_getobj) (void *user, const char *name, NCDObject *out_object);
+typedef int (*NCDModuleInst_func_getobj) (struct NCDModuleInst_s *inst, const char *name, NCDObject *out_object);
 
 /**
  * Function called when the module instance wants the interpreter to
@@ -101,44 +101,40 @@ typedef int (*NCDModuleInst_func_getobj) (void *user, const char *name, NCDObjec
  * only update its internal state, and visibly react only via jobs that it pushes
  * from within this function.
  * 
- * @param user as in {@link NCDModuleInst_Init}
  * @param p handle for the new process backend
  * @param template_name name of the template to create the process from
  * @return 1 on success, 0 on failure
  */
-typedef int (*NCDModuleInst_func_initprocess) (void *user, struct NCDModuleProcess_s *p, const char *template_name);
+typedef int (*NCDModuleInst_func_initprocess) (struct NCDModuleProcess_s *p, const char *template_name);
 
 /**
  * Function called when the module instance wants the interpreter to
  * initiate termination, as if it received an external terminatio request (signal).
  * 
- * @param user as in {@link NCDModuleInst_Init}
  * @param exit_code exit code to return the the operating system. This overrides any previously
  *                  set exit code, and will be overriden by a signal to the value 1.
  *   
  */
-typedef void (*NCDModuleInst_func_interp_exit) (void *user, int exit_code);
+typedef void (*NCDModuleInst_func_interp_exit) (int exit_code);
 
 /**
  * Function called when the module instance wants the interpreter to
  * provide its extra command line arguments.
  * 
- * @param user as in {@link NCDModuleInst_Init}
  * @param mem value memory to use
  * @param out_value write value reference here on success
  * @return 1 if available, 0 if not available. If available, but out of memory, return 1
  *         and an invalid value.
  */
-typedef int (*NCDModuleInst_func_interp_getargs) (void *user, NCDValMem *mem, NCDValRef *out_value);
+typedef int (*NCDModuleInst_func_interp_getargs) (NCDValMem *mem, NCDValRef *out_value);
 
 /**
  * Function called when the module instance wants the interpreter to
  * provide its retry time.
  * 
- * @param user as in {@link NCDModuleInst_Init}
  * @return retry time in milliseconds
  */
-typedef btime_t (*NCDModuleInst_func_interp_getretrytime) (void *user);
+typedef btime_t (*NCDModuleInst_func_interp_getretrytime) (void);
 
 #define NCDMODULEPROCESS_EVENT_UP 1
 #define NCDMODULEPROCESS_EVENT_DOWN 2
@@ -297,7 +293,6 @@ typedef struct NCDModuleInst_s {
     const struct NCDModule *m;
     void *method_user;
     NCDValRef args;
-    void *user;
     const struct NCDModuleInst_params *params;
     const struct NCDModuleInst_iparams *iparams;
     void *inst_user;
@@ -345,7 +340,7 @@ typedef struct NCDModuleProcess_s {
  * @param params more parameters, see {@link NCDModuleInst_params}
  * @param iparams more parameters, see {@link NCDModuleInst_iparams}
  */
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem, const NCDObject *method_object, NCDValRef args, void *user, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams);
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem, const NCDObject *method_object, NCDValRef args, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams);
 
 /**
  * Frees the instance.

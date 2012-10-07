@@ -58,7 +58,7 @@ static int process_arg_object_func_getvar2 (NCDModuleProcess *o, void *n_ptr, co
 
 static void frontend_event (NCDModuleInst *n, int event)
 {
-    n->params->func_event(n->user, event);
+    n->params->func_event(n, event);
 }
 
 static void inst_assert_backend (NCDModuleInst *n)
@@ -68,7 +68,7 @@ static void inst_assert_backend (NCDModuleInst *n)
            n->state == STATE_DYING)
 }
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem, const NCDObject *method_object, NCDValRef args, void *user, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams)
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem, const NCDObject *method_object, NCDValRef args, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams)
 {
     ASSERT(m)
     ASSERT(m->alloc_size >= 0)
@@ -88,7 +88,6 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem,
     n->m = m;
     n->method_user = (method_object ? method_object->user : NULL);
     n->args = args;
-    n->user = user;
     n->params = params;
     n->iparams = iparams;
     
@@ -265,7 +264,7 @@ int NCDModuleInst_Backend_GetObj (NCDModuleInst *n, const char *name, NCDObject 
     ASSERT(name)
     ASSERT(out_object)
     
-    int res = n->params->func_getobj(n->user, name, out_object);
+    int res = n->params->func_getobj(n, name, out_object);
     ASSERT(res == 0 || res == 1)
     
     return res;
@@ -277,7 +276,7 @@ void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const 
     
     va_list vl;
     va_start(vl, fmt);
-    BLog_LogViaFuncVarArg(n->params->logfunc, n->user, channel, level, fmt, vl);
+    BLog_LogViaFuncVarArg(n->params->logfunc, n, channel, level, fmt, vl);
     va_end(vl);
 }
 
@@ -297,7 +296,7 @@ void NCDModuleInst_Backend_InterpExit (NCDModuleInst *n, int exit_code)
     DebugObject_Access(&n->d_obj);
     inst_assert_backend(n);
     
-    n->iparams->func_interp_exit(n->user, exit_code);
+    n->iparams->func_interp_exit(exit_code);
 }
 
 int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValMem *mem, NCDValRef *out_value)
@@ -307,7 +306,7 @@ int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValMem *mem, NCDVa
     ASSERT(mem)
     ASSERT(out_value)
     
-    int res = n->iparams->func_interp_getargs(n->user, mem, out_value);
+    int res = n->iparams->func_interp_getargs(mem, out_value);
     ASSERT(res == 0 || res == 1)
     ASSERT(res == 0 || (NCDVal_Assert(*out_value), 1))
     
@@ -319,7 +318,7 @@ btime_t NCDModuleInst_Backend_InterpGetRetryTime (NCDModuleInst *n)
     DebugObject_Access(&n->d_obj);
     inst_assert_backend(n);
     
-    return n->iparams->func_interp_getretrytime(n->user);
+    return n->iparams->func_interp_getretrytime();
 }
 
 int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event)
@@ -348,7 +347,7 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     o->interp_func_getobj = NULL;
     
     // init interpreter part
-    if (!(n->iparams->func_initprocess(n->user, o, template_name))) {
+    if (!(n->iparams->func_initprocess(o, template_name))) {
         goto fail1;
     }
     

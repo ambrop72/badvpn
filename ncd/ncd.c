@@ -185,13 +185,13 @@ static struct process * statement_process (struct statement *ps);
 static int statement_mem_is_allocated (struct statement *ps);
 static int statement_mem_size (struct statement *ps);
 static int statement_allocate_memory (struct statement *ps, int alloc_size);
-static void statement_instance_func_event (struct statement *ps, int event);
-static int statement_instance_func_getobj (struct statement *ps, const char *objname, NCDObject *out_object);
-static int statement_instance_func_initprocess (struct statement *ps, NCDModuleProcess *mp, const char *template_name);
-static void statement_instance_logfunc (struct statement *ps);
-static void statement_instance_func_interp_exit (struct statement *ps, int exit_code);
-static int statement_instance_func_interp_getargs (struct statement *ps, NCDValMem *mem, NCDValRef *out_value);
-static btime_t statement_instance_func_interp_getretrytime (struct statement *ps);
+static void statement_instance_func_event (NCDModuleInst *inst, int event);
+static int statement_instance_func_getobj (NCDModuleInst *inst, const char *objname, NCDObject *out_object);
+static int statement_instance_func_initprocess (NCDModuleProcess *mp, const char *template_name);
+static void statement_instance_logfunc (NCDModuleInst *inst);
+static void statement_instance_func_interp_exit (int exit_code);
+static int statement_instance_func_interp_getargs (NCDValMem *mem, NCDValRef *out_value);
+static btime_t statement_instance_func_interp_getretrytime (void);
 static void process_moduleprocess_func_event (struct process *p, int event);
 static int process_moduleprocess_func_getobj (struct process *p, const char *name, NCDObject *out_object);
 
@@ -368,17 +368,17 @@ int main (int argc, char **argv)
     }
     
     // init common module params
-    module_params.func_event = (NCDModuleInst_func_event)statement_instance_func_event;
-    module_params.func_getobj = (NCDModuleInst_func_getobj)statement_instance_func_getobj;
+    module_params.func_event = statement_instance_func_event;
+    module_params.func_getobj = statement_instance_func_getobj;
     module_params.logfunc = (BLog_logfunc)statement_instance_logfunc;
     module_iparams.reactor = &reactor;
     module_iparams.manager = &manager;
     module_iparams.umanager = &umanager;
     module_iparams.random2 = &random2;
-    module_iparams.func_initprocess = (NCDModuleInst_func_initprocess)statement_instance_func_initprocess;
-    module_iparams.func_interp_exit = (NCDModuleInst_func_interp_exit)statement_instance_func_interp_exit;
-    module_iparams.func_interp_getargs = (NCDModuleInst_func_interp_getargs)statement_instance_func_interp_getargs;
-    module_iparams.func_interp_getretrytime = (NCDModuleInst_func_interp_getretrytime)statement_instance_func_interp_getretrytime;
+    module_iparams.func_initprocess = statement_instance_func_initprocess;
+    module_iparams.func_interp_exit = statement_instance_func_interp_exit;
+    module_iparams.func_interp_getargs = statement_instance_func_interp_getargs;
+    module_iparams.func_interp_getretrytime = statement_instance_func_interp_getretrytime;
     
     // init processes list
     LinkedList1_Init(&processes);
@@ -1109,7 +1109,7 @@ void process_advance (struct process *p)
     process_assert_pointers(p);
     
     // initialize module instance
-    NCDModuleInst_Init(&ps->inst, module, mem, object_ptr, args, ps, &module_params, &module_iparams);
+    NCDModuleInst_Init(&ps->inst, module, mem, object_ptr, args, &module_params, &module_iparams);
     return;
     
 fail1:
@@ -1274,8 +1274,9 @@ int statement_allocate_memory (struct statement *ps, int alloc_size)
     return 1;
 }
 
-void statement_instance_func_event (struct statement *ps, int event)
+void statement_instance_func_event (NCDModuleInst *inst, int event)
 {
+    struct statement *ps = UPPER_OBJECT(inst, struct statement, inst);
     ASSERT(ps->state == SSTATE_CHILD || ps->state == SSTATE_ADULT || ps->state == SSTATE_DYING)
     
     struct process *p = statement_process(ps);
@@ -1349,70 +1350,66 @@ void statement_instance_func_event (struct statement *ps, int event)
     }
 }
 
-int statement_instance_func_getobj (struct statement *ps, const char *objname, NCDObject *out_object)
+int statement_instance_func_getobj (NCDModuleInst *inst, const char *objname, NCDObject *out_object)
 {
+    struct statement *ps = UPPER_OBJECT(inst, struct statement, inst);
     ASSERT(ps->state != SSTATE_FORGOTTEN)
     
     return process_find_object(statement_process(ps), ps->i, objname, out_object);
 }
 
-int statement_instance_func_initprocess (struct statement *ps, NCDModuleProcess *mp, const char *template_name)
+int statement_instance_func_initprocess (NCDModuleProcess *mp, const char *template_name)
 {
-    ASSERT(ps->state != SSTATE_FORGOTTEN)
-    
     // find process
     NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&iprogram, template_name);
     if (!iprocess) {
-        statement_log(ps, BLOG_ERROR, "no template named %s", template_name);
+        BLog(BLOG_ERROR, "no template named %s", template_name);
         return 0;
     }
     
     // make sure it's a template
     if (!NCDInterpProcess_IsTemplate(iprocess)) {
-        statement_log(ps, BLOG_ERROR, "need template to create a process, but %s is a process", template_name);
+        BLog(BLOG_ERROR, "need template to create a process, but %s is a process", template_name);
         return 0;
     }
     
     // create process
     if (!process_new(iprocess, mp)) {
-        statement_log(ps, BLOG_ERROR, "failed to create process from template %s", template_name);
+        BLog(BLOG_ERROR, "failed to create process from template %s", template_name);
         return 0;
     }
     
-    statement_log(ps, BLOG_INFO, "created process from template %s", template_name);
+    BLog(BLOG_INFO, "created process from template %s", template_name);
     
     return 1;
 }
 
-void statement_instance_logfunc (struct statement *ps)
+void statement_instance_logfunc (NCDModuleInst *inst)
 {
+    struct statement *ps = UPPER_OBJECT(inst, struct statement, inst);
     ASSERT(ps->state != SSTATE_FORGOTTEN)
     
     statement_logfunc(ps);
     BLog_Append("module: ");
 }
 
-void statement_instance_func_interp_exit (struct statement *ps, int exit_code)
+void statement_instance_func_interp_exit (int exit_code)
 {
-    ASSERT(ps->state != SSTATE_FORGOTTEN)
-    
     start_terminate(exit_code);
 }
 
-int statement_instance_func_interp_getargs (struct statement *ps, NCDValMem *mem, NCDValRef *out_value)
+int statement_instance_func_interp_getargs (NCDValMem *mem, NCDValRef *out_value)
 {
-    ASSERT(ps->state != SSTATE_FORGOTTEN)
-    
     *out_value = NCDVal_NewList(mem, options.num_extra_args);
     if (NCDVal_IsInvalid(*out_value)) {
-        statement_log(ps, BLOG_ERROR, "NCDVal_NewList failed");
+        BLog(BLOG_ERROR, "NCDVal_NewList failed");
         goto fail;
     }
     
     for (int i = 0; i < options.num_extra_args; i++) {
         NCDValRef arg = NCDVal_NewString(mem, options.extra_args[i]);
         if (NCDVal_IsInvalid(arg)) {
-            statement_log(ps, BLOG_ERROR, "NCDVal_NewString failed");
+            BLog(BLOG_ERROR, "NCDVal_NewString failed");
             goto fail;
         }
         
@@ -1426,10 +1423,8 @@ fail:
     return 1;
 }
 
-btime_t statement_instance_func_interp_getretrytime (struct statement *ps)
+btime_t statement_instance_func_interp_getretrytime (void)
 {
-    ASSERT(ps->state != SSTATE_FORGOTTEN)
-    
     return options.retry_time;
 }
 
