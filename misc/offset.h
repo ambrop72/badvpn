@@ -40,7 +40,7 @@
 /**
  * Returns a pointer to a struct, given a pointer to its member.
  */
-#define UPPER_OBJECT(_ptr, _object_type, _field_name) ((_object_type *)((uint8_t *)(_ptr) - offsetof(_object_type, _field_name)))
+#define UPPER_OBJECT(_ptr, _object_type, _field_name) ((_object_type *)((char *)(_ptr) - offsetof(_object_type, _field_name)))
 
 /**
  * Returns the offset of one struct member from another.
