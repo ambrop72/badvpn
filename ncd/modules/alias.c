@@ -75,7 +75,7 @@ static int split_string_inplace (char *str, char del)
     return num_extra_parts;
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *unused, NCDModuleInst *i)
 {
     // read arguments
     NCDValRef target_arg;
@@ -158,7 +158,7 @@ static int func_getobj (void *vo, const char *name, NCDObject *out_object)
 static const struct NCDModule modules[] = {
     {
         .type = "alias",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_die = func_die,
         .func_getobj = func_getobj
     }, {
