@@ -1,3 +1,19 @@
+- NCD: performance and memory usage improvements
+
+- NCD: add assert_false()
+
+- NCD: don't link to OpenSSL to for random number generator. Use /dev/urandom instead to generate XIDs for DHCP.
+
+- NCD: deprecate ip_in_network() and instead add net.ipv{4,6}.addr_in_network(), net.ipv{4,6}.ifnot_addr_in_network()
+
+- NCD: implement some IPv6 modules: net.ipv6.addr(), net.ipv6.route()
+
+- NCD: support CIDR style addr/prefix addresses in various modules
+
+- NCD: recognize Elif and Else with capital first letter to be consistent with other reserved keywords
+
+Version 1.999.123:
+
 - NCD: performance improvements related to finding modules for statements
 
 - NCD: performance improvements related to resolving object names
