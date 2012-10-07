@@ -67,13 +67,13 @@ struct ref_instance {
 
 static void ref_instance_free (struct ref_instance *o);
 
-static void refhere_func_new (void *vo, NCDModuleInst *i)
+static void refhere_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct refhere_instance *o = vo;
     o->i = i;
     
     // check arguments
-    if (!NCDVal_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -117,13 +117,13 @@ static int refhere_func_getobj (void *vo, const char *objname, NCDObject *out_ob
     return NCDModuleInst_Backend_GetObj(o->i, objname, out_object);
 }
 
-static void ref_func_new_templ (void *vo, NCDModuleInst *i, struct refhere_instance *rh)
+static void ref_func_new_templ (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, struct refhere_instance *rh)
 {
     struct ref_instance *o = vo;
     o->i = i;
     
     // check arguments
-    if (!NCDVal_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -143,18 +143,18 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void ref_func_new_from_refhere (void *vo, NCDModuleInst *i)
+static void ref_func_new_from_refhere (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    struct refhere_instance *rh = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct refhere_instance *rh = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
-    return ref_func_new_templ(vo, i, rh);
+    return ref_func_new_templ(vo, i, params, rh);
 }
 
-static void ref_func_new_from_ref (void *vo, NCDModuleInst *i)
+static void ref_func_new_from_ref (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    struct ref_instance *ref = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct ref_instance *ref = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
-    return ref_func_new_templ(vo, i, ref->rh);
+    return ref_func_new_templ(vo, i, params, ref->rh);
 }
 
 static void ref_instance_free (struct ref_instance *o)

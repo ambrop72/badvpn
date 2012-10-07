@@ -69,7 +69,7 @@ struct substring {
     size_t len;
 };
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -78,7 +78,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     NCDValRef delimiter_arg;
     NCDValRef input_arg;
     NCDValRef limit_arg = NCDVal_NewInvalid();
-    if (!NCDVal_ListRead(i->args, 2, &delimiter_arg, &input_arg) && !NCDVal_ListRead(i->args, 3, &delimiter_arg, &input_arg, &limit_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &delimiter_arg, &input_arg) && !NCDVal_ListRead(params->args, 3, &delimiter_arg, &input_arg, &limit_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

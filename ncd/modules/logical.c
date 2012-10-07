@@ -57,7 +57,7 @@ struct instance {
     int value;
 };
 
-static void func_new (void *vo, NCDModuleInst *i, int is_not, int is_or)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int is_not, int is_or)
 {
     struct instance *o = vo;
     o->i = i;
@@ -65,7 +65,7 @@ static void func_new (void *vo, NCDModuleInst *i, int is_not, int is_or)
     // compute value from arguments
     if (is_not) {
         NCDValRef arg;
-        if (!NCDVal_ListRead(i->args, 1, &arg)) {
+        if (!NCDVal_ListRead(params->args, 1, &arg)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong arity");
             goto fail0;
         }
@@ -78,10 +78,10 @@ static void func_new (void *vo, NCDModuleInst *i, int is_not, int is_or)
     } else {
         o->value = (is_or ? 0 : 1);
         
-        size_t count = NCDVal_ListCount(i->args);
+        size_t count = NCDVal_ListCount(params->args);
         
         for (size_t j = 0; j < count; j++) {
-            NCDValRef arg = NCDVal_ListGet(i->args, j);
+            NCDValRef arg = NCDVal_ListGet(params->args, j);
             
             if (!NCDVal_IsString(arg)) {
                 ModuleLog(o->i, BLOG_ERROR, "wrong type");
@@ -106,19 +106,19 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_not (void *vo, NCDModuleInst *i)
+static void func_new_not (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new(vo, i, 1, 0);
+    func_new(vo, i, params, 1, 0);
 }
 
-static void func_new_or (void *vo, NCDModuleInst *i)
+static void func_new_or (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new(vo, i, 0, 1);
+    func_new(vo, i, params, 0, 1);
 }
 
-static void func_new_and (void *vo, NCDModuleInst *i)
+static void func_new_and (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new(vo, i, 0, 0);
+    func_new(vo, i, params, 0, 0);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)

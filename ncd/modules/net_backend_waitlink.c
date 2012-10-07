@@ -76,14 +76,14 @@ static void monitor_handler_error (struct instance *o)
     instance_free(o);
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
     
     // check arguments
     NCDValRef arg;
-    if (!NCDVal_ListRead(i->args, 1, &arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

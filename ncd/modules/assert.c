@@ -47,11 +47,11 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-static void func_new_common (NCDModuleInst *i, int is_false)
+static void func_new_common (NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int is_false)
 {
     // check arguments
     NCDValRef cond_arg;
-    if (!NCDVal_ListRead(i->args, 1, &cond_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &cond_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -76,14 +76,14 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new (void *unused, NCDModuleInst *i)
+static void func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new_common(i, 0);
+    func_new_common(i, params, 0);
 }
 
-static void func_new_false (void *unused, NCDModuleInst *i)
+static void func_new_false (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new_common(i, 1);
+    func_new_common(i, params, 1);
 }
 
 static const struct NCDModule modules[] = {

@@ -151,14 +151,14 @@ static int func_globalinit (struct NCDModuleInitParams params)
     return 1;
 }
 
-static void provide_func_new (void *vo, NCDModuleInst *i)
+static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct provide *o = vo;
     o->i = i;
     
     // read arguments
     NCDValRef name_arg;
-    if (!NCDVal_ListRead(o->i->args, 1, &name_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &name_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -235,14 +235,14 @@ static void provide_func_die (void *vo)
     }
 }
 
-static void depend_func_new (void *vo, NCDModuleInst *i)
+static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct depend *o = vo;
     o->i = i;
     
     // read arguments
     NCDValRef names_arg;
-    if (!NCDVal_ListRead(o->i->args, 1, &names_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &names_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

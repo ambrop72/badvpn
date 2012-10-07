@@ -136,12 +136,12 @@ struct unlock_instance {
 
 static void unlock_free (struct unlock_instance *o);
 
-static int build_append_cmdline (NCDModuleInst *i, const char *prog, int remove, char **exec, CmdLine *cl)
+static int build_append_cmdline (NCDModuleInst *i, NCDValRef args, const char *prog, int remove, char **exec, CmdLine *cl)
 {
     // read arguments
     NCDValRef table_arg;
     NCDValRef chain_arg;
-    if (!NCDVal_ListReadHead(i->args, 2, &table_arg, &chain_arg)) {
+    if (!NCDVal_ListReadHead(args, 2, &table_arg, &chain_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -171,9 +171,9 @@ static int build_append_cmdline (NCDModuleInst *i, const char *prog, int remove,
     }
     
     // add additional arguments
-    size_t count = NCDVal_ListCount(i->args);
+    size_t count = NCDVal_ListCount(args);
     for (size_t j = 2; j < count; j++) {
-        NCDValRef arg = NCDVal_ListGet(i->args, j);
+        NCDValRef arg = NCDVal_ListGet(args, j);
         
         if (!NCDVal_IsStringNoNulls(arg)) {
             ModuleLog(i, BLOG_ERROR, "wrong type");
@@ -202,14 +202,14 @@ fail0:
     return 0;
 }
 
-static int build_policy_cmdline (NCDModuleInst *i, const char *prog, int remove, char **exec, CmdLine *cl)
+static int build_policy_cmdline (NCDModuleInst *i, NCDValRef args, const char *prog, int remove, char **exec, CmdLine *cl)
 {
     // read arguments
     NCDValRef table_arg;
     NCDValRef chain_arg;
     NCDValRef target_arg;
     NCDValRef revert_target_arg;
-    if (!NCDVal_ListRead(i->args, 4, &table_arg, &chain_arg, &target_arg, &revert_target_arg)) {
+    if (!NCDVal_ListRead(args, 4, &table_arg, &chain_arg, &target_arg, &revert_target_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -259,12 +259,12 @@ fail0:
     return 0;
 }
 
-static int build_newchain_cmdline (NCDModuleInst *i, const char *prog, int remove, char **exec, CmdLine *cl)
+static int build_newchain_cmdline (NCDModuleInst *i, NCDValRef args, const char *prog, int remove, char **exec, CmdLine *cl)
 {
     // read arguments
     NCDValRef table_arg = NCDVal_NewInvalid();
     NCDValRef chain_arg;
-    if (!NCDVal_ListRead(i->args, 1, &chain_arg) && !NCDVal_ListRead(i->args, 2, &table_arg, &chain_arg)) {
+    if (!NCDVal_ListRead(args, 1, &chain_arg) && !NCDVal_ListRead(args, 2, &table_arg, &chain_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -309,34 +309,34 @@ fail0:
     return 0;
 }
 
-static int build_iptables_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+static int build_iptables_append_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
 {
-    return build_append_cmdline(i, "iptables", remove, exec, cl);
+    return build_append_cmdline(i, args, "iptables", remove, exec, cl);
 }
 
-static int build_iptables_policy_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+static int build_iptables_policy_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
 {
-    return build_policy_cmdline(i, "iptables", remove, exec, cl);
+    return build_policy_cmdline(i, args, "iptables", remove, exec, cl);
 }
 
-static int build_iptables_newchain_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+static int build_iptables_newchain_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
 {
-    return build_newchain_cmdline(i, "iptables", remove, exec, cl);
+    return build_newchain_cmdline(i, args, "iptables", remove, exec, cl);
 }
 
-static int build_ebtables_append_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+static int build_ebtables_append_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
 {
-    return build_append_cmdline(i, "ebtables", remove, exec, cl);
+    return build_append_cmdline(i, args, "ebtables", remove, exec, cl);
 }
 
-static int build_ebtables_policy_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+static int build_ebtables_policy_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
 {
-    return build_policy_cmdline(i, "ebtables", remove, exec, cl);
+    return build_policy_cmdline(i, args, "ebtables", remove, exec, cl);
 }
 
-static int build_ebtables_newchain_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+static int build_ebtables_newchain_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
 {
-    return build_newchain_cmdline(i, "ebtables", remove, exec, cl);
+    return build_newchain_cmdline(i, args, "ebtables", remove, exec, cl);
 }
 
 static void lock_job_handler (struct lock_instance *o)
@@ -379,12 +379,12 @@ static void func_globalfree (void)
     BEventLock_Free(&iptables_lock);
 }
 
-static void func_new (void *vo, NCDModuleInst *i, command_template_build_cmdline build_cmdline)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, command_template_build_cmdline build_cmdline)
 {
     struct instance *o = vo;
     o->i = i;
     
-    command_template_new(&o->cti, i, build_cmdline, template_free_func, o, BLOG_CURRENT_CHANNEL, &iptables_lock);
+    command_template_new(&o->cti, i, params, build_cmdline, template_free_func, o, BLOG_CURRENT_CHANNEL, &iptables_lock);
 }
 
 void template_free_func (void *vo, int is_error)
@@ -397,34 +397,34 @@ void template_free_func (void *vo, int is_error)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static void append_iptables_func_new (void *vo, NCDModuleInst *i)
+static void append_iptables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new(vo, i, build_iptables_append_cmdline);
+    func_new(vo, i, params, build_iptables_append_cmdline);
 }
 
-static void policy_iptables_func_new (void *vo, NCDModuleInst *i)
+static void policy_iptables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new(vo, i, build_iptables_policy_cmdline);
+    func_new(vo, i, params, build_iptables_policy_cmdline);
 }
 
-static void newchain_iptables_func_new (void *vo, NCDModuleInst *i)
+static void newchain_iptables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new(vo, i, build_iptables_newchain_cmdline);
+    func_new(vo, i, params, build_iptables_newchain_cmdline);
 }
 
-static void append_ebtables_func_new (void *vo, NCDModuleInst *i)
+static void append_ebtables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new(vo, i, build_ebtables_append_cmdline);
+    func_new(vo, i, params, build_ebtables_append_cmdline);
 }
 
-static void policy_ebtables_func_new (void *vo, NCDModuleInst *i)
+static void policy_ebtables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new(vo, i, build_ebtables_policy_cmdline);
+    func_new(vo, i, params, build_ebtables_policy_cmdline);
 }
 
-static void newchain_ebtables_func_new (void *vo, NCDModuleInst *i)
+static void newchain_ebtables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new(vo, i, build_ebtables_newchain_cmdline);
+    func_new(vo, i, params, build_ebtables_newchain_cmdline);
 }
 
 static void func_die (void *vo)
@@ -434,7 +434,7 @@ static void func_die (void *vo)
     command_template_die(&o->cti);
 }
 
-static void lock_func_new (void *vo, NCDModuleInst *i)
+static void lock_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct lock_instance *o = vo;
     o->i = i;
@@ -475,13 +475,13 @@ static void lock_func_die (void *vo)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static void unlock_func_new (void *vo, NCDModuleInst *i)
+static void unlock_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct unlock_instance *o = vo;
     o->i = i;
     
     // get lock lock
-    struct lock_instance *lock = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct lock_instance *lock = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // make sure lock doesn't already have an unlock
     if (lock->unlock) {

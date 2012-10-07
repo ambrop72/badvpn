@@ -59,7 +59,7 @@ struct instance {
     int value;
 };
 
-static void func_new_common (void *vo, NCDModuleInst *i, int is_ifnot)
+static void func_new_common (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int is_ifnot)
 {
     struct instance *o = vo;
     o->i = i;
@@ -68,8 +68,8 @@ static void func_new_common (void *vo, NCDModuleInst *i, int is_ifnot)
     NCDValRef arg_addr;
     NCDValRef arg_net_addr;
     NCDValRef arg_net_prefix = NCDVal_NewInvalid();
-    if (!NCDVal_ListRead(i->args, 2, &arg_addr, &arg_net_addr) &&
-        !NCDVal_ListRead(i->args, 3, &arg_addr, &arg_net_addr, &arg_net_prefix) 
+    if (!NCDVal_ListRead(params->args, 2, &arg_addr, &arg_net_addr) &&
+        !NCDVal_ListRead(params->args, 3, &arg_addr, &arg_net_addr, &arg_net_prefix) 
     ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
@@ -125,14 +125,14 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_normal (void *vo, NCDModuleInst *i)
+static void func_new_normal (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new_common(vo, i, 0);
+    func_new_common(vo, i, params, 0);
 }
 
-static void func_new_ifnot (void *vo, NCDModuleInst *i)
+static void func_new_ifnot (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new_common(vo, i, 1);
+    func_new_common(vo, i, params, 1);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)

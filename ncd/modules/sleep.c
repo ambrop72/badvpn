@@ -68,7 +68,7 @@ static void timer_handler (void *vo)
     }
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -76,7 +76,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     // check arguments
     NCDValRef ms_start_arg;
     NCDValRef ms_stop_arg;
-    if (!NCDVal_ListRead(i->args, 2, &ms_start_arg, &ms_stop_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &ms_start_arg, &ms_stop_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

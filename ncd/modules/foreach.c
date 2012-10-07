@@ -564,13 +564,13 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_foreach (void *vo, NCDModuleInst *i)
+static void func_new_foreach (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // read arguments
     NCDValRef arg_collection;
     NCDValRef arg_template;
     NCDValRef arg_args;
-    if (!NCDVal_ListRead(i->args, 3, &arg_collection, &arg_template, &arg_args)) {
+    if (!NCDVal_ListRead(params->args, 3, &arg_collection, &arg_template, &arg_args)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -605,14 +605,14 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_foreach_emb (void *vo, NCDModuleInst *i)
+static void func_new_foreach_emb (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // read arguments
     NCDValRef arg_collection;
     NCDValRef arg_template;
     NCDValRef arg_name1;
     NCDValRef arg_name2 = NCDVal_NewInvalid();
-    if (!NCDVal_ListRead(i->args, 3, &arg_collection, &arg_template, &arg_name1) && !NCDVal_ListRead(i->args, 4, &arg_collection, &arg_template, &arg_name1, &arg_name2)) {
+    if (!NCDVal_ListRead(params->args, 3, &arg_collection, &arg_template, &arg_name1) && !NCDVal_ListRead(params->args, 4, &arg_collection, &arg_template, &arg_name1, &arg_name2)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

@@ -75,11 +75,11 @@ static int split_string_inplace (char *str, char del)
     return num_extra_parts;
 }
 
-static void func_new (void *unused, NCDModuleInst *i)
+static void func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // read arguments
     NCDValRef target_arg;
-    if (!NCDVal_ListRead(i->args, 1, &target_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &target_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

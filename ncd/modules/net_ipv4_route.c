@@ -66,7 +66,7 @@ struct instance {
     const char *ifname;
 };
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -77,8 +77,8 @@ static void func_new (void *vo, NCDModuleInst *i)
     NCDValRef gateway_arg;
     NCDValRef metric_arg;
     NCDValRef ifname_arg;
-    if (!NCDVal_ListRead(i->args, 4, &dest_arg, &gateway_arg, &metric_arg, &ifname_arg) &&
-        !NCDVal_ListRead(i->args, 5, &dest_arg, &dest_prefix_arg, &gateway_arg, &metric_arg, &ifname_arg)
+    if (!NCDVal_ListRead(params->args, 4, &dest_arg, &gateway_arg, &metric_arg, &ifname_arg) &&
+        !NCDVal_ListRead(params->args, 5, &dest_arg, &dest_prefix_arg, &gateway_arg, &metric_arg, &ifname_arg)
     ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;

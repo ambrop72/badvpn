@@ -130,7 +130,7 @@ static void monitor_handler (struct instance *o, struct rfkill_event event)
     }
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -138,7 +138,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     // check arguments
     NCDValRef type_arg;
     NCDValRef name_arg;
-    if (!NCDVal_ListRead(i->args, 2, &type_arg, &name_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &type_arg, &name_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

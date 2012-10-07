@@ -118,7 +118,7 @@ static void arpprobe_handler (struct instance *o, int event)
     }
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -126,7 +126,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     // read arguments
     NCDValRef arg_ifname;
     NCDValRef arg_addr;
-    if (!NCDVal_ListRead(i->args, 2, &arg_ifname, &arg_addr)) {
+    if (!NCDVal_ListRead(params->args, 2, &arg_ifname, &arg_addr)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

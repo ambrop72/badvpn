@@ -166,7 +166,7 @@ static void process_handler (struct instance *o, int normally, uint8_t normally_
     NCDModuleInst_Backend_Up(o->i);
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -177,7 +177,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     // read arguments
     NCDValRef cmd_arg;
     NCDValRef opts_arg = NCDVal_NewInvalid();
-    if (!NCDVal_ListRead(i->args, 1, &cmd_arg) && !NCDVal_ListRead(i->args, 2, &cmd_arg, &opts_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &cmd_arg) && !NCDVal_ListRead(params->args, 2, &cmd_arg, &opts_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -242,14 +242,14 @@ static void func_new (void *vo, NCDModuleInst *i)
     fds[nfds] = -1;
     
     // build params
-    struct BProcess_params params;
-    params.username = NULL;
-    params.fds = fds;
-    params.fds_map = fds_map;
-    params.do_setsid = do_setsid;
+    struct BProcess_params p_params;
+    p_params.username = NULL;
+    p_params.fds = fds;
+    p_params.fds_map = fds_map;
+    p_params.do_setsid = do_setsid;
     
     // start process
-    if (!BProcess_Init2(&o->process, o->i->iparams->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), params)) {
+    if (!BProcess_Init2(&o->process, o->i->iparams->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), p_params)) {
         ModuleLog(i, BLOG_ERROR, "BProcess_Init failed");
         CmdLine_Free(&cl);
         free(exec);

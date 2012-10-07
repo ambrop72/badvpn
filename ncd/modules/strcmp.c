@@ -49,7 +49,7 @@ struct instance {
     int result;
 };
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -57,7 +57,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     // check arguments
     NCDValRef str1_arg;
     NCDValRef str2_arg;
-    if (!NCDVal_ListRead(i->args, 2, &str1_arg, &str2_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &str1_arg, &str2_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

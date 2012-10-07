@@ -186,7 +186,7 @@ static int func_globalinit (struct NCDModuleInitParams params)
     return 1;
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -197,7 +197,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     // get arguments
     NCDValRef servers_arg;
     NCDValRef priority_arg;
-    if (!NCDVal_ListRead(o->i->args, 2, &servers_arg, &priority_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &servers_arg, &priority_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }

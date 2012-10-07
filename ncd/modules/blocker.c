@@ -102,13 +102,13 @@ struct use_instance {
     LinkedList1Node blocker_node;
 };
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
     
     // check arguments
-    if (!NCDVal_ListRead(o->i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -165,12 +165,12 @@ static void func_die (void *vo)
     o->dying = 1;
 }
 
-static void updown_func_new_templ (NCDModuleInst *i, int up, int first_down)
+static void updown_func_new_templ (NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int up, int first_down)
 {
     ASSERT(!first_down || up)
     
     // check arguments
-    if (!NCDVal_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -179,7 +179,7 @@ static void updown_func_new_templ (NCDModuleInst *i, int up, int first_down)
     NCDModuleInst_Backend_Up(i);
     
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     if (first_down || mo->up != up) {
         // signal users
@@ -207,34 +207,34 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void up_func_new (void *unused, NCDModuleInst *i)
+static void up_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    updown_func_new_templ(i, 1, 0);
+    updown_func_new_templ(i, params, 1, 0);
 }
 
-static void down_func_new (void *unused, NCDModuleInst *i)
+static void down_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    updown_func_new_templ(i, 0, 0);
+    updown_func_new_templ(i, params, 0, 0);
 }
 
-static void downup_func_new (void *unused, NCDModuleInst *i)
+static void downup_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    updown_func_new_templ(i, 1, 1);
+    updown_func_new_templ(i, params, 1, 1);
 }
 
-static void rdownup_func_new (void *vo, NCDModuleInst *i)
+static void rdownup_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct rdownup_instance *o = vo;
     o->i = i;
     
     // check arguments
-    if (!NCDVal_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
     // get blocker
-    struct instance *blk = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *blk = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // set blocker
     o->blocker = blk;
@@ -278,19 +278,19 @@ static void rdownup_func_die (void *vo)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static void use_func_new (void *vo, NCDModuleInst *i)
+static void use_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct use_instance *o = vo;
     o->i = i;
     
     // check arguments
-    if (!NCDVal_ListRead(o->i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
     // set blocker
-    o->blocker = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    o->blocker = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // add to blocker's list
     LinkedList1_Append(&o->blocker->users, &o->blocker_node);

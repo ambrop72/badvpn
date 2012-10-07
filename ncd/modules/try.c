@@ -156,7 +156,7 @@ static void start_terminating (struct instance *o)
     o->state = STATE_DEINIT;
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -164,7 +164,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     // check arguments
     NCDValRef template_name_arg;
     NCDValRef args_arg;
-    if (!NCDVal_ListRead(i->args, 2, &template_name_arg, &args_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &template_name_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -238,11 +238,11 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return 0;
 }
 
-static void assert_func_new (void *unused, NCDModuleInst *i)
+static void assert_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // check arguments
     NCDValRef cond_arg;
-    if (!NCDVal_ListRead(i->args, 1, &cond_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &cond_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
@@ -252,7 +252,7 @@ static void assert_func_new (void *unused, NCDModuleInst *i)
     }
     
     // get instance
-    struct instance *mo = i->method_user;
+    struct instance *mo = params->method_user;
     ASSERT(mo->state == STATE_INIT || mo->state == STATE_DEINIT)
     
     // signal up

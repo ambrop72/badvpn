@@ -100,14 +100,14 @@ static int compute_different (NCDValRef v1, NCDValRef v2)
     return NCDVal_Compare(v1, v2) != 0;
 }
 
-static void new_templ (void *vo, NCDModuleInst *i, compute_func cfunc)
+static void new_templ (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, compute_func cfunc)
 {
     struct instance *o = vo;
     o->i = i;
     
     NCDValRef v1_arg;
     NCDValRef v2_arg;
-    if (!NCDVal_ListRead(i->args, 2, &v1_arg, &v2_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &v1_arg, &v2_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -146,34 +146,34 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return 0;
 }
 
-static void func_new_lesser (void *vo, NCDModuleInst *i)
+static void func_new_lesser (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, compute_lesser);
+    new_templ(vo, i, params, compute_lesser);
 }
 
-static void func_new_greater (void *vo, NCDModuleInst *i)
+static void func_new_greater (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, compute_greater);
+    new_templ(vo, i, params, compute_greater);
 }
 
-static void func_new_lesser_equal (void *vo, NCDModuleInst *i)
+static void func_new_lesser_equal (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, compute_lesser_equal);
+    new_templ(vo, i, params, compute_lesser_equal);
 }
 
-static void func_new_greater_equal (void *vo, NCDModuleInst *i)
+static void func_new_greater_equal (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, compute_greater_equal);
+    new_templ(vo, i, params, compute_greater_equal);
 }
 
-static void func_new_equal (void *vo, NCDModuleInst *i)
+static void func_new_equal (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, compute_equal);
+    new_templ(vo, i, params, compute_equal);
 }
 
-static void func_new_different (void *vo, NCDModuleInst *i)
+static void func_new_different (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, compute_different);
+    new_templ(vo, i, params, compute_different);
 }
 
 static const struct NCDModule modules[] = {

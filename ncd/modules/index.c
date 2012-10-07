@@ -72,11 +72,11 @@ static void func_new_templ (void *vo, NCDModuleInst *i, size_t value)
     NCDModuleInst_Backend_Up(o->i);
 }
 
-static void func_new_from_value (void *vo, NCDModuleInst *i)
+static void func_new_from_value (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // read arguments
     NCDValRef arg_value;
-    if (!NCDVal_ListRead(i->args, 1, &arg_value)) {
+    if (!NCDVal_ListRead(params->args, 1, &arg_value)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -106,9 +106,9 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_from_index (void *vo, NCDModuleInst *i)
+static void func_new_from_index (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    struct instance *index = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *index = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // check overflow
     if (index->value == SIZE_MAX) {

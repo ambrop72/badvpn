@@ -62,15 +62,16 @@
 
 struct rprint_instance {
     NCDModuleInst *i;
+    NCDValRef args;
     int ln;
 };
 
-static int check_args (NCDModuleInst *i)
+static int check_args (NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    size_t num_args = NCDVal_ListCount(i->args);
+    size_t num_args = NCDVal_ListCount(params->args);
     
     for (size_t j = 0; j < num_args; j++) {
-        NCDValRef arg = NCDVal_ListGet(i->args, j);
+        NCDValRef arg = NCDVal_ListGet(params->args, j);
         if (!NCDVal_IsString(arg)) {
             ModuleLog(i, BLOG_ERROR, "wrong type");
             return 0;
@@ -80,12 +81,12 @@ static int check_args (NCDModuleInst *i)
     return 1;
 }
 
-static void do_print (NCDModuleInst *i, int ln)
+static void do_print (NCDModuleInst *i, NCDValRef args, int ln)
 {
-    size_t num_args = NCDVal_ListCount(i->args);
+    size_t num_args = NCDVal_ListCount(args);
     
     for (size_t j = 0; j < num_args; j++) {
-        NCDValRef arg = NCDVal_ListGet(i->args, j);
+        NCDValRef arg = NCDVal_ListGet(args, j);
         ASSERT(NCDVal_IsString(arg))
         
         const char *str = NCDVal_StringValue(arg);
@@ -108,13 +109,14 @@ static void do_print (NCDModuleInst *i, int ln)
     }
 }
 
-static void rprint_func_new_common (void *vo, NCDModuleInst *i, int ln)
+static void rprint_func_new_common (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int ln)
 {
     struct rprint_instance *o = vo;
     o->i = i;
+    o->args = params->args;
     o->ln = ln;
     
-    if (!check_args(i)) {
+    if (!check_args(i, params)) {
         goto fail0;
     }
     
@@ -130,18 +132,18 @@ static void rprint_func_die (void *vo)
 {
     struct rprint_instance *o = vo;
     
-    do_print(o->i, o->ln);
+    do_print(o->i, o->args, o->ln);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static void print_func_new (void *unused, NCDModuleInst *i)
+static void print_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    if (!check_args(i)) {
+    if (!check_args(i, params)) {
         goto fail0;
     }
     
-    do_print(i, 0);
+    do_print(i, params->args, 0);
     
     NCDModuleInst_Backend_Up(i);
     return;
@@ -151,13 +153,13 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void println_func_new (void *unused, NCDModuleInst *i)
+static void println_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    if (!check_args(i)) {
+    if (!check_args(i, params)) {
         goto fail0;
     }
     
-    do_print(i, 1);
+    do_print(i, params->args, 1);
     
     NCDModuleInst_Backend_Up(i);
     return;
@@ -167,14 +169,14 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void rprint_func_new (void *vo, NCDModuleInst *i)
+static void rprint_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    return rprint_func_new_common(vo, i, 0);
+    return rprint_func_new_common(vo, i, params, 0);
 }
 
-static void rprintln_func_new (void *vo, NCDModuleInst *i)
+static void rprintln_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    return rprint_func_new_common(vo, i, 1);
+    return rprint_func_new_common(vo, i, params, 1);
 }
 
 static const struct NCDModule modules[] = {

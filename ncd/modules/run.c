@@ -57,12 +57,12 @@ struct instance {
     command_template_instance cti;
 };
 
-static int build_cmdline (NCDModuleInst *i, int remove, char **exec, CmdLine *cl)
+static int build_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
 {
     // read arguments
     NCDValRef do_cmd_arg;
     NCDValRef undo_cmd_arg;
-    if (!NCDVal_ListRead(i->args, 2, &do_cmd_arg, &undo_cmd_arg)) {
+    if (!NCDVal_ListRead(args, 2, &do_cmd_arg, &undo_cmd_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -134,7 +134,7 @@ fail0:
     return 0;
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -142,7 +142,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     // init dummy event lock
     BEventLock_Init(&o->lock, BReactor_PendingGroup(i->iparams->reactor));
     
-    command_template_new(&o->cti, i, build_cmdline, template_free_func, o, BLOG_CURRENT_CHANNEL, &o->lock);
+    command_template_new(&o->cti, i, params, build_cmdline, template_free_func, o, BLOG_CURRENT_CHANNEL, &o->lock);
     return;
 }
 

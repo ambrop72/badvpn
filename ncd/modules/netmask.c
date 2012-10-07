@@ -84,11 +84,11 @@ static void addr_func_init_templ (void *vo, NCDModuleInst *i, uint32_t addr)
     NCDModuleInst_Backend_Up(i);
 }
 
-static void prefix_to_mask_func_init (void *vo, NCDModuleInst *i)
+static void prefix_to_mask_func_init (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // read arguments
     NCDValRef prefix_arg;
-    if (!NCDVal_ListRead(i->args, 1, &prefix_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &prefix_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -115,12 +115,12 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void ipv4_net_from_addr_and_prefix_func_init (void *vo, NCDModuleInst *i)
+static void ipv4_net_from_addr_and_prefix_func_init (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // read arguments
     NCDValRef addr_arg;
     NCDValRef prefix_arg;
-    if (!NCDVal_ListRead(i->args, 2, &addr_arg, &prefix_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &addr_arg, &prefix_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -179,14 +179,14 @@ static int addr_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
     return 0;
 }
 
-static void mask_to_prefix_func_init (void *vo, NCDModuleInst *i)
+static void mask_to_prefix_func_init (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct prefix_instance *o = vo;
     o->i = i;
     
     // read arguments
     NCDValRef mask_arg;
-    if (!NCDVal_ListRead(i->args, 1, &mask_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &mask_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

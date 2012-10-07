@@ -39,7 +39,7 @@
 #include <ncd/BEventLock.h>
 #include <ncd/NCDModule.h>
 
-typedef int (*command_template_build_cmdline) (NCDModuleInst *i, int remove, char **exec, CmdLine *cl);
+typedef int (*command_template_build_cmdline) (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl);
 typedef void (*command_template_free_func) (void *user, int is_error);
 
 typedef struct {
@@ -56,7 +56,7 @@ typedef struct {
     BProcess process;
 } command_template_instance;
 
-void command_template_new (command_template_instance *o, NCDModuleInst *i, command_template_build_cmdline build_cmdline, command_template_free_func free_func, void *user, int blog_channel, BEventLock *elock);
+void command_template_new (command_template_instance *o, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, command_template_build_cmdline build_cmdline, command_template_free_func free_func, void *user, int blog_channel, BEventLock *elock);
 void command_template_die (command_template_instance *o);
 
 #endif

@@ -317,13 +317,13 @@ out:
     }
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
     
     // check arguments
-    if (!NCDVal_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -368,16 +368,16 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return event_template_getvar(&o->templ, name, mem, out);
 }
 
-static void nextevent_func_new (void *unused, NCDModuleInst *i)
+static void nextevent_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // check arguments
-    if (!NCDVal_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // make sure we are currently reporting an event
     if (!event_template_is_enabled(&mo->templ)) {

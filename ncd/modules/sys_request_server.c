@@ -725,7 +725,7 @@ bad:
     return 0;
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -734,7 +734,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     NCDValRef listen_addr_arg;
     NCDValRef request_handler_template_arg;
     NCDValRef args_arg;
-    if (!NCDVal_ListRead(i->args, 3, &listen_addr_arg, &request_handler_template_arg, &args_arg)) {
+    if (!NCDVal_ListRead(params->args, 3, &listen_addr_arg, &request_handler_template_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -809,17 +809,17 @@ static void func_die (void *vo)
     }
 }
 
-static void reply_func_new (void *unused, NCDModuleInst *i)
+static void reply_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef reply_data;
-    if (!NCDVal_ListRead(i->args, 1, &reply_data)) {
+    if (!NCDVal_ListRead(params->args, 1, &reply_data)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail;
     }
     
     NCDModuleInst_Backend_Up(i);
     
-    struct request *r = i->method_user;
+    struct request *r = params->method_user;
     struct connection *c = r->con;
     
     if (r->terminating) {
@@ -841,16 +841,16 @@ fail:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void finish_func_new (void *unused, NCDModuleInst *i)
+static void finish_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    if (!NCDVal_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail;
     }
     
     NCDModuleInst_Backend_Up(i);
     
-    struct request *r = i->method_user;
+    struct request *r = params->method_user;
     
     if (r->terminating) {
         ModuleLog(i, BLOG_ERROR, "request is dying, cannot submit finished");

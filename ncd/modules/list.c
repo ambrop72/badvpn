@@ -316,7 +316,7 @@ fail:
     return 0;
 }
 
-static void func_new_list (void *vo, NCDModuleInst *i)
+static void func_new_list (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -325,7 +325,7 @@ static void func_new_list (void *vo, NCDModuleInst *i)
     IndexedList_Init(&o->il);
     
     // append contents
-    if (!append_list_contents(i, o, i->args)) {
+    if (!append_list_contents(i, o, params->args)) {
         goto fail1;
     }
     
@@ -339,7 +339,7 @@ fail1:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_listfrom (void *vo, NCDModuleInst *i)
+static void func_new_listfrom (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -348,7 +348,7 @@ static void func_new_listfrom (void *vo, NCDModuleInst *i)
     IndexedList_Init(&o->il);
     
     // append contents contents
-    if (!append_list_contents_contents(i, o, i->args)) {
+    if (!append_list_contents_contents(i, o, params->args)) {
         goto fail1;
     }
     
@@ -398,17 +398,17 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return 0;
 }
 
-static void append_func_new (void *unused, NCDModuleInst *i)
+static void append_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // check arguments
     NCDValRef arg;
-    if (!NCDVal_ListRead(i->args, 1, &arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // append
     if (!insert_value(i, mo, arg, list_count(mo))) {
@@ -424,11 +424,11 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void appendv_func_new (void *unused, NCDModuleInst *i)
+static void appendv_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // check arguments
     NCDValRef arg;
-    if (!NCDVal_ListRead(i->args, 1, &arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -438,7 +438,7 @@ static void appendv_func_new (void *unused, NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // append
     if (!append_list_contents(i, mo, arg)) {
@@ -454,19 +454,19 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void length_func_new (void *vo, NCDModuleInst *i)
+static void length_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct length_instance *o = vo;
     o->i = i;
     
     // check arguments
-    if (!NCDVal_ListRead(o->i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // remember length
     o->length = list_count(mo);
@@ -506,14 +506,14 @@ static int length_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDVa
     return 0;
 }
     
-static void get_func_new (void *vo, NCDModuleInst *i)
+static void get_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct get_instance *o = vo;
     o->i = i;
     
     // check arguments
     NCDValRef index_arg;
-    if (!NCDVal_ListRead(o->i->args, 1, &index_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &index_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -528,7 +528,7 @@ static void get_func_new (void *vo, NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // check index
     if (index >= list_count(mo)) {
@@ -585,16 +585,16 @@ static int get_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRe
     return 0;
 }
 
-static void shift_func_new (void *unused, NCDModuleInst *i)
+static void shift_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // check arguments
-    if (!NCDVal_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // check first
     if (list_count(mo) == 0) {
@@ -614,20 +614,20 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void contains_func_new (void *vo, NCDModuleInst *i)
+static void contains_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct contains_instance *o = vo;
     o->i = i;
     
     // read arguments
     NCDValRef value_arg;
-    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &value_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // search
     o->contains = !!find_elem(mo, value_arg, 0, NULL);
@@ -665,7 +665,7 @@ static int contains_func_getvar (void *vo, const char *name, NCDValMem *mem, NCD
     return 0;
 }
 
-static void find_func_new (void *vo, NCDModuleInst *i)
+static void find_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct find_instance *o = vo;
     o->i = i;
@@ -673,7 +673,7 @@ static void find_func_new (void *vo, NCDModuleInst *i)
     // read arguments
     NCDValRef start_pos_arg;
     NCDValRef value_arg;
-    if (!NCDVal_ListRead(i->args, 2, &start_pos_arg, &value_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &start_pos_arg, &value_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -690,7 +690,7 @@ static void find_func_new (void *vo, NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // find
     o->is_found = !!find_elem(mo, value_arg, start_pos, &o->found_pos);
@@ -744,11 +744,11 @@ static int find_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
     return 0;
 }
 
-static void removeat_func_new (void *unused, NCDModuleInst *i)
+static void removeat_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // read arguments
     NCDValRef remove_pos_arg;
-    if (!NCDVal_ListRead(i->args, 1, &remove_pos_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &remove_pos_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -765,7 +765,7 @@ static void removeat_func_new (void *unused, NCDModuleInst *i)
     }
     
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // check position
     if (remove_pos >= list_count(mo)) {
@@ -785,17 +785,17 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void remove_func_new (void *unused, NCDModuleInst *i)
+static void remove_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // read arguments
     NCDValRef value_arg;
-    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &value_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // find element
     struct elem *e = find_elem(mo, value_arg, 0, NULL);
@@ -816,16 +816,16 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void set_func_new (void *unused, NCDModuleInst *i)
+static void set_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // remember old count
     uint64_t old_count = list_count(mo);
     
     // append contents of our lists
-    if (!append_list_contents_contents(i, mo, i->args)) {
+    if (!append_list_contents_contents(i, mo, params->args)) {
         goto fail0;
     }
     

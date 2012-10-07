@@ -225,6 +225,31 @@ struct NCDModuleInitParams {
 };
 
 /**
+ * Contains parameters to the module initialization function
+ * ({@link NCDModule_func_new2}) that are passed indirectly.
+ */
+struct NCDModuleInst_new_params {
+    /**
+     * A reference to the argument list for the module instance.
+     * The reference remains valid as long as the backend instance
+     * exists.
+     */
+    NCDValRef args;
+    
+    /**
+     * If the module instance corresponds to a method-like statement,
+     * this pointer identifies the object it is being invoked with.
+     * If the object is a statement (i.e. a {@link NCDModuleInst}), then this
+     * will be the NCDModuleInst pointer, and {@link NCDModuleInst_Backend_GetUser}
+     * can be called on this to retrieve the user pointer of the object.
+     * On the other hand, if this is a method on an internal object built using
+     * only {@link NCDObject_Build} or {@link NCDObject_Build2}, this pointer will
+     * be whatever was passed as the "user" argument to those functions.
+     */
+    void *method_user;
+};
+
+/**
  * Contains parameters to {@link NCDModuleInst_Init} that are passed indirectly.
  * This only contains parameters related to communication between the backend
  * and the creator of the module instance.
@@ -291,8 +316,6 @@ struct NCDModuleInst_iparams {
  */
 typedef struct NCDModuleInst_s {
     const struct NCDModule *m;
-    void *method_user;
-    NCDValRef args;
     const struct NCDModuleInst_params *params;
     const struct NCDModuleInst_iparams *iparams;
     void *inst_user;
@@ -657,7 +680,7 @@ typedef void (*NCDModule_func_globalfree) (void);
  * @param i module backend instance handler. The backend may only use this handle via
  *          the Backend functions of {@link NCDModuleInst}.
  */
-typedef void (*NCDModule_func_new2) (void *o, NCDModuleInst *i);
+typedef void (*NCDModule_func_new2) (void *o, NCDModuleInst *i, const struct NCDModuleInst_new_params *params);
 
 /**
  * Handler called to request termination of a backend instance.

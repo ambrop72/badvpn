@@ -529,14 +529,14 @@ bad:
     return 0;
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
     
     // check arguments
     NCDValRef connect_addr_arg;
-    if (!NCDVal_ListRead(i->args, 1, &connect_addr_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &connect_addr_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -592,7 +592,7 @@ static void func_die (void *vo)
     instance_free(o, 0);
 }
 
-static void request_func_new (void *vo, NCDModuleInst *i)
+static void request_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct request_instance *o = vo;
     o->i = i;
@@ -602,7 +602,7 @@ static void request_func_new (void *vo, NCDModuleInst *i)
     NCDValRef reply_handler_arg;
     NCDValRef finished_handler_arg;
     NCDValRef args_arg;
-    if (!NCDVal_ListRead(i->args, 4, &request_data_arg, &reply_handler_arg, &finished_handler_arg, &args_arg)) {
+    if (!NCDVal_ListRead(params->args, 4, &request_data_arg, &reply_handler_arg, &finished_handler_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -617,7 +617,7 @@ static void request_func_new (void *vo, NCDModuleInst *i)
     o->args = args_arg;
     
     // get client
-    struct instance *client = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *client = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     o->client = client;
     
     // check client state

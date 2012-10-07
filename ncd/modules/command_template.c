@@ -118,7 +118,7 @@ static void process_handler (command_template_instance *o, int normally, uint8_t
     }
 }
 
-void command_template_new (command_template_instance *o, NCDModuleInst *i, command_template_build_cmdline build_cmdline, command_template_free_func free_func, void *user, int blog_channel, BEventLock *elock)
+void command_template_new (command_template_instance *o, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, command_template_build_cmdline build_cmdline, command_template_free_func free_func, void *user, int blog_channel, BEventLock *elock)
 {
     // init arguments
     o->i = i;
@@ -127,13 +127,13 @@ void command_template_new (command_template_instance *o, NCDModuleInst *i, comma
     o->blog_channel = blog_channel;
     
     // build do command
-    if (!build_cmdline(o->i, 0, &o->do_exec, &o->do_cmdline)) {
+    if (!build_cmdline(o->i, params->args, 0, &o->do_exec, &o->do_cmdline)) {
         NCDModuleInst_Backend_Log(o->i, o->blog_channel, BLOG_ERROR, "build_cmdline do callback failed");
         goto fail0;
     }
     
     // build undo command
-    if (!build_cmdline(o->i, 1, &o->undo_exec, &o->undo_cmdline)) {
+    if (!build_cmdline(o->i, params->args, 1, &o->undo_exec, &o->undo_cmdline)) {
         NCDModuleInst_Backend_Log(o->i, o->blog_channel, BLOG_ERROR, "build_cmdline undo callback failed");
         goto fail1;
     }

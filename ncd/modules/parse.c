@@ -126,14 +126,14 @@ static int parse_ipv4_addr (NCDModuleInst *i, const char *str, NCDValMem *mem, N
     return 1;
 }
 
-static void new_templ (void *vo, NCDModuleInst *i, parse_func pfunc)
+static void new_templ (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, parse_func pfunc)
 {
     struct instance *o = vo;
     o->i = i;
     
     // read arguments
     NCDValRef str_arg;
-    if (!NCDVal_ListRead(i->args, 1, &str_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &str_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -196,28 +196,28 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return 0;
 }
 
-static void func_new_parse_number (void *vo, NCDModuleInst *i)
+static void func_new_parse_number (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, parse_number);
+    new_templ(vo, i, params, parse_number);
 }
 
-static void func_new_parse_value (void *vo, NCDModuleInst *i)
+static void func_new_parse_value (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, parse_value);
+    new_templ(vo, i, params, parse_value);
 }
 
-static void func_new_parse_ipv4_addr (void *vo, NCDModuleInst *i)
+static void func_new_parse_ipv4_addr (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, parse_ipv4_addr);
+    new_templ(vo, i, params, parse_ipv4_addr);
 }
 
-static void ipv4_cidr_addr_func_new (void *vo, NCDModuleInst *i)
+static void ipv4_cidr_addr_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct ipv4_cidr_instance *o = vo;
     o->i = i;
     
     NCDValRef str_arg;
-    if (!NCDVal_ListRead(i->args, 1, &str_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &str_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

@@ -163,14 +163,14 @@ static int func_globalinit (struct NCDModuleInitParams params)
     return 1;
 }
 
-static void provide_func_new_templ (void *vo, NCDModuleInst *i, int event)
+static void provide_func_new_templ (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int event)
 {
     struct provide *o = vo;
     o->i = i;
     
     // read arguments
     NCDValRef name_arg;
-    if (!NCDVal_ListRead(i->args, 1, &name_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &name_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -215,14 +215,14 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void provide_func_new (void *vo, NCDModuleInst *i)
+static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    provide_func_new_templ(vo, i, 0);
+    provide_func_new_templ(vo, i, params, 0);
 }
 
-static void provide_event_func_new (void *vo, NCDModuleInst *i)
+static void provide_event_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    provide_func_new_templ(vo, i, 1);
+    provide_func_new_templ(vo, i, params, 1);
 }
 
 static void provide_free (struct provide *o)
@@ -279,14 +279,14 @@ static void provide_func_die (void *vo)
     }
 }
 
-static void depend_func_new (void *vo, NCDModuleInst *i)
+static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct depend *o = vo;
     o->i = i;
     
     // read arguments
     NCDValRef name_arg;
-    if (!NCDVal_ListRead(i->args, 1, &name_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &name_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

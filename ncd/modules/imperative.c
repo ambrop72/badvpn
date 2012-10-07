@@ -224,7 +224,7 @@ static void deinit_timer_handler (struct instance *o)
     o->state = STATE_DEINIT_CLEANING;
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -234,7 +234,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     NCDValRef init_args;
     NCDValRef deinit_template_arg;
     NCDValRef deinit_timeout_arg;
-    if (!NCDVal_ListRead(i->args, 5, &init_template_arg, &init_args, &deinit_template_arg, &o->deinit_args, &deinit_timeout_arg)) {
+    if (!NCDVal_ListRead(params->args, 5, &init_template_arg, &init_args, &deinit_template_arg, &o->deinit_args, &deinit_timeout_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

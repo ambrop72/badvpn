@@ -397,7 +397,7 @@ void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len)
     }
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -407,7 +407,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     NCDValRef conf_arg;
     NCDValRef exec_arg;
     NCDValRef args_arg;
-    if (!NCDVal_ListRead(o->i->args, 4, &ifname_arg, &conf_arg, &exec_arg, &args_arg)) {
+    if (!NCDVal_ListRead(params->args, 4, &ifname_arg, &conf_arg, &exec_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

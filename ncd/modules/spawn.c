@@ -202,7 +202,7 @@ static void continue_terminating (struct instance *o)
     o->state = STATE_TERMINATING;
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -210,7 +210,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     // check arguments
     NCDValRef template_name_arg;
     NCDValRef args_arg;
-    if (!NCDVal_ListRead(i->args, 2, &template_name_arg, &args_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &template_name_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -287,17 +287,17 @@ static void func_die (void *vo)
     }
 }
 
-static void join_func_new (void *vo, NCDModuleInst *i)
+static void join_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct join_instance *o = vo;
     o->i = i;
     
-    if (!NCDVal_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
-    o->spawn = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    o->spawn = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     assert_dirty_state(o->spawn);
     
     LinkedList0_Prepend(&o->spawn->clean_list, &o->list_node);

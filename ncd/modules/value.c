@@ -1016,10 +1016,10 @@ fail:
     return 1;
 }
 
-static void func_new_value (void *vo, NCDModuleInst *i)
+static void func_new_value (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef value_arg;
-    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &value_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -1037,15 +1037,15 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_get (void *vo, NCDModuleInst *i)
+static void func_new_get (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef where_arg;
-    if (!NCDVal_ListRead(i->args, 1, &where_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &where_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1066,15 +1066,15 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_try_get (void *vo, NCDModuleInst *i)
+static void func_new_try_get (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef where_arg;
-    if (!NCDVal_ListRead(i->args, 1, &where_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &where_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1092,10 +1092,10 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_getpath (void *vo, NCDModuleInst *i)
+static void func_new_getpath (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef path_arg;
-    if (!NCDVal_ListRead(i->args, 1, &path_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &path_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -1104,7 +1104,7 @@ static void func_new_getpath (void *vo, NCDModuleInst *i)
         goto fail0;
     }
     
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1125,16 +1125,16 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_insert_replace_common (void *vo, NCDModuleInst *i, int is_replace)
+static void func_new_insert_replace_common (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int is_replace)
 {
     NCDValRef where_arg;
     NCDValRef what_arg;
-    if (!NCDVal_ListRead(i->args, 2, &where_arg, &what_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &where_arg, &what_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1155,14 +1155,14 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_insert (void *vo, NCDModuleInst *i)
+static void func_new_insert (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new_insert_replace_common(vo, i, 0);
+    func_new_insert_replace_common(vo, i, params, 0);
 }
 
-static void func_new_replace (void *vo, NCDModuleInst *i)
+static void func_new_replace (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new_insert_replace_common(vo, i, 1);
+    func_new_insert_replace_common(vo, i, params, 1);
 }
 
 struct insert_undo_deinit_data {
@@ -1211,16 +1211,16 @@ static void undo_deinit_func (struct insert_undo_deinit_data *data, NCDModuleIns
     free(data);
 }
 
-static void func_new_insert_replace_undo_common (void *vo, NCDModuleInst *i, int is_replace)
+static void func_new_insert_replace_undo_common (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int is_replace)
 {
     NCDValRef where_arg;
     NCDValRef what_arg;
-    if (!NCDVal_ListRead(i->args, 2, &where_arg, &what_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &where_arg, &what_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1253,25 +1253,25 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_insert_undo (void *vo, NCDModuleInst *i)
+static void func_new_insert_undo (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new_insert_replace_undo_common(vo, i, 0);
+    func_new_insert_replace_undo_common(vo, i, params, 0);
 }
 
-static void func_new_replace_undo (void *vo, NCDModuleInst *i)
+static void func_new_replace_undo (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    func_new_insert_replace_undo_common(vo, i, 1);
+    func_new_insert_replace_undo_common(vo, i, params, 1);
 }
 
-static void func_new_replace_this (void *vo, NCDModuleInst *i)
+static void func_new_replace_this (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef value_arg;
-    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &value_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1317,15 +1317,15 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_replace_this_undo (void *vo, NCDModuleInst *i)
+static void func_new_replace_this_undo (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef value_arg;
-    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &value_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1380,12 +1380,12 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_substr (void *vo, NCDModuleInst *i)
+static void func_new_substr (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef start_arg;
     NCDValRef length_arg = NCDVal_NewInvalid();
-    if (!NCDVal_ListRead(i->args, 1, &start_arg) &&
-        !NCDVal_ListRead(i->args, 2, &start_arg, &length_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &start_arg) &&
+        !NCDVal_ListRead(params->args, 2, &start_arg, &length_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -1406,7 +1406,7 @@ static void func_new_substr (void *vo, NCDModuleInst *i)
         goto fail0;
     }
     
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1440,15 +1440,15 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void remove_func_new (void *unused, NCDModuleInst *i)
+static void remove_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef where_arg;
-    if (!NCDVal_ListRead(i->args, 1, &where_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &where_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1468,14 +1468,14 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void delete_func_new (void *unused, NCDModuleInst *i)
+static void delete_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    if (!NCDVal_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     struct value *mov = valref_val(&mo->ref);
     
     if (!mov) {
@@ -1493,15 +1493,15 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void reset_func_new (void *unused, NCDModuleInst *i)
+static void reset_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef what_arg;
-    if (!NCDVal_ListRead(i->args, 1, &what_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &what_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // build value from argument
     struct value *newv = value_init_fromvalue(i, what_arg);

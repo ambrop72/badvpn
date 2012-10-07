@@ -46,11 +46,11 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-static void func_new (void *unused, NCDModuleInst *i)
+static void func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // check arguments
     NCDValRef exit_code_arg;
-    if (!NCDVal_ListRead(i->args, 1, &exit_code_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &exit_code_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

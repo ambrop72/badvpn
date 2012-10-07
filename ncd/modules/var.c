@@ -52,14 +52,14 @@ struct instance {
     NCDValRef value;
 };
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
     
     // read argument
     NCDValRef value_arg;
-    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &value_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -110,17 +110,17 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return 0;
 }
 
-static void set_func_new (void *unused, NCDModuleInst *i)
+static void set_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // read arguments
     NCDValRef value_arg;
-    if (!NCDVal_ListRead(i->args, 1, &value_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &value_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // allocate new mem
     NCDValMem mem;

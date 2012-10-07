@@ -87,8 +87,6 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem,
     
     // init arguments
     n->m = m;
-    n->method_user = (method_object ? method_object->user : NULL);
-    n->args = args;
     n->params = params;
     n->iparams = iparams;
     
@@ -103,7 +101,11 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem,
     
     DebugObject_Init(&n->d_obj);
     
-    n->m->func_new2(n->inst_user, n);
+    struct NCDModuleInst_new_params new_params;
+    new_params.method_user = (method_object ? method_object->user : NULL);
+    new_params.args = args;
+    
+    n->m->func_new2(n->inst_user, n, &new_params);
 }
 
 void NCDModuleInst_Free (NCDModuleInst *n)

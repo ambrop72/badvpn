@@ -169,11 +169,11 @@ static void instance_free (struct instance *o)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static void func_new_call (void *vo, NCDModuleInst *i)
+static void func_new_call (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef template_arg;
     NCDValRef args_arg;
-    if (!NCDVal_ListRead(i->args, 2, &template_arg, &args_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &template_arg, &args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -190,10 +190,10 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_embcall (void *vo, NCDModuleInst *i)
+static void func_new_embcall (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef template_arg;
-    if (!NCDVal_ListRead(i->args, 1, &template_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &template_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -210,12 +210,12 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_call_if (void *vo, NCDModuleInst *i)
+static void func_new_call_if (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef cond_arg;
     NCDValRef template_arg;
     NCDValRef args_arg;
-    if (!NCDVal_ListRead(i->args, 3, &cond_arg, &template_arg, &args_arg)) {
+    if (!NCDVal_ListRead(params->args, 3, &cond_arg, &template_arg, &args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -238,11 +238,11 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_embcall_if (void *vo, NCDModuleInst *i)
+static void func_new_embcall_if (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef cond_arg;
     NCDValRef template_arg;
-    if (!NCDVal_ListRead(i->args, 2, &cond_arg, &template_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &cond_arg, &template_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -265,13 +265,13 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_call_ifelse (void *vo, NCDModuleInst *i)
+static void func_new_call_ifelse (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef cond_arg;
     NCDValRef template_arg;
     NCDValRef else_template_arg;
     NCDValRef args_arg;
-    if (!NCDVal_ListRead(i->args, 4, &cond_arg, &template_arg, &else_template_arg, &args_arg)) {
+    if (!NCDVal_ListRead(params->args, 4, &cond_arg, &template_arg, &else_template_arg, &args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -296,12 +296,12 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_embcall_ifelse (void *vo, NCDModuleInst *i)
+static void func_new_embcall_ifelse (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef cond_arg;
     NCDValRef template_arg;
     NCDValRef else_template_arg;
-    if (!NCDVal_ListRead(i->args, 3, &cond_arg, &template_arg, &else_template_arg)) {
+    if (!NCDVal_ListRead(params->args, 3, &cond_arg, &template_arg, &else_template_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -326,15 +326,15 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_embcall_multif (void *vo, NCDModuleInst *i)
+static void func_new_embcall_multif (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     const char *template_name = NULL;
     
-    size_t count = NCDVal_ListCount(i->args);
+    size_t count = NCDVal_ListCount(params->args);
     size_t j = 0;
     
     while (j < count) {
-        NCDValRef arg = NCDVal_ListGet(i->args, j);
+        NCDValRef arg = NCDVal_ListGet(params->args, j);
         
         if (j == count - 1) {
             if (!NCDVal_IsStringNoNulls(arg)) {
@@ -346,7 +346,7 @@ static void func_new_embcall_multif (void *vo, NCDModuleInst *i)
             break;
         }
         
-        NCDValRef arg2 = NCDVal_ListGet(i->args, j + 1);
+        NCDValRef arg2 = NCDVal_ListGet(params->args, j + 1);
         
         if (!NCDVal_IsString(arg) || !NCDVal_IsStringNoNulls(arg2)) {
             ModuleLog(i, BLOG_ERROR, "bad arguments");

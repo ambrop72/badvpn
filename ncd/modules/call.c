@@ -149,7 +149,7 @@ static int process_func_getspecialobj (struct instance *o, const char *name, NCD
     return 0;
 }
 
-static void callrefhere_func_new (void *vo, NCDModuleInst *i)
+static void callrefhere_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct callrefhere_instance *o = vo;
     o->i = i;
@@ -176,7 +176,7 @@ static void callrefhere_func_die (void *vo)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -184,7 +184,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     // check arguments
     NCDValRef template_name_arg;
     NCDValRef args_arg;
-    if (!NCDVal_ListRead(i->args, 2, &template_name_arg, &args_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &template_name_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -225,7 +225,7 @@ static void func_new (void *vo, NCDModuleInst *i)
                                         (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
         
         // set callrefhere
-        o->crh = (o->i->method_user ? NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user) : NULL);
+        o->crh = (params->method_user ? NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user) : NULL);
         
         // add to callrefhere's calls list
         if (o->crh) {

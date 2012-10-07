@@ -146,7 +146,7 @@ void timer_handler (struct instance *o)
     try_process(o);
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -156,7 +156,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     NCDValRef user_arg;
     NCDValRef exec_arg;
     NCDValRef args_arg;
-    if (!NCDVal_ListRead(o->i->args, 4, &ifname_arg, &user_arg, &exec_arg, &args_arg)) {
+    if (!NCDVal_ListRead(params->args, 4, &ifname_arg, &user_arg, &exec_arg, &args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }

@@ -208,7 +208,7 @@ static void ondemand_process_handler (struct ondemand *o, int event)
     }
 }
 
-static void ondemand_func_new (void *vo, NCDModuleInst *i)
+static void ondemand_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct ondemand *o = vo;
     o->i = i;
@@ -216,7 +216,7 @@ static void ondemand_func_new (void *vo, NCDModuleInst *i)
     // read arguments
     NCDValRef arg_template_name;
     NCDValRef arg_args;
-    if (!NCDVal_ListRead(i->args, 2, &arg_template_name, &arg_args)) {
+    if (!NCDVal_ListRead(params->args, 2, &arg_template_name, &arg_args)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -279,19 +279,19 @@ static void ondemand_func_die (void *vo)
     }
 }
 
-static void demand_func_new (void *vo, NCDModuleInst *i)
+static void demand_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct demand *o = vo;
     o->i = i;
     
     // read arguments
-    if (!NCDVal_ListRead(i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     
     // set ondemand
-    o->od = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    o->od = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     // add to ondemand's demands list
     LinkedList1_Append(&o->od->demands_list, &o->demands_list_node);

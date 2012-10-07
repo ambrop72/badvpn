@@ -415,13 +415,13 @@ int process_set_params (struct process *p, const char *template_name, NCDValMem 
     return 1;
 }
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
     
     // check arguments
-    if (!NCDVal_ListRead(o->i->args, 0)) {
+    if (!NCDVal_ListRead(params->args, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -472,13 +472,13 @@ static void func_die (void *vo)
     o->dying = 1;
 }
 
-static void start_func_new (void *unused, NCDModuleInst *i)
+static void start_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // check arguments
     NCDValRef name_arg;
     NCDValRef template_name_arg;
     NCDValRef args_arg;
-    if (!NCDVal_ListRead(i->args, 3, &name_arg, &template_name_arg, &args_arg)) {
+    if (!NCDVal_ListRead(params->args, 3, &name_arg, &template_name_arg, &args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -495,7 +495,7 @@ static void start_func_new (void *unused, NCDModuleInst *i)
     NCDModuleInst_Backend_Up(i);
     
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     if (mo->dying) {
         ModuleLog(i, BLOG_INFO, "manager is dying, not creating process %s", name);
@@ -525,11 +525,11 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void stop_func_new (void *unused, NCDModuleInst *i)
+static void stop_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // check arguments
     NCDValRef name_arg;
-    if (!NCDVal_ListRead(i->args, 1, &name_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &name_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -544,7 +544,7 @@ static void stop_func_new (void *unused, NCDModuleInst *i)
     NCDModuleInst_Backend_Up(i);
     
     // get method object
-    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     if (mo->dying) {
         ModuleLog(i, BLOG_INFO, "manager is dying, not stopping process %s", name);

@@ -56,7 +56,7 @@ struct instance {
     struct ipv4_ifaddr ifaddr;
 };
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -65,8 +65,8 @@ static void func_new (void *vo, NCDModuleInst *i)
     NCDValRef ifname_arg;
     NCDValRef addr_arg;
     NCDValRef prefix_arg = NCDVal_NewInvalid();
-    if (!NCDVal_ListRead(i->args, 2, &ifname_arg, &addr_arg) &&
-        !NCDVal_ListRead(i->args, 3, &ifname_arg, &addr_arg, &prefix_arg)
+    if (!NCDVal_ListRead(params->args, 2, &ifname_arg, &addr_arg) &&
+        !NCDVal_ListRead(params->args, 3, &ifname_arg, &addr_arg, &prefix_arg)
     ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;

@@ -50,7 +50,7 @@ struct instance {
     size_t len;
 };
 
-static void func_new2 (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -63,9 +63,9 @@ static void func_new2 (void *vo, NCDModuleInst *i)
     }
     
     // append arguments
-    size_t count = NCDVal_ListCount(i->args);
+    size_t count = NCDVal_ListCount(params->args);
     for (size_t j = 0; j < count; j++) {
-        NCDValRef arg = NCDVal_ListGet(i->args, j);
+        NCDValRef arg = NCDVal_ListGet(params->args, j);
         
         if (!NCDVal_IsString(arg)) {
             ModuleLog(i, BLOG_ERROR, "wrong type");
@@ -121,7 +121,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
 static const struct NCDModule modules[] = {
     {
         .type = "concat",
-        .func_new2 = func_new2,
+        .func_new2 = func_new,
         .func_die = func_die,
         .func_getvar = func_getvar,
         .alloc_size = sizeof(struct instance)

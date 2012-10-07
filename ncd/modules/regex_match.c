@@ -97,7 +97,7 @@ struct replace_instance {
     size_t output_len;
 };
 
-static void func_new (void *vo, NCDModuleInst *i)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
@@ -105,7 +105,7 @@ static void func_new (void *vo, NCDModuleInst *i)
     // read arguments
     NCDValRef input_arg;
     NCDValRef regex_arg;
-    if (!NCDVal_ListRead(o->i->args, 2, &input_arg, &regex_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &input_arg, &regex_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -184,7 +184,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return 0;
 }
 
-static void replace_func_new (void *vo, NCDModuleInst *i)
+static void replace_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct replace_instance *o = vo;
     o->i = i;
@@ -193,7 +193,7 @@ static void replace_func_new (void *vo, NCDModuleInst *i)
     NCDValRef input_arg;
     NCDValRef regex_arg;
     NCDValRef replace_arg;
-    if (!NCDVal_ListRead(i->args, 3, &input_arg, &regex_arg, &replace_arg)) {
+    if (!NCDVal_ListRead(params->args, 3, &input_arg, &regex_arg, &replace_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }

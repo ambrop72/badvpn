@@ -105,14 +105,14 @@ struct stat_instance {
     struct stat result;
 };
 
-static void read_func_new (void *vo, NCDModuleInst *i)
+static void read_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct read_instance *o = vo;
     o->i = i;
     
     // read arguments
     NCDValRef filename_arg;
-    if (!NCDVal_ListRead(i->args, 1, &filename_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &filename_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -161,12 +161,12 @@ static int read_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
     return 0;
 }
 
-static void write_func_new (void *unused, NCDModuleInst *i)
+static void write_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // read arguments
     NCDValRef filename_arg;
     NCDValRef contents_arg;
-    if (!NCDVal_ListRead(i->args, 2, &filename_arg, &contents_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &filename_arg, &contents_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -190,13 +190,13 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void stat_func_new_common (void *vo, NCDModuleInst *i, int is_lstat)
+static void stat_func_new_common (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int is_lstat)
 {
     struct stat_instance *o = vo;
     o->i = i;
     
     NCDValRef filename_arg;
-    if (!NCDVal_ListRead(i->args, 1, &filename_arg)) {
+    if (!NCDVal_ListRead(params->args, 1, &filename_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -234,14 +234,14 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void stat_func_new (void *vo, NCDModuleInst *i)
+static void stat_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    stat_func_new_common(vo, i, 0);
+    stat_func_new_common(vo, i, params, 0);
 }
 
-static void lstat_func_new (void *vo, NCDModuleInst *i)
+static void lstat_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    stat_func_new_common(vo, i, 1);
+    stat_func_new_common(vo, i, params, 1);
 }
 
 static int stat_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
