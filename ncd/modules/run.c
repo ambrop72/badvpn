@@ -140,7 +140,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     o->i = i;
     
     // init dummy event lock
-    BEventLock_Init(&o->lock, BReactor_PendingGroup(i->iparams->reactor));
+    BEventLock_Init(&o->lock, BReactor_PendingGroup(i->params->iparams->reactor));
     
     command_template_new(&o->cti, i, params, build_cmdline, template_free_func, o, BLOG_CURRENT_CHANNEL, &o->lock);
     return;

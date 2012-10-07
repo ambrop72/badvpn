@@ -145,7 +145,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     
     // init arpprobe
-    if (!BArpProbe_Init(&o->arpprobe, ifname, addr, i->iparams->reactor, o, (BArpProbe_handler)arpprobe_handler)) {
+    if (!BArpProbe_Init(&o->arpprobe, ifname, addr, i->params->iparams->reactor, o, (BArpProbe_handler)arpprobe_handler)) {
         ModuleLog(o->i, BLOG_ERROR, "BArpProbe_Init failed");
         goto fail0;
     }

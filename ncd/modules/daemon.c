@@ -152,7 +152,7 @@ static void start_process (struct instance *o)
     }
     
     // start process
-    int res = BProcess_Init(&o->process, o->i->iparams->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), NULL);
+    int res = BProcess_Init(&o->process, o->i->params->iparams->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), NULL);
     CmdLine_Free(&cl);
     free(exec);
     
@@ -167,7 +167,7 @@ static void start_process (struct instance *o)
     
 fail:
     // start timer
-    BReactor_SetTimer(o->i->iparams->reactor, &o->timer);
+    BReactor_SetTimer(o->i->params->iparams->reactor, &o->timer);
     
     // set state retrying
     o->state = STATE_RETRYING;
@@ -198,7 +198,7 @@ static void process_handler (struct instance *o, int normally, uint8_t normally_
     BLog(BLOG_ERROR, "daemon crashed");
     
     // start timer
-    BReactor_SetTimer(o->i->iparams->reactor, &o->timer);
+    BReactor_SetTimer(o->i->params->iparams->reactor, &o->timer);
     
     // set state retrying
     o->state = STATE_RETRYING;
@@ -233,7 +233,7 @@ fail0:
 static void instance_free (struct instance *o)
 {
     // free timer
-    BReactor_RemoveTimer(o->i->iparams->reactor, &o->timer);
+    BReactor_RemoveTimer(o->i->params->iparams->reactor, &o->timer);
     
     NCDModuleInst_Backend_Dead(o->i);
 }

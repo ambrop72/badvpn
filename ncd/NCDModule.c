@@ -68,7 +68,7 @@ static void inst_assert_backend (NCDModuleInst *n)
            n->state == STATE_DYING)
 }
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem, const NCDObject *method_object, NCDValRef args, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams)
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem, const NCDObject *method_object, NCDValRef args, const struct NCDModuleInst_params *params)
 {
     ASSERT(m)
     ASSERT(m->func_new2)
@@ -79,16 +79,15 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem,
     ASSERT(params->func_event)
     ASSERT(params->func_getobj)
     ASSERT(params->logfunc)
-    ASSERT(iparams)
-    ASSERT(iparams->func_initprocess)
-    ASSERT(iparams->func_interp_exit)
-    ASSERT(iparams->func_interp_getargs)
-    ASSERT(iparams->func_interp_getretrytime)
+    ASSERT(params->iparams)
+    ASSERT(params->iparams->func_initprocess)
+    ASSERT(params->iparams->func_interp_exit)
+    ASSERT(params->iparams->func_interp_getargs)
+    ASSERT(params->iparams->func_interp_getretrytime)
     
     // init arguments
     n->m = m;
     n->params = params;
-    n->iparams = iparams;
     
     // set initial instance argument
     n->inst_user = mem;
@@ -295,7 +294,7 @@ void NCDModuleInst_Backend_InterpExit (NCDModuleInst *n, int exit_code)
     DebugObject_Access(&n->d_obj);
     inst_assert_backend(n);
     
-    n->iparams->func_interp_exit(exit_code);
+    n->params->iparams->func_interp_exit(exit_code);
 }
 
 int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValMem *mem, NCDValRef *out_value)
@@ -305,7 +304,7 @@ int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValMem *mem, NCDVa
     ASSERT(mem)
     ASSERT(out_value)
     
-    int res = n->iparams->func_interp_getargs(mem, out_value);
+    int res = n->params->iparams->func_interp_getargs(mem, out_value);
     ASSERT(res == 0 || res == 1)
     ASSERT(res == 0 || (NCDVal_Assert(*out_value), 1))
     
@@ -317,7 +316,7 @@ btime_t NCDModuleInst_Backend_InterpGetRetryTime (NCDModuleInst *n)
     DebugObject_Access(&n->d_obj);
     inst_assert_backend(n);
     
-    return n->iparams->func_interp_getretrytime();
+    return n->params->iparams->func_interp_getretrytime();
 }
 
 int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event)
@@ -346,7 +345,7 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     o->interp_func_getobj = NULL;
     
     // init interpreter part
-    if (!(n->iparams->func_initprocess(o, template_name))) {
+    if (!(n->params->iparams->func_initprocess(o, template_name))) {
         goto fail1;
     }
     

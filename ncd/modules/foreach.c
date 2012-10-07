@@ -180,7 +180,7 @@ static void work (struct instance *o)
     assert_state(o);
     
     // stop timer
-    BReactor_RemoveTimer(o->i->iparams->reactor, &o->timer);
+    BReactor_RemoveTimer(o->i->params->iparams->reactor, &o->timer);
     
     if (o->state == ISTATE_WAITING) {
         return;
@@ -282,7 +282,7 @@ static void advance (struct instance *o)
     
 fail:
     // set timer
-    BReactor_SetTimer(o->i->iparams->reactor, &o->timer);
+    BReactor_SetTimer(o->i->params->iparams->reactor, &o->timer);
 }
 
 static void timer_handler (struct instance *o)
@@ -642,7 +642,7 @@ static void instance_free (struct instance *o)
     BFree(o->elems);
     
     // free timer
-    BReactor_RemoveTimer(o->i->iparams->reactor, &o->timer);
+    BReactor_RemoveTimer(o->i->params->iparams->reactor, &o->timer);
     
     NCDModuleInst_Backend_Dead(o->i);
 }

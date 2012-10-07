@@ -117,7 +117,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     
     // init monitor
-    if (!NCDInterfaceMonitor_Init(&o->monitor, ifindex, NCDIFMONITOR_WATCH_IPV6_ADDR, i->iparams->reactor, o, (NCDInterfaceMonitor_handler)monitor_handler, (NCDInterfaceMonitor_handler_error)monitor_handler_error)) {
+    if (!NCDInterfaceMonitor_Init(&o->monitor, ifindex, NCDIFMONITOR_WATCH_IPV6_ADDR, i->params->iparams->reactor, o, (NCDInterfaceMonitor_handler)monitor_handler, (NCDInterfaceMonitor_handler_error)monitor_handler_error)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDInterfaceMonitor_Init failed");
         goto fail0;
     }

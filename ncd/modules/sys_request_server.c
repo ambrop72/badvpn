@@ -175,7 +175,7 @@ static void listener_handler (struct instance *o)
 {
     ASSERT(!o->dying)
     
-    BReactor *reactor = o->i->iparams->reactor;
+    BReactor *reactor = o->i->params->iparams->reactor;
     BPendingGroup *pg = BReactor_PendingGroup(reactor);
     
     struct connection *c = malloc(sizeof(*c));
@@ -679,7 +679,7 @@ static int init_listen (struct instance *o, NCDValRef listen_addr_arg)
         }
         
         // init listener
-        if (!BListener_InitUnix(&o->listener, o->unix_socket_path, o->i->iparams->reactor, o, (BListener_handler)listener_handler)) {
+        if (!BListener_InitUnix(&o->listener, o->unix_socket_path, o->i->params->iparams->reactor, o, (BListener_handler)listener_handler)) {
             ModuleLog(o->i, BLOG_ERROR, "BListener_InitUnix failed");
             return 0;
         }
@@ -709,7 +709,7 @@ static int init_listen (struct instance *o, NCDValRef listen_addr_arg)
         BAddr_InitFromIpaddrAndPort(&addr, ipaddr, hton16(port));
         
         // init listener
-        if (!BListener_Init(&o->listener, addr, o->i->iparams->reactor, o, (BListener_handler)listener_handler)) {
+        if (!BListener_Init(&o->listener, addr, o->i->params->iparams->reactor, o, (BListener_handler)listener_handler)) {
             ModuleLog(o->i, BLOG_ERROR, "BListener_Init failed");
             return 0;
         }

@@ -371,6 +371,7 @@ int main (int argc, char **argv)
     module_params.func_event = statement_instance_func_event;
     module_params.func_getobj = statement_instance_func_getobj;
     module_params.logfunc = (BLog_logfunc)statement_instance_logfunc;
+    module_params.iparams = &module_iparams;
     module_iparams.reactor = &reactor;
     module_iparams.manager = &manager;
     module_iparams.umanager = &umanager;
@@ -1109,7 +1110,7 @@ void process_advance (struct process *p)
     process_assert_pointers(p);
     
     // initialize module instance
-    NCDModuleInst_Init(&ps->inst, module, mem, object_ptr, args, &module_params, &module_iparams);
+    NCDModuleInst_Init(&ps->inst, module, mem, object_ptr, args, &module_params);
     return;
     
 fail1:

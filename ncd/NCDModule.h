@@ -251,8 +251,9 @@ struct NCDModuleInst_new_params {
 
 /**
  * Contains parameters to {@link NCDModuleInst_Init} that are passed indirectly.
- * This only contains parameters related to communication between the backend
- * and the creator of the module instance.
+ * This itself only contains parameters related to communication between the
+ * backend and the creator of the module instance; other parameters are passed
+ * via the iparams member;
  */
 struct NCDModuleInst_params {
     /**
@@ -267,6 +268,11 @@ struct NCDModuleInst_params {
      * Log function which appends a log prefix with {@link BLog_Append}.
      */
     BLog_logfunc logfunc;
+    /**
+     * Pointer to an {@link NCDModuleInst_iparams} structure, which exposes
+     * services provided by the interpreter.
+     */
+    const struct NCDModuleInst_iparams *iparams;
 };
 
 /**
@@ -317,7 +323,6 @@ struct NCDModuleInst_iparams {
 typedef struct NCDModuleInst_s {
     const struct NCDModule *m;
     const struct NCDModuleInst_params *params;
-    const struct NCDModuleInst_iparams *iparams;
     void *inst_user;
     int state;
     int is_error;
@@ -361,9 +366,8 @@ typedef struct NCDModuleProcess_s {
  *             as long as the instance exists.
  * @param user argument to callback functions
  * @param params more parameters, see {@link NCDModuleInst_params}
- * @param iparams more parameters, see {@link NCDModuleInst_iparams}
  */
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem, const NCDObject *method_object, NCDValRef args, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams);
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem, const NCDObject *method_object, NCDValRef args, const struct NCDModuleInst_params *params);
 
 /**
  * Frees the instance.

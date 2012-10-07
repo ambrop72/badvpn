@@ -100,7 +100,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     o->dying = 0;
     
     // set timer
-    BReactor_SetTimerAfter(o->i->iparams->reactor, &o->timer, o->ms_start);
+    BReactor_SetTimerAfter(o->i->params->iparams->reactor, &o->timer, o->ms_start);
     return;
     
 fail0:
@@ -111,7 +111,7 @@ fail0:
 void instance_free (struct instance *o)
 {
     // free timer
-    BReactor_RemoveTimer(o->i->iparams->reactor, &o->timer);
+    BReactor_RemoveTimer(o->i->params->iparams->reactor, &o->timer);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -124,7 +124,7 @@ static void func_die (void *vo)
     o->dying = 1;
     
     // set timer
-    BReactor_SetTimerAfter(o->i->iparams->reactor, &o->timer, o->ms_stop);
+    BReactor_SetTimerAfter(o->i->params->iparams->reactor, &o->timer, o->ms_stop);
 }
 
 static const struct NCDModule modules[] = {

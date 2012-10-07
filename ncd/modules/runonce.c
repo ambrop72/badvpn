@@ -249,7 +249,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     p_params.do_setsid = do_setsid;
     
     // start process
-    if (!BProcess_Init2(&o->process, o->i->iparams->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), p_params)) {
+    if (!BProcess_Init2(&o->process, o->i->params->iparams->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), p_params)) {
         ModuleLog(i, BLOG_ERROR, "BProcess_Init failed");
         CmdLine_Free(&cl);
         free(exec);

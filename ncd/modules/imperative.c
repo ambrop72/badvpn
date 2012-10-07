@@ -117,7 +117,7 @@ static void go_deinit (struct instance *o)
     }
     
     // start timer
-    BReactor_SetTimer(o->i->iparams->reactor, &o->deinit_timer);
+    BReactor_SetTimer(o->i->params->iparams->reactor, &o->deinit_timer);
     
     // set state deinit working
     o->state = STATE_DEINIT_WORKING;
@@ -168,7 +168,7 @@ static void deinit_process_handler_event (struct instance *o, int event)
             ASSERT(o->state == STATE_DEINIT_WORKING)
             
             // stop timer
-            BReactor_RemoveTimer(o->i->iparams->reactor, &o->deinit_timer);
+            BReactor_RemoveTimer(o->i->params->iparams->reactor, &o->deinit_timer);
             
             // start terminating
             NCDModuleProcess_Terminate(&o->process);

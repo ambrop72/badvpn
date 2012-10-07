@@ -162,7 +162,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     
     // init DHCP
-    if (!BDHCPClient_Init(&o->dhcp, ifname, opts, o->i->iparams->reactor, o->i->iparams->random2, (BDHCPClient_handler)dhcp_handler, o)) {
+    if (!BDHCPClient_Init(&o->dhcp, ifname, opts, o->i->params->iparams->reactor, o->i->params->iparams->random2, (BDHCPClient_handler)dhcp_handler, o)) {
         ModuleLog(o->i, BLOG_ERROR, "BDHCPClient_Init failed");
         goto fail0;
     }
