@@ -207,17 +207,17 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void up_func_new (NCDModuleInst *i)
+static void up_func_new (void *unused, NCDModuleInst *i)
 {
     updown_func_new_templ(i, 1, 0);
 }
 
-static void down_func_new (NCDModuleInst *i)
+static void down_func_new (void *unused, NCDModuleInst *i)
 {
     updown_func_new_templ(i, 0, 0);
 }
 
-static void downup_func_new (NCDModuleInst *i)
+static void downup_func_new (void *unused, NCDModuleInst *i)
 {
     updown_func_new_templ(i, 1, 1);
 }
@@ -330,13 +330,13 @@ static const struct NCDModule modules[] = {
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "blocker::up",
-        .func_new = up_func_new
+        .func_new2 = up_func_new
     }, {
         .type = "blocker::down",
-        .func_new = down_func_new
+        .func_new2 = down_func_new
     }, {
         .type = "blocker::downup",
-        .func_new = downup_func_new
+        .func_new2 = downup_func_new
     }, {
         .type = "blocker::rdownup",
         .func_new2 = rdownup_func_new,

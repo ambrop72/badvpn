@@ -809,7 +809,7 @@ static void func_die (void *vo)
     }
 }
 
-static void reply_func_new (NCDModuleInst *i)
+static void reply_func_new (void *unused, NCDModuleInst *i)
 {
     NCDValRef reply_data;
     if (!NCDVal_ListRead(i->args, 1, &reply_data)) {
@@ -841,7 +841,7 @@ fail:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void finish_func_new (NCDModuleInst *i)
+static void finish_func_new (void *unused, NCDModuleInst *i)
 {
     if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
@@ -875,10 +875,10 @@ static const struct NCDModule modules[] = {
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "sys.request_server.request::reply",
-        .func_new = reply_func_new
+        .func_new2 = reply_func_new
     }, {
         .type = "sys.request_server.request::finish",
-        .func_new = finish_func_new
+        .func_new2 = finish_func_new
     }, {
         .type = NULL
     }

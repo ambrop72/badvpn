@@ -110,7 +110,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return 0;
 }
 
-static void set_func_new (NCDModuleInst *i)
+static void set_func_new (void *unused, NCDModuleInst *i)
 {
     // read arguments
     NCDValRef value_arg;
@@ -158,7 +158,7 @@ static const struct NCDModule modules[] = {
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "var::set",
-        .func_new = set_func_new
+        .func_new2 = set_func_new
     }, {
         .type = NULL
     }

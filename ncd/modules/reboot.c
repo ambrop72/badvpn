@@ -42,7 +42,7 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-static void func_new_hard_reboot (NCDModuleInst *i)
+static void func_new_hard_reboot (void *unused, NCDModuleInst *i)
 {
     // check arguments
     if (!NCDVal_ListRead(i->args, 0)) {
@@ -65,7 +65,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new_hard_poweroff (NCDModuleInst *i)
+static void func_new_hard_poweroff (void *unused, NCDModuleInst *i)
 {
     // check arguments
     if (!NCDVal_ListRead(i->args, 0)) {
@@ -91,10 +91,10 @@ fail0:
 static const struct NCDModule modules[] = {
     {
         .type = "hard_reboot",
-        .func_new = func_new_hard_reboot
+        .func_new2 = func_new_hard_reboot
     }, {
         .type = "hard_poweroff",
-        .func_new = func_new_hard_poweroff
+        .func_new2 = func_new_hard_poweroff
     }, {
         .type = NULL
     }

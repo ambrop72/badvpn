@@ -238,7 +238,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return 0;
 }
 
-static void assert_func_new (NCDModuleInst *i)
+static void assert_func_new (void *unused, NCDModuleInst *i)
 {
     // check arguments
     NCDValRef cond_arg;
@@ -284,7 +284,7 @@ static const struct NCDModule modules[] = {
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "try.try::assert",
-        .func_new = assert_func_new
+        .func_new2 = assert_func_new
     }, {
         .type = NULL
     }

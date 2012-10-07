@@ -76,12 +76,12 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *unused, NCDModuleInst *i)
 {
     new_templ(i, 0);
 }
 
-static void func_new_not (NCDModuleInst *i)
+static void func_new_not (void *unused, NCDModuleInst *i)
 {
     new_templ(i, 1);
 }
@@ -89,10 +89,10 @@ static void func_new_not (NCDModuleInst *i)
 static const struct NCDModule modules[] = {
     {
         .type = "if",
-        .func_new = func_new
+        .func_new2 = func_new
     }, {
         .type = "ifnot",
-        .func_new = func_new_not
+        .func_new2 = func_new_not
     }, {
         .type = NULL
     }

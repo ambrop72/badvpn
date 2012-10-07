@@ -398,7 +398,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return 0;
 }
 
-static void append_func_new (NCDModuleInst *i)
+static void append_func_new (void *unused, NCDModuleInst *i)
 {
     // check arguments
     NCDValRef arg;
@@ -424,7 +424,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void appendv_func_new (NCDModuleInst *i)
+static void appendv_func_new (void *unused, NCDModuleInst *i)
 {
     // check arguments
     NCDValRef arg;
@@ -585,7 +585,7 @@ static int get_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRe
     return 0;
 }
 
-static void shift_func_new (NCDModuleInst *i)
+static void shift_func_new (void *unused, NCDModuleInst *i)
 {
     // check arguments
     if (!NCDVal_ListRead(i->args, 0)) {
@@ -744,7 +744,7 @@ static int find_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
     return 0;
 }
 
-static void removeat_func_new (NCDModuleInst *i)
+static void removeat_func_new (void *unused, NCDModuleInst *i)
 {
     // read arguments
     NCDValRef remove_pos_arg;
@@ -785,7 +785,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void remove_func_new (NCDModuleInst *i)
+static void remove_func_new (void *unused, NCDModuleInst *i)
 {
     // read arguments
     NCDValRef value_arg;
@@ -816,7 +816,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void set_func_new (NCDModuleInst *i)
+static void set_func_new (void *unused, NCDModuleInst *i)
 {
     // get method object
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)i->method_user);
@@ -864,10 +864,10 @@ static const struct NCDModule modules[] = {
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "list::append",
-        .func_new = append_func_new
+        .func_new2 = append_func_new
     }, {
         .type = "list::appendv",
-        .func_new = appendv_func_new
+        .func_new2 = appendv_func_new
     }, {
         .type = "list::length",
         .func_new2 = length_func_new,
@@ -882,7 +882,7 @@ static const struct NCDModule modules[] = {
         .alloc_size = sizeof(struct get_instance)
     }, {
         .type = "list::shift",
-        .func_new = shift_func_new
+        .func_new2 = shift_func_new
     }, {
         .type = "list::contains",
         .func_new2 = contains_func_new,
@@ -897,13 +897,13 @@ static const struct NCDModule modules[] = {
         .alloc_size = sizeof(struct find_instance)
     }, {
         .type = "list::remove_at",
-        .func_new = removeat_func_new
+        .func_new2 = removeat_func_new
     }, {
         .type = "list::remove",
-        .func_new = remove_func_new
+        .func_new2 = remove_func_new
     }, {
         .type = "list::set",
-        .func_new = set_func_new
+        .func_new2 = set_func_new
     }, {
         .type = NULL
     }

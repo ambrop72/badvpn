@@ -71,6 +71,7 @@ static void inst_assert_backend (NCDModuleInst *n)
 void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem, const NCDObject *method_object, NCDValRef args, const struct NCDModuleInst_params *params, const struct NCDModuleInst_iparams *iparams)
 {
     ASSERT(m)
+    ASSERT(m->func_new2)
     ASSERT(m->alloc_size >= 0)
     ASSERT(!!mem == m->alloc_size > 0)
     ASSERT(NCDVal_IsList(args))
@@ -102,11 +103,7 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem,
     
     DebugObject_Init(&n->d_obj);
     
-    if (n->m->func_new2) {
-        n->m->func_new2(n->inst_user, n);
-    } else {
-        n->m->func_new(n);
-    }
+    n->m->func_new2(n->inst_user, n);
 }
 
 void NCDModuleInst_Free (NCDModuleInst *n)

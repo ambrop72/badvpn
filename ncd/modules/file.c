@@ -161,7 +161,7 @@ static int read_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
     return 0;
 }
 
-static void write_func_new (NCDModuleInst *i)
+static void write_func_new (void *unused, NCDModuleInst *i)
 {
     // read arguments
     NCDValRef filename_arg;
@@ -314,7 +314,7 @@ static const struct NCDModule modules[] = {
         .alloc_size = sizeof(struct read_instance)
     }, {
         .type = "file_write",
-        .func_new = write_func_new
+        .func_new2 = write_func_new
     }, {
         .type = "file_stat",
         .func_new2 = stat_func_new,

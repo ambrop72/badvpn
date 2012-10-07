@@ -1440,7 +1440,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void remove_func_new (NCDModuleInst *i)
+static void remove_func_new (void *unused, NCDModuleInst *i)
 {
     NCDValRef where_arg;
     if (!NCDVal_ListRead(i->args, 1, &where_arg)) {
@@ -1468,7 +1468,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void delete_func_new (NCDModuleInst *i)
+static void delete_func_new (void *unused, NCDModuleInst *i)
 {
     if (!NCDVal_ListRead(i->args, 0)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
@@ -1493,7 +1493,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void reset_func_new (NCDModuleInst *i)
+static void reset_func_new (void *unused, NCDModuleInst *i)
 {
     NCDValRef what_arg;
     if (!NCDVal_ListRead(i->args, 1, &what_arg)) {
@@ -1603,13 +1603,13 @@ static const struct NCDModule modules[] = {
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::remove",
-        .func_new = remove_func_new
+        .func_new2 = remove_func_new
     }, {
         .type = "value::delete",
-        .func_new = delete_func_new
+        .func_new2 = delete_func_new
     }, {
         .type = "value::reset",
-        .func_new = reset_func_new
+        .func_new2 = reset_func_new
     }, {
         .type = "value::substr",
         .base_type = "value",

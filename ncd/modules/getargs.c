@@ -43,7 +43,7 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *unused, NCDModuleInst *i)
 {
     NCDModuleInst_Backend_SetUser(i, i);
     
@@ -80,7 +80,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
 static const struct NCDModule modules[] = {
     {
         .type = "getargs",
-        .func_new = func_new,
+        .func_new2 = func_new,
         .func_getvar = func_getvar
     }, {
         .type = NULL

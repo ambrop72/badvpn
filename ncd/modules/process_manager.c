@@ -472,7 +472,7 @@ static void func_die (void *vo)
     o->dying = 1;
 }
 
-static void start_func_new (NCDModuleInst *i)
+static void start_func_new (void *unused, NCDModuleInst *i)
 {
     // check arguments
     NCDValRef name_arg;
@@ -525,7 +525,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void stop_func_new (NCDModuleInst *i)
+static void stop_func_new (void *unused, NCDModuleInst *i)
 {
     // check arguments
     NCDValRef name_arg;
@@ -572,10 +572,10 @@ static const struct NCDModule modules[] = {
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "process_manager::start",
-        .func_new = start_func_new
+        .func_new2 = start_func_new
     }, {
         .type = "process_manager::stop",
-        .func_new = stop_func_new
+        .func_new2 = stop_func_new
     }, {
         .type = NULL
     }

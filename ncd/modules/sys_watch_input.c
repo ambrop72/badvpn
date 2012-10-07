@@ -400,7 +400,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return event_template_getvar(&o->templ, name, mem, out);
 }
 
-static void nextevent_func_new (NCDModuleInst *i)
+static void nextevent_func_new (void *unused, NCDModuleInst *i)
 {
     // check arguments
     if (!NCDVal_ListRead(i->args, 0)) {
@@ -440,7 +440,7 @@ static const struct NCDModule modules[] = {
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "sys.watch_input::nextevent",
-        .func_new = nextevent_func_new
+        .func_new2 = nextevent_func_new
     }, {
         .type = NULL
     }

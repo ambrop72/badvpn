@@ -647,26 +647,15 @@ typedef void (*NCDModule_func_globalfree) (void);
  * Handler called to create an new module backend instance.
  * The backend is initialized in down state.
  * 
- * This handler should call {@link NCDModuleInst_Backend_SetUser} to provide
- * an argument for handlers of this backend instance if it needs to keep any
- * kind of state. Alternatively, the module can have the interpreter preallocate
- * a predefined amount of memory for each instance, in which case the
- * {@link NCDModule_func_new2} init function should be used instead of this one
- * (see alloc_size in the {@link NCDModule} structure).
- * 
  * If the backend fails initialization, this function should report the backend
  * instance to have died with error by calling {@link NCDModuleInst_Backend_SetError}
  * and {@link NCDModuleInst_Backend_Dead}.
  * 
+ * @param o if the module specifies a positive alloc_size value in the {@link NCDModule}
+ *          structure, this will point to the allocated memory that can be used by the
+ *          module instance while it exists. Otherwise, it will be NULL.
  * @param i module backend instance handler. The backend may only use this handle via
  *          the Backend functions of {@link NCDModuleInst}.
- */
-typedef void (*NCDModule_func_new) (NCDModuleInst *i);
-
-/**
- * Like {@link NCDModule_func_new}, but with the extra user argument, as in other module
- * instance handlers. The initial value of the argument, as used here, is a pointer to
- * preallocated memory of alloc_size bytes (from {@link NCDModule}), or NULL if alloc_size==0.
  */
 typedef void (*NCDModule_func_new2) (void *o, NCDModuleInst *i);
 
@@ -740,14 +729,6 @@ struct NCDModule {
     
     /**
      * Function called to create an new backend instance.
-     * Only one of the two possible init functions must be set.
-     */
-    NCDModule_func_new func_new;
-    
-    /**
-     * Function called to create an new backend instance, to be used with memory
-     * preallocation.
-     * Only one of the two possible init functions must be set.
      */
     NCDModule_func_new2 func_new2;
     
@@ -788,13 +769,10 @@ struct NCDModule {
     /**
      * The amount of memory to preallocate for each module instance.
      * Preallocation can be used to avoid having to allocate memory from
-     * module initialization. To make use of preallocated memory, use the
-     * {@link NCDModule_func_new2} variant of the init function.
-     * The memory will be available from the point the init function is
-     * called to the point the instance calls {@link NCDModuleInst_Backend_Dead}.
-     * If alloc_size is >0, there is no need to call
-     * {@link NCDModuleInst_Backend_SetUser}, as the the user argument will
-     * automatically be set to a pointer to the preallocated memory.
+     * module initialization. The memory can be accessed via the first
+     * argument to {@link NCDModule_func_new2} and other calls (except if
+     * the callback pointer is changed subsequently using
+     * {@link NCDModuleInst_Backend_SetUser}).
      */
     int alloc_size;
 };

@@ -46,7 +46,7 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *unused, NCDModuleInst *i)
 {
     // check arguments
     NCDValRef exit_code_arg;
@@ -81,7 +81,7 @@ fail0:
 static const struct NCDModule modules[] = {
     {
         .type = "exit",
-        .func_new = func_new
+        .func_new2 = func_new
     }, {
         .type = NULL
     }

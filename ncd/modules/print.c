@@ -135,7 +135,7 @@ static void rprint_func_die (void *vo)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static void print_func_new (NCDModuleInst *i)
+static void print_func_new (void *unused, NCDModuleInst *i)
 {
     if (!check_args(i)) {
         goto fail0;
@@ -151,7 +151,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void println_func_new (NCDModuleInst *i)
+static void println_func_new (void *unused, NCDModuleInst *i)
 {
     if (!check_args(i)) {
         goto fail0;
@@ -180,10 +180,10 @@ static void rprintln_func_new (void *vo, NCDModuleInst *i)
 static const struct NCDModule modules[] = {
     {
         .type = "print",
-        .func_new = print_func_new
+        .func_new2 = print_func_new
     }, {
         .type = "println",
-        .func_new = println_func_new
+        .func_new2 = println_func_new
     }, {
         .type = "rprint",
         .func_new2 = rprint_func_new,

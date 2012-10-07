@@ -76,12 +76,12 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void func_new (NCDModuleInst *i)
+static void func_new (void *unused, NCDModuleInst *i)
 {
     func_new_common(i, 0);
 }
 
-static void func_new_false (NCDModuleInst *i)
+static void func_new_false (void *unused, NCDModuleInst *i)
 {
     func_new_common(i, 1);
 }
@@ -89,10 +89,10 @@ static void func_new_false (NCDModuleInst *i)
 static const struct NCDModule modules[] = {
     {
         .type = "assert",
-        .func_new = func_new
+        .func_new2 = func_new
     }, {
         .type = "assert_false",
-        .func_new = func_new_false
+        .func_new2 = func_new_false
     }, {
         .type = NULL
     }
