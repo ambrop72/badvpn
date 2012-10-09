@@ -32,7 +32,6 @@
 #include <stdlib.h>
 
 #include <misc/balloc.h>
-#include <misc/split_string.h>
 #include <misc/strdup.h>
 #include <base/BLog.h>
 #include <ncd/make_name_indices.h>

@@ -33,7 +33,6 @@
 #include <stdlib.h>
 
 #include <misc/balloc.h>
-#include <misc/split_string.h>
 #include <misc/hashfun.h>
 #include <misc/maxalign.h>
 #include <misc/strdup.h>

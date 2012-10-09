@@ -36,10 +36,26 @@
 #include <misc/strdup.h>
 #include <misc/balloc.h>
 #include <misc/debug.h>
-#include <misc/split_string.h>
 #include <ncd/NCDStringIndex.h>
 
 static int ncd_make_name_indices (NCDStringIndex *string_index, const char *name, NCD_string_id_t **out_varnames, size_t *out_num_names) WARN_UNUSED;
+
+static size_t split_string_inplace2__indices (char *str, char del)
+{
+    ASSERT(str)
+    
+    size_t num_extra_parts = 0;
+    
+    while (*str) {
+        if (*str == del) {
+            *str = '\0';
+            num_extra_parts++;
+        }
+        str++;
+    }
+    
+    return num_extra_parts;
+}
 
 static int ncd_make_name_indices (NCDStringIndex *string_index, const char *name, NCD_string_id_t **out_varnames, size_t *out_num_names)
 {
@@ -53,7 +69,7 @@ static int ncd_make_name_indices (NCDStringIndex *string_index, const char *name
         goto fail0;
     }
     
-    size_t num_names = split_string_inplace2(data, '.') + 1;
+    size_t num_names = split_string_inplace2__indices(data, '.') + 1;
     
     NCD_string_id_t *varnames = BAllocArray(num_names, sizeof(varnames[0]));
     if (!varnames) {
