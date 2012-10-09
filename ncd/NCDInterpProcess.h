@@ -33,7 +33,6 @@
 #include <stddef.h>
 
 #include <misc/debug.h>
-#include <structure/CHash.h>
 #include <base/DebugObject.h>
 #include <ncd/NCDAst.h>
 #include <ncd/NCDVal.h>
@@ -61,11 +60,6 @@ struct NCDInterpProcess__stmt {
     int hash_next;
 };
 
-typedef struct NCDInterpProcess__stmt *NCDInterpProcess_hash_arg;
-
-#include "NCDInterpProcess_hash.h"
-#include <structure/CHash_decl.h>
-
 /**
  * A data structure which contains information about a process or
  * template, suitable for efficient interpretation. These structures
@@ -81,7 +75,8 @@ typedef struct {
     int num_stmts;
     int prealloc_size;
     int is_template;
-    NCDInterpProcess__Hash hash;
+    int *hash_buckets;
+    size_t num_hash_buckets;
     DebugObject d_obj;
 } NCDInterpProcess;
 

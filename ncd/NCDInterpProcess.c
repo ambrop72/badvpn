@@ -33,7 +33,6 @@
 #include <stdlib.h>
 
 #include <misc/balloc.h>
-#include <misc/hashfun.h>
 #include <misc/maxalign.h>
 #include <misc/strdup.h>
 #include <base/BLog.h>
@@ -42,9 +41,6 @@
 #include "NCDInterpProcess.h"
 
 #include <generated/blog_channel_ncd.h>
-
-#include "NCDInterpProcess_hash.h"
-#include <structure/CHash_impl.h>
 
 static int compute_prealloc (NCDInterpProcess *o)
 {
@@ -168,9 +164,15 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIn
         goto fail0;
     }
     
-    if (!NCDInterpProcess__Hash_Init(&o->hash, num_stmts)) {
-        BLog(BLOG_ERROR, "NCDInterpProcess__Hash_Init failed");
+    o->num_hash_buckets = num_stmts;
+    
+    if (!(o->hash_buckets = BAllocArray(o->num_hash_buckets, sizeof(o->hash_buckets[0])))) {
+        BLog(BLOG_ERROR, "BAllocArray failed");
         goto fail1;
+    }
+    
+    for (size_t i = 0; i < o->num_hash_buckets; i++) {
+        o->hash_buckets[i] = -1;
     }
     
     if (!(o->name = b_strdup(NCDProcess_Name(process)))) {
@@ -245,8 +247,9 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIn
         }
         
         if (e->name >= 0) {
-            NCDInterpProcess__HashRef ref = {e, o->num_stmts};
-            NCDInterpProcess__Hash_InsertMulti(&o->hash, o->stmts, ref);
+            size_t bucket_idx = e->name % o->num_hash_buckets;
+            e->hash_next = o->hash_buckets[bucket_idx];
+            o->hash_buckets[bucket_idx] = o->num_stmts;
         }
         
         o->num_stmts++;
@@ -278,7 +281,7 @@ fail3:
     }
     free(o->name);
 fail2:
-    NCDInterpProcess__Hash_Free(&o->hash);
+    BFree(o->hash_buckets);
 fail1:
     BFree(o->stmts);
 fail0:
@@ -298,7 +301,7 @@ void NCDInterpProcess_Free (NCDInterpProcess *o)
     }
     
     free(o->name);
-    NCDInterpProcess__Hash_Free(&o->hash);
+    BFree(o->hash_buckets);
     BFree(o->stmts);
 }
 
@@ -308,17 +311,19 @@ int NCDInterpProcess_FindStatement (NCDInterpProcess *o, int from_index, NCD_str
     ASSERT(from_index >= 0)
     ASSERT(from_index <= o->num_stmts)
     
-    int stmt_idx = NCDInterpProcess__Hash_Lookup(&o->hash, o->stmts, name).link;
+    size_t bucket_idx = name % o->num_hash_buckets;
+    int stmt_idx = o->hash_buckets[bucket_idx];
     ASSERT(stmt_idx >= -1)
     ASSERT(stmt_idx < o->num_stmts)
     
     while (stmt_idx >= 0) {
-        if (stmt_idx < from_index) {
+        if (stmt_idx < from_index && o->stmts[stmt_idx].name == name) {
             return stmt_idx;
         }
         
-        NCDInterpProcess__HashRef ref = {&o->stmts[stmt_idx], stmt_idx};
-        stmt_idx = NCDInterpProcess__Hash_GetNextEqual(&o->hash, o->stmts, ref).link;
+        stmt_idx = o->stmts[stmt_idx].hash_next;
+        ASSERT(stmt_idx >= -1)
+        ASSERT(stmt_idx < o->num_stmts)
     }
     
     return -1;
