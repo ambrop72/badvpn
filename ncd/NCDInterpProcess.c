@@ -43,8 +43,8 @@
 
 #include <generated/blog_channel_ncd.h>
 
-#include "NCDInterpProcess_trie.h"
-#include <structure/CStringTrie_impl.h>
+#include "NCDInterpProcess_hash.h"
+#include <structure/CHash_impl.h>
 
 static int compute_prealloc (NCDInterpProcess *o)
 {
@@ -168,8 +168,8 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIn
         goto fail0;
     }
     
-    if (!NCDInterpProcess__Trie_Init(&o->trie)) {
-        BLog(BLOG_ERROR, "NCDInterpProcess__Trie_Init failed");
+    if (!NCDInterpProcess__Hash_Init(&o->hash, num_stmts)) {
+        BLog(BLOG_ERROR, "NCDInterpProcess__Hash_Init failed");
         goto fail1;
     }
     
@@ -186,15 +186,18 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIn
         ASSERT(NCDStatement_Type(s) == NCDSTATEMENT_REG)
         struct NCDInterpProcess__stmt *e = &o->stmts[o->num_stmts];
         
-        e->name = NULL;
+        e->name = -1;
         e->cmdname = NULL;
         e->objnames = NULL;
         e->num_objnames = 0;
         e->alloc_size = 0;
         
-        if (NCDStatement_Name(s) && !(e->name = b_strdup(NCDStatement_Name(s)))) {
-            BLog(BLOG_ERROR, "b_strdup failed");
-            goto loop_fail0;
+        if (NCDStatement_Name(s)) {
+            e->name = NCDStringIndex_Get(string_index, NCDStatement_Name(s));
+            if (e->name < 0) {
+                BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
+                goto loop_fail0;
+            }
         }
         
         if (!(e->cmdname = b_strdup(NCDStatement_RegCmdName(s)))) {
@@ -241,17 +244,9 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIn
             e->binding.simple_module = NCDModuleIndex_FindModule(module_index, NCDStatement_RegCmdName(s));
         }
         
-        if (e->name) {
-            int next_idx = NCDInterpProcess__Trie_Get(&o->trie, e->name);
-            ASSERT(next_idx >= -1)
-            ASSERT(next_idx < o->num_stmts)
-            
-            e->trie_next = next_idx;
-            
-            if (!NCDInterpProcess__Trie_Set(&o->trie, e->name, o->num_stmts)) {
-                BLog(BLOG_ERROR, "NCDInterpProcess__Trie_Set failed");
-                goto loop_fail3;
-            }
+        if (e->name >= 0) {
+            NCDInterpProcess__HashRef ref = {e, o->num_stmts};
+            NCDInterpProcess__Hash_InsertMulti(&o->hash, o->stmts, ref);
         }
         
         o->num_stmts++;
@@ -265,7 +260,6 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIn
         NCDValReplaceProg_Free(&e->arg_prog);
     loop_fail0:
         free(e->cmdname);
-        free(e->name);
         goto fail3;
     }
     
@@ -281,11 +275,10 @@ fail3:
         BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
         free(e->cmdname);
-        free(e->name);
     }
     free(o->name);
 fail2:
-    NCDInterpProcess__Trie_Free(&o->trie);
+    NCDInterpProcess__Hash_Free(&o->hash);
 fail1:
     BFree(o->stmts);
 fail0:
@@ -302,36 +295,30 @@ void NCDInterpProcess_Free (NCDInterpProcess *o)
         BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
         free(e->cmdname);
-        free(e->name);
     }
     
     free(o->name);
-    NCDInterpProcess__Trie_Free(&o->trie);
+    NCDInterpProcess__Hash_Free(&o->hash);
     BFree(o->stmts);
 }
 
-int NCDInterpProcess_FindStatement (NCDInterpProcess *o, int from_index, const char *name)
+int NCDInterpProcess_FindStatement (NCDInterpProcess *o, int from_index, NCD_string_id_t name)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(from_index >= 0)
     ASSERT(from_index <= o->num_stmts)
-    ASSERT(name)
     
-    int stmt_idx = NCDInterpProcess__Trie_Get(&o->trie, name);
+    int stmt_idx = NCDInterpProcess__Hash_Lookup(&o->hash, o->stmts, name).link;
     ASSERT(stmt_idx >= -1)
     ASSERT(stmt_idx < o->num_stmts)
     
     while (stmt_idx >= 0) {
-        struct NCDInterpProcess__stmt *e = &o->stmts[stmt_idx];
-        ASSERT(e->name)
-        
-        if (!strcmp(e->name, name) && stmt_idx < from_index) {
+        if (stmt_idx < from_index) {
             return stmt_idx;
         }
         
-        stmt_idx = e->trie_next;
-        ASSERT(stmt_idx >= -1)
-        ASSERT(stmt_idx < o->num_stmts)
+        NCDInterpProcess__HashRef ref = {&o->stmts[stmt_idx], stmt_idx};
+        stmt_idx = NCDInterpProcess__Hash_GetNextEqual(&o->hash, o->stmts, ref).link;
     }
     
     return -1;

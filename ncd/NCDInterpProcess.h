@@ -33,7 +33,7 @@
 #include <stddef.h>
 
 #include <misc/debug.h>
-#include <structure/CStringTrie.h>
+#include <structure/CHash.h>
 #include <base/DebugObject.h>
 #include <ncd/NCDAst.h>
 #include <ncd/NCDVal.h>
@@ -43,11 +43,8 @@
 #include <ncd/NCDStringIndex.h>
 #include <ncd/NCDMethodIndex.h>
 
-#include "NCDInterpProcess_trie.h"
-#include <structure/CStringTrie_decl.h>
-
 struct NCDInterpProcess__stmt {
-    char *name;
+    NCD_string_id_t name;
     char *cmdname;
     NCD_string_id_t *objnames;
     size_t num_objnames;
@@ -61,8 +58,13 @@ struct NCDInterpProcess__stmt {
     NCDValReplaceProg arg_prog;
     int alloc_size;
     int prealloc_offset;
-    int trie_next;
+    int hash_next;
 };
+
+typedef struct NCDInterpProcess__stmt *NCDInterpProcess_hash_arg;
+
+#include "NCDInterpProcess_hash.h"
+#include <structure/CHash_decl.h>
 
 /**
  * A data structure which contains information about a process or
@@ -79,13 +81,13 @@ typedef struct {
     int num_stmts;
     int prealloc_size;
     int is_template;
-    NCDInterpProcess__Trie trie;
+    NCDInterpProcess__Hash hash;
     DebugObject d_obj;
 } NCDInterpProcess;
 
 int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIndex *string_index, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
 void NCDInterpProcess_Free (NCDInterpProcess *o);
-int NCDInterpProcess_FindStatement (NCDInterpProcess *o, int from_index, const char *name);
+int NCDInterpProcess_FindStatement (NCDInterpProcess *o, int from_index, NCD_string_id_t name);
 const char * NCDInterpProcess_StatementCmdName (NCDInterpProcess *o, int i);
 void NCDInterpProcess_StatementObjNames (NCDInterpProcess *o, int i, const NCD_string_id_t **out_objnames, size_t *out_num_objnames);
 const struct NCDModule * NCDInterpProcess_StatementGetSimpleModule (NCDInterpProcess *o, int i);

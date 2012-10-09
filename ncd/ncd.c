@@ -1199,9 +1199,7 @@ int process_find_object (struct process *p, int pos, NCD_string_id_t name, NCDOb
     ASSERT(pos <= p->num_statements)
     ASSERT(out_object)
     
-    const char *name_str = NCDStringIndex_Value(&string_index, name);
-    
-    int i = NCDInterpProcess_FindStatement(p->iprocess, pos, name_str);
+    int i = NCDInterpProcess_FindStatement(p->iprocess, pos, name);
     if (i >= 0) {
         struct statement *ps = &p->statements[i];
         ASSERT(i < p->num_statements)
