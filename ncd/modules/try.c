@@ -78,8 +78,8 @@ struct instance {
 #define STATE_FINISHED 3
 
 static void process_handler_event (struct instance *o, int event);
-static int process_func_getspecialobj (struct instance *o, const char *name, NCDObject *out_object);
-static int process_caller_object_func_getobj (struct instance *o, const char *name, NCDObject *out_object);
+static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
+static int process_caller_object_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
 static void start_terminating (struct instance *o);
 static void instance_free (struct instance *o);
 
@@ -121,16 +121,18 @@ static void process_handler_event (struct instance *o, int event)
     }
 }
 
-static int process_func_getspecialobj (struct instance *o, const char *name, NCDObject *out_object)
+static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
 {
     ASSERT(o->state == STATE_INIT || o->state == STATE_DEINIT)
     
-    if (!strcmp(name, "_caller")) {
+    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
+    
+    if (!strcmp(name_str, "_caller")) {
         *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)process_caller_object_func_getobj);
         return 1;
     }
     
-    if (!strcmp(name, "_try")) {
+    if (!strcmp(name_str, "_try")) {
         *out_object = NCDObject_Build("try.try", o, NULL, NULL);
         return 1;
     }
@@ -138,7 +140,7 @@ static int process_func_getspecialobj (struct instance *o, const char *name, NCD
     return 0;
 }
 
-static int process_caller_object_func_getobj (struct instance *o, const char *name, NCDObject *out_object)
+static int process_caller_object_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
 {
     ASSERT(o->state == STATE_INIT || o->state == STATE_DEINIT)
     

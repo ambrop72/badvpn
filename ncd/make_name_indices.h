@@ -1,5 +1,5 @@
 /**
- * @file NCDInterpProg.h
+ * @file make_name_indices.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -27,37 +27,62 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef BADVPN_NCDINTERPPROG_H
-#define BADVPN_NCDINTERPPROG_H
+#ifndef BADVPN_MAKE_NAME_INDICES_H
+#define BADVPN_MAKE_NAME_INDICES_H
 
+#include <stdlib.h>
+#include <stddef.h>
+
+#include <misc/strdup.h>
+#include <misc/balloc.h>
 #include <misc/debug.h>
-#include <base/DebugObject.h>
-#include <ncd/NCDAst.h>
-#include <ncd/NCDInterpProcess.h>
-#include <structure/CHash.h>
+#include <misc/split_string.h>
+#include <ncd/NCDStringIndex.h>
 
-struct NCDInterpProg__process {
-    const char *name;
-    NCDInterpProcess iprocess;
-    int hash_next;
-};
+static int ncd_make_name_indices (NCDStringIndex *string_index, const char *name, NCD_string_id_t **out_varnames, size_t *out_num_names) WARN_UNUSED;
 
-typedef struct NCDInterpProg__process NCDInterpProg__hashentry;
-typedef const char *NCDInterpProg__hashkey;
-typedef struct NCDInterpProg__process *NCDInterpProg__hasharg;
-
-#include "NCDInterpProg_hash.h"
-#include <structure/CHash_decl.h>
-
-typedef struct {
-    struct NCDInterpProg__process *procs;
-    int num_procs;
-    NCDInterpProg__Hash hash;
-    DebugObject d_obj;
-} NCDInterpProg;
-
-int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDStringIndex *string_index, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
-void NCDInterpProg_Free (NCDInterpProg *o);
-NCDInterpProcess * NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name);
+static int ncd_make_name_indices (NCDStringIndex *string_index, const char *name, NCD_string_id_t **out_varnames, size_t *out_num_names)
+{
+    ASSERT(string_index)
+    ASSERT(name)
+    ASSERT(out_varnames)
+    ASSERT(out_num_names)
+    
+    char *data = b_strdup(name);
+    if (!data) {
+        goto fail0;
+    }
+    
+    size_t num_names = split_string_inplace2(data, '.') + 1;
+    
+    NCD_string_id_t *varnames = BAllocArray(num_names, sizeof(varnames[0]));
+    if (!varnames) {
+        goto fail1;
+    }
+    
+    char *cur = data;
+    for (size_t i = 0; i < num_names; i++) {
+        NCD_string_id_t id = NCDStringIndex_Get(string_index, cur);
+        if (id < 0) {
+            goto fail2;
+        }
+        
+        varnames[i] = id;
+        cur += strlen(cur) + 1;
+    }
+    
+    free(data);
+    
+    *out_varnames = varnames;
+    *out_num_names = num_names;
+    return 1;
+    
+fail2:
+    BFree(varnames);
+fail1:
+    free(data);
+fail0:
+    return 0;
+}
 
 #endif

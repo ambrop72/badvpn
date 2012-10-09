@@ -51,10 +51,10 @@
 #define PROCESS_STATE_TERMINATING 8
 #define PROCESS_STATE_TERMINATED 10
 
-static int object_func_getvar (NCDModuleInst *n, const char *name, NCDValMem *mem, NCDValRef *out_value);
-static int object_func_getobj (NCDModuleInst *n, const char *name, NCDObject *out_object);
-static int process_args_object_func_getvar (NCDModuleProcess *o, const char *name, NCDValMem *mem, NCDValRef *out_value);
-static int process_arg_object_func_getvar2 (NCDModuleProcess *o, void *n_ptr, const char *name, NCDValMem *mem, NCDValRef *out_value);
+static int object_func_getvar (NCDModuleInst *n, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
+static int object_func_getobj (NCDModuleInst *n, NCD_string_id_t name, NCDObject *out_object);
+static int process_args_object_func_getvar (NCDModuleProcess *o, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
+static int process_arg_object_func_getvar2 (NCDModuleProcess *o, void *n_ptr, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
 
 static void frontend_event (NCDModuleInst *n, int event)
 {
@@ -166,22 +166,28 @@ static int can_resolve (NCDModuleInst *n)
     }
 }
 
-static int object_func_getvar (NCDModuleInst *n, const char *name, NCDValMem *mem, NCDValRef *out_value)
+static int object_func_getvar (NCDModuleInst *n, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value)
 {
     DebugObject_Access(&n->d_obj);
     
-    if (!n->m->func_getvar || !can_resolve(n)) {
+    if ((!n->m->func_getvar && !n->m->func_getvar2) || !can_resolve(n)) {
         return 0;
     }
     
-    int res = n->m->func_getvar(n->inst_user, name, mem, out_value);
+    int res;
+    if (n->m->func_getvar2) {
+        res = n->m->func_getvar2(n->inst_user, name, mem, out_value);
+    } else {
+        const char *name_str = NCDStringIndex_Value(n->params->iparams->string_index, name);
+        res = n->m->func_getvar(n->inst_user, name_str, mem, out_value);
+    }
     ASSERT(res == 0 || res == 1)
     ASSERT(res == 0 || (NCDVal_Assert(*out_value), 1))
     
     return res;
 }
 
-static int object_func_getobj (NCDModuleInst *n, const char *name, NCDObject *out_object)
+static int object_func_getobj (NCDModuleInst *n, NCD_string_id_t name, NCDObject *out_object)
 {
     DebugObject_Access(&n->d_obj);
     
@@ -253,13 +259,12 @@ void NCDModuleInst_Backend_Dead (NCDModuleInst *n)
     return;
 }
 
-int NCDModuleInst_Backend_GetObj (NCDModuleInst *n, const char *name, NCDObject *out_object)
+int NCDModuleInst_Backend_GetObj (NCDModuleInst *n, NCD_string_id_t name, NCDObject *out_object)
 {
     DebugObject_Access(&n->d_obj);
     ASSERT(n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
            n->state == STATE_UP ||
            n->state == STATE_DYING)
-    ASSERT(name)
     ASSERT(out_object)
     
     int res = n->params->func_getobj(n, name, out_object);
@@ -334,6 +339,9 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     o->user = user;
     o->handler_event = handler_event;
     
+    // remember iparams
+    o->iparams = n->params->iparams;
+    
     // set no special functions
     o->func_getspecialobj = NULL;
     
@@ -402,11 +410,10 @@ void NCDModuleProcess_Terminate (NCDModuleProcess *o)
     o->interp_func_event(o->interp_user, NCDMODULEPROCESS_INTERP_EVENT_TERMINATE);
 }
 
-int NCDModuleProcess_GetObj (NCDModuleProcess *o, const char *name, NCDObject *out_object)
+int NCDModuleProcess_GetObj (NCDModuleProcess *o, NCD_string_id_t name, NCDObject *out_object)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(o->state != PROCESS_STATE_INIT)
-    ASSERT(name)
     ASSERT(out_object)
     
     // interpreter gone?
@@ -476,22 +483,23 @@ void NCDModuleProcess_Interp_Terminated (NCDModuleProcess *o)
     return;
 }
 
-int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, const char *name, NCDObject *out_object)
+int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, NCD_string_id_t name, NCDObject *out_object)
 {
     DebugObject_Access(&o->d_obj);
     process_assert_interp(o);
-    ASSERT(name)
     ASSERT(out_object)
     
+    const char *name_str = NCDStringIndex_Value(o->iparams->string_index, name);
+    
     if (!NCDVal_IsInvalid(o->args)) {
-        if (!strcmp(name, "_args")) {
+        if (!strcmp(name_str, "_args")) {
             *out_object = NCDObject_Build(NULL, o, (NCDObject_func_getvar)process_args_object_func_getvar, NULL);
             return 1;
         }
         
         size_t len;
         uintmax_t n;
-        if ((len = string_begins_with(name, "_arg")) && parse_unsigned_integer(name + len, &n) && n < NCDVal_ListCount(o->args) && n < UINTPTR_MAX) {
+        if ((len = string_begins_with(name_str, "_arg")) && parse_unsigned_integer(name_str + len, &n) && n < NCDVal_ListCount(o->args) && n < UINTPTR_MAX) {
             *out_object = NCDObject_Build2(NULL, o, (void *)((uintptr_t)(n + 1)), (NCDObject_func_getvar2)process_arg_object_func_getvar2, NULL);
             return 1;
         }
@@ -507,13 +515,13 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, const char *name
     return res;
 }
 
-static int process_args_object_func_getvar (NCDModuleProcess *o, const char *name, NCDValMem *mem, NCDValRef *out_value)
+static int process_args_object_func_getvar (NCDModuleProcess *o, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value)
 {
     DebugObject_Access(&o->d_obj);
     process_assert_interp(o);
     ASSERT(!NCDVal_IsInvalid(o->args))
     
-    if (strcmp(name, "")) {
+    if (name != NCD_EMPTY_STRING_ID) {
         return 0;
     }
     
@@ -524,13 +532,13 @@ static int process_args_object_func_getvar (NCDModuleProcess *o, const char *nam
     return 1;
 }
 
-static int process_arg_object_func_getvar2 (NCDModuleProcess *o, void *n_ptr, const char *name, NCDValMem *mem, NCDValRef *out_value)
+static int process_arg_object_func_getvar2 (NCDModuleProcess *o, void *n_ptr, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value)
 {
     DebugObject_Access(&o->d_obj);
     process_assert_interp(o);
     ASSERT(!NCDVal_IsInvalid(o->args))
     
-    if (strcmp(name, "")) {
+    if (name != NCD_EMPTY_STRING_ID) {
         return 0;
     }
     

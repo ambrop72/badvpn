@@ -462,7 +462,7 @@ static void depend_func_clean (void *vo)
     name_continue_resetting(n);
 }
 
-static int depend_func_getobj (void *vo, const char *objname, NCDObject *out_object)
+static int depend_func_getobj (void *vo, NCD_string_id_t objname, NCDObject *out_object)
 {
     struct depend *o = vo;
     struct name *n = o->n;

@@ -29,20 +29,25 @@
 
 #include <string.h>
 #include <limits.h>
+#include <stdlib.h>
 
 #include <misc/balloc.h>
 #include <misc/split_string.h>
 #include <misc/strdup.h>
 #include <base/BLog.h>
+#include <ncd/make_name_indices.h>
 
 #include "NCDPlaceholderDb.h"
 
 #include <generated/blog_channel_NCDPlaceholderDb.h>
 
-int NCDPlaceholderDb_Init (NCDPlaceholderDb *o)
+int NCDPlaceholderDb_Init (NCDPlaceholderDb *o, NCDStringIndex *string_index)
 {
+    ASSERT(string_index)
+    
     o->count = 0;
     o->capacity = 1;
+    o->string_index = string_index;
     
     if (!(o->arr = BAllocArray(o->capacity, sizeof(o->arr[0])))) {
         BLog(BLOG_ERROR, "NCDPlaceholderDb_Init failed");
@@ -55,7 +60,7 @@ int NCDPlaceholderDb_Init (NCDPlaceholderDb *o)
 void NCDPlaceholderDb_Free (NCDPlaceholderDb *o)
 {
     for (size_t i = 0; i < o->count; i++) {
-        free(o->arr[i].varnames);
+        BFree(o->arr[i].varnames);
     }
     
     BFree(o->arr);
@@ -95,13 +100,12 @@ int NCDPlaceholderDb_AddVariable (NCDPlaceholderDb *o, const char *varname, int 
         return 0;
     }
     
-    char *varnames = b_strdup(varname);
-    if (!varnames) {
-        BLog(BLOG_ERROR, "b_strdup failed");
+    NCD_string_id_t *varnames;
+    size_t num_names;
+    if (!ncd_make_name_indices(o->string_index, varname, &varnames, &num_names)) {
+        BLog(BLOG_ERROR, "ncd_make_name_indices failed");
         return 0;
     }
-    
-    size_t num_names = split_string_inplace2(varnames, '.') + 1;
     
     *out_plid = o->count;
     
@@ -112,7 +116,7 @@ int NCDPlaceholderDb_AddVariable (NCDPlaceholderDb *o, const char *varname, int 
     return 1;
 }
 
-void NCDPlaceholderDb_GetVariable (NCDPlaceholderDb *o, int plid, const char **out_varnames, size_t *out_num_names)
+void NCDPlaceholderDb_GetVariable (NCDPlaceholderDb *o, int plid, const NCD_string_id_t **out_varnames, size_t *out_num_names)
 {
     ASSERT(plid >= 0)
     ASSERT(plid < o->count)

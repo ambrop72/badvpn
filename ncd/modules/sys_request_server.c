@@ -161,8 +161,8 @@ static int request_init (struct connection *c, uint32_t request_id, const uint8_
 static void request_free (struct request *r);
 static struct request * find_request (struct connection *c, uint32_t request_id);
 static void request_process_handler_event (struct request *r, int event);
-static int request_process_func_getspecialobj (struct request *r, const char *name, NCDObject *out_object);
-static int request_process_request_obj_func_getvar (struct request *r, const char *name, NCDValMem *mem, NCDValRef *out_value);
+static int request_process_func_getspecialobj (struct request *r, NCD_string_id_t name, NCDObject *out_object);
+static int request_process_request_obj_func_getvar (struct request *r, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
 static void request_terminate (struct request *r);
 static struct reply * reply_init (struct connection *c, uint32_t request_id, NCDValRef reply_data);
 static void reply_start (struct reply *r, uint32_t type);
@@ -472,9 +472,11 @@ static void request_process_handler_event (struct request *r, int event)
     }
 }
 
-static int request_process_func_getspecialobj (struct request *r, const char *name, NCDObject *out_object)
+static int request_process_func_getspecialobj (struct request *r, NCD_string_id_t name, NCDObject *out_object)
 {
-    if (!strcmp(name, "_request")) {
+    const char *name_str = NCDStringIndex_Value(r->con->inst->i->params->iparams->string_index, name);
+    
+    if (!strcmp(name_str, "_request")) {
         *out_object = NCDObject_Build("sys.request_server.request", r, (NCDObject_func_getvar)request_process_request_obj_func_getvar, NULL);
         return 1;
     }
@@ -482,11 +484,13 @@ static int request_process_func_getspecialobj (struct request *r, const char *na
     return 0;
 }
 
-static int request_process_request_obj_func_getvar (struct request *r, const char *name, NCDValMem *mem, NCDValRef *out)
+static int request_process_request_obj_func_getvar (struct request *r, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = r->con->inst;
     
-    if (!strcmp(name, "data")) {
+    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
+    
+    if (!strcmp(name_str, "data")) {
         *out = NCDVal_NewCopy(mem, r->request_data);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
@@ -494,7 +498,7 @@ static int request_process_request_obj_func_getvar (struct request *r, const cha
         return 1;
     }
     
-    if (!strcmp(name, "client_addr_type")) {
+    if (!strcmp(name_str, "client_addr_type")) {
         const char *str = "none";
         switch (r->con->addr.type) {
             case BADDR_TYPE_IPV4:
@@ -512,7 +516,7 @@ static int request_process_request_obj_func_getvar (struct request *r, const cha
         return 1;
     }
     
-    if (!strcmp(name, "client_addr")) {
+    if (!strcmp(name_str, "client_addr")) {
         char str[BIPADDR_MAX_PRINT_LEN] = "none";
         
         switch (r->con->addr.type) {

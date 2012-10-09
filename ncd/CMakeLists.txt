@@ -80,6 +80,7 @@ add_executable(badvpn-ncd
     NCDInterpProg.c
     NCDPlaceholderDb.c
     NCDMethodIndex.c
+    NCDStringIndex.c
     BEventLock.c
     modules/command_template.c
     modules/event_template.c

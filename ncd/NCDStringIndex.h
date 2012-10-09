@@ -1,5 +1,5 @@
 /**
- * @file NCDInterpProg.h
+ * @file NCDStringIndex.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -27,37 +27,53 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef BADVPN_NCDINTERPPROG_H
-#define BADVPN_NCDINTERPPROG_H
+#ifndef BADVPN_NCD_STRING_INDEX_H
+#define BADVPN_NCD_STRING_INDEX_H
+
+#include <limits.h>
 
 #include <misc/debug.h>
-#include <base/DebugObject.h>
-#include <ncd/NCDAst.h>
-#include <ncd/NCDInterpProcess.h>
 #include <structure/CHash.h>
+#include <base/DebugObject.h>
 
-struct NCDInterpProg__process {
-    const char *name;
-    NCDInterpProcess iprocess;
-    int hash_next;
+#define NCDSTRINGINDEX_INITIAL_CAPACITY 1
+#define NCDSTRINGINDEX_HASH_BUCKETS 100
+
+typedef int NCD_string_id_t;
+
+#define NCD_STRING_ID_MAX INT_MAX
+
+struct NCDStringIndex__entry {
+    char *str;
+    NCD_string_id_t hash_next;
 };
 
-typedef struct NCDInterpProg__process NCDInterpProg__hashentry;
-typedef const char *NCDInterpProg__hashkey;
-typedef struct NCDInterpProg__process *NCDInterpProg__hasharg;
+typedef const char *NCDStringIndex_hash_key;
+typedef struct NCDStringIndex__entry *NCDStringIndex_hash_arg;
 
-#include "NCDInterpProg_hash.h"
+#include "NCDStringIndex_hash.h"
 #include <structure/CHash_decl.h>
 
-typedef struct {
-    struct NCDInterpProg__process *procs;
-    int num_procs;
-    NCDInterpProg__Hash hash;
-    DebugObject d_obj;
-} NCDInterpProg;
+#define NCD_EMPTY_STRING_ID ((NCD_string_id_t)0)
 
-int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDStringIndex *string_index, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
-void NCDInterpProg_Free (NCDInterpProg *o);
-NCDInterpProcess * NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name);
+typedef struct {
+    struct NCDStringIndex__entry *entries;
+    NCD_string_id_t entries_capacity;
+    NCD_string_id_t entries_size;
+    NCDStringIndex__Hash hash;
+    DebugObject d_obj;
+} NCDStringIndex;
+
+struct NCD_string_request {
+    const char *str;
+    NCD_string_id_t id;
+};
+
+int NCDStringIndex_Init (NCDStringIndex *o) WARN_UNUSED;
+void NCDStringIndex_Free (NCDStringIndex *o);
+NCD_string_id_t NCDStringIndex_Lookup (NCDStringIndex *o, const char *str);
+NCD_string_id_t NCDStringIndex_Get (NCDStringIndex *o, const char *str);
+const char * NCDStringIndex_Value (NCDStringIndex *o, NCD_string_id_t id);
+int NCDStringIndex_GetRequests (NCDStringIndex *o, struct NCD_string_request *requests) WARN_UNUSED;
 
 #endif

@@ -96,8 +96,8 @@ struct instance {
 };
 
 static void instance_free (struct instance *o);
-static int caller_obj_func_getobj (struct instance *o, const char *name, NCDObject *out_object);
-static int ref_obj_func_getobj (struct instance *o, const char *name, NCDObject *out_object);
+static int caller_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
+static int ref_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
 
 static void process_handler_event (struct instance *o, int event)
 {
@@ -134,14 +134,16 @@ static void process_handler_event (struct instance *o, int event)
     }
 }
 
-static int process_func_getspecialobj (struct instance *o, const char *name, NCDObject *out_object)
+static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
 {     
-    if (!strcmp(name, "_caller")) {
+    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
+    
+    if (!strcmp(name_str, "_caller")) {
         *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)caller_obj_func_getobj);
         return 1;
     }
     
-    if (!strcmp(name, "_ref")) {
+    if (!strcmp(name_str, "_ref")) {
         *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)ref_obj_func_getobj);
         return 1;
     }
@@ -292,7 +294,7 @@ static void func_clean (void *vo)
     o->state = STATE_WORKING;
 }
 
-static int func_getobj (void *vo, const char *name, NCDObject *out_object)
+static int func_getobj (void *vo, NCD_string_id_t name, NCDObject *out_object)
 {
     struct instance *o = vo;
     
@@ -303,12 +305,12 @@ static int func_getobj (void *vo, const char *name, NCDObject *out_object)
     return NCDModuleProcess_GetObj(&o->process, name, out_object);
 }
 
-static int caller_obj_func_getobj (struct instance *o, const char *name, NCDObject *out_object)
+static int caller_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
 {
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
 }
 
-static int ref_obj_func_getobj (struct instance *o, const char *name, NCDObject *out_object)
+static int ref_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
 {
     if (!o->crh) {
         return 0;

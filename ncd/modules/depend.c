@@ -377,7 +377,7 @@ static void depend_func_clean (void *vo)
     }
 }
 
-static int depend_func_getobj (void *vo, const char *objname, NCDObject *out_object)
+static int depend_func_getobj (void *vo, NCD_string_id_t objname, NCDObject *out_object)
 {
     struct depend *o = vo;
     ASSERT(!o->p || !o->p->is_queued)

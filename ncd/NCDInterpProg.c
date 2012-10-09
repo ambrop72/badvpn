@@ -42,9 +42,10 @@
 #include "NCDInterpProg_hash.h"
 #include <structure/CHash_impl.h>
 
-int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index)
+int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDStringIndex *string_index, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index)
 {
     ASSERT(prog)
+    ASSERT(string_index)
     ASSERT(pdb)
     ASSERT(module_index)
     ASSERT(method_index)
@@ -72,7 +73,7 @@ int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDPlaceholderDb *pd
         
         e->name = NCDProcess_Name(p);
         
-        if (!NCDInterpProcess_Init(&e->iprocess, p, pdb, module_index, method_index)) {
+        if (!NCDInterpProcess_Init(&e->iprocess, p, string_index, pdb, module_index, method_index)) {
             BLog(BLOG_ERROR, "NCDInterpProcess_Init failed");
             goto fail2;
         }

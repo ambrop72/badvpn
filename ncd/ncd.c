@@ -49,6 +49,7 @@
 #include <udevmonitor/NCDUdevManager.h>
 #include <random/BRandom2.h>
 #include <ncd/NCDConfigParser.h>
+#include <ncd/NCDStringIndex.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDModuleIndex.h>
 #include <ncd/NCDSugar.h>
@@ -133,6 +134,9 @@ static NCDUdevManager umanager;
 // random number generator
 static BRandom2 random2;
 
+// string index
+static NCDStringIndex string_index;
+
 // method index
 static NCDMethodIndex method_index;
 
@@ -160,6 +164,7 @@ static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static void start_terminate (int exit_code);
+static char * implode_id_strings (const NCD_string_id_t *names, size_t num_names, char del);
 static int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process);
 static void process_free (struct process *p, NCDModuleProcess **out_mp);
 static int process_state (struct process *p);
@@ -176,9 +181,9 @@ static void process_work_job_handler (struct process *p);
 static int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRef *out);
 static void process_advance (struct process *p);
 static void process_wait_timer_handler (BSmallTimer *timer);
-static int process_find_object (struct process *p, int pos, const char *name, NCDObject *out_object);
-static int process_resolve_object_expr (struct process *p, int pos, const char *names, size_t num_names, NCDObject *out_object);
-static int process_resolve_variable_expr (struct process *p, int pos, const char *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value);
+static int process_find_object (struct process *p, int pos, NCD_string_id_t name, NCDObject *out_object);
+static int process_resolve_object_expr (struct process *p, int pos, const NCD_string_id_t *names, size_t num_names, NCDObject *out_object);
+static int process_resolve_variable_expr (struct process *p, int pos, const NCD_string_id_t *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value);
 static void statement_logfunc (struct statement *ps);
 static void statement_log (struct statement *ps, int level, const char *fmt, ...);
 static struct process * statement_process (struct statement *ps);
@@ -186,14 +191,14 @@ static int statement_mem_is_allocated (struct statement *ps);
 static int statement_mem_size (struct statement *ps);
 static int statement_allocate_memory (struct statement *ps, int alloc_size);
 static void statement_instance_func_event (NCDModuleInst *inst, int event);
-static int statement_instance_func_getobj (NCDModuleInst *inst, const char *objname, NCDObject *out_object);
+static int statement_instance_func_getobj (NCDModuleInst *inst, NCD_string_id_t objname, NCDObject *out_object);
 static int statement_instance_func_initprocess (NCDModuleProcess *mp, const char *template_name);
 static void statement_instance_logfunc (NCDModuleInst *inst);
 static void statement_instance_func_interp_exit (int exit_code);
 static int statement_instance_func_interp_getargs (NCDValMem *mem, NCDValRef *out_value);
 static btime_t statement_instance_func_interp_getretrytime (void);
 static void process_moduleprocess_func_event (struct process *p, int event);
-static int process_moduleprocess_func_getobj (struct process *p, const char *name, NCDObject *out_object);
+static int process_moduleprocess_func_getobj (struct process *p, NCD_string_id_t name, NCDObject *out_object);
 
 int main (int argc, char **argv)
 {
@@ -288,6 +293,12 @@ int main (int argc, char **argv)
         goto fail1aa;
     }
     
+    // init string index
+    if (!NCDStringIndex_Init(&string_index)) {
+        BLog(BLOG_ERROR, "NCDStringIndex_Init failed");
+        goto fail1aaa;
+    }
+    
     // init method index
     if (!NCDMethodIndex_Init(&method_index)) {
         BLog(BLOG_ERROR, "NCDMethodIndex_Init failed");
@@ -339,13 +350,13 @@ int main (int argc, char **argv)
     }
     
     // init placeholder database
-    if (!NCDPlaceholderDb_Init(&placeholder_db)) {
+    if (!NCDPlaceholderDb_Init(&placeholder_db, &string_index)) {
         BLog(BLOG_ERROR, "NCDPlaceholderDb_Init failed");
         goto fail4;
     }
     
     // init interp program
-    if (!NCDInterpProg_Init(&iprogram, &program, &placeholder_db, &mindex, &method_index)) {
+    if (!NCDInterpProg_Init(&iprogram, &program, &string_index, &placeholder_db, &mindex, &method_index)) {
         BLog(BLOG_ERROR, "NCDInterpProg_Init failed");
         goto fail4a;
     }
@@ -360,10 +371,18 @@ int main (int argc, char **argv)
     // init modules
     size_t num_inited_modules = 0;
     for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
+        // map strings
+        if ((*g)->strings && !NCDStringIndex_GetRequests(&string_index, (*g)->strings)) {
+            BLog(BLOG_ERROR, "NCDStringIndex_GetRequests failed for some module");
+            goto fail5;
+        }
+        
+        // call func_globalinit
         if ((*g)->func_globalinit && !(*g)->func_globalinit(params)) {
             BLog(BLOG_ERROR, "globalinit failed for some module");
             goto fail5;
         }
+        
         num_inited_modules++;
     }
     
@@ -376,6 +395,7 @@ int main (int argc, char **argv)
     module_iparams.manager = &manager;
     module_iparams.umanager = &umanager;
     module_iparams.random2 = &random2;
+    module_iparams.string_index = &string_index;
     module_iparams.func_initprocess = statement_instance_func_initprocess;
     module_iparams.func_interp_exit = statement_instance_func_interp_exit;
     module_iparams.func_interp_getargs = statement_instance_func_interp_getargs;
@@ -441,6 +461,9 @@ fail1c:
     // free method index
     NCDMethodIndex_Free(&method_index);
 fail1b:
+    // free string index
+    NCDStringIndex_Free(&string_index);
+fail1aaa:
     // free random number generator
     BRandom2_Free(&random2);
 fail1aa:
@@ -662,6 +685,36 @@ void start_terminate (int exit_code)
             process_start_terminating(p);
         }
     }
+}
+
+char * implode_id_strings (const NCD_string_id_t *names, size_t num_names, char del)
+{
+    ExpString str;
+    if (!ExpString_Init(&str)) {
+        goto fail0;
+    }
+    
+    int is_first = 1;
+    
+    while (num_names > 0) {
+        if (!is_first && !ExpString_AppendChar(&str, del)) {
+            goto fail1;
+        }
+        const char *name_str = NCDStringIndex_Value(&string_index, *names);
+        if (!ExpString_Append(&str, name_str)) {
+            goto fail1;
+        }
+        names++;
+        num_names--;
+        is_first = 0;
+    }
+    
+    return ExpString_Get(&str);
+    
+fail1:
+    ExpString_Free(&str);
+fail0:
+    return NULL;
 }
 
 int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
@@ -1009,7 +1062,7 @@ int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRe
     ASSERT(mem)
     ASSERT(out)
     
-    const char *varnames;
+    const NCD_string_id_t *varnames;
     size_t num_names;
     NCDPlaceholderDb_GetVariable(&placeholder_db, plid, &varnames, &num_names);
     
@@ -1039,7 +1092,7 @@ void process_advance (struct process *p)
     
     // get object names, e.g. "my.cat" in "my.cat->meow();"
     // (or NULL if this is not a method statement)
-    const char *objnames;
+    const NCD_string_id_t *objnames;
     size_t num_objnames;
     NCDInterpProcess_StatementObjNames(p->iprocess, p->ap, &objnames, &num_objnames);
     
@@ -1140,14 +1193,15 @@ void process_wait_timer_handler (BSmallTimer *timer)
     process_advance(p);
 }
 
-int process_find_object (struct process *p, int pos, const char *name, NCDObject *out_object)
+int process_find_object (struct process *p, int pos, NCD_string_id_t name, NCDObject *out_object)
 {
     ASSERT(pos >= 0)
     ASSERT(pos <= p->num_statements)
-    ASSERT(name)
     ASSERT(out_object)
     
-    int i = NCDInterpProcess_FindStatement(p->iprocess, pos, name);
+    const char *name_str = NCDStringIndex_Value(&string_index, name);
+    
+    int i = NCDInterpProcess_FindStatement(p->iprocess, pos, name_str);
     if (i >= 0) {
         struct statement *ps = &p->statements[i];
         ASSERT(i < p->num_statements)
@@ -1168,7 +1222,7 @@ int process_find_object (struct process *p, int pos, const char *name, NCDObject
     return 0;
 }
 
-int process_resolve_object_expr (struct process *p, int pos, const char *names, size_t num_names, NCDObject *out_object)
+int process_resolve_object_expr (struct process *p, int pos, const NCD_string_id_t *names, size_t num_names, NCDObject *out_object)
 {
     ASSERT(pos >= 0)
     ASSERT(pos <= p->num_statements)
@@ -1177,24 +1231,24 @@ int process_resolve_object_expr (struct process *p, int pos, const char *names, 
     ASSERT(out_object)
     
     NCDObject object;
-    if (!process_find_object(p, pos, names, &object)) {
+    if (!process_find_object(p, pos, names[0], &object)) {
         goto fail;
     }
     
-    if (!NCDObject_ResolveObjExprCompact(&object, names + strlen(names) + 1, num_names - 1, out_object)) {
+    if (!NCDObject_ResolveObjExprCompact(&object, names + 1, num_names - 1, out_object)) {
         goto fail;
     }
     
     return 1;
     
 fail:;
-    char *name = implode_compact_strings(names, num_names, '.');
+    char *name = implode_id_strings(names, num_names, '.');
     process_log(p, BLOG_ERROR, "failed to resolve object (%s) from position %zu", (name ? name : ""), pos);
     free(name);
     return 0;
 }
 
-int process_resolve_variable_expr (struct process *p, int pos, const char *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value)
+int process_resolve_variable_expr (struct process *p, int pos, const NCD_string_id_t *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value)
 {
     ASSERT(pos >= 0)
     ASSERT(pos <= p->num_statements)
@@ -1204,18 +1258,18 @@ int process_resolve_variable_expr (struct process *p, int pos, const char *names
     ASSERT(out_value)
     
     NCDObject object;
-    if (!process_find_object(p, pos, names, &object)) {
+    if (!process_find_object(p, pos, names[0], &object)) {
         goto fail;
     }
     
-    if (!NCDObject_ResolveVarExprCompact(&object, names + strlen(names) + 1, num_names - 1, mem, out_value)) {
+    if (!NCDObject_ResolveVarExprCompact(&object, names + 1, num_names - 1, mem, out_value)) {
         goto fail;
     }
     
     return 1;
     
 fail:;
-    char *name = implode_compact_strings(names, num_names, '.');
+    char *name = implode_id_strings(names, num_names, '.');
     process_log(p, BLOG_ERROR, "failed to resolve variable (%s) from position %zu", (name ? name : ""), pos);
     free(name);
     return 0;
@@ -1351,7 +1405,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
     }
 }
 
-int statement_instance_func_getobj (NCDModuleInst *inst, const char *objname, NCDObject *out_object)
+int statement_instance_func_getobj (NCDModuleInst *inst, NCD_string_id_t objname, NCDObject *out_object)
 {
     struct statement *ps = UPPER_OBJECT(inst, struct statement, inst);
     ASSERT(ps->state != SSTATE_FORGOTTEN)
@@ -1457,7 +1511,7 @@ void process_moduleprocess_func_event (struct process *p, int event)
     }
 }
 
-int process_moduleprocess_func_getobj (struct process *p, const char *name, NCDObject *out_object)
+int process_moduleprocess_func_getobj (struct process *p, NCD_string_id_t name, NCDObject *out_object)
 {
     ASSERT(p->module_process)
     

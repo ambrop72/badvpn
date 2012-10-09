@@ -33,9 +33,10 @@
 #include <stddef.h>
 
 #include <misc/debug.h>
+#include <ncd/NCDStringIndex.h>
 
 struct NCDPlaceholderDb__entry {
-    char *varnames;
+    NCD_string_id_t *varnames;
     size_t num_names;
 };
 
@@ -53,13 +54,14 @@ typedef struct {
     struct NCDPlaceholderDb__entry *arr;
     size_t count;
     size_t capacity;
+    NCDStringIndex *string_index;
 } NCDPlaceholderDb;
 
 /**
  * Initializes the placeholder database.
  * Returns 1 on success, and 0 on failure.
  */
-int NCDPlaceholderDb_Init (NCDPlaceholderDb *o) WARN_UNUSED;
+int NCDPlaceholderDb_Init (NCDPlaceholderDb *o, NCDStringIndex *string_index) WARN_UNUSED;
 
 /**
  * Frees the placeholder database.
@@ -88,6 +90,6 @@ int NCDPlaceholderDb_AddVariable (NCDPlaceholderDb *o, const char *varname, int 
  *         database is freed.
  *         Note that there will always be at least one string in the result.
  */
-void NCDPlaceholderDb_GetVariable (NCDPlaceholderDb *o, int plid, const char **out_varnames, size_t *out_num_names);
+void NCDPlaceholderDb_GetVariable (NCDPlaceholderDb *o, int plid, const NCD_string_id_t **out_varnames, size_t *out_num_names);
 
 #endif

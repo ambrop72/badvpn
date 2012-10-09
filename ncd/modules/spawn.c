@@ -86,8 +86,8 @@ struct join_instance {
 
 static void assert_dirty_state (struct instance *o);
 static void process_handler_event (struct instance *o, int event);
-static int process_func_getspecialobj (struct instance *o, const char *name, NCDObject *out_object);
-static int caller_obj_func_getobj (struct instance *o, const char *name, NCDObject *out_object);
+static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
+static int caller_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
 static void bring_joins_down (struct instance *o);
 static void continue_working (struct instance *o);
 static void continue_terminating (struct instance *o);
@@ -149,9 +149,11 @@ static void process_handler_event (struct instance *o, int event)
     }
 }
 
-static int process_func_getspecialobj (struct instance *o, const char *name, NCDObject *out_object)
+static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
 {
-    if (!strcmp(name, "_caller")) {
+    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
+    
+    if (!strcmp(name_str, "_caller")) {
         *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)caller_obj_func_getobj);
         return 1;
     }
@@ -159,7 +161,7 @@ static int process_func_getspecialobj (struct instance *o, const char *name, NCD
     return 0;
 }
 
-static int caller_obj_func_getobj (struct instance *o, const char *name, NCDObject *out_object)
+static int caller_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
 {
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
 }
@@ -342,7 +344,7 @@ static void join_func_die (void *vo)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static int join_func_getobj (void *vo, const char *name, NCDObject *out)
+static int join_func_getobj (void *vo, NCD_string_id_t name, NCDObject *out)
 {
     struct join_instance *o = vo;
     

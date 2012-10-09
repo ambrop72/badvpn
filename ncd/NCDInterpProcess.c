@@ -38,6 +38,7 @@
 #include <misc/maxalign.h>
 #include <misc/strdup.h>
 #include <base/BLog.h>
+#include <ncd/make_name_indices.h>
 
 #include "NCDInterpProcess.h"
 
@@ -147,9 +148,10 @@ fail:
     return 0;
 }
 
-int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index)
+int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIndex *string_index, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index)
 {
     ASSERT(process)
+    ASSERT(string_index)
     ASSERT(pdb)
     ASSERT(module_index)
     ASSERT(method_index)
@@ -226,11 +228,10 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDPlacehol
         }
         
         if (NCDStatement_RegObjName(s)) {
-            if (!(e->objnames = b_strdup(NCDStatement_RegObjName(s)))) {
-                BLog(BLOG_ERROR, "b_strdup failed");
+            if (!ncd_make_name_indices(string_index, NCDStatement_RegObjName(s), &e->objnames, &e->num_objnames)) {
+                BLog(BLOG_ERROR, "ncd_make_name_indices failed");
                 goto loop_fail2;
             }
-            e->num_objnames = split_string_inplace2(e->objnames, '.') + 1;
             
             e->binding.method_name_id = NCDMethodIndex_GetMethodNameId(method_index, NCDStatement_RegCmdName(s));
             if (e->binding.method_name_id == -1) {
@@ -258,7 +259,7 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDPlacehol
         continue;
         
     loop_fail3:
-        free(e->objnames);
+        BFree(e->objnames);
     loop_fail2:
         BFree(e->arg_data);
     loop_fail1:
@@ -277,7 +278,7 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDPlacehol
 fail3:
     while (o->num_stmts-- > 0) {
         struct NCDInterpProcess__stmt *e = &o->stmts[o->num_stmts];
-        free(e->objnames);
+        BFree(e->objnames);
         BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
         free(e->cmdname);
@@ -298,7 +299,7 @@ void NCDInterpProcess_Free (NCDInterpProcess *o)
     
     while (o->num_stmts-- > 0) {
         struct NCDInterpProcess__stmt *e = &o->stmts[o->num_stmts];
-        free(e->objnames);
+        BFree(e->objnames);
         BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
         free(e->cmdname);
@@ -347,7 +348,7 @@ const char * NCDInterpProcess_StatementCmdName (NCDInterpProcess *o, int i)
     return o->stmts[i].cmdname;
 }
 
-void NCDInterpProcess_StatementObjNames (NCDInterpProcess *o, int i, const char **out_objnames, size_t *out_num_objnames)
+void NCDInterpProcess_StatementObjNames (NCDInterpProcess *o, int i, const NCD_string_id_t **out_objnames, size_t *out_num_objnames)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)

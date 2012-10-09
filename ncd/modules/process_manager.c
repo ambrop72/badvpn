@@ -92,8 +92,8 @@ static int process_new (struct instance *o, const char *name, const char *templa
 static void process_free (struct process *p);
 static void process_retry_timer_handler (struct process *p);
 static void process_module_process_handler_event (struct process *p, int event);
-static int process_module_process_func_getspecialobj (struct process *p, const char *name, NCDObject *out_object);
-static int process_module_process_caller_obj_func_getobj (struct process *p, const char *name, NCDObject *out_object);
+static int process_module_process_func_getspecialobj (struct process *p, NCD_string_id_t name, NCDObject *out_object);
+static int process_module_process_caller_obj_func_getobj (struct process *p, NCD_string_id_t name, NCDObject *out_object);
 static void process_stop (struct process *p);
 static int process_restart (struct process *p, const char *template_name, NCDValRef args);
 static void process_try (struct process *p);
@@ -262,11 +262,13 @@ void process_module_process_handler_event (struct process *p, int event)
     }
 }
 
-int process_module_process_func_getspecialobj (struct process *p, const char *name, NCDObject *out_object)
+int process_module_process_func_getspecialobj (struct process *p, NCD_string_id_t name, NCDObject *out_object)
 {
     ASSERT(p->have_module_process)
     
-    if (!strcmp(name, "_caller")) {
+    const char *name_str = NCDStringIndex_Value(p->manager->i->params->iparams->string_index, name);
+    
+    if (!strcmp(name_str, "_caller")) {
         *out_object = NCDObject_Build(NULL, p, NULL, (NCDObject_func_getobj)process_module_process_caller_obj_func_getobj);
         return 1;
     }
@@ -274,7 +276,7 @@ int process_module_process_func_getspecialobj (struct process *p, const char *na
     return 0;
 }
 
-int process_module_process_caller_obj_func_getobj (struct process *p, const char *name, NCDObject *out_object)
+int process_module_process_caller_obj_func_getobj (struct process *p, NCD_string_id_t name, NCDObject *out_object)
 {
     struct instance *o = p->manager;
     ASSERT(p->have_module_process)

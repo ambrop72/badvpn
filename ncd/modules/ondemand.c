@@ -339,7 +339,7 @@ static void demand_func_die (void *vo)
     demand_free(o);
 }
 
-static int demand_func_getobj (void *vo, const char *objname, NCDObject *out_object)
+static int demand_func_getobj (void *vo, NCD_string_id_t objname, NCDObject *out_object)
 {
     struct demand *o = vo;
     ASSERT(o->od->have_process)

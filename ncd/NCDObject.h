@@ -32,13 +32,14 @@
 
 #include <misc/debug.h>
 #include <ncd/NCDVal.h>
+#include <ncd/NCDStringIndex.h>
 
 typedef struct NCDObject_s NCDObject;
 
-typedef int (*NCDObject_func_getvar) (void *user, const char *name, NCDValMem *mem, NCDValRef *out_value);
-typedef int (*NCDObject_func_getobj) (void *user, const char *name, NCDObject *out_object);
-typedef int (*NCDObject_func_getvar2) (void *user, void *user2, const char *name, NCDValMem *mem, NCDValRef *out_value);
-typedef int (*NCDObject_func_getobj2) (void *user, void *user2, const char *name, NCDObject *out_object);
+typedef int (*NCDObject_func_getvar) (void *user, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
+typedef int (*NCDObject_func_getobj) (void *user, NCD_string_id_t name, NCDObject *out_object);
+typedef int (*NCDObject_func_getvar2) (void *user, void *user2, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
+typedef int (*NCDObject_func_getobj2) (void *user, void *user2, NCD_string_id_t name, NCDObject *out_object);
 
 struct NCDObject_s {
     const char *type;
@@ -57,9 +58,9 @@ struct NCDObject_s {
 NCDObject NCDObject_Build (const char *type, void *user, NCDObject_func_getvar func_getvar, NCDObject_func_getobj func_getobj);
 NCDObject NCDObject_Build2 (const char *type, void *user, void *user2, NCDObject_func_getvar2 func_getvar2, NCDObject_func_getobj2 func_getobj2);
 const char * NCDObject_Type (NCDObject *o);
-int NCDObject_GetObj (NCDObject *o, const char *name, NCDObject *out_object) WARN_UNUSED;
-int NCDObject_GetVar (NCDObject *o, const char *name, NCDValMem *mem, NCDValRef *out_value) WARN_UNUSED;
-int NCDObject_ResolveObjExprCompact (NCDObject *o, const char *names, size_t num_names, NCDObject *out_object) WARN_UNUSED;
-int NCDObject_ResolveVarExprCompact (NCDObject *o, const char *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value) WARN_UNUSED;
+int NCDObject_GetObj (NCDObject *o, NCD_string_id_t name, NCDObject *out_object) WARN_UNUSED;
+int NCDObject_GetVar (NCDObject *o, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value) WARN_UNUSED;
+int NCDObject_ResolveObjExprCompact (NCDObject *o, const NCD_string_id_t *names, size_t num_names, NCDObject *out_object) WARN_UNUSED;
+int NCDObject_ResolveVarExprCompact (NCDObject *o, const NCD_string_id_t *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value) WARN_UNUSED;
 
 #endif

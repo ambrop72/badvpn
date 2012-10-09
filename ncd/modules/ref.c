@@ -104,13 +104,13 @@ static void refhere_func_die (void *vo)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static int refhere_func_getobj (void *vo, const char *objname, NCDObject *out_object)
+static int refhere_func_getobj (void *vo, NCD_string_id_t objname, NCDObject *out_object)
 {
     struct refhere_instance *o = vo;
     
     // We don't redirect methods, and there will never be an object
     // with empty name. Fail here so we don't report non-errors.
-    if (!strcmp(objname, "")) {
+    if (objname == NCD_EMPTY_STRING_ID) {
         return 0;
     }
     
@@ -172,13 +172,13 @@ static void ref_func_die (void *vo)
     ref_instance_free(o);
 }
 
-static int ref_func_getobj (void *vo, const char *objname, NCDObject *out_object)
+static int ref_func_getobj (void *vo, NCD_string_id_t objname, NCDObject *out_object)
 {
     struct ref_instance *o = vo;
     
     // We don't redirect methods, and there will never be an object
     // with empty name. Fail here so we don't report non-errors.
-    if (!strcmp(objname, "")) {
+    if (objname == NCD_EMPTY_STRING_ID) {
         return 0;
     }
     

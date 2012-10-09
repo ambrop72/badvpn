@@ -127,12 +127,12 @@ static void work (struct instance *o);
 static void advance (struct instance *o);
 static void timer_handler (struct instance *o);
 static void element_process_handler_event (struct element *e, int event);
-static int element_process_func_getspecialobj (struct element *e, const char *name, NCDObject *out_object);
-static int element_caller_object_func_getobj (struct element *e, const char *name, NCDObject *out_object);
-static int element_list_index_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out);
-static int element_list_elem_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out);
-static int element_map_key_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out);
-static int element_map_val_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out);
+static int element_process_func_getspecialobj (struct element *e, NCD_string_id_t name, NCDObject *out_object);
+static int element_caller_object_func_getobj (struct element *e, NCD_string_id_t name, NCDObject *out_object);
+static int element_list_index_object_func_getvar (struct element *e, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out);
+static int element_list_elem_object_func_getvar (struct element *e, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out);
+static int element_map_key_object_func_getvar (struct element *e, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out);
+static int element_map_val_object_func_getvar (struct element *e, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out);
 static void instance_free (struct instance *o);
 
 static void assert_state (struct instance *o)
@@ -348,22 +348,24 @@ static void element_process_handler_event (struct element *e, int event)
     return;
 }
 
-static int element_process_func_getspecialobj (struct element *e, const char *name, NCDObject *out_object)
+static int element_process_func_getspecialobj (struct element *e, NCD_string_id_t name, NCDObject *out_object)
 {
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
+    
+    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
     
     switch (o->type) {
         case NCDVAL_LIST: {
             const char *index_name = (o->name2 ? o->name1 : NULL);
             const char *elem_name = (o->name2 ? o->name2 : o->name1);
             
-            if (index_name && !strcmp(name, index_name)) {
+            if (index_name && !strcmp(name_str, index_name)) {
                 *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_list_index_object_func_getvar, NULL);
                 return 1;
             }
             
-            if (!strcmp(name, elem_name)) {
+            if (!strcmp(name_str, elem_name)) {
                 *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_list_elem_object_func_getvar, NULL);
                 return 1;
             }
@@ -372,12 +374,12 @@ static int element_process_func_getspecialobj (struct element *e, const char *na
             const char *key_name = o->name1;
             const char *val_name = o->name2;
             
-            if (!strcmp(name, key_name)) {
+            if (!strcmp(name_str, key_name)) {
                 *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_map_key_object_func_getvar, NULL);
                 return 1;
             }
             
-            if (val_name && !strcmp(name, val_name)) {
+            if (val_name && !strcmp(name_str, val_name)) {
                 *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_map_val_object_func_getvar, NULL);
                 return 1;
             }
@@ -388,7 +390,7 @@ static int element_process_func_getspecialobj (struct element *e, const char *na
         return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
     }
     
-    if (!strcmp(name, "_caller")) {
+    if (!strcmp(name_str, "_caller")) {
         *out_object = NCDObject_Build(NULL, e, NULL, (NCDObject_func_getobj)element_caller_object_func_getobj);
         return 1;
     }
@@ -396,7 +398,7 @@ static int element_process_func_getspecialobj (struct element *e, const char *na
     return 0;
 }
 
-static int element_caller_object_func_getobj (struct element *e, const char *name, NCDObject *out_object)
+static int element_caller_object_func_getobj (struct element *e, NCD_string_id_t name, NCDObject *out_object)
 {
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
@@ -405,13 +407,13 @@ static int element_caller_object_func_getobj (struct element *e, const char *nam
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
 }
 
-static int element_list_index_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out)
+static int element_list_index_object_func_getvar (struct element *e, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
     ASSERT(o->type == NCDVAL_LIST)
     
-    if (strcmp(name, "")) {
+    if (name != NCD_EMPTY_STRING_ID) {
         return 0;
     }
     
@@ -425,13 +427,13 @@ static int element_list_index_object_func_getvar (struct element *e, const char 
     return 1;
 }
 
-static int element_list_elem_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out)
+static int element_list_elem_object_func_getvar (struct element *e, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
     ASSERT(o->type == NCDVAL_LIST)
     
-    if (strcmp(name, "")) {
+    if (name != NCD_EMPTY_STRING_ID) {
         return 0;
     }
     
@@ -442,13 +444,13 @@ static int element_list_elem_object_func_getvar (struct element *e, const char *
     return 1;
 }
 
-static int element_map_key_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out)
+static int element_map_key_object_func_getvar (struct element *e, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
     ASSERT(o->type == NCDVAL_MAP)
     
-    if (strcmp(name, "")) {
+    if (name != NCD_EMPTY_STRING_ID) {
         return 0;
     }
     
@@ -459,13 +461,13 @@ static int element_map_key_object_func_getvar (struct element *e, const char *na
     return 1;
 }
 
-static int element_map_val_object_func_getvar (struct element *e, const char *name, NCDValMem *mem, NCDValRef *out)
+static int element_map_val_object_func_getvar (struct element *e, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
     ASSERT(o->type == NCDVAL_MAP)
     
-    if (strcmp(name, "")) {
+    if (name != NCD_EMPTY_STRING_ID) {
         return 0;
     }
     

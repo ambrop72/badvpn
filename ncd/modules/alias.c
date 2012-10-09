@@ -44,6 +44,7 @@
 #include <misc/debug.h>
 #include <misc/balloc.h>
 #include <ncd/NCDModule.h>
+#include <ncd/make_name_indices.h>
 
 #include <generated/blog_channel_ncd_alias.h>
 
@@ -51,32 +52,15 @@
 
 struct instance {
     NCDModuleInst *i;
-    int num_extra_parts;
-    char strings[];
+    NCD_string_id_t *names;
+    size_t num_names;
 };
 
-static int split_string_inplace (char *str, char del)
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    ASSERT(str)
+    struct instance *o = vo;
+    o->i = i;
     
-    int num_extra_parts = 0;
-    
-    while (*str) {
-        if (*str == del) {
-            if (num_extra_parts == INT_MAX) {
-                return -1;
-            }
-            *str = '\0';
-            num_extra_parts++;
-        }
-        str++;
-    }
-    
-    return num_extra_parts;
-}
-
-static void func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
-{
     // read arguments
     NCDValRef target_arg;
     if (!NCDVal_ListRead(params->args, 1, &target_arg)) {
@@ -88,35 +72,17 @@ static void func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst
         goto fail0;
     }
     const char *target = NCDVal_StringValue(target_arg);
-    size_t target_len = strlen(target);
     
-    // calculate size
-    bsize_t size = bsize_add(bsize_fromsize(sizeof(struct instance)), bsize_fromsize(target_len + 1));
-    
-    // allocate instance
-    struct instance *o = BAllocSize(size);
-    if (!o) {
-        ModuleLog(i, BLOG_ERROR, "failed to allocate instance");
+    // make indices array
+    if (!ncd_make_name_indices(i->params->iparams->string_index, target, &o->names, &o->num_names)) {
+        ModuleLog(i, BLOG_ERROR, "ncd_make_name_indices failed");
         goto fail0;
-    }
-    o->i = i;
-    NCDModuleInst_Backend_SetUser(i, o);
-    
-    // copy target
-    memcpy(o->strings, target, target_len + 1);
-    
-    // split target into components
-    if ((o->num_extra_parts = split_string_inplace(o->strings, '.')) < 0) {
-        ModuleLog(o->i, BLOG_ERROR, "split_string_inplace failed");
-        goto fail1;
     }
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail1:
-    BFree(o);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -125,29 +91,28 @@ fail0:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    NCDModuleInst *i = o->i;
     
-    // free instance
-    BFree(o);
+    // free indices array
+    BFree(o->names);
     
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_Dead(o->i);
 }
 
-static int func_getobj (void *vo, const char *name, NCDObject *out_object)
+static int func_getobj (void *vo, NCD_string_id_t name, NCDObject *out_object)
 {
     struct instance *o = vo;
     
     NCDObject object;
-    if (!NCDModuleInst_Backend_GetObj(o->i, o->strings, &object)) {
+    if (!NCDModuleInst_Backend_GetObj(o->i, o->names[0], &object)) {
         return 0;
     }
     
     NCDObject obj2;
-    if (!NCDObject_ResolveObjExprCompact(&object, o->strings + strlen(o->strings) + 1, o->num_extra_parts, &obj2)) {
+    if (!NCDObject_ResolveObjExprCompact(&object, o->names + 1, o->num_names - 1, &obj2)) {
         return 0;
     }
     
-    if (!strcmp(name, "")) {
+    if (name == NCD_EMPTY_STRING_ID) {
         *out_object = obj2;
         return 1;
     }
@@ -160,7 +125,8 @@ static const struct NCDModule modules[] = {
         .type = "alias",
         .func_new2 = func_new,
         .func_die = func_die,
-        .func_getobj = func_getobj
+        .func_getobj = func_getobj,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

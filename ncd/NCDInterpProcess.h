@@ -40,6 +40,7 @@
 #include <ncd/NCDPlaceholderDb.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDModuleIndex.h>
+#include <ncd/NCDStringIndex.h>
 #include <ncd/NCDMethodIndex.h>
 
 #include "NCDInterpProcess_trie.h"
@@ -48,7 +49,7 @@
 struct NCDInterpProcess__stmt {
     char *name;
     char *cmdname;
-    char *objnames;
+    NCD_string_id_t *objnames;
     size_t num_objnames;
     union {
         const struct NCDModule *simple_module;
@@ -82,11 +83,11 @@ typedef struct {
     DebugObject d_obj;
 } NCDInterpProcess;
 
-int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
+int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIndex *string_index, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
 void NCDInterpProcess_Free (NCDInterpProcess *o);
 int NCDInterpProcess_FindStatement (NCDInterpProcess *o, int from_index, const char *name);
 const char * NCDInterpProcess_StatementCmdName (NCDInterpProcess *o, int i);
-void NCDInterpProcess_StatementObjNames (NCDInterpProcess *o, int i, const char **out_objnames, size_t *out_num_objnames);
+void NCDInterpProcess_StatementObjNames (NCDInterpProcess *o, int i, const NCD_string_id_t **out_objnames, size_t *out_num_objnames);
 const struct NCDModule * NCDInterpProcess_StatementGetSimpleModule (NCDInterpProcess *o, int i);
 const struct NCDModule * NCDInterpProcess_StatementGetMethodModule (NCDInterpProcess *o, int i, const char *obj_type, NCDMethodIndex *method_index);
 int NCDInterpProcess_CopyStatementArgs (NCDInterpProcess *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg *out_prog) WARN_UNUSED;

@@ -150,9 +150,9 @@ static void request_handler_sent (struct request_instance *o);
 static void request_handler_reply (struct request_instance *o, NCDValMem reply_mem, NCDValRef reply_value);
 static void request_handler_finished (struct request_instance *o, int is_error);
 static void request_process_handler_event (struct request_instance *o, int event);
-static int request_process_func_getspecialobj (struct request_instance *o, const char *name, NCDObject *out_object);
-static int request_process_caller_obj_func_getobj (struct request_instance *o, const char *name, NCDObject *out_object);
-static int request_process_reply_obj_func_getvar (struct request_instance *o, const char *name, NCDValMem *mem, NCDValRef *out);
+static int request_process_func_getspecialobj (struct request_instance *o, NCD_string_id_t name, NCDObject *out_object);
+static int request_process_caller_obj_func_getobj (struct request_instance *o, NCD_string_id_t name, NCDObject *out_object);
+static int request_process_reply_obj_func_getvar (struct request_instance *o, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out);
 static void request_gone (struct request_instance *o, int is_bad);
 static void request_terminate_process (struct request_instance *o);
 static void request_die (struct request_instance *o, int is_error);
@@ -312,16 +312,18 @@ static void request_process_handler_event (struct request_instance *o, int event
     }
 }
 
-static int request_process_func_getspecialobj (struct request_instance *o, const char *name, NCDObject *out_object)
+static int request_process_func_getspecialobj (struct request_instance *o, NCD_string_id_t name, NCDObject *out_object)
 {
     ASSERT(o->pstate != RPSTATE_NONE)
     
-    if (!strcmp(name, "_caller")) {
+    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
+    
+    if (!strcmp(name_str, "_caller")) {
         *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)request_process_caller_obj_func_getobj);
         return 1;
     }
     
-    if (!o->process_is_finished && !strcmp(name, "_reply")) {
+    if (!o->process_is_finished && !strcmp(name_str, "_reply")) {
         *out_object = NCDObject_Build(NULL, o, (NCDObject_func_getvar)request_process_reply_obj_func_getvar, NULL);
         return 1;
     }
@@ -329,19 +331,21 @@ static int request_process_func_getspecialobj (struct request_instance *o, const
     return 0;
 }
 
-static int request_process_caller_obj_func_getobj (struct request_instance *o, const char *name, NCDObject *out_object)
+static int request_process_caller_obj_func_getobj (struct request_instance *o, NCD_string_id_t name, NCDObject *out_object)
 {
     ASSERT(o->pstate != RPSTATE_NONE)
     
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
 }
 
-static int request_process_reply_obj_func_getvar (struct request_instance *o, const char *name, NCDValMem *mem, NCDValRef *out)
+static int request_process_reply_obj_func_getvar (struct request_instance *o, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     ASSERT(o->pstate != RPSTATE_NONE)
     ASSERT(!o->process_is_finished)
     
-    if (!strcmp(name, "data")) {
+    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
+    
+    if (!strcmp(name_str, "data")) {
         *out = NCDVal_NewCopy(mem, o->process_reply_data);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
