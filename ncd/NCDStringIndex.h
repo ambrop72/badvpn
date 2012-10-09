@@ -45,10 +45,11 @@ typedef int NCD_string_id_t;
 
 struct NCDStringIndex__entry {
     char *str;
+    size_t str_len;
     NCD_string_id_t hash_next;
 };
 
-typedef const char *NCDStringIndex_hash_key;
+typedef struct { const char *str; size_t len; } NCDStringIndex_hash_key;
 typedef struct NCDStringIndex__entry *NCDStringIndex_hash_arg;
 
 #include "NCDStringIndex_hash.h"
@@ -72,7 +73,9 @@ struct NCD_string_request {
 int NCDStringIndex_Init (NCDStringIndex *o) WARN_UNUSED;
 void NCDStringIndex_Free (NCDStringIndex *o);
 NCD_string_id_t NCDStringIndex_Lookup (NCDStringIndex *o, const char *str);
+NCD_string_id_t NCDStringIndex_LookupBin (NCDStringIndex *o, const char *str, size_t str_len);
 NCD_string_id_t NCDStringIndex_Get (NCDStringIndex *o, const char *str);
+NCD_string_id_t NCDStringIndex_GetBin (NCDStringIndex *o, const char *str, size_t str_len);
 const char * NCDStringIndex_Value (NCDStringIndex *o, NCD_string_id_t id);
 int NCDStringIndex_GetRequests (NCDStringIndex *o, struct NCD_string_request *requests) WARN_UNUSED;
 

@@ -48,14 +48,16 @@
 
 #include <generated/blog_channel_ncd.h>
 
-static NCD_string_id_t do_get (NCDStringIndex *o, const char *str)
+static NCD_string_id_t do_get (NCDStringIndex *o, const char *str, size_t str_len)
 {
     ASSERT(str)
+    ASSERT(!memchr(str, '\0', str_len))
     
-    NCDStringIndex__HashRef ref = NCDStringIndex__Hash_Lookup(&o->hash, o->entries, str);
+    NCDStringIndex_hash_key key = {str, str_len};
+    NCDStringIndex__HashRef ref = NCDStringIndex__Hash_Lookup(&o->hash, o->entries, key);
     ASSERT(ref.link == -1 || ref.link >= 0)
     ASSERT(ref.link == -1 || ref.link < o->entries_size)
-    ASSERT(ref.link == -1 || !strcmp(ref.ptr->str, str))
+    ASSERT(ref.link == -1 || (ref.ptr->str_len == str_len && !memcmp(ref.ptr->str, str, str_len)))
     
     if (ref.link != -1) {
         return ref.link;
@@ -70,10 +72,11 @@ static NCD_string_id_t do_get (NCDStringIndex *o, const char *str)
     
     struct NCDStringIndex__entry *entry = &o->entries[o->entries_size];
     
-    if (!(entry->str = b_strdup(str))) {
-        BLog(BLOG_ERROR, "b_strdup failed");
+    if (!(entry->str = b_strdup_bin(str, str_len))) {
+        BLog(BLOG_ERROR, "b_strdup_bin failed");
         return -1;
     }
+    entry->str_len = str_len;
     
     NCDStringIndex__HashRef newref = {entry, o->entries_size};
     int res = NCDStringIndex__Hash_Insert(&o->hash, o->entries, newref, NULL);
@@ -96,7 +99,7 @@ int NCDStringIndex_Init (NCDStringIndex *o)
         goto fail1;
     }
     
-    if (do_get(o, "") < 0) {
+    if (do_get(o, "", 0) < 0) {
         goto fail2;
     }
     
@@ -128,10 +131,20 @@ NCD_string_id_t NCDStringIndex_Lookup (NCDStringIndex *o, const char *str)
     DebugObject_Access(&o->d_obj);
     ASSERT(str)
     
-    NCDStringIndex__HashRef ref = NCDStringIndex__Hash_Lookup(&o->hash, o->entries, str);
+    return NCDStringIndex_LookupBin(o, str, strlen(str));
+}
+
+NCD_string_id_t NCDStringIndex_LookupBin (NCDStringIndex *o, const char *str, size_t str_len)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(str)
+    ASSERT(!memchr(str, '\0', str_len))
+    
+    NCDStringIndex_hash_key key = {str, str_len};
+    NCDStringIndex__HashRef ref = NCDStringIndex__Hash_Lookup(&o->hash, o->entries, key);
     ASSERT(ref.link == -1 || ref.link >= 0)
     ASSERT(ref.link == -1 || ref.link < o->entries_size)
-    ASSERT(ref.link == -1 || !strcmp(ref.ptr->str, str))
+    ASSERT(ref.link == -1 || (ref.ptr->str_len == str_len && !memcmp(ref.ptr->str, str, str_len)))
     
     return ref.link;
 }
@@ -141,7 +154,16 @@ NCD_string_id_t NCDStringIndex_Get (NCDStringIndex *o, const char *str)
     DebugObject_Access(&o->d_obj);
     ASSERT(str)
     
-    return do_get(o, str);
+    return NCDStringIndex_GetBin(o, str, strlen(str));
+}
+
+NCD_string_id_t NCDStringIndex_GetBin (NCDStringIndex *o, const char *str, size_t str_len)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(str)
+    ASSERT(!memchr(str, '\0', str_len))
+    
+    return do_get(o, str, str_len);
 }
 
 const char * NCDStringIndex_Value (NCDStringIndex *o, NCD_string_id_t id)
