@@ -39,7 +39,7 @@
 #include <misc/read_file.h>
 #include <misc/balloc.h>
 #include <misc/open_standard_streams.h>
-#include <misc/split_string.h>
+#include <misc/expstring.h>
 #include <structure/LinkedList1.h>
 #include <base/BLog.h>
 #include <base/BLog_syslog.h>
