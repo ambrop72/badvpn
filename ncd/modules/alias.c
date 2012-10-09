@@ -50,11 +50,91 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
+#define NUM_STATIC_NAMES 4
+
 struct instance {
     NCDModuleInst *i;
-    NCD_string_id_t *names;
+    NCD_string_id_t *dynamic_names;
     size_t num_names;
+    NCD_string_id_t static_names[NUM_STATIC_NAMES];
 };
+
+static size_t count_names (const char *str)
+{
+    size_t count = 1;
+    
+    while (*str) {
+        if (*str == '.') {
+            count++;
+        }
+        str++;
+    }
+    
+    return count;
+}
+
+static int add_name (struct instance *o, const char *str, size_t str_len, const char *remain)
+{
+    ASSERT(str)
+    ASSERT(!memchr(str, '\0', str_len))
+    ASSERT(!!o->dynamic_names == (o->num_names > NUM_STATIC_NAMES))
+    
+    NCD_string_id_t id = NCDStringIndex_GetBin(o->i->params->iparams->string_index, str, str_len);
+    if (id < 0) {
+        return 0;
+    }
+    
+    if (o->num_names < NUM_STATIC_NAMES) {
+        o->static_names[o->num_names++] = id;
+        return 1;
+    }
+    
+    if (o->num_names == NUM_STATIC_NAMES) {
+        size_t num_more = (!remain ? 0 : count_names(remain));
+        size_t num_all = o->num_names + 1 + num_more;
+        
+        if (!(o->dynamic_names = BAllocArray(num_all, sizeof(o->dynamic_names[0])))) {
+            return 0;
+        }
+        
+        memcpy(o->dynamic_names, o->static_names, NUM_STATIC_NAMES * sizeof(o->dynamic_names[0]));
+    }
+    
+    o->dynamic_names[o->num_names++] = id;
+    
+    return 1;
+}
+
+static int make_names (struct instance *o, const char *str)
+{
+    ASSERT(str)
+    
+    o->num_names = 0;
+    o->dynamic_names = NULL;
+    
+    size_t i = 0;
+    while (str[i]) {
+        if (str[i] == '.') {
+            if (!add_name(o, str, i, str + i + 1)) {
+                goto fail;
+            }
+            str += i + 1;
+            i = 0;
+            continue;
+        }
+        i++;
+    }
+    
+    if (!add_name(o, str, i, NULL)) {
+        goto fail;
+    }
+    
+    return 1;
+    
+fail:
+    BFree(o->dynamic_names);
+    return 0;
+}
 
 static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
@@ -73,9 +153,9 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     const char *target = NCDVal_StringValue(target_arg);
     
-    // make indices array
-    if (!ncd_make_name_indices(i->params->iparams->string_index, target, &o->names, &o->num_names)) {
-        ModuleLog(i, BLOG_ERROR, "ncd_make_name_indices failed");
+    // parse name string
+    if (!make_names(o, target)) {
+        ModuleLog(i, BLOG_ERROR, "make_names failed");
         goto fail0;
     }
     
@@ -92,8 +172,7 @@ static void func_die (void *vo)
 {
     struct instance *o = vo;
     
-    // free indices array
-    BFree(o->names);
+    BFree(o->dynamic_names);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -101,14 +180,17 @@ static void func_die (void *vo)
 static int func_getobj (void *vo, NCD_string_id_t name, NCDObject *out_object)
 {
     struct instance *o = vo;
+    ASSERT(o->num_names > 0)
+    
+    NCD_string_id_t *names = (o->dynamic_names ? o->dynamic_names : o->static_names);
     
     NCDObject object;
-    if (!NCDModuleInst_Backend_GetObj(o->i, o->names[0], &object)) {
+    if (!NCDModuleInst_Backend_GetObj(o->i, names[0], &object)) {
         return 0;
     }
     
     NCDObject obj2;
-    if (!NCDObject_ResolveObjExprCompact(&object, o->names + 1, o->num_names - 1, &obj2)) {
+    if (!NCDObject_ResolveObjExprCompact(&object, names + 1, o->num_names - 1, &obj2)) {
         return 0;
     }
     
