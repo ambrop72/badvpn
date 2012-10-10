@@ -37,7 +37,7 @@
 #include <base/DebugObject.h>
 
 #define NCDSTRINGINDEX_INITIAL_CAPACITY 1
-#define NCDSTRINGINDEX_HASH_BUCKETS 100
+#define NCDSTRINGINDEX_INITIAL_HASH_BUCKETS 1
 
 typedef int NCD_string_id_t;
 

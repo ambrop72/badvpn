@@ -90,9 +90,16 @@ static NCD_string_id_t do_get (NCDStringIndex *o, const char *str, size_t str_le
         return ref.link;
     }
     
-    if (o->entries_size == o->entries_capacity && !Array_DoubleUp(o)) {
-        BLog(BLOG_ERROR, "Array_DoubleUp failed");
-        return -1;
+    if (o->entries_size == o->entries_capacity) {
+        if (!Array_DoubleUp(o)) {
+            BLog(BLOG_ERROR, "Array_DoubleUp failed");
+            return -1;
+        }
+        
+        if (!NCDStringIndex__Hash_MultiplyBuckets(&o->hash, o->entries, 1)) {
+            BLog(BLOG_ERROR, "NCDStringIndex__Hash_MultiplyBuckets failed");
+            return -1;
+        }
     }
     
     ASSERT(o->entries_size < o->entries_capacity)
@@ -121,7 +128,7 @@ int NCDStringIndex_Init (NCDStringIndex *o)
         goto fail0;
     }
     
-    if (!NCDStringIndex__Hash_Init(&o->hash, NCDSTRINGINDEX_HASH_BUCKETS)) {
+    if (!NCDStringIndex__Hash_Init(&o->hash, NCDSTRINGINDEX_INITIAL_HASH_BUCKETS)) {
         BLog(BLOG_ERROR, "NCDStringIndex__Hash_Init failed");
         goto fail1;
     }
