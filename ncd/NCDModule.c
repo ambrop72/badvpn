@@ -71,6 +71,7 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem,
     ASSERT(m)
     ASSERT(m->func_new2)
     ASSERT(m->alloc_size >= 0)
+    ASSERT(m->base_type_id >= 0)
     ASSERT(!!mem == m->alloc_size > 0)
     ASSERT(NCDVal_IsList(args))
     ASSERT(params)
@@ -145,10 +146,9 @@ void NCDModuleInst_Clean (NCDModuleInst *n)
 NCDObject NCDModuleInst_Object (NCDModuleInst *n)
 {
     DebugObject_Access(&n->d_obj);
+    ASSERT(n->m->base_type_id >= 0)
     
-    const char *type = (n->m->base_type ? n->m->base_type : n->m->type);
-    
-    return NCDObject_Build(type, n, (NCDObject_func_getvar)object_func_getvar, (NCDObject_func_getobj)object_func_getobj);
+    return NCDObject_Build(n->m->base_type_id, n, (NCDObject_func_getvar)object_func_getvar, (NCDObject_func_getobj)object_func_getobj);
 }
 
 static int can_resolve (NCDModuleInst *n)
@@ -489,13 +489,13 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, NCD_string_id_t 
     
     if (!NCDVal_IsInvalid(o->args)) {
         if (name == NCD_STRING_ARGS) {
-            *out_object = NCDObject_Build(NULL, o, (NCDObject_func_getvar)process_args_object_func_getvar, NULL);
+            *out_object = NCDObject_Build(-1, o, (NCDObject_func_getvar)process_args_object_func_getvar, NULL);
             return 1;
         }
         
         if (name >= NCD_STRING_ARG0 && name <= NCD_STRING_ARG19) {
             int num = name - NCD_STRING_ARG0;
-            *out_object = NCDObject_Build2(NULL, o, (void *)((uintptr_t)(num + 1)), (NCDObject_func_getvar2)process_arg_object_func_getvar2, NULL);
+            *out_object = NCDObject_Build2(-1, o, (void *)((uintptr_t)(num + 1)), (NCDObject_func_getvar2)process_arg_object_func_getvar2, NULL);
             return 1;
         }
     }

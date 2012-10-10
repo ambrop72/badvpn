@@ -203,7 +203,7 @@ static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name,
     ASSERT(o->state != STATE_UP)
     
     if (name == strings[STRING_CALLER].id) {
-        *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)process_caller_object_func_getobj);
+        *out_object = NCDObject_Build(-1, o, NULL, (NCDObject_func_getobj)process_caller_object_func_getobj);
         return 1;
     }
     

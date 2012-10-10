@@ -323,12 +323,12 @@ static int request_process_func_getspecialobj (struct request_instance *o, NCD_s
     ASSERT(o->pstate != RPSTATE_NONE)
     
     if (name == strings[STRING_CALLER].id) {
-        *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)request_process_caller_obj_func_getobj);
+        *out_object = NCDObject_Build(-1, o, NULL, (NCDObject_func_getobj)request_process_caller_obj_func_getobj);
         return 1;
     }
     
     if (!o->process_is_finished && name == strings[STRING_REPLY].id) {
-        *out_object = NCDObject_Build(NULL, o, (NCDObject_func_getvar)request_process_reply_obj_func_getvar, NULL);
+        *out_object = NCDObject_Build(-1, o, (NCDObject_func_getvar)request_process_reply_obj_func_getvar, NULL);
         return 1;
     }
     

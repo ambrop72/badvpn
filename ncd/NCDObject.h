@@ -42,7 +42,7 @@ typedef int (*NCDObject_func_getvar2) (void *user, void *user2, NCD_string_id_t 
 typedef int (*NCDObject_func_getobj2) (void *user, void *user2, NCD_string_id_t name, NCDObject *out_object);
 
 struct NCDObject_s {
-    const char *type;
+    NCD_string_id_t type;
     void *user;
     void *user2;
     union {
@@ -55,9 +55,9 @@ struct NCDObject_s {
     } uo;
 };
 
-NCDObject NCDObject_Build (const char *type, void *user, NCDObject_func_getvar func_getvar, NCDObject_func_getobj func_getobj);
-NCDObject NCDObject_Build2 (const char *type, void *user, void *user2, NCDObject_func_getvar2 func_getvar2, NCDObject_func_getobj2 func_getobj2);
-const char * NCDObject_Type (NCDObject *o);
+NCDObject NCDObject_Build (NCD_string_id_t type, void *user, NCDObject_func_getvar func_getvar, NCDObject_func_getobj func_getobj);
+NCDObject NCDObject_Build2 (NCD_string_id_t type, void *user, void *user2, NCDObject_func_getvar2 func_getvar2, NCDObject_func_getobj2 func_getobj2);
+NCD_string_id_t NCDObject_Type (NCDObject *o);
 int NCDObject_GetObj (NCDObject *o, NCD_string_id_t name, NCDObject *out_object) WARN_UNUSED;
 int NCDObject_GetVar (NCDObject *o, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value) WARN_UNUSED;
 int NCDObject_ResolveObjExprCompact (NCDObject *o, const NCD_string_id_t *names, size_t num_names, NCDObject *out_object) WARN_UNUSED;

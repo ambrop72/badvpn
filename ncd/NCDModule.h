@@ -828,6 +828,13 @@ struct NCDModule {
      * {@link NCDModuleInst_Backend_SetUser}).
      */
     int alloc_size;
+    
+    /**
+     * The string identifier of this module's base_type (or type if base_type is
+     * not specified) according to {@link NCDStringIndex}. This is initialized
+     * by the interpreter on startup and should not be set by the module.
+     */
+    NCD_string_id_t base_type_id;
 };
 
 /**

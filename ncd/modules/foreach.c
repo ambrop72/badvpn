@@ -366,12 +366,12 @@ static int element_process_func_getspecialobj (struct element *e, NCD_string_id_
             NCD_string_id_t elem_name = (o->name2 >= 0 ? o->name2 : o->name1);
             
             if (index_name >= 0 && name == index_name) {
-                *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_list_index_object_func_getvar, NULL);
+                *out_object = NCDObject_Build(-1, e, (NCDObject_func_getvar)element_list_index_object_func_getvar, NULL);
                 return 1;
             }
             
             if (name == elem_name) {
-                *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_list_elem_object_func_getvar, NULL);
+                *out_object = NCDObject_Build(-1, e, (NCDObject_func_getvar)element_list_elem_object_func_getvar, NULL);
                 return 1;
             }
         } break;
@@ -380,12 +380,12 @@ static int element_process_func_getspecialobj (struct element *e, NCD_string_id_
             NCD_string_id_t val_name = o->name2;
             
             if (name == key_name) {
-                *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_map_key_object_func_getvar, NULL);
+                *out_object = NCDObject_Build(-1, e, (NCDObject_func_getvar)element_map_key_object_func_getvar, NULL);
                 return 1;
             }
             
             if (val_name >= 0 && name == val_name) {
-                *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_map_val_object_func_getvar, NULL);
+                *out_object = NCDObject_Build(-1, e, (NCDObject_func_getvar)element_map_val_object_func_getvar, NULL);
                 return 1;
             }
         } break;
@@ -396,7 +396,7 @@ static int element_process_func_getspecialobj (struct element *e, NCD_string_id_
     }
     
     if (name == strings[STRING_CALLER].id) {
-        *out_object = NCDObject_Build(NULL, e, NULL, (NCDObject_func_getobj)element_caller_object_func_getobj);
+        *out_object = NCDObject_Build(-1, e, NULL, (NCDObject_func_getobj)element_caller_object_func_getobj);
         return 1;
     }
     

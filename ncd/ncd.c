@@ -165,6 +165,7 @@ static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
 static void start_terminate (int exit_code);
 static char * implode_id_strings (const NCD_string_id_t *names, size_t num_names, char del);
+static int alloc_base_type_strings (const struct NCDModuleGroup *g);
 static int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process);
 static void process_free (struct process *p, NCDModuleProcess **out_mp);
 static int process_state (struct process *p);
@@ -300,7 +301,7 @@ int main (int argc, char **argv)
     }
     
     // init method index
-    if (!NCDMethodIndex_Init(&method_index)) {
+    if (!NCDMethodIndex_Init(&method_index, &string_index)) {
         BLog(BLOG_ERROR, "NCDMethodIndex_Init failed");
         goto fail1b;
     }
@@ -311,10 +312,13 @@ int main (int argc, char **argv)
         goto fail1c;
     }
     
-    // add module groups to index
+    // add module groups to index and allocate string id's for base_type's
     for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
         if (!NCDModuleIndex_AddGroup(&mindex, *g, &method_index)) {
             BLog(BLOG_ERROR, "NCDModuleIndex_AddGroup failed");
+            goto fail2;
+        }
+        if (!alloc_base_type_strings(*g)) {
             goto fail2;
         }
     }
@@ -717,6 +721,22 @@ fail0:
     return NULL;
 }
 
+int alloc_base_type_strings (const struct NCDModuleGroup *g)
+{
+    for (struct NCDModule *m = g->modules; m->type; m++) {
+        const char *type = (m->base_type ? m->base_type : m->type);
+        ASSERT(type)
+        
+        m->base_type_id = NCDStringIndex_Get(&string_index, type);
+        if (m->base_type_id < 0) {
+            BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
+            return 0;
+        }
+    }
+    
+    return 1;
+}
+
 int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
 {
     ASSERT(iprocess)
@@ -1112,8 +1132,8 @@ void process_advance (struct process *p)
         object_ptr = &object;
         
         // get object type
-        const char *object_type = NCDObject_Type(&object);
-        if (!object_type) {
+        NCD_string_id_t object_type = NCDObject_Type(&object);
+        if (object_type < 0) {
             statement_log(ps, BLOG_ERROR, "cannot call method on object with no type");
             goto fail0;
         }
@@ -1122,7 +1142,8 @@ void process_advance (struct process *p)
         module = NCDInterpProcess_StatementGetMethodModule(p->iprocess, p->ap, object_type, &method_index);
         
         if (!module) {
-            statement_log(ps, BLOG_ERROR, "unknown method statement: %s::%s", object_type, NCDInterpProcess_StatementCmdName(p->iprocess, p->ap));
+            const char *type_str = NCDStringIndex_Value(&string_index, object_type);
+            statement_log(ps, BLOG_ERROR, "unknown method statement: %s::%s", type_str, NCDInterpProcess_StatementCmdName(p->iprocess, p->ap));
             goto fail0;
         }
     }

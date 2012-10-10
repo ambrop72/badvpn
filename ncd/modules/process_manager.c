@@ -273,7 +273,7 @@ int process_module_process_func_getspecialobj (struct process *p, NCD_string_id_
     ASSERT(p->have_module_process)
     
     if (name == strings[STRING_CALLER].id) {
-        *out_object = NCDObject_Build(NULL, p, NULL, (NCDObject_func_getobj)process_module_process_caller_obj_func_getobj);
+        *out_object = NCDObject_Build(-1, p, NULL, (NCDObject_func_getobj)process_module_process_caller_obj_func_getobj);
         return 1;
     }
     

@@ -95,7 +95,7 @@ static int add_method_name (NCDMethodIndex *o, const char *method_name, int *out
     }
     
     struct NCDMethodIndex__entry *entry = &o->entries[o->num_entries];
-    entry->obj_type = NULL;
+    entry->obj_type = -1;
     entry->next = -1;
     
     struct NCDMethodIndex__method_name *name_entry = &o->names[o->num_names];
@@ -123,8 +123,12 @@ fail0:
     return 0;
 }
 
-int NCDMethodIndex_Init (NCDMethodIndex *o)
+int NCDMethodIndex_Init (NCDMethodIndex *o, NCDStringIndex *string_index)
 {
+    ASSERT(string_index)
+    
+    o->string_index = string_index;
+    
     if (!NamesArray_Init(o, NCDMETHODINDEX_NUM_EXPECTED_METHOD_NAMES)) {
         BLog(BLOG_ERROR, "NamesArray_Init failed");
         goto fail0;
@@ -159,10 +163,6 @@ void NCDMethodIndex_Free (NCDMethodIndex *o)
         free(o->names[i].method_name);
     }
     
-    for (int i = 0; i < o->num_entries; i++) {
-        free(o->entries[i].obj_type);
-    }
-    
     NCDMethodIndex__Hash_Free(&o->hash);
     EntriesArray_Free(o);
     NamesArray_Free(o);
@@ -173,6 +173,12 @@ int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, const cha
     ASSERT(obj_type)
     ASSERT(method_name)
     ASSERT(module)
+    
+    NCD_string_id_t obj_type_id = NCDStringIndex_Get(o->string_index, obj_type);
+    if (obj_type_id < 0) {
+        BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
+        goto fail0;
+    }
     
     int first_entry_idx;
     
@@ -187,11 +193,7 @@ int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, const cha
         
         struct NCDMethodIndex__entry *entry = &o->entries[entry_idx];
         
-        if (!(entry->obj_type = b_strdup(obj_type))) {
-            BLog(BLOG_ERROR, "b_strdup failed");
-            goto fail0;
-        }
-        
+        entry->obj_type = obj_type_id;
         entry->module = module;
     } else {
         ASSERT(first_entry_idx >= 0)
@@ -204,11 +206,7 @@ int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, const cha
         
         struct NCDMethodIndex__entry *entry = &o->entries[o->num_entries];
         
-        if (!(entry->obj_type = b_strdup(obj_type))) {
-            BLog(BLOG_ERROR, "b_strdup failed");
-            goto fail0;
-        }
-        
+        entry->obj_type = obj_type_id;
         entry->module = module;
         
         entry->next = o->entries[first_entry_idx].next;
@@ -241,16 +239,16 @@ int NCDMethodIndex_GetMethodNameId (NCDMethodIndex *o, const char *method_name)
     return first_entry_idx;
 }
 
-const struct NCDModule * NCDMethodIndex_GetMethodModule (NCDMethodIndex *o, const char *obj_type, int method_name_id)
+const struct NCDModule * NCDMethodIndex_GetMethodModule (NCDMethodIndex *o, NCD_string_id_t obj_type, int method_name_id)
 {
-    ASSERT(obj_type)
+    ASSERT(obj_type >= 0)
     ASSERT(method_name_id >= 0)
     ASSERT(method_name_id < o->num_entries)
     
     do {
         struct NCDMethodIndex__entry *entry = &o->entries[method_name_id];
         
-        if (entry->obj_type && !strcmp(entry->obj_type, obj_type)) {
+        if (entry->obj_type == obj_type) {
             ASSERT(entry->module)
             return entry->module;
         }

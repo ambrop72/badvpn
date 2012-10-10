@@ -171,10 +171,12 @@ static void reply_send_qflow_if_handler_done (struct reply *r);
 static int init_listen (struct instance *o, NCDValRef listen_addr_arg);
 static void instance_free (struct instance *o);
 
-enum {STRING_REQUEST, STRING_DATA, STRING_CLIENT_ADDR_TYPE, STRING_CLIENT_ADDR};
+enum {STRING_REQUEST, STRING_DATA, STRING_CLIENT_ADDR_TYPE, STRING_CLIENT_ADDR,
+      STRING_SYS_REQUEST_SERVER_REQUEST};
 
 static struct NCD_string_request strings[] = {
-    {"_request"}, {"data"}, {"client_addr_type"}, {"client_addr"}, {NULL}
+    {"_request"}, {"data"}, {"client_addr_type"}, {"client_addr"},
+    {"sys.request_server.request"}, {NULL}
 };
 
 static void listener_handler (struct instance *o)
@@ -481,7 +483,7 @@ static void request_process_handler_event (struct request *r, int event)
 static int request_process_func_getspecialobj (struct request *r, NCD_string_id_t name, NCDObject *out_object)
 {
     if (name == strings[STRING_REQUEST].id) {
-        *out_object = NCDObject_Build("sys.request_server.request", r, (NCDObject_func_getvar)request_process_request_obj_func_getvar, NULL);
+        *out_object = NCDObject_Build(strings[STRING_SYS_REQUEST_SERVER_REQUEST].id, r, (NCDObject_func_getvar)request_process_request_obj_func_getvar, NULL);
         return 1;
     }
     

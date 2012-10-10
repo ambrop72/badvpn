@@ -361,13 +361,13 @@ const struct NCDModule * NCDInterpProcess_StatementGetSimpleModule (NCDInterpPro
     return o->stmts[i].binding.simple_module;
 }
 
-const struct NCDModule * NCDInterpProcess_StatementGetMethodModule (NCDInterpProcess *o, int i, const char *obj_type, NCDMethodIndex *method_index)
+const struct NCDModule * NCDInterpProcess_StatementGetMethodModule (NCDInterpProcess *o, int i, NCD_string_id_t obj_type, NCDMethodIndex *method_index)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
     ASSERT(i < o->num_stmts)
     ASSERT(o->stmts[i].objnames)
-    ASSERT(obj_type)
+    ASSERT(obj_type >= 0)
     ASSERT(method_index)
     
     return NCDMethodIndex_GetMethodModule(method_index, obj_type, o->stmts[i].binding.method_name_id);

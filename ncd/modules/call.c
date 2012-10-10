@@ -143,12 +143,12 @@ static void process_handler_event (struct instance *o, int event)
 static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
 {
     if (name == strings[STRING_CALLER].id) {
-        *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)caller_obj_func_getobj);
+        *out_object = NCDObject_Build(-1, o, NULL, (NCDObject_func_getobj)caller_obj_func_getobj);
         return 1;
     }
     
     if (name == strings[STRING_REF].id) {
-        *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)ref_obj_func_getobj);
+        *out_object = NCDObject_Build(-1, o, NULL, (NCDObject_func_getobj)ref_obj_func_getobj);
         return 1;
     }
     

@@ -33,6 +33,7 @@
 #include <misc/debug.h>
 #include <structure/CHash.h>
 #include <ncd/NCDModule.h>
+#include <ncd/NCDStringIndex.h>
 
 #define NCDMETHODINDEX_NUM_EXPECTED_METHOD_NAMES 64
 #define NCDMETHODINDEX_NUM_EXPECTED_ENTRIES 64
@@ -44,7 +45,7 @@ struct NCDMethodIndex__method_name {
 };
 
 struct NCDMethodIndex__entry {
-    char *obj_type;
+    NCD_string_id_t obj_type;
     const struct NCDModule *module;
     int next;
 };
@@ -72,6 +73,7 @@ typedef struct {
     int num_names;
     int num_entries;
     NCDMethodIndex__Hash hash;
+    NCDStringIndex *string_index;
 } NCDMethodIndex;
 
 /**
@@ -79,7 +81,7 @@ typedef struct {
  * 
  * @return 1 on success, 0 on failure
  */
-int NCDMethodIndex_Init (NCDMethodIndex *o) WARN_UNUSED;
+int NCDMethodIndex_Init (NCDMethodIndex *o, NCDStringIndex *string_index) WARN_UNUSED;
 
 /**
  * Frees the method index.
@@ -114,12 +116,12 @@ int NCDMethodIndex_GetMethodNameId (NCDMethodIndex *o, const char *method_name);
  * Looks up the module corresponding to a method. The method name is passed as an
  * identifier obtained from \link NCDMethodIndex_GetMethodNameId.
  * 
- * @param obj_type object type of method, e.g. "cat" in "cat::meow".
- *                 Must not be NULL.
+ * @param obj_type object type of method, e.g. "cat" in "cat::meow", as a string
+ *                 identifier via {@link NCDStringIndex}
  * @param method_name_id method name identifier. Must have been previously returned
  *                       by a successfull call of \link NCDMethodIndex_GetMethodNameId.
  * @return module pointer, or NULL if no such method exists
  */
-const struct NCDModule * NCDMethodIndex_GetMethodModule (NCDMethodIndex *o, const char *obj_type, int method_name_id);
+const struct NCDModule * NCDMethodIndex_GetMethodModule (NCDMethodIndex *o, NCD_string_id_t obj_type, int method_name_id);
 
 #endif
