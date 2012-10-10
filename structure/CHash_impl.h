@@ -214,4 +214,71 @@ static CHashRef CHash_GetNextEqual (const CHash *o, CHashArg arg, CHashRef entry
     return next_ref;
 }
 
+static int CHash_MultiplyBuckets (CHash *o, CHashArg arg, int exp)
+{
+    ASSERT(exp > 0)
+    
+    size_t new_num_buckets = o->num_buckets;
+    while (exp-- > 0) {
+        if (new_num_buckets > SIZE_MAX / 2) {
+            return 0;
+        }
+        new_num_buckets *= 2;
+    }
+    
+    CHashLink *new_buckets = (CHashLink *)BReallocArray(o->buckets, new_num_buckets, sizeof(new_buckets[0]));
+    if (!new_buckets) {
+        return 0;
+    }
+    o->buckets = new_buckets;
+    
+    for (size_t i = o->num_buckets; i < new_num_buckets; i++) {
+        o->buckets[i] = CHashNullLink();
+    }
+    
+    for (size_t i = 0; i < o->num_buckets; i++) {
+        CHashRef prev = CHashNullRef();
+        CHashLink link = o->buckets[i];
+        
+        while (link != CHashNullLink()) {
+            CHashRef cur = CHashDerefNonNull(arg, link);
+            link = CHash_next(cur);
+            
+            size_t new_index = CHASH_PARAM_ENTRYHASH(arg, cur) % new_num_buckets;
+            if (new_index == i) {
+                prev = cur;
+                continue;
+            }
+            
+            if (CHashIsNullRef(prev)) {
+                o->buckets[i] = CHash_next(cur);
+            } else {
+                CHash_next(prev) = CHash_next(cur);
+            }
+            
+            CHash_next(cur) = o->buckets[new_index];
+            o->buckets[new_index] = cur.link;
+        }
+    }
+    
+    for (size_t i = o->num_buckets; i < new_num_buckets; i++) {
+        CHashLink new_bucket_link = CHashNullLink();
+        
+        CHashLink link = o->buckets[i];
+        while (link != CHashNullLink()) {
+            CHashRef cur = CHashDerefNonNull(arg, link);
+            link = CHash_next(cur);
+            
+            CHash_next(cur) = new_bucket_link;
+            new_bucket_link = cur.link;
+        }
+        
+        o->buckets[i] = new_bucket_link;
+    }
+    
+    o->num_buckets = new_num_buckets;
+    
+    return 1;
+}
+
 #include "CHash_footer.h"

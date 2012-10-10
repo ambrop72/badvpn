@@ -53,5 +53,6 @@ static void CHash_InsertMulti (CHash *o, CHashArg arg, CHashRef entry);
 static void CHash_Remove (CHash *o, CHashArg arg, CHashRef entry);
 static CHashRef CHash_Lookup (const CHash *o, CHashArg arg, CHashKey key);
 static CHashRef CHash_GetNextEqual (const CHash *o, CHashArg arg, CHashRef entry);
+static int CHash_MultiplyBuckets (CHash *o, CHashArg arg, int exp);
 
 #include "CHash_footer.h"

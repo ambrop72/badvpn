@@ -66,6 +66,7 @@
 #undef CHash_Remove
 #undef CHash_Lookup
 #undef CHash_GetNextEqual
+#undef CHash_MultiplyBuckets
 
 // private things
 #undef CHash_next
