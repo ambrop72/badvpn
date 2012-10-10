@@ -29,6 +29,8 @@
 
 #include <stddef.h>
 
+#include <ncd/static_strings.h>
+
 #include "NCDObject.h"
 
 NCDObject NCDObject_Build (const char *type, void *user, NCDObject_func_getvar func_getvar, NCDObject_func_getobj func_getobj)
@@ -99,7 +101,7 @@ int NCDObject_GetVar (NCDObject *o, NCD_string_id_t name, NCDValMem *mem, NCDVal
 static NCDObject dig_into_object (NCDObject object)
 {
     NCDObject obj2;
-    while (NCDObject_GetObj(&object, NCD_EMPTY_STRING_ID, &obj2)) {
+    while (NCDObject_GetObj(&object, NCD_STRING_EMPTY, &obj2)) {
         object = obj2;
     }
     
@@ -155,5 +157,5 @@ int NCDObject_ResolveVarExprCompact (NCDObject *o, const NCD_string_id_t *names,
         num_names--;
     }
     
-    return NCDObject_GetVar(&object, NCD_EMPTY_STRING_ID, mem, out_value);
+    return NCDObject_GetVar(&object, NCD_STRING_EMPTY, mem, out_value);
 }

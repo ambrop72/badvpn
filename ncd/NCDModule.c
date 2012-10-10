@@ -33,10 +33,8 @@
 #include <inttypes.h>
 #include <limits.h>
 
-#include <misc/string_begins_with.h>
-#include <misc/parse_number.h>
-
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 
 #define STATE_DEAD 3
 #define STATE_DOWN_CLEAN 4
@@ -489,18 +487,15 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, NCD_string_id_t 
     process_assert_interp(o);
     ASSERT(out_object)
     
-    const char *name_str = NCDStringIndex_Value(o->iparams->string_index, name);
-    
     if (!NCDVal_IsInvalid(o->args)) {
-        if (!strcmp(name_str, "_args")) {
+        if (name == NCD_STRING_ARGS) {
             *out_object = NCDObject_Build(NULL, o, (NCDObject_func_getvar)process_args_object_func_getvar, NULL);
             return 1;
         }
         
-        size_t len;
-        uintmax_t n;
-        if ((len = string_begins_with(name_str, "_arg")) && parse_unsigned_integer(name_str + len, &n) && n < NCDVal_ListCount(o->args) && n < UINTPTR_MAX) {
-            *out_object = NCDObject_Build2(NULL, o, (void *)((uintptr_t)(n + 1)), (NCDObject_func_getvar2)process_arg_object_func_getvar2, NULL);
+        if (name >= NCD_STRING_ARG0 && name <= NCD_STRING_ARG19) {
+            int num = name - NCD_STRING_ARG0;
+            *out_object = NCDObject_Build2(NULL, o, (void *)((uintptr_t)(num + 1)), (NCDObject_func_getvar2)process_arg_object_func_getvar2, NULL);
             return 1;
         }
     }
@@ -521,7 +516,7 @@ static int process_args_object_func_getvar (NCDModuleProcess *o, NCD_string_id_t
     process_assert_interp(o);
     ASSERT(!NCDVal_IsInvalid(o->args))
     
-    if (name != NCD_EMPTY_STRING_ID) {
+    if (name != NCD_STRING_EMPTY) {
         return 0;
     }
     
@@ -538,7 +533,7 @@ static int process_arg_object_func_getvar2 (NCDModuleProcess *o, void *n_ptr, NC
     process_assert_interp(o);
     ASSERT(!NCDVal_IsInvalid(o->args))
     
-    if (name != NCD_EMPTY_STRING_ID) {
+    if (name != NCD_STRING_EMPTY) {
         return 0;
     }
     

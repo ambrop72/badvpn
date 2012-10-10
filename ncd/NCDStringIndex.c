@@ -32,6 +32,7 @@
 
 #include <misc/hashfun.h>
 #include <misc/strdup.h>
+#include <misc/array_length.h>
 #include <base/BLog.h>
 
 #include "NCDStringIndex.h"
@@ -47,6 +48,32 @@
 #include <misc/grow_array.h>
 
 #include <generated/blog_channel_ncd.h>
+
+// NOTE: keep synchronized with static_strings.h
+static const char *static_strings[] = {
+    "",
+    "_args",
+    "_arg0",
+    "_arg1",
+    "_arg2",
+    "_arg3",
+    "_arg4",
+    "_arg5",
+    "_arg6",
+    "_arg7",
+    "_arg8",
+    "_arg9",
+    "_arg10",
+    "_arg11",
+    "_arg12",
+    "_arg13",
+    "_arg14",
+    "_arg15",
+    "_arg16",
+    "_arg17",
+    "_arg18",
+    "_arg19"
+};
 
 static NCD_string_id_t do_get (NCDStringIndex *o, const char *str, size_t str_len)
 {
@@ -99,14 +126,19 @@ int NCDStringIndex_Init (NCDStringIndex *o)
         goto fail1;
     }
     
-    if (do_get(o, "", 0) < 0) {
-        goto fail2;
+    for (size_t i = 0; i < B_ARRAY_LENGTH(static_strings); i++) {
+        if (do_get(o, static_strings[i], strlen(static_strings[i])) < 0) {
+            goto fail2;
+        }
     }
     
     DebugObject_Init(&o->d_obj);
     return 1;
     
 fail2:
+    for (NCD_string_id_t i = 0; i < o->entries_size; i++) {
+        free(o->entries[i].str);
+    }
     NCDStringIndex__Hash_Free(&o->hash);
 fail1:
     Array_Free(o);

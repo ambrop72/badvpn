@@ -44,7 +44,7 @@
 #include <misc/debug.h>
 #include <misc/balloc.h>
 #include <ncd/NCDModule.h>
-#include <ncd/make_name_indices.h>
+#include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_alias.h>
 
@@ -194,7 +194,7 @@ static int func_getobj (void *vo, NCD_string_id_t name, NCDObject *out_object)
         return 0;
     }
     
-    if (name == NCD_EMPTY_STRING_ID) {
+    if (name == NCD_STRING_EMPTY) {
         *out_object = obj2;
         return 1;
     }

@@ -163,6 +163,12 @@ static int get_connect_addr (struct instance *o, NCDValRef connect_addr_arg, str
 static void instance_free (struct instance *o, int with_error);
 static void request_instance_free (struct request_instance *o, int with_error);
 
+enum {STRING_CALLER, STRING_REPLY, STRING_DATA};
+
+static struct NCD_string_request strings[] = {
+    {"_caller"}, {"_reply"}, {"data"}, {NULL}
+};
+
 static void client_handler_error (struct instance *o)
 {
     ModuleLog(o->i, BLOG_ERROR, "client error");
@@ -316,14 +322,12 @@ static int request_process_func_getspecialobj (struct request_instance *o, NCD_s
 {
     ASSERT(o->pstate != RPSTATE_NONE)
     
-    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
-    
-    if (!strcmp(name_str, "_caller")) {
+    if (name == strings[STRING_CALLER].id) {
         *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)request_process_caller_obj_func_getobj);
         return 1;
     }
     
-    if (!o->process_is_finished && !strcmp(name_str, "_reply")) {
+    if (!o->process_is_finished && name == strings[STRING_REPLY].id) {
         *out_object = NCDObject_Build(NULL, o, (NCDObject_func_getvar)request_process_reply_obj_func_getvar, NULL);
         return 1;
     }
@@ -343,9 +347,7 @@ static int request_process_reply_obj_func_getvar (struct request_instance *o, NC
     ASSERT(o->pstate != RPSTATE_NONE)
     ASSERT(!o->process_is_finished)
     
-    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
-    
-    if (!strcmp(name_str, "data")) {
+    if (name == strings[STRING_DATA].id) {
         *out = NCDVal_NewCopy(mem, o->process_reply_data);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
@@ -702,5 +704,6 @@ static const struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_sys_request_client = {
-    .modules = modules
+    .modules = modules,
+    .strings = strings
 };

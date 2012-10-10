@@ -49,6 +49,7 @@
 #include <misc/offset.h>
 #include <structure/LinkedList0.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_ref.h>
 
@@ -110,7 +111,7 @@ static int refhere_func_getobj (void *vo, NCD_string_id_t objname, NCDObject *ou
     
     // We don't redirect methods, and there will never be an object
     // with empty name. Fail here so we don't report non-errors.
-    if (objname == NCD_EMPTY_STRING_ID) {
+    if (objname == NCD_STRING_EMPTY) {
         return 0;
     }
     
@@ -178,7 +179,7 @@ static int ref_func_getobj (void *vo, NCD_string_id_t objname, NCDObject *out_ob
     
     // We don't redirect methods, and there will never be an object
     // with empty name. Fail here so we don't report non-errors.
-    if (objname == NCD_EMPTY_STRING_ID) {
+    if (objname == NCD_STRING_EMPTY) {
         return 0;
     }
     

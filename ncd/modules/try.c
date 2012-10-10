@@ -83,6 +83,12 @@ static int process_caller_object_func_getobj (struct instance *o, NCD_string_id_
 static void start_terminating (struct instance *o);
 static void instance_free (struct instance *o);
 
+enum {STRING_CALLER, STRING_TRY};
+
+static struct NCD_string_request strings[] = {
+    {"_caller"}, {"_try"}, {NULL}
+};
+
 static void process_handler_event (struct instance *o, int event)
 {
     switch (event) {
@@ -125,14 +131,12 @@ static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name,
 {
     ASSERT(o->state == STATE_INIT || o->state == STATE_DEINIT)
     
-    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
-    
-    if (!strcmp(name_str, "_caller")) {
+    if (name == strings[STRING_CALLER].id) {
         *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)process_caller_object_func_getobj);
         return 1;
     }
     
-    if (!strcmp(name_str, "_try")) {
+    if (name == strings[STRING_TRY].id) {
         *out_object = NCDObject_Build("try.try", o, NULL, NULL);
         return 1;
     }
@@ -293,5 +297,6 @@ static const struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_try = {
-    .modules = modules
+    .modules = modules,
+    .strings = strings
 };

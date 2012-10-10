@@ -85,6 +85,12 @@ static int process_caller_object_func_getobj (struct instance *o, NCD_string_id_
 static void deinit_timer_handler (struct instance *o);
 static void instance_free (struct instance *o);
 
+enum {STRING_CALLER};
+
+static struct NCD_string_request strings[] = {
+    {"_caller"}, {NULL}
+};
+
 static int start_process (struct instance *o, const char *templ, NCDValRef args, NCDModuleProcess_handler_event handler)
 {
     ASSERT(NCDVal_IsList(args))
@@ -196,9 +202,7 @@ static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name,
 {
     ASSERT(o->state != STATE_UP)
     
-    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
-    
-    if (!strcmp(name_str, "_caller")) {
+    if (name == strings[STRING_CALLER].id) {
         *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)process_caller_object_func_getobj);
         return 1;
     }
@@ -315,5 +319,6 @@ static const struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_imperative = {
-    .modules = modules
+    .modules = modules,
+    .strings = strings
 };

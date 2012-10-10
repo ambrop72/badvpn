@@ -171,6 +171,12 @@ static void reply_send_qflow_if_handler_done (struct reply *r);
 static int init_listen (struct instance *o, NCDValRef listen_addr_arg);
 static void instance_free (struct instance *o);
 
+enum {STRING_REQUEST, STRING_DATA, STRING_CLIENT_ADDR_TYPE, STRING_CLIENT_ADDR};
+
+static struct NCD_string_request strings[] = {
+    {"_request"}, {"data"}, {"client_addr_type"}, {"client_addr"}, {NULL}
+};
+
 static void listener_handler (struct instance *o)
 {
     ASSERT(!o->dying)
@@ -474,9 +480,7 @@ static void request_process_handler_event (struct request *r, int event)
 
 static int request_process_func_getspecialobj (struct request *r, NCD_string_id_t name, NCDObject *out_object)
 {
-    const char *name_str = NCDStringIndex_Value(r->con->inst->i->params->iparams->string_index, name);
-    
-    if (!strcmp(name_str, "_request")) {
+    if (name == strings[STRING_REQUEST].id) {
         *out_object = NCDObject_Build("sys.request_server.request", r, (NCDObject_func_getvar)request_process_request_obj_func_getvar, NULL);
         return 1;
     }
@@ -488,9 +492,7 @@ static int request_process_request_obj_func_getvar (struct request *r, NCD_strin
 {
     struct instance *o = r->con->inst;
     
-    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
-    
-    if (!strcmp(name_str, "data")) {
+    if (name == strings[STRING_DATA].id) {
         *out = NCDVal_NewCopy(mem, r->request_data);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
@@ -498,7 +500,7 @@ static int request_process_request_obj_func_getvar (struct request *r, NCD_strin
         return 1;
     }
     
-    if (!strcmp(name_str, "client_addr_type")) {
+    if (name == strings[STRING_CLIENT_ADDR_TYPE].id) {
         const char *str = "none";
         switch (r->con->addr.type) {
             case BADDR_TYPE_IPV4:
@@ -516,7 +518,7 @@ static int request_process_request_obj_func_getvar (struct request *r, NCD_strin
         return 1;
     }
     
-    if (!strcmp(name_str, "client_addr")) {
+    if (name == strings[STRING_CLIENT_ADDR].id) {
         char str[BIPADDR_MAX_PRINT_LEN] = "none";
         
         switch (r->con->addr.type) {
@@ -889,5 +891,6 @@ static const struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_sys_request_server = {
-    .modules = modules
+    .modules = modules,
+    .strings = strings
 };

@@ -100,6 +100,12 @@ static void process_try (struct process *p);
 static int process_set_params (struct process *p, const char *template_name, NCDValMem mem, NCDValSafeRef args);
 static void instance_free (struct instance *o);
 
+enum {STRING_CALLER};
+
+static struct NCD_string_request strings[] = {
+    {"_caller"}, {NULL}
+};
+
 struct process * find_process (struct instance *o, const char *name)
 {
     LinkedList1Node *n = LinkedList1_GetFirst(&o->processes_list);
@@ -266,9 +272,7 @@ int process_module_process_func_getspecialobj (struct process *p, NCD_string_id_
 {
     ASSERT(p->have_module_process)
     
-    const char *name_str = NCDStringIndex_Value(p->manager->i->params->iparams->string_index, name);
-    
-    if (!strcmp(name_str, "_caller")) {
+    if (name == strings[STRING_CALLER].id) {
         *out_object = NCDObject_Build(NULL, p, NULL, (NCDObject_func_getobj)process_module_process_caller_obj_func_getobj);
         return 1;
     }
@@ -584,5 +588,6 @@ static const struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_process_manager = {
-    .modules = modules
+    .modules = modules,
+    .strings = strings
 };

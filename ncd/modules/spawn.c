@@ -93,6 +93,12 @@ static void continue_working (struct instance *o);
 static void continue_terminating (struct instance *o);
 static void instance_free (struct instance *o);
 
+enum {STRING_CALLER};
+
+static struct NCD_string_request strings[] = {
+    {"_caller"}, {NULL}
+};
+
 static void assert_dirty_state (struct instance *o)
 {
     ASSERT(!LinkedList0_IsEmpty(&o->dirty_list) == (o->state == STATE_WAITING || o->state == STATE_WAITING_TERMINATING))
@@ -151,9 +157,7 @@ static void process_handler_event (struct instance *o, int event)
 
 static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
 {
-    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
-    
-    if (!strcmp(name_str, "_caller")) {
+    if (name == strings[STRING_CALLER].id) {
         *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)caller_obj_func_getobj);
         return 1;
     }
@@ -404,5 +408,6 @@ static const struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_spawn = {
-    .modules = modules
+    .modules = modules,
+    .strings = strings
 };

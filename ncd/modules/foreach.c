@@ -73,6 +73,7 @@
 #include <misc/debug.h>
 #include <system/BReactor.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_foreach.h>
 
@@ -95,8 +96,8 @@ struct instance {
     NCDModuleInst *i;
     const char *template_name;
     NCDValRef args;
-    const char *name1;
-    const char *name2;
+    NCD_string_id_t name1;
+    NCD_string_id_t name2;
     BTimer timer;
     struct element *elems;
     int type;
@@ -134,6 +135,12 @@ static int element_list_elem_object_func_getvar (struct element *e, NCD_string_i
 static int element_map_key_object_func_getvar (struct element *e, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out);
 static int element_map_val_object_func_getvar (struct element *e, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out);
 static void instance_free (struct instance *o);
+
+enum {STRING_CALLER, STRING_INDEX, STRING_ELEM, STRING_KEY, STRING_VAL};
+
+static struct NCD_string_request strings[] = {
+    {"_caller"}, {"_index"}, {"_elem"}, {"_key"}, {"_val"}, {NULL}
+};
 
 static void assert_state (struct instance *o)
 {
@@ -353,33 +360,31 @@ static int element_process_func_getspecialobj (struct element *e, NCD_string_id_
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
     
-    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
-    
     switch (o->type) {
         case NCDVAL_LIST: {
-            const char *index_name = (o->name2 ? o->name1 : NULL);
-            const char *elem_name = (o->name2 ? o->name2 : o->name1);
+            NCD_string_id_t index_name = (o->name2 >= 0 ? o->name1 : -1);
+            NCD_string_id_t elem_name = (o->name2 >= 0 ? o->name2 : o->name1);
             
-            if (index_name && !strcmp(name_str, index_name)) {
+            if (index_name >= 0 && name == index_name) {
                 *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_list_index_object_func_getvar, NULL);
                 return 1;
             }
             
-            if (!strcmp(name_str, elem_name)) {
+            if (name == elem_name) {
                 *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_list_elem_object_func_getvar, NULL);
                 return 1;
             }
         } break;
         case NCDVAL_MAP: {
-            const char *key_name = o->name1;
-            const char *val_name = o->name2;
+            NCD_string_id_t key_name = o->name1;
+            NCD_string_id_t val_name = o->name2;
             
-            if (!strcmp(name_str, key_name)) {
+            if (name == key_name) {
                 *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_map_key_object_func_getvar, NULL);
                 return 1;
             }
             
-            if (val_name && !strcmp(name_str, val_name)) {
+            if (val_name >= 0 && name == val_name) {
                 *out_object = NCDObject_Build(NULL, e, (NCDObject_func_getvar)element_map_val_object_func_getvar, NULL);
                 return 1;
             }
@@ -390,7 +395,7 @@ static int element_process_func_getspecialobj (struct element *e, NCD_string_id_
         return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
     }
     
-    if (!strcmp(name_str, "_caller")) {
+    if (name == strings[STRING_CALLER].id) {
         *out_object = NCDObject_Build(NULL, e, NULL, (NCDObject_func_getobj)element_caller_object_func_getobj);
         return 1;
     }
@@ -413,7 +418,7 @@ static int element_list_index_object_func_getvar (struct element *e, NCD_string_
     ASSERT(e->state != ESTATE_FORGOTTEN)
     ASSERT(o->type == NCDVAL_LIST)
     
-    if (name != NCD_EMPTY_STRING_ID) {
+    if (name != NCD_STRING_EMPTY) {
         return 0;
     }
     
@@ -433,7 +438,7 @@ static int element_list_elem_object_func_getvar (struct element *e, NCD_string_i
     ASSERT(e->state != ESTATE_FORGOTTEN)
     ASSERT(o->type == NCDVAL_LIST)
     
-    if (name != NCD_EMPTY_STRING_ID) {
+    if (name != NCD_STRING_EMPTY) {
         return 0;
     }
     
@@ -450,7 +455,7 @@ static int element_map_key_object_func_getvar (struct element *e, NCD_string_id_
     ASSERT(e->state != ESTATE_FORGOTTEN)
     ASSERT(o->type == NCDVAL_MAP)
     
-    if (name != NCD_EMPTY_STRING_ID) {
+    if (name != NCD_STRING_EMPTY) {
         return 0;
     }
     
@@ -467,7 +472,7 @@ static int element_map_val_object_func_getvar (struct element *e, NCD_string_id_
     ASSERT(e->state != ESTATE_FORGOTTEN)
     ASSERT(o->type == NCDVAL_MAP)
     
-    if (name != NCD_EMPTY_STRING_ID) {
+    if (name != NCD_STRING_EMPTY) {
         return 0;
     }
     
@@ -478,12 +483,12 @@ static int element_map_val_object_func_getvar (struct element *e, NCD_string_id_
     return 1;
 }
 
-static void func_new_common (void *vo, NCDModuleInst *i, NCDValRef collection, const char *template_name, NCDValRef args, const char *name1, const char *name2)
+static void func_new_common (void *vo, NCDModuleInst *i, NCDValRef collection, const char *template_name, NCDValRef args, NCD_string_id_t name1, NCD_string_id_t name2)
 {
     ASSERT(!NCDVal_IsInvalid(collection))
     ASSERT(template_name)
     ASSERT(NCDVal_IsInvalid(args) || NCDVal_IsList(args))
-    ASSERT(name1)
+    ASSERT(name1 >= 0)
     
     struct instance *o = vo;
     o->i = i;
@@ -582,17 +587,17 @@ static void func_new_foreach (void *vo, NCDModuleInst *i, const struct NCDModule
     }
     
     const char *template_name = NCDVal_StringValue(arg_template);
-    const char *name1;
-    const char *name2;
+    NCD_string_id_t name1;
+    NCD_string_id_t name2;
     
     switch (NCDVal_Type(arg_collection)) {
         case NCDVAL_LIST: {
-            name1 = "_index";
-            name2 = "_elem";
+            name1 = strings[STRING_INDEX].id;
+            name2 = strings[STRING_ELEM].id;
         } break;
         case NCDVAL_MAP: {
-            name1 = "_key";
-            name2 = "_val";
+            name1 = strings[STRING_KEY].id;
+            name2 = strings[STRING_VAL].id;
         } break;
         default:
             ModuleLog(i, BLOG_ERROR, "invalid collection type");
@@ -624,8 +629,20 @@ static void func_new_foreach_emb (void *vo, NCDModuleInst *i, const struct NCDMo
     }
     
     const char *template_name = NCDVal_StringValue(arg_template);
-    const char *name1 = NCDVal_StringValue(arg_name1);
-    const char *name2 = (NCDVal_IsInvalid(arg_name2) ? NULL : NCDVal_StringValue(arg_name2));
+    const char *name1_str = NCDVal_StringValue(arg_name1);
+    const char *name2_str = (NCDVal_IsInvalid(arg_name2) ? NULL : NCDVal_StringValue(arg_name2));
+    
+    NCD_string_id_t name1 = NCDStringIndex_Get(i->params->iparams->string_index, name1_str);
+    if (name1 < 0) {
+        ModuleLog(i, BLOG_ERROR, "NCDStringIndex_Get failed");
+        goto fail0;
+    }
+    
+    NCD_string_id_t name2 = -1;
+    if (name2_str && (name2 = NCDStringIndex_Get(i->params->iparams->string_index, name2_str)) < 0) {
+        ModuleLog(i, BLOG_ERROR, "NCDStringIndex_Get failed");
+        goto fail0;
+    }
     
     func_new_common(vo, i, arg_collection, template_name, NCDVal_NewInvalid(), name1, name2);
     return;
@@ -699,5 +716,6 @@ static const struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_foreach = {
-    .modules = modules
+    .modules = modules,
+    .strings = strings
 };

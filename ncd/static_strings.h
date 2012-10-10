@@ -1,5 +1,5 @@
 /**
- * @file NCDStringIndex.h
+ * @file static_strings.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -27,54 +27,33 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef BADVPN_NCD_STRING_INDEX_H
-#define BADVPN_NCD_STRING_INDEX_H
+#ifndef BADVPN_STATIC_STRINGS_H
+#define BADVPN_STATIC_STRINGS_H
 
-#include <limits.h>
-
-#include <misc/debug.h>
-#include <structure/CHash.h>
-#include <base/DebugObject.h>
-
-#define NCDSTRINGINDEX_INITIAL_CAPACITY 1
-#define NCDSTRINGINDEX_HASH_BUCKETS 100
-
-typedef int NCD_string_id_t;
-
-#define NCD_STRING_ID_MAX INT_MAX
-
-struct NCDStringIndex__entry {
-    char *str;
-    size_t str_len;
-    NCD_string_id_t hash_next;
+// NOTE: keep synchronized with NCDStringIndex.c
+enum {
+    NCD_STRING_EMPTY,
+    NCD_STRING_ARGS,
+    NCD_STRING_ARG0,
+    NCD_STRING_ARG1,
+    NCD_STRING_ARG2,
+    NCD_STRING_ARG3,
+    NCD_STRING_ARG4,
+    NCD_STRING_ARG5,
+    NCD_STRING_ARG6,
+    NCD_STRING_ARG7,
+    NCD_STRING_ARG8,
+    NCD_STRING_ARG9,
+    NCD_STRING_ARG10,
+    NCD_STRING_ARG11,
+    NCD_STRING_ARG12,
+    NCD_STRING_ARG13,
+    NCD_STRING_ARG14,
+    NCD_STRING_ARG15,
+    NCD_STRING_ARG16,
+    NCD_STRING_ARG17,
+    NCD_STRING_ARG18,
+    NCD_STRING_ARG19
 };
-
-typedef struct { const char *str; size_t len; } NCDStringIndex_hash_key;
-typedef struct NCDStringIndex__entry *NCDStringIndex_hash_arg;
-
-#include "NCDStringIndex_hash.h"
-#include <structure/CHash_decl.h>
-
-typedef struct {
-    struct NCDStringIndex__entry *entries;
-    NCD_string_id_t entries_capacity;
-    NCD_string_id_t entries_size;
-    NCDStringIndex__Hash hash;
-    DebugObject d_obj;
-} NCDStringIndex;
-
-struct NCD_string_request {
-    const char *str;
-    NCD_string_id_t id;
-};
-
-int NCDStringIndex_Init (NCDStringIndex *o) WARN_UNUSED;
-void NCDStringIndex_Free (NCDStringIndex *o);
-NCD_string_id_t NCDStringIndex_Lookup (NCDStringIndex *o, const char *str);
-NCD_string_id_t NCDStringIndex_LookupBin (NCDStringIndex *o, const char *str, size_t str_len);
-NCD_string_id_t NCDStringIndex_Get (NCDStringIndex *o, const char *str);
-NCD_string_id_t NCDStringIndex_GetBin (NCDStringIndex *o, const char *str, size_t str_len);
-const char * NCDStringIndex_Value (NCDStringIndex *o, NCD_string_id_t id);
-int NCDStringIndex_GetRequests (NCDStringIndex *o, struct NCD_string_request *requests) WARN_UNUSED;
 
 #endif

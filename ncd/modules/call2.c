@@ -67,6 +67,12 @@ static int caller_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCD
 static void func_new_templ (void *vo, NCDModuleInst *i, const char *template_name, NCDValRef args, int embed);
 static void instance_free (struct instance *o);
 
+enum {STRING_CALLER};
+
+static struct NCD_string_request strings[] = {
+    {"_caller"}, {NULL}
+};
+
 static void process_handler_event (struct instance *o, int event)
 {
     switch (event) {
@@ -108,9 +114,7 @@ static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name,
         return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
     }
     
-    const char *name_str = NCDStringIndex_Value(o->i->params->iparams->string_index, name);
-    
-    if (!strcmp(name_str, "_caller")) {
+    if (name == strings[STRING_CALLER].id) {
         *out_object = NCDObject_Build(NULL, o, NULL, (NCDObject_func_getobj)caller_obj_func_getobj);
         return 1;
     }
@@ -477,5 +481,6 @@ static const struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_call2 = {
-    .modules = modules
+    .modules = modules,
+    .strings = strings
 };
