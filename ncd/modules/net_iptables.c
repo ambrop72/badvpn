@@ -587,7 +587,7 @@ static const struct NCDModule modules[] = {
     }
 };
 
-struct NCDModuleGroup ncdmodule_net_iptables = {
+const struct NCDModuleGroup ncdmodule_net_iptables = {
     .modules = modules,
     .func_globalinit = func_globalinit,
     .func_globalfree = func_globalfree

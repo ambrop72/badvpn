@@ -340,6 +340,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-struct NCDModuleGroup ncdmodule_sys_evdev = {
+const struct NCDModuleGroup ncdmodule_sys_evdev = {
     .modules = modules
 };

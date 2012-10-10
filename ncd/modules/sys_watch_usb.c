@@ -414,6 +414,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-struct NCDModuleGroup ncdmodule_sys_watch_usb = {
+const struct NCDModuleGroup ncdmodule_sys_watch_usb = {
     .modules = modules
 };

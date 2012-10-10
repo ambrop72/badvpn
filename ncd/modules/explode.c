@@ -227,6 +227,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-struct NCDModuleGroup ncdmodule_explode = {
+const struct NCDModuleGroup ncdmodule_explode = {
     .modules = modules
 };

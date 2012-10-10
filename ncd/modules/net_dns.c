@@ -278,7 +278,7 @@ static const struct NCDModule modules[] = {
     }
 };
 
-struct NCDModuleGroup ncdmodule_net_dns = {
+const struct NCDModuleGroup ncdmodule_net_dns = {
     .func_globalinit = func_globalinit,
     .modules = modules
 };

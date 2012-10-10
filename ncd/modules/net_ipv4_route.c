@@ -193,6 +193,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-struct NCDModuleGroup ncdmodule_net_ipv4_route = {
+const struct NCDModuleGroup ncdmodule_net_ipv4_route = {
     .modules = modules
 };

@@ -266,6 +266,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-struct NCDModuleGroup ncdmodule_netmask = {
+const struct NCDModuleGroup ncdmodule_netmask = {
     .modules = modules
 };

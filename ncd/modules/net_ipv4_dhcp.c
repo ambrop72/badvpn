@@ -331,6 +331,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-struct NCDModuleGroup ncdmodule_net_ipv4_dhcp = {
+const struct NCDModuleGroup ncdmodule_net_ipv4_dhcp = {
     .modules = modules
 };

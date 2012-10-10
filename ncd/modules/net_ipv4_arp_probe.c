@@ -204,6 +204,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-struct NCDModuleGroup ncdmodule_net_ipv4_arp_probe = {
+const struct NCDModuleGroup ncdmodule_net_ipv4_arp_probe = {
     .modules = modules
 };

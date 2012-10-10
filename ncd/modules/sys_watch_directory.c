@@ -420,6 +420,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-struct NCDModuleGroup ncdmodule_sys_watch_directory = {
+const struct NCDModuleGroup ncdmodule_sys_watch_directory = {
     .modules = modules
 };

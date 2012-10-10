@@ -715,7 +715,7 @@ static const struct NCDModule modules[] = {
     }
 };
 
-struct NCDModuleGroup ncdmodule_foreach = {
+const struct NCDModuleGroup ncdmodule_foreach = {
     .modules = modules,
     .strings = strings
 };

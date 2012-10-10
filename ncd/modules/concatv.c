@@ -141,6 +141,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-struct NCDModuleGroup ncdmodule_concatv = {
+const struct NCDModuleGroup ncdmodule_concatv = {
     .modules = modules
 };

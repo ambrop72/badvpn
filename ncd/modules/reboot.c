@@ -100,6 +100,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-struct NCDModuleGroup ncdmodule_reboot = {
+const struct NCDModuleGroup ncdmodule_reboot = {
     .modules = modules
 };
