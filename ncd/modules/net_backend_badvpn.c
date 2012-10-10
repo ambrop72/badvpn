@@ -262,6 +262,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-const struct NCDModuleGroup ncdmodule_net_backend_badvpn = {
+struct NCDModuleGroup ncdmodule_net_backend_badvpn = {
     .modules = modules
 };

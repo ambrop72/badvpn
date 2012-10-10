@@ -202,6 +202,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-const struct NCDModuleGroup ncdmodule_net_backend_rfkill = {
+struct NCDModuleGroup ncdmodule_net_backend_rfkill = {
     .modules = modules
 };

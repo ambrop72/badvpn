@@ -34,81 +34,81 @@
 
 #include <ncd/NCDModule.h>
 
-extern const struct NCDModuleGroup ncdmodule_var;
-extern const struct NCDModuleGroup ncdmodule_list;
-extern const struct NCDModuleGroup ncdmodule_depend;
-extern const struct NCDModuleGroup ncdmodule_multidepend;
-extern const struct NCDModuleGroup ncdmodule_dynamic_depend;
-extern const struct NCDModuleGroup ncdmodule_concat;
-extern const struct NCDModuleGroup ncdmodule_concatv;
-extern const struct NCDModuleGroup ncdmodule_if;
-extern const struct NCDModuleGroup ncdmodule_strcmp;
-extern const struct NCDModuleGroup ncdmodule_regex_match;
-extern const struct NCDModuleGroup ncdmodule_logical;
-extern const struct NCDModuleGroup ncdmodule_sleep;
-extern const struct NCDModuleGroup ncdmodule_print;
-extern const struct NCDModuleGroup ncdmodule_blocker;
-extern const struct NCDModuleGroup ncdmodule_run;
-extern const struct NCDModuleGroup ncdmodule_runonce;
-extern const struct NCDModuleGroup ncdmodule_daemon;
-extern const struct NCDModuleGroup ncdmodule_spawn;
-extern const struct NCDModuleGroup ncdmodule_call;
-extern const struct NCDModuleGroup ncdmodule_imperative;
-extern const struct NCDModuleGroup ncdmodule_ref;
-extern const struct NCDModuleGroup ncdmodule_index;
-extern const struct NCDModuleGroup ncdmodule_alias;
-extern const struct NCDModuleGroup ncdmodule_process_manager;
-extern const struct NCDModuleGroup ncdmodule_ondemand;
-extern const struct NCDModuleGroup ncdmodule_foreach;
-extern const struct NCDModuleGroup ncdmodule_choose;
-extern const struct NCDModuleGroup ncdmodule_from_string;
-extern const struct NCDModuleGroup ncdmodule_to_string;
-extern const struct NCDModuleGroup ncdmodule_value;
-extern const struct NCDModuleGroup ncdmodule_try;
-extern const struct NCDModuleGroup ncdmodule_net_backend_waitdevice;
-extern const struct NCDModuleGroup ncdmodule_net_backend_waitlink;
-extern const struct NCDModuleGroup ncdmodule_net_backend_badvpn;
-extern const struct NCDModuleGroup ncdmodule_net_backend_wpa_supplicant;
+extern struct NCDModuleGroup ncdmodule_var;
+extern struct NCDModuleGroup ncdmodule_list;
+extern struct NCDModuleGroup ncdmodule_depend;
+extern struct NCDModuleGroup ncdmodule_multidepend;
+extern struct NCDModuleGroup ncdmodule_dynamic_depend;
+extern struct NCDModuleGroup ncdmodule_concat;
+extern struct NCDModuleGroup ncdmodule_concatv;
+extern struct NCDModuleGroup ncdmodule_if;
+extern struct NCDModuleGroup ncdmodule_strcmp;
+extern struct NCDModuleGroup ncdmodule_regex_match;
+extern struct NCDModuleGroup ncdmodule_logical;
+extern struct NCDModuleGroup ncdmodule_sleep;
+extern struct NCDModuleGroup ncdmodule_print;
+extern struct NCDModuleGroup ncdmodule_blocker;
+extern struct NCDModuleGroup ncdmodule_run;
+extern struct NCDModuleGroup ncdmodule_runonce;
+extern struct NCDModuleGroup ncdmodule_daemon;
+extern struct NCDModuleGroup ncdmodule_spawn;
+extern struct NCDModuleGroup ncdmodule_call;
+extern struct NCDModuleGroup ncdmodule_imperative;
+extern struct NCDModuleGroup ncdmodule_ref;
+extern struct NCDModuleGroup ncdmodule_index;
+extern struct NCDModuleGroup ncdmodule_alias;
+extern struct NCDModuleGroup ncdmodule_process_manager;
+extern struct NCDModuleGroup ncdmodule_ondemand;
+extern struct NCDModuleGroup ncdmodule_foreach;
+extern struct NCDModuleGroup ncdmodule_choose;
+extern struct NCDModuleGroup ncdmodule_from_string;
+extern struct NCDModuleGroup ncdmodule_to_string;
+extern struct NCDModuleGroup ncdmodule_value;
+extern struct NCDModuleGroup ncdmodule_try;
+extern struct NCDModuleGroup ncdmodule_net_backend_waitdevice;
+extern struct NCDModuleGroup ncdmodule_net_backend_waitlink;
+extern struct NCDModuleGroup ncdmodule_net_backend_badvpn;
+extern struct NCDModuleGroup ncdmodule_net_backend_wpa_supplicant;
 #ifdef BADVPN_USE_LINUX_RFKILL
-extern const struct NCDModuleGroup ncdmodule_net_backend_rfkill;
+extern struct NCDModuleGroup ncdmodule_net_backend_rfkill;
 #endif
-extern const struct NCDModuleGroup ncdmodule_net_up;
-extern const struct NCDModuleGroup ncdmodule_net_dns;
-extern const struct NCDModuleGroup ncdmodule_net_iptables;
-extern const struct NCDModuleGroup ncdmodule_net_ipv4_addr;
-extern const struct NCDModuleGroup ncdmodule_net_ipv4_route;
-extern const struct NCDModuleGroup ncdmodule_net_ipv4_dhcp;
-extern const struct NCDModuleGroup ncdmodule_net_ipv4_arp_probe;
-extern const struct NCDModuleGroup ncdmodule_net_watch_interfaces;
-extern const struct NCDModuleGroup ncdmodule_sys_watch_input;
-extern const struct NCDModuleGroup ncdmodule_sys_watch_usb;
+extern struct NCDModuleGroup ncdmodule_net_up;
+extern struct NCDModuleGroup ncdmodule_net_dns;
+extern struct NCDModuleGroup ncdmodule_net_iptables;
+extern struct NCDModuleGroup ncdmodule_net_ipv4_addr;
+extern struct NCDModuleGroup ncdmodule_net_ipv4_route;
+extern struct NCDModuleGroup ncdmodule_net_ipv4_dhcp;
+extern struct NCDModuleGroup ncdmodule_net_ipv4_arp_probe;
+extern struct NCDModuleGroup ncdmodule_net_watch_interfaces;
+extern struct NCDModuleGroup ncdmodule_sys_watch_input;
+extern struct NCDModuleGroup ncdmodule_sys_watch_usb;
 #ifdef BADVPN_USE_LINUX_INPUT
-extern const struct NCDModuleGroup ncdmodule_sys_evdev;
+extern struct NCDModuleGroup ncdmodule_sys_evdev;
 #endif
 #ifdef BADVPN_USE_INOTIFY
-extern const struct NCDModuleGroup ncdmodule_sys_watch_directory;
+extern struct NCDModuleGroup ncdmodule_sys_watch_directory;
 #endif
-extern const struct NCDModuleGroup ncdmodule_sys_request_server;
-extern const struct NCDModuleGroup ncdmodule_net_ipv6_wait_dynamic_addr;
-extern const struct NCDModuleGroup ncdmodule_sys_request_client;
-extern const struct NCDModuleGroup ncdmodule_exit;
-extern const struct NCDModuleGroup ncdmodule_getargs;
-extern const struct NCDModuleGroup ncdmodule_arithmetic;
-extern const struct NCDModuleGroup ncdmodule_parse;
-extern const struct NCDModuleGroup ncdmodule_valuemetic;
-extern const struct NCDModuleGroup ncdmodule_file;
-extern const struct NCDModuleGroup ncdmodule_netmask;
-extern const struct NCDModuleGroup ncdmodule_implode;
-extern const struct NCDModuleGroup ncdmodule_call2;
-extern const struct NCDModuleGroup ncdmodule_assert;
-extern const struct NCDModuleGroup ncdmodule_reboot;
-extern const struct NCDModuleGroup ncdmodule_explode;
-extern const struct NCDModuleGroup ncdmodule_net_ipv6_addr;
-extern const struct NCDModuleGroup ncdmodule_net_ipv6_route;
-extern const struct NCDModuleGroup ncdmodule_net_ipv4_addr_in_network;
-extern const struct NCDModuleGroup ncdmodule_net_ipv6_addr_in_network;
+extern struct NCDModuleGroup ncdmodule_sys_request_server;
+extern struct NCDModuleGroup ncdmodule_net_ipv6_wait_dynamic_addr;
+extern struct NCDModuleGroup ncdmodule_sys_request_client;
+extern struct NCDModuleGroup ncdmodule_exit;
+extern struct NCDModuleGroup ncdmodule_getargs;
+extern struct NCDModuleGroup ncdmodule_arithmetic;
+extern struct NCDModuleGroup ncdmodule_parse;
+extern struct NCDModuleGroup ncdmodule_valuemetic;
+extern struct NCDModuleGroup ncdmodule_file;
+extern struct NCDModuleGroup ncdmodule_netmask;
+extern struct NCDModuleGroup ncdmodule_implode;
+extern struct NCDModuleGroup ncdmodule_call2;
+extern struct NCDModuleGroup ncdmodule_assert;
+extern struct NCDModuleGroup ncdmodule_reboot;
+extern struct NCDModuleGroup ncdmodule_explode;
+extern struct NCDModuleGroup ncdmodule_net_ipv6_addr;
+extern struct NCDModuleGroup ncdmodule_net_ipv6_route;
+extern struct NCDModuleGroup ncdmodule_net_ipv4_addr_in_network;
+extern struct NCDModuleGroup ncdmodule_net_ipv6_addr_in_network;
 
-static const struct NCDModuleGroup *ncd_modules[] = {
+static struct NCDModuleGroup * const ncd_modules[] = {
     &ncdmodule_var,
     &ncdmodule_list,
     &ncdmodule_depend,

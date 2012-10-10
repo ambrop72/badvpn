@@ -312,7 +312,7 @@ int main (int argc, char **argv)
     }
     
     // add module groups to index
-    for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
+    for (struct NCDModuleGroup * const *g = ncd_modules; *g; g++) {
         if (!NCDModuleIndex_AddGroup(&mindex, *g, &method_index)) {
             BLog(BLOG_ERROR, "NCDModuleIndex_AddGroup failed");
             goto fail2;
@@ -370,7 +370,7 @@ int main (int argc, char **argv)
     
     // init modules
     size_t num_inited_modules = 0;
-    for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
+    for (struct NCDModuleGroup * const *g = ncd_modules; *g; g++) {
         // map strings
         if ((*g)->strings && !NCDStringIndex_GetRequests(&string_index, (*g)->strings)) {
             BLog(BLOG_ERROR, "NCDStringIndex_GetRequests failed for some module");
@@ -437,7 +437,7 @@ fail6:;
 fail5:
     // free modules
     while (num_inited_modules > 0) {
-        const struct NCDModuleGroup **g = &ncd_modules[num_inited_modules - 1];
+        struct NCDModuleGroup * const *g = &ncd_modules[num_inited_modules - 1];
         if ((*g)->func_globalfree) {
             (*g)->func_globalfree();
         }

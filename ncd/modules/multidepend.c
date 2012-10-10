@@ -356,7 +356,7 @@ static const struct NCDModule modules[] = {
     }
 };
 
-const struct NCDModuleGroup ncdmodule_multidepend = {
+struct NCDModuleGroup ncdmodule_multidepend = {
     .func_globalinit = func_globalinit,
     .modules = modules
 };

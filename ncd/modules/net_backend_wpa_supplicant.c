@@ -558,6 +558,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-const struct NCDModuleGroup ncdmodule_net_backend_wpa_supplicant = {
+struct NCDModuleGroup ncdmodule_net_backend_wpa_supplicant = {
     .modules = modules
 };

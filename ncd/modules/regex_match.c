@@ -360,6 +360,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-const struct NCDModuleGroup ncdmodule_regex_match = {
+struct NCDModuleGroup ncdmodule_regex_match = {
     .modules = modules
 };

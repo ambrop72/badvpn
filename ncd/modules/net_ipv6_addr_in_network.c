@@ -167,6 +167,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-const struct NCDModuleGroup ncdmodule_net_ipv6_addr_in_network = {
+struct NCDModuleGroup ncdmodule_net_ipv6_addr_in_network = {
     .modules = modules
 };

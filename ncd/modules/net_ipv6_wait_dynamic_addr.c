@@ -195,6 +195,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-const struct NCDModuleGroup ncdmodule_net_ipv6_wait_dynamic_addr = {
+struct NCDModuleGroup ncdmodule_net_ipv6_wait_dynamic_addr = {
     .modules = modules
 };

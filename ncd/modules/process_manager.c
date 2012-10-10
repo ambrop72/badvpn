@@ -587,7 +587,7 @@ static const struct NCDModule modules[] = {
     }
 };
 
-const struct NCDModuleGroup ncdmodule_process_manager = {
+struct NCDModuleGroup ncdmodule_process_manager = {
     .modules = modules,
     .strings = strings
 };

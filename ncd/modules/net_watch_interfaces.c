@@ -467,6 +467,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-const struct NCDModuleGroup ncdmodule_net_watch_interfaces = {
+struct NCDModuleGroup ncdmodule_net_watch_interfaces = {
     .modules = modules
 };

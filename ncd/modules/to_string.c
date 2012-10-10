@@ -113,6 +113,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-const struct NCDModuleGroup ncdmodule_to_string = {
+struct NCDModuleGroup ncdmodule_to_string = {
     .modules = modules
 };

@@ -480,7 +480,7 @@ static const struct NCDModule modules[] = {
     }
 };
 
-const struct NCDModuleGroup ncdmodule_call2 = {
+struct NCDModuleGroup ncdmodule_call2 = {
     .modules = modules,
     .strings = strings
 };

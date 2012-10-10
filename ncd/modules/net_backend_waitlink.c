@@ -140,6 +140,6 @@ static const struct NCDModule modules[] = {
     }
 };
 
-const struct NCDModuleGroup ncdmodule_net_backend_waitlink = {
+struct NCDModuleGroup ncdmodule_net_backend_waitlink = {
     .modules = modules
 };
