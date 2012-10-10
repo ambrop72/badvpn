@@ -67,6 +67,7 @@
 #undef CHash_Lookup
 #undef CHash_GetNextEqual
 #undef CHash_MultiplyBuckets
+#undef CHash_Verify
 
 // private things
 #undef CHash_next

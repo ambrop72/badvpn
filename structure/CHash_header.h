@@ -67,6 +67,7 @@
 #define CHash_Lookup MERGE(CHash, _Lookup)
 #define CHash_GetNextEqual MERGE(CHash, _GetNextEqual)
 #define CHash_MultiplyBuckets MERGE(CHash, _MultiplyBuckets)
+#define CHash_Verify MERGE(CHash, _Verify)
 
 // private things
 #define CHash_next(entry) ((entry).ptr->CHASH_PARAM_ENTRY_NEXT)

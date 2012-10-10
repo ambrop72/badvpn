@@ -281,4 +281,32 @@ static int CHash_MultiplyBuckets (CHash *o, CHashArg arg, int exp)
     return 1;
 }
 
+static void CHash_Verify (const CHash *o, CHashArg arg)
+{
+    ASSERT_FORCE(o->num_buckets > 0)
+    ASSERT_FORCE(o->buckets)
+    
+    for (size_t i = 0; i < o->num_buckets; i++) {
+        CHashRef cur = CHashDerefMayNull(arg, o->buckets[i]);
+        CHashRef same_first = cur;
+        
+        while (!CHashIsNullRef(cur)) {
+            size_t index = CHASH_PARAM_ENTRYHASH(arg, cur) % o->num_buckets;
+            ASSERT_FORCE(index == i)
+            
+            if (!CHASH_PARAM_COMPARE_ENTRIES(arg, cur, same_first)) {
+                same_first = cur;
+            }
+            
+            CHashRef ccur = CHashDerefNonNull(arg, o->buckets[i]);
+            while (ccur.link != same_first.link) {
+                ASSERT_FORCE(!CHASH_PARAM_COMPARE_ENTRIES(arg, ccur, cur))
+                ccur = CHashDerefMayNull(arg, CHash_next(ccur));
+            }
+            
+            cur = CHashDerefMayNull(arg, CHash_next(cur));
+        }
+    }
+}
+
 #include "CHash_footer.h"
