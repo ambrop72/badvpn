@@ -73,8 +73,6 @@ endif ()
 
 add_executable(substring_test substring_test.c)
 
-add_executable(cstringtrie_test cstringtrie_test.c)
-
 if (NOT WIN32)
     add_executable(ipaddr6_test ipaddr6_test.c)
 endif ()
