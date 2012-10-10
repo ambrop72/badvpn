@@ -202,7 +202,7 @@ static int func_getobj (void *vo, NCD_string_id_t name, NCDObject *out_object)
     return NCDObject_GetObj(&obj2, name, out_object);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "alias",
         .func_new2 = func_new,

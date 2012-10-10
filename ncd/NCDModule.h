@@ -851,7 +851,7 @@ struct NCDModuleGroup {
      * Array of module backends. The array must be terminated with a
      * structure that has a NULL type member.
      */
-    const struct NCDModule *modules;
+    struct NCDModule *modules;
     
     /**
      * A pointer to an array of requests for string identifiers. The 'str'

@@ -348,7 +348,7 @@ static int demand_func_getobj (void *vo, NCD_string_id_t objname, NCDObject *out
     return NCDModuleProcess_GetObj(&o->od->process, objname, out_object);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "ondemand",
         .func_new2 = ondemand_func_new,

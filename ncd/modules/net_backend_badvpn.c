@@ -251,7 +251,7 @@ static void func_die (void *vo)
     o->dying = 1;
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "net.backend.badvpn",
         .func_new2 = func_new,

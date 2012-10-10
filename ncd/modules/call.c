@@ -323,7 +323,7 @@ static int ref_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCDObj
     return NCDModuleInst_Backend_GetObj(o->crh->i, name, out_object);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "callrefhere",
         .func_new2 = callrefhere_func_new,

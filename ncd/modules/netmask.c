@@ -242,7 +242,7 @@ static int prefix_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDVa
     return 0;
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "ipv4_prefix_to_mask",
         .func_new2 = prefix_to_mask_func_init,

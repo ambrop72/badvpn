@@ -149,7 +149,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     return 0;
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "index",
         .func_new2 = func_new_from_value,

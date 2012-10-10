@@ -191,7 +191,7 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "net.backend.rfkill",
         .func_new2 = func_new,

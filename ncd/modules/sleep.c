@@ -127,7 +127,7 @@ static void func_die (void *vo)
     BReactor_SetTimerAfter(o->i->params->iparams->reactor, &o->timer, o->ms_stop);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "sleep",
         .func_new2 = func_new,

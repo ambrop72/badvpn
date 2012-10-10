@@ -179,7 +179,7 @@ static void rprintln_func_new (void *vo, NCDModuleInst *i, const struct NCDModul
     return rprint_func_new_common(vo, i, params, 1);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "print",
         .func_new2 = print_func_new

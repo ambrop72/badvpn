@@ -88,7 +88,7 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "hard_reboot",
         .func_new2 = func_new_hard_reboot

@@ -256,7 +256,7 @@ static void func_die (void *vo)
     o->state = STATE_RUNNING_DIE;
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "daemon",
         .func_new2 = func_new,

@@ -541,7 +541,7 @@ static void unlock_free (struct unlock_instance *o)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "net.iptables.append",
         .func_new2 = append_iptables_func_new,

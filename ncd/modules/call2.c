@@ -418,7 +418,7 @@ static int func_getobj (void *vo, NCD_string_id_t name, NCDObject *out_object)
     return NCDModuleProcess_GetObj(&o->process, name, out_object);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "call2",
         .func_new2 = func_new_call,

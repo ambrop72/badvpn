@@ -129,7 +129,7 @@ static void func_die (void *vo)
     instance_free(o);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "net.backend.waitlink",
         .func_new2 = func_new,

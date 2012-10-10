@@ -86,7 +86,7 @@ static void func_new_false (void *unused, NCDModuleInst *i, const struct NCDModu
     func_new_common(i, params, 1);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "assert",
         .func_new2 = func_new

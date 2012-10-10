@@ -176,7 +176,7 @@ static void func_new_different (void *vo, NCDModuleInst *i, const struct NCDModu
     new_templ(vo, i, params, compute_different);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "val_lesser",
         .func_new2 = func_new_lesser,

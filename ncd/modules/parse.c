@@ -275,7 +275,7 @@ static int ipv4_cidr_addr_func_getvar (void *vo, const char *name, NCDValMem *me
     return 1;
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "parse_number",
         .func_new2 = func_new_parse_number,

@@ -687,7 +687,7 @@ static void request_func_die (void *vo)
     request_die(o, 0);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "sys.request_client",
         .func_new2 = func_new,

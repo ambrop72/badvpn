@@ -279,7 +279,7 @@ static void func_new_modulo (void *vo, NCDModuleInst *i, const struct NCDModuleI
     new_templ(vo, i, params, compute_modulo);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "num_lesser",
         .func_new2 = func_new_lesser,

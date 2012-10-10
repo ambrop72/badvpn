@@ -305,7 +305,7 @@ static int stat_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
     return 0;
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "file_read",
         .func_new2 = read_func_new,

@@ -215,7 +215,7 @@ fail:
     return 1;
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "explode",
         .func_new2 = func_new,

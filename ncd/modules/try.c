@@ -281,7 +281,7 @@ fail1:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "try",
         .func_new2 = func_new,

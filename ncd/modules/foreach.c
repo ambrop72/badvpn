@@ -697,7 +697,7 @@ static void func_clean (void *vo)
     return;
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "foreach",
         .func_new2 = func_new_foreach,

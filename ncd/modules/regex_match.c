@@ -343,7 +343,7 @@ static int replace_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDV
     return 0;
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "regex_match",
         .func_new2 = func_new,

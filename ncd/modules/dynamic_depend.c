@@ -475,7 +475,7 @@ static int depend_func_getobj (void *vo, NCD_string_id_t objname, NCDObject *out
     return NCDModuleInst_Backend_GetObj(n->cur_p->i, objname, out_object);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "dynamic_provide",
         .func_new2 = provide_func_new,

@@ -319,7 +319,7 @@ fail:
     return 1;
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "net.ipv4.dhcp",
         .func_new2 = func_new,

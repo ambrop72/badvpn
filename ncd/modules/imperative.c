@@ -307,7 +307,7 @@ static void func_die (void *vo)
     }
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "imperative",
         .func_new2 = func_new,

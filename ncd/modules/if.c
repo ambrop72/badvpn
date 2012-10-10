@@ -86,7 +86,7 @@ static void func_new_not (void *unused, NCDModuleInst *i, const struct NCDModule
     new_templ(i, params, 1);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "if",
         .func_new2 = func_new

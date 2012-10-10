@@ -166,7 +166,7 @@ static void func_die (void *vo)
     command_template_die(&o->cti);
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "run",
         .func_new2 = func_new,

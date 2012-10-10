@@ -383,7 +383,7 @@ static void join_func_clean (void *vo)
     }
 }
 
-static const struct NCDModule modules[] = {
+static struct NCDModule modules[] = {
     {
         .type = "spawn",
         .func_new2 = func_new,
