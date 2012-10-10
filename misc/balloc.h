@@ -86,6 +86,21 @@ static void * BAllocSize (bsize_t bytes);
 static void * BAllocArray (size_t count, size_t bytes);
 
 /**
+ * Reallocates memory that was allocated using one of the allocation
+ * functions in this file. On success, the memory may be moved to a
+ * different address, leaving the old address invalid.
+ * 
+ * @param mem pointer to an existing memory block. May be NULL, in which
+ *            case this is equivalent to {@link BAllocArray}.
+ * @param count number of elements for reallocation
+ * @param bytes size of one array element for reallocation
+ * @return a non-NULL pointer to the address of the reallocated memory
+ *         block, or NULL on failure. On failure, the original memory
+ *         block is left intact.
+ */
+static void * BReallocArray (void *mem, size_t count, size_t bytes);
+
+/**
  * Allocates memory for a two-dimensional array.
  * 
  * Checks are first done to make sure the multiplications don't overflow;
@@ -151,6 +166,19 @@ void * BAllocArray (size_t count, size_t bytes)
     }
     
     return BAlloc(count * bytes);
+}
+
+void * BReallocArray (void *mem, size_t count, size_t bytes)
+{
+    if (count == 0 || bytes == 0) {
+        return realloc(mem, 1);
+    }
+    
+    if (count > SIZE_MAX / bytes) {
+        return NULL;
+    }
+    
+    return realloc(mem, count * bytes);
 }
 
 void * BAllocArray2 (size_t count2, size_t count1, size_t bytes)
