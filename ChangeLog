@@ -1,3 +1,5 @@
+- NCD: performance improvements by using a global index of strings and representing various strings as integers (variable and object names)
+
 - NCD: performance and memory usage improvements
 
 - NCD: add assert_false()
