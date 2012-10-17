@@ -848,22 +848,22 @@ void process_free (struct process *p, NCDModuleProcess **out_mp)
     BFree(p);
 }
 
-static int process_state (struct process *p)
+int process_state (struct process *p)
 {
     return (p->state2_error1 & PROCESS_STATE_MASK) >> PROCESS_STATE_SHIFT;
 }
 
-static void process_set_state (struct process *p, int state)
+void process_set_state (struct process *p, int state)
 {
     p->state2_error1 = (p->state2_error1 & ~PROCESS_STATE_MASK) | (state << PROCESS_STATE_SHIFT);
 }
 
-static int process_error (struct process *p)
+int process_error (struct process *p)
 {
     return (p->state2_error1 & PROCESS_ERROR_MASK) >> PROCESS_ERROR_SHIFT;
 }
 
-static void process_set_error (struct process *p, int error)
+void process_set_error (struct process *p, int error)
 {
     p->state2_error1 = (p->state2_error1 & ~PROCESS_ERROR_MASK) | (error << PROCESS_ERROR_SHIFT);
 }
