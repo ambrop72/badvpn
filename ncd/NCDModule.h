@@ -218,13 +218,6 @@ typedef int (*NCDModuleProcess_interp_func_getobj) (void *user, NCD_string_id_t 
 
 struct NCDModule;
 
-struct NCDModuleInitParams {
-    BReactor *reactor;
-    BProcessManager *manager;
-    NCDUdevManager *umanager;
-    BRandom2 *random2;
-};
-
 /**
  * Contains parameters to the module initialization function
  * ({@link NCDModule_func_new2}) that are passed indirectly.
@@ -663,11 +656,11 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, NCD_string_id_t 
  * Function called before any instance of any backend in a module
  * group is created;
  * 
- * @param params structure containing global resources, in particular
- *               {@link BReactor}, {@link BProcessManager} and {@link NCDUdevManager}
+ * @param params structure containing global resources, such as
+ *               {@link BReactor}, {@link BProcessManager} and {@link NCDUdevManager}.
  * @return 1 on success, 0 on failure
  */
-typedef int (*NCDModule_func_globalinit) (const struct NCDModuleInitParams params);
+typedef int (*NCDModule_func_globalinit) (const struct NCDModuleInst_iparams *params);
 
 /**
  * Function called to clean up after {@link NCDModule_func_globalinit} and modules

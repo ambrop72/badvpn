@@ -365,10 +365,10 @@ static void lock_job_handler (struct lock_instance *o)
     }
 }
 
-static int func_globalinit (struct NCDModuleInitParams params)
+static int func_globalinit (const struct NCDModuleInst_iparams *params)
 {
     // init iptables lock
-    BEventLock_Init(&iptables_lock, BReactor_PendingGroup(params.reactor));
+    BEventLock_Init(&iptables_lock, BReactor_PendingGroup(params->reactor));
     
     return 1;
 }

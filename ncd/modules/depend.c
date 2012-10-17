@@ -152,7 +152,7 @@ static void provide_promote (struct provide *o)
     }
 }
 
-static int func_globalinit (struct NCDModuleInitParams params)
+static int func_globalinit (const struct NCDModuleInst_iparams *params)
 {
     // init provides list
     LinkedList1_Init(&provides);

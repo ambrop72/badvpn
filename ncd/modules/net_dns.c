@@ -179,7 +179,7 @@ fail0:
     return ret;
 }
 
-static int func_globalinit (struct NCDModuleInitParams params)
+static int func_globalinit (const struct NCDModuleInst_iparams *params)
 {
     LinkedList1_Init(&instances);
     

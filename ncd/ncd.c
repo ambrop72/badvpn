@@ -365,12 +365,14 @@ int main (int argc, char **argv)
         goto fail4a;
     }
     
-    // init module params
-    struct NCDModuleInitParams params;
-    params.reactor = &reactor;
-    params.manager = &manager;
-    params.umanager = &umanager;
-    params.random2 = &random2;
+    // init pointers to global resources in out struct NCDModuleInst_iparams.
+    // Don't initialize any callback at this point as these must not be called
+    // from globalinit functions of modules.
+    module_iparams.reactor = &reactor;
+    module_iparams.manager = &manager;
+    module_iparams.umanager = &umanager;
+    module_iparams.random2 = &random2;
+    module_iparams.string_index = &string_index;
     
     // init modules
     size_t num_inited_modules = 0;
@@ -382,7 +384,7 @@ int main (int argc, char **argv)
         }
         
         // call func_globalinit
-        if ((*g)->func_globalinit && !(*g)->func_globalinit(params)) {
+        if ((*g)->func_globalinit && !(*g)->func_globalinit(&module_iparams)) {
             BLog(BLOG_ERROR, "globalinit failed for some module");
             goto fail5;
         }
@@ -390,16 +392,11 @@ int main (int argc, char **argv)
         num_inited_modules++;
     }
     
-    // init common module params
+    // init the rest of the module parameters structures
     module_params.func_event = statement_instance_func_event;
     module_params.func_getobj = statement_instance_func_getobj;
     module_params.logfunc = (BLog_logfunc)statement_instance_logfunc;
     module_params.iparams = &module_iparams;
-    module_iparams.reactor = &reactor;
-    module_iparams.manager = &manager;
-    module_iparams.umanager = &umanager;
-    module_iparams.random2 = &random2;
-    module_iparams.string_index = &string_index;
     module_iparams.func_initprocess = statement_instance_func_initprocess;
     module_iparams.func_interp_exit = statement_instance_func_interp_exit;
     module_iparams.func_interp_getargs = statement_instance_func_interp_getargs;

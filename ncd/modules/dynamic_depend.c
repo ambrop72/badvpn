@@ -260,7 +260,7 @@ static void name_start_resetting (struct name *o)
     name_continue_resetting(o);
 }
 
-static int func_globalinit (struct NCDModuleInitParams params)
+static int func_globalinit (const struct NCDModuleInst_iparams *params)
 {
     // init names tree
     BAVL_Init(&names_tree, OFFSET_DIFF(struct name, name, names_tree_node), (BAVL_comparator)stringptr_comparator, NULL);
