@@ -53,6 +53,7 @@
 #include <misc/substring.h>
 #include <misc/balloc.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_explode.h>
 
@@ -186,11 +187,11 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
-    if (!strcmp(name, "")) {
+    if (name == NCD_STRING_EMPTY) {
         *out = NCDVal_NewList(mem, o->num);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewList failed");
@@ -220,7 +221,7 @@ static struct NCDModule modules[] = {
         .type = "explode",
         .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL

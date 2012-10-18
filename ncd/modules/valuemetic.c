@@ -58,6 +58,7 @@
 #include <string.h>
 
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_valuemetic.h>
 
@@ -129,11 +130,11 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
-    if (!strcmp(name, "")) {
+    if (name == NCD_STRING_EMPTY) {
         const char *str = o->result ? "true" : "false";
         
         *out = NCDVal_NewString(mem, str);
@@ -181,37 +182,37 @@ static struct NCDModule modules[] = {
         .type = "val_lesser",
         .func_new2 = func_new_lesser,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "val_greater",
         .func_new2 = func_new_greater,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "val_lesser_equal",
         .func_new2 = func_new_lesser_equal,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "val_greater_equal",
         .func_new2 = func_new_greater_equal,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "val_equal",
         .func_new2 = func_new_equal,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "val_different",
         .func_new2 = func_new_different,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL

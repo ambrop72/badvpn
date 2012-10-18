@@ -148,6 +148,7 @@
 #include <structure/IndexedList.h>
 #include <structure/SAvl.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_value.h>
 
@@ -229,6 +230,12 @@ static void valref_init (struct valref *r, struct value *v);
 static void valref_free (struct valref *r);
 static struct value * valref_val (struct valref *r);
 static void valref_break (struct valref *r);
+
+enum {STRING_EXISTS, STRING_TYPE, STRING_LENGTH, STRING_KEYS};
+
+static struct NCD_string_request strings[] = {
+    {"exists"}, {"type"}, {"length"}, {"keys"}, {NULL}
+};
 
 #include "value_maptree.h"
 #include <structure/SAvl_impl.h>
@@ -923,12 +930,12 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     struct value *v = valref_val(&o->ref);
     
-    if (!strcmp(name, "exists")) {
+    if (name == strings[STRING_EXISTS].id) {
         const char *str = v ? "true" : "false";
         *out = NCDVal_NewString(mem, str);
         if (NCDVal_IsInvalid(*out)) {
@@ -937,7 +944,8 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         return 1;
     }
     
-    if (strcmp(name, "type") && strcmp(name, "length") && strcmp(name, "keys") && strcmp(name, "")) {
+    if (name != strings[STRING_TYPE].id && name != strings[STRING_LENGTH].id &&
+        name != strings[STRING_KEYS].id && name != NCD_STRING_EMPTY) {
         return 0;
     }
     
@@ -946,13 +954,13 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         return 0;
     }
     
-    if (!strcmp(name, "type")) {
+    if (name == strings[STRING_TYPE].id) {
         *out = NCDVal_NewString(mem, get_type_str(v->type));
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
     }
-    else if (!strcmp(name, "length")) {
+    else if (name == strings[STRING_LENGTH].id) {
         size_t len;
         switch (v->type) {
             case NCDVAL_LIST:
@@ -976,7 +984,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
     }
-    else if (!strcmp(name, "keys")) {
+    else if (name == strings[STRING_KEYS].id) {
         if (v->type != NCDVAL_MAP) {
             ModuleLog(o->i, BLOG_ERROR, "value is not a map (reading keys variable)");
             return 0;
@@ -1000,7 +1008,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
             NCDVal_ListAppend(*out, key);
         }
     }
-    else if (!strcmp(name, "")) {
+    else if (name == NCD_STRING_EMPTY) {
         if (!value_to_value(o->i, v, mem, out)) {
             return 0;
         }
@@ -1536,70 +1544,70 @@ static struct NCDModule modules[] = {
         .type = "value",
         .func_new2 = func_new_value,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::get",
         .base_type = "value",
         .func_new2 = func_new_get,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::try_get",
         .base_type = "value",
         .func_new2 = func_new_try_get,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::getpath",
         .base_type = "value",
         .func_new2 = func_new_getpath,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::insert",
         .base_type = "value",
         .func_new2 = func_new_insert,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::replace",
         .base_type = "value",
         .func_new2 = func_new_replace,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::replace_this",
         .base_type = "value",
         .func_new2 = func_new_replace_this,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::insert_undo",
         .base_type = "value",
         .func_new2 = func_new_insert_undo,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::replace_undo",
         .base_type = "value",
         .func_new2 = func_new_replace_undo,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::replace_this_undo",
         .base_type = "value",
         .func_new2 = func_new_replace_this_undo,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::remove",
@@ -1615,7 +1623,7 @@ static struct NCDModule modules[] = {
         .base_type = "value",
         .func_new2 = func_new_substr,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
@@ -1623,5 +1631,6 @@ static struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_value = {
-    .modules = modules
+    .modules = modules,
+    .strings = strings
 };

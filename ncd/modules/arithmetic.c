@@ -71,6 +71,7 @@
 
 #include <misc/parse_number.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_arithmetic.h>
 
@@ -209,11 +210,11 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
-    if (!strcmp(name, "")) {
+    if (name == NCD_STRING_EMPTY) {
         *out = NCDVal_NewString(mem, o->value);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
@@ -283,57 +284,57 @@ static struct NCDModule modules[] = {
     {
         .type = "num_lesser",
         .func_new2 = func_new_lesser,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "num_greater",
         .func_new2 = func_new_greater,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "num_lesser_equal",
         .func_new2 = func_new_lesser_equal,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "num_greater_equal",
         .func_new2 = func_new_greater_equal,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "num_equal",
         .func_new2 = func_new_equal,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "num_different",
         .func_new2 = func_new_different,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "num_add",
         .func_new2 = func_new_add,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "num_subtract",
         .func_new2 = func_new_subtract,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "num_multiply",
         .func_new2 = func_new_multiply,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "num_divide",
         .func_new2 = func_new_divide,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "num_modulo",
         .func_new2 = func_new_modulo,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL

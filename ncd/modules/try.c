@@ -83,10 +83,10 @@ static int process_caller_object_func_getobj (struct instance *o, NCD_string_id_
 static void start_terminating (struct instance *o);
 static void instance_free (struct instance *o);
 
-enum {STRING_CALLER, STRING_TRY, STRING_TRY_TRY};
+enum {STRING_CALLER, STRING_TRY, STRING_TRY_TRY, STRING_SUCCEEDED};
 
 static struct NCD_string_request strings[] = {
-    {"_caller"}, {"_try"}, {"try.try"}, {NULL}
+    {"_caller"}, {"_try"}, {"try.try"}, {"succeeded"}, {NULL}
 };
 
 static void process_handler_event (struct instance *o, int event)
@@ -225,15 +225,14 @@ static void func_die (void *vo)
     }
 }
 
-static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     ASSERT(o->state == STATE_FINISHED)
     ASSERT(!o->dying)
     
-    if (!strcmp(name, "succeeded")) {
+    if (name == strings[STRING_SUCCEEDED].id) {
         const char *str = (o->succeeded ? "true" : "false");
-        
         *out = NCDVal_NewString(mem, str);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
@@ -286,7 +285,7 @@ static struct NCDModule modules[] = {
         .type = "try",
         .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "try.try::assert",

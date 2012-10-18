@@ -44,6 +44,7 @@
 #include <string.h>
 
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_choose.h>
 
@@ -116,11 +117,11 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
-    if (!strcmp(name, "")) {
+    if (name == NCD_STRING_EMPTY) {
         *out = NCDVal_NewCopy(mem, o->result);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
@@ -135,7 +136,7 @@ static struct NCDModule modules[] = {
     {
         .type = "choose",
         .func_new2 = func_new,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL

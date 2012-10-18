@@ -38,6 +38,7 @@
 #include <string.h>
 
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_getargs.h>
 
@@ -62,11 +63,11 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     NCDModuleInst *i = vo;
     
-    if (!strcmp(name, "")) {
+    if (name == NCD_STRING_EMPTY) {
         if (!NCDModuleInst_Backend_InterpGetArgs(i, mem, out)) {
             ModuleLog(i, BLOG_ERROR, "NCDModuleInst_Backend_InterpGetArgs failed");
             return 0;
@@ -81,7 +82,7 @@ static struct NCDModule modules[] = {
     {
         .type = "getargs",
         .func_new2 = func_new,
-        .func_getvar = func_getvar
+        .func_getvar2 = func_getvar2
     }, {
         .type = NULL
     }

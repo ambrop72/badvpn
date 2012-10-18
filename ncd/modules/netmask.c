@@ -57,6 +57,7 @@
 #include <misc/ipaddr.h>
 #include <misc/parse_number.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_netmask.h>
 
@@ -161,11 +162,11 @@ static void addr_func_die (void *vo)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static int addr_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct addr_instance *o = vo;
     
-    if (!strcmp(name, "")) {
+    if (name == NCD_STRING_EMPTY) {
         char buf[IPADDR_PRINT_MAX];
         ipaddr_print_addr(o->addr, buf);
         
@@ -224,11 +225,11 @@ static void prefix_func_die (void *vo)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static int prefix_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int prefix_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct prefix_instance *o = vo;
     
-    if (!strcmp(name, "")) {
+    if (name == NCD_STRING_EMPTY) {
         char buf[6];
         sprintf(buf, "%d", o->prefix);
         
@@ -247,19 +248,19 @@ static struct NCDModule modules[] = {
         .type = "ipv4_prefix_to_mask",
         .func_new2 = prefix_to_mask_func_init,
         .func_die = addr_func_die,
-        .func_getvar = addr_func_getvar,
+        .func_getvar2 = addr_func_getvar2,
         .alloc_size = sizeof(struct addr_instance)
     }, {
         .type = "ipv4_mask_to_prefix",
         .func_new2 = mask_to_prefix_func_init,
         .func_die = prefix_func_die,
-        .func_getvar = prefix_func_getvar,
+        .func_getvar2 = prefix_func_getvar2,
         .alloc_size = sizeof(struct prefix_instance)
     }, {
         .type = "ipv4_net_from_addr_and_prefix",
         .func_new2 = ipv4_net_from_addr_and_prefix_func_init,
         .func_die = addr_func_die,
-        .func_getvar = addr_func_getvar,
+        .func_getvar2 = addr_func_getvar2,
         .alloc_size = sizeof(struct addr_instance)
     }, {
         .type = NULL

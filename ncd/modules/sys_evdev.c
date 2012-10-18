@@ -77,6 +77,12 @@ struct instance {
 
 static void instance_free (struct instance *o, int is_error);
 
+enum {STRING_TYPE, STRING_VALUE, STRING_CODE_NUMERIC, STRING_CODE};
+
+static struct NCD_string_request strings[] = {
+    {"type"}, {"value"}, {"code_numeric"}, {"code"}, {NULL}
+};
+
 #define MAKE_LOOKUP_FUNC(_name_) \
 static const char * evdev_##_name_##_to_str (uint16_t type) \
 { \
@@ -213,12 +219,12 @@ static void func_die (void *vo)
     instance_free(o, 0);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     ASSERT(o->processing)
     
-    if (!strcmp(name, "type")) {
+    if (name == strings[STRING_TYPE].id) {
         *out = NCDVal_NewString(mem, evdev_type_to_str(o->event.type));
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
@@ -226,7 +232,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         return 1;
     }
     
-    if (!strcmp(name, "value")) {
+    if (name == strings[STRING_VALUE].id) {
         char str[50];
         snprintf(str, sizeof(str), "%"PRIi32, o->event.value);
         *out = NCDVal_NewString(mem, str);
@@ -236,7 +242,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         return 1;
     }
     
-    if (!strcmp(name, "code_numeric")) {
+    if (name == strings[STRING_CODE_NUMERIC].id) {
         char str[50];
         snprintf(str, sizeof(str), "%"PRIu16, o->event.code);
         *out = NCDVal_NewString(mem, str);
@@ -246,7 +252,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         return 1;
     }
     
-    if (!strcmp(name, "code")) {
+    if (name == strings[STRING_CODE].id) {
         const char *str = "unknown";
         
         #define MAKE_CASE(_evname_, _name_) \
@@ -330,7 +336,7 @@ static struct NCDModule modules[] = {
         .type = "sys.evdev",
         .func_new2 = func_new,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "sys.evdev::nextevent",
@@ -341,5 +347,6 @@ static struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_sys_evdev = {
-    .modules = modules
+    .modules = modules,
+    .strings = strings
 };

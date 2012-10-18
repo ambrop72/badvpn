@@ -56,6 +56,7 @@
 #include <misc/ipaddr.h>
 #include <ncd/NCDValParser.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_parse.h>
 
@@ -72,6 +73,12 @@ struct ipv4_cidr_instance {
     NCDModuleInst *i;
     int succeeded;
     struct ipv4_ifaddr ifaddr;
+};
+
+enum {STRING_SUCCEEDED, STRING_ADDR, STRING_PREFIX};
+
+static struct NCD_string_request strings[] = {
+    {"succeeded"}, {"addr"}, {"prefix"}, {NULL}
 };
 
 typedef int (*parse_func) (NCDModuleInst *i, const char *str, NCDValMem *mem, NCDValRef *out);
@@ -172,11 +179,11 @@ static void func_die (void *vo)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
-    if (!strcmp(name, "succeeded")) {
+    if (name == strings[STRING_SUCCEEDED].id) {
         const char *str = o->succeeded ? "true" : "false";
         *out = NCDVal_NewString(mem, str);
         if (NCDVal_IsInvalid(*out)) {
@@ -185,7 +192,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         return 1;
     }
     
-    if (o->succeeded && !strcmp(name, "")) {
+    if (o->succeeded && name == NCD_STRING_EMPTY) {
         *out = NCDVal_NewCopy(mem, o->value);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
@@ -236,11 +243,11 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int ipv4_cidr_addr_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int ipv4_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct ipv4_cidr_instance *o = vo;
     
-    if (!strcmp(name, "succeeded")) {
+    if (name == strings[STRING_SUCCEEDED].id) {
         const char *str = o->succeeded ? "true" : "false";
         *out = NCDVal_NewString(mem, str);
         if (NCDVal_IsInvalid(*out)) {
@@ -255,13 +262,13 @@ static int ipv4_cidr_addr_func_getvar (void *vo, const char *name, NCDValMem *me
     
     char str[IPADDR_PRINT_MAX];
     
-    if (!strcmp(name, "")) {
+    if (name == NCD_STRING_EMPTY) {
         ipaddr_print_ifaddr(o->ifaddr, str);
     }
-    else if (!strcmp(name, "addr")) {
+    else if (name == strings[STRING_ADDR].id) {
         ipaddr_print_addr(o->ifaddr.addr, str);
     }
-    else if (!strcmp(name, "prefix")) {
+    else if (name == strings[STRING_PREFIX].id) {
         sprintf(str, "%d", o->ifaddr.prefix);
     }
     else {
@@ -280,24 +287,24 @@ static struct NCDModule modules[] = {
         .type = "parse_number",
         .func_new2 = func_new_parse_number,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "parse_value",
         .func_new2 = func_new_parse_value,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "parse_ipv4_addr",
         .func_new2 = func_new_parse_ipv4_addr,
         .func_die = func_die,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "parse_ipv4_cidr_addr",
         .func_new2 = ipv4_cidr_addr_func_new,
-        .func_getvar = ipv4_cidr_addr_func_getvar,
+        .func_getvar2 = ipv4_cidr_addr_func_getvar2,
         .alloc_size = sizeof(struct ipv4_cidr_instance)
     }, {
         .type = NULL
@@ -305,5 +312,6 @@ static struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_parse = {
-    .modules = modules
+    .modules = modules,
+    .strings = strings
 };

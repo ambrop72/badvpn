@@ -47,6 +47,7 @@
 #include <string.h>
 
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_logical.h>
 
@@ -121,11 +122,11 @@ static void func_new_and (void *vo, NCDModuleInst *i, const struct NCDModuleInst
     func_new(vo, i, params, 0, 0);
 }
 
-static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct instance *o = vo;
     
-    if (!strcmp(name, "")) {
+    if (name == NCD_STRING_EMPTY) {
         const char *v = (o->value ? "true" : "false");
         
         *out = NCDVal_NewString(mem, v);
@@ -142,17 +143,17 @@ static struct NCDModule modules[] = {
     {
         .type = "not",
         .func_new2 = func_new_not,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "or",
         .func_new2 = func_new_or,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "and",
         .func_new2 = func_new_and,
-        .func_getvar = func_getvar,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL

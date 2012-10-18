@@ -88,6 +88,7 @@
 #include <misc/read_file.h>
 #include <misc/write_file.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_file.h>
 
@@ -103,6 +104,12 @@ struct stat_instance {
     NCDModuleInst *i;
     int succeeded;
     struct stat result;
+};
+
+enum {STRING_SUCCEEDED, STRING_TYPE, STRING_SIZE};
+
+static struct NCD_string_request strings[] = {
+    {"succeeded"}, {"type"}, {"size"}, {NULL}
 };
 
 static void read_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -146,11 +153,11 @@ static void read_func_die (void *vo)
     NCDModuleInst_Backend_Dead(o->i);
 }
 
-static int read_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int read_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct read_instance *o = vo;
     
-    if (!strcmp(name, "")) {
+    if (name == NCD_STRING_EMPTY) {
         *out = NCDVal_NewStringBin(mem, o->file_data, o->file_len);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
@@ -244,11 +251,11 @@ static void lstat_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
     stat_func_new_common(vo, i, params, 1);
 }
 
-static int stat_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
+static int stat_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct stat_instance *o = vo;
     
-    if (!strcmp(name, "succeeded")) {
+    if (name == strings[STRING_SUCCEEDED].id) {
         const char *str = (o->succeeded ? "true" : "false");
         *out = NCDVal_NewString(mem, str);
         if (NCDVal_IsInvalid(*out)) {
@@ -257,7 +264,7 @@ static int stat_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
         return 1;
     }
     
-    if (!strcmp(name, "type")) {
+    if (name == strings[STRING_TYPE].id) {
         const char *str;
         
         if (!o->succeeded) {
@@ -287,7 +294,7 @@ static int stat_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
         return 1;
     }
     
-    if (!strcmp(name, "size")) {
+    if (name == strings[STRING_SIZE].id) {
         char str[50];
         if (!o->succeeded) {
             strcpy(str, "failed");
@@ -310,7 +317,7 @@ static struct NCDModule modules[] = {
         .type = "file_read",
         .func_new2 = read_func_new,
         .func_die = read_func_die,
-        .func_getvar = read_func_getvar,
+        .func_getvar2 = read_func_getvar2,
         .alloc_size = sizeof(struct read_instance)
     }, {
         .type = "file_write",
@@ -318,12 +325,12 @@ static struct NCDModule modules[] = {
     }, {
         .type = "file_stat",
         .func_new2 = stat_func_new,
-        .func_getvar = stat_func_getvar,
+        .func_getvar2 = stat_func_getvar2,
         .alloc_size = sizeof(struct stat_instance)
     }, {
         .type = "file_lstat",
         .func_new2 = lstat_func_new,
-        .func_getvar = stat_func_getvar,
+        .func_getvar2 = stat_func_getvar2,
         .alloc_size = sizeof(struct stat_instance)
     }, {
         .type = NULL
@@ -331,5 +338,6 @@ static struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_file = {
-    .modules = modules
+    .modules = modules,
+    .strings = strings
 };
