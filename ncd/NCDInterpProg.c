@@ -29,7 +29,6 @@
 
 #include <stdint.h>
 #include <limits.h>
-#include <string.h>
 
 #include <misc/balloc.h>
 #include <misc/hashfun.h>
@@ -71,7 +70,11 @@ int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDStringIndex *stri
     for (NCDProcess *p = NCDProgram_FirstProcess(prog); p; p = NCDProgram_NextProcess(prog, p)) {
         struct NCDInterpProg__process *e = &o->procs[o->num_procs];
         
-        e->name = NCDProcess_Name(p);
+        e->name = NCDStringIndex_Get(string_index, NCDProcess_Name(p));
+        if (e->name < 0) {
+            BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
+            goto fail2;
+        }
         
         if (!NCDInterpProcess_Init(&e->iprocess, p, string_index, pdb, module_index, method_index)) {
             BLog(BLOG_ERROR, "NCDInterpProcess_Init failed");
@@ -117,17 +120,17 @@ void NCDInterpProg_Free (NCDInterpProg *o)
     BFree(o->procs);
 }
 
-NCDInterpProcess * NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name)
+NCDInterpProcess * NCDInterpProg_FindProcess (NCDInterpProg *o, NCD_string_id_t name)
 {
     DebugObject_Access(&o->d_obj);
-    ASSERT(name)
+    ASSERT(name >= 0)
     
     NCDInterpProg__HashRef ref = NCDInterpProg__Hash_Lookup(&o->hash, o->procs, name);
     if (ref.link == NCDInterpProg__HashNullLink()) {
         return NULL;
     }
     
-    ASSERT(!strcmp(ref.ptr->name, name))
+    ASSERT(ref.ptr->name == name)
     
     return &ref.ptr->iprocess;
 }

@@ -34,16 +34,16 @@
 #include <base/DebugObject.h>
 #include <ncd/NCDAst.h>
 #include <ncd/NCDInterpProcess.h>
+#include <ncd/NCDStringIndex.h>
 #include <structure/CHash.h>
 
 struct NCDInterpProg__process {
-    const char *name;
+    NCD_string_id_t name;
     NCDInterpProcess iprocess;
     int hash_next;
 };
 
 typedef struct NCDInterpProg__process NCDInterpProg__hashentry;
-typedef const char *NCDInterpProg__hashkey;
 typedef struct NCDInterpProg__process *NCDInterpProg__hasharg;
 
 #include "NCDInterpProg_hash.h"
@@ -58,6 +58,6 @@ typedef struct {
 
 int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDStringIndex *string_index, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
 void NCDInterpProg_Free (NCDInterpProg *o);
-NCDInterpProcess * NCDInterpProg_FindProcess (NCDInterpProg *o, const char *name);
+NCDInterpProcess * NCDInterpProg_FindProcess (NCDInterpProg *o, NCD_string_id_t name);
 
 #endif

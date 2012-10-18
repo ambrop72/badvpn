@@ -411,8 +411,12 @@ int main (int argc, char **argv)
             continue;
         }
         
+        // get string id for process name
+        NCD_string_id_t name_id = NCDStringIndex_Lookup(&string_index, NCDProcess_Name(p));
+        ASSERT(name_id >= 0)
+        
         // find iprocess
-        NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&iprogram, NCDProcess_Name(p));
+        NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&iprogram, name_id);
         ASSERT(iprocess)
         
         if (!process_new(iprocess, NULL)) {
@@ -1431,11 +1435,16 @@ int statement_instance_func_getobj (NCDModuleInst *inst, NCD_string_id_t objname
 
 int statement_instance_func_initprocess (NCDModuleProcess *mp, const char *template_name)
 {
+    // get string id for process name
+    NCD_string_id_t name_id = NCDStringIndex_Lookup(&string_index, template_name);
+    if (name_id < 0) {
+        goto does_not_exist;
+    }
+    
     // find process
-    NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&iprogram, template_name);
+    NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&iprogram, name_id);
     if (!iprocess) {
-        BLog(BLOG_ERROR, "no template named %s", template_name);
-        return 0;
+        goto does_not_exist;
     }
     
     // make sure it's a template
@@ -1453,6 +1462,10 @@ int statement_instance_func_initprocess (NCDModuleProcess *mp, const char *templ
     BLog(BLOG_INFO, "created process from template %s", template_name);
     
     return 1;
+    
+does_not_exist:
+    BLog(BLOG_ERROR, "no template named %s", template_name);
+    return 0;
 }
 
 void statement_instance_logfunc (NCDModuleInst *inst)
