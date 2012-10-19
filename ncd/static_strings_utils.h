@@ -34,6 +34,17 @@
 #include <ncd/NCDVal.h>
 #include <ncd/static_strings.h>
 
+static int ncd_is_none (NCDValRef val)
+{
+    ASSERT(NCDVal_IsString(val))
+    
+    if (NCDVal_IsIdString(val)) {
+        return NCDVal_IdStringId(val) == NCD_STRING_NONE;
+    } else {
+        return NCDVal_StringEquals(val, "<none>");
+    }
+}
+
 static NCDValRef ncd_make_boolean (NCDValMem *mem, int value, NCDStringIndex *string_index)
 {
     ASSERT(mem)
