@@ -64,7 +64,7 @@ struct instance {
 static void process_handler_event (struct instance *o, int event);
 static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
 static int caller_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
-static void func_new_templ (void *vo, NCDModuleInst *i, const char *template_name, NCDValRef args, int embed);
+static void func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name, NCDValRef args, int embed);
 static void instance_free (struct instance *o);
 
 enum {STRING_CALLER};
@@ -127,8 +127,9 @@ static int caller_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCD
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
 }
 
-static void func_new_templ (void *vo, NCDModuleInst *i, const char *template_name, NCDValRef args, int embed)
+static void func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name, NCDValRef args, int embed)
 {
+    ASSERT(NCDVal_IsInvalid(template_name) || NCDVal_IsString(template_name))
     ASSERT(NCDVal_IsInvalid(args) || NCDVal_IsList(args))
     ASSERT(embed == !!embed)
     
@@ -138,7 +139,7 @@ static void func_new_templ (void *vo, NCDModuleInst *i, const char *template_nam
     // remember embed
     o->embed = embed;
     
-    if (!template_name || !strcmp(template_name, "<none>")) {
+    if (NCDVal_IsInvalid(template_name) || NCDVal_StringEquals(template_name, "<none>")) {
         // signal up
         NCDModuleInst_Backend_Up(o->i);
         
@@ -146,7 +147,7 @@ static void func_new_templ (void *vo, NCDModuleInst *i, const char *template_nam
         o->state = STATE_NONE;
     } else {
         // create process
-        if (!NCDModuleProcess_Init(&o->process, o->i, template_name, args, o, (NCDModuleProcess_handler_event)process_handler_event)) {
+        if (!NCDModuleProcess_InitValue(&o->process, o->i, template_name, args, o, (NCDModuleProcess_handler_event)process_handler_event)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
             goto fail0;
         }
@@ -183,12 +184,12 @@ static void func_new_call (void *vo, NCDModuleInst *i, const struct NCDModuleIns
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(template_arg) || !NCDVal_IsList(args_arg)) {
+    if (!NCDVal_IsString(template_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
-    func_new_templ(vo, i, NCDVal_StringValue(template_arg), args_arg, 0);
+    func_new_templ(vo, i, template_arg, args_arg, 0);
     return;
     
 fail0:
@@ -203,12 +204,12 @@ static void func_new_embcall (void *vo, NCDModuleInst *i, const struct NCDModule
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(template_arg)) {
+    if (!NCDVal_IsString(template_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
-    func_new_templ(vo, i, NCDVal_StringValue(template_arg), NCDVal_NewInvalid(), 1);
+    func_new_templ(vo, i, template_arg, NCDVal_NewInvalid(), 1);
     return;
     
 fail0:
@@ -225,18 +226,16 @@ static void func_new_call_if (void *vo, NCDModuleInst *i, const struct NCDModule
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsStringNoNulls(template_arg) || !NCDVal_IsList(args_arg)) {
+    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsString(template_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
-    const char *template_name = NULL;
-    
     if (NCDVal_StringEquals(cond_arg, "true")) {
-        template_name = NCDVal_StringValue(template_arg);
+        template_arg = NCDVal_NewInvalid();
     }
     
-    func_new_templ(vo, i, template_name, args_arg, 0);
+    func_new_templ(vo, i, template_arg, args_arg, 0);
     return;
     
 fail0:
@@ -252,18 +251,16 @@ static void func_new_embcall_if (void *vo, NCDModuleInst *i, const struct NCDMod
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsStringNoNulls(template_arg)) {
+    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsString(template_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
-    const char *template_name = NULL;
-    
     if (NCDVal_StringEquals(cond_arg, "true")) {
-        template_name = NCDVal_StringValue(template_arg);
+        template_arg = NCDVal_NewInvalid();
     }
     
-    func_new_templ(vo, i, template_name, NCDVal_NewInvalid(), 1);
+    func_new_templ(vo, i, template_arg, NCDVal_NewInvalid(), 1);
     return;
     
 fail0:
@@ -281,20 +278,20 @@ static void func_new_call_ifelse (void *vo, NCDModuleInst *i, const struct NCDMo
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsStringNoNulls(template_arg) || !NCDVal_IsStringNoNulls(else_template_arg) || !NCDVal_IsList(args_arg)) {
+    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsString(template_arg) || !NCDVal_IsString(else_template_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
-    const char *template_name;
+    NCDValRef template_value;
     
     if (NCDVal_StringEquals(cond_arg, "true")) {
-        template_name = NCDVal_StringValue(template_arg);
+        template_value = template_arg;
     } else {
-        template_name = NCDVal_StringValue(else_template_arg);
+        template_value = else_template_arg;
     }
     
-    func_new_templ(vo, i, template_name, args_arg, 0);
+    func_new_templ(vo, i, template_value, args_arg, 0);
     return;
     
 fail0:
@@ -311,20 +308,20 @@ static void func_new_embcall_ifelse (void *vo, NCDModuleInst *i, const struct NC
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsStringNoNulls(template_arg) || !NCDVal_IsStringNoNulls(else_template_arg)) {
+    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsString(template_arg) || !NCDVal_IsString(else_template_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
-    const char *template_name;
+    NCDValRef template_value;
     
     if (NCDVal_StringEquals(cond_arg, "true")) {
-        template_name = NCDVal_StringValue(template_arg);
+        template_value = template_arg;
     } else {
-        template_name = NCDVal_StringValue(else_template_arg);
+        template_value = else_template_arg;
     }
     
-    func_new_templ(vo, i, template_name, NCDVal_NewInvalid(), 1);
+    func_new_templ(vo, i, template_value, NCDVal_NewInvalid(), 1);
     return;
     
 fail0:
@@ -334,7 +331,7 @@ fail0:
 
 static void func_new_embcall_multif (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    const char *template_name = NULL;
+    NCDValRef template_value = NCDVal_NewInvalid();
     
     size_t count = NCDVal_ListCount(params->args);
     size_t j = 0;
@@ -343,31 +340,31 @@ static void func_new_embcall_multif (void *vo, NCDModuleInst *i, const struct NC
         NCDValRef arg = NCDVal_ListGet(params->args, j);
         
         if (j == count - 1) {
-            if (!NCDVal_IsStringNoNulls(arg)) {
+            if (!NCDVal_IsString(arg)) {
                 ModuleLog(i, BLOG_ERROR, "bad arguments");
                 goto fail0;
             }
             
-            template_name = NCDVal_StringValue(arg);
+            template_value = arg;
             break;
         }
         
         NCDValRef arg2 = NCDVal_ListGet(params->args, j + 1);
         
-        if (!NCDVal_IsString(arg) || !NCDVal_IsStringNoNulls(arg2)) {
+        if (!NCDVal_IsString(arg) || !NCDVal_IsString(arg2)) {
             ModuleLog(i, BLOG_ERROR, "bad arguments");
             goto fail0;
         }
         
         if (NCDVal_StringEquals(arg, "true")) {
-            template_name = NCDVal_StringValue(arg2);
+            template_value = arg2;
             break;
         }
         
         j += 2;
     }
     
-    func_new_templ(vo, i, template_name, NCDVal_NewInvalid(), 1);
+    func_new_templ(vo, i, template_value, NCDVal_NewInvalid(), 1);
     return;
     
 fail0:
