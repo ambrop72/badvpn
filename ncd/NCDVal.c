@@ -683,6 +683,14 @@ void NCDVal_IdStringGet (NCDValRef idstring, NCD_string_id_t *out_string_id,
     *out_string_index = ids_e->string_index;
 }
 
+NCD_string_id_t NCDVal_IdStringId (NCDValRef idstring)
+{
+    ASSERT(NCDVal_IsIdString(idstring))
+    
+    struct NCDVal__idstring *ids_e = NCDValMem__BufAt(idstring.mem, idstring.idx);
+    return ids_e->string_id;
+}
+
 int NCDVal_StringHasNulls (NCDValRef string)
 {
     ASSERT(NCDVal_IsString(string))
