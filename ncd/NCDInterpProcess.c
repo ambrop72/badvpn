@@ -65,16 +65,30 @@ static int compute_prealloc (NCDInterpProcess *o)
     return 1;
 }
 
-static int convert_value_recurser (NCDPlaceholderDb *pdb, NCDValue *value, NCDValMem *mem, NCDValRef *out)
+static int convert_value_recurser (NCDPlaceholderDb *pdb, NCDStringIndex *string_index, NCDValue *value, NCDValMem *mem, NCDValRef *out)
 {
     ASSERT(pdb)
+    ASSERT(string_index)
     ASSERT((NCDValue_Type(value), 1))
     ASSERT(mem)
     ASSERT(out)
     
     switch (NCDValue_Type(value)) {
         case NCDVALUE_STRING: {
-            *out = NCDVal_NewStringBin(mem, (const uint8_t *)NCDValue_StringValue(value), NCDValue_StringLength(value));
+            const char *str = NCDValue_StringValue(value);
+            size_t len = NCDValue_StringLength(value);
+            
+            if (strlen(str) == len) {
+                NCD_string_id_t string_id = NCDStringIndex_Get(string_index, str);
+                if (string_id < 0) {
+                    BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
+                    goto fail;
+                }
+                *out = NCDVal_NewIdString(mem, string_id, string_index);
+            } else {
+                *out = NCDVal_NewStringBin(mem, (const uint8_t *)str, len);
+            }
+            
             if (NCDVal_IsInvalid(*out)) {
                 goto fail;
             }
@@ -88,7 +102,7 @@ static int convert_value_recurser (NCDPlaceholderDb *pdb, NCDValue *value, NCDVa
             
             for (NCDValue *e = NCDValue_ListFirst(value); e; e = NCDValue_ListNext(value, e)) {
                 NCDValRef vval;
-                if (!convert_value_recurser(pdb, e, mem, &vval)) {
+                if (!convert_value_recurser(pdb, string_index, e, mem, &vval)) {
                     goto fail;
                 }
                 
@@ -107,8 +121,8 @@ static int convert_value_recurser (NCDPlaceholderDb *pdb, NCDValue *value, NCDVa
                 
                 NCDValRef vkey;
                 NCDValRef vval;
-                if (!convert_value_recurser(pdb, ekey, mem, &vkey) ||
-                    !convert_value_recurser(pdb, eval, mem, &vval)
+                if (!convert_value_recurser(pdb, string_index, ekey, mem, &vkey) ||
+                    !convert_value_recurser(pdb, string_index, eval, mem, &vval)
                 ) {
                     goto fail;
                 }
@@ -211,7 +225,7 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIn
         NCDValMem_Init(&mem);
         
         NCDValRef val;
-        if (!convert_value_recurser(pdb, NCDStatement_RegArgs(s), &mem, &val)) {
+        if (!convert_value_recurser(pdb, string_index, NCDStatement_RegArgs(s), &mem, &val)) {
             BLog(BLOG_ERROR, "convert_value_recurser failed");
             NCDValMem_Free(&mem);
             goto loop_fail0;
