@@ -72,7 +72,9 @@ static const char *static_strings[] = {
     "_arg16",
     "_arg17",
     "_arg18",
-    "_arg19"
+    "_arg19",
+    "true",
+    "false"
 };
 
 static NCD_string_id_t do_get (NCDStringIndex *o, const char *str, size_t str_len)
