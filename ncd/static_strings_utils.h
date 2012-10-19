@@ -1,5 +1,5 @@
 /**
- * @file boolean.h
+ * @file static_strings_utils.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
