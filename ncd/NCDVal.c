@@ -706,6 +706,26 @@ int NCDVal_StringEquals (NCDValRef string, const char *data)
     return !NCDVal_StringHasNulls(string) && !strcmp(NCDVal_StringValue(string), data);
 }
 
+int NCDVal_StringEqualsId (NCDValRef string, NCD_string_id_t string_id,
+                           NCDStringIndex *string_index)
+{
+    ASSERT(NCDVal_IsString(string))
+    ASSERT(string_id >= 0)
+    ASSERT(string_index)
+    
+    void *ptr = NCDValMem__BufAt(string.mem, string.idx);
+    
+    if (*(int *)ptr == IDSTRING_TYPE) {
+        struct NCDVal__idstring *ids_e = ptr;
+        ASSERT(ids_e->string_index == string_index)
+        return ids_e->string_id == string_id;
+    }
+    
+    const char *string_data = NCDStringIndex_Value(string_index, string_id);
+    struct NCDVal__string *str_e = ptr;
+    return !strcmp(str_e->data, string_data) && str_e->length == strlen(string_data);
+}
+
 int NCDVal_IsList (NCDValRef val)
 {
     NCDVal__AssertVal(val);

@@ -383,6 +383,16 @@ int NCDVal_StringHasNulls (NCDValRef string);
 int NCDVal_StringEquals (NCDValRef string, const char *data);
 
 /**
+ * Determines if the string value is equal to the given string represented
+ * by an {@link NCDStringIndex} identifier.
+ * The value reference must point to a string value.
+ * NOTE: \a string_index must be equal to the string_index of every ID-string
+ * that exist within this memory object.
+ */
+int NCDVal_StringEqualsId (NCDValRef string, NCD_string_id_t string_id,
+                           NCDStringIndex *string_index);
+
+/**
  * Determines if a value is a list value.
  * The value reference must not be an invalid reference.
  */
