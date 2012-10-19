@@ -72,52 +72,54 @@
 #include <misc/parse_number.h>
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
+#include <ncd/boolean.h>
 
 #include <generated/blog_channel_ncd_arithmetic.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-struct instance {
+struct boolean_instance {
+    NCDModuleInst *i;
+    int value;
+};
+
+typedef int (*boolean_compute_func) (uintmax_t n1, uintmax_t n2);
+
+struct number_instance {
     NCDModuleInst *i;
     char value[25];
 };
 
-typedef int (*compute_func) (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str);
+typedef int (*number_compute_func) (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str);
 
-static int compute_lesser (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str)
+static int compute_lesser (uintmax_t n1, uintmax_t n2)
 {
-    strcpy(out_str, (n1 < n2) ? "true" : "false");
-    return 1;
+    return n1 < n2;
 }
 
-static int compute_greater (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str)
+static int compute_greater (uintmax_t n1, uintmax_t n2)
 {
-    strcpy(out_str, (n1 > n2) ? "true" : "false");
-    return 1;
+    return n1 > n2;
 }
 
-static int compute_lesser_equal (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str)
+static int compute_lesser_equal (uintmax_t n1, uintmax_t n2)
 {
-    strcpy(out_str, (n1 <= n2) ? "true" : "false");
-    return 1;
+    return n1 <= n2;
 }
 
-static int compute_greater_equal (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str)
+static int compute_greater_equal (uintmax_t n1, uintmax_t n2)
 {
-    strcpy(out_str, (n1 >= n2) ? "true" : "false");
-    return 1;
+    return n1 >= n2;
 }
 
-static int compute_equal (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str)
+static int compute_equal (uintmax_t n1, uintmax_t n2)
 {
-    strcpy(out_str, (n1 == n2) ? "true" : "false");
-    return 1;
+    return n1 == n2;
 }
 
-static int compute_different (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str)
+static int compute_different (uintmax_t n1, uintmax_t n2)
 {
-    strcpy(out_str, (n1 != n2) ? "true" : "false");
-    return 1;
+    return n1 != n2;
 }
 
 static int compute_add (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str)
@@ -175,9 +177,57 @@ static int compute_modulo (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *o
     return 1;
 }
 
-static void new_templ (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, compute_func cfunc)
+static void new_boolean_templ (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, boolean_compute_func cfunc)
 {
-    struct instance *o = vo;
+    struct boolean_instance *o = vo;
+    o->i = i;
+    
+    NCDValRef n1_arg;
+    NCDValRef n2_arg;
+    if (!NCDVal_ListRead(params->args, 2, &n1_arg, &n2_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (!NCDVal_IsStringNoNulls(n1_arg) || !NCDVal_IsStringNoNulls(n2_arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    
+    uintmax_t n1;
+    uintmax_t n2;
+    if (!parse_unsigned_integer(NCDVal_StringValue(n1_arg), &n1) || !parse_unsigned_integer(NCDVal_StringValue(n2_arg), &n2)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong value");
+        goto fail0;
+    }
+    
+    o->value = cfunc(n1, n2);
+    
+    NCDModuleInst_Backend_Up(i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static int boolean_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
+{
+    struct boolean_instance *o = vo;
+    
+    if (name == NCD_STRING_EMPTY) {
+        *out = ncd_make_boolean(mem, o->value, o->i->params->iparams->string_index);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
+        }
+        return 1;
+    }
+    
+    return 0;
+}
+
+static void new_number_templ (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, number_compute_func cfunc)
+{
+    struct number_instance *o = vo;
     o->i = i;
     
     NCDValRef n1_arg;
@@ -210,9 +260,9 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
+static int number_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
-    struct instance *o = vo;
+    struct number_instance *o = vo;
     
     if (name == NCD_STRING_EMPTY) {
         *out = NCDVal_NewString(mem, o->value);
@@ -227,115 +277,115 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
 
 static void func_new_lesser (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, params, compute_lesser);
+    new_boolean_templ(vo, i, params, compute_lesser);
 }
 
 static void func_new_greater (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, params, compute_greater);
+    new_boolean_templ(vo, i, params, compute_greater);
 }
 
 static void func_new_lesser_equal (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, params, compute_lesser_equal);
+    new_boolean_templ(vo, i, params, compute_lesser_equal);
 }
 
 static void func_new_greater_equal (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, params, compute_greater_equal);
+    new_boolean_templ(vo, i, params, compute_greater_equal);
 }
 
 static void func_new_equal (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, params, compute_equal);
+    new_boolean_templ(vo, i, params, compute_equal);
 }
 
 static void func_new_different (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, params, compute_different);
+    new_boolean_templ(vo, i, params, compute_different);
 }
 
 static void func_new_add (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, params, compute_add);
+    new_number_templ(vo, i, params, compute_add);
 }
 
 static void func_new_subtract (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, params, compute_subtract);
+    new_number_templ(vo, i, params, compute_subtract);
 }
 
 static void func_new_multiply (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, params, compute_multiply);
+    new_number_templ(vo, i, params, compute_multiply);
 }
 
 static void func_new_divide (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, params, compute_divide);
+    new_number_templ(vo, i, params, compute_divide);
 }
 
 static void func_new_modulo (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    new_templ(vo, i, params, compute_modulo);
+    new_number_templ(vo, i, params, compute_modulo);
 }
 
 static struct NCDModule modules[] = {
     {
         .type = "num_lesser",
         .func_new2 = func_new_lesser,
-        .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
+        .func_getvar2 = boolean_func_getvar2,
+        .alloc_size = sizeof(struct boolean_instance)
     }, {
         .type = "num_greater",
         .func_new2 = func_new_greater,
-        .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
+        .func_getvar2 = boolean_func_getvar2,
+        .alloc_size = sizeof(struct boolean_instance)
     }, {
         .type = "num_lesser_equal",
         .func_new2 = func_new_lesser_equal,
-        .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
+        .func_getvar2 = boolean_func_getvar2,
+        .alloc_size = sizeof(struct boolean_instance)
     }, {
         .type = "num_greater_equal",
         .func_new2 = func_new_greater_equal,
-        .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
+        .func_getvar2 = boolean_func_getvar2,
+        .alloc_size = sizeof(struct boolean_instance)
     }, {
         .type = "num_equal",
         .func_new2 = func_new_equal,
-        .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
+        .func_getvar2 = boolean_func_getvar2,
+        .alloc_size = sizeof(struct boolean_instance)
     }, {
         .type = "num_different",
         .func_new2 = func_new_different,
-        .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
+        .func_getvar2 = boolean_func_getvar2,
+        .alloc_size = sizeof(struct boolean_instance)
     }, {
         .type = "num_add",
         .func_new2 = func_new_add,
-        .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
+        .func_getvar2 = number_func_getvar2,
+        .alloc_size = sizeof(struct number_instance)
     }, {
         .type = "num_subtract",
         .func_new2 = func_new_subtract,
-        .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
+        .func_getvar2 = number_func_getvar2,
+        .alloc_size = sizeof(struct number_instance)
     }, {
         .type = "num_multiply",
         .func_new2 = func_new_multiply,
-        .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
+        .func_getvar2 = number_func_getvar2,
+        .alloc_size = sizeof(struct number_instance)
     }, {
         .type = "num_divide",
         .func_new2 = func_new_divide,
-        .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
+        .func_getvar2 = number_func_getvar2,
+        .alloc_size = sizeof(struct number_instance)
     }, {
         .type = "num_modulo",
         .func_new2 = func_new_modulo,
-        .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
+        .func_getvar2 = number_func_getvar2,
+        .alloc_size = sizeof(struct number_instance)
     }, {
         .type = NULL
     }
