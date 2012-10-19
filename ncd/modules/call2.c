@@ -43,6 +43,8 @@
 
 #include <misc/debug.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
+#include <ncd/static_strings_utils.h>
 
 #include <generated/blog_channel_ncd_call2.h>
 
@@ -139,7 +141,7 @@ static void func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name,
     // remember embed
     o->embed = embed;
     
-    if (NCDVal_IsInvalid(template_name) || NCDVal_StringEquals(template_name, "<none>")) {
+    if (NCDVal_IsInvalid(template_name) || ncd_is_none(template_name)) {
         // signal up
         NCDModuleInst_Backend_Up(o->i);
         
@@ -231,7 +233,7 @@ static void func_new_call_if (void *vo, NCDModuleInst *i, const struct NCDModule
         goto fail0;
     }
     
-    if (NCDVal_StringEquals(cond_arg, "true")) {
+    if (ncd_read_boolean(cond_arg)) {
         template_arg = NCDVal_NewInvalid();
     }
     
@@ -256,7 +258,7 @@ static void func_new_embcall_if (void *vo, NCDModuleInst *i, const struct NCDMod
         goto fail0;
     }
     
-    if (NCDVal_StringEquals(cond_arg, "true")) {
+    if (ncd_read_boolean(cond_arg)) {
         template_arg = NCDVal_NewInvalid();
     }
     
@@ -285,7 +287,7 @@ static void func_new_call_ifelse (void *vo, NCDModuleInst *i, const struct NCDMo
     
     NCDValRef template_value;
     
-    if (NCDVal_StringEquals(cond_arg, "true")) {
+    if (ncd_read_boolean(cond_arg)) {
         template_value = template_arg;
     } else {
         template_value = else_template_arg;
@@ -315,7 +317,7 @@ static void func_new_embcall_ifelse (void *vo, NCDModuleInst *i, const struct NC
     
     NCDValRef template_value;
     
-    if (NCDVal_StringEquals(cond_arg, "true")) {
+    if (ncd_read_boolean(cond_arg)) {
         template_value = template_arg;
     } else {
         template_value = else_template_arg;
@@ -331,13 +333,15 @@ fail0:
 
 static void func_new_embcall_multif (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
+    NCDValRef args = params->args;
+    
     NCDValRef template_value = NCDVal_NewInvalid();
     
-    size_t count = NCDVal_ListCount(params->args);
+    size_t count = NCDVal_ListCount(args);
     size_t j = 0;
     
     while (j < count) {
-        NCDValRef arg = NCDVal_ListGet(params->args, j);
+        NCDValRef arg = NCDVal_ListGet(args, j);
         
         if (j == count - 1) {
             if (!NCDVal_IsString(arg)) {
@@ -349,14 +353,14 @@ static void func_new_embcall_multif (void *vo, NCDModuleInst *i, const struct NC
             break;
         }
         
-        NCDValRef arg2 = NCDVal_ListGet(params->args, j + 1);
+        NCDValRef arg2 = NCDVal_ListGet(args, j + 1);
         
         if (!NCDVal_IsString(arg) || !NCDVal_IsString(arg2)) {
             ModuleLog(i, BLOG_ERROR, "bad arguments");
             goto fail0;
         }
         
-        if (NCDVal_StringEquals(arg, "true")) {
+        if (ncd_read_boolean(arg)) {
             template_value = arg2;
             break;
         }
