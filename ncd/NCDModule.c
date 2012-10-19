@@ -322,13 +322,13 @@ btime_t NCDModuleInst_Backend_InterpGetRetryTime (NCDModuleInst *n)
     return n->params->iparams->func_interp_getretrytime();
 }
 
-int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event)
+int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_id_t template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event)
 {
     DebugObject_Access(&n->d_obj);
     ASSERT(n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
            n->state == STATE_UP ||
            n->state == STATE_DYING)
-    ASSERT(template_name)
+    ASSERT(template_name >= 0)
     ASSERT(NCDVal_IsInvalid(args) || NCDVal_IsList(args))
     ASSERT(handler_event)
     
@@ -366,6 +366,58 @@ int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *te
     
 fail1:
     return 0;
+}
+
+int NCDModuleProcess_InitValue (NCDModuleProcess *o, NCDModuleInst *n, NCDValRef template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event)
+{
+    DebugObject_Access(&n->d_obj);
+    ASSERT(n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
+           n->state == STATE_UP ||
+           n->state == STATE_DYING)
+    ASSERT(NCDVal_IsString(template_name))
+    ASSERT(NCDVal_IsInvalid(args) || NCDVal_IsList(args))
+    ASSERT(handler_event)
+    
+    NCD_string_id_t template_name_id;
+    
+    if (NCDVal_IsIdString(template_name)) {
+        template_name_id = NCDVal_IdStringId(template_name);
+    } else {
+        const char *str = NCDVal_StringValue(template_name);
+        size_t len = NCDVal_StringLength(template_name);
+        
+        if (strlen(str) != len) {
+            BLog(BLOG_ERROR, "template name cannot have nulls");
+            return 0;
+        }
+        
+        template_name_id = NCDStringIndex_Get(n->params->iparams->string_index, str);
+        if (template_name_id < 0) {
+            BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
+            return 0;
+        }
+    }
+    
+    return NCDModuleProcess_InitId(o, n, template_name_id, args, user, handler_event);
+}
+
+int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event)
+{
+    DebugObject_Access(&n->d_obj);
+    ASSERT(n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
+           n->state == STATE_UP ||
+           n->state == STATE_DYING)
+    ASSERT(template_name)
+    ASSERT(NCDVal_IsInvalid(args) || NCDVal_IsList(args))
+    ASSERT(handler_event)
+    
+    NCD_string_id_t template_name_id = NCDStringIndex_Get(n->params->iparams->string_index, template_name);
+    if (template_name_id < 0) {
+        BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
+        return 0;
+    }
+    
+    return NCDModuleProcess_InitId(o, n, template_name_id, args, user, handler_event);
 }
 
 void NCDModuleProcess_Free (NCDModuleProcess *o)

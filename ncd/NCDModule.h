@@ -103,10 +103,11 @@ typedef int (*NCDModuleInst_func_getobj) (struct NCDModuleInst_s *inst, NCD_stri
  * from within this function.
  * 
  * @param p handle for the new process backend
- * @param template_name name of the template to create the process from
+ * @param template_name name of the template to create the process from,
+ *                      as an {@link NCDStringIndex} identifier
  * @return 1 on success, 0 on failure
  */
-typedef int (*NCDModuleInst_func_initprocess) (struct NCDModuleProcess_s *p, const char *template_name);
+typedef int (*NCDModuleInst_func_initprocess) (struct NCDModuleProcess_s *p, NCD_string_id_t template_name);
 
 /**
  * Function called when the module instance wants the interpreter to
@@ -527,13 +528,24 @@ btime_t NCDModuleInst_Backend_InterpGetRetryTime (NCDModuleInst *n);
  * 
  * @param o the process
  * @param n backend instance whose interpreter will be providing the process
- * @param template_name name of the process template
+ * @param template_name name of the process template as an {@link NCDStringIndex} identifier
  * @param args arguments to the process. Must be an invalid value or a list value.
  *             The value must be available and unchanged while the process exists.
  * @param user argument to handlers
  * @param handler_event handler which reports events about the process from the
  *                      interpreter
  * @return 1 on success, 0 on failure
+ */
+int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_id_t template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event) WARN_UNUSED;
+
+/**
+ * Wrapper around {@link NCDModuleProcess_InitId} which takes the template name as an
+ * {@link NCDValRef}, which must point to a string value.
+ */
+int NCDModuleProcess_InitValue (NCDModuleProcess *o, NCDModuleInst *n, NCDValRef template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event) WARN_UNUSED;
+
+/**
+ * Wrapper around {@link NCDModuleProcess_InitId} which takes the template name as a char pointer.
  */
 int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event) WARN_UNUSED;
 

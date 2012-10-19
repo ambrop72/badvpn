@@ -193,7 +193,7 @@ static int statement_mem_size (struct statement *ps);
 static int statement_allocate_memory (struct statement *ps, int alloc_size);
 static void statement_instance_func_event (NCDModuleInst *inst, int event);
 static int statement_instance_func_getobj (NCDModuleInst *inst, NCD_string_id_t objname, NCDObject *out_object);
-static int statement_instance_func_initprocess (NCDModuleProcess *mp, const char *template_name);
+static int statement_instance_func_initprocess (NCDModuleProcess *mp, NCD_string_id_t template_name);
 static void statement_instance_logfunc (NCDModuleInst *inst);
 static void statement_instance_func_interp_exit (int exit_code);
 static int statement_instance_func_interp_getargs (NCDValMem *mem, NCDValRef *out_value);
@@ -1433,39 +1433,36 @@ int statement_instance_func_getobj (NCDModuleInst *inst, NCD_string_id_t objname
     return process_find_object(statement_process(ps), ps->i, objname, out_object);
 }
 
-int statement_instance_func_initprocess (NCDModuleProcess *mp, const char *template_name)
+int statement_instance_func_initprocess (NCDModuleProcess* mp, NCD_string_id_t template_name)
 {
-    // get string id for process name
-    NCD_string_id_t name_id = NCDStringIndex_Lookup(&string_index, template_name);
-    if (name_id < 0) {
-        goto does_not_exist;
-    }
-    
     // find process
-    NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&iprogram, name_id);
+    NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&iprogram, template_name);
     if (!iprocess) {
-        goto does_not_exist;
+        const char *str = NCDStringIndex_Value(&string_index, template_name);
+        BLog(BLOG_ERROR, "no template named %s", str);
+        return 0;
     }
     
     // make sure it's a template
     if (!NCDInterpProcess_IsTemplate(iprocess)) {
-        BLog(BLOG_ERROR, "need template to create a process, but %s is a process", template_name);
+        const char *str = NCDStringIndex_Value(&string_index, template_name);
+        BLog(BLOG_ERROR, "need template to create a process, but %s is a process", str);
         return 0;
     }
     
     // create process
     if (!process_new(iprocess, mp)) {
-        BLog(BLOG_ERROR, "failed to create process from template %s", template_name);
+        const char *str = NCDStringIndex_Value(&string_index, template_name);
+        BLog(BLOG_ERROR, "failed to create process from template %s", str);
         return 0;
     }
     
-    BLog(BLOG_INFO, "created process from template %s", template_name);
+    if (BLog_WouldLog(BLOG_INFO, BLOG_CURRENT_CHANNEL)) {
+        const char *str = NCDStringIndex_Value(&string_index, template_name);
+        BLog(BLOG_INFO, "created process from template %s", str);
+    }
     
     return 1;
-    
-does_not_exist:
-    BLog(BLOG_ERROR, "no template named %s", template_name);
-    return 0;
 }
 
 void statement_instance_logfunc (NCDModuleInst *inst)
