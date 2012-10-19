@@ -35,6 +35,7 @@
 
 #include <misc/debug.h>
 #include <structure/CAvl.h>
+#include <ncd/NCDStringIndex.h>
 
 // these are implementation details. The interface is defined below.
 
@@ -81,6 +82,12 @@ struct NCDVal__mapelem {
     NCDVal__idx tree_child[2];
     NCDVal__idx tree_parent;
     int8_t tree_balance;
+};
+
+struct NCDVal__idstring {
+    int type;
+    NCD_string_id_t string_id;
+    NCDStringIndex *string_index;
 };
 
 typedef struct NCDVal__mapelem NCDVal__maptree_entry;
@@ -274,6 +281,13 @@ NCDValRef NCDVal_Moved (NCDValMem *mem, NCDValRef val);
 int NCDVal_IsString (NCDValRef val);
 
 /**
+ * Determines if a value is an ID-string value. See {@link NCDVal_NewIdString}
+ * for an explanation of ID-string values.
+ * The value reference must not be an invalid reference.
+ */
+int NCDVal_IsIdString (NCDValRef val);
+
+/**
  * Determines if a value is a string value which has no null bytes.
  * The value reference must not be an invalid reference.
  */
@@ -309,6 +323,22 @@ NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len);
 NCDValRef NCDVal_NewStringUninitialized (NCDValMem *mem, size_t len);
 
 /**
+ * Builds a new ID-string value.
+ * Returns a reference to the new value, or an invalid reference
+ * on out of memory.
+ * 
+ * An ID-string value is a special kind of string value which is represented
+ * efficiently as a string identifier via {@link NCDStringIndex}. An ID-string
+ * is also a string and is transparent for use. For example, for an ID-string,
+ * {@link NCDVal_Type} still returns NCDVAL_STRING, {@link NCDVal_IsString}
+ * returns 1, and {@link NCDVal_StringValue} and {@link NCDVal_StringLength}
+ * both work. The only way to distinguish an ID-string from a non-ID string is
+ * by calling {@link NCDVal_IsIdString}.
+ */
+NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id,
+                              NCDStringIndex *string_index);
+
+/**
  * Returns a pointer to the data of a string value. An extra null byte
  * is always appended to the actual contents of the string.
  * The value reference must point to a string value.
@@ -321,6 +351,15 @@ const char * NCDVal_StringValue (NCDValRef string);
  * The value reference must point to a string value.
  */
 size_t NCDVal_StringLength (NCDValRef string);
+
+/**
+ * Returns the string ID and the string index of an ID-string.
+ * The value given must be an ID-string value (which can be determined via
+ * {@link NCDVal_IsIdString}). Both the \a out_string_id and \a out_string_index
+ * pointers must be non-NULL.
+ */
+void NCDVal_IdStringGet (NCDValRef idstring, NCD_string_id_t *out_string_id,
+                         NCDStringIndex **out_string_index);
 
 /**
  * Determines if the string value has any null bytes in its contents,

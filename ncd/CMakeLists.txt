@@ -26,10 +26,14 @@ add_library(ncdtokenizer
 )
 target_link_libraries(ncdtokenizer base)
 
+add_library(ncdstringindex
+    NCDStringIndex.c
+)
+
 add_library(ncdval
     NCDVal.c
 )
-target_link_libraries(ncdval base)
+target_link_libraries(ncdval base ncdstringindex)
 
 add_library(ncdvalgenerator
     NCDValGenerator.c
@@ -80,7 +84,6 @@ add_executable(badvpn-ncd
     NCDInterpProg.c
     NCDPlaceholderDb.c
     NCDMethodIndex.c
-    NCDStringIndex.c
     BEventLock.c
     modules/command_template.c
     modules/event_template.c
@@ -151,7 +154,7 @@ add_executable(badvpn-ncd
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(badvpn-ncd
-    system flow flowextra dhcpclient arpprobe ncdval ncdvalgenerator
+    system flow flowextra dhcpclient arpprobe ncdval ncdstringindex ncdvalgenerator
     ncdvalparser ncdconfigparser ncdsugar udevmonitor ncdinterfacemonitor ncdrequest
     badvpn_random
 )

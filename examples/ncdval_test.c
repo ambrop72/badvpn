@@ -30,6 +30,8 @@
 #include <stdio.h>
 
 #include <ncd/NCDVal.h>
+#include <ncd/NCDStringIndex.h>
+#include <ncd/static_strings.h>
 #include <base/BLog.h>
 #include <misc/debug.h>
 
@@ -86,6 +88,9 @@ int main ()
 {
     BLog_InitStdout();
     
+    NCDStringIndex string_index;
+    FORCE( NCDStringIndex_Init(&string_index) )
+    
     // Some basic usage of values.
     
     NCDValMem mem;
@@ -93,6 +98,9 @@ int main ()
     
     NCDValRef s1 = NCDVal_NewString(&mem, "Hello World");
     FORCE( !NCDVal_IsInvalid(s1) )
+    ASSERT( NCDVal_IsString(s1) )
+    ASSERT( !NCDVal_IsIdString(s1) )
+    ASSERT( NCDVal_Type(s1) == NCDVAL_STRING )
     
     NCDValRef s2 = NCDVal_NewString(&mem, "This is reeeeeeeeeeeeeallllllllyyyyy fun!");
     FORCE( !NCDVal_IsInvalid(s2) )
@@ -119,13 +127,37 @@ int main ()
     NCDValRef v2 = NCDVal_NewString(&mem, "V2");
     FORCE( !NCDVal_IsInvalid(v2) )
     
-    NCDValRef m1 = NCDVal_NewMap(&mem, 2);
+    NCDValRef m1 = NCDVal_NewMap(&mem, 3);
     FORCE( !NCDVal_IsInvalid(m1) )
     
     FORCE( NCDVal_MapInsert(m1, k1, v1) )
     FORCE( NCDVal_MapInsert(m1, k2, v2) )
     
+    NCDValRef ids1 = NCDVal_NewIdString(&mem, NCD_STRING_ARG1, &string_index);
+    FORCE( !NCDVal_IsInvalid(ids1) )
+    ASSERT( !strcmp(NCDVal_StringValue(ids1), "_arg1") )
+    ASSERT( NCDVal_StringLength(ids1) == 5 )
+    ASSERT( !NCDVal_StringHasNulls(ids1) )
+    ASSERT( NCDVal_StringEquals(ids1, "_arg1") )
+    ASSERT( NCDVal_Type(ids1) == NCDVAL_STRING )
+    ASSERT( NCDVal_IsIdString(ids1) )
+    
+    NCDValRef ids2 = NCDVal_NewIdString(&mem, NCD_STRING_ARG2, &string_index);
+    FORCE( !NCDVal_IsInvalid(ids2) )
+    ASSERT( !strcmp(NCDVal_StringValue(ids2), "_arg2") )
+    ASSERT( NCDVal_StringLength(ids2) == 5 )
+    ASSERT( !NCDVal_StringHasNulls(ids2) )
+    ASSERT( NCDVal_StringEquals(ids2, "_arg2") )
+    ASSERT( NCDVal_Type(ids2) == NCDVAL_STRING )
+    ASSERT( NCDVal_IsIdString(ids2) )
+    
+    FORCE( NCDVal_MapInsert(m1, ids1, ids2) )
+    
     print_value(m1, 0);
+    
+    NCDValRef copy = NCDVal_NewCopy(&mem, m1);
+    FORCE( !NCDVal_IsInvalid(copy) )
+    ASSERT( NCDVal_Compare(copy, m1) == 0 )
     
     NCDValMem_Free(&mem);
     
@@ -156,6 +188,8 @@ int main ()
     }
     
     NCDValMem_Free(&mem);
+    
+    NCDStringIndex_Free(&string_index);
     
     return 0;
 }
