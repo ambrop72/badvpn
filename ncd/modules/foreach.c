@@ -74,6 +74,7 @@
 #include <system/BReactor.h>
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_foreach.h>
 
@@ -622,24 +623,24 @@ static void func_new_foreach_emb (void *vo, NCDModuleInst *i, const struct NCDMo
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(arg_template) || !NCDVal_IsStringNoNulls(arg_name1) || (!NCDVal_IsInvalid(arg_name2) && !NCDVal_IsStringNoNulls(arg_name2))) {
+    if (!NCDVal_IsString(arg_template) || !NCDVal_IsString(arg_name1) || (!NCDVal_IsInvalid(arg_name2) && !NCDVal_IsString(arg_name2))) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
-    const char *name1_str = NCDVal_StringValue(arg_name1);
-    const char *name2_str = (NCDVal_IsInvalid(arg_name2) ? NULL : NCDVal_StringValue(arg_name2));
-    
-    NCD_string_id_t name1 = NCDStringIndex_Get(i->params->iparams->string_index, name1_str);
+    NCD_string_id_t name1 = ncd_get_string_id(arg_name1, i->params->iparams->string_index);
     if (name1 < 0) {
-        ModuleLog(i, BLOG_ERROR, "NCDStringIndex_Get failed");
+        ModuleLog(i, BLOG_ERROR, "ncd_get_string_id failed");
         goto fail0;
     }
     
     NCD_string_id_t name2 = -1;
-    if (name2_str && (name2 = NCDStringIndex_Get(i->params->iparams->string_index, name2_str)) < 0) {
-        ModuleLog(i, BLOG_ERROR, "NCDStringIndex_Get failed");
-        goto fail0;
+    if (!NCDVal_IsInvalid(arg_name2)) {
+        name2 = ncd_get_string_id(arg_name2, i->params->iparams->string_index);
+        if (name2 < 0) {
+            ModuleLog(i, BLOG_ERROR, "ncd_get_string_id failed");
+            goto fail0;
+        }
     }
     
     func_new_common(vo, i, arg_collection, arg_template, NCDVal_NewInvalid(), name1, name2);

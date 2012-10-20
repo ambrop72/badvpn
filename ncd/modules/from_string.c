@@ -62,17 +62,16 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(str_arg)) {
+    if (!NCDVal_IsString(str_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *str = NCDVal_StringValue(str_arg);
     
     // init mem
     NCDValMem_Init(&o->mem);
     
     // parse value string
-    if (!NCDValParser_Parse(str, strlen(str), &o->mem, &o->val)) {
+    if (!NCDValParser_Parse(NCDVal_StringValue(str_arg), NCDVal_StringLength(str_arg), &o->mem, &o->val)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse");
         goto fail1;
     }
