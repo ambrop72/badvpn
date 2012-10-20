@@ -53,6 +53,7 @@
 #include <misc/debug.h>
 #include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_process_manager.h>
 
@@ -406,9 +407,9 @@ int process_set_params (struct process *p, NCDValRef template_name, NCDValMem me
     ASSERT(NCDVal_IsList(NCDVal_FromSafe(&mem, args)))
     
     // get string ID for template name
-    p->params_template_name = NCDStringIndex_GetBin(p->manager->i->params->iparams->string_index, NCDVal_StringValue(template_name), NCDVal_StringLength(template_name));
+    p->params_template_name = ncd_get_string_id(template_name, p->manager->i->params->iparams->string_index);
     if (p->params_template_name < 0) {
-        ModuleLog(p->manager->i, BLOG_ERROR, "NCDStringIndex_GetBin failed");
+        ModuleLog(p->manager->i, BLOG_ERROR, "ncd_get_string_id failed");
         return 0;
     }
     
