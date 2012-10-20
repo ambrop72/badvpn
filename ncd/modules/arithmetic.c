@@ -72,7 +72,7 @@
 #include <misc/parse_number.h>
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
-#include <ncd/static_strings_utils.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_arithmetic.h>
 
@@ -194,9 +194,14 @@ static void new_boolean_templ (void *vo, NCDModuleInst *i, const struct NCDModul
     }
     
     uintmax_t n1;
+    if (!parse_unsigned_integer_bin(NCDVal_StringValue(n1_arg), NCDVal_StringLength(n1_arg), &n1)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong first argument");
+        goto fail0;
+    }
+    
     uintmax_t n2;
-    if (!parse_unsigned_integer(NCDVal_StringValue(n1_arg), &n1) || !parse_unsigned_integer(NCDVal_StringValue(n2_arg), &n2)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong value");
+    if (!parse_unsigned_integer_bin(NCDVal_StringValue(n2_arg), NCDVal_StringLength(n2_arg), &n2)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong second argument");
         goto fail0;
     }
     

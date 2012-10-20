@@ -1,5 +1,5 @@
 /**
- * @file static_strings_utils.h
+ * @file value_utils.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -27,8 +27,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef NCD_BOOLEAN_H
-#define NCD_BOOLEAN_H
+#ifndef NCD_VALUE_UTILS_H
+#define NCD_VALUE_UTILS_H
 
 #include <misc/debug.h>
 #include <ncd/NCDVal.h>
