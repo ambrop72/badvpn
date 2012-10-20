@@ -37,6 +37,11 @@
 #include <ncd/NCDVal.h>
 #include <ncd/static_strings.h>
 
+static int ncd_is_none (NCDValRef val);
+static NCDValRef ncd_make_boolean (NCDValMem *mem, int value, NCDStringIndex *string_index);
+static int ncd_read_boolean (NCDValRef val);
+static int ncd_read_uintmax (NCDValRef string, uintmax_t *out) WARN_UNUSED;
+
 static int ncd_is_none (NCDValRef val)
 {
     ASSERT(NCDVal_IsString(val))
@@ -68,7 +73,7 @@ static int ncd_read_boolean (NCDValRef val)
     }
 }
 
-static int ncd_read_uintmax (NCDValRef string, uintmax_t *out) WARN_UNUSED
+static int ncd_read_uintmax (NCDValRef string, uintmax_t *out)
 {
     ASSERT(NCDVal_IsString(string))
     ASSERT(out)
