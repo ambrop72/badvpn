@@ -369,6 +369,13 @@ void NCDVal_IdStringGet (NCDValRef idstring, NCD_string_id_t *out_string_id,
 NCD_string_id_t NCDVal_IdStringId (NCDValRef idstring);
 
 /**
+ * Returns the string index of an ID-string.
+ * The value given must be an ID-string value (which can be determined via
+ * {@link NCDVal_IsIdString}).
+ */
+NCDStringIndex * NCDVal_IdStringStringIndex (NCDValRef idstring);
+
+/**
  * Determines if the string value has any null bytes in its contents,
  * i.e. that length > strlen().
  * The value reference must point to a string value.
