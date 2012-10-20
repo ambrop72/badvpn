@@ -147,12 +147,15 @@
 #include <structure/IndexedList.h>
 #include <structure/SAvl.h>
 #include <ncd/NCDModule.h>
+#include <ncd/NCDStringIndex.h>
 #include <ncd/static_strings.h>
 #include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_value.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+
+#define IDSTRING_TYPE (NCDVAL_STRING | (1 << 3))
 
 struct value;
 
@@ -191,9 +194,13 @@ struct value {
     int type;
     union {
         struct {
-            uint8_t *string;
+            char *string;
             size_t length;
         } string;
+        struct {
+            NCD_string_id_t id;
+            NCDStringIndex *string_index;
+        } idstring;
         struct {
             IndexedList list_contents_il;
         } list;
@@ -206,7 +213,8 @@ struct value {
 static const char * get_type_str (int type);
 static void value_cleanup (struct value *v);
 static void value_delete (struct value *v);
-static struct value * value_init_string (NCDModuleInst *i, const uint8_t *str, size_t len);
+static struct value * value_init_string (NCDModuleInst *i, const char *str, size_t len);
+static struct value * value_init_idstring (NCDModuleInst *i, NCD_string_id_t id, NCDStringIndex *string_index);
 static struct value * value_init_list (NCDModuleInst *i);
 static size_t value_list_len (struct value *v);
 static struct value * value_list_at (struct value *v, size_t index);
@@ -243,7 +251,8 @@ static struct NCD_string_request strings[] = {
 static const char * get_type_str (int type)
 {
     switch (type) {
-        case NCDVAL_STRING: return "string";
+        case NCDVAL_STRING:
+        case IDSTRING_TYPE: return "string";
         case NCDVAL_LIST: return "list";
         case NCDVAL_MAP: return "map";
     }
@@ -260,6 +269,9 @@ static void value_cleanup (struct value *v)
     switch (v->type) {
         case NCDVAL_STRING: {
             BFree(v->string.string);
+        } break;
+        
+        case IDSTRING_TYPE: {
         } break;
         
         case NCDVAL_LIST: {
@@ -310,6 +322,9 @@ static void value_delete (struct value *v)
             BFree(v->string.string);
         } break;
         
+        case IDSTRING_TYPE: {
+        } break;
+        
         case NCDVAL_LIST: {
             while (value_list_len(v) > 0) {
                 struct value *ev = value_list_at(v, 0);
@@ -330,7 +345,7 @@ static void value_delete (struct value *v)
     free(v);
 }
 
-static struct value * value_init_string (NCDModuleInst *i, const uint8_t *str, size_t len)
+static struct value * value_init_string (NCDModuleInst *i, const char *str, size_t len)
 {
     struct value *v = malloc(sizeof(*v));
     if (!v) {
@@ -355,6 +370,29 @@ static struct value * value_init_string (NCDModuleInst *i, const uint8_t *str, s
     
 fail1:
     free(v);
+fail0:
+    return NULL;
+}
+
+static struct value * value_init_idstring (NCDModuleInst *i, NCD_string_id_t id, NCDStringIndex *string_index)
+{
+    ASSERT(string_index == i->params->iparams->string_index)
+    
+    struct value *v = malloc(sizeof(*v));
+    if (!v) {
+        ModuleLog(i, BLOG_ERROR, "malloc failed");
+        goto fail0;
+    }
+    
+    LinkedList0_Init(&v->refs_list);
+    v->parent = NULL;
+    v->type = IDSTRING_TYPE;
+    
+    v->idstring.id = id;
+    v->idstring.string_index = string_index;
+    
+    return v;
+    
 fail0:
     return NULL;
 }
@@ -533,7 +571,12 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value)
     
     switch (NCDVal_Type(value)) {
         case NCDVAL_STRING: {
-            if (!(v = value_init_string(i, (const uint8_t *)NCDVal_StringValue(value), NCDVal_StringLength(value)))) {
+            if (NCDVal_IsIdString(value)) {
+                v = value_init_idstring(i, NCDVal_IdStringId(value), NCDVal_IdStringStringIndex(value));
+            } else {
+                v = value_init_string(i, NCDVal_StringValue(value), NCDVal_StringLength(value));
+            }
+            if (!v) {
                 goto fail0;
             }
         } break;
@@ -611,9 +654,17 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
     
     switch (v->type) {
         case NCDVAL_STRING: {
-            *out_value = NCDVal_NewStringBin(mem, v->string.string, v->string.length);
+            *out_value = NCDVal_NewStringBin(mem, (const uint8_t *)v->string.string, v->string.length);
             if (NCDVal_IsInvalid(*out_value)) {
                 ModuleLog(i, BLOG_ERROR, "NCDVal_NewStringBin failed");
+                goto fail;
+            }
+        } break;
+        
+        case IDSTRING_TYPE: {
+            *out_value = NCDVal_NewIdString(mem, v->idstring.id, v->idstring.string_index);
+            if (NCDVal_IsInvalid(*out_value)) {
+                ModuleLog(i, BLOG_ERROR, "NCDVal_NewIdString failed");
                 goto fail;
             }
         } break;
@@ -675,7 +726,8 @@ static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValRef wh
     ASSERT((NCDVal_Type(where), 1))
     
     switch (v->type) {
-        case NCDVAL_STRING: {
+        case NCDVAL_STRING:
+        case IDSTRING_TYPE: {
             if (!no_error) ModuleLog(i, BLOG_ERROR, "cannot resolve into a string");
             goto fail;
         } break;
@@ -745,7 +797,8 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef
     struct value *oldv = NULL;
     
     switch (v->type) {
-        case NCDVAL_STRING: {
+        case NCDVAL_STRING:
+        case IDSTRING_TYPE: {
             ModuleLog(i, BLOG_ERROR, "cannot insert into a string");
             goto fail1;
         } break;
@@ -826,7 +879,8 @@ static int value_remove (NCDModuleInst *i, struct value *v, NCDValRef where)
     ASSERT((NCDVal_Type(where), 1))
     
     switch (v->type) {
-        case NCDVAL_STRING: {
+        case NCDVAL_STRING:
+        case IDSTRING_TYPE: {
             ModuleLog(i, BLOG_ERROR, "cannot remove from a string");
             goto fail;
         } break;
@@ -971,6 +1025,9 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
                 break;
             case NCDVAL_STRING:
                 len = v->string.length;
+                break;
+            case IDSTRING_TYPE:
+                len = strlen(NCDStringIndex_Value(v->idstring.string_index, v->idstring.id));
                 break;
             default:
                 ASSERT(0);
@@ -1422,20 +1479,30 @@ static void func_new_substr (void *vo, NCDModuleInst *i, const struct NCDModuleI
         goto fail0;
     }
     
-    if (mov->type != NCDVAL_STRING) {
+    if (mov->type != NCDVAL_STRING && mov->type != IDSTRING_TYPE) {
         ModuleLog(i, BLOG_ERROR, "value is not a string");
         goto fail0;
     }
     
-    if (start > mov->string.length) {
+    const char *string_data;
+    size_t string_len;
+    if (mov->type == IDSTRING_TYPE) {
+        string_data = NCDStringIndex_Value(mov->idstring.string_index, mov->idstring.id);
+        string_len = strlen(string_data);
+    } else {
+        string_data = mov->string.string;
+        string_len = mov->string.length;
+    }
+    
+    if (start > string_len) {
         ModuleLog(i, BLOG_ERROR, "start is out of range");
         goto fail0;
     }
     
-    size_t remain = mov->string.length - start;
+    size_t remain = string_len - start;
     size_t amount = length < remain ? length : remain;
     
-    struct value *v = value_init_string(i, mov->string.string + start, amount);
+    struct value *v = value_init_string(i, string_data + start, amount);
     if (!v) {
         goto fail0;
     }
