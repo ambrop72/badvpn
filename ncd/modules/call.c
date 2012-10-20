@@ -64,12 +64,12 @@
  */
 
 #include <stdlib.h>
-#include <string.h>
 
 #include <misc/string_begins_with.h>
 #include <misc/offset.h>
 #include <structure/LinkedList0.h>
 #include <ncd/NCDModule.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_call.h>
 
@@ -194,14 +194,13 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(template_name_arg) || !NCDVal_IsList(args_arg)) {
+    if (!NCDVal_IsString(template_name_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *template_name = NCDVal_StringValue(template_name_arg);
     
     // calling none?
-    if (!strcmp(template_name, "<none>")) {
+    if (ncd_is_none(template_name_arg)) {
         // signal up
         NCDModuleInst_Backend_Up(o->i);
         
@@ -220,7 +219,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         }
         
         // create process
-        if (!NCDModuleProcess_Init(&o->process, o->i, template_name, args, o, (NCDModuleProcess_handler_event)process_handler_event)) {
+        if (!NCDModuleProcess_InitValue(&o->process, o->i, template_name_arg, args, o, (NCDModuleProcess_handler_event)process_handler_event)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
             NCDValMem_Free(&o->args_mem);
             goto fail0;

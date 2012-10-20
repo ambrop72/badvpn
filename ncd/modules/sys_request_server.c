@@ -104,7 +104,7 @@
 struct instance {
     NCDModuleInst *i;
     const char *unix_socket_path;
-    const char *request_handler_template;
+    NCDValRef request_handler_template;
     NCDValRef args;
     BListener listener;
     LinkedList0 connections_list;
@@ -394,7 +394,7 @@ static int request_init (struct connection *c, uint32_t request_id, const uint8_
         goto fail1;
     }
     
-    if (!NCDModuleProcess_Init(&r->process, o->i, o->request_handler_template, o->args, r, (NCDModuleProcess_handler_event)request_process_handler_event)) {
+    if (!NCDModuleProcess_InitValue(&r->process, o->i, o->request_handler_template, o->args, r, (NCDModuleProcess_handler_event)request_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail3;
     }
@@ -746,11 +746,11 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(request_handler_template_arg) || !NCDVal_IsList(args_arg)) {
+    if (!NCDVal_IsString(request_handler_template_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->request_handler_template = NCDVal_StringValue(request_handler_template_arg);
+    o->request_handler_template = request_handler_template_arg;
     o->args = args_arg;
     
     // init listener

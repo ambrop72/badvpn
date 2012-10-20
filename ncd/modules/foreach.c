@@ -94,7 +94,7 @@ struct element;
 
 struct instance {
     NCDModuleInst *i;
-    const char *template_name;
+    NCDValRef template_name;
     NCDValRef args;
     NCD_string_id_t name1;
     NCD_string_id_t name2;
@@ -271,7 +271,7 @@ static void advance (struct instance *o)
     struct element *e = &o->elems[o->gp];
     
     // init process
-    if (!NCDModuleProcess_Init(&e->process, o->i, o->template_name, o->args, e, (NCDModuleProcess_handler_event)element_process_handler_event)) {
+    if (!NCDModuleProcess_InitValue(&e->process, o->i, o->template_name, o->args, e, (NCDModuleProcess_handler_event)element_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail;
     }
@@ -483,10 +483,10 @@ static int element_map_val_object_func_getvar (struct element *e, NCD_string_id_
     return 1;
 }
 
-static void func_new_common (void *vo, NCDModuleInst *i, NCDValRef collection, const char *template_name, NCDValRef args, NCD_string_id_t name1, NCD_string_id_t name2)
+static void func_new_common (void *vo, NCDModuleInst *i, NCDValRef collection, NCDValRef template_name, NCDValRef args, NCD_string_id_t name1, NCD_string_id_t name2)
 {
     ASSERT(!NCDVal_IsInvalid(collection))
-    ASSERT(template_name)
+    ASSERT(NCDVal_IsString(template_name))
     ASSERT(NCDVal_IsInvalid(args) || NCDVal_IsList(args))
     ASSERT(name1 >= 0)
     
@@ -581,12 +581,11 @@ static void func_new_foreach (void *vo, NCDModuleInst *i, const struct NCDModule
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(arg_template) || !NCDVal_IsList(arg_args)) {
+    if (!NCDVal_IsString(arg_template) || !NCDVal_IsList(arg_args)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
-    const char *template_name = NCDVal_StringValue(arg_template);
     NCD_string_id_t name1;
     NCD_string_id_t name2;
     
@@ -604,7 +603,7 @@ static void func_new_foreach (void *vo, NCDModuleInst *i, const struct NCDModule
             goto fail0;
     }
     
-    func_new_common(vo, i, arg_collection, template_name, arg_args, name1, name2);
+    func_new_common(vo, i, arg_collection, arg_template, arg_args, name1, name2);
     return;
     
 fail0:
@@ -623,12 +622,11 @@ static void func_new_foreach_emb (void *vo, NCDModuleInst *i, const struct NCDMo
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(arg_template) || !NCDVal_IsStringNoNulls(arg_name1) || (!NCDVal_IsInvalid(arg_name2) && !NCDVal_IsStringNoNulls(arg_name2))) {
+    if (!NCDVal_IsString(arg_template) || !NCDVal_IsStringNoNulls(arg_name1) || (!NCDVal_IsInvalid(arg_name2) && !NCDVal_IsStringNoNulls(arg_name2))) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
-    const char *template_name = NCDVal_StringValue(arg_template);
     const char *name1_str = NCDVal_StringValue(arg_name1);
     const char *name2_str = (NCDVal_IsInvalid(arg_name2) ? NULL : NCDVal_StringValue(arg_name2));
     
@@ -644,7 +642,7 @@ static void func_new_foreach_emb (void *vo, NCDModuleInst *i, const struct NCDMo
         goto fail0;
     }
     
-    func_new_common(vo, i, arg_collection, template_name, NCDVal_NewInvalid(), name1, name2);
+    func_new_common(vo, i, arg_collection, arg_template, NCDVal_NewInvalid(), name1, name2);
     return;
     
 fail0:

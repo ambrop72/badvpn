@@ -122,8 +122,8 @@ struct instance {
 
 struct request_instance {
     NCDModuleInst *i;
-    const char *reply_handler;
-    const char *finished_handler;
+    NCDValRef reply_handler;
+    NCDValRef finished_handler;
     NCDValRef args;
     struct instance *client;
     NCDRequestClientRequest request;
@@ -430,7 +430,7 @@ static int request_init_reply_process (struct request_instance *o, NCDValMem rep
     o->process_reply_data = NCDVal_FromSafe(&o->process_reply_mem, reply_data);
     
     // init process
-    if (!NCDModuleProcess_Init(&o->process, o->i, o->reply_handler, o->args, o, (NCDModuleProcess_handler_event)request_process_handler_event)) {
+    if (!NCDModuleProcess_InitValue(&o->process, o->i, o->reply_handler, o->args, o, (NCDModuleProcess_handler_event)request_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail0;
     }
@@ -454,7 +454,7 @@ static int request_init_finished_process (struct request_instance *o)
     o->process_is_finished = 1;
     
     // init process
-    if (!NCDModuleProcess_Init(&o->process, o->i, o->finished_handler, o->args, o, (NCDModuleProcess_handler_event)request_process_handler_event)) {
+    if (!NCDModuleProcess_InitValue(&o->process, o->i, o->finished_handler, o->args, o, (NCDModuleProcess_handler_event)request_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail0;
     }
@@ -612,14 +612,14 @@ static void request_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(reply_handler_arg) || !NCDVal_IsStringNoNulls(finished_handler_arg) ||
+    if (!NCDVal_IsString(reply_handler_arg) || !NCDVal_IsString(finished_handler_arg) ||
         !NCDVal_IsList(args_arg)
     ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->reply_handler = NCDVal_StringValue(reply_handler_arg);
-    o->finished_handler = NCDVal_StringValue(finished_handler_arg);
+    o->reply_handler = reply_handler_arg;
+    o->finished_handler = finished_handler_arg;
     o->args = args_arg;
     
     // get client

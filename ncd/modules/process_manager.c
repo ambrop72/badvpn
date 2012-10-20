@@ -77,7 +77,7 @@ struct process {
     BTimer retry_timer;
     LinkedList1Node processes_list_node;
     int have_params;
-    char *params_template_name;
+    NCD_string_id_t params_template_name;
     NCDValMem params_mem;
     NCDValRef params_args;
     int have_module_process;
@@ -88,16 +88,16 @@ struct process {
 };
 
 static struct process * find_process (struct instance *o, const char *name);
-static int process_new (struct instance *o, const char *name, const char *template_name, NCDValRef args);
+static int process_new (struct instance *o, const char *name, NCDValRef template_name, NCDValRef args);
 static void process_free (struct process *p);
 static void process_retry_timer_handler (struct process *p);
 static void process_module_process_handler_event (struct process *p, int event);
 static int process_module_process_func_getspecialobj (struct process *p, NCD_string_id_t name, NCDObject *out_object);
 static int process_module_process_caller_obj_func_getobj (struct process *p, NCD_string_id_t name, NCDObject *out_object);
 static void process_stop (struct process *p);
-static int process_restart (struct process *p, const char *template_name, NCDValRef args);
+static int process_restart (struct process *p, NCDValRef template_name, NCDValRef args);
 static void process_try (struct process *p);
-static int process_set_params (struct process *p, const char *template_name, NCDValMem mem, NCDValSafeRef args);
+static int process_set_params (struct process *p, NCDValRef template_name, NCDValMem mem, NCDValSafeRef args);
 static void instance_free (struct instance *o);
 
 enum {STRING_CALLER};
@@ -120,10 +120,11 @@ struct process * find_process (struct instance *o, const char *name)
     return NULL;
 }
 
-int process_new (struct instance *o, const char *name, const char *template_name, NCDValRef args)
+int process_new (struct instance *o, const char *name, NCDValRef template_name, NCDValRef args)
 {
     ASSERT(!o->dying)
     ASSERT(!find_process(o, name))
+    ASSERT(NCDVal_IsString(template_name))
     ASSERT(NCDVal_IsList(args))
     
     // allocate structure
@@ -191,7 +192,6 @@ void process_free (struct process *p)
     // free params
     if (p->have_params) {
         NCDValMem_Free(&p->params_mem);
-        free(p->params_template_name);
     }
     
     // remove from processes list
@@ -314,7 +314,6 @@ void process_stop (struct process *p)
             
             // free params
             NCDValMem_Free(&p->params_mem);
-            free(p->params_template_name);
             p->have_params = 0;
             
             // set state
@@ -329,12 +328,13 @@ void process_stop (struct process *p)
     }
 }
 
-int process_restart (struct process *p, const char *template_name, NCDValRef args)
+int process_restart (struct process *p, NCDValRef template_name, NCDValRef args)
 {
     struct instance *o = p->manager;
     ASSERT(!o->dying)
     ASSERT(p->state == PROCESS_STATE_STOPPING)
     ASSERT(!p->have_params)
+    ASSERT(NCDVal_IsString(template_name))
     ASSERT(NCDVal_IsList(args))
     
     // copy arguments
@@ -375,7 +375,7 @@ void process_try (struct process *p)
     p->process_args = NCDVal_Moved(&p->process_mem, p->params_args);
     
     // init module process
-    if (!NCDModuleProcess_Init(&p->module_process, o->i, p->params_template_name, p->process_args, p, (NCDModuleProcess_handler_event)process_module_process_handler_event)) {
+    if (!NCDModuleProcess_InitId(&p->module_process, o->i, p->params_template_name, p->process_args, p, (NCDModuleProcess_handler_event)process_module_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         
         // set timer
@@ -390,7 +390,6 @@ void process_try (struct process *p)
     NCDModuleProcess_SetSpecialFuncs(&p->module_process, (NCDModuleProcess_func_getspecialobj)process_module_process_func_getspecialobj);
     
     // free params
-    free(p->params_template_name);
     p->have_params = 0;
     
     // set have module process
@@ -400,14 +399,16 @@ void process_try (struct process *p)
     p->state = PROCESS_STATE_RUNNING;
 }
 
-int process_set_params (struct process *p, const char *template_name, NCDValMem mem, NCDValSafeRef args)
+int process_set_params (struct process *p, NCDValRef template_name, NCDValMem mem, NCDValSafeRef args)
 {
     ASSERT(!p->have_params)
+    ASSERT(NCDVal_IsString(template_name))
     ASSERT(NCDVal_IsList(NCDVal_FromSafe(&mem, args)))
     
-    // copy template name
-    if (!(p->params_template_name = strdup(template_name))) {
-        ModuleLog(p->manager->i, BLOG_ERROR, "strdup failed");
+    // get string ID for template name
+    p->params_template_name = NCDStringIndex_GetBin(p->manager->i->params->iparams->string_index, NCDVal_StringValue(template_name), NCDVal_StringLength(template_name));
+    if (p->params_template_name < 0) {
+        ModuleLog(p->manager->i, BLOG_ERROR, "NCDStringIndex_GetBin failed");
         return 0;
     }
     
@@ -488,13 +489,12 @@ static void start_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(name_arg) || !NCDVal_IsStringNoNulls(template_name_arg) ||
+    if (!NCDVal_IsStringNoNulls(name_arg) || !NCDVal_IsString(template_name_arg) ||
         !NCDVal_IsList(args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     const char *name = NCDVal_StringValue(name_arg);
-    const char *template_name = NCDVal_StringValue(template_name_arg);
     
     // signal up.
     // Do it before creating the process so that the process starts initializing before our own process continues.
@@ -511,12 +511,12 @@ static void start_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
             ModuleLog(i, BLOG_INFO, "process %s already started", name);
         } else {
             if (p) {
-                if (!process_restart(p, template_name, args_arg)) {
+                if (!process_restart(p, template_name_arg, args_arg)) {
                     ModuleLog(i, BLOG_ERROR, "failed to restart process %s", name);
                     goto fail0;
                 }
             } else {
-                if (!process_new(mo, name, template_name, args_arg)) {
+                if (!process_new(mo, name, template_name_arg, args_arg)) {
                     ModuleLog(i, BLOG_ERROR, "failed to create process %s", name);
                     goto fail0;
                 }

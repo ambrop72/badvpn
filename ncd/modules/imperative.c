@@ -68,7 +68,7 @@
 
 struct instance {
     NCDModuleInst *i;
-    const char *deinit_template;
+    NCDValRef deinit_template;
     NCDValRef deinit_args;
     BTimer deinit_timer;
     NCDModuleProcess process;
@@ -76,7 +76,7 @@ struct instance {
     int dying;
 };
 
-static int start_process (struct instance *o, const char *templ, NCDValRef args, NCDModuleProcess_handler_event handler);
+static int start_process (struct instance *o, NCDValRef template_name, NCDValRef args, NCDModuleProcess_handler_event handler);
 static void go_deinit (struct instance *o);
 static void init_process_handler_event (struct instance *o, int event);
 static void deinit_process_handler_event (struct instance *o, int event);
@@ -91,12 +91,13 @@ static struct NCD_string_request strings[] = {
     {"_caller"}, {NULL}
 };
 
-static int start_process (struct instance *o, const char *templ, NCDValRef args, NCDModuleProcess_handler_event handler)
+static int start_process (struct instance *o, NCDValRef template_name, NCDValRef args, NCDModuleProcess_handler_event handler)
 {
+    ASSERT(NCDVal_IsString(template_name))
     ASSERT(NCDVal_IsList(args))
     
     // create process
-    if (!NCDModuleProcess_Init(&o->process, o->i, templ, args, o, handler)) {
+    if (!NCDModuleProcess_InitValue(&o->process, o->i, template_name, args, o, handler)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         return 0;
     }
@@ -111,7 +112,7 @@ static void go_deinit (struct instance *o)
     ASSERT(o->dying)
     
     // deinit is no-op?
-    if (!strcmp(o->deinit_template, "<none>")) {
+    if (ncd_is_none(o->deinit_template)) {
         instance_free(o);
         return;
     }
@@ -244,14 +245,14 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(init_template_arg) || !NCDVal_IsList(init_args)  ||
-        !NCDVal_IsStringNoNulls(deinit_template_arg) || !NCDVal_IsList(o->deinit_args) ||
+    if (!NCDVal_IsString(init_template_arg) || !NCDVal_IsList(init_args)  ||
+        !NCDVal_IsString(deinit_template_arg) || !NCDVal_IsList(o->deinit_args) ||
         !NCDVal_IsString(deinit_timeout_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *init_template = NCDVal_StringValue(init_template_arg);
-    o->deinit_template = NCDVal_StringValue(deinit_template_arg);
+    
+    o->deinit_template = deinit_template_arg;
     
     // read timeout
     uintmax_t timeout;
@@ -263,7 +264,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     // init timer
     BTimer_Init(&o->deinit_timer, timeout, (BTimer_handler)deinit_timer_handler, o);
     
-    if (!strcmp(init_template, "<none>")) {
+    if (ncd_is_none(init_template_arg)) {
         // signal up
         NCDModuleInst_Backend_Up(i);
         
@@ -271,7 +272,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         o->state = STATE_UP;
     } else {
         // start init process
-        if (!start_process(o, init_template, init_args, (NCDModuleProcess_handler_event)init_process_handler_event)) {
+        if (!start_process(o, init_template_arg, init_args, (NCDModuleProcess_handler_event)init_process_handler_event)) {
             goto fail0;
         }
         

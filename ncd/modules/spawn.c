@@ -220,7 +220,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(template_name_arg) || !NCDVal_IsList(args_arg)) {
+    if (!NCDVal_IsString(template_name_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
@@ -230,7 +230,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     NCDModuleInst_Backend_Up(o->i);
     
     // create process
-    if (!NCDModuleProcess_Init(&o->process, o->i, NCDVal_StringValue(template_name_arg), args_arg, o, (NCDModuleProcess_handler_event)process_handler_event)) {
+    if (!NCDModuleProcess_InitValue(&o->process, o->i, template_name_arg, args_arg, o, (NCDModuleProcess_handler_event)process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail0;
     }

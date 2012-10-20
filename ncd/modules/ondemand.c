@@ -66,7 +66,7 @@
 
 struct ondemand {
     NCDModuleInst *i;
-    const char *template_name;
+    NCDValRef template_name;
     NCDValRef args;
     LinkedList1 demands_list;
     int dying;
@@ -94,7 +94,7 @@ static int ondemand_start_process (struct ondemand *o)
     ASSERT(!o->have_process)
     
     // start process
-    if (!NCDModuleProcess_Init(&o->process, o->i, o->template_name, o->args, o, (NCDModuleProcess_handler_event)ondemand_process_handler)) {
+    if (!NCDModuleProcess_InitValue(&o->process, o->i, o->template_name, o->args, o, (NCDModuleProcess_handler_event)ondemand_process_handler)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail0;
     }
@@ -220,11 +220,11 @@ static void ondemand_func_new (void *vo, NCDModuleInst *i, const struct NCDModul
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(arg_template_name) || !NCDVal_IsList(arg_args)) {
+    if (!NCDVal_IsString(arg_template_name) || !NCDVal_IsList(arg_args)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->template_name = NCDVal_StringValue(arg_template_name);
+    o->template_name = arg_template_name;
     o->args = arg_args;
     
     // init demands list
