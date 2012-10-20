@@ -35,12 +35,14 @@
 #include <misc/debug.h>
 #include <misc/parse_number.h>
 #include <ncd/NCDVal.h>
+#include <ncd/NCDStringIndex.h>
 #include <ncd/static_strings.h>
 
 static int ncd_is_none (NCDValRef val);
 static NCDValRef ncd_make_boolean (NCDValMem *mem, int value, NCDStringIndex *string_index);
 static int ncd_read_boolean (NCDValRef val);
 static int ncd_read_uintmax (NCDValRef string, uintmax_t *out) WARN_UNUSED;
+static NCD_string_id_t ncd_get_string_id (NCDValRef string, NCDStringIndex *string_index);
 
 static int ncd_is_none (NCDValRef val)
 {
@@ -79,6 +81,18 @@ static int ncd_read_uintmax (NCDValRef string, uintmax_t *out)
     ASSERT(out)
     
     return parse_unsigned_integer_bin(NCDVal_StringValue(string), NCDVal_StringLength(string), out);
+}
+
+static NCD_string_id_t ncd_get_string_id (NCDValRef string, NCDStringIndex *string_index)
+{
+    ASSERT(NCDVal_IsString(string))
+    ASSERT(string_index)
+    
+    if (NCDVal_IsIdString(string)) {
+        return NCDVal_IdStringId(string);
+    } else {
+        return NCDStringIndex_GetBin(string_index, NCDVal_StringValue(string), NCDVal_StringLength(string));
+    }
 }
 
 #endif
