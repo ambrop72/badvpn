@@ -48,8 +48,8 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#include <misc/parse_number.h>
 #include <ncd/NCDModule.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_index.h>
 
@@ -80,14 +80,14 @@ static void func_new_from_value (void *vo, NCDModuleInst *i, const struct NCDMod
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(arg_value)) {
+    if (!NCDVal_IsString(arg_value)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     // parse value
     uintmax_t value;
-    if (!parse_unsigned_integer(NCDVal_StringValue(arg_value), &value)) {
+    if (!ncd_read_uintmax(arg_value, &value)) {
         ModuleLog(i, BLOG_ERROR, "wrong value");
         goto fail0;
     }

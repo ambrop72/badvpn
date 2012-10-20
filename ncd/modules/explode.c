@@ -49,11 +49,11 @@
 
 #include <misc/exparray.h>
 #include <misc/string_begins_with.h>
-#include <misc/parse_number.h>
 #include <misc/substring.h>
 #include <misc/balloc.h>
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_explode.h>
 
@@ -91,7 +91,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     size_t limit = SIZE_MAX;
     if (!NCDVal_IsInvalid(limit_arg)) {
         uintmax_t n;
-        if (!parse_unsigned_integer_bin(NCDVal_StringValue(limit_arg), NCDVal_StringLength(limit_arg), &n) || n == 0) {
+        if (!ncd_read_uintmax(limit_arg, &n) || n == 0) {
             ModuleLog(i, BLOG_ERROR, "bad limit argument");
             goto fail0;
         }

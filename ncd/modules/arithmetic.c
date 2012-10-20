@@ -69,7 +69,6 @@
 #include <inttypes.h>
 #include <limits.h>
 
-#include <misc/parse_number.h>
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
 #include <ncd/value_utils.h>
@@ -188,19 +187,19 @@ static void new_boolean_templ (void *vo, NCDModuleInst *i, const struct NCDModul
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(n1_arg) || !NCDVal_IsStringNoNulls(n2_arg)) {
+    if (!NCDVal_IsString(n1_arg) || !NCDVal_IsString(n2_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     uintmax_t n1;
-    if (!parse_unsigned_integer_bin(NCDVal_StringValue(n1_arg), NCDVal_StringLength(n1_arg), &n1)) {
+    if (!ncd_read_uintmax(n1_arg, &n1)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong first argument");
         goto fail0;
     }
     
     uintmax_t n2;
-    if (!parse_unsigned_integer_bin(NCDVal_StringValue(n2_arg), NCDVal_StringLength(n2_arg), &n2)) {
+    if (!ncd_read_uintmax(n2_arg, &n2)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong second argument");
         goto fail0;
     }
@@ -241,15 +240,20 @@ static void new_number_templ (void *vo, NCDModuleInst *i, const struct NCDModule
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(n1_arg) || !NCDVal_IsStringNoNulls(n2_arg)) {
+    if (!NCDVal_IsString(n1_arg) || !NCDVal_IsString(n2_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     uintmax_t n1;
+    if (!ncd_read_uintmax(n1_arg, &n1)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong first argument");
+        goto fail0;
+    }
+    
     uintmax_t n2;
-    if (!parse_unsigned_integer(NCDVal_StringValue(n1_arg), &n1) || !parse_unsigned_integer(NCDVal_StringValue(n2_arg), &n2)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong value");
+    if (!ncd_read_uintmax(n2_arg, &n2)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong second argument");
         goto fail0;
     }
     

@@ -49,7 +49,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <inttypes.h>
 
 #include <misc/parse_number.h>
@@ -81,12 +80,12 @@ static struct NCD_string_request strings[] = {
     {"succeeded"}, {"addr"}, {"prefix"}, {NULL}
 };
 
-typedef int (*parse_func) (NCDModuleInst *i, const char *str, NCDValMem *mem, NCDValRef *out);
+typedef int (*parse_func) (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out);
 
-static int parse_number (NCDModuleInst *i, const char *str, NCDValMem *mem, NCDValRef *out)
+static int parse_number (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out)
 {
     uintmax_t n;
-    if (!parse_unsigned_integer(str, &n)) {
+    if (!parse_unsigned_integer_bin(str, str_len, &n)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse number");
         return 0;
     }
@@ -103,9 +102,9 @@ static int parse_number (NCDModuleInst *i, const char *str, NCDValMem *mem, NCDV
     return 1;
 }
 
-static int parse_value (NCDModuleInst *i, const char *str, NCDValMem *mem, NCDValRef *out)
+static int parse_value (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out)
 {
-    if (!NCDValParser_Parse(str, strlen(str), mem, out)) {
+    if (!NCDValParser_Parse(str, str_len, mem, out)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse value");
         return 0;
     }
@@ -113,10 +112,10 @@ static int parse_value (NCDModuleInst *i, const char *str, NCDValMem *mem, NCDVa
     return 1;
 }
 
-static int parse_ipv4_addr (NCDModuleInst *i, const char *str, NCDValMem *mem, NCDValRef *out)
+static int parse_ipv4_addr (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out)
 {
     uint32_t addr;
-    if (!ipaddr_parse_ipv4_addr((char *)str, &addr)) {
+    if (!ipaddr_parse_ipv4_addr_bin(str, str_len, &addr)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse ipv4 addresss");
         return 0;
     }
@@ -153,12 +152,7 @@ static void new_templ (void *vo, NCDModuleInst *i, const struct NCDModuleInst_ne
     NCDValMem_Init(&o->mem);
     
     // parse
-    if (NCDVal_StringHasNulls(str_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "string has nulls");
-        o->succeeded = 0;
-    } else {
-        o->succeeded = pfunc(i, NCDVal_StringValue(str_arg), &o->mem, &o->value);
-    }
+    o->succeeded = pfunc(i, NCDVal_StringValue(str_arg), NCDVal_StringLength(str_arg), &o->mem, &o->value);
     
     // signal up
     NCDModuleInst_Backend_Up(i);

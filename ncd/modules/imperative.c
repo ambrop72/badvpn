@@ -52,9 +52,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <misc/parse_number.h>
 #include <misc/string_begins_with.h>
 #include <ncd/NCDModule.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_imperative.h>
 
@@ -246,7 +246,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     if (!NCDVal_IsStringNoNulls(init_template_arg) || !NCDVal_IsList(init_args)  ||
         !NCDVal_IsStringNoNulls(deinit_template_arg) || !NCDVal_IsList(o->deinit_args) ||
-        !NCDVal_IsStringNoNulls(deinit_timeout_arg)) {
+        !NCDVal_IsString(deinit_timeout_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
@@ -255,7 +255,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     
     // read timeout
     uintmax_t timeout;
-    if (!parse_unsigned_integer(NCDVal_StringValue(deinit_timeout_arg), &timeout) || timeout > UINT64_MAX) {
+    if (!ncd_read_uintmax(deinit_timeout_arg, &timeout) || timeout > UINT64_MAX){
         ModuleLog(i, BLOG_ERROR, "wrong timeout");
         goto fail0;
     }

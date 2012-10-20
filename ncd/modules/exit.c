@@ -39,8 +39,8 @@
 
 #include <limits.h>
 
-#include <misc/parse_number.h>
 #include <ncd/NCDModule.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_exit.h>
 
@@ -54,14 +54,14 @@ static void func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(exit_code_arg)) {
+    if (!NCDVal_IsString(exit_code_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     // parse exit code
     uintmax_t exit_code;
-    if (!parse_unsigned_integer(NCDVal_StringValue(exit_code_arg), &exit_code) || exit_code >= INT_MAX) {
+    if (!ncd_read_uintmax(exit_code_arg, &exit_code) || exit_code >= INT_MAX) {
         ModuleLog(i, BLOG_ERROR, "wrong exit code value");
         goto fail0;
     }

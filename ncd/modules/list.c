@@ -92,10 +92,10 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-#include <misc/parse_number.h>
 #include <misc/offset.h>
 #include <structure/IndexedList.h>
 #include <ncd/NCDModule.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_list.h>
 
@@ -517,12 +517,12 @@ static void get_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(index_arg)) {
+    if (!NCDVal_IsString(index_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     uintmax_t index;
-    if (!parse_unsigned_integer(NCDVal_StringValue(index_arg), &index)) {
+    if (!ncd_read_uintmax(index_arg, &index)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong value");
         goto fail0;
     }
@@ -677,14 +677,14 @@ static void find_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(start_pos_arg)) {
+    if (!NCDVal_IsString(start_pos_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     // read start position
     uintmax_t start_pos;
-    if (!parse_unsigned_integer(NCDVal_StringValue(start_pos_arg), &start_pos) || start_pos > UINT64_MAX) {
+    if (!ncd_read_uintmax(start_pos_arg, &start_pos) || start_pos > UINT64_MAX) {
         ModuleLog(o->i, BLOG_ERROR, "wrong start pos");
         goto fail0;
     }
@@ -752,14 +752,14 @@ static void removeat_func_new (void *unused, NCDModuleInst *i, const struct NCDM
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(remove_pos_arg)) {
+    if (!NCDVal_IsString(remove_pos_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     // read position
     uintmax_t remove_pos;
-    if (!parse_unsigned_integer(NCDVal_StringValue(remove_pos_arg), &remove_pos)) {
+    if (!ncd_read_uintmax(remove_pos_arg, &remove_pos)) {
         ModuleLog(i, BLOG_ERROR, "wrong pos");
         goto fail0;
     }

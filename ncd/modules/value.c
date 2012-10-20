@@ -142,13 +142,13 @@
 
 #include <misc/offset.h>
 #include <misc/debug.h>
-#include <misc/parse_number.h>
 #include <misc/balloc.h>
 #include <structure/LinkedList0.h>
 #include <structure/IndexedList.h>
 #include <structure/SAvl.h>
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_value.h>
 
@@ -682,7 +682,7 @@ static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValRef wh
         
         case NCDVAL_LIST: {
             uintmax_t index;
-            if (!NCDVal_IsStringNoNulls(where) || !parse_unsigned_integer(NCDVal_StringValue(where), &index)) {
+            if (!NCDVal_IsString(where) || !ncd_read_uintmax(where, &index)) {
                 if (!no_error) ModuleLog(i, BLOG_ERROR, "index is not a valid number (resolving into list)");
                 goto fail;
             }
@@ -752,7 +752,7 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef
         
         case NCDVAL_LIST: {
             uintmax_t index;
-            if (!NCDVal_IsStringNoNulls(where) || !parse_unsigned_integer(NCDVal_StringValue(where), &index)) {
+            if (!NCDVal_IsString(where) || !ncd_read_uintmax(where, &index)) {
                 ModuleLog(i, BLOG_ERROR, "index is not a valid number (inserting into list)");
                 goto fail1;
             }
@@ -833,7 +833,7 @@ static int value_remove (NCDModuleInst *i, struct value *v, NCDValRef where)
         
         case NCDVAL_LIST: {
             uintmax_t index;
-            if (!NCDVal_IsStringNoNulls(where) || !parse_unsigned_integer(NCDVal_StringValue(where), &index)) {
+            if (!NCDVal_IsString(where) || !ncd_read_uintmax(where, &index)) {
                 ModuleLog(i, BLOG_ERROR, "index is not a valid number (removing from list)");
                 goto fail;
             }
@@ -1397,19 +1397,19 @@ static void func_new_substr (void *vo, NCDModuleInst *i, const struct NCDModuleI
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(start_arg) || (!NCDVal_IsInvalid(length_arg) && !NCDVal_IsStringNoNulls(length_arg))) {
+    if (!NCDVal_IsString(start_arg) || (!NCDVal_IsInvalid(length_arg) && !NCDVal_IsString(length_arg))) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     uintmax_t start;
-    if (!parse_unsigned_integer(NCDVal_StringValue(start_arg), &start)) {
+    if (!ncd_read_uintmax(start_arg, &start)) {
         ModuleLog(i, BLOG_ERROR, "start is not a number");
         goto fail0;
     }
     
     uintmax_t length = UINTMAX_MAX;
-    if (!NCDVal_IsInvalid(length_arg) && !parse_unsigned_integer(NCDVal_StringValue(length_arg), &length)) {
+    if (!NCDVal_IsInvalid(length_arg) && !ncd_read_uintmax(length_arg, &length)) {
         ModuleLog(i, BLOG_ERROR, "length is not a number");
         goto fail0;
     }

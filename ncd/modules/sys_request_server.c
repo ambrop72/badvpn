@@ -78,7 +78,6 @@
 #include <misc/offset.h>
 #include <misc/debug.h>
 #include <misc/byteorder.h>
-#include <misc/parse_number.h>
 #include <protocol/packetproto.h>
 #include <protocol/requestproto.h>
 #include <structure/LinkedList0.h>
@@ -90,6 +89,7 @@
 #include <ncd/NCDValParser.h>
 #include <ncd/NCDValGenerator.h>
 #include <ncd/NCDModule.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_sys_request_server.h>
 
@@ -699,7 +699,7 @@ static int init_listen (struct instance *o, NCDValRef listen_addr_arg)
             goto bad;
         }
         
-        if (!NCDVal_IsStringNoNulls(ip_address_arg) || !NCDVal_IsStringNoNulls(port_number_arg)) {
+        if (!NCDVal_IsStringNoNulls(ip_address_arg) || !NCDVal_IsString(port_number_arg)) {
             goto bad;
         }
         
@@ -709,7 +709,7 @@ static int init_listen (struct instance *o, NCDValRef listen_addr_arg)
         }
         
         uintmax_t port;
-        if (!parse_unsigned_integer(NCDVal_StringValue(port_number_arg), &port) || port > UINT16_MAX) {
+        if (!ncd_read_uintmax(port_number_arg, &port) || port > UINT16_MAX) {
             goto bad;
         }
         

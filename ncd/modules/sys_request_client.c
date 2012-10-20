@@ -86,12 +86,12 @@
 #include <limits.h>
 
 #include <misc/offset.h>
-#include <misc/parse_number.h>
 #include <structure/LinkedList0.h>
 #include <structure/LinkedList1.h>
 #include <system/BAddr.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDRequestClient.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_sys_request_client.h>
 
@@ -505,7 +505,7 @@ static int get_connect_addr (struct instance *o, NCDValRef connect_addr_arg, str
             goto bad;
         }
         
-        if (!NCDVal_IsStringNoNulls(ip_address_arg) || !NCDVal_IsStringNoNulls(port_number_arg)) {
+        if (!NCDVal_IsStringNoNulls(ip_address_arg) || !NCDVal_IsString(port_number_arg)) {
             goto bad;
         }
         
@@ -515,7 +515,7 @@ static int get_connect_addr (struct instance *o, NCDValRef connect_addr_arg, str
         }
         
         uintmax_t port;
-        if (!parse_unsigned_integer(NCDVal_StringValue(port_number_arg), &port) || port > UINT16_MAX) {
+        if (!ncd_read_uintmax(port_number_arg, &port) || port > UINT16_MAX) {
             goto bad;
         }
         
