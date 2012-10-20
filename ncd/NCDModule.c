@@ -401,25 +401,6 @@ int NCDModuleProcess_InitValue (NCDModuleProcess *o, NCDModuleInst *n, NCDValRef
     return NCDModuleProcess_InitId(o, n, template_name_id, args, user, handler_event);
 }
 
-int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event)
-{
-    DebugObject_Access(&n->d_obj);
-    ASSERT(n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
-           n->state == STATE_UP ||
-           n->state == STATE_DYING)
-    ASSERT(template_name)
-    ASSERT(NCDVal_IsInvalid(args) || NCDVal_IsList(args))
-    ASSERT(handler_event)
-    
-    NCD_string_id_t template_name_id = NCDStringIndex_Get(n->params->iparams->string_index, template_name);
-    if (template_name_id < 0) {
-        BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
-        return 0;
-    }
-    
-    return NCDModuleProcess_InitId(o, n, template_name_id, args, user, handler_event);
-}
-
 void NCDModuleProcess_Free (NCDModuleProcess *o)
 {
     DebugObject_Free(&o->d_obj);

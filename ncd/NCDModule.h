@@ -545,11 +545,6 @@ int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_i
 int NCDModuleProcess_InitValue (NCDModuleProcess *o, NCDModuleInst *n, NCDValRef template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event) WARN_UNUSED;
 
 /**
- * Wrapper around {@link NCDModuleProcess_InitId} which takes the template name as a char pointer.
- */
-int NCDModuleProcess_Init (NCDModuleProcess *o, NCDModuleInst *n, const char *template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event) WARN_UNUSED;
-
-/**
  * Frees the process.
  * The process must be in terminated state.
  * 
