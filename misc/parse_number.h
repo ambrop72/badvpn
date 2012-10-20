@@ -37,15 +37,25 @@
 #include <stdint.h>
 #include <string.h>
 #include <stddef.h>
+#include <limits.h>
 
 #include <misc/debug.h>
 
+// public functions
 static int decode_decimal_digit (char c);
 static int decode_hex_digit (char c);
 static int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out) WARN_UNUSED;
 static int parse_unsigned_integer (const char *str, uintmax_t *out) WARN_UNUSED;
 static int parse_unsigned_hex_integer_bin (const char *str, size_t str_len, uintmax_t *out) WARN_UNUSED;
 static int parse_unsigned_hex_integer (const char *str, uintmax_t *out) WARN_UNUSED;
+
+// implementation follows
+
+// decimal representation of UINTMAX_MAX
+static const char parse_number__uintmax_max_str[] = "18446744073709551615";
+
+// make sure UINTMAX_MAX is what we think it is
+static const char parse_number__uintmax_max_str_assert[(UINTMAX_MAX == UINTMAX_C(18446744073709551615)) ? 1 : -1];
 
 static int decode_decimal_digit (char c)
 {
@@ -89,29 +99,16 @@ static int decode_hex_digit (char c)
     return -1;
 }
 
-int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out)
+static int parse__no_overflow (const char *str, size_t str_len, uintmax_t *out)
 {
     uintmax_t n = 0;
-    
-    if (str_len == 0) {
-        return 0;
-    }
     
     while (str_len > 0) {
         if (*str < '0' || *str > '9') {
             return 0;
         }
-        int digit = *str - '0';
         
-        if (n > UINTMAX_MAX / 10) {
-            return 0;
-        }
-        n *= 10;
-        
-        if (digit > UINTMAX_MAX - n) {
-            return 0;
-        }
-        n += digit;
+        n = 10 * n + (*str - '0');
         
         str++;
         str_len--;
@@ -119,6 +116,29 @@ int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out)
     
     *out = n;
     return 1;
+}
+
+int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out)
+{
+    // we do not allow empty strings
+    if (str_len == 0) {
+        return 0;
+    }
+    
+    // remove leading zeros
+    while (str_len > 0 && *str == '0') {
+        str++;
+        str_len--;
+    }
+    
+    // detect overflow
+    if (str_len > sizeof(parse_number__uintmax_max_str) - 1 ||
+        (str_len == sizeof(parse_number__uintmax_max_str) - 1 && memcmp(str, parse_number__uintmax_max_str, sizeof(parse_number__uintmax_max_str) - 1) > 0)) {
+        return 0;
+    }
+    
+    // will not overflow (but can still have invalid characters)
+    return parse__no_overflow(str, str_len, out);
 }
 
 int parse_unsigned_integer (const char *str, uintmax_t *out)
