@@ -44,14 +44,14 @@ static int ncd_read_boolean (NCDValRef val);
 static int ncd_read_uintmax (NCDValRef string, uintmax_t *out) WARN_UNUSED;
 static NCD_string_id_t ncd_get_string_id (NCDValRef string, NCDStringIndex *string_index);
 
-static int ncd_is_none (NCDValRef val)
+static int ncd_is_none (NCDValRef string)
 {
-    ASSERT(NCDVal_IsString(val))
+    ASSERT(NCDVal_IsString(string))
     
-    if (NCDVal_IsIdString(val)) {
-        return NCDVal_IdStringId(val) == NCD_STRING_NONE;
+    if (NCDVal_IsIdString(string)) {
+        return NCDVal_IdStringId(string) == NCD_STRING_NONE;
     } else {
-        return NCDVal_StringEquals(val, "<none>");
+        return NCDVal_StringEquals(string, "<none>");
     }
 }
 
@@ -64,14 +64,14 @@ static NCDValRef ncd_make_boolean (NCDValMem *mem, int value, NCDStringIndex *st
     return NCDVal_NewIdString(mem, str_id, string_index);
 }
 
-static int ncd_read_boolean (NCDValRef val)
+static int ncd_read_boolean (NCDValRef string)
 {
-    ASSERT(NCDVal_IsString(val))
+    ASSERT(NCDVal_IsString(string))
     
-    if (NCDVal_IsIdString(val)) {
-        return NCDVal_IdStringId(val) == NCD_STRING_TRUE;
+    if (NCDVal_IsIdString(string)) {
+        return NCDVal_IdStringId(string) == NCD_STRING_TRUE;
     } else {
-        return NCDVal_StringEquals(val, "true");
+        return NCDVal_StringEquals(string, "true");
     }
 }
 
