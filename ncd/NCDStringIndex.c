@@ -81,7 +81,6 @@ static const char *static_strings[] = {
 static NCD_string_id_t do_get (NCDStringIndex *o, const char *str, size_t str_len)
 {
     ASSERT(str)
-    ASSERT(!memchr(str, '\0', str_len))
     
     NCDStringIndex_hash_key key = {str, str_len};
     NCDStringIndex__HashRef ref = NCDStringIndex__Hash_Lookup(&o->hash, o->entries, key);
@@ -91,6 +90,11 @@ static NCD_string_id_t do_get (NCDStringIndex *o, const char *str, size_t str_le
     
     if (ref.link != -1) {
         return ref.link;
+    }
+    
+    if (memchr(str, '\0', str_len)) {
+        BLog(BLOG_ERROR, "cannot store strings with nulls");
+        return -1;
     }
     
     if (o->entries_size == o->entries_capacity) {
@@ -180,7 +184,6 @@ NCD_string_id_t NCDStringIndex_LookupBin (NCDStringIndex *o, const char *str, si
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(str)
-    ASSERT(!memchr(str, '\0', str_len))
     
     NCDStringIndex_hash_key key = {str, str_len};
     NCDStringIndex__HashRef ref = NCDStringIndex__Hash_Lookup(&o->hash, o->entries, key);
@@ -203,7 +206,6 @@ NCD_string_id_t NCDStringIndex_GetBin (NCDStringIndex *o, const char *str, size_
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(str)
-    ASSERT(!memchr(str, '\0', str_len))
     
     return do_get(o, str, str_len);
 }
