@@ -75,6 +75,7 @@ add_executable(substring_test substring_test.c)
 
 if (NOT WIN32)
     add_executable(ipaddr6_test ipaddr6_test.c)
+    add_executable(parse_number_test parse_number_test.c)
 endif ()
 
 if (BUILDING_RANDOM)
