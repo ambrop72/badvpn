@@ -30,7 +30,10 @@
 #ifndef NCD_VALUE_UTILS_H
 #define NCD_VALUE_UTILS_H
 
+#include <stdint.h>
+
 #include <misc/debug.h>
+#include <misc/parse_number.h>
 #include <ncd/NCDVal.h>
 #include <ncd/static_strings.h>
 
@@ -63,6 +66,14 @@ static int ncd_read_boolean (NCDValRef val)
     } else {
         return NCDVal_StringEquals(val, "true");
     }
+}
+
+static int ncd_read_uintmax (NCDValRef string, uintmax_t *out) WARN_UNUSED
+{
+    ASSERT(NCDVal_IsString(string))
+    ASSERT(out)
+    
+    return parse_unsigned_integer_bin(NCDVal_StringValue(string), NCDVal_StringLength(string), out);
 }
 
 #endif
