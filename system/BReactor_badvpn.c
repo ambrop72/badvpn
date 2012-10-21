@@ -562,7 +562,7 @@ void BFileDescriptor_Init (BFileDescriptor *bs, int fd, BFileDescriptor_handler 
 
 void BSmallTimer_Init (BSmallTimer *bt, BSmallTimer_handler handler)
 {
-    bt->handler.small = handler;
+    bt->handler.smalll = handler;
     bt->state = TIMER_STATE_INACTIVE;
     bt->is_small = 1;
 }
@@ -789,7 +789,7 @@ int BReactor_Exec (BReactor *bsys)
             // call handler
             BLog(BLOG_DEBUG, "Dispatching timer");
             if (timer->is_small) {
-                timer->handler.small(timer);
+                timer->handler.smalll(timer);
             } else {
                 BTimer *btimer = UPPER_OBJECT(timer, BTimer, base);
                 timer->handler.heavy(btimer->user);

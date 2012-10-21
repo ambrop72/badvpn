@@ -73,6 +73,9 @@ typedef struct BSmallTimer_t *BReactor_timerstree_link;
 #include "BReactor_badvpn_timerstree.h"
 #include <structure/CAvl_decl.h>
 
+#define BTIMER_SET_ABSOLUTE 1
+#define BTIMER_SET_RELATIVE 2
+
 /**
  * Handler function invoked when the timer expires.
  * The timer was in running state.
@@ -101,7 +104,7 @@ typedef void (*BTimer_handler) (void *user);
  */
 typedef struct BSmallTimer_t {
     union {
-        BSmallTimer_handler small;
+        BSmallTimer_handler smalll; // MSVC doesn't like "small"
         BTimer_handler heavy;
     } handler;
     union {
@@ -168,9 +171,6 @@ struct BFileDescriptor_t;
 #define BREACTOR_READ (1 << 0)
 #define BREACTOR_WRITE (1 << 1)
 #define BREACTOR_ERROR (1 << 2)
-
-#define BTIMER_SET_ABSOLUTE 1
-#define BTIMER_SET_RELATIVE 2
 
 /**
  * Handler function invoked by the reactor when one or more events are detected.
