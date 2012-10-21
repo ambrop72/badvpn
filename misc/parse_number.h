@@ -41,13 +41,17 @@
 
 #include <misc/debug.h>
 
-// public functions
+// public parsing functions
 static int decode_decimal_digit (char c);
 static int decode_hex_digit (char c);
 static int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out) WARN_UNUSED;
 static int parse_unsigned_integer (const char *str, uintmax_t *out) WARN_UNUSED;
 static int parse_unsigned_hex_integer_bin (const char *str, size_t str_len, uintmax_t *out) WARN_UNUSED;
 static int parse_unsigned_hex_integer (const char *str, uintmax_t *out) WARN_UNUSED;
+
+// public generation functions
+static int compute_decimal_repr_size (uintmax_t x);
+static void generate_decimal_repr (uintmax_t x, char *out, int repr_size);
 
 // implementation follows
 
@@ -181,6 +185,31 @@ int parse_unsigned_hex_integer_bin (const char *str, size_t str_len, uintmax_t *
 int parse_unsigned_hex_integer (const char *str, uintmax_t *out)
 {
     return parse_unsigned_hex_integer_bin(str, strlen(str), out);
+}
+
+int compute_decimal_repr_size (uintmax_t x)
+{
+    int size = 0;
+    
+    do {
+        size++;
+        x /= 10;
+    } while (x > 0);
+    
+    return size;
+}
+
+void generate_decimal_repr (uintmax_t x, char *out, int repr_size)
+{
+    ASSERT(out)
+    ASSERT(repr_size == compute_decimal_repr_size(x))
+    
+    out += repr_size;
+    
+    do {
+        *(--out) = '0' + (x % 10);
+        x /= 10;
+    } while (x > 0);
 }
 
 #endif
