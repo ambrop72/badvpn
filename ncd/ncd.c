@@ -510,8 +510,9 @@ void print_help (const char *name)
         "        [--channel-loglevel <channel-name> <0-5/none/error/warning/notice/info/debug>] ...\n"
         "        [--retry-time <ms>]\n"
         "        [--no-udev]\n"
-        "        [--config-file] <file>\n"
-        "        [-- [<extra_arg>] ...]\n",
+        "        [--config-file <ncd_program_file>]\n"
+        "        [-- program_args...]\n"
+        "        [<ncd_program_file> program_args...]\n" ,
         name
     );
 }
@@ -643,8 +644,15 @@ int parse_arguments (int argc, char *argv[])
             options.num_extra_args = argc - i - 1;
             i += options.num_extra_args;
         }
-        else if (!string_begins_with(arg, "--") && !options.config_file) {
+        else if (!string_begins_with(arg, "--")) {
+            if (options.config_file) {
+                fprintf(stderr, "%s: program is already specified (did you mean to use -- ?)\n", arg);
+                return 0;
+            }
             options.config_file = argv[i];
+            options.extra_args = &argv[i + 1];
+            options.num_extra_args = argc - i - 1;
+            i += options.num_extra_args;
         }
         else {
             fprintf(stderr, "unknown option: %s\n", arg);
@@ -657,7 +665,7 @@ int parse_arguments (int argc, char *argv[])
     }
     
     if (!options.config_file) {
-        fprintf(stderr, "--config-file is required\n");
+        fprintf(stderr, "No program is specified.\n");
         return 0;
     }
     
