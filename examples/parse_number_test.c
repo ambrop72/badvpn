@@ -65,6 +65,19 @@ static void test_random (int num_digits, int digit_modulo)
         printf("fail2 %s\n", (const char *)digits);
         ASSERT_FORCE(0);
     }
+    
+    if (res) {
+        uint8_t *nozero_digits = digits;
+        while (*nozero_digits == '0' && nozero_digits != &digits[num_digits - 1]) {
+            nozero_digits++;
+        }
+        
+        char buf[40];
+        int size = compute_decimal_repr_size(num);
+        generate_decimal_repr(num, buf, size);
+        buf[size] = '\0';
+        ASSERT_FORCE(!strcmp(buf, (const char *)nozero_digits));
+    }
 }
 
 static void test_value (uintmax_t x)
@@ -75,6 +88,13 @@ static void test_value (uintmax_t x)
     int res = parse_unsigned_integer_bin(str, strlen(str), &y);
     ASSERT_FORCE(res);
     ASSERT_FORCE(y == x);
+    
+    char str2[40];
+    int size = compute_decimal_repr_size(x);
+    generate_decimal_repr(x, str2, size);
+    str2[size] = '\0';
+    
+    ASSERT_FORCE(!strcmp(str2, str));
 }
 
 static void test_value_range (uintmax_t start, uintmax_t count)
