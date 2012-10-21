@@ -423,12 +423,9 @@ static int element_list_index_object_func_getvar (struct element *e, NCD_string_
         return 0;
     }
     
-    char str[64];
-    snprintf(str, sizeof(str), "%d", e->i);
-    
-    *out = NCDVal_NewString(mem, str);
+    *out = ncd_make_uintmax(mem, e->i);
     if (NCDVal_IsInvalid(*out)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+        ModuleLog(o->i, BLOG_ERROR, "ncd_make_uintmax failed");
     }
     return 1;
 }
