@@ -79,14 +79,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <inttypes.h>
-#include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include <misc/read_file.h>
 #include <misc/write_file.h>
+#include <misc/parse_number.h>
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
 
@@ -299,7 +298,7 @@ static int stat_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NC
         if (!o->succeeded) {
             strcpy(str, "failed");
         } else {
-            snprintf(str, sizeof(str), "%"PRIuMAX, (uintmax_t)o->result.st_size);
+            generate_decimal_repr_string((uintmax_t)o->result.st_size, str);
         }
         
         *out = NCDVal_NewString(mem, str);
