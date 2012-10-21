@@ -42,6 +42,10 @@
 // CHASH_PARAM_COMPARE_KEY_ENTRY(arg, key1, entry2) - compares key and entry; returns 1 for equality, 0 otherwise
 // CHASH_PARAM_ENTRY_NEXT - next member in entry
 
+#ifndef BADVPN_CHASH_H
+#error CHash.h has not been included
+#endif
+
 // types
 #define CHash CHASH_PARAM_NAME
 #define CHashEntry CHASH_PARAM_ENTRY

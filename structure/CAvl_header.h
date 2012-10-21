@@ -51,6 +51,10 @@
 // CAVL_PARAM_MEMBER_COUNT - name of the count member in entry (type is CAVL_PARAM_TYPE_COUNT)
 //   (only if CAVL_PARAM_FEATURE_COUNTS)
 
+#ifndef BADVPN_CAVL_H
+#error CAvl.h has not been included
+#endif
+
 #if CAVL_PARAM_FEATURE_KEYS_ARE_INDICES && !CAVL_PARAM_FEATURE_COUNTS
 #error CAVL_PARAM_FEATURE_KEYS_ARE_INDICES requires CAVL_PARAM_FEATURE_COUNTS
 #endif
