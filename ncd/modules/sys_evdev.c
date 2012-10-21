@@ -58,6 +58,7 @@
 
 #include <misc/nonblocking.h>
 #include <misc/debug.h>
+#include <ncd/value_utils.h>
 
 #include <ncd/NCDModule.h>
 
@@ -243,11 +244,9 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     }
     
     if (name == strings[STRING_CODE_NUMERIC].id) {
-        char str[50];
-        snprintf(str, sizeof(str), "%"PRIu16, o->event.code);
-        *out = NCDVal_NewString(mem, str);
+        *out = ncd_make_uintmax(mem, o->event.code);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_uintmax failed");
         }
         return 1;
     }

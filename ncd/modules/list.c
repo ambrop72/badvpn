@@ -93,6 +93,7 @@
 #include <inttypes.h>
 
 #include <misc/offset.h>
+#include <misc/parse_number.h>
 #include <structure/IndexedList.h>
 #include <ncd/NCDModule.h>
 #include <ncd/value_utils.h>
@@ -385,12 +386,9 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     }
     
     if (!strcmp(name, "length")) {
-        char str[64];
-        snprintf(str, sizeof(str), "%"PRIu64, list_count(o));
-        
-        *out = NCDVal_NewString(mem, str);
+        *out = ncd_make_uintmax(mem, list_count(o));
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_uintmax failed");
         }
         return 1;
     }
@@ -493,12 +491,9 @@ static int length_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDVa
     struct length_instance *o = vo;
     
     if (!strcmp(name, "")) {
-        char str[64];
-        snprintf(str, sizeof(str), "%"PRIu64, o->length);
-        
-        *out = NCDVal_NewString(mem, str);
+        *out = ncd_make_uintmax(mem, o->length);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_uintmax failed");
         }
         return 1;
     }
@@ -716,12 +711,10 @@ static int find_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
     struct find_instance *o = vo;
     
     if (!strcmp(name, "pos")) {
-        char value[64];
+        char value[64] = "none";
         
         if (o->is_found) {
-            snprintf(value, sizeof(value), "%"PRIu64, o->found_pos);
-        } else {
-            snprintf(value, sizeof(value), "none");
+            generate_decimal_repr_string(o->found_pos, value);
         }
         
         *out = NCDVal_NewString(mem, value);

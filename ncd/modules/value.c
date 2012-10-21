@@ -1033,10 +1033,7 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
                 ASSERT(0);
         }
         
-        char str[64];
-        snprintf(str, sizeof(str), "%zu", len);
-        
-        *out = NCDVal_NewString(mem, str);
+        *out = ncd_make_uintmax(mem, len);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
         }
