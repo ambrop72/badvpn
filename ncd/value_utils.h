@@ -43,6 +43,7 @@ static NCDValRef ncd_make_boolean (NCDValMem *mem, int value, NCDStringIndex *st
 static int ncd_read_boolean (NCDValRef val);
 static int ncd_read_uintmax (NCDValRef string, uintmax_t *out) WARN_UNUSED;
 static NCD_string_id_t ncd_get_string_id (NCDValRef string, NCDStringIndex *string_index);
+static NCDValRef ncd_make_uintmax (NCDValMem *mem, uintmax_t value);
 
 static int ncd_is_none (NCDValRef string)
 {
@@ -93,6 +94,22 @@ static NCD_string_id_t ncd_get_string_id (NCDValRef string, NCDStringIndex *stri
     } else {
         return NCDStringIndex_GetBin(string_index, NCDVal_StringValue(string), NCDVal_StringLength(string));
     }
+}
+
+static NCDValRef ncd_make_uintmax (NCDValMem *mem, uintmax_t value)
+{
+    ASSERT(mem)
+    
+    int size = compute_decimal_repr_size(value);
+    
+    NCDValRef val = NCDVal_NewStringUninitialized(mem, size);
+    
+    if (!NCDVal_IsInvalid(val)) {
+        char *data = (char *)NCDVal_StringValue(val);
+        generate_decimal_repr(value, data, size);
+    }
+    
+    return val;
 }
 
 #endif
