@@ -82,3 +82,5 @@ if (BUILDING_RANDOM)
     add_executable(brandom2_test brandom2_test.c)
     target_link_libraries(brandom2_test badvpn_random)
 endif ()
+
+add_executable(cavl_test cavl_test.c)
