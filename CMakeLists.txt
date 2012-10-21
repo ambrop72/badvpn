@@ -106,7 +106,11 @@ else ()
     add_definitions(-std=gnu99 -Wall -Wno-unused-value -Wno-parentheses -Wno-switch -Wredundant-decls)
 
     if (NOT CMAKE_C_COMPILER_ID STREQUAL "PathScale")
-        add_definitions(-Werror=implicit-function-declaration -Wno-switch-enum -Wno-unused-function -Wno-initializer-overrides)
+        add_definitions(-Werror=implicit-function-declaration -Wno-switch-enum -Wno-unused-function)
+    endif ()
+    
+    if (CMAKE_C_COMPILER_ID MATCHES "^Clang")
+        add_definitions(-Wno-initializer-overrides)
     endif ()
 endif ()
 
