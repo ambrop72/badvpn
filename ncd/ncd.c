@@ -256,6 +256,8 @@ int main (int argc, char **argv)
         }
         else if (options.loglevel >= 0) {
             BLog_SetChannelLoglevel(i, options.loglevel);
+        } else {
+            BLog_SetChannelLoglevel(i, DEFAULT_LOGLEVEL);
         }
     }
     

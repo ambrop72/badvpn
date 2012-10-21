@@ -32,3 +32,6 @@
 
 // how long to wait after an error before retrying
 #define DEFAULT_RETRY_TIME 5000
+
+// default loglevel
+#define DEFAULT_LOGLEVEL BLOG_WARNING
