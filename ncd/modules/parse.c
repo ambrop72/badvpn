@@ -56,6 +56,7 @@
 #include <ncd/NCDValParser.h>
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_parse.h>
 
@@ -90,12 +91,9 @@ static int parse_number (NCDModuleInst *i, const char *str, size_t str_len, NCDV
         return 0;
     }
     
-    char buf[25];
-    snprintf(buf, sizeof(buf), "%"PRIuMAX, n);
-    
-    *out = NCDVal_NewString(mem, buf);
+    *out = ncd_make_uintmax(mem, n);
     if (NCDVal_IsInvalid(*out)) {
-        ModuleLog(i, BLOG_ERROR, "NCDVal_NewString failed");
+        ModuleLog(i, BLOG_ERROR, "ncd_make_uintmax failed");
         return 0;
     }
     

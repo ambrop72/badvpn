@@ -270,13 +270,9 @@ static int number_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, 
     struct number_instance *o = vo;
     
     if (name == NCD_STRING_EMPTY) {
-        int size = compute_decimal_repr_size(o->value);
-        *out = NCDVal_NewStringUninitialized(mem, size);
+        *out = ncd_make_uintmax(mem, o->value);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        } else {
-            char *data = (char *)NCDVal_StringValue(*out);
-            generate_decimal_repr(o->value, data, size);
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_uintmax failed");
         }
         return 1;
     }
