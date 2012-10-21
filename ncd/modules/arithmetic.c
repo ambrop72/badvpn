@@ -69,6 +69,7 @@
 #include <inttypes.h>
 #include <limits.h>
 
+#include <misc/parse_number.h>
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
 #include <ncd/value_utils.h>
@@ -86,10 +87,10 @@ typedef int (*boolean_compute_func) (uintmax_t n1, uintmax_t n2);
 
 struct number_instance {
     NCDModuleInst *i;
-    char value[25];
+    uintmax_t value;
 };
 
-typedef int (*number_compute_func) (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str);
+typedef int (*number_compute_func) (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, uintmax_t *out);
 
 static int compute_lesser (uintmax_t n1, uintmax_t n2)
 {
@@ -121,58 +122,53 @@ static int compute_different (uintmax_t n1, uintmax_t n2)
     return n1 != n2;
 }
 
-static int compute_add (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str)
+static int compute_add (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, uintmax_t *out)
 {
     if (n1 > UINTMAX_MAX - n2) {
         ModuleLog(i, BLOG_ERROR, "addition overflow");
         return 0;
     }
-    uintmax_t r = n1 + n2;
-    sprintf(out_str, "%"PRIuMAX, r);
+    *out = n1 + n2;
     return 1;
 }
 
-static int compute_subtract (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str)
+static int compute_subtract (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, uintmax_t *out)
 {
     if (n1 < n2) {
         ModuleLog(i, BLOG_ERROR, "subtraction underflow");
         return 0;
     }
-    uintmax_t r = n1 - n2;
-    sprintf(out_str, "%"PRIuMAX, r);
+    *out = n1 - n2;
     return 1;
 }
 
-static int compute_multiply (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str)
+static int compute_multiply (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, uintmax_t *out)
 {
     if (n1 > UINTMAX_MAX / n2) {
         ModuleLog(i, BLOG_ERROR, "multiplication overflow");
         return 0;
     }
-    uintmax_t r = n1 * n2;
-    sprintf(out_str, "%"PRIuMAX, r);
+    *out = n1 * n2;
     return 1;
 }
 
-static int compute_divide (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str)
+static int compute_divide (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, uintmax_t *out)
 {
     if (n2 == 0) {
         ModuleLog(i, BLOG_ERROR, "division quotient is zero");
         return 0;
     }
-    uintmax_t r = n1 / n2;
-    sprintf(out_str, "%"PRIuMAX, r);
+    *out = n1 / n2;
     return 1;
 }
 
-static int compute_modulo (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, char *out_str)
+static int compute_modulo (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, uintmax_t *out)
 {
     if (n2 == 0) {
         ModuleLog(i, BLOG_ERROR, "modulo modulus is zero");
         return 0;
     }
-    uintmax_t r = n1 % n2;
-    sprintf(out_str, "%"PRIuMAX, r);
+    *out = n1 % n2;
     return 1;
 }
 
@@ -257,7 +253,7 @@ static void new_number_templ (void *vo, NCDModuleInst *i, const struct NCDModule
         goto fail0;
     }
     
-    if (!cfunc(i, n1, n2, o->value)) {
+    if (!cfunc(i, n1, n2, &o->value)) {
         goto fail0;
     }
     
@@ -274,9 +270,13 @@ static int number_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, 
     struct number_instance *o = vo;
     
     if (name == NCD_STRING_EMPTY) {
-        *out = NCDVal_NewString(mem, o->value);
+        int size = compute_decimal_repr_size(o->value);
+        *out = NCDVal_NewStringUninitialized(mem, size);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+        } else {
+            char *data = (char *)NCDVal_StringValue(*out);
+            generate_decimal_repr(o->value, data, size);
         }
         return 1;
     }
