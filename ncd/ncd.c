@@ -40,6 +40,7 @@
 #include <misc/balloc.h>
 #include <misc/open_standard_streams.h>
 #include <misc/expstring.h>
+#include <misc/string_begins_with.h>
 #include <structure/LinkedList1.h>
 #include <base/BLog.h>
 #include <base/BLog_syslog.h>
@@ -507,9 +508,9 @@ void print_help (const char *name)
         "        )\n"
         "        [--loglevel <0-5/none/error/warning/notice/info/debug>]\n"
         "        [--channel-loglevel <channel-name> <0-5/none/error/warning/notice/info/debug>] ...\n"
-        "        --config-file <file>\n"
         "        [--retry-time <ms>]\n"
         "        [--no-udev]\n"
+        "        [--config-file] <file>\n"
         "        [-- [<extra_arg>] ...]\n",
         name
     );
@@ -641,6 +642,9 @@ int parse_arguments (int argc, char *argv[])
             options.extra_args = &argv[i + 1];
             options.num_extra_args = argc - i - 1;
             i += options.num_extra_args;
+        }
+        else if (!string_begins_with(arg, "--") && !options.config_file) {
+            options.config_file = argv[i];
         }
         else {
             fprintf(stderr, "unknown option: %s\n", arg);
