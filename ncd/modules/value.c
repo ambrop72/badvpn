@@ -1015,7 +1015,7 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
         }
     }
     else if (name == strings[STRING_LENGTH].id) {
-        size_t len;
+        size_t len = 0; // to remove warning
         switch (v->type) {
             case NCDVAL_LIST:
                 len = value_list_len(v);
