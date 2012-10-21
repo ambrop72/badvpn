@@ -52,6 +52,7 @@ static int parse_unsigned_hex_integer (const char *str, uintmax_t *out) WARN_UNU
 // public generation functions
 static int compute_decimal_repr_size (uintmax_t x);
 static void generate_decimal_repr (uintmax_t x, char *out, int repr_size);
+static int generate_decimal_repr_string (uintmax_t x, char *out);
 
 // implementation follows
 
@@ -210,6 +211,17 @@ void generate_decimal_repr (uintmax_t x, char *out, int repr_size)
         *(--out) = '0' + (x % 10);
         x /= 10;
     } while (x > 0);
+}
+
+int generate_decimal_repr_string (uintmax_t x, char *out)
+{
+    ASSERT(out)
+    
+    int repr_size = compute_decimal_repr_size(x);
+    generate_decimal_repr(x, out, repr_size);
+    out[repr_size] = '\0';
+    
+    return repr_size;
 }
 
 #endif
