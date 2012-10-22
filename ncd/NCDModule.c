@@ -297,7 +297,7 @@ void NCDModuleInst_Backend_InterpExit (NCDModuleInst *n, int exit_code)
     DebugObject_Access(&n->d_obj);
     inst_assert_backend(n);
     
-    n->params->iparams->func_interp_exit(exit_code);
+    n->params->iparams->func_interp_exit(n->params->iparams->user, exit_code);
 }
 
 int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValMem *mem, NCDValRef *out_value)
@@ -307,7 +307,7 @@ int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValMem *mem, NCDVa
     ASSERT(mem)
     ASSERT(out_value)
     
-    int res = n->params->iparams->func_interp_getargs(mem, out_value);
+    int res = n->params->iparams->func_interp_getargs(n->params->iparams->user, mem, out_value);
     ASSERT(res == 0 || res == 1)
     ASSERT(res == 0 || (NCDVal_Assert(*out_value), 1))
     
@@ -319,7 +319,7 @@ btime_t NCDModuleInst_Backend_InterpGetRetryTime (NCDModuleInst *n)
     DebugObject_Access(&n->d_obj);
     inst_assert_backend(n);
     
-    return n->params->iparams->func_interp_getretrytime();
+    return n->params->iparams->func_interp_getretrytime(n->params->iparams->user);
 }
 
 int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_id_t template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event)
@@ -351,7 +351,7 @@ int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_i
     o->interp_func_getobj = NULL;
     
     // init interpreter part
-    if (!(n->params->iparams->func_initprocess(o, template_name))) {
+    if (!(n->params->iparams->func_initprocess(n->params->iparams->user, o, template_name))) {
         goto fail1;
     }
     

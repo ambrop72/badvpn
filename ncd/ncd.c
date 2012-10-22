@@ -194,11 +194,11 @@ static int statement_mem_size (struct statement *ps);
 static int statement_allocate_memory (struct statement *ps, int alloc_size);
 static void statement_instance_func_event (NCDModuleInst *inst, int event);
 static int statement_instance_func_getobj (NCDModuleInst *inst, NCD_string_id_t objname, NCDObject *out_object);
-static int statement_instance_func_initprocess (NCDModuleProcess *mp, NCD_string_id_t template_name);
+static int statement_instance_func_initprocess (void *unused, NCDModuleProcess *mp, NCD_string_id_t template_name);
 static void statement_instance_logfunc (NCDModuleInst *inst);
-static void statement_instance_func_interp_exit (int exit_code);
-static int statement_instance_func_interp_getargs (NCDValMem *mem, NCDValRef *out_value);
-static btime_t statement_instance_func_interp_getretrytime (void);
+static void statement_instance_func_interp_exit (void *unused, int exit_code);
+static int statement_instance_func_interp_getargs (void *unused, NCDValMem *mem, NCDValRef *out_value);
+static btime_t statement_instance_func_interp_getretrytime (void *unused);
 static void process_moduleprocess_func_event (struct process *p, int event);
 static int process_moduleprocess_func_getobj (struct process *p, NCD_string_id_t name, NCDObject *out_object);
 
@@ -400,6 +400,7 @@ int main (int argc, char **argv)
     module_params.func_getobj = statement_instance_func_getobj;
     module_params.logfunc = (BLog_logfunc)statement_instance_logfunc;
     module_params.iparams = &module_iparams;
+    module_iparams.user = NULL;
     module_iparams.func_initprocess = statement_instance_func_initprocess;
     module_iparams.func_interp_exit = statement_instance_func_interp_exit;
     module_iparams.func_interp_getargs = statement_instance_func_interp_getargs;
@@ -1447,7 +1448,7 @@ int statement_instance_func_getobj (NCDModuleInst *inst, NCD_string_id_t objname
     return process_find_object(statement_process(ps), ps->i, objname, out_object);
 }
 
-int statement_instance_func_initprocess (NCDModuleProcess* mp, NCD_string_id_t template_name)
+int statement_instance_func_initprocess (void *unused, NCDModuleProcess* mp, NCD_string_id_t template_name)
 {
     // find process
     NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&iprogram, template_name);
@@ -1488,12 +1489,12 @@ void statement_instance_logfunc (NCDModuleInst *inst)
     BLog_Append("module: ");
 }
 
-void statement_instance_func_interp_exit (int exit_code)
+void statement_instance_func_interp_exit (void *unused, int exit_code)
 {
     start_terminate(exit_code);
 }
 
-int statement_instance_func_interp_getargs (NCDValMem *mem, NCDValRef *out_value)
+int statement_instance_func_interp_getargs (void *unused, NCDValMem *mem, NCDValRef *out_value)
 {
     *out_value = NCDVal_NewList(mem, options.num_extra_args);
     if (NCDVal_IsInvalid(*out_value)) {
@@ -1518,7 +1519,7 @@ fail:
     return 1;
 }
 
-btime_t statement_instance_func_interp_getretrytime (void)
+btime_t statement_instance_func_interp_getretrytime (void *unused)
 {
     return options.retry_time;
 }

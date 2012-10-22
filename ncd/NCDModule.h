@@ -102,41 +102,45 @@ typedef int (*NCDModuleInst_func_getobj) (struct NCDModuleInst_s *inst, NCD_stri
  * only update its internal state, and visibly react only via jobs that it pushes
  * from within this function.
  * 
+ * @param user value of 'user' member of {@link NCDModuleInst_iparams}
  * @param p handle for the new process backend
  * @param template_name name of the template to create the process from,
  *                      as an {@link NCDStringIndex} identifier
  * @return 1 on success, 0 on failure
  */
-typedef int (*NCDModuleInst_func_initprocess) (struct NCDModuleProcess_s *p, NCD_string_id_t template_name);
+typedef int (*NCDModuleInst_func_initprocess) (void *user, struct NCDModuleProcess_s *p, NCD_string_id_t template_name);
 
 /**
  * Function called when the module instance wants the interpreter to
  * initiate termination, as if it received an external terminatio request (signal).
  * 
+ * @param user value of 'user' member of {@link NCDModuleInst_iparams}
  * @param exit_code exit code to return the the operating system. This overrides any previously
  *                  set exit code, and will be overriden by a signal to the value 1.
  *   
  */
-typedef void (*NCDModuleInst_func_interp_exit) (int exit_code);
+typedef void (*NCDModuleInst_func_interp_exit) (void *user, int exit_code);
 
 /**
  * Function called when the module instance wants the interpreter to
  * provide its extra command line arguments.
  * 
+ * @param user value of 'user' member of {@link NCDModuleInst_iparams}
  * @param mem value memory to use
  * @param out_value write value reference here on success
  * @return 1 if available, 0 if not available. If available, but out of memory, return 1
  *         and an invalid value.
  */
-typedef int (*NCDModuleInst_func_interp_getargs) (NCDValMem *mem, NCDValRef *out_value);
+typedef int (*NCDModuleInst_func_interp_getargs) (void *user, NCDValMem *mem, NCDValRef *out_value);
 
 /**
  * Function called when the module instance wants the interpreter to
  * provide its retry time.
  * 
+ * @param user value of 'user' member of {@link NCDModuleInst_iparams}
  * @return retry time in milliseconds
  */
-typedef btime_t (*NCDModuleInst_func_interp_getretrytime) (void);
+typedef btime_t (*NCDModuleInst_func_interp_getretrytime) (void *user);
 
 #define NCDMODULEPROCESS_EVENT_UP 1
 #define NCDMODULEPROCESS_EVENT_DOWN 2
@@ -295,6 +299,10 @@ struct NCDModuleInst_iparams {
      * String index which keeps a mapping between strings and string identifiers.
      */
     NCDStringIndex *string_index;
+    /**
+     * Pointer passed to the interpreter callbacks below, for state keeping.
+     */
+    void *user;
     /**
      * Callback to create a new template process.
      */
