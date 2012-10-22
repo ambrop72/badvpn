@@ -125,11 +125,6 @@ static int process_moduleprocess_func_getobj (struct process *p, NCD_string_id_t
 
 int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_len, struct NCDInterpreter_params params)
 {
-    printf("sizeof(struct process)=%zu\n", sizeof(struct process));
-    printf("sizeof(struct statement)=%zu\n", sizeof(struct statement));
-    printf("sizeof(BTimer)=%zu\n", sizeof(BTimer));
-    printf("sizeof(BSmallTimer)=%zu\n", sizeof(BSmallTimer));
-    
     ASSERT(program);
     ASSERT(params.handler_finished);
     ASSERT(params.num_extra_args >= 0);
