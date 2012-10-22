@@ -31,17 +31,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <limits.h>
 
 #include <misc/version.h>
 #include <misc/loglevel.h>
-#include <misc/offset.h>
 #include <misc/read_file.h>
 #include <misc/balloc.h>
 #include <misc/open_standard_streams.h>
-#include <misc/expstring.h>
 #include <misc/string_begins_with.h>
-#include <structure/LinkedList1.h>
 #include <base/BLog.h>
 #include <base/BLog_syslog.h>
 #include <system/BReactor.h>
@@ -49,13 +45,7 @@
 #include <system/BProcess.h>
 #include <udevmonitor/NCDUdevManager.h>
 #include <random/BRandom2.h>
-#include <ncd/NCDConfigParser.h>
-#include <ncd/NCDStringIndex.h>
-#include <ncd/NCDModule.h>
-#include <ncd/NCDModuleIndex.h>
-#include <ncd/NCDSugar.h>
-#include <ncd/NCDInterpProg.h>
-#include <ncd/modules/modules.h>
+#include <ncd/NCDInterpreter.h>
 
 #include "ncd.h"
 
@@ -64,44 +54,6 @@
 #define LOGGER_STDOUT 1
 #define LOGGER_STDERR 2
 #define LOGGER_SYSLOG 3
-
-#define SSTATE_CHILD 1
-#define SSTATE_ADULT 2
-#define SSTATE_DYING 3
-#define SSTATE_FORGOTTEN 4
-
-#define PSTATE_WORKING 0
-#define PSTATE_UP 1
-#define PSTATE_WAITING 2
-#define PSTATE_TERMINATING 3
-
-#define PROCESS_STATE_MASK 0x3
-#define PROCESS_ERROR_MASK 0x4
-
-#define PROCESS_STATE_SHIFT 0
-#define PROCESS_ERROR_SHIFT 2
-
-struct statement {
-    NCDModuleInst inst;
-    NCDValMem args_mem;
-    char *mem;
-    int mem_size;
-    int i;
-    int state;
-};
-
-struct process {
-    NCDInterpProcess *iprocess;
-    NCDModuleProcess *module_process;
-    BSmallTimer wait_timer;
-    BSmallPending work_job;
-    LinkedList1Node list_node; // node in processes
-    int ap;
-    int fp;
-    int num_statements;
-    int state2_error1;
-    struct statement statements[];
-};
 
 // command-line options
 static struct {
@@ -119,12 +71,11 @@ static struct {
     int num_extra_args;
 } options;
 
+// exit code of main
+int main_exit_code;
+
 // reactor
 static BReactor reactor;
-
-// are we terminating
-static int terminating;
-static int main_exit_code;
 
 // process manager
 static BProcessManager manager;
@@ -135,72 +86,14 @@ static NCDUdevManager umanager;
 // random number generator
 static BRandom2 random2;
 
-// string index
-static NCDStringIndex string_index;
-
-// method index
-static NCDMethodIndex method_index;
-
-// module index
-static NCDModuleIndex mindex;
-
-// program AST
-static NCDProgram program;
-
-// placeholder database
-static NCDPlaceholderDb placeholder_db;
-
-// structure for efficient interpretation
-static NCDInterpProg iprogram;
-
-// common module parameters
-static struct NCDModuleInst_params module_params;
-static struct NCDModuleInst_iparams module_iparams;
-
-// processes
-static LinkedList1 processes;
+// interpreter
+static NCDInterpreter interpreter;
 
 static void print_help (const char *name);
 static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static void signal_handler (void *unused);
-static void start_terminate (int exit_code);
-static char * implode_id_strings (const NCD_string_id_t *names, size_t num_names, char del);
-static int alloc_base_type_strings (const struct NCDModuleGroup *g);
-static int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process);
-static void process_free (struct process *p, NCDModuleProcess **out_mp);
-static int process_state (struct process *p);
-static void process_set_state (struct process *p, int state);
-static int process_error (struct process *p);
-static void process_set_error (struct process *p, int error);
-static void process_start_terminating (struct process *p);
-static int process_have_child (struct process *p);
-static void process_assert_pointers (struct process *p);
-static void process_logfunc (struct process *p);
-static void process_log (struct process *p, int level, const char *fmt, ...);
-static void process_schedule_work (struct process *p);
-static void process_work_job_handler (struct process *p);
-static int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRef *out);
-static void process_advance (struct process *p);
-static void process_wait_timer_handler (BSmallTimer *timer);
-static int process_find_object (struct process *p, int pos, NCD_string_id_t name, NCDObject *out_object);
-static int process_resolve_object_expr (struct process *p, int pos, const NCD_string_id_t *names, size_t num_names, NCDObject *out_object);
-static int process_resolve_variable_expr (struct process *p, int pos, const NCD_string_id_t *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value);
-static void statement_logfunc (struct statement *ps);
-static void statement_log (struct statement *ps, int level, const char *fmt, ...);
-static struct process * statement_process (struct statement *ps);
-static int statement_mem_is_allocated (struct statement *ps);
-static int statement_mem_size (struct statement *ps);
-static int statement_allocate_memory (struct statement *ps, int alloc_size);
-static void statement_instance_func_event (NCDModuleInst *inst, int event);
-static int statement_instance_func_getobj (NCDModuleInst *inst, NCD_string_id_t objname, NCDObject *out_object);
-static int statement_instance_func_initprocess (void *unused, NCDModuleProcess *mp, NCD_string_id_t template_name);
-static void statement_instance_logfunc (NCDModuleInst *inst);
-static void statement_instance_func_interp_exit (void *unused, int exit_code);
-static int statement_instance_func_interp_getargs (void *unused, NCDValMem *mem, NCDValRef *out_value);
-static btime_t statement_instance_func_interp_getretrytime (void *unused);
-static void process_moduleprocess_func_event (struct process *p, int event);
-static int process_moduleprocess_func_getobj (struct process *p, NCD_string_id_t name, NCDObject *out_object);
+static void interpreter_handler_finished (void *user, int exit_code);
 
 int main (int argc, char **argv)
 {
@@ -208,7 +101,6 @@ int main (int argc, char **argv)
         return 1;
     }
     
-    // set exit code
     main_exit_code = 1;
     
     // open standard streams
@@ -279,9 +171,6 @@ int main (int argc, char **argv)
         goto fail1;
     }
     
-    // set not terminating
-    terminating = 0;
-    
     // init process manager
     if (!BProcessManager_Init(&manager, &reactor)) {
         BLog(BLOG_ERROR, "BProcessManager_Init failed");
@@ -295,35 +184,6 @@ int main (int argc, char **argv)
     if (!BRandom2_Init(&random2, BRANDOM2_INIT_LAZY)) {
         BLog(BLOG_ERROR, "BRandom2_Init failed");
         goto fail1aa;
-    }
-    
-    // init string index
-    if (!NCDStringIndex_Init(&string_index)) {
-        BLog(BLOG_ERROR, "NCDStringIndex_Init failed");
-        goto fail1aaa;
-    }
-    
-    // init method index
-    if (!NCDMethodIndex_Init(&method_index, &string_index)) {
-        BLog(BLOG_ERROR, "NCDMethodIndex_Init failed");
-        goto fail1b;
-    }
-    
-    // init module index
-    if (!NCDModuleIndex_Init(&mindex)) {
-        BLog(BLOG_ERROR, "NCDModuleIndex_Init failed");
-        goto fail1c;
-    }
-    
-    // add module groups to index and allocate string id's for base_type's
-    for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
-        if (!NCDModuleIndex_AddGroup(&mindex, *g, &method_index)) {
-            BLog(BLOG_ERROR, "NCDModuleIndex_AddGroup failed");
-            goto fail2;
-        }
-        if (!alloc_base_type_strings(*g)) {
-            goto fail2;
-        }
     }
     
     // setup signal handler
@@ -340,9 +200,20 @@ int main (int argc, char **argv)
         goto fail3;
     }
     
-    // parse config file
-    if (!NCDConfigParser_Parse((char *)file, file_len, &program)) {
-        BLog(BLOG_ERROR, "NCDConfigParser_Parse failed");
+    // setup interpreter parameters
+    struct NCDInterpreter_params params;
+    params.handler_finished = interpreter_handler_finished;
+    params.user = NULL;
+    params.retry_time = options.retry_time;
+    params.extra_args = options.extra_args;
+    params.num_extra_args = options.num_extra_args;
+    params.reactor = &reactor;
+    params.manager = &manager;
+    params.umanager = &umanager;
+    params.random2 = &random2;
+    
+    // initialize interpreter
+    if (!NCDInterpreter_Init(&interpreter, (const char *)file, file_len, params)) {
         free(file);
         goto fail3;
     }
@@ -350,129 +221,16 @@ int main (int argc, char **argv)
     // fee config file memory
     free(file);
     
-    // desugar
-    if (!NCDSugar_Desugar(&program)) {
-        BLog(BLOG_ERROR, "NCDSugar_Desugar failed");
-        goto fail4;
-    }
-    
-    // init placeholder database
-    if (!NCDPlaceholderDb_Init(&placeholder_db, &string_index)) {
-        BLog(BLOG_ERROR, "NCDPlaceholderDb_Init failed");
-        goto fail4;
-    }
-    
-    // init interp program
-    if (!NCDInterpProg_Init(&iprogram, &program, &string_index, &placeholder_db, &mindex, &method_index)) {
-        BLog(BLOG_ERROR, "NCDInterpProg_Init failed");
-        goto fail4a;
-    }
-    
-    // init pointers to global resources in out struct NCDModuleInst_iparams.
-    // Don't initialize any callback at this point as these must not be called
-    // from globalinit functions of modules.
-    module_iparams.reactor = &reactor;
-    module_iparams.manager = &manager;
-    module_iparams.umanager = &umanager;
-    module_iparams.random2 = &random2;
-    module_iparams.string_index = &string_index;
-    
-    // init modules
-    size_t num_inited_modules = 0;
-    for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
-        // map strings
-        if ((*g)->strings && !NCDStringIndex_GetRequests(&string_index, (*g)->strings)) {
-            BLog(BLOG_ERROR, "NCDStringIndex_GetRequests failed for some module");
-            goto fail5;
-        }
-        
-        // call func_globalinit
-        if ((*g)->func_globalinit && !(*g)->func_globalinit(&module_iparams)) {
-            BLog(BLOG_ERROR, "globalinit failed for some module");
-            goto fail5;
-        }
-        
-        num_inited_modules++;
-    }
-    
-    // init the rest of the module parameters structures
-    module_params.func_event = statement_instance_func_event;
-    module_params.func_getobj = statement_instance_func_getobj;
-    module_params.logfunc = (BLog_logfunc)statement_instance_logfunc;
-    module_params.iparams = &module_iparams;
-    module_iparams.user = NULL;
-    module_iparams.func_initprocess = statement_instance_func_initprocess;
-    module_iparams.func_interp_exit = statement_instance_func_interp_exit;
-    module_iparams.func_interp_getargs = statement_instance_func_interp_getargs;
-    module_iparams.func_interp_getretrytime = statement_instance_func_interp_getretrytime;
-    
-    // init processes list
-    LinkedList1_Init(&processes);
-    
-    // init processes
-    for (NCDProcess *p = NCDProgram_FirstProcess(&program); p; p = NCDProgram_NextProcess(&program, p)) {
-        if (NCDProcess_IsTemplate(p)) {
-            continue;
-        }
-        
-        // get string id for process name
-        NCD_string_id_t name_id = NCDStringIndex_Lookup(&string_index, NCDProcess_Name(p));
-        ASSERT(name_id >= 0)
-        
-        // find iprocess
-        NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&iprogram, name_id);
-        ASSERT(iprocess)
-        
-        if (!process_new(iprocess, NULL)) {
-            BLog(BLOG_ERROR, "failed to initialize process, exiting");
-            goto fail6;
-        }
-    }
-    
     // enter event loop
     BLog(BLOG_NOTICE, "entering event loop");
     BReactor_Exec(&reactor);
     
-    ASSERT(LinkedList1_IsEmpty(&processes))
-    
-fail6:;
-    LinkedList1Node *ln;
-    while (ln = LinkedList1_GetFirst(&processes)) {
-        struct process *p = UPPER_OBJECT(ln, struct process, list_node);
-        NCDModuleProcess *mp;
-        process_free(p, &mp);
-        ASSERT(!mp)
-    }
-fail5:
-    // free modules
-    while (num_inited_modules > 0) {
-        const struct NCDModuleGroup **g = &ncd_modules[num_inited_modules - 1];
-        if ((*g)->func_globalfree) {
-            (*g)->func_globalfree();
-        }
-        num_inited_modules--;
-    }
-    // free interp program
-    NCDInterpProg_Free(&iprogram);
-fail4a:
-    // free placeholder database
-    NCDPlaceholderDb_Free(&placeholder_db);
-fail4:
-    // free program AST
-    NCDProgram_Free(&program);
+    // free interpreter
+    NCDInterpreter_Free(&interpreter);
 fail3:
     // remove signal handler
     BSignal_Finish();
 fail2:
-    // free module index
-    NCDModuleIndex_Free(&mindex);
-fail1c:
-    // free method index
-    NCDMethodIndex_Free(&method_index);
-fail1b:
-    // free string index
-    NCDStringIndex_Free(&string_index);
-fail1aaa:
     // free random number generator
     BRandom2_Free(&random2);
 fail1aa:
@@ -677,884 +435,12 @@ void signal_handler (void *unused)
 {
     BLog(BLOG_NOTICE, "termination requested");
     
-    start_terminate(1);
+    NCDInterpreter_RequestShutdown(&interpreter, 1);
 }
 
-void start_terminate (int exit_code)
+void interpreter_handler_finished (void *user, int exit_code)
 {
     main_exit_code = exit_code;
     
-    if (terminating) {
-        return;
-    }
-    
-    terminating = 1;
-    
-    if (LinkedList1_IsEmpty(&processes)) {
-        BReactor_Quit(&reactor, 0);
-        return;
-    }
-    
-    // start terminating non-template processes
-    for (LinkedList1Node *ln = LinkedList1_GetFirst(&processes); ln; ln = LinkedList1Node_Next(ln)) {
-        struct process *p = UPPER_OBJECT(ln, struct process, list_node);
-        if (p->module_process) {
-            continue;
-        }
-        if (process_state(p) != PSTATE_TERMINATING) {
-            process_start_terminating(p);
-        }
-    }
-}
-
-char * implode_id_strings (const NCD_string_id_t *names, size_t num_names, char del)
-{
-    ExpString str;
-    if (!ExpString_Init(&str)) {
-        goto fail0;
-    }
-    
-    int is_first = 1;
-    
-    while (num_names > 0) {
-        if (!is_first && !ExpString_AppendChar(&str, del)) {
-            goto fail1;
-        }
-        const char *name_str = NCDStringIndex_Value(&string_index, *names);
-        if (!ExpString_Append(&str, name_str)) {
-            goto fail1;
-        }
-        names++;
-        num_names--;
-        is_first = 0;
-    }
-    
-    return ExpString_Get(&str);
-    
-fail1:
-    ExpString_Free(&str);
-fail0:
-    return NULL;
-}
-
-int alloc_base_type_strings (const struct NCDModuleGroup *g)
-{
-    for (struct NCDModule *m = g->modules; m->type; m++) {
-        const char *type = (m->base_type ? m->base_type : m->type);
-        ASSERT(type)
-        
-        m->base_type_id = NCDStringIndex_Get(&string_index, type);
-        if (m->base_type_id < 0) {
-            BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
-            return 0;
-        }
-    }
-    
-    return 1;
-}
-
-int process_new (NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
-{
-    ASSERT(iprocess)
-    
-    // get number of statements
-    int num_statements = NCDInterpProcess_NumStatements(iprocess);
-    
-    // get size of preallocated memory
-    int mem_size = NCDInterpProcess_PreallocSize(iprocess);
-    if (mem_size < 0) {
-        goto fail0;
-    }
-    
-    // start with size of process structure
-    size_t alloc_size = sizeof(struct process);
-    
-    // add size of statements array
-    if (num_statements > SIZE_MAX / sizeof(struct statement)) {
-        goto fail0;
-    }
-    if (!BSizeAdd(&alloc_size, num_statements * sizeof(struct statement))) {
-        goto fail0;
-    }
-    
-    // align for preallocated memory
-    if (!BSizeAlign(&alloc_size, BMAX_ALIGN)) {
-        goto fail0;
-    }
-    size_t mem_off = alloc_size;
-    
-    // add size of preallocated memory
-    if (mem_size > SIZE_MAX || !BSizeAdd(&alloc_size, mem_size)) {
-        goto fail0;
-    }
-    
-    // allocate memory
-    struct process *p = BAlloc(alloc_size);
-    if (!p) {
-        goto fail0;
-    }
-    
-    // set variables
-    p->iprocess = iprocess;
-    p->module_process = module_process;
-    p->ap = 0;
-    p->fp = 0;
-    p->num_statements = num_statements;
-    p->state2_error1 = PSTATE_WORKING << PROCESS_STATE_SHIFT;
-    
-    // set module process handlers
-    if (p->module_process) {
-        NCDModuleProcess_Interp_SetHandlers(p->module_process, p,
-                                            (NCDModuleProcess_interp_func_event)process_moduleprocess_func_event,
-                                            (NCDModuleProcess_interp_func_getobj)process_moduleprocess_func_getobj);
-    }
-    
-    // init statements
-    char *mem = (char *)p + mem_off;
-    for (int i = 0; i < num_statements; i++) {
-        struct statement *ps = &p->statements[i];
-        ps->i = i;
-        ps->state = SSTATE_FORGOTTEN;
-        ps->mem_size = NCDInterpProcess_StatementPreallocSize(iprocess, i);
-        ps->mem = (ps->mem_size == 0 ? NULL : mem + NCDInterpProcess_StatementPreallocOffset(iprocess, i));
-    }
-    
-    // init timer
-    BSmallTimer_Init(&p->wait_timer, process_wait_timer_handler);
-    
-    // init work job
-    BSmallPending_Init(&p->work_job, BReactor_PendingGroup(&reactor), (BSmallPending_handler)process_work_job_handler, p);
-    
-    // insert to processes list
-    LinkedList1_Append(&processes, &p->list_node);
-    
-    // schedule work
-    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(&reactor));   
-    return 1;
-    
-fail0:
-    BLog(BLOG_ERROR, "failed to allocate memory for process %s", NCDInterpProcess_Name(iprocess));
-    return 0;
-}
-
-void process_free (struct process *p, NCDModuleProcess **out_mp)
-{
-    ASSERT(p->ap == 0)
-    ASSERT(p->fp == 0)
-    ASSERT(out_mp)
-    
-    // give module process to caller so it can inform the process creator that the process has terminated
-    *out_mp = p->module_process;
-    
-    // free statement memory
-    for (int i = 0; i < p->num_statements; i++) {
-        struct statement *ps = &p->statements[i];
-        if (statement_mem_is_allocated(ps)) {
-            free(ps->mem);
-        }
-    }
-    
-    // remove from processes list
-    LinkedList1_Remove(&processes, &p->list_node);
-    
-    // free work job
-    BSmallPending_Free(&p->work_job, BReactor_PendingGroup(&reactor));
-    
-    // free timer
-    BReactor_RemoveSmallTimer(&reactor, &p->wait_timer);
-    
-    // free strucure
-    BFree(p);
-}
-
-int process_state (struct process *p)
-{
-    return (p->state2_error1 & PROCESS_STATE_MASK) >> PROCESS_STATE_SHIFT;
-}
-
-void process_set_state (struct process *p, int state)
-{
-    p->state2_error1 = (p->state2_error1 & ~PROCESS_STATE_MASK) | (state << PROCESS_STATE_SHIFT);
-}
-
-int process_error (struct process *p)
-{
-    return (p->state2_error1 & PROCESS_ERROR_MASK) >> PROCESS_ERROR_SHIFT;
-}
-
-void process_set_error (struct process *p, int error)
-{
-    p->state2_error1 = (p->state2_error1 & ~PROCESS_ERROR_MASK) | (error << PROCESS_ERROR_SHIFT);
-}
-
-void process_start_terminating (struct process *p)
-{
-    ASSERT(process_state(p) != PSTATE_TERMINATING)
-    
-    // set terminating
-    process_set_state(p, PSTATE_TERMINATING);
-    
-    // schedule work
-    process_schedule_work(p);
-}
-
-int process_have_child (struct process *p)
-{
-    return (p->ap > 0 && p->statements[p->ap - 1].state == SSTATE_CHILD);
-}
-
-void process_assert_pointers (struct process *p)
-{
-    ASSERT(p->ap <= p->num_statements)
-    ASSERT(p->fp >= p->ap)
-    ASSERT(p->fp <= p->num_statements)
-    
-#ifndef NDEBUG
-    // check AP
-    for (int i = 0; i < p->ap; i++) {
-        if (i == p->ap - 1) {
-            ASSERT(p->statements[i].state == SSTATE_ADULT || p->statements[i].state == SSTATE_CHILD)
-        } else {
-            ASSERT(p->statements[i].state == SSTATE_ADULT)
-        }
-    }
-    
-    // check FP
-    int fp = p->num_statements;
-    while (fp > 0 && p->statements[fp - 1].state == SSTATE_FORGOTTEN) {
-        fp--;
-    }
-    ASSERT(p->fp == fp)
-#endif
-}
-
-void process_logfunc (struct process *p)
-{
-    BLog_Append("process %s: ", NCDInterpProcess_Name(p->iprocess));
-}
-
-void process_log (struct process *p, int level, const char *fmt, ...)
-{
-    va_list vl;
-    va_start(vl, fmt);
-    BLog_LogViaFuncVarArg((BLog_logfunc)process_logfunc, p, BLOG_CURRENT_CHANNEL, level, fmt, vl);
-    va_end(vl);
-}
-
-void process_schedule_work (struct process *p)
-{
-    process_assert_pointers(p);
-    
-    // stop timer
-    BReactor_RemoveSmallTimer(&reactor, &p->wait_timer);
-    
-    // schedule work
-    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(&reactor));
-}
-
-void process_work_job_handler (struct process *p)
-{
-    process_assert_pointers(p);
-    ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
-    
-    int pstate = process_state(p);
-    
-    if (pstate == PSTATE_WAITING) {
-        return;
-    }
-    
-    if (pstate == PSTATE_TERMINATING) {
-        if (p->fp == 0) {
-            // free process
-            NCDModuleProcess *mp;
-            process_free(p, &mp);
-            
-            // if program is terminating amd there are no more processes, exit program
-            if (terminating && LinkedList1_IsEmpty(&processes)) {
-                ASSERT(!mp)
-                BReactor_Quit(&reactor, 0);
-                return;
-            }
-            
-            // inform the process creator that the process has terminated
-            if (mp) {
-                NCDModuleProcess_Interp_Terminated(mp);
-                return;
-            }
-            
-            return;
-        }
-        
-        // order the last living statement to die, if needed
-        struct statement *ps = &p->statements[p->fp - 1];
-        ASSERT(ps->state != SSTATE_FORGOTTEN)
-        if (ps->state != SSTATE_DYING) {
-            statement_log(ps, BLOG_INFO, "killing");
-            
-            // set statement state DYING
-            ps->state = SSTATE_DYING;
-            
-            // update AP
-            if (p->ap > ps->i) {
-                p->ap = ps->i;
-            }
-            
-            // order it to die
-            NCDModuleInst_Die(&ps->inst);
-            return;
-        }
-        return;
-    }
-    
-    // process was up but is no longer?
-    if (pstate == PSTATE_UP && !(!process_have_child(p) && p->ap == p->num_statements)) {
-        // if we have module process, wait for its permission to continue
-        if (p->module_process) {
-            // set state waiting
-            process_set_state(p, PSTATE_WAITING);
-            
-            // set module process down
-            NCDModuleProcess_Interp_Down(p->module_process);
-            return;
-        }
-        
-        // set state working
-        process_set_state(p, PSTATE_WORKING);
-        pstate = PSTATE_WORKING;
-    }
-    
-    // cleaning up?
-    if (p->ap < p->fp) {
-        // order the last living statement to die, if needed
-        struct statement *ps = &p->statements[p->fp - 1];
-        if (ps->state != SSTATE_DYING) {
-            statement_log(ps, BLOG_INFO, "killing");
-            
-            // set statement state DYING
-            ps->state = SSTATE_DYING;
-            
-            // order it to die
-            NCDModuleInst_Die(&ps->inst);
-            return;
-        }
-        return;
-    }
-    
-    // clean?
-    if (process_have_child(p)) {
-        ASSERT(p->ap > 0)
-        ASSERT(p->ap <= p->num_statements)
-        
-        struct statement *ps = &p->statements[p->ap - 1];
-        ASSERT(ps->state == SSTATE_CHILD)
-        
-        statement_log(ps, BLOG_INFO, "clean");
-        
-        // report clean
-        NCDModuleInst_Clean(&ps->inst);
-        return;
-    }
-    
-    // advancing?
-    if (p->ap < p->num_statements) {
-        ASSERT(process_state(p) == PSTATE_WORKING)
-        struct statement *ps = &p->statements[p->ap];
-        ASSERT(ps->state == SSTATE_FORGOTTEN)
-        
-        if (process_error(p)) {
-            statement_log(ps, BLOG_INFO, "waiting after error");
-            
-            // clear error
-            process_set_error(p, 0);
-            
-            // set wait timer
-            BReactor_SetSmallTimer(&reactor, &p->wait_timer, BTIMER_SET_RELATIVE, options.retry_time);
-        } else {
-            // advance
-            process_advance(p);
-        }
-        return;
-    }
-    
-    // have we just finished?
-    if (pstate == PSTATE_WORKING) {
-        process_log(p, BLOG_INFO, "victory");
-        
-        // set state up
-        process_set_state(p, PSTATE_UP);
-        
-        // set module process up
-        if (p->module_process) {
-            NCDModuleProcess_Interp_Up(p->module_process);
-            return;
-        }
-    }
-}
-
-int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRef *out)
-{
-    struct statement *ps = arg;
-    ASSERT(plid >= 0)
-    ASSERT(mem)
-    ASSERT(out)
-    
-    const NCD_string_id_t *varnames;
-    size_t num_names;
-    NCDPlaceholderDb_GetVariable(&placeholder_db, plid, &varnames, &num_names);
-    
-    return process_resolve_variable_expr(statement_process(ps), ps->i, varnames, num_names, mem, out);
-}
-
-void process_advance (struct process *p)
-{
-    process_assert_pointers(p);
-    ASSERT(p->ap == p->fp)
-    ASSERT(!process_have_child(p))
-    ASSERT(p->ap < p->num_statements)
-    ASSERT(!process_error(p))
-    ASSERT(!BSmallPending_IsSet(&p->work_job))
-    ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
-    ASSERT(process_state(p) == PSTATE_WORKING)
-    
-    struct statement *ps = &p->statements[p->ap];
-    ASSERT(ps->state == SSTATE_FORGOTTEN)
-    
-    statement_log(ps, BLOG_INFO, "initializing");
-    
-    // need to determine the module and object to use it on (if it's a method)
-    const struct NCDModule *module;
-    NCDObject object;
-    NCDObject *object_ptr = NULL;
-    
-    // get object names, e.g. "my.cat" in "my.cat->meow();"
-    // (or NULL if this is not a method statement)
-    const NCD_string_id_t *objnames;
-    size_t num_objnames;
-    NCDInterpProcess_StatementObjNames(p->iprocess, p->ap, &objnames, &num_objnames);
-    
-    if (!objnames) {
-        // not a method; module is already known by NCDInterpProcess
-        module = NCDInterpProcess_StatementGetSimpleModule(p->iprocess, p->ap);
-        
-        if (!module) {
-            statement_log(ps, BLOG_ERROR, "unknown simple statement: %s", NCDInterpProcess_StatementCmdName(p->iprocess, p->ap));
-            goto fail0;
-        }
-    } else {
-        // get object
-        if (!process_resolve_object_expr(p, p->ap, objnames, num_objnames, &object)) {
-            goto fail0;
-        }
-        object_ptr = &object;
-        
-        // get object type
-        NCD_string_id_t object_type = NCDObject_Type(&object);
-        if (object_type < 0) {
-            statement_log(ps, BLOG_ERROR, "cannot call method on object with no type");
-            goto fail0;
-        }
-        
-        // find module based on type of object
-        module = NCDInterpProcess_StatementGetMethodModule(p->iprocess, p->ap, object_type, &method_index);
-        
-        if (!module) {
-            const char *type_str = NCDStringIndex_Value(&string_index, object_type);
-            statement_log(ps, BLOG_ERROR, "unknown method statement: %s::%s", type_str, NCDInterpProcess_StatementCmdName(p->iprocess, p->ap));
-            goto fail0;
-        }
-    }
-    
-    // register alloc size for future preallocations
-    NCDInterpProcess_StatementBumpAllocSize(p->iprocess, p->ap, module->alloc_size);
-    
-    // copy arguments
-    NCDValRef args;
-    NCDValReplaceProg prog;
-    if (!NCDInterpProcess_CopyStatementArgs(p->iprocess, ps->i, &ps->args_mem, &args, &prog)) {
-        statement_log(ps, BLOG_ERROR, "NCDInterpProcess_CopyStatementArgs failed");
-        goto fail0;
-    }
-    
-    // replace placeholders with values of variables
-    if (!NCDValReplaceProg_Execute(prog, &ps->args_mem, replace_placeholders_callback, ps)) {
-        statement_log(ps, BLOG_ERROR, "failed to replace variables in arguments with values");
-        goto fail1;
-    }
-    
-    // allocate memory
-    if (!statement_allocate_memory(ps, module->alloc_size)) {
-        statement_log(ps, BLOG_ERROR, "failed to allocate memory");
-        goto fail1;
-    }
-    char *mem = (module->alloc_size == 0 ? NULL : ps->mem);
-    
-    // set statement state CHILD
-    ps->state = SSTATE_CHILD;
-    
-    // increment AP
-    p->ap++;
-    
-    // increment FP
-    p->fp++;
-    
-    process_assert_pointers(p);
-    
-    // initialize module instance
-    NCDModuleInst_Init(&ps->inst, module, mem, object_ptr, args, &module_params);
-    return;
-    
-fail1:
-    NCDValMem_Free(&ps->args_mem);
-fail0:
-    // set error
-    process_set_error(p, 1);
-    
-    // schedule work to start the timer
-    process_schedule_work(p);
-}
-
-void process_wait_timer_handler (BSmallTimer *timer)
-{
-    struct process *p = UPPER_OBJECT(timer, struct process, wait_timer);
-    process_assert_pointers(p);
-    ASSERT(p->ap == p->fp)
-    ASSERT(!process_have_child(p))
-    ASSERT(p->ap < p->num_statements)
-    ASSERT(!process_error(p))
-    ASSERT(!BSmallPending_IsSet(&p->work_job))
-    ASSERT(process_state(p) == PSTATE_WORKING)
-    
-    process_log(p, BLOG_INFO, "retrying");
-    
-    // advance
-    process_advance(p);
-}
-
-int process_find_object (struct process *p, int pos, NCD_string_id_t name, NCDObject *out_object)
-{
-    ASSERT(pos >= 0)
-    ASSERT(pos <= p->num_statements)
-    ASSERT(out_object)
-    
-    int i = NCDInterpProcess_FindStatement(p->iprocess, pos, name);
-    if (i >= 0) {
-        struct statement *ps = &p->statements[i];
-        ASSERT(i < p->num_statements)
-        
-        if (ps->state == SSTATE_FORGOTTEN) {
-            process_log(p, BLOG_ERROR, "statement (%d) is uninitialized", i);
-            return 0;
-        }
-        
-        *out_object = NCDModuleInst_Object(&ps->inst);
-        return 1;
-    }
-    
-    if (p->module_process && NCDModuleProcess_Interp_GetSpecialObj(p->module_process, name, out_object)) {
-        return 1;
-    }
-    
-    return 0;
-}
-
-int process_resolve_object_expr (struct process *p, int pos, const NCD_string_id_t *names, size_t num_names, NCDObject *out_object)
-{
-    ASSERT(pos >= 0)
-    ASSERT(pos <= p->num_statements)
-    ASSERT(names)
-    ASSERT(num_names > 0)
-    ASSERT(out_object)
-    
-    NCDObject object;
-    if (!process_find_object(p, pos, names[0], &object)) {
-        goto fail;
-    }
-    
-    if (!NCDObject_ResolveObjExprCompact(&object, names + 1, num_names - 1, out_object)) {
-        goto fail;
-    }
-    
-    return 1;
-    
-fail:;
-    char *name = implode_id_strings(names, num_names, '.');
-    process_log(p, BLOG_ERROR, "failed to resolve object (%s) from position %zu", (name ? name : ""), pos);
-    free(name);
-    return 0;
-}
-
-int process_resolve_variable_expr (struct process *p, int pos, const NCD_string_id_t *names, size_t num_names, NCDValMem *mem, NCDValRef *out_value)
-{
-    ASSERT(pos >= 0)
-    ASSERT(pos <= p->num_statements)
-    ASSERT(names)
-    ASSERT(num_names > 0)
-    ASSERT(mem)
-    ASSERT(out_value)
-    
-    NCDObject object;
-    if (!process_find_object(p, pos, names[0], &object)) {
-        goto fail;
-    }
-    
-    if (!NCDObject_ResolveVarExprCompact(&object, names + 1, num_names - 1, mem, out_value)) {
-        goto fail;
-    }
-    
-    return 1;
-    
-fail:;
-    char *name = implode_id_strings(names, num_names, '.');
-    process_log(p, BLOG_ERROR, "failed to resolve variable (%s) from position %zu", (name ? name : ""), pos);
-    free(name);
-    return 0;
-}
-
-void statement_logfunc (struct statement *ps)
-{
-    process_logfunc(statement_process(ps));
-    BLog_Append("statement %zu: ", ps->i);
-}
-
-void statement_log (struct statement *ps, int level, const char *fmt, ...)
-{
-    if (!BLog_WouldLog(BLOG_CURRENT_CHANNEL, level)) {
-        return;
-    }
-    
-    va_list vl;
-    va_start(vl, fmt);
-    BLog_LogViaFuncVarArg((BLog_logfunc)statement_logfunc, ps, BLOG_CURRENT_CHANNEL, level, fmt, vl);
-    va_end(vl);
-}
-
-struct process * statement_process (struct statement *ps)
-{
-    return UPPER_OBJECT(ps - ps->i, struct process, statements);
-}
-
-int statement_mem_is_allocated (struct statement *ps)
-{
-    return (ps->mem_size < 0);
-}
-
-int statement_mem_size (struct statement *ps)
-{
-    return (ps->mem_size >= 0 ? ps->mem_size : -ps->mem_size);
-}
-
-int statement_allocate_memory (struct statement *ps, int alloc_size)
-{
-    ASSERT(alloc_size >= 0)
-    
-    if (alloc_size > statement_mem_size(ps)) {
-        if (statement_mem_is_allocated(ps)) {
-            free(ps->mem);
-        }
-        
-        if (!(ps->mem = malloc(alloc_size))) {
-            statement_log(ps, BLOG_ERROR, "malloc failed");
-            ps->mem_size = 0;
-            return 0;
-        }
-        
-        ps->mem_size = -alloc_size;
-    }
-    
-    return 1;
-}
-
-void statement_instance_func_event (NCDModuleInst *inst, int event)
-{
-    struct statement *ps = UPPER_OBJECT(inst, struct statement, inst);
-    ASSERT(ps->state == SSTATE_CHILD || ps->state == SSTATE_ADULT || ps->state == SSTATE_DYING)
-    
-    struct process *p = statement_process(ps);
-    process_assert_pointers(p);
-    
-    // schedule work
-    process_schedule_work(p);
-    
-    switch (event) {
-        case NCDMODULE_EVENT_UP: {
-            ASSERT(ps->state == SSTATE_CHILD)
-            
-            statement_log(ps, BLOG_INFO, "up");
-            
-            // set state ADULT
-            ps->state = SSTATE_ADULT;
-        } break;
-        
-        case NCDMODULE_EVENT_DOWN: {
-            ASSERT(ps->state == SSTATE_ADULT)
-            
-            statement_log(ps, BLOG_INFO, "down");
-            
-            // set state CHILD
-            ps->state = SSTATE_CHILD;
-            
-            // clear error
-            if (ps->i < p->ap) {
-                process_set_error(p, 0);
-            }
-            
-            // update AP
-            if (p->ap > ps->i + 1) {
-                p->ap = ps->i + 1;
-            }
-        } break;
-        
-        case NCDMODULE_EVENT_DEAD: {
-            int is_error = NCDModuleInst_HaveError(&ps->inst);
-            
-            if (is_error) {
-                statement_log(ps, BLOG_ERROR, "died with error");
-            } else {
-                statement_log(ps, BLOG_INFO, "died");
-            }
-            
-            // free instance
-            NCDModuleInst_Free(&ps->inst);
-            
-            // free arguments memory
-            NCDValMem_Free(&ps->args_mem);
-            
-            // set state FORGOTTEN
-            ps->state = SSTATE_FORGOTTEN;
-            
-            // set error
-            if (is_error && ps->i < p->ap) {
-                process_set_error(p, 1);
-            }
-            
-            // update AP
-            if (p->ap > ps->i) {
-                p->ap = ps->i;
-            }
-            
-            // update FP
-            while (p->fp > 0 && p->statements[p->fp - 1].state == SSTATE_FORGOTTEN) {
-                p->fp--;
-            }
-        } break;
-    }
-}
-
-int statement_instance_func_getobj (NCDModuleInst *inst, NCD_string_id_t objname, NCDObject *out_object)
-{
-    struct statement *ps = UPPER_OBJECT(inst, struct statement, inst);
-    ASSERT(ps->state != SSTATE_FORGOTTEN)
-    
-    return process_find_object(statement_process(ps), ps->i, objname, out_object);
-}
-
-int statement_instance_func_initprocess (void *unused, NCDModuleProcess* mp, NCD_string_id_t template_name)
-{
-    // find process
-    NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&iprogram, template_name);
-    if (!iprocess) {
-        const char *str = NCDStringIndex_Value(&string_index, template_name);
-        BLog(BLOG_ERROR, "no template named %s", str);
-        return 0;
-    }
-    
-    // make sure it's a template
-    if (!NCDInterpProcess_IsTemplate(iprocess)) {
-        const char *str = NCDStringIndex_Value(&string_index, template_name);
-        BLog(BLOG_ERROR, "need template to create a process, but %s is a process", str);
-        return 0;
-    }
-    
-    // create process
-    if (!process_new(iprocess, mp)) {
-        const char *str = NCDStringIndex_Value(&string_index, template_name);
-        BLog(BLOG_ERROR, "failed to create process from template %s", str);
-        return 0;
-    }
-    
-    if (BLog_WouldLog(BLOG_INFO, BLOG_CURRENT_CHANNEL)) {
-        const char *str = NCDStringIndex_Value(&string_index, template_name);
-        BLog(BLOG_INFO, "created process from template %s", str);
-    }
-    
-    return 1;
-}
-
-void statement_instance_logfunc (NCDModuleInst *inst)
-{
-    struct statement *ps = UPPER_OBJECT(inst, struct statement, inst);
-    ASSERT(ps->state != SSTATE_FORGOTTEN)
-    
-    statement_logfunc(ps);
-    BLog_Append("module: ");
-}
-
-void statement_instance_func_interp_exit (void *unused, int exit_code)
-{
-    start_terminate(exit_code);
-}
-
-int statement_instance_func_interp_getargs (void *unused, NCDValMem *mem, NCDValRef *out_value)
-{
-    *out_value = NCDVal_NewList(mem, options.num_extra_args);
-    if (NCDVal_IsInvalid(*out_value)) {
-        BLog(BLOG_ERROR, "NCDVal_NewList failed");
-        goto fail;
-    }
-    
-    for (int i = 0; i < options.num_extra_args; i++) {
-        NCDValRef arg = NCDVal_NewString(mem, options.extra_args[i]);
-        if (NCDVal_IsInvalid(arg)) {
-            BLog(BLOG_ERROR, "NCDVal_NewString failed");
-            goto fail;
-        }
-        
-        NCDVal_ListAppend(*out_value, arg);
-    }
-    
-    return 1;
-    
-fail:
-    *out_value = NCDVal_NewInvalid();
-    return 1;
-}
-
-btime_t statement_instance_func_interp_getretrytime (void *unused)
-{
-    return options.retry_time;
-}
-
-void process_moduleprocess_func_event (struct process *p, int event)
-{
-    ASSERT(p->module_process)
-    
-    switch (event) {
-        case NCDMODULEPROCESS_INTERP_EVENT_CONTINUE: {
-            ASSERT(process_state(p) == PSTATE_WAITING)
-            
-            // set state working
-            process_set_state(p, PSTATE_WORKING);
-            
-            // schedule work
-            process_schedule_work(p);
-        } break;
-        
-        case NCDMODULEPROCESS_INTERP_EVENT_TERMINATE: {
-            ASSERT(process_state(p) != PSTATE_TERMINATING)
-            
-            process_log(p, BLOG_INFO, "process termination requested");
-        
-            // start terminating
-            process_start_terminating(p);
-        } break;
-        
-        default: ASSERT(0);
-    }
-}
-
-int process_moduleprocess_func_getobj (struct process *p, NCD_string_id_t name, NCDObject *out_object)
-{
-    ASSERT(p->module_process)
-    
-    return process_find_object(p, p->num_statements, name, out_object);
+    BReactor_Quit(&reactor, 0);
 }

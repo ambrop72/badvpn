@@ -74,8 +74,8 @@ add_library(ncdvalcons
 )
 target_link_libraries(ncdvalcons ncdval)
 
-add_executable(badvpn-ncd
-    ncd.c
+add_library(ncdinterpreter
+    NCDInterpreter.c
     NCDModule.c
     NCDModuleIndex.c
     NCDIfConfig.c
@@ -153,11 +153,16 @@ add_executable(badvpn-ncd
     modules/net_ipv6_addr_in_network.c
     ${NCD_ADDITIONAL_SOURCES}
 )
-target_link_libraries(badvpn-ncd
+target_link_libraries(ncdinterpreter
     system flow flowextra dhcpclient arpprobe ncdval ncdstringindex ncdvalgenerator
     ncdvalparser ncdconfigparser ncdsugar udevmonitor ncdinterfacemonitor ncdrequest
     badvpn_random
 )
+
+add_executable(badvpn-ncd
+    ncd.c
+)
+target_link_libraries(badvpn-ncd ncdinterpreter)
 
 if (BADVPN_USE_LINUX_INPUT)
     string(REPLACE " " ";" FLAGS_LIST "${CMAKE_C_FLAGS}")
