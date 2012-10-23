@@ -129,9 +129,15 @@ int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_
     ASSERT(params.handler_finished);
     ASSERT(params.num_extra_args >= 0);
     ASSERT(params.reactor);
+#ifndef BADVPN_NO_PROCESS
     ASSERT(params.manager);
+#endif
+#ifndef BADVPN_NO_UDEV
     ASSERT(params.umanager);
+#endif
+#ifndef BADVPN_NO_RANDOM
     ASSERT(params.random2);
+#endif
     
     // set params
     o->params = params;
@@ -196,9 +202,15 @@ int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_
     // Don't initialize any callback at this point as these must not be called
     // from globalinit functions of modules.
     o->module_iparams.reactor = params.reactor;
+#ifndef BADVPN_NO_PROCESS
     o->module_iparams.manager = params.manager;
+#endif
+#ifndef BADVPN_NO_UDEV
     o->module_iparams.umanager = params.umanager;
+#endif
+#ifndef BADVPN_NO_RANDOM
     o->module_iparams.random2 = params.random2;
+#endif
     o->module_iparams.string_index = &o->string_index;
     
     // init modules

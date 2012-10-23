@@ -1,4 +1,4 @@
-#if defined(BADVPN_BREACTOR_BADVPN) + defined(BADVPN_BREACTOR_GLIB) != 1
+#if defined(BADVPN_BREACTOR_BADVPN) + defined(BADVPN_BREACTOR_GLIB) + defined(BADVPN_BREACTOR_EMSCRIPTEN) != 1
 #error No reactor backend or too many reactor backens
 #endif
 
@@ -6,4 +6,6 @@
 #include "BReactor_badvpn.h"
 #elif defined(BADVPN_BREACTOR_GLIB)
 #include "BReactor_glib.h"
+#elif defined(BADVPN_BREACTOR_EMSCRIPTEN)
+#include "BReactor_emscripten.h"
 #endif

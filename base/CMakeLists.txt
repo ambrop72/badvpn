@@ -1,6 +1,6 @@
 set(BASE_ADDITIONAL_SOURCES)
 
-if (NOT WIN32)
+if (HAVE_SYSLOG_H)
     list(APPEND BASE_ADDITIONAL_SOURCES BLog_syslog.c)
 endif ()
 

@@ -33,11 +33,18 @@
 #include <misc/debug.h>
 #include <system/BReactor.h>
 #include <base/BLog.h>
-#include <system/BProcess.h>
-#include <udevmonitor/NCDUdevManager.h>
-#include <random/BRandom2.h>
 #include <ncd/NCDObject.h>
 #include <ncd/NCDStringIndex.h>
+
+#ifndef BADVPN_NO_PROCESS
+#include <system/BProcess.h>
+#endif
+#ifndef BADVPN_NO_UDEV
+#include <udevmonitor/NCDUdevManager.h>
+#endif
+#ifndef BADVPN_NO_RANDOM
+#include <random/BRandom2.h>
+#endif
 
 #define NCDMODULE_EVENT_UP 1
 #define NCDMODULE_EVENT_DOWN 2
@@ -283,18 +290,24 @@ struct NCDModuleInst_iparams {
      * Reactor we live in.
      */
     BReactor *reactor;
+#ifndef BADVPN_NO_PROCESS
     /**
      * Process manager.
      */
     BProcessManager *manager;
+#endif
+#ifndef BADVPN_NO_UDEV
     /**
      * Udev manager.
      */
     NCDUdevManager *umanager;
+#endif
+#ifndef BADVPN_NO_RANDOM
     /**
      * Random number generator.
      */
     BRandom2 *random2;
+#endif
     /**
      * String index which keeps a mapping between strings and string identifiers.
      */

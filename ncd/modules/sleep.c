@@ -38,8 +38,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <inttypes.h>
+#include <limits.h>
 
 #include <ncd/NCDModule.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_sleep.h>
 
@@ -80,18 +82,26 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(ms_start_arg) || !NCDVal_IsStringNoNulls(ms_stop_arg)) {
+    if (!NCDVal_IsString(ms_start_arg) || !NCDVal_IsString(ms_stop_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    if (sscanf(NCDVal_StringValue(ms_start_arg), "%"SCNi64, &o->ms_start) != 1) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong time");
+    
+    uintmax_t ms_start;
+    uintmax_t ms_stop;
+    
+    if (!ncd_read_uintmax(ms_start_arg, &ms_start) || ms_start > INT64_MAX) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong start time");
         goto fail0;
     }
-    if (sscanf(NCDVal_StringValue(ms_stop_arg), "%"SCNi64, &o->ms_stop) != 1) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong time");
+    
+    if (!ncd_read_uintmax(ms_stop_arg, &ms_stop) || ms_stop > INT64_MAX) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong stop time");
         goto fail0;
     }
+    
+    o->ms_start = ms_start;
+    o->ms_stop = ms_stop;
     
     // init timer
     BTimer_Init(&o->timer, 0, timer_handler, o);

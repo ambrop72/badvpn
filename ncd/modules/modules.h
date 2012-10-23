@@ -43,14 +43,10 @@ extern const struct NCDModuleGroup ncdmodule_concat;
 extern const struct NCDModuleGroup ncdmodule_concatv;
 extern const struct NCDModuleGroup ncdmodule_if;
 extern const struct NCDModuleGroup ncdmodule_strcmp;
-extern const struct NCDModuleGroup ncdmodule_regex_match;
 extern const struct NCDModuleGroup ncdmodule_logical;
 extern const struct NCDModuleGroup ncdmodule_sleep;
 extern const struct NCDModuleGroup ncdmodule_print;
 extern const struct NCDModuleGroup ncdmodule_blocker;
-extern const struct NCDModuleGroup ncdmodule_run;
-extern const struct NCDModuleGroup ncdmodule_runonce;
-extern const struct NCDModuleGroup ncdmodule_daemon;
 extern const struct NCDModuleGroup ncdmodule_spawn;
 extern const struct NCDModuleGroup ncdmodule_call;
 extern const struct NCDModuleGroup ncdmodule_imperative;
@@ -65,6 +61,24 @@ extern const struct NCDModuleGroup ncdmodule_from_string;
 extern const struct NCDModuleGroup ncdmodule_to_string;
 extern const struct NCDModuleGroup ncdmodule_value;
 extern const struct NCDModuleGroup ncdmodule_try;
+extern const struct NCDModuleGroup ncdmodule_exit;
+extern const struct NCDModuleGroup ncdmodule_getargs;
+extern const struct NCDModuleGroup ncdmodule_arithmetic;
+extern const struct NCDModuleGroup ncdmodule_parse;
+extern const struct NCDModuleGroup ncdmodule_valuemetic;
+extern const struct NCDModuleGroup ncdmodule_file;
+extern const struct NCDModuleGroup ncdmodule_netmask;
+extern const struct NCDModuleGroup ncdmodule_implode;
+extern const struct NCDModuleGroup ncdmodule_call2;
+extern const struct NCDModuleGroup ncdmodule_assert;
+extern const struct NCDModuleGroup ncdmodule_explode;
+extern const struct NCDModuleGroup ncdmodule_net_ipv4_addr_in_network;
+extern const struct NCDModuleGroup ncdmodule_net_ipv6_addr_in_network;
+#ifndef BADVPN_EMSCRIPTEN
+extern const struct NCDModuleGroup ncdmodule_regex_match;
+extern const struct NCDModuleGroup ncdmodule_run;
+extern const struct NCDModuleGroup ncdmodule_runonce;
+extern const struct NCDModuleGroup ncdmodule_daemon;
 extern const struct NCDModuleGroup ncdmodule_net_backend_waitdevice;
 extern const struct NCDModuleGroup ncdmodule_net_backend_waitlink;
 extern const struct NCDModuleGroup ncdmodule_net_backend_badvpn;
@@ -91,22 +105,10 @@ extern const struct NCDModuleGroup ncdmodule_sys_watch_directory;
 extern const struct NCDModuleGroup ncdmodule_sys_request_server;
 extern const struct NCDModuleGroup ncdmodule_net_ipv6_wait_dynamic_addr;
 extern const struct NCDModuleGroup ncdmodule_sys_request_client;
-extern const struct NCDModuleGroup ncdmodule_exit;
-extern const struct NCDModuleGroup ncdmodule_getargs;
-extern const struct NCDModuleGroup ncdmodule_arithmetic;
-extern const struct NCDModuleGroup ncdmodule_parse;
-extern const struct NCDModuleGroup ncdmodule_valuemetic;
-extern const struct NCDModuleGroup ncdmodule_file;
-extern const struct NCDModuleGroup ncdmodule_netmask;
-extern const struct NCDModuleGroup ncdmodule_implode;
-extern const struct NCDModuleGroup ncdmodule_call2;
-extern const struct NCDModuleGroup ncdmodule_assert;
 extern const struct NCDModuleGroup ncdmodule_reboot;
-extern const struct NCDModuleGroup ncdmodule_explode;
 extern const struct NCDModuleGroup ncdmodule_net_ipv6_addr;
 extern const struct NCDModuleGroup ncdmodule_net_ipv6_route;
-extern const struct NCDModuleGroup ncdmodule_net_ipv4_addr_in_network;
-extern const struct NCDModuleGroup ncdmodule_net_ipv6_addr_in_network;
+#endif
 
 static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_var,
@@ -118,14 +120,10 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_concatv,
     &ncdmodule_if,
     &ncdmodule_strcmp,
-    &ncdmodule_regex_match,
     &ncdmodule_logical,
     &ncdmodule_sleep,
     &ncdmodule_print,
     &ncdmodule_blocker,
-    &ncdmodule_run,
-    &ncdmodule_runonce,
-    &ncdmodule_daemon,
     &ncdmodule_spawn,
     &ncdmodule_call,
     &ncdmodule_imperative,
@@ -140,6 +138,24 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_to_string,
     &ncdmodule_value,
     &ncdmodule_try,
+    &ncdmodule_exit,
+    &ncdmodule_getargs,
+    &ncdmodule_arithmetic,
+    &ncdmodule_parse,
+    &ncdmodule_valuemetic,
+    &ncdmodule_file,
+    &ncdmodule_netmask,
+    &ncdmodule_implode,
+    &ncdmodule_call2,
+    &ncdmodule_assert,
+    &ncdmodule_explode,
+    &ncdmodule_net_ipv4_addr_in_network,
+    &ncdmodule_net_ipv6_addr_in_network,
+#ifndef BADVPN_EMSCRIPTEN
+    &ncdmodule_regex_match,
+    &ncdmodule_run,
+    &ncdmodule_runonce,
+    &ncdmodule_daemon,
     &ncdmodule_net_backend_waitdevice,
     &ncdmodule_net_backend_waitlink,
     &ncdmodule_net_backend_badvpn,
@@ -166,22 +182,10 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_sys_request_server,
     &ncdmodule_net_ipv6_wait_dynamic_addr,
     &ncdmodule_sys_request_client,
-    &ncdmodule_exit,
-    &ncdmodule_getargs,
-    &ncdmodule_arithmetic,
-    &ncdmodule_parse,
-    &ncdmodule_valuemetic,
-    &ncdmodule_file,
-    &ncdmodule_netmask,
-    &ncdmodule_implode,
-    &ncdmodule_call2,
-    &ncdmodule_assert,
     &ncdmodule_reboot,
-    &ncdmodule_explode,
     &ncdmodule_net_ipv6_addr,
     &ncdmodule_net_ipv6_route,
-    &ncdmodule_net_ipv4_addr_in_network,
-    &ncdmodule_net_ipv6_addr_in_network,
+#endif
     NULL
 };
 

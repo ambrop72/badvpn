@@ -1,13 +1,17 @@
-add_executable(btimer_example btimer_example.c)
-target_link_libraries(btimer_example system)
+if (NOT EMSCRIPTEN)
+    add_executable(btimer_example btimer_example.c)
+    target_link_libraries(btimer_example system)
+endif ()
 
 if (BUILDING_PREDICATE)
     add_executable(predicate_test predicate_test.c)
     target_link_libraries(predicate_test predicate)
 endif ()
 
-add_executable(fairqueue_test fairqueue_test.c)
-target_link_libraries(fairqueue_test system flow)
+if (NOT EMSCRIPTEN)
+    add_executable(fairqueue_test fairqueue_test.c)
+    target_link_libraries(fairqueue_test system flow)
+endif ()
 
 add_executable(indexedlist_test indexedlist_test.c)
 
@@ -35,8 +39,10 @@ if (BUILD_NCD)
     add_executable(ncd_value_parser_test ncd_value_parser_test.c)
     target_link_libraries(ncd_value_parser_test ncdvalparser ncdvalgenerator)
 
-    add_executable(ncdinterfacemonitor_test ncdinterfacemonitor_test.c)
-    target_link_libraries(ncdinterfacemonitor_test ncdinterfacemonitor)
+    if (NOT EMSCRIPTEN)
+        add_executable(ncdinterfacemonitor_test ncdinterfacemonitor_test.c)
+        target_link_libraries(ncdinterfacemonitor_test ncdinterfacemonitor)
+    endif ()
 
     add_executable(ncdval_test ncdval_test.c)
     target_link_libraries(ncdval_test ncdval)
@@ -53,7 +59,7 @@ if (BUILDING_UDEVMONITOR)
     target_link_libraries(ncdudevmanager_test udevmonitor)
 endif ()
 
-if (NOT WIN32)
+if (NOT WIN32 AND NOT EMSCRIPTEN)
     add_executable(bprocess_example bprocess_example.c)
     target_link_libraries(bprocess_example system)
 
@@ -84,3 +90,8 @@ if (BUILDING_RANDOM)
 endif ()
 
 add_executable(cavl_test cavl_test.c)
+
+if (EMSCRIPTEN)
+    add_executable(emscripten_test emscripten_test.c)
+    target_link_libraries(emscripten_test system)
+endif ()

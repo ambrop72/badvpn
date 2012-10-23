@@ -1,23 +1,70 @@
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(NCD_ADDITIONAL_SOURCES)
+set(NCD_ADDITIONAL_LIBS)
 
-if (BADVPN_USE_LINUX_RFKILL)
-    list(APPEND NCD_ADDITIONAL_SOURCES
-        NCDRfkillMonitor.c
-        modules/net_backend_rfkill.c
+if (NOT EMSCRIPTEN)
+    if (BADVPN_USE_LINUX_RFKILL)
+        list(APPEND NCD_ADDITIONAL_SOURCES
+            NCDRfkillMonitor.c
+            modules/net_backend_rfkill.c
+        )
+    endif ()
+
+    if (BADVPN_USE_LINUX_INPUT)
+        list(APPEND NCD_ADDITIONAL_SOURCES
+            modules/sys_evdev.c
+        )
+    endif ()
+
+    if (BADVPN_USE_INOTIFY)
+        list(APPEND NCD_ADDITIONAL_SOURCES
+            modules/sys_watch_directory.c
+        )
+    endif ()
+
+    add_library(ncdinterfacemonitor
+        NCDInterfaceMonitor.c
     )
-endif ()
-
-if (BADVPN_USE_LINUX_INPUT)
-    list(APPEND NCD_ADDITIONAL_SOURCES
-        modules/sys_evdev.c
+    target_link_libraries(ncdinterfacemonitor base system)
+    
+    add_library(ncdrequest
+        NCDRequestClient.c
     )
-endif ()
+    target_link_libraries(ncdrequest base system ncdvalgenerator ncdvalparser)
 
-if (BADVPN_USE_INOTIFY)
     list(APPEND NCD_ADDITIONAL_SOURCES
-        modules/sys_watch_directory.c
+        NCDIfConfig.c
+        modules/command_template.c
+        modules/event_template.c
+        modules/regex_match.c
+        modules/run.c
+        modules/runonce.c
+        modules/daemon.c
+        modules/net_backend_waitdevice.c
+        modules/net_backend_waitlink.c
+        modules/net_backend_badvpn.c
+        modules/net_backend_wpa_supplicant.c
+        modules/net_up.c
+        modules/net_dns.c
+        modules/net_iptables.c
+        modules/net_ipv4_addr.c
+        modules/net_ipv4_route.c
+        modules/net_ipv4_dhcp.c
+        modules/net_ipv4_arp_probe.c
+        modules/net_watch_interfaces.c
+        modules/sys_watch_input.c
+        modules/sys_watch_usb.c
+        modules/sys_request_server.c
+        modules/net_ipv6_wait_dynamic_addr.c
+        modules/sys_request_client.c
+        modules/reboot.c
+        modules/net_ipv6_addr.c
+        modules/net_ipv6_route.c
+    )
+    
+    list(APPEND NCD_ADDITIONAL_LIBS
+        dhcpclient arpprobe ncdinterfacemonitor ncdrequest udevmonitor badvpn_random
     )
 endif ()
 
@@ -59,16 +106,6 @@ add_library(ncdsugar
 )
 target_link_libraries(ncdsugar ncdast)
 
-add_library(ncdrequest
-    NCDRequestClient.c
-)
-target_link_libraries(ncdrequest base system ncdvalgenerator ncdvalparser)
-
-add_library(ncdinterfacemonitor
-    NCDInterfaceMonitor.c
-)
-target_link_libraries(ncdinterfacemonitor base system)
-
 add_library(ncdvalcons
     NCDValCons.c
 )
@@ -78,15 +115,12 @@ add_library(ncdinterpreter
     NCDInterpreter.c
     NCDModule.c
     NCDModuleIndex.c
-    NCDIfConfig.c
     NCDObject.c
     NCDInterpProcess.c
     NCDInterpProg.c
     NCDPlaceholderDb.c
     NCDMethodIndex.c
     BEventLock.c
-    modules/command_template.c
-    modules/event_template.c
     modules/var.c
     modules/list.c
     modules/depend.c
@@ -96,14 +130,10 @@ add_library(ncdinterpreter
     modules/concatv.c
     modules/if.c
     modules/strcmp.c
-    modules/regex_match.c
     modules/logical.c
     modules/sleep.c
     modules/print.c
     modules/blocker.c
-    modules/run.c
-    modules/runonce.c
-    modules/daemon.c
     modules/spawn.c
     modules/call.c
     modules/imperative.c
@@ -118,23 +148,6 @@ add_library(ncdinterpreter
     modules/to_string.c
     modules/value.c
     modules/try.c
-    modules/net_backend_waitdevice.c
-    modules/net_backend_waitlink.c
-    modules/net_backend_badvpn.c
-    modules/net_backend_wpa_supplicant.c
-    modules/net_up.c
-    modules/net_dns.c
-    modules/net_iptables.c
-    modules/net_ipv4_addr.c
-    modules/net_ipv4_route.c
-    modules/net_ipv4_dhcp.c
-    modules/net_ipv4_arp_probe.c
-    modules/net_watch_interfaces.c
-    modules/sys_watch_input.c
-    modules/sys_watch_usb.c
-    modules/sys_request_server.c
-    modules/net_ipv6_wait_dynamic_addr.c
-    modules/sys_request_client.c
     modules/exit.c
     modules/getargs.c
     modules/arithmetic.c
@@ -145,24 +158,15 @@ add_library(ncdinterpreter
     modules/implode.c
     modules/call2.c
     modules/assert.c
-    modules/reboot.c
     modules/explode.c
-    modules/net_ipv6_addr.c
-    modules/net_ipv6_route.c
     modules/net_ipv4_addr_in_network.c
     modules/net_ipv6_addr_in_network.c
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(ncdinterpreter
-    system flow flowextra dhcpclient arpprobe ncdval ncdstringindex ncdvalgenerator
-    ncdvalparser ncdconfigparser ncdsugar udevmonitor ncdinterfacemonitor ncdrequest
-    badvpn_random
+    system flow flowextra ncdval ncdstringindex ncdvalgenerator ncdvalparser
+    ncdconfigparser ncdsugar ${NCD_ADDITIONAL_LIBS}
 )
-
-add_executable(badvpn-ncd
-    ncd.c
-)
-target_link_libraries(badvpn-ncd ncdinterpreter)
 
 if (BADVPN_USE_LINUX_INPUT)
     string(REPLACE " " ";" FLAGS_LIST "${CMAKE_C_FLAGS}")
@@ -190,7 +194,33 @@ if (BADVPN_USE_LINUX_INPUT)
     endif ()
 endif ()
 
-install(
-    TARGETS badvpn-ncd
-    RUNTIME DESTINATION bin
-)
+if (NOT EMSCRIPTEN)
+    add_executable(badvpn-ncd ncd.c)
+    target_link_libraries(badvpn-ncd ncdinterpreter)
+    
+    install(
+        TARGETS badvpn-ncd
+        RUNTIME DESTINATION bin
+    )
+endif ()
+
+if (EMSCRIPTEN)
+    add_executable(emncd emncd.c)
+    target_link_libraries(emncd ncdinterpreter)
+    
+    add_custom_command(
+        OUTPUT emncd.bc
+        DEPENDS emncd
+        COMMAND cp emncd emncd.bc
+    )
+    
+    add_custom_command(
+        OUTPUT emncd.js
+        DEPENDS emncd.bc
+        COMMAND
+        ${CMAKE_C_COMPILER} emncd.bc -o emncd.js -O2
+        -s EXPORTED_FUNCTIONS=\"['_breactor_timer_cb','_main','_emncd_start','_emncd_stop']\"
+    )
+    
+    add_custom_target(emncd_js ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/emncd.js)
+endif ()

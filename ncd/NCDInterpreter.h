@@ -36,9 +36,6 @@
 #include <base/DebugObject.h>
 #include <system/BTime.h>
 #include <system/BReactor.h>
-#include <system/BProcess.h>
-#include <udevmonitor/NCDUdevManager.h>
-#include <random/BRandom2.h>
 #include <ncd/NCDStringIndex.h>
 #include <ncd/NCDMethodIndex.h>
 #include <ncd/NCDModuleIndex.h>
@@ -47,6 +44,16 @@
 #include <ncd/NCDInterpProg.h>
 #include <ncd/NCDModule.h>
 #include <structure/LinkedList1.h>
+
+#ifndef BADVPN_NO_PROCESS
+#include <system/BProcess.h>
+#endif
+#ifndef BADVPN_NO_UDEV
+#include <udevmonitor/NCDUdevManager.h>
+#endif
+#ifndef BADVPN_NO_RANDOM
+#include <random/BRandom2.h>
+#endif
 
 typedef void (*NCDInterpreter_handler_finished) (void *user, int exit_code);
 
@@ -62,9 +69,15 @@ struct NCDInterpreter_params {
     
     // possibly shared resources
     BReactor *reactor;
+#ifndef BADVPN_NO_PROCESS
     BProcessManager *manager;
+#endif
+#ifndef BADVPN_NO_UDEV
     NCDUdevManager *umanager;
+#endif
+#ifndef BADVPN_NO_RANDOM
     BRandom2 *random2;
+#endif
 };
 
 typedef struct {
