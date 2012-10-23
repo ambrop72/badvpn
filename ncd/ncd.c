@@ -39,13 +39,16 @@
 #include <misc/open_standard_streams.h>
 #include <misc/string_begins_with.h>
 #include <base/BLog.h>
-#include <base/BLog_syslog.h>
 #include <system/BReactor.h>
 #include <system/BSignal.h>
 #include <system/BProcess.h>
 #include <udevmonitor/NCDUdevManager.h>
 #include <random/BRandom2.h>
 #include <ncd/NCDInterpreter.h>
+
+#ifdef BADVPN_USE_SYSLOG
+#include <base/BLog_syslog.h>
+#endif
 
 #include "ncd.h"
 
@@ -60,8 +63,10 @@ static struct {
     int help;
     int version;
     int logger;
+#ifdef BADVPN_USE_SYSLOG
     char *logger_syslog_facility;
     char *logger_syslog_ident;
+#endif
     int loglevel;
     int loglevels[BLOG_NUM_CHANNELS];
     char *config_file;
@@ -132,12 +137,14 @@ int main (int argc, char **argv)
         case LOGGER_STDERR:
             BLog_InitStderr();
             break;
+#ifdef BADVPN_USE_SYSLOG
         case LOGGER_SYSLOG:
             if (!BLog_InitSyslog(options.logger_syslog_ident, options.logger_syslog_facility)) {
                 fprintf(stderr, "Failed to initialize syslog logger\n");
                 goto fail0;
             }
             break;
+#endif
         default:
             ASSERT(0);
     }
@@ -290,8 +297,10 @@ int parse_arguments (int argc, char *argv[])
     options.help = 0;
     options.version = 0;
     options.logger = LOGGER_STDERR;
+#ifdef BADVPN_USE_SYSLOG
     options.logger_syslog_facility = "daemon";
     options.logger_syslog_ident = argv[0];
+#endif
     options.loglevel = -1;
     for (int i = 0; i < BLOG_NUM_CHANNELS; i++) {
         options.loglevels[i] = -1;
@@ -322,15 +331,18 @@ int parse_arguments (int argc, char *argv[])
             else if (!strcmp(arg2, "stderr")) {
                 options.logger = LOGGER_STDERR;
             }
+#ifdef BADVPN_USE_SYSLOG
             else if (!strcmp(arg2, "syslog")) {
                 options.logger = LOGGER_SYSLOG;
             }
+#endif
             else {
                 fprintf(stderr, "%s: wrong argument\n", arg);
                 return 0;
             }
             i++;
         }
+#ifdef BADVPN_USE_SYSLOG
         else if (!strcmp(arg, "--syslog-facility")) {
             if (1 >= argc - i) {
                 fprintf(stderr, "%s: requires an argument\n", arg);
@@ -347,6 +359,7 @@ int parse_arguments (int argc, char *argv[])
             options.logger_syslog_ident = argv[i + 1];
             i++;
         }
+#endif
         else if (!strcmp(arg, "--loglevel")) {
             if (1 >= argc - i) {
                 fprintf(stderr, "%s: requires an argument\n", arg);
