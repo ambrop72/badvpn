@@ -76,9 +76,6 @@ static struct {
     int num_extra_args;
 } options;
 
-// exit code of main
-int main_exit_code;
-
 // reactor
 static BReactor reactor;
 
@@ -106,7 +103,7 @@ int main (int argc, char **argv)
         return 1;
     }
     
-    main_exit_code = 1;
+    int main_exit_code = 1;
     
     // open standard streams
     open_standard_streams();
@@ -230,7 +227,7 @@ int main (int argc, char **argv)
     
     // enter event loop
     BLog(BLOG_NOTICE, "entering event loop");
-    BReactor_Exec(&reactor);
+    main_exit_code = BReactor_Exec(&reactor);
     
     // free interpreter
     NCDInterpreter_Free(&interpreter);
@@ -453,7 +450,5 @@ void signal_handler (void *unused)
 
 void interpreter_handler_finished (void *user, int exit_code)
 {
-    main_exit_code = exit_code;
-    
-    BReactor_Quit(&reactor, 0);
+    BReactor_Quit(&reactor, exit_code);
 }
