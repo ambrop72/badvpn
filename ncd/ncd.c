@@ -35,7 +35,6 @@
 #include <misc/version.h>
 #include <misc/loglevel.h>
 #include <misc/read_file.h>
-#include <misc/balloc.h>
 #include <misc/open_standard_streams.h>
 #include <misc/string_begins_with.h>
 #include <base/BLog.h>
@@ -91,6 +90,7 @@ static BRandom2 random2;
 // interpreter
 static NCDInterpreter interpreter;
 
+// forward declarations of functions
 static void print_help (const char *name);
 static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
@@ -178,7 +178,7 @@ int main (int argc, char **argv)
     // init process manager
     if (!BProcessManager_Init(&manager, &reactor)) {
         BLog(BLOG_ERROR, "BProcessManager_Init failed");
-        goto fail1a;
+        goto fail2;
     }
     
     // init udev manager
@@ -187,13 +187,13 @@ int main (int argc, char **argv)
     // init random number generator
     if (!BRandom2_Init(&random2, BRANDOM2_INIT_LAZY)) {
         BLog(BLOG_ERROR, "BRandom2_Init failed");
-        goto fail1aa;
+        goto fail3;
     }
     
     // setup signal handler
     if (!BSignal_Init(&reactor, signal_handler, NULL)) {
         BLog(BLOG_ERROR, "BSignal_Init failed");
-        goto fail2;
+        goto fail4;
     }
     
     // read config file
@@ -201,7 +201,7 @@ int main (int argc, char **argv)
     size_t file_len;
     if (!read_file(options.config_file, &file, &file_len)) {
         BLog(BLOG_ERROR, "failed to read config file");
-        goto fail3;
+        goto fail5;
     }
     
     // setup interpreter parameters
@@ -217,33 +217,32 @@ int main (int argc, char **argv)
     params.random2 = &random2;
     
     // initialize interpreter
-    if (!NCDInterpreter_Init(&interpreter, (const char *)file, file_len, params)) {
-        free(file);
-        goto fail3;
+    int res = NCDInterpreter_Init(&interpreter, (const char *)file, file_len, params);
+    free(file);
+    if (!res) {
+        goto fail5;
     }
     
-    // fee config file memory
-    free(file);
+    BLog(BLOG_NOTICE, "entering event loop");
     
     // enter event loop
-    BLog(BLOG_NOTICE, "entering event loop");
     main_exit_code = BReactor_Exec(&reactor);
     
     // free interpreter
     NCDInterpreter_Free(&interpreter);
-fail3:
+fail5:
     // remove signal handler
     BSignal_Finish();
-fail2:
+fail4:
     // free random number generator
     BRandom2_Free(&random2);
-fail1aa:
+fail3:
     // free udev manager
     NCDUdevManager_Free(&umanager);
     
     // free process manager
     BProcessManager_Free(&manager);
-fail1a:
+fail2:
     // free reactor
     BReactor_Free(&reactor);
 fail1:
