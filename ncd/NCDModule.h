@@ -344,8 +344,8 @@ typedef struct NCDModuleInst_s {
     const struct NCDModule *m;
     const struct NCDModuleInst_params *params;
     void *mem;
-    int state;
-    int is_error;
+    unsigned int state:3;
+    unsigned int is_error:1;
     DebugObject d_obj;
 } NCDModuleInst;
 
