@@ -207,16 +207,6 @@ int NCDModuleInst_HaveError (NCDModuleInst *n)
     return n->is_error;
 }
 
-void NCDModuleInst_Backend_SetUser (NCDModuleInst *n, void *user)
-{
-    DebugObject_Access(&n->d_obj);
-    ASSERT(n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
-           n->state == STATE_UP ||
-           n->state == STATE_DYING)
-    
-    n->inst_user = user;
-}
-
 void * NCDModuleInst_Backend_GetUser (NCDModuleInst *n)
 {
     DebugObject_Access(&n->d_obj);

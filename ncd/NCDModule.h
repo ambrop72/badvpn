@@ -437,19 +437,8 @@ NCDObject NCDModuleInst_Object (NCDModuleInst *n);
 int NCDModuleInst_HaveError (NCDModuleInst *n);
 
 /**
- * Sets the argument passed to handlers of a module backend instance.
- * If the alloc_size member in the {@link NCDModule} structure is >0,
- * the argument will automatically be set to the preallocated memory,
- * in which case there is no need to call this.
- * 
- * @param n backend instance handle
- * @param user value to pass to future handlers for this backend instance
- */
-void NCDModuleInst_Backend_SetUser (NCDModuleInst *n, void *user);
-
-/**
- * Retuns the argument passed to handlers of a module backend instance;
- * see {@link NCDModuleInst_Backend_SetUser}.
+ * Retuns the state pointer passed to handlers of a module backend instance;
+ * see {@link NCDModule_func_new2}.
  * 
  * @param n backend instance handle
  * @return argument passed to handlers
@@ -718,7 +707,7 @@ typedef void (*NCDModule_func_new2) (void *o, NCDModuleInst *i, const struct NCD
  * The backend instance was in down or up state.
  * The backend instance enters dying state.
  * 
- * @param o see {@link NCDModuleInst_Backend_SetUser}
+ * @param o state pointer, as in {@link NCDModule_func_new2}
  */
 typedef void (*NCDModule_func_die) (void *o);
 
@@ -727,7 +716,7 @@ typedef void (*NCDModule_func_die) (void *o);
  * The backend instance is in up state, or in up or down state if can_resolve_when_down=1.
  * This function must not have any side effects.
  * 
- * @param o see {@link NCDModuleInst_Backend_SetUser}
+ * @param o state pointer, as in {@link NCDModule_func_new2}
  * @param name name of the variable to resolve
  * @param mem value memory to use
  * @param out on success, the backend should initialize the value here
@@ -741,7 +730,7 @@ typedef int (*NCDModule_func_getvar) (void *o, const char *name, NCDValMem *mem,
  * The backend instance is in up state, or in up or down state if can_resolve_when_down=1.
  * This function must not have any side effects.
  * 
- * @param o see {@link NCDModuleInst_Backend_SetUser}
+ * @param o state pointer, as in {@link NCDModule_func_new2}
  * @param name name of the variable to resolve as an {@link NCDStringIndex} identifier
  * @param mem value memory to use
  * @param out on success, the backend should initialize the value here
@@ -755,7 +744,7 @@ typedef int (*NCDModule_func_getvar2) (void *o, NCD_string_id_t name, NCDValMem 
  * The backend instance is in up state, or in up or down state if can_resolve_when_down=1.
  * This function must not have any side effects.
  * 
- * @param o see {@link NCDModuleInst_Backend_SetUser}
+ * @param o state pointer, as in {@link NCDModule_func_new2}
  * @param name name of the object to resolve as an {@link NCDStringIndex} identifier
  * @param out_object the object will be returned here
  * @return 1 on success, 0 on failure
@@ -771,7 +760,7 @@ typedef int (*NCDModule_func_getobj) (void *o, NCD_string_id_t name, NCDObject *
  * termination will be requested with {@link NCDModule_func_die}.
  * The backend instance was in down state.
  * 
- * @param o see {@link NCDModuleInst_Backend_SetUser}
+ * @param o state pointer, as in {@link NCDModule_func_new2}
  */
 typedef void (*NCDModule_func_clean) (void *o);
 
@@ -844,9 +833,7 @@ struct NCDModule {
      * The amount of memory to preallocate for each module instance.
      * Preallocation can be used to avoid having to allocate memory from
      * module initialization. The memory can be accessed via the first
-     * argument to {@link NCDModule_func_new2} and other calls (except if
-     * the callback pointer is changed subsequently using
-     * {@link NCDModuleInst_Backend_SetUser}).
+     * argument to {@link NCDModule_func_new2} and other calls.
      */
     int alloc_size;
     
