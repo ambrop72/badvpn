@@ -66,7 +66,6 @@ struct statement {
     NCDValMem args_mem;
     int mem_size;
     int i;
-    int state;
 };
 
 struct process {
@@ -490,7 +489,7 @@ int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModulePr
     for (int i = 0; i < num_statements; i++) {
         struct statement *ps = &p->statements[i];
         ps->i = i;
-        ps->state = SSTATE_FORGOTTEN;
+        ps->inst.istate = SSTATE_FORGOTTEN;
         ps->mem_size = NCDInterpProcess_StatementPreallocSize(iprocess, i);
         ps->inst.mem = mem + NCDInterpProcess_StatementPreallocOffset(iprocess, i);
     }
@@ -576,7 +575,7 @@ void process_start_terminating (struct process *p)
 
 int process_have_child (struct process *p)
 {
-    return (p->ap > 0 && p->statements[p->ap - 1].state == SSTATE_CHILD);
+    return (p->ap > 0 && p->statements[p->ap - 1].inst.istate == SSTATE_CHILD);
 }
 
 void process_assert_pointers (struct process *p)
@@ -589,15 +588,15 @@ void process_assert_pointers (struct process *p)
     // check AP
     for (int i = 0; i < p->ap; i++) {
         if (i == p->ap - 1) {
-            ASSERT(p->statements[i].state == SSTATE_ADULT || p->statements[i].state == SSTATE_CHILD)
+            ASSERT(p->statements[i].inst.istate == SSTATE_ADULT || p->statements[i].inst.istate == SSTATE_CHILD)
         } else {
-            ASSERT(p->statements[i].state == SSTATE_ADULT)
+            ASSERT(p->statements[i].inst.istate == SSTATE_ADULT)
         }
     }
     
     // check FP
     int fp = p->num_statements;
-    while (fp > 0 && p->statements[fp - 1].state == SSTATE_FORGOTTEN) {
+    while (fp > 0 && p->statements[fp - 1].inst.istate == SSTATE_FORGOTTEN) {
         fp--;
     }
     ASSERT(p->fp == fp)
@@ -665,12 +664,12 @@ void process_work_job_handler (struct process *p)
         
         // order the last living statement to die, if needed
         struct statement *ps = &p->statements[p->fp - 1];
-        ASSERT(ps->state != SSTATE_FORGOTTEN)
-        if (ps->state != SSTATE_DYING) {
+        ASSERT(ps->inst.istate != SSTATE_FORGOTTEN)
+        if (ps->inst.istate != SSTATE_DYING) {
             statement_log(ps, BLOG_INFO, "killing");
             
             // set statement state DYING
-            ps->state = SSTATE_DYING;
+            ps->inst.istate = SSTATE_DYING;
             
             // update AP
             if (p->ap > ps->i) {
@@ -705,11 +704,11 @@ void process_work_job_handler (struct process *p)
     if (p->ap < p->fp) {
         // order the last living statement to die, if needed
         struct statement *ps = &p->statements[p->fp - 1];
-        if (ps->state != SSTATE_DYING) {
+        if (ps->inst.istate != SSTATE_DYING) {
             statement_log(ps, BLOG_INFO, "killing");
             
             // set statement state DYING
-            ps->state = SSTATE_DYING;
+            ps->inst.istate = SSTATE_DYING;
             
             // order it to die
             NCDModuleInst_Die(&ps->inst);
@@ -724,7 +723,7 @@ void process_work_job_handler (struct process *p)
         ASSERT(p->ap <= p->num_statements)
         
         struct statement *ps = &p->statements[p->ap - 1];
-        ASSERT(ps->state == SSTATE_CHILD)
+        ASSERT(ps->inst.istate == SSTATE_CHILD)
         
         statement_log(ps, BLOG_INFO, "clean");
         
@@ -737,7 +736,7 @@ void process_work_job_handler (struct process *p)
     if (p->ap < p->num_statements) {
         ASSERT(process_state(p) == PSTATE_WORKING)
         struct statement *ps = &p->statements[p->ap];
-        ASSERT(ps->state == SSTATE_FORGOTTEN)
+        ASSERT(ps->inst.istate == SSTATE_FORGOTTEN)
         
         if (process_error(p)) {
             statement_log(ps, BLOG_INFO, "waiting after error");
@@ -797,7 +796,7 @@ void process_advance (struct process *p)
     ASSERT(process_state(p) == PSTATE_WORKING)
     
     struct statement *ps = &p->statements[p->ap];
-    ASSERT(ps->state == SSTATE_FORGOTTEN)
+    ASSERT(ps->inst.istate == SSTATE_FORGOTTEN)
     
     statement_log(ps, BLOG_INFO, "initializing");
     
@@ -868,7 +867,7 @@ void process_advance (struct process *p)
     }
     
     // set statement state CHILD
-    ps->state = SSTATE_CHILD;
+    ps->inst.istate = SSTATE_CHILD;
     
     // increment AP
     p->ap++;
@@ -920,7 +919,7 @@ int process_find_object (struct process *p, int pos, NCD_string_id_t name, NCDOb
         struct statement *ps = &p->statements[i];
         ASSERT(i < p->num_statements)
         
-        if (ps->state == SSTATE_FORGOTTEN) {
+        if (ps->inst.istate == SSTATE_FORGOTTEN) {
             process_log(p, BLOG_ERROR, "statement (%d) is uninitialized", i);
             return 0;
         }
@@ -1047,7 +1046,7 @@ int statement_allocate_memory (struct statement *ps, int alloc_size)
 void statement_instance_func_event (NCDModuleInst *inst, int event)
 {
     struct statement *ps = UPPER_OBJECT(inst, struct statement, inst);
-    ASSERT(ps->state == SSTATE_CHILD || ps->state == SSTATE_ADULT || ps->state == SSTATE_DYING)
+    ASSERT(ps->inst.istate == SSTATE_CHILD || ps->inst.istate == SSTATE_ADULT || ps->inst.istate == SSTATE_DYING)
     
     struct process *p = statement_process(ps);
     process_assert_pointers(p);
@@ -1057,21 +1056,21 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
     
     switch (event) {
         case NCDMODULE_EVENT_UP: {
-            ASSERT(ps->state == SSTATE_CHILD)
+            ASSERT(ps->inst.istate == SSTATE_CHILD)
             
             statement_log(ps, BLOG_INFO, "up");
             
             // set state ADULT
-            ps->state = SSTATE_ADULT;
+            ps->inst.istate = SSTATE_ADULT;
         } break;
         
         case NCDMODULE_EVENT_DOWN: {
-            ASSERT(ps->state == SSTATE_ADULT)
+            ASSERT(ps->inst.istate == SSTATE_ADULT)
             
             statement_log(ps, BLOG_INFO, "down");
             
             // set state CHILD
-            ps->state = SSTATE_CHILD;
+            ps->inst.istate = SSTATE_CHILD;
             
             // clear error
             if (ps->i < p->ap) {
@@ -1100,7 +1099,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
             NCDValMem_Free(&ps->args_mem);
             
             // set state FORGOTTEN
-            ps->state = SSTATE_FORGOTTEN;
+            ps->inst.istate = SSTATE_FORGOTTEN;
             
             // set error
             if (is_error && ps->i < p->ap) {
@@ -1113,7 +1112,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
             }
             
             // update FP
-            while (p->fp > 0 && p->statements[p->fp - 1].state == SSTATE_FORGOTTEN) {
+            while (p->fp > 0 && p->statements[p->fp - 1].inst.istate == SSTATE_FORGOTTEN) {
                 p->fp--;
             }
         } break;
@@ -1123,7 +1122,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
 int statement_instance_func_getobj (NCDModuleInst *inst, NCD_string_id_t objname, NCDObject *out_object)
 {
     struct statement *ps = UPPER_OBJECT(inst, struct statement, inst);
-    ASSERT(ps->state != SSTATE_FORGOTTEN)
+    ASSERT(ps->inst.istate != SSTATE_FORGOTTEN)
     
     return process_find_object(statement_process(ps), ps->i, objname, out_object);
 }
@@ -1165,7 +1164,7 @@ int statement_instance_func_initprocess (void *vinterp, NCDModuleProcess* mp, NC
 void statement_instance_logfunc (NCDModuleInst *inst)
 {
     struct statement *ps = UPPER_OBJECT(inst, struct statement, inst);
-    ASSERT(ps->state != SSTATE_FORGOTTEN)
+    ASSERT(ps->inst.istate != SSTATE_FORGOTTEN)
     
     statement_logfunc(ps);
     BLog_Append("module: ");

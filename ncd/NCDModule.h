@@ -343,9 +343,10 @@ struct NCDModuleInst_iparams {
 typedef struct NCDModuleInst_s {
     const struct NCDModule *m;
     const struct NCDModuleInst_params *params;
-    void *mem;
+    void *mem; // not modified by NCDModuleInst (but passed to module)
     unsigned int state:3;
     unsigned int is_error:1;
+    unsigned int istate:3; // untouched by NCDModuleInst
     DebugObject d_obj;
 } NCDModuleInst;
 
