@@ -66,13 +66,13 @@ static void inst_assert_backend (NCDModuleInst *n)
            n->state == STATE_DYING)
 }
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem, const NCDObject *method_object, NCDValRef args, const struct NCDModuleInst_params *params)
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValRef args, const struct NCDModuleInst_params *params)
 {
     ASSERT(m)
     ASSERT(m->func_new2)
     ASSERT(m->alloc_size >= 0)
     ASSERT(m->base_type_id >= 0)
-    ASSERT(!!mem == m->alloc_size > 0)
+    ASSERT(n->mem)
     ASSERT(NCDVal_IsList(args))
     ASSERT(params)
     ASSERT(params->func_event)
@@ -88,9 +88,6 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem,
     n->m = m;
     n->params = params;
     
-    // set initial instance argument
-    n->inst_user = mem;
-    
     // set initial state
     n->state = STATE_DOWN_CLEAN;
     
@@ -103,7 +100,7 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem,
     new_params.method_user = (method_object ? method_object->user : NULL);
     new_params.args = args;
     
-    n->m->func_new2(n->inst_user, n, &new_params);
+    n->m->func_new2(n->mem, n, &new_params);
 }
 
 void NCDModuleInst_Free (NCDModuleInst *n)
@@ -124,7 +121,7 @@ void NCDModuleInst_Die (NCDModuleInst *n)
         return;
     }
     
-    n->m->func_die(n->inst_user);
+    n->m->func_die(n->mem);
     return;
 }
 
@@ -137,7 +134,7 @@ void NCDModuleInst_Clean (NCDModuleInst *n)
         n->state = STATE_DOWN_CLEAN;
             
         if (n->m->func_clean) {
-            n->m->func_clean(n->inst_user);
+            n->m->func_clean(n->mem);
             return;
         }
     }
@@ -174,10 +171,10 @@ static int object_func_getvar (NCDModuleInst *n, NCD_string_id_t name, NCDValMem
     
     int res;
     if (n->m->func_getvar2) {
-        res = n->m->func_getvar2(n->inst_user, name, mem, out_value);
+        res = n->m->func_getvar2(n->mem, name, mem, out_value);
     } else {
         const char *name_str = NCDStringIndex_Value(n->params->iparams->string_index, name);
-        res = n->m->func_getvar(n->inst_user, name_str, mem, out_value);
+        res = n->m->func_getvar(n->mem, name_str, mem, out_value);
     }
     ASSERT(res == 0 || res == 1)
     ASSERT(res == 0 || (NCDVal_Assert(*out_value), 1))
@@ -193,7 +190,7 @@ static int object_func_getobj (NCDModuleInst *n, NCD_string_id_t name, NCDObject
         return 0;
     }
     
-    int res = n->m->func_getobj(n->inst_user, name, out_object);
+    int res = n->m->func_getobj(n->mem, name, out_object);
     ASSERT(res == 0 || res == 1)
     
     return res;
@@ -214,7 +211,7 @@ void * NCDModuleInst_Backend_GetUser (NCDModuleInst *n)
            n->state == STATE_UP ||
            n->state == STATE_DYING)
     
-    return n->inst_user;
+    return n->mem;
 }
 
 void NCDModuleInst_Backend_Up (NCDModuleInst *n)

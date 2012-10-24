@@ -64,7 +64,6 @@
 struct statement {
     NCDModuleInst inst;
     NCDValMem args_mem;
-    char *mem;
     int mem_size;
     int i;
     int state;
@@ -493,7 +492,7 @@ int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModulePr
         ps->i = i;
         ps->state = SSTATE_FORGOTTEN;
         ps->mem_size = NCDInterpProcess_StatementPreallocSize(iprocess, i);
-        ps->mem = (ps->mem_size == 0 ? NULL : mem + NCDInterpProcess_StatementPreallocOffset(iprocess, i));
+        ps->inst.mem = mem + NCDInterpProcess_StatementPreallocOffset(iprocess, i);
     }
     
     // init timer
@@ -527,7 +526,7 @@ void process_free (struct process *p, NCDModuleProcess **out_mp)
     for (int i = 0; i < p->num_statements; i++) {
         struct statement *ps = &p->statements[i];
         if (statement_mem_is_allocated(ps)) {
-            free(ps->mem);
+            free(ps->inst.mem);
         }
     }
     
@@ -867,7 +866,6 @@ void process_advance (struct process *p)
         statement_log(ps, BLOG_ERROR, "failed to allocate memory");
         goto fail1;
     }
-    char *mem = (module->alloc_size == 0 ? NULL : ps->mem);
     
     // set statement state CHILD
     ps->state = SSTATE_CHILD;
@@ -881,7 +879,7 @@ void process_advance (struct process *p)
     process_assert_pointers(p);
     
     // initialize module instance
-    NCDModuleInst_Init(&ps->inst, module, mem, object_ptr, args, &p->interp->module_params);
+    NCDModuleInst_Init(&ps->inst, module, object_ptr, args, &p->interp->module_params);
     return;
     
 fail1:
@@ -1029,16 +1027,17 @@ int statement_allocate_memory (struct statement *ps, int alloc_size)
     ASSERT(alloc_size >= 0)
     
     if (alloc_size > statement_mem_size(ps)) {
-        if (statement_mem_is_allocated(ps)) {
-            free(ps->mem);
-        }
-        
-        if (!(ps->mem = malloc(alloc_size))) {
+        char *new_mem = malloc(alloc_size);
+        if (!new_mem) {
             statement_log(ps, BLOG_ERROR, "malloc failed");
-            ps->mem_size = 0;
             return 0;
         }
         
+        if (statement_mem_is_allocated(ps)) {
+            free(ps->inst.mem);
+        }
+        
+        ps->inst.mem = new_mem;
         ps->mem_size = -alloc_size;
     }
     

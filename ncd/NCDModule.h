@@ -343,7 +343,7 @@ struct NCDModuleInst_iparams {
 typedef struct NCDModuleInst_s {
     const struct NCDModule *m;
     const struct NCDModuleInst_params *params;
-    void *inst_user;
+    void *mem;
     int state;
     int is_error;
     DebugObject d_obj;
@@ -375,11 +375,14 @@ typedef struct NCDModuleProcess_s {
  * The Backend methods are the module backend interface and are documented
  * independently with their own logical states.
  * 
+ * NOTE: the instance structure \a n should have the member 'mem' initialized
+ * to point to preallocated memory for the statement. This memory must be
+ * at least m->prealloc_size big and must be properly aligned for any object.
+ * The 'mem' pointer is never modified by NCDModuleInst, so that the interpreter
+ * can use it as outside the lifetime of NCDModuleInst.
+ * 
  * @param n the instance
  * @param m structure of module functions implementing the module backend
- * @param mem preallocated memory for the instance. If m->prealloc_size == 0, this must be NULL;
- *            if it is >0, it must point to a block of memory with at least that many bytes available,
- *            and properly aligned for any object.
  * @param method_object the base object if the module being initialized is a method, otherwise NULL.
  *                      The caller must ensure that this object is of the type expected by the module
  *                      being initialized.
@@ -388,7 +391,7 @@ typedef struct NCDModuleProcess_s {
  * @param user argument to callback functions
  * @param params more parameters, see {@link NCDModuleInst_params}
  */
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *mem, const NCDObject *method_object, NCDValRef args, const struct NCDModuleInst_params *params);
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValRef args, const struct NCDModuleInst_params *params);
 
 /**
  * Frees the instance.
