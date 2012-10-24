@@ -55,6 +55,13 @@
 #include <random/BRandom2.h>
 #endif
 
+/**
+ * Handler called when the interpreter has terminated, and {@link NCDInterpreter_Free}
+ * can be called.
+ * 
+ * @param user the user member of struct {@link NCDInterpreter_params}
+ * @param exit_code the exit code specified in the last interpreter termination request
+ */
 typedef void (*NCDInterpreter_handler_finished) (void *user, int exit_code);
 
 struct NCDInterpreter_params {
@@ -119,8 +126,36 @@ typedef struct {
     DebugObject d_obj;
 } NCDInterpreter;
 
+/**
+ * Initializes and starts the interpreter.
+ * 
+ * @param o the interpreter
+ * @param program pointer to NCD program text
+ * @param program_len number of characters in program
+ * @param params other parameters
+ * @return 1 on success, 0 on failure
+ */
 int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_len, struct NCDInterpreter_params params) WARN_UNUSED;
+
+/**
+ * Frees the interpreter.
+ * This may only be called after the interpreter has terminated, i.e.
+ * the {@link NCDInterpreter_handler_finished} handler has been called.
+ * Additionally, it can be called right after {@link NCDInterpreter_Init}
+ * before any of the interpreter's {@link BPendingGroup} jobs have executed.
+ */
 void NCDInterpreter_Free (NCDInterpreter *o);
+
+/**
+ * Requests termination of the interpreter.
+ * NOTE: the program can request its own termination, possibly overriding the exit
+ * code specified here. Expect the program to terminate even if this function was
+ * not called.
+ * 
+ * @param o the interpreter
+ * @param exit_code the exit code to be passed to {@link NCDInterpreter_handler_finished}.
+ *                  This overrides any exit code set previously.
+ */
 void NCDInterpreter_RequestShutdown (NCDInterpreter *o, int exit_code);
 
 #endif

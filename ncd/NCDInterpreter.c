@@ -28,7 +28,6 @@
  */
 
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -85,10 +84,10 @@ struct process {
     struct statement statements[];
 };
 
-static void start_terminate (NCDInterpreter *o, int exit_code);
-static char * implode_id_strings (NCDInterpreter *o, const NCD_string_id_t *names, size_t num_names, char del);
-static int alloc_base_type_strings (NCDInterpreter *o, const struct NCDModuleGroup *g);
-static int process_new (NCDInterpreter *o, NCDInterpProcess *iprocess, NCDModuleProcess *module_process);
+static void start_terminate (NCDInterpreter *interp, int exit_code);
+static char * implode_id_strings (NCDInterpreter *interp, const NCD_string_id_t *names, size_t num_names, char del);
+static int alloc_base_type_strings (NCDInterpreter *interp, const struct NCDModuleGroup *g);
+static int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModuleProcess *module_process);
 static void process_free (struct process *p, NCDModuleProcess **out_mp);
 static int process_state (struct process *p);
 static void process_set_state (struct process *p, int state);
@@ -148,36 +147,36 @@ int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_
     // init string index
     if (!NCDStringIndex_Init(&o->string_index)) {
         BLog(BLOG_ERROR, "NCDStringIndex_Init failed");
-        goto fail1aaa;
+        goto fail0;
     }
     
     // init method index
     if (!NCDMethodIndex_Init(&o->method_index, &o->string_index)) {
         BLog(BLOG_ERROR, "NCDMethodIndex_Init failed");
-        goto fail1b;
+        goto fail1;
     }
     
     // init module index
     if (!NCDModuleIndex_Init(&o->mindex)) {
         BLog(BLOG_ERROR, "NCDModuleIndex_Init failed");
-        goto fail1c;
+        goto fail2;
     }
     
     // add module groups to index and allocate string id's for base_type's
     for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
         if (!NCDModuleIndex_AddGroup(&o->mindex, *g, &o->method_index)) {
             BLog(BLOG_ERROR, "NCDModuleIndex_AddGroup failed");
-            goto fail2;
+            goto fail3;
         }
         if (!alloc_base_type_strings(o, *g)) {
-            goto fail2;
+            goto fail3;
         }
     }
     
     // parse config file
     if (!NCDConfigParser_Parse((char *)program, program_len, &o->program)) {
         BLog(BLOG_ERROR, "NCDConfigParser_Parse failed");
-        goto fail2;
+        goto fail3;
     }
     
     // desugar
@@ -195,7 +194,7 @@ int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_
     // init interp program
     if (!NCDInterpProg_Init(&o->iprogram, &o->program, &o->string_index, &o->placeholder_db, &o->mindex, &o->method_index)) {
         BLog(BLOG_ERROR, "NCDInterpProg_Init failed");
-        goto fail4a;
+        goto fail5;
     }
     
     // init pointers to global resources in out struct NCDModuleInst_iparams.
@@ -219,13 +218,13 @@ int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_
         // map strings
         if ((*g)->strings && !NCDStringIndex_GetRequests(&o->string_index, (*g)->strings)) {
             BLog(BLOG_ERROR, "NCDStringIndex_GetRequests failed for some module");
-            goto fail5;
+            goto fail6;
         }
         
         // call func_globalinit
         if ((*g)->func_globalinit && !(*g)->func_globalinit(&o->module_iparams)) {
             BLog(BLOG_ERROR, "globalinit failed for some module");
-            goto fail5;
+            goto fail6;
         }
         
         o->num_inited_modules++;
@@ -261,14 +260,14 @@ int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_
         
         if (!process_new(o, iprocess, NULL)) {
             BLog(BLOG_ERROR, "failed to initialize process, exiting");
-            goto fail6;
+            goto fail7;
         }
     }
     
     DebugObject_Init(&o->d_obj);
     return 1;
     
-fail6:;
+fail7:;
     LinkedList1Node *ln;
     while (ln = LinkedList1_GetFirst(&o->processes)) {
         struct process *p = UPPER_OBJECT(ln, struct process, list_node);
@@ -276,41 +275,41 @@ fail6:;
         process_free(p, &mp);
         ASSERT(!mp)
     }
-fail5:
+fail6:
     // free modules
-    while (o->num_inited_modules > 0) {
-        const struct NCDModuleGroup **g = &ncd_modules[o->num_inited_modules - 1];
+    while (o->num_inited_modules-- > 0) {
+        const struct NCDModuleGroup **g = &ncd_modules[o->num_inited_modules];
         if ((*g)->func_globalfree) {
             (*g)->func_globalfree();
         }
-        o->num_inited_modules--;
     }
     // free interp program
     NCDInterpProg_Free(&o->iprogram);
-fail4a:
+fail5:
     // free placeholder database
     NCDPlaceholderDb_Free(&o->placeholder_db);
 fail4:
     // free program AST
     NCDProgram_Free(&o->program);
-fail2:
+fail3:
     // free module index
     NCDModuleIndex_Free(&o->mindex);
-fail1c:
+fail2:
     // free method index
     NCDMethodIndex_Free(&o->method_index);
-fail1b:
+fail1:
     // free string index
     NCDStringIndex_Free(&o->string_index);
-fail1aaa:
+fail0:
     return 0;
 }
 
 void NCDInterpreter_Free (NCDInterpreter *o)
 {
     DebugObject_Free(&o->d_obj);
-    ASSERT(LinkedList1_IsEmpty(&o->processes))
+    // any process that exists must be completely uninitialized
     
+    // free processes
     LinkedList1Node *ln;
     while (ln = LinkedList1_GetFirst(&o->processes)) {
         struct process *p = UPPER_OBJECT(ln, struct process, list_node);
@@ -320,12 +319,11 @@ void NCDInterpreter_Free (NCDInterpreter *o)
     }
     
     // free modules
-    while (o->num_inited_modules > 0) {
-        const struct NCDModuleGroup **g = &ncd_modules[o->num_inited_modules - 1];
+    while (o->num_inited_modules-- > 0) {
+        const struct NCDModuleGroup **g = &ncd_modules[o->num_inited_modules];
         if ((*g)->func_globalfree) {
             (*g)->func_globalfree();
         }
-        o->num_inited_modules--;
     }
     
     // free interp program
@@ -354,23 +352,27 @@ void NCDInterpreter_RequestShutdown (NCDInterpreter *o, int exit_code)
     start_terminate(o, exit_code);
 }
 
-void start_terminate (NCDInterpreter *o, int exit_code)
+void start_terminate (NCDInterpreter *interp, int exit_code)
 {
-    o->main_exit_code = exit_code;
+    // remember exit code
+    interp->main_exit_code = exit_code;
     
-    if (o->terminating) {
+    // if we're already terminating, there's nothing to do
+    if (interp->terminating) {
         return;
     }
     
-    o->terminating = 1;
+    // set the terminating flag
+    interp->terminating = 1;
     
-    if (LinkedList1_IsEmpty(&o->processes)) {
-        o->params.handler_finished(o->params.user, o->main_exit_code);
+    // if there are no processes, we're done
+    if (LinkedList1_IsEmpty(&interp->processes)) {
+        interp->params.handler_finished(interp->params.user, interp->main_exit_code);
         return;
     }
     
     // start terminating non-template processes
-    for (LinkedList1Node *ln = LinkedList1_GetFirst(&o->processes); ln; ln = LinkedList1Node_Next(ln)) {
+    for (LinkedList1Node *ln = LinkedList1_GetFirst(&interp->processes); ln; ln = LinkedList1Node_Next(ln)) {
         struct process *p = UPPER_OBJECT(ln, struct process, list_node);
         if (p->module_process) {
             continue;
@@ -381,7 +383,7 @@ void start_terminate (NCDInterpreter *o, int exit_code)
     }
 }
 
-char * implode_id_strings (NCDInterpreter *o, const NCD_string_id_t *names, size_t num_names, char del)
+char * implode_id_strings (NCDInterpreter *interp, const NCD_string_id_t *names, size_t num_names, char del)
 {
     ExpString str;
     if (!ExpString_Init(&str)) {
@@ -394,7 +396,7 @@ char * implode_id_strings (NCDInterpreter *o, const NCD_string_id_t *names, size
         if (!is_first && !ExpString_AppendChar(&str, del)) {
             goto fail1;
         }
-        const char *name_str = NCDStringIndex_Value(&o->string_index, *names);
+        const char *name_str = NCDStringIndex_Value(&interp->string_index, *names);
         if (!ExpString_Append(&str, name_str)) {
             goto fail1;
         }
@@ -411,13 +413,13 @@ fail0:
     return NULL;
 }
 
-int alloc_base_type_strings (NCDInterpreter *o, const struct NCDModuleGroup *g)
+int alloc_base_type_strings (NCDInterpreter *interp, const struct NCDModuleGroup *g)
 {
     for (struct NCDModule *m = g->modules; m->type; m++) {
         const char *type = (m->base_type ? m->base_type : m->type);
         ASSERT(type)
         
-        m->base_type_id = NCDStringIndex_Get(&o->string_index, type);
+        m->base_type_id = NCDStringIndex_Get(&interp->string_index, type);
         if (m->base_type_id < 0) {
             BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
             return 0;
@@ -427,7 +429,7 @@ int alloc_base_type_strings (NCDInterpreter *o, const struct NCDModuleGroup *g)
     return 1;
 }
 
-int process_new (NCDInterpreter *o, NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
+int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
 {
     ASSERT(iprocess)
     
@@ -469,7 +471,7 @@ int process_new (NCDInterpreter *o, NCDInterpProcess *iprocess, NCDModuleProcess
     }
     
     // set variables
-    p->interp = o;
+    p->interp = interp;
     p->iprocess = iprocess;
     p->module_process = module_process;
     p->ap = 0;
@@ -498,13 +500,13 @@ int process_new (NCDInterpreter *o, NCDInterpProcess *iprocess, NCDModuleProcess
     BSmallTimer_Init(&p->wait_timer, process_wait_timer_handler);
     
     // init work job
-    BSmallPending_Init(&p->work_job, BReactor_PendingGroup(p->interp->params.reactor), (BSmallPending_handler)process_work_job_handler, p);
+    BSmallPending_Init(&p->work_job, BReactor_PendingGroup(interp->params.reactor), (BSmallPending_handler)process_work_job_handler, p);
     
     // insert to processes list
-    LinkedList1_Append(&o->processes, &p->list_node);
+    LinkedList1_Append(&interp->processes, &p->list_node);
     
     // schedule work
-    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->interp->params.reactor));   
+    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(interp->params.reactor));   
     return 1;
     
 fail0:
