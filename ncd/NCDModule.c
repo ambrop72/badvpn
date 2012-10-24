@@ -36,18 +36,18 @@
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
 
-#define STATE_DEAD 3
-#define STATE_DOWN_CLEAN 4
-#define STATE_UP 5
-#define STATE_DOWN_UNCLEAN 6
-#define STATE_DYING 10
+#define STATE_DEAD 0
+#define STATE_DOWN_CLEAN 1
+#define STATE_UP 2
+#define STATE_DOWN_UNCLEAN 3
+#define STATE_DYING 4
 
-#define PROCESS_STATE_INIT 1
-#define PROCESS_STATE_DOWN 2
-#define PROCESS_STATE_UP 4
-#define PROCESS_STATE_DOWN_WAITING 6
-#define PROCESS_STATE_TERMINATING 8
-#define PROCESS_STATE_TERMINATED 10
+#define PROCESS_STATE_INIT 0
+#define PROCESS_STATE_DOWN 1
+#define PROCESS_STATE_UP 2
+#define PROCESS_STATE_DOWN_WAITING 3
+#define PROCESS_STATE_TERMINATING 4
+#define PROCESS_STATE_TERMINATED 5
 
 static int object_func_getvar (NCDModuleInst *n, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
 static int object_func_getobj (NCDModuleInst *n, NCD_string_id_t name, NCDObject *out_object);

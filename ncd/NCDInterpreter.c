@@ -45,10 +45,10 @@
 
 #include <generated/blog_channel_ncd.h>
 
-#define SSTATE_CHILD 1
-#define SSTATE_ADULT 2
-#define SSTATE_DYING 3
-#define SSTATE_FORGOTTEN 4
+#define SSTATE_CHILD 0
+#define SSTATE_ADULT 1
+#define SSTATE_DYING 2
+#define SSTATE_FORGOTTEN 3
 
 #define PSTATE_WORKING 0
 #define PSTATE_UP 1
