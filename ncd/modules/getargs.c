@@ -44,9 +44,14 @@
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-static void func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+struct instance {
+    NCDModuleInst *i;
+};
+
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    NCDModuleInst_Backend_SetUser(i, i);
+    struct instance *o = vo;
+    o->i = i;
     
     // check arguments
     if (!NCDVal_ListRead(params->args, 0)) {
@@ -65,11 +70,11 @@ fail0:
 
 static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
-    NCDModuleInst *i = vo;
+    struct instance *o = vo;
     
     if (name == NCD_STRING_EMPTY) {
-        if (!NCDModuleInst_Backend_InterpGetArgs(i, mem, out)) {
-            ModuleLog(i, BLOG_ERROR, "NCDModuleInst_Backend_InterpGetArgs failed");
+        if (!NCDModuleInst_Backend_InterpGetArgs(o->i, mem, out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDModuleInst_Backend_InterpGetArgs failed");
             return 0;
         }
         return 1;
@@ -82,7 +87,8 @@ static struct NCDModule modules[] = {
     {
         .type = "getargs",
         .func_new2 = func_new,
-        .func_getvar2 = func_getvar2
+        .func_getvar2 = func_getvar2,
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }
