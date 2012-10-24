@@ -700,7 +700,8 @@ typedef void (*NCDModule_func_globalfree) (void);
  * 
  * @param o if the module specifies a positive alloc_size value in the {@link NCDModule}
  *          structure, this will point to the allocated memory that can be used by the
- *          module instance while it exists. Otherwise, it will be NULL.
+ *          module instance while it exists. If the alloc_size is 0 (default), this may or
+ *          may not be NULL.
  * @param i module backend instance handler. The backend may only use this handle via
  *          the Backend functions of {@link NCDModuleInst}.
  */
