@@ -613,7 +613,7 @@ void process_work_job_handler (struct process *p)
     int pstate = p->state;
     
     // process was up but is no longer?
-    if (pstate == PSTATE_UP && !(!process_have_child(p) && p->ap == p->num_statements)) {
+    if (pstate == PSTATE_UP && (p->ap < p->num_statements || process_have_child(p))) {
         // if we have module process, wait for its permission to continue
         if (p->module_process) {
             // set state waiting
