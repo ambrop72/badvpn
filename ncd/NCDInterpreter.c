@@ -89,6 +89,7 @@ static void process_logfunc (struct process *p);
 static void process_log (struct process *p, int level, const char *fmt, ...);
 static void process_schedule_work (struct process *p);
 static void process_work_job_handler (struct process *p);
+static void process_work_job_handler_terminating (struct process *p);
 static int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRef *out);
 static void process_advance (struct process *p);
 static void process_wait_timer_handler (BSmallTimer *timer);
@@ -541,6 +542,9 @@ void process_start_terminating (struct process *p)
     // set terminating
     p->state = PSTATE_TERMINATING;
     
+    // change work handler
+    BSmallPending_SetHandler(&p->work_job, (BPending_handler)process_work_job_handler_terminating, p);
+    
     // schedule work
     process_schedule_work(p);
 }
@@ -603,55 +607,11 @@ void process_work_job_handler (struct process *p)
 {
     process_assert_pointers(p);
     ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
+    ASSERT(p->state != PSTATE_TERMINATING)
     
     int pstate = p->state;
     
     if (pstate == PSTATE_WAITING) {
-        return;
-    }
-    
-    if (pstate == PSTATE_TERMINATING) {
-        if (p->fp == 0) {
-            NCDInterpreter *interp = p->interp;
-            
-            // free process
-            NCDModuleProcess *mp;
-            process_free(p, &mp);
-            
-            // if program is terminating amd there are no more processes, exit program
-            if (interp->terminating && LinkedList1_IsEmpty(&interp->processes)) {
-                ASSERT(!mp)
-                interp->params.handler_finished(interp->params.user, interp->main_exit_code);
-                return;
-            }
-            
-            // inform the process creator that the process has terminated
-            if (mp) {
-                NCDModuleProcess_Interp_Terminated(mp);
-                return;
-            }
-            
-            return;
-        }
-        
-        // order the last living statement to die, if needed
-        struct statement *ps = &p->statements[p->fp - 1];
-        ASSERT(ps->inst.istate != SSTATE_FORGOTTEN)
-        if (ps->inst.istate != SSTATE_DYING) {
-            statement_log(ps, BLOG_INFO, "killing");
-            
-            // set statement state DYING
-            ps->inst.istate = SSTATE_DYING;
-            
-            // update AP
-            if (p->ap > ps->i) {
-                p->ap = ps->i;
-            }
-            
-            // order it to die
-            NCDModuleInst_Die(&ps->inst);
-            return;
-        }
         return;
     }
     
@@ -737,6 +697,55 @@ void process_work_job_handler (struct process *p)
             NCDModuleProcess_Interp_Up(p->module_process);
             return;
         }
+    }
+}
+
+void process_work_job_handler_terminating (struct process *p)
+{
+    process_assert_pointers(p);
+    ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
+    ASSERT(p->state == PSTATE_TERMINATING)
+    
+    if (p->fp == 0) {
+        NCDInterpreter *interp = p->interp;
+        
+        // free process
+        NCDModuleProcess *mp;
+        process_free(p, &mp);
+        
+        // if program is terminating amd there are no more processes, exit program
+        if (interp->terminating && LinkedList1_IsEmpty(&interp->processes)) {
+            ASSERT(!mp)
+            interp->params.handler_finished(interp->params.user, interp->main_exit_code);
+            return;
+        }
+        
+        // inform the process creator that the process has terminated
+        if (mp) {
+            NCDModuleProcess_Interp_Terminated(mp);
+            return;
+        }
+        
+        return;
+    }
+    
+    // order the last living statement to die, if needed
+    struct statement *ps = &p->statements[p->fp - 1];
+    ASSERT(ps->inst.istate != SSTATE_FORGOTTEN)
+    if (ps->inst.istate != SSTATE_DYING) {
+        statement_log(ps, BLOG_INFO, "killing");
+        
+        // set statement state DYING
+        ps->inst.istate = SSTATE_DYING;
+        
+        // update AP
+        if (p->ap > ps->i) {
+            p->ap = ps->i;
+        }
+        
+        // order it to die
+        NCDModuleInst_Die(&ps->inst);
+        return;
     }
 }
 
