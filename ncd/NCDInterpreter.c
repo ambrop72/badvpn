@@ -88,7 +88,8 @@ static void process_assert_pointers (struct process *p);
 static void process_logfunc (struct process *p);
 static void process_log (struct process *p, int level, const char *fmt, ...);
 static void process_schedule_work (struct process *p);
-static void process_work_job_handler (struct process *p);
+static void process_work_job_handler_working (struct process *p);
+static void process_work_job_handler_up (struct process *p);
 static void process_work_job_handler_terminating (struct process *p);
 static int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRef *out);
 static void process_advance (struct process *p);
@@ -491,7 +492,7 @@ int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModulePr
     BSmallTimer_Init(&p->wait_timer, process_wait_timer_handler);
     
     // init work job
-    BSmallPending_Init(&p->work_job, BReactor_PendingGroup(interp->params.reactor), (BSmallPending_handler)process_work_job_handler, p);
+    BSmallPending_Init(&p->work_job, BReactor_PendingGroup(interp->params.reactor), (BSmallPending_handler)process_work_job_handler_working, p);
     
     // insert to processes list
     LinkedList1_Append(&interp->processes, &p->list_node);
@@ -539,11 +540,9 @@ void process_start_terminating (struct process *p)
 {
     ASSERT(p->state != PSTATE_TERMINATING)
     
-    // set terminating
+    // set state terminating
     p->state = PSTATE_TERMINATING;
-    
-    // change work handler
-    BSmallPending_SetHandler(&p->work_job, (BPending_handler)process_work_job_handler_terminating, p);
+    BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_terminating, p);
     
     // schedule work
     process_schedule_work(p);
@@ -603,31 +602,11 @@ void process_schedule_work (struct process *p)
     BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->interp->params.reactor));
 }
 
-void process_work_job_handler (struct process *p)
+void process_work_job_handler_working (struct process *p)
 {
     process_assert_pointers(p);
     ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
-    ASSERT(p->state != PSTATE_TERMINATING)
-    ASSERT(p->state != PSTATE_WAITING)
-    
-    int pstate = p->state;
-    
-    // process was up but is no longer?
-    if (pstate == PSTATE_UP && (p->ap < p->num_statements || process_have_child(p))) {
-        // if we have module process, wait for its permission to continue
-        if (p->module_process) {
-            // set state waiting
-            p->state = PSTATE_WAITING;
-            
-            // set module process down
-            NCDModuleProcess_Interp_Down(p->module_process);
-            return;
-        }
-        
-        // set state working
-        p->state = PSTATE_WORKING;
-        pstate = PSTATE_WORKING;
-    }
+    ASSERT(p->state == PSTATE_WORKING)
     
     // cleaning up?
     if (p->ap < p->fp) {
@@ -663,7 +642,6 @@ void process_work_job_handler (struct process *p)
     
     // advancing?
     if (p->ap < p->num_statements) {
-        ASSERT(p->state == PSTATE_WORKING)
         struct statement *ps = &p->statements[p->ap];
         ASSERT(ps->inst.istate == SSTATE_FORGOTTEN)
         
@@ -682,19 +660,43 @@ void process_work_job_handler (struct process *p)
         return;
     }
     
-    // have we just finished?
-    if (pstate == PSTATE_WORKING) {
-        process_log(p, BLOG_INFO, "victory");
-        
-        // set state up
-        p->state = PSTATE_UP;
-        
-        // set module process up
-        if (p->module_process) {
-            NCDModuleProcess_Interp_Up(p->module_process);
-            return;
-        }
+    // we've finished
+    process_log(p, BLOG_INFO, "victory");
+    
+    // set state up
+    p->state = PSTATE_UP;
+    BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_up, p);
+    
+    // set module process up
+    if (p->module_process) {
+        NCDModuleProcess_Interp_Up(p->module_process);
+        return;
     }
+}
+
+void process_work_job_handler_up (struct process *p)
+{
+    process_assert_pointers(p);
+    ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
+    ASSERT(p->state == PSTATE_UP)
+    ASSERT(p->ap < p->num_statements || process_have_child(p))
+    
+    // if we have module process, wait for its permission to continue
+    if (p->module_process) {
+        // set state waiting
+        p->state = PSTATE_WAITING;
+        
+        // set module process down
+        NCDModuleProcess_Interp_Down(p->module_process);
+        return;
+    }
+    
+    // set state working
+    p->state = PSTATE_WORKING;
+    BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_working, p);
+    
+    // delegate the rest to the working handler
+    process_work_job_handler_working(p);
 }
 
 void process_work_job_handler_terminating (struct process *p)
@@ -1201,6 +1203,7 @@ void process_moduleprocess_func_event (struct process *p, int event)
             
             // set state working
             p->state = PSTATE_WORKING;
+            BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_working, p);
             
             // schedule work
             process_schedule_work(p);
