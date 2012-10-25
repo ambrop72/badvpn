@@ -78,7 +78,8 @@ struct process {
     int ap;
     int fp;
     int num_statements;
-    int state2_error1;
+    unsigned int state:2;
+    unsigned int error:1;
     struct statement statements[];
 };
 
@@ -87,10 +88,6 @@ static char * implode_id_strings (NCDInterpreter *interp, const NCD_string_id_t 
 static int alloc_base_type_strings (NCDInterpreter *interp, const struct NCDModuleGroup *g);
 static int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModuleProcess *module_process);
 static void process_free (struct process *p, NCDModuleProcess **out_mp);
-static int process_state (struct process *p);
-static void process_set_state (struct process *p, int state);
-static int process_error (struct process *p);
-static void process_set_error (struct process *p, int error);
 static void process_start_terminating (struct process *p);
 static int process_have_child (struct process *p);
 static void process_assert_pointers (struct process *p);
@@ -375,7 +372,7 @@ void start_terminate (NCDInterpreter *interp, int exit_code)
         if (p->module_process) {
             continue;
         }
-        if (process_state(p) != PSTATE_TERMINATING) {
+        if (p->state != PSTATE_TERMINATING) {
             process_start_terminating(p);
         }
     }
@@ -475,7 +472,8 @@ int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModulePr
     p->ap = 0;
     p->fp = 0;
     p->num_statements = num_statements;
-    p->state2_error1 = PSTATE_WORKING << PROCESS_STATE_SHIFT;
+    p->state = PSTATE_WORKING;
+    p->error = 0;
     
     // set module process handlers
     if (p->module_process) {
@@ -542,32 +540,12 @@ void process_free (struct process *p, NCDModuleProcess **out_mp)
     BFree(p);
 }
 
-int process_state (struct process *p)
-{
-    return (p->state2_error1 & PROCESS_STATE_MASK) >> PROCESS_STATE_SHIFT;
-}
-
-void process_set_state (struct process *p, int state)
-{
-    p->state2_error1 = (p->state2_error1 & ~PROCESS_STATE_MASK) | (state << PROCESS_STATE_SHIFT);
-}
-
-int process_error (struct process *p)
-{
-    return (p->state2_error1 & PROCESS_ERROR_MASK) >> PROCESS_ERROR_SHIFT;
-}
-
-void process_set_error (struct process *p, int error)
-{
-    p->state2_error1 = (p->state2_error1 & ~PROCESS_ERROR_MASK) | (error << PROCESS_ERROR_SHIFT);
-}
-
 void process_start_terminating (struct process *p)
 {
-    ASSERT(process_state(p) != PSTATE_TERMINATING)
+    ASSERT(p->state != PSTATE_TERMINATING)
     
     // set terminating
-    process_set_state(p, PSTATE_TERMINATING);
+    p->state = PSTATE_TERMINATING;
     
     // schedule work
     process_schedule_work(p);
@@ -632,7 +610,7 @@ void process_work_job_handler (struct process *p)
     process_assert_pointers(p);
     ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
     
-    int pstate = process_state(p);
+    int pstate = p->state;
     
     if (pstate == PSTATE_WAITING) {
         return;
@@ -688,7 +666,7 @@ void process_work_job_handler (struct process *p)
         // if we have module process, wait for its permission to continue
         if (p->module_process) {
             // set state waiting
-            process_set_state(p, PSTATE_WAITING);
+            p->state = PSTATE_WAITING;
             
             // set module process down
             NCDModuleProcess_Interp_Down(p->module_process);
@@ -696,7 +674,7 @@ void process_work_job_handler (struct process *p)
         }
         
         // set state working
-        process_set_state(p, PSTATE_WORKING);
+        p->state = PSTATE_WORKING;
         pstate = PSTATE_WORKING;
     }
     
@@ -734,15 +712,15 @@ void process_work_job_handler (struct process *p)
     
     // advancing?
     if (p->ap < p->num_statements) {
-        ASSERT(process_state(p) == PSTATE_WORKING)
+        ASSERT(p->state == PSTATE_WORKING)
         struct statement *ps = &p->statements[p->ap];
         ASSERT(ps->inst.istate == SSTATE_FORGOTTEN)
         
-        if (process_error(p)) {
+        if (p->error) {
             statement_log(ps, BLOG_INFO, "waiting after error");
             
             // clear error
-            process_set_error(p, 0);
+            p->error = 0;
             
             // set wait timer
             BReactor_SetSmallTimer(p->interp->params.reactor, &p->wait_timer, BTIMER_SET_RELATIVE, p->interp->params.retry_time);
@@ -758,7 +736,7 @@ void process_work_job_handler (struct process *p)
         process_log(p, BLOG_INFO, "victory");
         
         // set state up
-        process_set_state(p, PSTATE_UP);
+        p->state = PSTATE_UP;
         
         // set module process up
         if (p->module_process) {
@@ -790,10 +768,10 @@ void process_advance (struct process *p)
     ASSERT(p->ap == p->fp)
     ASSERT(!process_have_child(p))
     ASSERT(p->ap < p->num_statements)
-    ASSERT(!process_error(p))
+    ASSERT(!p->error)
     ASSERT(!BSmallPending_IsSet(&p->work_job))
     ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
-    ASSERT(process_state(p) == PSTATE_WORKING)
+    ASSERT(p->state == PSTATE_WORKING)
     
     struct statement *ps = &p->statements[p->ap];
     ASSERT(ps->inst.istate == SSTATE_FORGOTTEN)
@@ -885,7 +863,7 @@ fail1:
     NCDValMem_Free(&ps->args_mem);
 fail0:
     // set error
-    process_set_error(p, 1);
+    p->error = 1;
     
     // schedule work to start the timer
     process_schedule_work(p);
@@ -898,9 +876,9 @@ void process_wait_timer_handler (BSmallTimer *timer)
     ASSERT(p->ap == p->fp)
     ASSERT(!process_have_child(p))
     ASSERT(p->ap < p->num_statements)
-    ASSERT(!process_error(p))
+    ASSERT(!p->error)
     ASSERT(!BSmallPending_IsSet(&p->work_job))
-    ASSERT(process_state(p) == PSTATE_WORKING)
+    ASSERT(p->state == PSTATE_WORKING)
     
     process_log(p, BLOG_INFO, "retrying");
     
@@ -1074,7 +1052,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
             
             // clear error
             if (ps->i < p->ap) {
-                process_set_error(p, 0);
+                p->error = 0;
             }
             
             // update AP
@@ -1103,7 +1081,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
             
             // set error
             if (is_error && ps->i < p->ap) {
-                process_set_error(p, 1);
+                p->error = 1;
             }
             
             // update AP
@@ -1217,17 +1195,17 @@ void process_moduleprocess_func_event (struct process *p, int event)
     
     switch (event) {
         case NCDMODULEPROCESS_INTERP_EVENT_CONTINUE: {
-            ASSERT(process_state(p) == PSTATE_WAITING)
+            ASSERT(p->state  == PSTATE_WAITING)
             
             // set state working
-            process_set_state(p, PSTATE_WORKING);
+            p->state = PSTATE_WORKING;
             
             // schedule work
             process_schedule_work(p);
         } break;
         
         case NCDMODULEPROCESS_INTERP_EVENT_TERMINATE: {
-            ASSERT(process_state(p) != PSTATE_TERMINATING)
+            ASSERT(p->state != PSTATE_TERMINATING)
             
             process_log(p, BLOG_INFO, "process termination requested");
         
