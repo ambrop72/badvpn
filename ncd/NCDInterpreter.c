@@ -608,12 +608,9 @@ void process_work_job_handler (struct process *p)
     process_assert_pointers(p);
     ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
     ASSERT(p->state != PSTATE_TERMINATING)
+    ASSERT(p->state != PSTATE_WAITING)
     
     int pstate = p->state;
-    
-    if (pstate == PSTATE_WAITING) {
-        return;
-    }
     
     // process was up but is no longer?
     if (pstate == PSTATE_UP && !(!process_have_child(p) && p->ap == p->num_statements)) {
@@ -1033,7 +1030,9 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
     process_assert_pointers(p);
     
     // schedule work
-    process_schedule_work(p);
+    if (p->state != PSTATE_WAITING) {
+        process_schedule_work(p);
+    }
     
     switch (event) {
         case NCDMODULE_EVENT_UP: {
