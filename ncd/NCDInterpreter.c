@@ -55,12 +55,6 @@
 #define PSTATE_WAITING 2
 #define PSTATE_TERMINATING 3
 
-#define PROCESS_STATE_MASK 0x3
-#define PROCESS_ERROR_MASK 0x4
-
-#define PROCESS_STATE_SHIFT 0
-#define PROCESS_ERROR_SHIFT 2
-
 struct statement {
     NCDModuleInst inst;
     NCDValMem args_mem;
