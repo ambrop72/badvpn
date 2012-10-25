@@ -163,6 +163,15 @@ void BSmallPending_Init (BSmallPending *o, BPendingGroup *g, BSmallPending_handl
 void BSmallPending_Free (BSmallPending *o, BPendingGroup *g);
 
 /**
+ * Changes the job execution handler.
+ * 
+ * @param o the object
+ * @param handler job execution handler
+ * @param user value to pass to handler
+ */
+void BSmallPending_SetHandler (BSmallPending *o, BSmallPending_handler handler, void *user);
+
+/**
  * Enables the job, pushing it to the top of the job list.
  * If the object was already in set state, the job is removed from its
  * current position in the list before being pushed.

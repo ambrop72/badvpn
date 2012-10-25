@@ -125,6 +125,15 @@ void BSmallPending_Free (BSmallPending *o, BPendingGroup *g)
     }
 }
 
+void BSmallPending_SetHandler (BSmallPending *o, BSmallPending_handler handler, void *user)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    // set handler
+    o->handler = handler;
+    o->user = user;
+}
+
 void BSmallPending_Set (BSmallPending *o, BPendingGroup *g)
 {
     DebugObject_Access(&o->d_obj);
