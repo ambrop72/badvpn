@@ -1198,7 +1198,7 @@ void process_moduleprocess_func_event (struct process *p, int event)
     
     switch (event) {
         case NCDMODULEPROCESS_INTERP_EVENT_CONTINUE: {
-            ASSERT(p->state  == PSTATE_WAITING)
+            ASSERT(p->state == PSTATE_WAITING)
             
             // set state working
             p->state = PSTATE_WORKING;
