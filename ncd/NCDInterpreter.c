@@ -368,9 +368,7 @@ void start_terminate (NCDInterpreter *interp, int exit_code)
         if (p->module_process) {
             continue;
         }
-        if (p->state != PSTATE_TERMINATING) {
-            process_start_terminating(p);
-        }
+        process_start_terminating(p);
     }
 }
 
@@ -538,8 +536,6 @@ void process_free (struct process *p, NCDModuleProcess **out_mp)
 
 void process_start_terminating (struct process *p)
 {
-    ASSERT(p->state != PSTATE_TERMINATING)
-    
     // set state terminating
     p->state = PSTATE_TERMINATING;
     BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_terminating, p);
