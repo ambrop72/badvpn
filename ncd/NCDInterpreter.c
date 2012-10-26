@@ -90,6 +90,7 @@ static void process_log (struct process *p, int level, const char *fmt, ...);
 static void process_schedule_work (struct process *p);
 static void process_work_job_handler_working (struct process *p);
 static void process_work_job_handler_up (struct process *p);
+static void process_work_job_handler_waiting (struct process *p);
 static void process_work_job_handler_terminating (struct process *p);
 static int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRef *out);
 static void process_advance (struct process *p);
@@ -685,6 +686,7 @@ void process_work_job_handler_up (struct process *p)
     if (p->module_process) {
         // set state waiting
         p->state = PSTATE_WAITING;
+        BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_waiting, p);
         
         // set module process down
         NCDModuleProcess_Interp_Down(p->module_process);
@@ -697,6 +699,16 @@ void process_work_job_handler_up (struct process *p)
     
     // delegate the rest to the working handler
     process_work_job_handler_working(p);
+}
+
+void process_work_job_handler_waiting (struct process *p)
+{
+    process_assert_pointers(p);
+    ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
+    ASSERT(p->state == PSTATE_WAITING)
+    
+    // do absolutely nothing. Having this no-op handler avoids a branch
+    // in statement_instance_func_event().
 }
 
 void process_work_job_handler_terminating (struct process *p)
@@ -1032,9 +1044,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
     process_assert_pointers(p);
     
     // schedule work
-    if (p->state != PSTATE_WAITING) {
-        process_schedule_work(p);
-    }
+    process_schedule_work(p);
     
     switch (event) {
         case NCDMODULE_EVENT_UP: {
