@@ -72,8 +72,10 @@ struct process {
     int ap;
     int fp;
     int num_statements;
-    unsigned int state:2;
-    unsigned int error:1;
+    int error;
+#ifndef NDEBUG
+    int state;
+#endif
     struct statement statements[];
 };
 
@@ -82,6 +84,7 @@ static char * implode_id_strings (NCDInterpreter *interp, const NCD_string_id_t 
 static int alloc_base_type_strings (NCDInterpreter *interp, const struct NCDModuleGroup *g);
 static int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModuleProcess *module_process);
 static void process_free (struct process *p, NCDModuleProcess **out_mp);
+static void process_set_state (struct process *p, int state);
 static void process_start_terminating (struct process *p);
 static int process_have_child (struct process *p);
 static void process_assert_pointers (struct process *p);
@@ -466,7 +469,6 @@ int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModulePr
     p->ap = 0;
     p->fp = 0;
     p->num_statements = num_statements;
-    p->state = PSTATE_WORKING;
     p->error = 0;
     
     // set module process handlers
@@ -489,7 +491,8 @@ int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModulePr
     // init timer
     BSmallTimer_Init(&p->wait_timer, process_wait_timer_handler);
     
-    // init work job
+    // set state, init work job
+    process_set_state(p, PSTATE_WORKING);
     BSmallPending_Init(&p->work_job, BReactor_PendingGroup(interp->params.reactor), (BSmallPending_handler)process_work_job_handler_working, p);
     
     // insert to processes list
@@ -502,6 +505,13 @@ int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModulePr
 fail0:
     BLog(BLOG_ERROR, "failed to allocate memory for process %s", NCDInterpProcess_Name(iprocess));
     return 0;
+}
+
+void process_set_state (struct process *p, int state)
+{
+#ifndef NDEBUG
+    p->state = state;
+#endif
 }
 
 void process_free (struct process *p, NCDModuleProcess **out_mp)
@@ -537,7 +547,7 @@ void process_free (struct process *p, NCDModuleProcess **out_mp)
 void process_start_terminating (struct process *p)
 {
     // set state terminating
-    p->state = PSTATE_TERMINATING;
+    process_set_state(p, PSTATE_TERMINATING);
     BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_terminating, p);
     
     // schedule work
@@ -648,7 +658,7 @@ void process_work_job_handler_working (struct process *p)
     process_log(p, BLOG_INFO, "victory");
     
     // set state up
-    p->state = PSTATE_UP;
+    process_set_state(p, PSTATE_UP);
     BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_up, p);
     
     // set module process up
@@ -667,7 +677,7 @@ void process_work_job_handler_up (struct process *p)
     // if we have module process, wait for its permission to continue
     if (p->module_process) {
         // set state waiting
-        p->state = PSTATE_WAITING;
+        process_set_state(p, PSTATE_WAITING);
         BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_waiting, p);
         
         // set module process down
@@ -676,7 +686,7 @@ void process_work_job_handler_up (struct process *p)
     }
     
     // set state working
-    p->state = PSTATE_WORKING;
+    process_set_state(p, PSTATE_WORKING);
     BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_working, p);
     
     // delegate the rest to the working handler
@@ -1192,7 +1202,7 @@ void process_moduleprocess_func_event (struct process *p, int event)
             ASSERT(p->state == PSTATE_WAITING)
             
             // set state working
-            p->state = PSTATE_WORKING;
+            process_set_state(p, PSTATE_WORKING);
             BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_working, p);
             
             // schedule work
