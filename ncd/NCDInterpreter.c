@@ -64,6 +64,7 @@ struct statement {
 
 struct process {
     NCDInterpreter *interp;
+    BReactor *reactor;
     NCDInterpProcess *iprocess;
     NCDModuleProcess *module_process;
     BSmallTimer wait_timer;
@@ -464,6 +465,7 @@ int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModulePr
     
     // set variables
     p->interp = interp;
+    p->reactor = interp->params.reactor;
     p->iprocess = iprocess;
     p->module_process = module_process;
     p->ap = 0;
@@ -493,13 +495,13 @@ int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModulePr
     
     // set state, init work job
     process_set_state(p, PSTATE_WORKING);
-    BSmallPending_Init(&p->work_job, BReactor_PendingGroup(interp->params.reactor), (BSmallPending_handler)process_work_job_handler_working, p);
+    BSmallPending_Init(&p->work_job, BReactor_PendingGroup(p->reactor), (BSmallPending_handler)process_work_job_handler_working, p);
     
     // insert to processes list
     LinkedList1_Append(&interp->processes, &p->list_node);
     
     // schedule work
-    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(interp->params.reactor));   
+    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->reactor));   
     return 1;
     
 fail0:
@@ -535,10 +537,10 @@ void process_free (struct process *p, NCDModuleProcess **out_mp)
     LinkedList1_Remove(&p->interp->processes, &p->list_node);
     
     // free work job
-    BSmallPending_Free(&p->work_job, BReactor_PendingGroup(p->interp->params.reactor));
+    BSmallPending_Free(&p->work_job, BReactor_PendingGroup(p->reactor));
     
     // free timer
-    BReactor_RemoveSmallTimer(p->interp->params.reactor, &p->wait_timer);
+    BReactor_RemoveSmallTimer(p->reactor, &p->wait_timer);
     
     // free strucure
     BFree(p);
@@ -551,7 +553,7 @@ void process_start_terminating (struct process *p)
     BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_terminating, p);
     
     // schedule work
-    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->interp->params.reactor));
+    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->reactor));
 }
 
 int process_have_child (struct process *p)
@@ -646,7 +648,7 @@ void process_work_job_handler_working (struct process *p)
             p->error = 0;
             
             // set wait timer
-            BReactor_SetSmallTimer(p->interp->params.reactor, &p->wait_timer, BTIMER_SET_RELATIVE, p->interp->params.retry_time);
+            BReactor_SetSmallTimer(p->reactor, &p->wait_timer, BTIMER_SET_RELATIVE, p->interp->params.retry_time);
         } else {
             // advance
             process_advance(p);
@@ -869,7 +871,7 @@ fail0:
     p->error = 1;
     
     // schedule work to start the timer
-    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->interp->params.reactor));
+    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->reactor));
 }
 
 void process_wait_timer_handler (BSmallTimer *timer)
@@ -1034,7 +1036,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
     process_assert_pointers(p);
     
     // schedule work
-    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->interp->params.reactor));
+    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->reactor));
     
     switch (event) {
         case NCDMODULE_EVENT_UP: {
@@ -1206,7 +1208,7 @@ void process_moduleprocess_func_event (struct process *p, int event)
             BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_working, p);
             
             // schedule work
-            BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->interp->params.reactor));
+            BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->reactor));
         } break;
         
         case NCDMODULEPROCESS_INTERP_EVENT_TERMINATE: {
