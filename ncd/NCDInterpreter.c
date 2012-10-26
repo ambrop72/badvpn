@@ -87,7 +87,6 @@ static int process_have_child (struct process *p);
 static void process_assert_pointers (struct process *p);
 static void process_logfunc (struct process *p);
 static void process_log (struct process *p, int level, const char *fmt, ...);
-static void process_schedule_work (struct process *p);
 static void process_work_job_handler_working (struct process *p);
 static void process_work_job_handler_up (struct process *p);
 static void process_work_job_handler_waiting (struct process *p);
@@ -546,7 +545,7 @@ void process_start_terminating (struct process *p)
     BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_terminating, p);
     
     // schedule work
-    process_schedule_work(p);
+    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->interp->params.reactor));
 }
 
 int process_have_child (struct process *p)
@@ -592,21 +591,9 @@ void process_log (struct process *p, int level, const char *fmt, ...)
     va_end(vl);
 }
 
-void process_schedule_work (struct process *p)
-{
-    process_assert_pointers(p);
-    
-    // stop timer
-    BReactor_RemoveSmallTimer(p->interp->params.reactor, &p->wait_timer);
-    
-    // schedule work
-    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->interp->params.reactor));
-}
-
 void process_work_job_handler_working (struct process *p)
 {
     process_assert_pointers(p);
-    ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
     ASSERT(p->state == PSTATE_WORKING)
     
     // cleaning up?
@@ -678,7 +665,6 @@ void process_work_job_handler_working (struct process *p)
 void process_work_job_handler_up (struct process *p)
 {
     process_assert_pointers(p);
-    ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
     ASSERT(p->state == PSTATE_UP)
     ASSERT(p->ap < p->num_statements || process_have_child(p))
     
@@ -704,7 +690,6 @@ void process_work_job_handler_up (struct process *p)
 void process_work_job_handler_waiting (struct process *p)
 {
     process_assert_pointers(p);
-    ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
     ASSERT(p->state == PSTATE_WAITING)
     
     // do absolutely nothing. Having this no-op handler avoids a branch
@@ -714,7 +699,6 @@ void process_work_job_handler_waiting (struct process *p)
 void process_work_job_handler_terminating (struct process *p)
 {
     process_assert_pointers(p);
-    ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
     ASSERT(p->state == PSTATE_TERMINATING)
     
     if (p->fp == 0) {
@@ -784,7 +768,6 @@ void process_advance (struct process *p)
     ASSERT(p->ap < p->num_statements)
     ASSERT(!p->error)
     ASSERT(!BSmallPending_IsSet(&p->work_job))
-    ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
     ASSERT(p->state == PSTATE_WORKING)
     
     struct statement *ps = &p->statements[p->ap];
@@ -880,23 +863,24 @@ fail0:
     p->error = 1;
     
     // schedule work to start the timer
-    process_schedule_work(p);
+    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->interp->params.reactor));
 }
 
 void process_wait_timer_handler (BSmallTimer *timer)
 {
     struct process *p = UPPER_OBJECT(timer, struct process, wait_timer);
     process_assert_pointers(p);
-    ASSERT(p->ap == p->fp)
-    ASSERT(!process_have_child(p))
-    ASSERT(p->ap < p->num_statements)
-    ASSERT(!p->error)
     ASSERT(!BSmallPending_IsSet(&p->work_job))
-    ASSERT(p->state == PSTATE_WORKING)
+    
+    // check if something happened that means we no longer need to retry
+    if (p->ap != p->fp || process_have_child(p) || p->ap == p->num_statements) {
+        return;
+    }
     
     process_log(p, BLOG_INFO, "retrying");
     
-    // advance
+    // advance. Note: the asserts for this are indeed satisfied, though this
+    // it not trivial to prove.
     process_advance(p);
 }
 
@@ -1044,7 +1028,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
     process_assert_pointers(p);
     
     // schedule work
-    process_schedule_work(p);
+    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->interp->params.reactor));
     
     switch (event) {
         case NCDMODULE_EVENT_UP: {
@@ -1216,7 +1200,7 @@ void process_moduleprocess_func_event (struct process *p, int event)
             BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_working, p);
             
             // schedule work
-            process_schedule_work(p);
+            BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->interp->params.reactor));
         } break;
         
         case NCDMODULEPROCESS_INTERP_EVENT_TERMINATE: {
