@@ -385,15 +385,17 @@ typedef struct NCDModuleProcess_s {
  * 
  * @param n the instance
  * @param m structure of module functions implementing the module backend
- * @param method_object the base object if the module being initialized is a method, otherwise NULL.
- *                      The caller must ensure that this object is of the type expected by the module
- *                      being initialized.
+ * @param method_context a context pointer passed to the module backend, applicable to method-like
+ *                       statements only. This should be set to the 'user' member of the
+ *                       {@link NCDObject} which represents the base object for the method.
+ *                       The caller must ensure that the NCDObject that was used is of the type
+ *                       expected by the module being instanciated.
  * @param args arguments to the module. Must be a list value. Must be available and unchanged
  *             as long as the instance exists.
  * @param user argument to callback functions
  * @param params more parameters, see {@link NCDModuleInst_params}
  */
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValRef args, const struct NCDModuleInst_params *params);
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *method_context, NCDValRef args, const struct NCDModuleInst_params *params);
 
 /**
  * Frees the instance.

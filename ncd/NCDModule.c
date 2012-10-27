@@ -66,7 +66,7 @@ static void inst_assert_backend (NCDModuleInst *n)
            n->state == STATE_DYING)
 }
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDObject *method_object, NCDValRef args, const struct NCDModuleInst_params *params)
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *method_context, NCDValRef args, const struct NCDModuleInst_params *params)
 {
     ASSERT(m)
     ASSERT(m->func_new2)
@@ -97,7 +97,7 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, const NCDO
     DebugObject_Init(&n->d_obj);
     
     struct NCDModuleInst_new_params new_params;
-    new_params.method_user = (method_object ? method_object->user : NULL);
+    new_params.method_user = method_context;
     new_params.args = args;
     
     n->m->func_new2(n->mem, n, &new_params);

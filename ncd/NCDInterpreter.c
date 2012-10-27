@@ -789,8 +789,7 @@ void process_advance (struct process *p)
     
     // need to determine the module and object to use it on (if it's a method)
     const struct NCDModule *module;
-    NCDObject object;
-    NCDObject *object_ptr = NULL;
+    void *method_context = NULL;
     
     // get object names, e.g. "my.cat" in "my.cat->meow();"
     // (or NULL if this is not a method statement)
@@ -808,10 +807,11 @@ void process_advance (struct process *p)
         }
     } else {
         // get object
+        NCDObject object;
         if (!process_resolve_object_expr(p, p->ap, objnames, num_objnames, &object)) {
             goto fail0;
         }
-        object_ptr = &object;
+        method_context = object.user;
         
         // get object type
         NCD_string_id_t object_type = NCDObject_Type(&object);
@@ -862,7 +862,7 @@ void process_advance (struct process *p)
     process_assert_pointers(p);
     
     // initialize module instance
-    NCDModuleInst_Init(&ps->inst, module, object_ptr, args, &p->interp->module_params);
+    NCDModuleInst_Init(&ps->inst, module, method_context, args, &p->interp->module_params);
     return;
     
 fail1:
