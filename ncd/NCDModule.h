@@ -359,7 +359,6 @@ typedef struct NCDModuleProcess_s {
     NCDValRef args;
     void *user;
     NCDModuleProcess_handler_event handler_event;
-    const struct NCDModuleInst_iparams *iparams; // TODO remove
     NCDModuleProcess_func_getspecialobj func_getspecialobj;
     void *interp_user;
     NCDModuleProcess_interp_func_event interp_func_event;

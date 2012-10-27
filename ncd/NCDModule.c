@@ -337,9 +337,6 @@ int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_i
     o->user = user;
     o->handler_event = handler_event;
     
-    // remember iparams
-    o->iparams = n->params->iparams;
-    
     // set no special functions
     o->func_getspecialobj = NULL;
     
