@@ -71,6 +71,7 @@
 #include <misc/balloc.h>
 #include <misc/string_begins_with.h>
 #include <misc/debug.h>
+#include <misc/offset.h>
 #include <system/BReactor.h>
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
@@ -128,8 +129,8 @@ static void assert_state (struct instance *o);
 static void work (struct instance *o);
 static void advance (struct instance *o);
 static void timer_handler (struct instance *o);
-static void element_process_handler_event (struct element *e, int event);
-static int element_process_func_getspecialobj (struct element *e, NCD_string_id_t name, NCDObject *out_object);
+static void element_process_handler_event (NCDModuleProcess *process, int event);
+static int element_process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
 static int element_caller_object_func_getobj (struct element *e, NCD_string_id_t name, NCDObject *out_object);
 static int element_list_index_object_func_getvar (struct element *e, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out);
 static int element_list_elem_object_func_getvar (struct element *e, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out);
@@ -272,13 +273,13 @@ static void advance (struct instance *o)
     struct element *e = &o->elems[o->gp];
     
     // init process
-    if (!NCDModuleProcess_InitValue(&e->process, o->i, o->template_name, o->args, e, (NCDModuleProcess_handler_event)element_process_handler_event)) {
+    if (!NCDModuleProcess_InitValue(&e->process, o->i, o->template_name, o->args, element_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail;
     }
     
     // set special functions
-    NCDModuleProcess_SetSpecialFuncs(&e->process, (NCDModuleProcess_func_getspecialobj)element_process_func_getspecialobj);
+    NCDModuleProcess_SetSpecialFuncs(&e->process, element_process_func_getspecialobj);
     
     // set element state down
     e->state = ESTATE_DOWN;
@@ -305,8 +306,9 @@ static void timer_handler (struct instance *o)
     return;
 }
 
-static void element_process_handler_event (struct element *e, int event)
+static void element_process_handler_event (NCDModuleProcess *process, int event)
 {
+    struct element *e = UPPER_OBJECT(process, struct element, process);
     struct instance *o = e->inst;
     assert_state(o);
     ASSERT(e->i < o->ip)
@@ -356,8 +358,9 @@ static void element_process_handler_event (struct element *e, int event)
     return;
 }
 
-static int element_process_func_getspecialobj (struct element *e, NCD_string_id_t name, NCDObject *out_object)
+static int element_process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object)
 {
+    struct element *e = UPPER_OBJECT(process, struct element, process);
     struct instance *o = e->inst;
     ASSERT(e->state != ESTATE_FORGOTTEN)
     

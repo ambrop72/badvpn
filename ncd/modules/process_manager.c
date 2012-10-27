@@ -92,8 +92,8 @@ static struct process * find_process (struct instance *o, const char *name);
 static int process_new (struct instance *o, const char *name, NCDValRef template_name, NCDValRef args);
 static void process_free (struct process *p);
 static void process_retry_timer_handler (struct process *p);
-static void process_module_process_handler_event (struct process *p, int event);
-static int process_module_process_func_getspecialobj (struct process *p, NCD_string_id_t name, NCDObject *out_object);
+static void process_module_process_handler_event (NCDModuleProcess *process, int event);
+static int process_module_process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
 static int process_module_process_caller_obj_func_getobj (struct process *p, NCD_string_id_t name, NCDObject *out_object);
 static void process_stop (struct process *p);
 static int process_restart (struct process *p, NCDValRef template_name, NCDValRef args);
@@ -221,8 +221,9 @@ void process_retry_timer_handler (struct process *p)
     process_try(p);
 }
 
-void process_module_process_handler_event (struct process *p, int event)
+void process_module_process_handler_event (NCDModuleProcess *process, int event)
 {
+    struct process *p = UPPER_OBJECT(process, struct process, module_process);
     struct instance *o = p->manager;
     ASSERT(p->have_module_process)
     
@@ -269,8 +270,9 @@ void process_module_process_handler_event (struct process *p, int event)
     }
 }
 
-int process_module_process_func_getspecialobj (struct process *p, NCD_string_id_t name, NCDObject *out_object)
+int process_module_process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object)
 {
+    struct process *p = UPPER_OBJECT(process, struct process, module_process);
     ASSERT(p->have_module_process)
     
     if (name == strings[STRING_CALLER].id) {
@@ -376,7 +378,7 @@ void process_try (struct process *p)
     p->process_args = NCDVal_Moved(&p->process_mem, p->params_args);
     
     // init module process
-    if (!NCDModuleProcess_InitId(&p->module_process, o->i, p->params_template_name, p->process_args, p, (NCDModuleProcess_handler_event)process_module_process_handler_event)) {
+    if (!NCDModuleProcess_InitId(&p->module_process, o->i, p->params_template_name, p->process_args, process_module_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         
         // set timer
@@ -388,7 +390,7 @@ void process_try (struct process *p)
     }
     
     // set special objects function
-    NCDModuleProcess_SetSpecialFuncs(&p->module_process, (NCDModuleProcess_func_getspecialobj)process_module_process_func_getspecialobj);
+    NCDModuleProcess_SetSpecialFuncs(&p->module_process, process_module_process_func_getspecialobj);
     
     // free params
     p->have_params = 0;

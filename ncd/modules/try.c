@@ -59,6 +59,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <misc/offset.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_try.h>
@@ -77,8 +78,8 @@ struct instance {
 #define STATE_DEINIT 2
 #define STATE_FINISHED 3
 
-static void process_handler_event (struct instance *o, int event);
-static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
+static void process_handler_event (NCDModuleProcess *process, int event);
+static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
 static int process_caller_object_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
 static void start_terminating (struct instance *o);
 static void instance_free (struct instance *o);
@@ -89,8 +90,10 @@ static struct NCD_string_request strings[] = {
     {"_caller"}, {"_try"}, {"try.try"}, {"succeeded"}, {NULL}
 };
 
-static void process_handler_event (struct instance *o, int event)
+static void process_handler_event (NCDModuleProcess *process, int event)
 {
+    struct instance *o = UPPER_OBJECT(process, struct instance, process);
+    
     switch (event) {
         case NCDMODULEPROCESS_EVENT_UP: {
             ASSERT(o->state == STATE_INIT)
@@ -127,8 +130,9 @@ static void process_handler_event (struct instance *o, int event)
     }
 }
 
-static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
+static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object)
 {
+    struct instance *o = UPPER_OBJECT(process, struct instance, process);
     ASSERT(o->state == STATE_INIT || o->state == STATE_DEINIT)
     
     if (name == strings[STRING_CALLER].id) {
@@ -180,13 +184,13 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     
     // start process
-    if (!NCDModuleProcess_InitValue(&o->process, i, template_name_arg, args_arg, o, (NCDModuleProcess_handler_event)process_handler_event)) {
+    if (!NCDModuleProcess_InitValue(&o->process, i, template_name_arg, args_arg, process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail0;
     }
     
     // set special object function
-    NCDModuleProcess_SetSpecialFuncs(&o->process, (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
+    NCDModuleProcess_SetSpecialFuncs(&o->process, process_func_getspecialobj);
     
     // set state init, not dying, assume succeeded
     o->state = STATE_INIT;

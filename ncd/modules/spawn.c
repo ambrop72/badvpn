@@ -85,8 +85,8 @@ struct join_instance {
 };
 
 static void assert_dirty_state (struct instance *o);
-static void process_handler_event (struct instance *o, int event);
-static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
+static void process_handler_event (NCDModuleProcess *process, int event);
+static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
 static int caller_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
 static void bring_joins_down (struct instance *o);
 static void continue_working (struct instance *o);
@@ -104,8 +104,9 @@ static void assert_dirty_state (struct instance *o)
     ASSERT(!LinkedList0_IsEmpty(&o->dirty_list) == (o->state == STATE_WAITING || o->state == STATE_WAITING_TERMINATING))
 }
 
-static void process_handler_event (struct instance *o, int event)
+static void process_handler_event (NCDModuleProcess *process, int event)
 {
+    struct instance *o = UPPER_OBJECT(process, struct instance, process);
     assert_dirty_state(o);
     
     switch (event) {
@@ -155,8 +156,10 @@ static void process_handler_event (struct instance *o, int event)
     }
 }
 
-static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
+static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object)
 {
+    struct instance *o = UPPER_OBJECT(process, struct instance, process);
+    
     if (name == strings[STRING_CALLER].id) {
         *out_object = NCDObject_Build(-1, o, NULL, (NCDObject_func_getobj)caller_obj_func_getobj);
         return 1;
@@ -230,13 +233,13 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     NCDModuleInst_Backend_Up(o->i);
     
     // create process
-    if (!NCDModuleProcess_InitValue(&o->process, o->i, template_name_arg, args_arg, o, (NCDModuleProcess_handler_event)process_handler_event)) {
+    if (!NCDModuleProcess_InitValue(&o->process, o->i, template_name_arg, args_arg, process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail0;
     }
     
     // set object resolution function
-    NCDModuleProcess_SetSpecialFuncs(&o->process, (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
+    NCDModuleProcess_SetSpecialFuncs(&o->process, process_func_getspecialobj);
     
     // init lists
     LinkedList0_Init(&o->clean_list);

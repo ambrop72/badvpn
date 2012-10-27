@@ -149,8 +149,8 @@ static void client_handler_connected (struct instance *o);
 static void request_handler_sent (struct request_instance *o);
 static void request_handler_reply (struct request_instance *o, NCDValMem reply_mem, NCDValRef reply_value);
 static void request_handler_finished (struct request_instance *o, int is_error);
-static void request_process_handler_event (struct request_instance *o, int event);
-static int request_process_func_getspecialobj (struct request_instance *o, NCD_string_id_t name, NCDObject *out_object);
+static void request_process_handler_event (NCDModuleProcess *process, int event);
+static int request_process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
 static int request_process_caller_obj_func_getobj (struct request_instance *o, NCD_string_id_t name, NCDObject *out_object);
 static int request_process_reply_obj_func_getvar (struct request_instance *o, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out);
 static void request_gone (struct request_instance *o, int is_bad);
@@ -254,8 +254,9 @@ fail:
     request_die(o, 1);
 }
 
-static void request_process_handler_event (struct request_instance *o, int event)
+static void request_process_handler_event (NCDModuleProcess *process, int event)
 {
+    struct request_instance *o = UPPER_OBJECT(process, struct request_instance, process);
     ASSERT(o->pstate != RPSTATE_NONE)
     
     switch (event) {
@@ -318,8 +319,9 @@ static void request_process_handler_event (struct request_instance *o, int event
     }
 }
 
-static int request_process_func_getspecialobj (struct request_instance *o, NCD_string_id_t name, NCDObject *out_object)
+static int request_process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object)
 {
+    struct request_instance *o = UPPER_OBJECT(process, struct request_instance, process);
     ASSERT(o->pstate != RPSTATE_NONE)
     
     if (name == strings[STRING_CALLER].id) {
@@ -430,13 +432,13 @@ static int request_init_reply_process (struct request_instance *o, NCDValMem rep
     o->process_reply_data = NCDVal_FromSafe(&o->process_reply_mem, reply_data);
     
     // init process
-    if (!NCDModuleProcess_InitValue(&o->process, o->i, o->reply_handler, o->args, o, (NCDModuleProcess_handler_event)request_process_handler_event)) {
+    if (!NCDModuleProcess_InitValue(&o->process, o->i, o->reply_handler, o->args, request_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail0;
     }
     
     // set special objects function
-    NCDModuleProcess_SetSpecialFuncs(&o->process, (NCDModuleProcess_func_getspecialobj)request_process_func_getspecialobj);
+    NCDModuleProcess_SetSpecialFuncs(&o->process, request_process_func_getspecialobj);
     
     // set process state working
     o->pstate = RPSTATE_WORKING;
@@ -454,13 +456,13 @@ static int request_init_finished_process (struct request_instance *o)
     o->process_is_finished = 1;
     
     // init process
-    if (!NCDModuleProcess_InitValue(&o->process, o->i, o->finished_handler, o->args, o, (NCDModuleProcess_handler_event)request_process_handler_event)) {
+    if (!NCDModuleProcess_InitValue(&o->process, o->i, o->finished_handler, o->args, request_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail0;
     }
     
     // set special objects function
-    NCDModuleProcess_SetSpecialFuncs(&o->process, (NCDModuleProcess_func_getspecialobj)request_process_func_getspecialobj);
+    NCDModuleProcess_SetSpecialFuncs(&o->process, request_process_func_getspecialobj);
     
     // set process state working
     o->pstate = RPSTATE_WORKING;

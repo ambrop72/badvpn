@@ -42,6 +42,7 @@
 #include <string.h>
 
 #include <misc/debug.h>
+#include <misc/offset.h>
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
 #include <ncd/value_utils.h>
@@ -63,8 +64,8 @@ struct instance {
     int state;
 };
 
-static void process_handler_event (struct instance *o, int event);
-static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
+static void process_handler_event (NCDModuleProcess *process, int event);
+static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
 static int caller_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
 static void func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name, NCDValRef args, int embed);
 static void instance_free (struct instance *o);
@@ -75,8 +76,10 @@ static struct NCD_string_request strings[] = {
     {"_caller"}, {NULL}
 };
 
-static void process_handler_event (struct instance *o, int event)
+static void process_handler_event (NCDModuleProcess *process, int event)
 {
+    struct instance *o = UPPER_OBJECT(process, struct instance, process);
+    
     switch (event) {
         case NCDMODULEPROCESS_EVENT_UP: {
             ASSERT(o->state == STATE_WORKING)
@@ -110,8 +113,10 @@ static void process_handler_event (struct instance *o, int event)
     }
 }
 
-static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
+static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object)
 {
+    struct instance *o = UPPER_OBJECT(process, struct instance, process);
+    
     if (o->embed) {
         return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
     }
@@ -149,13 +154,13 @@ static void func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name,
         o->state = STATE_NONE;
     } else {
         // create process
-        if (!NCDModuleProcess_InitValue(&o->process, o->i, template_name, args, o, (NCDModuleProcess_handler_event)process_handler_event)) {
+        if (!NCDModuleProcess_InitValue(&o->process, o->i, template_name, args, process_handler_event)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
             goto fail0;
         }
         
         // set special functions
-        NCDModuleProcess_SetSpecialFuncs(&o->process, (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
+        NCDModuleProcess_SetSpecialFuncs(&o->process, process_func_getspecialobj);
         
         // set state working
         o->state = STATE_WORKING;

@@ -173,22 +173,24 @@ typedef btime_t (*NCDModuleInst_func_interp_getretrytime) (void *user);
  *   The process was in terminating state.
  *   The process enters terminated state.
  * 
- * @param user as in {@link NCDModuleProcess_Init}
+ * @param user pointer to the process. Use {@link UPPER_OBJECT} to retrieve the pointer
+ *             to the containing struct.
  * @param event event number
  */
-typedef void (*NCDModuleProcess_handler_event) (void *user, int event);
+typedef void (*NCDModuleProcess_handler_event) (struct NCDModuleProcess_s *process, int event);
 
 /**
  * Function called when the interpreter wants to resolve a special
  * object in the process.
  * This function must have no side effects.
  * 
- * @param user as in {@link NCDModuleProcess_Init}
+ * @param user pointer to the process. Use {@link UPPER_OBJECT} to retrieve the pointer
+ *             to the containing struct.
  * @param name name of the object as an {@link NCDStringIndex} identifier
  * @param out_object the object will be returned here
  * @return 1 on success, 0 on failure
  */
-typedef int (*NCDModuleProcess_func_getspecialobj) (void *user, NCD_string_id_t name, NCDObject *out_object);
+typedef int (*NCDModuleProcess_func_getspecialobj) (struct NCDModuleProcess_s *process, NCD_string_id_t name, NCDObject *out_object);
 
 #define NCDMODULEPROCESS_INTERP_EVENT_CONTINUE 1
 #define NCDMODULEPROCESS_INTERP_EVENT_TERMINATE 2
@@ -357,7 +359,6 @@ typedef struct NCDModuleInst_s {
  */
 typedef struct NCDModuleProcess_s {
     NCDValRef args;
-    void *user;
     NCDModuleProcess_handler_event handler_event;
     NCDModuleProcess_func_getspecialobj func_getspecialobj;
     void *interp_user;
@@ -555,18 +556,17 @@ btime_t NCDModuleInst_Backend_InterpGetRetryTime (NCDModuleInst *n);
  * @param template_name name of the process template as an {@link NCDStringIndex} identifier
  * @param args arguments to the process. Must be an invalid value or a list value.
  *             The value must be available and unchanged while the process exists.
- * @param user argument to handlers
  * @param handler_event handler which reports events about the process from the
  *                      interpreter
  * @return 1 on success, 0 on failure
  */
-int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_id_t template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event) WARN_UNUSED;
+int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_id_t template_name, NCDValRef args, NCDModuleProcess_handler_event handler_event) WARN_UNUSED;
 
 /**
  * Wrapper around {@link NCDModuleProcess_InitId} which takes the template name as an
  * {@link NCDValRef}, which must point to a string value.
  */
-int NCDModuleProcess_InitValue (NCDModuleProcess *o, NCDModuleInst *n, NCDValRef template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event) WARN_UNUSED;
+int NCDModuleProcess_InitValue (NCDModuleProcess *o, NCDModuleInst *n, NCDValRef template_name, NCDValRef args, NCDModuleProcess_handler_event handler_event) WARN_UNUSED;
 
 /**
  * Frees the process.

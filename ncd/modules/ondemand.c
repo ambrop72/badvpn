@@ -84,7 +84,7 @@ struct demand {
 
 static int ondemand_start_process (struct ondemand *o);
 static void ondemand_terminate_process (struct ondemand *o);
-static void ondemand_process_handler (struct ondemand *o, int event);
+static void ondemand_process_handler (NCDModuleProcess *process, int event);
 static void ondemand_free (struct ondemand *o);
 static void demand_free (struct demand *o);
 
@@ -94,7 +94,7 @@ static int ondemand_start_process (struct ondemand *o)
     ASSERT(!o->have_process)
     
     // start process
-    if (!NCDModuleProcess_InitValue(&o->process, o->i, o->template_name, o->args, o, (NCDModuleProcess_handler_event)ondemand_process_handler)) {
+    if (!NCDModuleProcess_InitValue(&o->process, o->i, o->template_name, o->args, ondemand_process_handler)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail0;
     }
@@ -138,8 +138,9 @@ static void ondemand_terminate_process (struct ondemand *o)
     }
 }
 
-static void ondemand_process_handler (struct ondemand *o, int event)
+static void ondemand_process_handler (NCDModuleProcess *process, int event)
 {
+    struct ondemand *o = UPPER_OBJECT(process, struct ondemand, process);
     ASSERT(o->have_process)
     
     switch (event) {

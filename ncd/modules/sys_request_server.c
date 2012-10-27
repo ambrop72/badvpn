@@ -160,8 +160,8 @@ static void connection_recv_if_handler_send (struct connection *c, uint8_t *data
 static int request_init (struct connection *c, uint32_t request_id, const uint8_t *data, int data_len);
 static void request_free (struct request *r);
 static struct request * find_request (struct connection *c, uint32_t request_id);
-static void request_process_handler_event (struct request *r, int event);
-static int request_process_func_getspecialobj (struct request *r, NCD_string_id_t name, NCDObject *out_object);
+static void request_process_handler_event (NCDModuleProcess *process, int event);
+static int request_process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
 static int request_process_request_obj_func_getvar (struct request *r, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
 static void request_terminate (struct request *r);
 static struct reply * reply_init (struct connection *c, uint32_t request_id, NCDValRef reply_data);
@@ -394,12 +394,12 @@ static int request_init (struct connection *c, uint32_t request_id, const uint8_
         goto fail1;
     }
     
-    if (!NCDModuleProcess_InitValue(&r->process, o->i, o->request_handler_template, o->args, r, (NCDModuleProcess_handler_event)request_process_handler_event)) {
+    if (!NCDModuleProcess_InitValue(&r->process, o->i, o->request_handler_template, o->args, request_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail3;
     }
     
-    NCDModuleProcess_SetSpecialFuncs(&r->process, (NCDModuleProcess_func_getspecialobj)request_process_func_getspecialobj);
+    NCDModuleProcess_SetSpecialFuncs(&r->process, request_process_func_getspecialobj);
     
     r->terminating = 0;
     r->got_finished = 0;
@@ -445,8 +445,9 @@ static struct request * find_request (struct connection *c, uint32_t request_id)
     return NULL;
 }
 
-static void request_process_handler_event (struct request *r, int event)
+static void request_process_handler_event (NCDModuleProcess *process, int event)
 {
+    struct request *r = UPPER_OBJECT(process, struct request, process);
     struct connection *c = r->con;
     struct instance *o = c->inst;
     
@@ -480,8 +481,10 @@ static void request_process_handler_event (struct request *r, int event)
     }
 }
 
-static int request_process_func_getspecialobj (struct request *r, NCD_string_id_t name, NCDObject *out_object)
+static int request_process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object)
 {
+    struct request *r = UPPER_OBJECT(process, struct request, process);
+    
     if (name == strings[STRING_REQUEST].id) {
         *out_object = NCDObject_Build(strings[STRING_SYS_REQUEST_SERVER_REQUEST].id, r, (NCDObject_func_getvar)request_process_request_obj_func_getvar, NULL);
         return 1;

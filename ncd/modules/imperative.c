@@ -53,6 +53,7 @@
 #include <string.h>
 
 #include <misc/string_begins_with.h>
+#include <misc/offset.h>
 #include <ncd/NCDModule.h>
 #include <ncd/value_utils.h>
 
@@ -78,9 +79,9 @@ struct instance {
 
 static int start_process (struct instance *o, NCDValRef template_name, NCDValRef args, NCDModuleProcess_handler_event handler);
 static void go_deinit (struct instance *o);
-static void init_process_handler_event (struct instance *o, int event);
-static void deinit_process_handler_event (struct instance *o, int event);
-static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
+static void init_process_handler_event (NCDModuleProcess *process, int event);
+static void deinit_process_handler_event (NCDModuleProcess *process, int event);
+static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
 static int process_caller_object_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
 static void deinit_timer_handler (struct instance *o);
 static void instance_free (struct instance *o);
@@ -97,13 +98,13 @@ static int start_process (struct instance *o, NCDValRef template_name, NCDValRef
     ASSERT(NCDVal_IsList(args))
     
     // create process
-    if (!NCDModuleProcess_InitValue(&o->process, o->i, template_name, args, o, handler)) {
+    if (!NCDModuleProcess_InitValue(&o->process, o->i, template_name, args, handler)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         return 0;
     }
     
     // set special functions
-    NCDModuleProcess_SetSpecialFuncs(&o->process, (NCDModuleProcess_func_getspecialobj)process_func_getspecialobj);
+    NCDModuleProcess_SetSpecialFuncs(&o->process, process_func_getspecialobj);
     return 1;
 }
 
@@ -118,7 +119,7 @@ static void go_deinit (struct instance *o)
     }
     
     // start deinit process
-    if (!start_process(o, o->deinit_template, o->deinit_args, (NCDModuleProcess_handler_event)deinit_process_handler_event)) {
+    if (!start_process(o, o->deinit_template, o->deinit_args, deinit_process_handler_event)) {
         instance_free(o);
         return;
     }
@@ -130,8 +131,10 @@ static void go_deinit (struct instance *o)
     o->state = STATE_DEINIT_WORKING;
 }
 
-static void init_process_handler_event (struct instance *o, int event)
+static void init_process_handler_event (NCDModuleProcess *process, int event)
 {
+    struct instance *o = UPPER_OBJECT(process, struct instance, process);
+    
     switch (event) {
         case NCDMODULEPROCESS_EVENT_UP: {
             ASSERT(o->state == STATE_INIT_WORKING)
@@ -166,8 +169,9 @@ static void init_process_handler_event (struct instance *o, int event)
     }
 }
 
-static void deinit_process_handler_event (struct instance *o, int event)
+static void deinit_process_handler_event (NCDModuleProcess *process, int event)
 {
+    struct instance *o = UPPER_OBJECT(process, struct instance, process);
     ASSERT(o->dying)
     
     switch (event) {
@@ -199,8 +203,9 @@ static void deinit_process_handler_event (struct instance *o, int event)
     }
 }
 
-static int process_func_getspecialobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
+static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object)
 {
+    struct instance *o = UPPER_OBJECT(process, struct instance, process);
     ASSERT(o->state != STATE_UP)
     
     if (name == strings[STRING_CALLER].id) {
@@ -272,7 +277,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         o->state = STATE_UP;
     } else {
         // start init process
-        if (!start_process(o, init_template_arg, init_args, (NCDModuleProcess_handler_event)init_process_handler_event)) {
+        if (!start_process(o, init_template_arg, init_args, init_process_handler_event)) {
             goto fail0;
         }
         

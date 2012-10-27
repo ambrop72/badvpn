@@ -322,7 +322,7 @@ btime_t NCDModuleInst_Backend_InterpGetRetryTime (NCDModuleInst *n)
     return n->params->iparams->func_interp_getretrytime(n->params->iparams->user);
 }
 
-int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_id_t template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event)
+int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_id_t template_name, NCDValRef args, NCDModuleProcess_handler_event handler_event)
 {
     DebugObject_Access(&n->d_obj);
     ASSERT(n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
@@ -334,7 +334,6 @@ int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_i
     
     // init arguments
     o->args = args;
-    o->user = user;
     o->handler_event = handler_event;
     
     // set no special functions
@@ -365,7 +364,7 @@ fail1:
     return 0;
 }
 
-int NCDModuleProcess_InitValue (NCDModuleProcess *o, NCDModuleInst *n, NCDValRef template_name, NCDValRef args, void *user, NCDModuleProcess_handler_event handler_event)
+int NCDModuleProcess_InitValue (NCDModuleProcess *o, NCDModuleInst *n, NCDValRef template_name, NCDValRef args, NCDModuleProcess_handler_event handler_event)
 {
     DebugObject_Access(&n->d_obj);
     ASSERT(n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
@@ -395,7 +394,7 @@ int NCDModuleProcess_InitValue (NCDModuleProcess *o, NCDModuleInst *n, NCDValRef
         }
     }
     
-    return NCDModuleProcess_InitId(o, n, template_name_id, args, user, handler_event);
+    return NCDModuleProcess_InitId(o, n, template_name_id, args, handler_event);
 }
 
 void NCDModuleProcess_Free (NCDModuleProcess *o)
@@ -479,7 +478,7 @@ void NCDModuleProcess_Interp_Up (NCDModuleProcess *o)
     
     set_process_state(o, PROCESS_STATE_UP);
     
-    o->handler_event(o->user, NCDMODULEPROCESS_EVENT_UP);
+    o->handler_event(o, NCDMODULEPROCESS_EVENT_UP);
     return;
 }
 
@@ -491,7 +490,7 @@ void NCDModuleProcess_Interp_Down (NCDModuleProcess *o)
     
     set_process_state(o, PROCESS_STATE_DOWN_WAITING);
     
-    o->handler_event(o->user, NCDMODULEPROCESS_EVENT_DOWN);
+    o->handler_event(o, NCDMODULEPROCESS_EVENT_DOWN);
     return;
 }
 
@@ -503,7 +502,7 @@ void NCDModuleProcess_Interp_Terminated (NCDModuleProcess *o)
     
     set_process_state(o, PROCESS_STATE_TERMINATED);
     
-    o->handler_event(o->user, NCDMODULEPROCESS_EVENT_TERMINATED);
+    o->handler_event(o, NCDMODULEPROCESS_EVENT_TERMINATED);
     return;
 }
 
@@ -530,7 +529,7 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, NCD_string_id_t 
         return 0;
     }
     
-    int res = o->func_getspecialobj(o->user, name, out_object);
+    int res = o->func_getspecialobj(o, name, out_object);
     ASSERT(res == 0 || res == 1)
     
     return res;
