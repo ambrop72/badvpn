@@ -125,6 +125,20 @@ void NCDModuleInst_Die (NCDModuleInst *n)
     return;
 }
 
+int NCDModuleInst_TryFree (NCDModuleInst *n)
+{
+    DebugObject_Access(&n->d_obj);
+    ASSERT(n->state == STATE_UP || n->state == STATE_DOWN_CLEAN || n->state == STATE_DOWN_UNCLEAN)
+    
+    if (n->m->func_die) {
+        return 0;
+    }
+    
+    DebugObject_Free(&n->d_obj);
+    
+    return 1;
+}
+
 void NCDModuleInst_Clean (NCDModuleInst *n)
 {
     DebugObject_Access(&n->d_obj);

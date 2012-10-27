@@ -416,6 +416,21 @@ void NCDModuleInst_Free (NCDModuleInst *n);
 void NCDModuleInst_Die (NCDModuleInst *n);
 
 /**
+ * Attempts to destroy the instance immediately.
+ * This function can be used to optimize destroying instances of modules which
+ * don't specify any {@link NCDModule_func_die} handler. If immediate destruction
+ * is not possible, this does nothing and returns 0; {@link NCDModuleInst_Die}
+ * should be used to destroy the instance instead. If however immediate destruction
+ * is possible, this destroys the module instance and returns 1; {@link NCDModuleInst_Free}
+ * must not be called after that.
+ * The instance must be in down or up state, as for {@link NCDModuleInst_Die}.
+ * 
+ * @param n the instance
+ * @return 1 if destruction was performed, 0 if not
+ */
+int NCDModuleInst_TryFree (NCDModuleInst *n);
+
+/**
  * Informs the module that it is in a clean state to proceed.
  * The instance must be in down state.
  * WARNING: this directly calls the module backend; expect to be called back

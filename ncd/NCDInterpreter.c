@@ -713,6 +713,7 @@ void process_work_job_handler_terminating (struct process *p)
     process_assert_pointers(p);
     ASSERT(p->state == PSTATE_TERMINATING)
     
+again:
     if (p->fp == 0) {
         NCDInterpreter *interp = p->interp;
         
@@ -742,13 +743,37 @@ void process_work_job_handler_terminating (struct process *p)
     if (ps->inst.istate != SSTATE_DYING) {
         statement_log(ps, BLOG_INFO, "killing");
         
-        // set statement state DYING
-        ps->inst.istate = SSTATE_DYING;
-        
         // update AP
         if (p->ap > ps->i) {
             p->ap = ps->i;
         }
+        
+        // optimize for statements which can be destroyed immediately
+        if (NCDModuleInst_TryFree(&ps->inst)) {
+            if (BLog_WouldLog(BLOG_INFO, BLOG_CURRENT_CHANNEL)) {
+                if (ps->inst.is_error) {
+                    statement_log(ps, BLOG_ERROR, "died with error");
+                } else {
+                    statement_log(ps, BLOG_INFO, "died");
+                }
+            }
+            
+            // free arguments memory
+            NCDValMem_Free(&ps->args_mem);
+            
+            // set statement state FORGOTTEN
+            ps->inst.istate = SSTATE_FORGOTTEN;
+            
+            // update FP
+            while (p->fp > 0 && p->statements[p->fp - 1].inst.istate == SSTATE_FORGOTTEN) {
+                p->fp--;
+            }
+            
+            goto again;
+        }
+        
+        // set statement state DYING
+        ps->inst.istate = SSTATE_DYING;
         
         // order it to die
         NCDModuleInst_Die(&ps->inst);
