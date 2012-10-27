@@ -66,6 +66,13 @@ static void inst_assert_backend (NCDModuleInst *n)
            n->state == STATE_DYING)
 }
 
+static void set_process_state (NCDModuleProcess *p, int state)
+{
+#ifndef NDEBUG
+    p->state = state;
+#endif
+}
+
 void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *method_context, NCDValRef args, const struct NCDModuleInst_params *params)
 {
     ASSERT(m)
@@ -337,7 +344,7 @@ int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_i
     o->func_getspecialobj = NULL;
     
     // set state
-    o->state = PROCESS_STATE_INIT;
+    set_process_state(o, PROCESS_STATE_INIT);
     
     // clear interp functions so we can assert they were set
     o->interp_func_event = NULL;
@@ -352,7 +359,7 @@ int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_i
     ASSERT(o->interp_func_getobj)
     
     // set state
-    o->state = PROCESS_STATE_DOWN;
+    set_process_state(o, PROCESS_STATE_DOWN);
     
     DebugObject_Init(&o->d_obj);
     return 1;
@@ -418,7 +425,7 @@ void NCDModuleProcess_Continue (NCDModuleProcess *o)
     DebugObject_Access(&o->d_obj);
     ASSERT(o->state == PROCESS_STATE_DOWN_WAITING)
     
-    o->state = PROCESS_STATE_DOWN;
+    set_process_state(o, PROCESS_STATE_DOWN);
     
     o->interp_func_event(o->interp_user, NCDMODULEPROCESS_INTERP_EVENT_CONTINUE);
 }
@@ -429,7 +436,7 @@ void NCDModuleProcess_Terminate (NCDModuleProcess *o)
     ASSERT(o->state == PROCESS_STATE_DOWN || o->state == PROCESS_STATE_UP ||
            o->state == PROCESS_STATE_DOWN_WAITING)
     
-    o->state = PROCESS_STATE_TERMINATING;
+    set_process_state(o, PROCESS_STATE_TERMINATING);
     
     o->interp_func_event(o->interp_user, NCDMODULEPROCESS_INTERP_EVENT_TERMINATE);
 }
@@ -473,7 +480,7 @@ void NCDModuleProcess_Interp_Up (NCDModuleProcess *o)
     process_assert_interp(o);
     ASSERT(o->state == PROCESS_STATE_DOWN)
     
-    o->state = PROCESS_STATE_UP;
+    set_process_state(o, PROCESS_STATE_UP);
     
     o->handler_event(o->user, NCDMODULEPROCESS_EVENT_UP);
     return;
@@ -485,7 +492,7 @@ void NCDModuleProcess_Interp_Down (NCDModuleProcess *o)
     process_assert_interp(o);
     ASSERT(o->state == PROCESS_STATE_UP)
     
-    o->state = PROCESS_STATE_DOWN_WAITING;
+    set_process_state(o, PROCESS_STATE_DOWN_WAITING);
     
     o->handler_event(o->user, NCDMODULEPROCESS_EVENT_DOWN);
     return;
@@ -497,7 +504,7 @@ void NCDModuleProcess_Interp_Terminated (NCDModuleProcess *o)
     process_assert_interp(o);
     ASSERT(o->state == PROCESS_STATE_TERMINATING)
     
-    o->state = PROCESS_STATE_TERMINATED;
+    set_process_state(o, PROCESS_STATE_TERMINATED);
     
     o->handler_event(o->user, NCDMODULEPROCESS_EVENT_TERMINATED);
     return;

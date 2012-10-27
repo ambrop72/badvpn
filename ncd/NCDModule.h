@@ -361,10 +361,12 @@ typedef struct NCDModuleProcess_s {
     NCDModuleProcess_handler_event handler_event;
     const struct NCDModuleInst_iparams *iparams; // TODO remove
     NCDModuleProcess_func_getspecialobj func_getspecialobj;
-    int state;
     void *interp_user;
     NCDModuleProcess_interp_func_event interp_func_event;
     NCDModuleProcess_interp_func_getobj interp_func_getobj;
+#ifndef NDEBUG
+    int state;
+#endif
     DebugObject d_obj;
 } NCDModuleProcess;
 
