@@ -73,7 +73,8 @@ struct process {
     int ap;
     int fp;
     int num_statements;
-    int error;
+    unsigned int error:1;
+    unsigned int have_alloc:1;
 #ifndef NDEBUG
     int state;
 #endif
@@ -472,6 +473,7 @@ int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModulePr
     p->fp = 0;
     p->num_statements = num_statements;
     p->error = 0;
+    p->have_alloc = 0;
     
     // set module process handlers
     if (p->module_process) {
@@ -526,10 +528,12 @@ void process_free (struct process *p, NCDModuleProcess **out_mp)
     *out_mp = p->module_process;
     
     // free statement memory
-    for (int i = 0; i < p->num_statements; i++) {
-        struct statement *ps = &p->statements[i];
-        if (statement_mem_is_allocated(ps)) {
-            free(ps->inst.mem);
+    if (p->have_alloc) {
+        for (int i = 0; i < p->num_statements; i++) {
+            struct statement *ps = &p->statements[i];
+            if (statement_mem_is_allocated(ps)) {
+                free(ps->inst.mem);
+            }
         }
     }
     
@@ -1022,6 +1026,7 @@ int statement_allocate_memory (struct statement *ps, int alloc_size)
         
         ps->inst.mem = new_mem;
         ps->mem_size = -alloc_size;
+        statement_process(ps)->have_alloc = 1;
     }
     
     return 1;
