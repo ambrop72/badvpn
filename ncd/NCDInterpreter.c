@@ -1073,12 +1073,12 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
         } break;
         
         case NCDMODULE_EVENT_DEAD: {
-            int is_error = NCDModuleInst_HaveError(&ps->inst);
-            
-            if (is_error) {
-                statement_log(ps, BLOG_ERROR, "died with error");
-            } else {
-                statement_log(ps, BLOG_INFO, "died");
+            if (BLog_WouldLog(BLOG_INFO, BLOG_CURRENT_CHANNEL)) {
+                if (ps->inst.is_error) {
+                    statement_log(ps, BLOG_ERROR, "died with error");
+                } else {
+                    statement_log(ps, BLOG_INFO, "died");
+                }
             }
             
             // free instance
@@ -1091,7 +1091,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
             ps->inst.istate = SSTATE_FORGOTTEN;
             
             // set error
-            if (is_error && ps->i < p->ap) {
+            if (ps->inst.is_error && ps->i < p->ap) {
                 p->error = 1;
             }
             

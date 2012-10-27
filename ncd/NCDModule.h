@@ -70,7 +70,8 @@ struct NCDModuleProcess_s;
  *   {@link NCDModuleInst_Clean} or {@link NCDModuleInst_Die}, unless
  *   the module goes up again.
  * 
- * - NCDMODULE_EVENT_DEAD: the module died.
+ * - NCDMODULE_EVENT_DEAD: the module died. To determine if the module
+ *   died with error, read the is_error member of {@link NCDModuleInst}.
  *   The instance enters dead state.
  * 
  * This function is not being called in event context. The interpreter should
@@ -430,15 +431,6 @@ void NCDModuleInst_Clean (NCDModuleInst *n);
  * @return an NCDObject for this instance
  */
 NCDObject NCDModuleInst_Object (NCDModuleInst *n);
-
-/**
- * Checks whether the module terminated unsuccessfully.
- * The instance must be in dead state.
- * 
- * @param n the instance
- * @return 1 if module terminated unsuccessfully, 0 if successfully
- */
-int NCDModuleInst_HaveError (NCDModuleInst *n);
 
 /**
  * Retuns the state pointer passed to handlers of a module backend instance;

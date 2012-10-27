@@ -196,14 +196,6 @@ static int object_func_getobj (NCDModuleInst *n, NCD_string_id_t name, NCDObject
     return res;
 }
 
-int NCDModuleInst_HaveError (NCDModuleInst *n)
-{
-    DebugObject_Access(&n->d_obj);
-    ASSERT(n->state == STATE_DEAD)
-    
-    return n->is_error;
-}
-
 void * NCDModuleInst_Backend_GetUser (NCDModuleInst *n)
 {
     DebugObject_Access(&n->d_obj);
