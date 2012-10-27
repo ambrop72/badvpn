@@ -438,12 +438,8 @@ int NCDModuleProcess_GetObj (NCDModuleProcess *o, NCD_string_id_t name, NCDObjec
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(o->state != PROCESS_STATE_INIT)
+    ASSERT(o->state != PROCESS_STATE_TERMINATED)
     ASSERT(out_object)
-    
-    // interpreter gone?
-    if (o->state == PROCESS_STATE_TERMINATED) {
-        return 0;
-    }
     
     int res = o->interp_func_getobj(o->interp_user, name, out_object);
     ASSERT(res == 0 || res == 1)
