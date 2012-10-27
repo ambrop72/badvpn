@@ -267,6 +267,7 @@ fail7:;
     LinkedList1Node *ln;
     while (ln = LinkedList1_GetFirst(&o->processes)) {
         struct process *p = UPPER_OBJECT(ln, struct process, list_node);
+        BSmallPending_Unset(&p->work_job, BReactor_PendingGroup(o->params.reactor));
         NCDModuleProcess *mp;
         process_free(p, &mp);
         ASSERT(!mp)
@@ -309,6 +310,7 @@ void NCDInterpreter_Free (NCDInterpreter *o)
     LinkedList1Node *ln;
     while (ln = LinkedList1_GetFirst(&o->processes)) {
         struct process *p = UPPER_OBJECT(ln, struct process, list_node);
+        BSmallPending_Unset(&p->work_job, BReactor_PendingGroup(o->params.reactor));
         NCDModuleProcess *mp;
         process_free(p, &mp);
         ASSERT(!mp)
@@ -523,6 +525,7 @@ void process_free (struct process *p, NCDModuleProcess **out_mp)
     ASSERT(p->ap == 0)
     ASSERT(p->fp == 0)
     ASSERT(out_mp)
+    ASSERT(!BSmallPending_IsSet(&p->work_job))
     
     // give module process to caller so it can inform the process creator that the process has terminated
     *out_mp = p->module_process;
