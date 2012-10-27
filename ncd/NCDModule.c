@@ -342,9 +342,11 @@ int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_i
     // set state
     set_process_state(o, PROCESS_STATE_INIT);
     
+#ifndef NDEBUG
     // clear interp functions so we can assert they were set
     o->interp_func_event = NULL;
     o->interp_func_getobj = NULL;
+#endif
     
     // init interpreter part
     if (!(n->params->iparams->func_initprocess(n->params->iparams->user, o, template_name))) {
