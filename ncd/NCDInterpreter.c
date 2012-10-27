@@ -830,9 +830,6 @@ void process_advance (struct process *p)
         }
     }
     
-    // register alloc size for future preallocations
-    NCDInterpProcess_StatementBumpAllocSize(p->iprocess, p->ap, module->alloc_size);
-    
     // copy arguments
     NCDValRef args;
     NCDValReplaceProg prog;
@@ -1014,19 +1011,30 @@ int statement_allocate_memory (struct statement *ps, int alloc_size)
     ASSERT(alloc_size >= 0)
     
     if (alloc_size > statement_mem_size(ps)) {
+        // allocate new memory
         char *new_mem = malloc(alloc_size);
         if (!new_mem) {
             statement_log(ps, BLOG_ERROR, "malloc failed");
             return 0;
         }
         
+        // release old memory unless it was preallocated
         if (statement_mem_is_allocated(ps)) {
             free(ps->inst.mem);
         }
         
+        struct process *p = statement_process(ps);
+        
+        // register memory in statement
         ps->inst.mem = new_mem;
         ps->mem_size = -alloc_size;
-        statement_process(ps)->have_alloc = 1;
+        
+        // set the alloc flag in the process to make sure process_free()
+        // releases the allocated memory
+        p->have_alloc = 1;
+        
+        // register alloc size for future preallocations
+        NCDInterpProcess_StatementBumpAllocSize(p->iprocess, ps->i, alloc_size);
     }
     
     return 1;
