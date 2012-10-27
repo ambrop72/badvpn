@@ -197,6 +197,7 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIn
     o->num_stmts = 0;
     o->prealloc_size = -1;
     o->is_template = NCDProcess_IsTemplate(process);
+    o->cache = NULL;
     
     for (NCDStatement *s = NCDBlock_FirstStatement(block); s; s = NCDBlock_NextStatement(block, s)) {
         ASSERT(NCDStatement_Type(s) == NCDSTATEMENT_REG)
@@ -468,4 +469,28 @@ int NCDInterpProcess_NumStatements (NCDInterpProcess *o)
     DebugObject_Access(&o->d_obj);
     
     return o->num_stmts;
+}
+
+int NCDInterpProcess_CachePush (NCDInterpProcess *o, void *elem)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(elem)
+    
+    if (o->cache) {
+        return 0;
+    }
+    
+    o->cache = elem;
+    
+    return 1;
+}
+
+void * NCDInterpProcess_CachePull (NCDInterpProcess *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    void *elem = o->cache;
+    o->cache = NULL;
+    
+    return elem;
 }

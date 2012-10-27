@@ -77,6 +77,7 @@ typedef struct {
     int is_template;
     int *hash_buckets;
     size_t num_hash_buckets;
+    void *cache;
     DebugObject d_obj;
 } NCDInterpProcess;
 
@@ -95,5 +96,7 @@ int NCDInterpProcess_StatementPreallocOffset (NCDInterpProcess *o, int i);
 const char * NCDInterpProcess_Name (NCDInterpProcess *o);
 int NCDInterpProcess_IsTemplate (NCDInterpProcess *o);
 int NCDInterpProcess_NumStatements (NCDInterpProcess *o);
+int NCDInterpProcess_CachePush (NCDInterpProcess *o, void *elem) WARN_UNUSED;
+void * NCDInterpProcess_CachePull (NCDInterpProcess *o);
 
 #endif

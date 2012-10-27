@@ -84,6 +84,10 @@ struct process {
 static void start_terminate (NCDInterpreter *interp, int exit_code);
 static char * implode_id_strings (NCDInterpreter *interp, const NCD_string_id_t *names, size_t num_names, char del);
 static int alloc_base_type_strings (NCDInterpreter *interp, const struct NCDModuleGroup *g);
+static void clear_process_cache (NCDInterpreter *interp);
+static struct process * process_allocate (NCDInterpreter *interp, NCDInterpProcess *iprocess);
+static void process_release (struct process *p, int no_push);
+static void process_assert_statements_cleared (struct process *p);
 static int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModuleProcess *module_process);
 static void process_free (struct process *p, NCDModuleProcess **out_mp);
 static void process_set_state (struct process *p, int state);
@@ -264,6 +268,7 @@ int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_
     return 1;
     
 fail7:;
+    // free processes
     LinkedList1Node *ln;
     while (ln = LinkedList1_GetFirst(&o->processes)) {
         struct process *p = UPPER_OBJECT(ln, struct process, list_node);
@@ -272,6 +277,8 @@ fail7:;
         process_free(p, &mp);
         ASSERT(!mp)
     }
+    // clear process cache (process_free() above may push to cache)
+    clear_process_cache(o);
 fail6:
     // free modules
     while (o->num_inited_modules-- > 0) {
@@ -315,6 +322,9 @@ void NCDInterpreter_Free (NCDInterpreter *o)
         process_free(p, &mp);
         ASSERT(!mp)
     }
+    
+    // clear process cache
+    clear_process_cache(o);
     
     // free modules
     while (o->num_inited_modules-- > 0) {
@@ -425,9 +435,28 @@ int alloc_base_type_strings (NCDInterpreter *interp, const struct NCDModuleGroup
     return 1;
 }
 
-int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
+void clear_process_cache (NCDInterpreter *interp)
+{
+    for (NCDProcess *p = NCDProgram_FirstProcess(&interp->program); p; p = NCDProgram_NextProcess(&interp->program, p)) {
+        NCD_string_id_t name_id = NCDStringIndex_Lookup(&interp->string_index, NCDProcess_Name(p));
+        NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&interp->iprogram, name_id);
+        
+        struct process *p;
+        while (p = NCDInterpProcess_CachePull(iprocess)) {
+            process_release(p, 1);
+        }
+    }
+}
+
+struct process * process_allocate (NCDInterpreter *interp, NCDInterpProcess *iprocess)
 {
     ASSERT(iprocess)
+    
+    // try to pull from cache
+    struct process *p = NCDInterpProcess_CachePull(iprocess);
+    if (p) {
+        goto allocated;
+    }
     
     // get number of statements
     int num_statements = NCDInterpProcess_NumStatements(iprocess);
@@ -461,7 +490,7 @@ int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModulePr
     }
     
     // allocate memory
-    struct process *p = BAlloc(alloc_size);
+    p = BAlloc(alloc_size);
     if (!p) {
         goto fail0;
     }
@@ -470,19 +499,11 @@ int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModulePr
     p->interp = interp;
     p->reactor = interp->params.reactor;
     p->iprocess = iprocess;
-    p->module_process = module_process;
     p->ap = 0;
     p->fp = 0;
     p->num_statements = num_statements;
     p->error = 0;
     p->have_alloc = 0;
-    
-    // set module process handlers
-    if (p->module_process) {
-        NCDModuleProcess_Interp_SetHandlers(p->module_process, p,
-                                            (NCDModuleProcess_interp_func_event)process_moduleprocess_func_event,
-                                            (NCDModuleProcess_interp_func_getobj)process_moduleprocess_func_getobj);
-    }
     
     // init statements
     char *mem = (char *)p + mem_off;
@@ -497,20 +518,102 @@ int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModulePr
     // init timer
     BSmallTimer_Init(&p->wait_timer, process_wait_timer_handler);
     
-    // set state, init work job
+    // init work job
+    BSmallPending_Init(&p->work_job, BReactor_PendingGroup(p->reactor), NULL, NULL);
+    
+allocated:
+    ASSERT(p->interp == interp)
+    ASSERT(p->reactor == interp->params.reactor)
+    ASSERT(p->iprocess == iprocess)
+    ASSERT(p->ap == 0)
+    ASSERT(p->fp == 0)
+    ASSERT(p->num_statements == NCDInterpProcess_NumStatements(iprocess))
+    ASSERT(p->error == 0)
+    process_assert_statements_cleared(p);
+    ASSERT(!BSmallPending_IsSet(&p->work_job))
+    ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
+    
+    return p;
+    
+fail0:
+    BLog(BLOG_ERROR, "failed to allocate memory for process %s", NCDInterpProcess_Name(iprocess));
+    return NULL;
+}
+
+void process_release (struct process *p, int no_push)
+{
+    ASSERT(p->ap == 0)
+    ASSERT(p->fp == 0)
+    ASSERT(p->error == 0)
+    process_assert_statements_cleared(p);
+    ASSERT(!BSmallPending_IsSet(&p->work_job))
+    ASSERT(!BSmallTimer_IsRunning(&p->wait_timer))
+    
+    // try to push to cache
+    if (!no_push && !p->have_alloc) {
+        if (NCDInterpProcess_CachePush(p->iprocess, p)) {
+            return;
+        }
+    }
+    
+    // free work job
+    BSmallPending_Free(&p->work_job, BReactor_PendingGroup(p->reactor));
+    
+    // free statement memory
+    if (p->have_alloc) {
+        for (int i = 0; i < p->num_statements; i++) {
+            struct statement *ps = &p->statements[i];
+            if (statement_mem_is_allocated(ps)) {
+                free(ps->inst.mem);
+            }
+        }
+    }
+    
+    // free strucure
+    BFree(p);
+}
+
+void process_assert_statements_cleared (struct process *p)
+{
+#ifndef NDEBUG
+    for (int i = 0; i < p->num_statements; i++) {
+        ASSERT(p->statements[i].i == i)
+        ASSERT(p->statements[i].inst.istate == SSTATE_FORGOTTEN)
+    }
+#endif
+}
+
+int process_new (NCDInterpreter *interp, NCDInterpProcess *iprocess, NCDModuleProcess *module_process)
+{
+    ASSERT(iprocess)
+    
+    // allocate prepared process struct
+    struct process *p = process_allocate(interp, iprocess);
+    if (!p) {
+        return 0;
+    }
+    
+    // set module process pointer
+    p->module_process = module_process;
+    
+    // set module process handlers
+    if (p->module_process) {
+        NCDModuleProcess_Interp_SetHandlers(p->module_process, p,
+                                            (NCDModuleProcess_interp_func_event)process_moduleprocess_func_event,
+                                            (NCDModuleProcess_interp_func_getobj)process_moduleprocess_func_getobj);
+    }
+    
+    // set state
     process_set_state(p, PSTATE_WORKING);
-    BSmallPending_Init(&p->work_job, BReactor_PendingGroup(p->reactor), (BSmallPending_handler)process_work_job_handler_working, p);
+    BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_working, p);
     
     // insert to processes list
     LinkedList1_Append(&interp->processes, &p->list_node);
     
     // schedule work
-    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->reactor));   
-    return 1;
+    BSmallPending_Set(&p->work_job, BReactor_PendingGroup(p->reactor));
     
-fail0:
-    BLog(BLOG_ERROR, "failed to allocate memory for process %s", NCDInterpProcess_Name(iprocess));
-    return 0;
+    return 1;
 }
 
 void process_set_state (struct process *p, int state)
@@ -530,27 +633,16 @@ void process_free (struct process *p, NCDModuleProcess **out_mp)
     // give module process to caller so it can inform the process creator that the process has terminated
     *out_mp = p->module_process;
     
-    // free statement memory
-    if (p->have_alloc) {
-        for (int i = 0; i < p->num_statements; i++) {
-            struct statement *ps = &p->statements[i];
-            if (statement_mem_is_allocated(ps)) {
-                free(ps->inst.mem);
-            }
-        }
-    }
-    
     // remove from processes list
     LinkedList1_Remove(&p->interp->processes, &p->list_node);
-    
-    // free work job
-    BSmallPending_Free(&p->work_job, BReactor_PendingGroup(p->reactor));
     
     // free timer
     BReactor_RemoveSmallTimer(p->reactor, &p->wait_timer);
     
-    // free strucure
-    BFree(p);
+    // clear error
+    p->error = 0;
+    
+    process_release(p, 0);
 }
 
 void process_start_terminating (struct process *p)
