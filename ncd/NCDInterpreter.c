@@ -827,7 +827,8 @@ void process_advance (struct process *p)
         module = NCDInterpProcess_StatementGetSimpleModule(p->iprocess, p->ap);
         
         if (!module) {
-            statement_log(ps, BLOG_ERROR, "unknown simple statement: %s", NCDInterpProcess_StatementCmdName(p->iprocess, p->ap));
+            const char *cmdname_str = NCDInterpProcess_StatementCmdName(p->iprocess, p->ap, &p->interp->string_index);
+            statement_log(ps, BLOG_ERROR, "unknown simple statement: %s", cmdname_str);
             goto fail0;
         }
     } else {
@@ -850,7 +851,8 @@ void process_advance (struct process *p)
         
         if (!module) {
             const char *type_str = NCDStringIndex_Value(&p->interp->string_index, object_type);
-            statement_log(ps, BLOG_ERROR, "unknown method statement: %s::%s", type_str, NCDInterpProcess_StatementCmdName(p->iprocess, p->ap));
+            const char *cmdname_str = NCDInterpProcess_StatementCmdName(p->iprocess, p->ap, &p->interp->string_index);
+            statement_log(ps, BLOG_ERROR, "unknown method statement: %s::%s", type_str, cmdname_str);
             goto fail0;
         }
     }

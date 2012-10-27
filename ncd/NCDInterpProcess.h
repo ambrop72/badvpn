@@ -44,7 +44,7 @@
 
 struct NCDInterpProcess__stmt {
     NCD_string_id_t name;
-    char *cmdname;
+    NCD_string_id_t cmdname;
     NCD_string_id_t *objnames;
     size_t num_objnames;
     union {
@@ -83,7 +83,7 @@ typedef struct {
 int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIndex *string_index, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index) WARN_UNUSED;
 void NCDInterpProcess_Free (NCDInterpProcess *o);
 int NCDInterpProcess_FindStatement (NCDInterpProcess *o, int from_index, NCD_string_id_t name);
-const char * NCDInterpProcess_StatementCmdName (NCDInterpProcess *o, int i);
+const char * NCDInterpProcess_StatementCmdName (NCDInterpProcess *o, int i, NCDStringIndex *string_index);
 void NCDInterpProcess_StatementObjNames (NCDInterpProcess *o, int i, const NCD_string_id_t **out_objnames, size_t *out_num_objnames);
 const struct NCDModule * NCDInterpProcess_StatementGetSimpleModule (NCDInterpProcess *o, int i);
 const struct NCDModule * NCDInterpProcess_StatementGetMethodModule (NCDInterpProcess *o, int i, NCD_string_id_t obj_type, NCDMethodIndex *method_index);

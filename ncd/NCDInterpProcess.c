@@ -203,7 +203,6 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIn
         struct NCDInterpProcess__stmt *e = &o->stmts[o->num_stmts];
         
         e->name = -1;
-        e->cmdname = NULL;
         e->objnames = NULL;
         e->num_objnames = 0;
         e->alloc_size = 0;
@@ -216,8 +215,9 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIn
             }
         }
         
-        if (!(e->cmdname = b_strdup(NCDStatement_RegCmdName(s)))) {
-            BLog(BLOG_ERROR, "b_strdup failed");
+        e->cmdname = NCDStringIndex_Get(string_index, NCDStatement_RegCmdName(s));
+        if (e->cmdname < 0) {
+            BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
             goto loop_fail0;
         }
         
@@ -276,7 +276,6 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIn
     loop_fail1:
         NCDValReplaceProg_Free(&e->arg_prog);
     loop_fail0:
-        free(e->cmdname);
         goto fail3;
     }
     
@@ -291,7 +290,6 @@ fail3:
         BFree(e->objnames);
         BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
-        free(e->cmdname);
     }
     free(o->name);
 fail2:
@@ -311,7 +309,6 @@ void NCDInterpProcess_Free (NCDInterpProcess *o)
         BFree(e->objnames);
         BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
-        free(e->cmdname);
     }
     
     free(o->name);
@@ -343,14 +340,14 @@ int NCDInterpProcess_FindStatement (NCDInterpProcess *o, int from_index, NCD_str
     return -1;
 }
 
-const char * NCDInterpProcess_StatementCmdName (NCDInterpProcess *o, int i)
+const char * NCDInterpProcess_StatementCmdName (NCDInterpProcess *o, int i, NCDStringIndex *string_index)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
     ASSERT(i < o->num_stmts)
-    ASSERT(o->stmts[i].cmdname)
+    ASSERT(string_index)
     
-    return o->stmts[i].cmdname;
+    return NCDStringIndex_Value(string_index, o->stmts[i].cmdname);
 }
 
 void NCDInterpProcess_StatementObjNames (NCDInterpProcess *o, int i, const NCD_string_id_t **out_objnames, size_t *out_num_objnames)
