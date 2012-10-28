@@ -1,6 +1,8 @@
-- NCD: performance improvements by using a global index of strings and representing various strings as integers (variable and object names)
+- NCD: implement parse_ipv6_addr() and parse_ipv6_cidr_addr()
 
-- NCD: performance and memory usage improvements
+- NCD: port to Emscripten/Javascript, for the in-browser demo
+
+- NCD: many performance and memory usage improvements
 
 - NCD: add assert_false()
 
