@@ -32,6 +32,7 @@
  *   parse_number(string str)
  *   parse_value(string str)
  *   parse_ipv4_addr(string str)
+ *   parse_ipv6_addr(string str)
  *   
  * Variables:
  *   succeeded - "true" or "false", reflecting success of the parsing
@@ -39,6 +40,7 @@
  * 
  * Synopsis:
  *   parse_ipv4_cidr_addr(string str)
+ *   parse_ipv6_cidr_addr(string str)
  * 
  * Variables:
  *   succeeded - "true" or "false", reflecting success of the parsing
@@ -53,6 +55,7 @@
 
 #include <misc/parse_number.h>
 #include <misc/ipaddr.h>
+#include <misc/ipaddr6.h>
 #include <ncd/NCDValParser.h>
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
@@ -73,6 +76,12 @@ struct ipv4_cidr_instance {
     NCDModuleInst *i;
     int succeeded;
     struct ipv4_ifaddr ifaddr;
+};
+
+struct ipv6_cidr_instance {
+    NCDModuleInst *i;
+    int succeeded;
+    struct ipv6_ifaddr ifaddr;
 };
 
 enum {STRING_SUCCEEDED, STRING_ADDR, STRING_PREFIX};
@@ -120,6 +129,26 @@ static int parse_ipv4_addr (NCDModuleInst *i, const char *str, size_t str_len, N
     
     char buf[IPADDR_PRINT_MAX];
     ipaddr_print_addr(addr, buf);
+    
+    *out = NCDVal_NewString(mem, buf);
+    if (NCDVal_IsInvalid(*out)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_NewString failed");
+        return 0;
+    }
+    
+    return 1;
+}
+
+static int parse_ipv6_addr (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out)
+{
+    struct ipv6_addr addr;
+    if (!ipaddr6_parse_ipv6_addr_bin(str, str_len, &addr)) {
+        ModuleLog(i, BLOG_ERROR, "failed to parse ipv6 addresss");
+        return 0;
+    }
+    
+    char buf[IPADDR6_PRINT_MAX];
+    ipaddr6_print_addr(addr, buf);
     
     *out = NCDVal_NewString(mem, buf);
     if (NCDVal_IsInvalid(*out)) {
@@ -210,6 +239,11 @@ static void func_new_parse_ipv4_addr (void *vo, NCDModuleInst *i, const struct N
     new_templ(vo, i, params, parse_ipv4_addr);
 }
 
+static void func_new_parse_ipv6_addr (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    new_templ(vo, i, params, parse_ipv6_addr);
+}
+
 static void ipv4_cidr_addr_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct ipv4_cidr_instance *o = vo;
@@ -274,6 +308,70 @@ static int ipv4_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMe
     return 1;
 }
 
+static void ipv6_cidr_addr_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    struct ipv6_cidr_instance *o = vo;
+    o->i = i;
+    
+    NCDValRef str_arg;
+    if (!NCDVal_ListRead(params->args, 1, &str_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (!NCDVal_IsString(str_arg)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    
+    o->succeeded = ipaddr6_parse_ipv6_ifaddr_bin(NCDVal_StringValue(str_arg), NCDVal_StringLength(str_arg), &o->ifaddr);
+    
+    NCDModuleInst_Backend_Up(i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static int ipv6_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
+{
+    struct ipv6_cidr_instance *o = vo;
+    
+    if (name == strings[STRING_SUCCEEDED].id) {
+        const char *str = o->succeeded ? "true" : "false";
+        *out = NCDVal_NewString(mem, str);
+        if (NCDVal_IsInvalid(*out)) {
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+        }
+        return 1;
+    }
+    
+    if (!o->succeeded) {
+        return 0;
+    }
+    
+    char str[IPADDR6_PRINT_MAX];
+    
+    if (name == NCD_STRING_EMPTY) {
+        ipaddr6_print_ifaddr(o->ifaddr, str);
+    }
+    else if (name == strings[STRING_ADDR].id) {
+        ipaddr6_print_addr(o->ifaddr.addr, str);
+    }
+    else if (name == strings[STRING_PREFIX].id) {
+        sprintf(str, "%d", o->ifaddr.prefix);
+    }
+    else {
+        return 0;
+    }
+    
+    *out = NCDVal_NewString(mem, str);
+    if (NCDVal_IsInvalid(*out)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+    }
+    return 1;
+}
+
 static struct NCDModule modules[] = {
     {
         .type = "parse_number",
@@ -294,10 +392,21 @@ static struct NCDModule modules[] = {
         .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
+        .type = "parse_ipv6_addr",
+        .func_new2 = func_new_parse_ipv6_addr,
+        .func_die = func_die,
+        .func_getvar2 = func_getvar2,
+        .alloc_size = sizeof(struct instance)
+    }, {
         .type = "parse_ipv4_cidr_addr",
         .func_new2 = ipv4_cidr_addr_func_new,
         .func_getvar2 = ipv4_cidr_addr_func_getvar2,
         .alloc_size = sizeof(struct ipv4_cidr_instance)
+    }, {
+        .type = "parse_ipv6_cidr_addr",
+        .func_new2 = ipv6_cidr_addr_func_new,
+        .func_getvar2 = ipv6_cidr_addr_func_getvar2,
+        .alloc_size = sizeof(struct ipv6_cidr_instance)
     }, {
         .type = NULL
     }

@@ -13,6 +13,11 @@ process main {
     val_equal(x, "192.168.61.7") a;
     assert(a);
 
+    parse_ipv6_addr("1234:0000::abcd") x;
+    assert(x.succeeded);
+    val_equal(x, "1234::abcd") a;
+    assert(a);
+
     parse_value("{\"Hello World\", {}}") x;
     assert(x.succeeded);
     val_equal(x, {"Hello World", {}}) a;
@@ -60,6 +65,19 @@ process main {
     assert(a);
     
     parse_ipv4_cidr_addr("192.168.61.007/33") x;
+    not(x.succeeded) a;
+    assert(a);
+    
+    parse_ipv6_cidr_addr("1234:0000::abcd/41") x;
+    assert(x.succeeded);
+    val_equal(x, "1234::abcd/41") a;
+    assert(a);
+    val_equal(x.addr, "1234::abcd") a;
+    assert(a);
+    val_equal(x.prefix, "41") a;
+    assert(a);
+    
+    parse_ipv6_cidr_addr("1234:0000::abcd/129") x;
     not(x.succeeded) a;
     assert(a);
     
