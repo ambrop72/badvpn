@@ -161,6 +161,7 @@ add_library(ncdinterpreter
     modules/explode.c
     modules/net_ipv4_addr_in_network.c
     modules/net_ipv6_addr_in_network.c
+    modules/timer.c
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(ncdinterpreter

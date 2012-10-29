@@ -74,6 +74,7 @@ extern const struct NCDModuleGroup ncdmodule_assert;
 extern const struct NCDModuleGroup ncdmodule_explode;
 extern const struct NCDModuleGroup ncdmodule_net_ipv4_addr_in_network;
 extern const struct NCDModuleGroup ncdmodule_net_ipv6_addr_in_network;
+extern const struct NCDModuleGroup ncdmodule_timer;
 #ifndef BADVPN_EMSCRIPTEN
 extern const struct NCDModuleGroup ncdmodule_regex_match;
 extern const struct NCDModuleGroup ncdmodule_run;
@@ -151,6 +152,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_explode,
     &ncdmodule_net_ipv4_addr_in_network,
     &ncdmodule_net_ipv6_addr_in_network,
+    &ncdmodule_timer,
 #ifndef BADVPN_EMSCRIPTEN
     &ncdmodule_regex_match,
     &ncdmodule_run,
