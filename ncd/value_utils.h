@@ -31,9 +31,11 @@
 #define NCD_VALUE_UTILS_H
 
 #include <stdint.h>
+#include <limits.h>
 
 #include <misc/debug.h>
 #include <misc/parse_number.h>
+#include <system/BTime.h>
 #include <ncd/NCDVal.h>
 #include <ncd/NCDStringIndex.h>
 #include <ncd/static_strings.h>
@@ -42,6 +44,7 @@ static int ncd_is_none (NCDValRef val);
 static NCDValRef ncd_make_boolean (NCDValMem *mem, int value, NCDStringIndex *string_index);
 static int ncd_read_boolean (NCDValRef val);
 static int ncd_read_uintmax (NCDValRef string, uintmax_t *out) WARN_UNUSED;
+static int ncd_read_time (NCDValRef string, btime_t *out) WARN_UNUSED;
 static NCD_string_id_t ncd_get_string_id (NCDValRef string, NCDStringIndex *string_index);
 static NCDValRef ncd_make_uintmax (NCDValMem *mem, uintmax_t value);
 
@@ -82,6 +85,24 @@ static int ncd_read_uintmax (NCDValRef string, uintmax_t *out)
     ASSERT(out)
     
     return parse_unsigned_integer_bin(NCDVal_StringValue(string), NCDVal_StringLength(string), out);
+}
+
+static int ncd_read_time (NCDValRef string, btime_t *out)
+{
+    ASSERT(NCDVal_IsString(string))
+    ASSERT(out)
+    
+    uintmax_t n;
+    if (!ncd_read_uintmax(string, &n)) {
+        return 0;
+    }
+    
+    if (n > INT64_MAX) {
+        return 0;
+    }
+    
+    *out = n;
+    return 1;
 }
 
 static NCD_string_id_t ncd_get_string_id (NCDValRef string, NCDStringIndex *string_index)
