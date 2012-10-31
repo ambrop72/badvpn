@@ -166,6 +166,15 @@ process main {
     v->get("b") vB2;
     val_equal(vB2, "vB") a;
     assert(a);
+    
+    value("") v;
+    v->append("ab");
+    v->append("cde");
+    v->append(v);
+    v->append("");
+    v->append("f");
+    val_equal(v, "abcdeabcdef") a;
+    assert(a);
 
     exit("0");
 }
