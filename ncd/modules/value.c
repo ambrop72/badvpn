@@ -132,6 +132,13 @@
  *   operation (as scheduled by insert_undo() and replace_undo()), sets up this
  *   value object to reference the newly built value structure, without any scheduled
  *   undo operation.
+ * 
+ * Synopsis:
+ *   value::append(string data)
+ * 
+ * Description:
+ *   Appends the given data to a string value. The value this is called on must
+ *   be a string value.
  */
 
 #include <stdlib.h>
@@ -234,6 +241,7 @@ static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValRef wh
 static struct value * value_get_path (NCDModuleInst *i, struct value *v, NCDValRef path);
 static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef where, NCDValRef what, int is_replace, struct value **out_oldv);
 static int value_remove (NCDModuleInst *i, struct value *v, NCDValRef where);
+static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data);
 static void valref_init (struct valref *r, struct value *v);
 static void valref_free (struct valref *r);
 static struct value * valref_val (struct valref *r);
@@ -923,6 +931,79 @@ fail:
     return 0;
 }
 
+static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
+{
+    ASSERT(v)
+    ASSERT((NCDVal_Type(data), 1))
+    
+    switch (v->type) {
+        case NCDVAL_STRING: {
+            if (!NCDVal_IsString(data)) {
+                ModuleLog(i, BLOG_ERROR, "cannot append non-string to string");
+                return 0;
+            }
+            
+            const char *append_string = NCDVal_StringValue(data);
+            size_t append_length = NCDVal_StringLength(data);
+            
+            if (append_length > SIZE_MAX - v->string.length) {
+                ModuleLog(i, BLOG_ERROR, "too much data to append");
+                return 0;
+            }
+            size_t new_length = v->string.length + append_length;
+            
+            char *new_string = BRealloc(v->string.string, new_length);
+            if (!new_string) {
+                ModuleLog(i, BLOG_ERROR, "BRealloc failed");
+                return 0;
+            }
+            
+            memcpy(new_string + v->string.length, append_string, append_length);
+            
+            v->string.string = new_string;
+            v->string.length = new_length;
+        } break;
+        
+        case IDSTRING_TYPE: {
+            if (!NCDVal_IsString(data)) {
+                ModuleLog(i, BLOG_ERROR, "cannot append non-string to string");
+                return 0;
+            }
+            
+            const char *append_string = NCDVal_StringValue(data);
+            size_t append_length = NCDVal_StringLength(data);
+            
+            const char *string = NCDStringIndex_Value(v->idstring.string_index, v->idstring.id);
+            size_t length = strlen(string);
+            
+            if (append_length > SIZE_MAX - length) {
+                ModuleLog(i, BLOG_ERROR, "too much data to append");
+                return 0;
+            }
+            size_t new_length = length + append_length;
+            
+            char *new_string = BAlloc(new_length);
+            if (!new_string) {
+                ModuleLog(i, BLOG_ERROR, "BAlloc failed");
+                return 0;
+            }
+            
+            memcpy(new_string, string, length);
+            memcpy(new_string + length, append_string, append_length);
+            
+            v->type = NCDVAL_STRING;
+            v->string.string = new_string;
+            v->string.length = new_length;
+        } break;
+        
+        default:
+            ModuleLog(i, BLOG_ERROR, "cannot append to non-string");
+            return 0;
+    }
+    
+    return 1;
+}
+
 static void valref_init (struct valref *r, struct value *v)
 {
     r->v = v;
@@ -1603,6 +1684,34 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
+static void append_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    NCDValRef data_arg;
+    if (!NCDVal_ListRead(params->args, 1, &data_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    
+    struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
+    struct value *mov = valref_val(&mo->ref);
+    
+    if (!mov) {
+        ModuleLog(i, BLOG_ERROR, "value was deleted");
+        goto fail0;
+    }
+    
+    if (!value_append(i, mov, data_arg)) {
+        goto fail0;
+    }
+    
+    NCDModuleInst_Backend_Up(i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
 static struct NCDModule modules[] = {
     {
         .type = "value",
@@ -1689,6 +1798,9 @@ static struct NCDModule modules[] = {
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
+    }, {
+        .type = "value::append",
+        .func_new2 = append_func_new
     }, {
         .type = NULL
     }
