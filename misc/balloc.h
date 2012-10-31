@@ -62,6 +62,18 @@ static void * BAlloc (size_t bytes);
 static void BFree (void *m);
 
 /**
+ * Changes the size of a memory block. On success, the memory block
+ * may be moved to a different address.
+ * 
+ * @param m pointer to a memory block obtained from {@link BAlloc}
+ *          or other functions in this group. If this is NULL, the
+ *          call is equivalent to {@link BAlloc}(bytes).
+ * @param bytes new size of the memory block
+ * @return new pointer to the memory block, or NULL on failure
+ */
+static void * BRealloc (void *m, size_t bytes);
+
+/**
  * Allocates memory, with size given as a {@link bsize_t}.
  * 
  * @param bytes number of bytes to allocate. If the size is overflow,
@@ -144,6 +156,15 @@ void * BAlloc (size_t bytes)
 void BFree (void *m)
 {
     free(m);
+}
+
+void * BRealloc (void *m, size_t bytes)
+{
+    if (bytes == 0) {
+        return realloc(m, 1);
+    }
+    
+    return realloc(m, bytes);
 }
 
 void * BAllocSize (bsize_t bytes)
