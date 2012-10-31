@@ -878,18 +878,16 @@ again:
 
 int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRef *out)
 {
-    struct statement *ps = arg;
+    struct process *p = arg;
     ASSERT(plid >= 0)
     ASSERT(mem)
     ASSERT(out)
-    
-    struct process *p = statement_process(ps);
     
     const NCD_string_id_t *varnames;
     size_t num_names;
     NCDPlaceholderDb_GetVariable(&p->interp->placeholder_db, plid, &varnames, &num_names);
     
-    return process_resolve_variable_expr(statement_process(ps), ps->i, varnames, num_names, mem, out);
+    return process_resolve_variable_expr(p, p->ap, varnames, num_names, mem, out);
 }
 
 void process_advance (struct process *p)
@@ -961,7 +959,7 @@ void process_advance (struct process *p)
     }
     
     // replace placeholders with values of variables
-    if (!NCDValReplaceProg_Execute(prog, &ps->args_mem, replace_placeholders_callback, ps)) {
+    if (!NCDValReplaceProg_Execute(prog, &ps->args_mem, replace_placeholders_callback, p)) {
         statement_log(ps, BLOG_ERROR, "failed to replace variables in arguments with values");
         goto fail1;
     }
