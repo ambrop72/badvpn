@@ -48,6 +48,8 @@ static int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_
 static int parse_unsigned_integer (const char *str, uintmax_t *out) WARN_UNUSED;
 static int parse_unsigned_hex_integer_bin (const char *str, size_t str_len, uintmax_t *out) WARN_UNUSED;
 static int parse_unsigned_hex_integer (const char *str, uintmax_t *out) WARN_UNUSED;
+static int parse_signmag_integer_bin (const char *str, size_t str_len, int *out_sign, uintmax_t *out_mag) WARN_UNUSED;
+static int parse_signmag_integer (const char *str, int *out_sign, uintmax_t *out_mag) WARN_UNUSED;
 
 // public generation functions
 static int compute_decimal_repr_size (uintmax_t x);
@@ -186,6 +188,28 @@ int parse_unsigned_hex_integer_bin (const char *str, size_t str_len, uintmax_t *
 int parse_unsigned_hex_integer (const char *str, uintmax_t *out)
 {
     return parse_unsigned_hex_integer_bin(str, strlen(str), out);
+}
+
+int parse_signmag_integer_bin (const char *str, size_t str_len, int *out_sign, uintmax_t *out_mag)
+{
+    int sign = 1;
+    if (str_len > 0 && (str[0] == '+' || str[0] == '-')) {
+        sign = 1 - 2 * (str[0] == '-');
+        str++;
+        str_len--;
+    }
+    
+    if (!parse_unsigned_integer_bin(str, str_len, out_mag)) {
+        return 0;
+    }
+    
+    *out_sign = sign;
+    return 1;
+}
+
+int parse_signmag_integer (const char *str, int *out_sign, uintmax_t *out_mag)
+{
+    return parse_signmag_integer_bin(str, strlen(str), out_sign, out_mag);
 }
 
 int compute_decimal_repr_size (uintmax_t x)
