@@ -51,7 +51,6 @@
  * 
  * Variables:
  *   string (empty) - the data which was read, or an empty string if EOF was reached
- *   string is_eof - "true" if EOF was reached, "false" if not
  *   string not_eof - "false" if EOF was reached, "true" if not
  * 
  * Description:
@@ -124,10 +123,10 @@ struct read_instance {
     size_t length;
 };
 
-enum {STRING_IS_ERROR, STRING_IS_EOF, STRING_NOT_EOF};
+enum {STRING_IS_ERROR, STRING_NOT_EOF};
 
 static struct NCD_string_request strings[] = {
-    {"is_error"}, {"is_eof"}, {"not_eof"}, {NULL}
+    {"is_error"}, {"not_eof"}, {NULL}
 };
 
 static int parse_mode (const char *data, char *out)
@@ -354,14 +353,6 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
         *out = NCDVal_NewStringBin(mem, (const uint8_t *)data, o->length);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
-        }
-        return 1;
-    }
-    
-    if (name == strings[STRING_IS_EOF].id) {
-        *out = ncd_make_boolean(mem, (o->length == 0), o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
         }
         return 1;
     }
