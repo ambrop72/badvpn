@@ -82,6 +82,16 @@
  *   Errors are handled as in read() and write(). Note that if the position argument
  *   is too small or too large to convert to off_t, this is not a seek error, and only
  *   the seek command will fail.
+ * 
+ * Synopsis:
+ *   file_open::close()
+ * 
+ * Description:
+ *   Closes the file. The file must not be in error state.
+ *   Errors are handled as handled as in read() and write(), i.e. the process is
+ *   backtracked to file_open() with the error state set.
+ *   On success, the error state of the file is set (but without backtracking), and
+ *   the close() statement goes up .
  */
 
 #include <stddef.h>
@@ -156,15 +166,15 @@ finish:
 
 static void trigger_error (struct open_instance *o)
 {
-    ASSERT(o->fh)
-    
-    // close file
-    if (fclose(o->fh) != 0) {
-        ModuleLog(o->i, BLOG_ERROR, "fclose failed");
+    if (o->fh) {
+        // close file
+        if (fclose(o->fh) != 0) {
+            ModuleLog(o->i, BLOG_ERROR, "fclose failed");
+        }
+        
+        // set no file, indicating error
+        o->fh = NULL;
     }
-    
-    // set no file, indicating error
-    o->fh = NULL;
     
     // go down and up
     NCDModuleInst_Backend_Down(o->i);
@@ -500,6 +510,41 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
+static void close_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    // check arguments
+    if (!NCDVal_ListRead(params->args, 0)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    
+    // get open instance
+    struct open_instance *open_inst = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
+    
+    // make sure it's not in error
+    if (!open_inst->fh) {
+        ModuleLog(i, BLOG_ERROR, "open instance is in error");
+        goto fail0;
+    }
+    
+    // close
+    int res = fclose(open_inst->fh);
+    open_inst->fh = NULL;
+    if (res != 0) {
+        ModuleLog(i, BLOG_ERROR, "fclose failed");
+        trigger_error(open_inst);
+        return;
+    }
+    
+    // go up
+    NCDModuleInst_Backend_Up(i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
 static struct NCDModule modules[] = {
     {
         .type = "file_open",
@@ -519,6 +564,9 @@ static struct NCDModule modules[] = {
     }, {
         .type = "file_open::seek",
         .func_new2 = seek_func_new,
+    }, {
+        .type = "file_open::close",
+        .func_new2 = close_func_new,
     }, {
         .type = NULL
     }
