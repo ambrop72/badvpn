@@ -30,6 +30,8 @@
 #ifndef BADVPN_NCD_NCDMODULE_H
 #define BADVPN_NCD_NCDMODULE_H
 
+#include <stdarg.h>
+
 #include <misc/debug.h>
 #include <system/BReactor.h>
 #include <base/BLog.h>
@@ -524,6 +526,12 @@ int NCDModuleInst_Backend_GetObj (NCDModuleInst *n, NCD_string_id_t name, NCDObj
  * @param fmt format string as in printf, arguments follow
  */
 void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const char *fmt, ...);
+
+/**
+ * Like {@link NCDModuleInst_Backend_Log}, but the extra arguments are passed
+ * as a va_list. This allows creation of logging wrappers.
+ */
+void NCDModuleInst_Backend_LogVarArg (NCDModuleInst *n, int channel, int level, const char *fmt, va_list vl);
 
 /**
  * Sets the error flag for the module instance.

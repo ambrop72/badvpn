@@ -298,6 +298,13 @@ void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const 
     va_end(vl);
 }
 
+void NCDModuleInst_Backend_LogVarArg (NCDModuleInst *n, int channel, int level, const char *fmt, va_list vl)
+{
+    DebugObject_Access(&n->d_obj);
+    
+    BLog_LogViaFuncVarArg(n->params->logfunc, n, channel, level, fmt, vl);
+}
+
 void NCDModuleInst_Backend_SetError (NCDModuleInst *n)
 {
     DebugObject_Access(&n->d_obj);
