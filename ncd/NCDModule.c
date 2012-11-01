@@ -101,6 +101,9 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *meth
     // clear error flag
     n->is_error = 0;
     
+    // give NCDModuleInst to methods, not mem
+    n->pass_mem_to_methods = 0;
+    
     DebugObject_Init(&n->d_obj);
     
     struct NCDModuleInst_new_params new_params;
@@ -166,7 +169,21 @@ NCDObject NCDModuleInst_Object (NCDModuleInst *n)
     DebugObject_Access(&n->d_obj);
     ASSERT(n->m->base_type_id >= 0)
     
-    return NCDObject_Build(n->m->base_type_id, n, (NCDObject_func_getvar)object_func_getvar, (NCDObject_func_getobj)object_func_getobj);
+    if (n->pass_mem_to_methods) {
+        return NCDObject_BuildMethodUser(n->m->base_type_id, n->mem, n, (NCDObject_func_getvar)object_func_getvar, (NCDObject_func_getobj)object_func_getobj);
+    } else {
+        return NCDObject_Build(n->m->base_type_id, n, (NCDObject_func_getvar)object_func_getvar, (NCDObject_func_getobj)object_func_getobj);
+    }
+}
+
+void NCDModuleInst_Backend_PassMemToMethods (NCDModuleInst *n)
+{
+    DebugObject_Access(&n->d_obj);
+    ASSERT(n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
+           n->state == STATE_UP ||
+           n->state == STATE_DYING)
+    
+    n->pass_mem_to_methods = 1;
 }
 
 static int can_resolve (NCDModuleInst *n)

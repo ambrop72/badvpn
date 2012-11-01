@@ -250,10 +250,15 @@ struct NCDModuleInst_new_params {
      * this pointer identifies the object it is being invoked with.
      * If the object is a statement (i.e. a {@link NCDModuleInst}), then this
      * will be the NCDModuleInst pointer, and {@link NCDModuleInst_Backend_GetUser}
-     * can be called on this to retrieve the user pointer of the object.
+     * can be called on this to retrieve the pointer to preallocated memory for
+     * the backend instance; *unless* {@link NCDModuleInst_Backend_PassMemToMethods}
+     * was called for the object on which the method is being called, in which case
+     * this will directly point to the preallocated memory.
      * On the other hand, if this is a method on an internal object built using
-     * only {@link NCDObject_Build} or {@link NCDObject_Build2}, this pointer will
-     * be whatever was passed as the "user" argument to those functions.
+     * only {@link NCDObject_Build} or {@link NCDObject_Build2},
+     * {@link NCDObject_BuildMethodUser} or {@link NCDObject_BuildMethodUser2},
+     * this pointer will be whatever was passed as the "user" argument, for the
+     * former two functions, and as "method_user", for the latter two.
      */
     void *method_user;
 };
@@ -349,6 +354,7 @@ typedef struct NCDModuleInst_s {
     void *mem; // not modified by NCDModuleInst (but passed to module)
     unsigned int state:3;
     unsigned int is_error:1;
+    unsigned int pass_mem_to_methods:1;
     unsigned int istate:3; // untouched by NCDModuleInst
     DebugObject d_obj;
 } NCDModuleInst;
@@ -450,6 +456,17 @@ void NCDModuleInst_Clean (NCDModuleInst *n);
  * @return an NCDObject for this instance
  */
 NCDObject NCDModuleInst_Object (NCDModuleInst *n);
+
+/**
+ * If this is called, any methods called on this object will receive the preallocated
+ * memory pointer as the object state pointer. This means that in the
+ * {@link NCDModule_func_getvar2} function which is called when a method is created,
+ * the preallocated memory should be accessed as params->method_user.
+ * By default, however, params->method_user points to the NCDModuleInst of the base
+ * object, and {@link NCDModuleInst_Backend_GetUser} is needed to retrieve the
+ * preallocated memory pointer.
+ */
+void NCDModuleInst_Backend_PassMemToMethods (NCDModuleInst *n);
 
 /**
  * Retuns the state pointer passed to handlers of a module backend instance;
