@@ -37,6 +37,7 @@ NCDObject NCDObject_Build (NCD_string_id_t type, void *user, NCDObject_func_getv
 {
     NCDObject obj;
     obj.type = type;
+    obj.method_user = user;
     obj.user = user;
     obj.user2 = NULL;
     obj.uv.func_getvar = func_getvar;
@@ -51,6 +52,35 @@ NCDObject NCDObject_Build2 (NCD_string_id_t type, void *user, void *user2, NCDOb
     
     NCDObject obj;
     obj.type = type;
+    obj.method_user = user;
+    obj.user = user;
+    obj.user2 = user2;
+    obj.uv.func_getvar2 = func_getvar2;
+    obj.uo.func_getobj2 = func_getobj2;
+    
+    return obj;
+}
+
+NCDObject NCDObject_BuildMethodUser (NCD_string_id_t type, void *method_user, void *user, NCDObject_func_getvar func_getvar, NCDObject_func_getobj func_getobj)
+{
+    NCDObject obj;
+    obj.type = type;
+    obj.method_user = method_user;
+    obj.user = user;
+    obj.user2 = NULL;
+    obj.uv.func_getvar = func_getvar;
+    obj.uo.func_getobj = func_getobj;
+    
+    return obj;
+}
+
+NCDObject NCDObject_BuildMethodUser2  (NCD_string_id_t type, void *method_user, void *user, void *user2, NCDObject_func_getvar2 func_getvar2, NCDObject_func_getobj2 func_getobj2)
+{
+    ASSERT(user2)
+    
+    NCDObject obj;
+    obj.type = type;
+    obj.method_user = method_user;
     obj.user = user;
     obj.user2 = user2;
     obj.uv.func_getvar2 = func_getvar2;
@@ -62,6 +92,13 @@ NCDObject NCDObject_Build2 (NCD_string_id_t type, void *user, void *user2, NCDOb
 NCD_string_id_t NCDObject_Type (NCDObject *o)
 {
     return o->type;
+}
+
+void * NCDObject_MethodUser (NCDObject *o)
+{
+    ASSERT(o->type >= 0)
+    
+    return o->method_user;
 }
 
 int NCDObject_GetObj (NCDObject *o, NCD_string_id_t name, NCDObject *out_object)

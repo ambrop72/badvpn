@@ -930,7 +930,6 @@ void process_advance (struct process *p)
         if (!process_resolve_object_expr(p, p->ap, objnames, num_objnames, &object)) {
             goto fail0;
         }
-        method_context = object.user;
         
         // get object type
         NCD_string_id_t object_type = NCDObject_Type(&object);
@@ -938,6 +937,9 @@ void process_advance (struct process *p)
             statement_log(ps, BLOG_ERROR, "cannot call method on object with no type");
             goto fail0;
         }
+        
+        // get method context
+        method_context = NCDObject_MethodUser(&object);
         
         // find module based on type of object
         module = NCDInterpProcess_StatementGetMethodModule(p->iprocess, p->ap, object_type, &p->interp->method_index);
