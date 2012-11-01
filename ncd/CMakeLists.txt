@@ -163,6 +163,7 @@ add_library(ncdinterpreter
     modules/net_ipv6_addr_in_network.c
     modules/timer.c
     modules/file_open.c
+    modules/backtrack.c
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(ncdinterpreter
