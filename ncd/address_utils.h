@@ -135,13 +135,15 @@ static NCDValRef ncd_make_baddr (BAddr addr, NCDValMem *mem)
     NCDValRef val;
     
     switch (addr.type) {
+        default:
         case BADDR_TYPE_NONE: {
             val = NCDVal_NewList(mem, 1);
             if (NCDVal_IsInvalid(val)) {
                 goto fail;
             }
             
-            NCDValRef type_val = NCDVal_NewString(mem, "none");
+            const char *str = (addr.type == BADDR_TYPE_NONE ? "none" : "unknown");
+            NCDValRef type_val = NCDVal_NewString(mem, str);
             if (NCDVal_IsInvalid(type_val)) {
                 goto fail;
             }
@@ -206,9 +208,6 @@ static NCDValRef ncd_make_baddr (BAddr addr, NCDValMem *mem)
             NCDVal_ListAppend(val, ipaddr_val);
             NCDVal_ListAppend(val, port_val);
         } break;
-        
-        default:
-            goto fail;
     }
     
     return val;
