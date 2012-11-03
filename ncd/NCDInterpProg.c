@@ -83,7 +83,7 @@ int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDStringIndex *stri
         
         NCDInterpProg__HashRef ref = {e, o->num_procs};
         if (!NCDInterpProg__Hash_Insert(&o->hash, o->procs, ref, NULL)) {
-            BLog(BLOG_ERROR, "duplicate process or template name: %s", e->name);
+            BLog(BLOG_ERROR, "duplicate process or template name: %s", NCDProcess_Name(p));
             NCDInterpProcess_Free(&e->iprocess);
             goto fail2;
         }
