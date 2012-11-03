@@ -115,8 +115,8 @@ static int CHash_Insert (CHash *o, CHashArg arg, CHashRef entry, CHashRef *out_e
         if (CHASH_PARAM_COMPARE_ENTRIES(arg, cur, entry)) {
             if (out_existing) {
                 *out_existing = cur;
-                return 0;
             }
+            return 0;
         }
         link = CHash_next(cur);
     }
