@@ -53,12 +53,9 @@
  * 
  * Predefined variables in request_handler_template:
  *   _request.data - the request payload as sent by the client
- *   _request.client_addr_type - type of client address; "none", "ipv4" or "ipv6"
- *   _request.client_addr - client IP address. IPv4 addresses are standard dotted-decimal
- *     without leading zeros, e.g. "14.6.0.251". IPv6 addresses are full 8
- *     lower-case-hexadecimal numbers separated by 7 colons, without leading zeros,
- *     e.g. "61:71a4:81f:98aa:57:0:5efa:17". If client_addr_type=="none", this too
- *     is "none".
+ *   string _request.client_addr - the address of the client. The form is
+ *     like the second part of the sys.request_server() address format, e.g.
+ *     {"ipv4", "1.2.3.4", "4000"}.
  * 
  * Synopsis:
  *   sys.request_server.request::reply(reply_data)
@@ -169,11 +166,11 @@ static void reply_free (struct reply *r);
 static void reply_send_qflow_if_handler_done (struct reply *r);
 static void instance_free (struct instance *o);
 
-enum {STRING_REQUEST, STRING_DATA, STRING_CLIENT_ADDR_TYPE, STRING_CLIENT_ADDR,
+enum {STRING_REQUEST, STRING_DATA, STRING_CLIENT_ADDR,
       STRING_SYS_REQUEST_SERVER_REQUEST};
 
 static struct NCD_string_request strings[] = {
-    {"_request"}, {"data"}, {"client_addr_type"}, {"client_addr"},
+    {"_request"}, {"data"}, {"client_addr"},
     {"sys.request_server.request"}, {NULL}
 };
 
@@ -503,39 +500,10 @@ static int request_process_request_obj_func_getvar (struct request *r, NCD_strin
         return 1;
     }
     
-    if (name == strings[STRING_CLIENT_ADDR_TYPE].id) {
-        const char *str = "none";
-        switch (r->con->addr.type) {
-            case BADDR_TYPE_IPV4:
-                str = "ipv4";
-                break;
-            case BADDR_TYPE_IPV6:
-                str = "ipv6";
-                break;
-        }
-        
-        *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
-        return 1;
-    }
-    
     if (name == strings[STRING_CLIENT_ADDR].id) {
-        char str[BIPADDR_MAX_PRINT_LEN] = "none";
-        
-        switch (r->con->addr.type) {
-            case BADDR_TYPE_IPV4:
-            case BADDR_TYPE_IPV6: {
-                BIPAddr ipaddr;
-                BAddr_GetIPAddr(&r->con->addr, &ipaddr);
-                BIPAddr_Print(&ipaddr, str);
-            } break;
-        }
-        
-        *out = NCDVal_NewString(mem, str);
+        *out = ncd_make_baddr(r->con->addr, mem);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_baddr failed");
         }
         return 1;
     }
