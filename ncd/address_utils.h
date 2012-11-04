@@ -38,11 +38,13 @@
 #include <misc/ipaddr6.h>
 #include <misc/byteorder.h>
 #include <system/BAddr.h>
+#include <system/BConnectionGeneric.h>
 #include <ncd/NCDVal.h>
 #include <ncd/value_utils.h>
 
 static int ncd_read_baddr (NCDValRef val, BAddr *out) WARN_UNUSED;
 static NCDValRef ncd_make_baddr (BAddr addr, NCDValMem *mem);
+static int ncd_read_bconnection_addr (NCDValRef val, struct BConnection_addr *out_addr) WARN_UNUSED;
 
 static int ncd_read_baddr (NCDValRef val, BAddr *out)
 {
@@ -214,6 +216,49 @@ static NCDValRef ncd_make_baddr (BAddr addr, NCDValMem *mem)
     
 fail:
     return NCDVal_NewInvalid();
+}
+
+static int ncd_read_bconnection_addr (NCDValRef val, struct BConnection_addr *out_addr)
+{
+    ASSERT(!NCDVal_IsInvalid(val))
+    
+    if (!NCDVal_IsList(val)) {
+        goto fail;
+    }
+    
+    NCDValRef protocol_arg;
+    NCDValRef data_arg;
+    if (!NCDVal_ListRead(val, 2, &protocol_arg, &data_arg)) {
+        goto fail;
+    }
+    
+    if (!NCDVal_IsString(protocol_arg)) {
+        goto fail;
+    }
+    
+    if (NCDVal_StringEquals(protocol_arg, "unix")) {
+        if (!NCDVal_IsStringNoNulls(data_arg)) {
+            goto fail;
+        }
+        
+        *out_addr = BConnection_addr_unix(NCDVal_StringValue(data_arg));
+    }
+    else if (NCDVal_StringEquals(protocol_arg, "tcp")) {
+        BAddr baddr;
+        if (!ncd_read_baddr(data_arg, &baddr)) {
+            goto fail;
+        }
+        
+        *out_addr = BConnection_addr_baddr(baddr);
+    }
+    else {
+        goto fail;
+    }
+    
+    return 1;
+    
+fail:
+    return 0;
 }
 
 #endif
