@@ -1,3 +1,7 @@
+- NCD: add socket module (sys.connect() and sys.listen())
+
+- NCD: fix bug where duplicate template/process names would not be detected and weird behaviour would result
+
 - NCD: implement parse_ipv6_addr() and parse_ipv6_cidr_addr()
 
 - NCD: port to Emscripten/Javascript, for the in-browser demo
