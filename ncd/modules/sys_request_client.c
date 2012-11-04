@@ -159,7 +159,7 @@ static void request_die (struct request_instance *o, int is_error);
 static void request_free_reply (struct request_instance *o, struct reply *r, int have_value);
 static int request_init_reply_process (struct request_instance *o, NCDValMem reply_mem, NCDValSafeRef reply_data);
 static int request_init_finished_process (struct request_instance *o);
-static int get_connect_addr (struct instance *o, NCDValRef connect_addr_arg, struct NCDRequestClient_addr *out_addr);
+static int get_connect_addr (struct instance *o, NCDValRef connect_addr_arg, struct BConnection_addr *out_addr);
 static void instance_free (struct instance *o, int with_error);
 static void request_instance_free (struct request_instance *o, int with_error);
 
@@ -472,7 +472,7 @@ fail0:
     return 0;
 }
 
-static int get_connect_addr (struct instance *o, NCDValRef connect_addr_arg, struct NCDRequestClient_addr *out_addr)
+static int get_connect_addr (struct instance *o, NCDValRef connect_addr_arg, struct BConnection_addr *out_addr)
 {
     if (!NCDVal_IsList(connect_addr_arg)) {
         goto bad;
@@ -498,7 +498,7 @@ static int get_connect_addr (struct instance *o, NCDValRef connect_addr_arg, str
             goto bad;
         }
         
-        *out_addr = NCDREQUESTCLIENT_UNIX_ADDR(NCDVal_StringValue(socket_path_arg));
+        *out_addr = BConnection_addr_unix(NCDVal_StringValue(socket_path_arg));
     }
     else if (!strcmp(type, "tcp")) {
         NCDValRef ip_address_arg;
@@ -524,7 +524,7 @@ static int get_connect_addr (struct instance *o, NCDValRef connect_addr_arg, str
         BAddr addr;
         BAddr_InitFromIpaddrAndPort(&addr, ipaddr, hton16(port));
         
-        *out_addr = NCDREQUESTCLIENT_TCP_ADDR(addr);
+        *out_addr = BConnection_addr_baddr(addr);
     }
     else {
         goto bad;
@@ -550,7 +550,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     
     // get address
-    struct NCDRequestClient_addr addr;
+    struct BConnection_addr addr;
     if (!get_connect_addr(o, connect_addr_arg, &addr)) {
         goto fail0;
     }

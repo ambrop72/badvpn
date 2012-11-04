@@ -50,7 +50,7 @@ static void request_handler_sent (void *user);
 static void request_handler_reply (void *user, NCDValMem reply_mem, NCDValRef reply_value);
 static void request_handler_finished (void *user, int is_error);
 static int write_all (int fd, const uint8_t *data, size_t len);
-static int make_connect_addr (const char *str, struct NCDRequestClient_addr *out_addr);
+static int make_connect_addr (const char *str, struct BConnection_addr *out_addr);
 
 NCDValMem request_mem;
 NCDValRef request_value;
@@ -92,7 +92,7 @@ int main (int argc, char *argv[])
         goto fail1;
     }
     
-    struct NCDRequestClient_addr addr;
+    struct BConnection_addr addr;
     if (!make_connect_addr(connect_address, &addr)) {
         goto fail2;
     }
@@ -120,12 +120,12 @@ fail0:
     return res;
 }
 
-static int make_connect_addr (const char *str, struct NCDRequestClient_addr *out_addr)
+static int make_connect_addr (const char *str, struct BConnection_addr *out_addr)
 {
     size_t i;
     
     if (i = string_begins_with(str, "unix:")) {
-        *out_addr = NCDREQUESTCLIENT_UNIX_ADDR(str + i);
+        *out_addr = BConnection_addr_unix(str + i);
     }
     else if (i = string_begins_with(str, "tcp:")) {
         BAddr baddr;
@@ -134,7 +134,7 @@ static int make_connect_addr (const char *str, struct NCDRequestClient_addr *out
             return 0;
         }
         
-        *out_addr = NCDREQUESTCLIENT_TCP_ADDR(baddr);
+        *out_addr = BConnection_addr_baddr(baddr);
     }
     else {
         BLog(BLOG_ERROR, "address must start with unix: or tcp:");
