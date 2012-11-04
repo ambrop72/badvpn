@@ -202,7 +202,6 @@ static struct NCD_string_request strings[] = {
     {"is_error"}, {"not_eof"}, {"_socket"}, {"sys.socket"}, {"client_addr"}, {NULL}
 };
 
-static int read_address (NCDValRef addr_arg, struct BConnection_addr *out_addr) WARN_UNUSED;
 static void connection_log (struct connection *o, int level, const char *fmt, ...);
 static void connection_free_connection (struct connection *o);
 static void connection_error (struct connection *o);
@@ -215,47 +214,6 @@ static void connection_process_handler (struct NCDModuleProcess_s *process, int 
 static int connection_process_func_getspecialobj (struct NCDModuleProcess_s *process, NCD_string_id_t name, NCDObject *out_object);
 static int connection_process_socket_obj_func_getvar (void *user, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
 static void listen_listener_handler (void *user);
-
-static int read_address (NCDValRef addr_arg, struct BConnection_addr *out_addr)
-{
-    if (!NCDVal_IsList(addr_arg)) {
-        goto fail;
-    }
-    
-    NCDValRef protocol_arg;
-    NCDValRef data_arg;
-    if (!NCDVal_ListRead(addr_arg, 2, &protocol_arg, &data_arg)) {
-        goto fail;
-    }
-    
-    if (!NCDVal_IsString(protocol_arg)) {
-        goto fail;
-    }
-    
-    if (NCDVal_StringEquals(protocol_arg, "unix")) {
-        if (!NCDVal_IsStringNoNulls(data_arg)) {
-            goto fail;
-        }
-        
-        *out_addr = BConnection_addr_unix(NCDVal_StringValue(data_arg));
-    }
-    else if (NCDVal_StringEquals(protocol_arg, "tcp")) {
-        BAddr baddr;
-        if (!ncd_read_baddr(data_arg, &baddr)) {
-            goto fail;
-        }
-        
-        *out_addr = BConnection_addr_baddr(baddr);
-    }
-    else {
-        goto fail;
-    }
-    
-    return 1;
-    
-fail:
-    return 0;
-}
 
 static void connection_log (struct connection *o, int level, const char *fmt, ...)
 {
@@ -624,7 +582,7 @@ static void connect_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     
     // read address
     struct BConnection_addr address;
-    if (!read_address(address_arg, &address)) {
+    if (!ncd_read_bconnection_addr(address_arg, &address)) {
         ModuleLog(i, BLOG_ERROR, "wrong address");
         goto error;
     }
@@ -902,7 +860,7 @@ static void listen_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
     
     // read address
     struct BConnection_addr address;
-    if (!read_address(address_arg, &address)) {
+    if (!ncd_read_bconnection_addr(address_arg, &address)) {
         ModuleLog(i, BLOG_ERROR, "wrong address");
         goto error;
     }
