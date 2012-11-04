@@ -133,4 +133,5 @@
 #define BLOG_CHANNEL_ncd_timer 132
 #define BLOG_CHANNEL_ncd_file_open 133
 #define BLOG_CHANNEL_ncd_backtrack 134
-#define BLOG_NUM_CHANNELS 135
+#define BLOG_CHANNEL_ncd_socket 135
+#define BLOG_NUM_CHANNELS 136

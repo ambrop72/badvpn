@@ -133,3 +133,4 @@ dostest_attacker 4
 ncd_timer 4
 ncd_file_open 4
 ncd_backtrack 4
+ncd_socket 4

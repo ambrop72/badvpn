@@ -61,6 +61,7 @@ if (NOT EMSCRIPTEN)
         modules/reboot.c
         modules/net_ipv6_addr.c
         modules/net_ipv6_route.c
+        modules/socket.c
     )
     
     list(APPEND NCD_ADDITIONAL_LIBS
