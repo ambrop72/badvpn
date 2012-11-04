@@ -38,6 +38,7 @@ struct BListener_s {
     BReactor *reactor;
     void *user;
     BListener_handler handler;
+    char *unix_socket_path;
     int fd;
     BFileDescriptor bfd;
     BPending default_job;

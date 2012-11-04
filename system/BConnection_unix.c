@@ -36,6 +36,7 @@
 #include <sys/un.h>
 
 #include <misc/nonblocking.h>
+#include <misc/strdup.h>
 #include <base/BLog.h>
 
 #include "BConnection.h"
@@ -439,6 +440,9 @@ int BListener_Init (BListener *o, BAddr addr, BReactor *reactor, void *user,
     o->user = user;
     o->handler = handler;
     
+    // set no unix socket path
+    o->unix_socket_path = NULL;
+    
     // check address
     if (!BConnection_AddressSupported(addr)) {
         BLog(BLOG_ERROR, "address not supported");
@@ -513,42 +517,55 @@ int BListener_InitUnix (BListener *o, const char *socket_path, BReactor *reactor
     o->user = user;
     o->handler = handler;
     
+    // copy socket path
+    o->unix_socket_path = b_strdup(socket_path);
+    if (!o->unix_socket_path) {
+        BLog(BLOG_ERROR, "b_strdup failed");
+        goto fail0;
+    }
+    
     // build address
     struct unix_addr addr;
     if (!build_unix_address(&addr, socket_path)) {
         BLog(BLOG_ERROR, "build_unix_address failed");
-        goto fail0;
+        goto fail1;
     }
     
     // init fd
     if ((o->fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
         BLog(BLOG_ERROR, "socket failed");
-        goto fail0;
+        goto fail1;
     }
     
     // set non-blocking
     if (!badvpn_set_nonblocking(o->fd)) {
         BLog(BLOG_ERROR, "badvpn_set_nonblocking failed");
-        goto fail1;
+        goto fail2;
+    }
+    
+    // unlink existing socket
+    if (unlink(o->unix_socket_path) < 0 && errno != ENOENT) {
+        BLog(BLOG_ERROR, "unlink existing socket failed");
+        goto fail2;
     }
     
     // bind
     if (bind(o->fd, (struct sockaddr *)&addr.u.addr, addr.len) < 0) {
         BLog(BLOG_ERROR, "bind failed");
-        goto fail1;
+        goto fail2;
     }
     
     // listen
     if (listen(o->fd, BCONNECTION_LISTEN_BACKLOG) < 0) {
         BLog(BLOG_ERROR, "listen failed");
-        goto fail1;
+        goto fail3;
     }
     
     // init BFileDescriptor
     BFileDescriptor_Init(&o->bfd, o->fd, (BFileDescriptor_handler)listener_fd_handler, o);
     if (!BReactor_AddFileDescriptor(o->reactor, &o->bfd)) {
         BLog(BLOG_ERROR, "BReactor_AddFileDescriptor failed");
-        goto fail1;
+        goto fail3;
     }
     BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, BREACTOR_READ);
     
@@ -558,10 +575,16 @@ int BListener_InitUnix (BListener *o, const char *socket_path, BReactor *reactor
     DebugObject_Init(&o->d_obj);
     return 1;
     
-fail1:
+fail3:
+    if (unlink(o->unix_socket_path) < 0) {
+        BLog(BLOG_ERROR, "unlink socket failed");
+    }
+fail2:
     if (close(o->fd) < 0) {
         BLog(BLOG_ERROR, "close failed");
     }
+fail1:
+    free(o->unix_socket_path);
 fail0:
     return 0;
 }
@@ -579,6 +602,18 @@ void BListener_Free (BListener *o)
     // free fd
     if (close(o->fd) < 0) {
         BLog(BLOG_ERROR, "close failed");
+    }
+    
+    // unlink unix socket
+    if (o->unix_socket_path) {
+        if (unlink(o->unix_socket_path) < 0) {
+            BLog(BLOG_ERROR, "unlink socket failed");
+        }
+    }
+    
+    // free unix socket path
+    if (o->unix_socket_path) {
+        free(o->unix_socket_path);
     }
 }
 
