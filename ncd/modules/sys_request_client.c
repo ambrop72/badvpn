@@ -36,12 +36,11 @@
  *   Goes up when the connection, and dies with error when it is broken.
  *   When requested to die, dies immediately, breaking the connection.
  * 
- *   The connect_addr argument must be one of:
- *   - {"unix", socket_path}
- *     Connects to a Unix socket.
- *   - {"tcp", ip_address, port_number}
- *     Connects to a TCP server. The address must be numeric and not a name.
- *     For IPv6, the address must be enclosed in [].
+ *   The connect address should be in the same format as for the socket module.
+ *   In particular, it must be in one of the following forms:
+ *   - {"tcp", {"ipv4", ipv4_address, port_number}},
+ *   - {"tcp", {"ipv6", ipv6_address, port_number}},
+ *   - {"unix", socket_path}.
  * 
  * Synopsis:
  *   sys.request_client::request(request_data, string reply_handler, string finished_handler, list args)
@@ -88,10 +87,10 @@
 #include <misc/offset.h>
 #include <structure/LinkedList0.h>
 #include <structure/LinkedList1.h>
-#include <system/BAddr.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDRequestClient.h>
 #include <ncd/value_utils.h>
+#include <ncd/address_utils.h>
 
 #include <generated/blog_channel_ncd_sys_request_client.h>
 
@@ -159,7 +158,6 @@ static void request_die (struct request_instance *o, int is_error);
 static void request_free_reply (struct request_instance *o, struct reply *r, int have_value);
 static int request_init_reply_process (struct request_instance *o, NCDValMem reply_mem, NCDValSafeRef reply_data);
 static int request_init_finished_process (struct request_instance *o);
-static int get_connect_addr (struct instance *o, NCDValRef connect_addr_arg, struct BConnection_addr *out_addr);
 static void instance_free (struct instance *o, int with_error);
 static void request_instance_free (struct request_instance *o, int with_error);
 
@@ -472,71 +470,6 @@ fail0:
     return 0;
 }
 
-static int get_connect_addr (struct instance *o, NCDValRef connect_addr_arg, struct BConnection_addr *out_addr)
-{
-    if (!NCDVal_IsList(connect_addr_arg)) {
-        goto bad;
-    }
-    
-    if (NCDVal_ListCount(connect_addr_arg) < 1) {
-        goto bad;
-    }
-    NCDValRef type_arg = NCDVal_ListGet(connect_addr_arg, 0);
-    
-    if (!NCDVal_IsStringNoNulls(type_arg)) {
-        goto bad;
-    }
-    const char *type = NCDVal_StringValue(type_arg);
-    
-    if (!strcmp(type, "unix")) {
-        NCDValRef socket_path_arg;
-        if (!NCDVal_ListRead(connect_addr_arg, 2, &type_arg, &socket_path_arg)) {
-            goto bad;
-        }
-        
-        if (!NCDVal_IsStringNoNulls(socket_path_arg)) {
-            goto bad;
-        }
-        
-        *out_addr = BConnection_addr_unix(NCDVal_StringValue(socket_path_arg));
-    }
-    else if (!strcmp(type, "tcp")) {
-        NCDValRef ip_address_arg;
-        NCDValRef port_number_arg;
-        if (!NCDVal_ListRead(connect_addr_arg, 3, &type_arg, &ip_address_arg, &port_number_arg)) {
-            goto bad;
-        }
-        
-        if (!NCDVal_IsStringNoNulls(ip_address_arg) || !NCDVal_IsString(port_number_arg)) {
-            goto bad;
-        }
-        
-        BIPAddr ipaddr;
-        if (!BIPAddr_Resolve(&ipaddr, (char *)NCDVal_StringValue(ip_address_arg), 1)) {
-            goto bad;
-        }
-        
-        uintmax_t port;
-        if (!ncd_read_uintmax(port_number_arg, &port) || port > UINT16_MAX) {
-            goto bad;
-        }
-        
-        BAddr addr;
-        BAddr_InitFromIpaddrAndPort(&addr, ipaddr, hton16(port));
-        
-        *out_addr = BConnection_addr_baddr(addr);
-    }
-    else {
-        goto bad;
-    }
-    
-    return 1;
-    
-bad:
-    ModuleLog(o->i, BLOG_ERROR, "bad connect address argument");
-    return 0;
-}
-
 static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
@@ -549,9 +482,10 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         goto fail0;
     }
     
-    // get address
+    // read connect address
     struct BConnection_addr addr;
-    if (!get_connect_addr(o, connect_addr_arg, &addr)) {
+    if (!ncd_read_bconnection_addr(connect_addr_arg, &addr)) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong connect address");
         goto fail0;
     }
     
