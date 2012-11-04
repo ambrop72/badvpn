@@ -34,9 +34,11 @@
  *   value value::try_get(where)
  *   value value::getpath(list path)
  *   value value::insert(where, what)
+ *   value value::insert(what)
  *   value value::replace(where, what)
  *   value value::replace_this(value)
  *   value value::insert_undo(where, what)
+ *   value value::insert_undo(what)
  *   value value::replace_undo(where, what)
  *   value value::replace_this_undo(value)
  * 
@@ -71,6 +73,10 @@
  *   of the list to append to it.
  *   For maps, 'where' is the key to insert under. If the key already exists in the
  *   map, its value is replaced; any references to the old value however remain valid.
+ * 
+ *   value::insert(what) constructs a value object by appending to a list. An error
+ *   is triggered if the base value is not a list. Assuming 'list' is a list value,
+ *   list->insert(X) is equivalent to list->insert(list.length, X).
  * 
  *   value::replace(where, what) is like insert(), exept that, when inserting into a
  *   list, the value at the specified index is replaced with the new value (unless
@@ -240,6 +246,7 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
 static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValRef where, int no_error);
 static struct value * value_get_path (NCDModuleInst *i, struct value *v, NCDValRef path);
 static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef where, NCDValRef what, int is_replace, struct value **out_oldv);
+static struct value * value_insert_simple (NCDModuleInst *i, struct value *v, NCDValRef what);
 static int value_remove (NCDModuleInst *i, struct value *v, NCDValRef where);
 static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data);
 static void valref_init (struct valref *r, struct value *v);
@@ -881,6 +888,36 @@ fail0:
     return NULL;
 }
 
+static struct value * value_insert_simple (NCDModuleInst *i, struct value *v, NCDValRef what)
+{
+    ASSERT(v)
+    ASSERT((NCDVal_Type(what), 1))
+    
+    struct value *nv = value_init_fromvalue(i, what);
+    if (!nv) {
+        goto fail0;
+    }
+    
+    switch (v->type) {
+        case NCDVAL_LIST: {
+            if (!value_list_insert(i, v, nv, value_list_len(v))) {
+                goto fail1;
+            }
+        } break;
+        
+        default:
+            ModuleLog(i, BLOG_ERROR, "one-argument insert is only defined for lists");
+            return NULL;
+    }
+    
+    return nv;
+    
+fail1:
+    value_cleanup(nv);
+fail0:
+    return NULL;
+}
+
 static int value_remove (NCDModuleInst *i, struct value *v, NCDValRef where)
 {
     ASSERT(v)
@@ -1270,9 +1307,10 @@ fail0:
 
 static void func_new_insert_replace_common (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int is_replace)
 {
-    NCDValRef where_arg;
+    NCDValRef where_arg = NCDVal_NewInvalid();
     NCDValRef what_arg;
-    if (!NCDVal_ListRead(params->args, 2, &where_arg, &what_arg)) {
+    if (!(!is_replace && NCDVal_ListRead(params->args, 1, &what_arg)) &&
+        !NCDVal_ListRead(params->args, 2, &where_arg, &what_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -1285,7 +1323,13 @@ static void func_new_insert_replace_common (void *vo, NCDModuleInst *i, const st
         goto fail0;
     }
     
-    struct value *v = value_insert(i, mov, where_arg, what_arg, is_replace, NULL);
+    struct value *v;
+    
+    if (NCDVal_IsInvalid(where_arg)) {
+        v = value_insert_simple(i, mov, what_arg);
+    } else {
+        v = value_insert(i, mov, where_arg, what_arg, is_replace, NULL);
+    }
     if (!v) {
         goto fail0;
     }
@@ -1356,9 +1400,10 @@ static void undo_deinit_func (struct insert_undo_deinit_data *data, NCDModuleIns
 
 static void func_new_insert_replace_undo_common (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int is_replace)
 {
-    NCDValRef where_arg;
+    NCDValRef where_arg = NCDVal_NewInvalid();
     NCDValRef what_arg;
-    if (!NCDVal_ListRead(params->args, 2, &where_arg, &what_arg)) {
+    if (!(!is_replace && NCDVal_ListRead(params->args, 1, &what_arg)) &&
+        !NCDVal_ListRead(params->args, 2, &where_arg, &what_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -1378,7 +1423,14 @@ static void func_new_insert_replace_undo_common (void *vo, NCDModuleInst *i, con
     }
     
     struct value *oldv;
-    struct value *v = value_insert(i, mov, where_arg, what_arg, is_replace, &oldv);
+    struct value *v;
+    
+    if (NCDVal_IsInvalid(where_arg)) {
+        oldv = NULL;
+        v = value_insert_simple(i, mov, what_arg);
+    } else {
+        v = value_insert(i, mov, where_arg, what_arg, is_replace, &oldv);
+    }
     if (!v) {
         goto fail1;
     }

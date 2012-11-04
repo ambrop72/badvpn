@@ -175,6 +175,23 @@ process main {
     v->append("f");
     val_equal(v, "abcdeabcdef") a;
     assert(a);
+    
+    value({}) v;
+    v->insert("1");
+    v->insert("2");
+    v->insert("3");
+    v->insert("4");
+    val_equal(v, {"1", "2", "3", "4"})  a;
+    assert(a);
+    
+    value({}) v;
+    imperative("<none>", {}, "check5", {}, "10000");
+    v->insert_undo("1");
+    v->insert_undo("2");
+    v->insert_undo("3");
+    v->insert_undo("4");
+    val_equal(v, {"1", "2", "3", "4"})  a;
+    assert(a);
 
     exit("0");
 }
@@ -196,5 +213,10 @@ template check3 {
 
 template check4 {
     val_equal(_caller.v, ["a":"va", "b":"vb", "c":"vc"]) a;
+    assert(a);
+}
+
+template check5 {
+    val_equal(_caller.v, {}) a;
     assert(a);
 }
