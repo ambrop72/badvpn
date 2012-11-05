@@ -1,6 +1,14 @@
+- NCD: implement value::insert(what) for appending to a list
+
+- NCD: change the format of addresses in sys.request_server() and sys.request_client() to be the same as in the socket module
+
 - NCD: add socket module (sys.connect() and sys.listen())
 
 - NCD: fix bug where duplicate template/process names would not be detected and weird behaviour would result
+
+- NCD: add backtrack_point() for simple backtracking
+
+- NCD: add file_open() for more complete file I/O
 
 - NCD: implement parse_ipv6_addr() and parse_ipv6_cidr_addr()
 
