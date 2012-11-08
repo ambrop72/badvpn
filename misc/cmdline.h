@@ -39,6 +39,7 @@
 
 #include <misc/debug.h>
 #include <misc/exparray.h>
+#include <misc/strdup.h>
 
 typedef struct {
     struct ExpArray arr;
@@ -48,6 +49,7 @@ typedef struct {
 static int CmdLine_Init (CmdLine *c);
 static void CmdLine_Free (CmdLine *c);
 static int CmdLine_Append (CmdLine *c, const char *str);
+static int CmdLine_AppendNoNull (CmdLine *c, const char *str, size_t str_len);
 static int CmdLine_AppendMulti (CmdLine *c, int num, ...);
 static int CmdLine_Finish (CmdLine *c);
 static char ** CmdLine_Get (CmdLine *c);
@@ -87,6 +89,25 @@ int CmdLine_Append (CmdLine *c, const char *str)
     }
     
     if (!(((char **)c->arr.v)[c->n] = strdup(str))) {
+        return 0;
+    }
+    
+    c->n++;
+    
+    return 1;
+}
+
+int CmdLine_AppendNoNull (CmdLine *c, const char *str, size_t str_len)
+{
+    ASSERT(str)
+    ASSERT(!memchr(str, '\0', str_len))
+    ASSERT(!_CmdLine_finished(c))
+    
+    if (!ExpArray_resize(&c->arr, c->n + 1)) {
+        return 0;
+    }
+    
+    if (!(((char **)c->arr.v)[c->n] = b_strdup_bin(str, str_len))) {
         return 0;
     }
     
