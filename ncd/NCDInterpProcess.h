@@ -51,8 +51,7 @@ struct NCDInterpProcess__stmt {
         const struct NCDModule *simple_module;
         int method_name_id;
     } binding;
-    char *arg_data;
-    size_t arg_len;
+    NCDValMem arg_mem;
     NCDValSafeRef arg_ref;
     NCDValReplaceProg arg_prog;
     int alloc_size;

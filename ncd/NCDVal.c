@@ -231,52 +231,28 @@ void NCDValMem_Free (NCDValMem *o)
     }
 }
 
-int NCDValMem_FreeExport (NCDValMem *o, char **out_data, size_t *out_len)
+int NCDValMem_InitCopy (NCDValMem *o, NCDValMem *other)
 {
-    NCDVal__AssertMem(o);
-    ASSERT(out_data)
-    ASSERT(out_len)
+    NCDVal__AssertMem(other);
     
-    if (o->buf) {
-        *out_data = o->buf;
-    } else {
-        if (!(*out_data = BAlloc(o->used))) {
-            return 0;
-        }
-        memcpy(*out_data, o->fastbuf, o->used);
-    }
+    o->size = other->size;
+    o->used = other->used;
     
-    *out_len = o->used;
-    
-    return 1;
-}
-
-int NCDValMem_InitImport (NCDValMem *o, const char *data, size_t len)
-{
-    ASSERT(data)
-    ASSERT(len <= NCDVAL_MAXIDX)
-    
-    if (len <= NCDVAL_FASTBUF_SIZE) {
-        memcpy(o->fastbuf, data, len);
+    if (!other->buf) {
         o->buf = NULL;
-        o->size = NCDVAL_FASTBUF_SIZE;
+        memcpy(o->fastbuf, other->fastbuf, other->used);
     } else {
-        size_t cap = len;
-        if (cap < NCDVAL_FIRST_SIZE) {
-            cap = NCDVAL_FIRST_SIZE;
+        o->buf = BAlloc(other->size);
+        if (!o->buf) {
+            goto fail0;
         }
-        
-        if (!(o->buf = BAlloc(cap))) {
-            return 0;
-        }
-        
-        memcpy(o->buf, data, len);
-        o->size = cap;
+        memcpy(o->buf, other->buf, other->used);
     }
     
-    o->used = len;
-    
     return 1;
+    
+fail0:
+    return 0;
 }
 
 void NCDVal_Assert (NCDValRef val)

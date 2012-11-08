@@ -222,27 +222,18 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIn
             goto loop_fail0;
         }
         
-        NCDValMem mem;
-        NCDValMem_Init(&mem);
+        NCDValMem_Init(&e->arg_mem);
         
         NCDValRef val;
-        if (!convert_value_recurser(pdb, string_index, NCDStatement_RegArgs(s), &mem, &val)) {
+        if (!convert_value_recurser(pdb, string_index, NCDStatement_RegArgs(s), &e->arg_mem, &val)) {
             BLog(BLOG_ERROR, "convert_value_recurser failed");
-            NCDValMem_Free(&mem);
-            goto loop_fail0;
+            goto loop_fail1;
         }
         
         e->arg_ref = NCDVal_ToSafe(val);
         
         if (!NCDValReplaceProg_Init(&e->arg_prog, val)) {
             BLog(BLOG_ERROR, "NCDValReplaceProg_Init failed");
-            NCDValMem_Free(&mem);
-            goto loop_fail0;
-        }
-        
-        if (!NCDValMem_FreeExport(&mem, &e->arg_data, &e->arg_len)) {
-            BLog(BLOG_ERROR, "NCDValMem_FreeExport failed");
-            NCDValMem_Free(&mem);
             goto loop_fail1;
         }
         
@@ -273,9 +264,9 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIn
     loop_fail3:
         BFree(e->objnames);
     loop_fail2:
-        BFree(e->arg_data);
-    loop_fail1:
         NCDValReplaceProg_Free(&e->arg_prog);
+    loop_fail1:
+        NCDValMem_Free(&e->arg_mem);
     loop_fail0:
         goto fail3;
     }
@@ -289,8 +280,8 @@ fail3:
     while (o->num_stmts-- > 0) {
         struct NCDInterpProcess__stmt *e = &o->stmts[o->num_stmts];
         BFree(e->objnames);
-        BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
+        NCDValMem_Free(&e->arg_mem);
     }
     free(o->name);
 fail2:
@@ -308,8 +299,8 @@ void NCDInterpProcess_Free (NCDInterpProcess *o)
     while (o->num_stmts-- > 0) {
         struct NCDInterpProcess__stmt *e = &o->stmts[o->num_stmts];
         BFree(e->objnames);
-        BFree(e->arg_data);
         NCDValReplaceProg_Free(&e->arg_prog);
+        NCDValMem_Free(&e->arg_mem);
     }
     
     free(o->name);
@@ -396,7 +387,7 @@ int NCDInterpProcess_CopyStatementArgs (NCDInterpProcess *o, int i, NCDValMem *o
     
     struct NCDInterpProcess__stmt *e = &o->stmts[i];
     
-    if (!NCDValMem_InitImport(out_valmem, e->arg_data, e->arg_len)) {
+    if (!NCDValMem_InitCopy(out_valmem, &e->arg_mem)) {
         return 0;
     }
     

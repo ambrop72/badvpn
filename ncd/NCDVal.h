@@ -167,26 +167,14 @@ void NCDValMem_Init (NCDValMem *o);
 void NCDValMem_Free (NCDValMem *o);
 
 /**
- * Attempts to free the value memory object, exporting its data to an external
- * memory block.
- * On success, 1 is returned, and *out_data and *out_len are set; *out_data
- * receives a memory block which should be freed using {@link BFree}.
- * After the memory object is exported, copies can be created using
- * {@link NCDValMem_InitImport}. Any value references needed from the original
- * should be turned to safe references using {@link NCDVal_ToSafe} before
- * exporting the block, and imported to copies using {@link NCDVal_FromSafe}.
- * On failure, 0 is returned, and the memory object is unchanged (it should
- * still be freed using {@link NCDValMem_Free}.
+ * Initializes the memory object to be a copy of an existing memory object.
+ * Value references from the original may be used if they are first turned
+ * to {@link NCDValSafeRef} using {@link NCDVal_ToSafe} and back to
+ * {@link NCDValRef} using {@link NCDVal_FromSafe} with the new memory object
+ * specified. Alternatively, {@link NCDVal_Moved} can be used.
+ * Returns 1 on success and 0 on failure.
  */
-int NCDValMem_FreeExport (NCDValMem *o, char **out_data, size_t *out_len) WARN_UNUSED;
-
-/**
- * Initializes the value memory object as a copy of an external memory block,
- * which was obtained using {@link NCDValMem_FreeExport}.
- * The memory block provided is only read, and is copied into this memory object.
- * Returns 1 on success, 0 on failure.
- */
-int NCDValMem_InitImport (NCDValMem *o, const char *data, size_t len) WARN_UNUSED;
+int NCDValMem_InitCopy (NCDValMem *o, NCDValMem *other) WARN_UNUSED;
 
 /**
  * Does nothing.
@@ -568,8 +556,8 @@ NCDValMapElem NCDVal_MapFindKey (NCDValRef map, NCDValRef key);
  * efficiently replacing placeholders in identical values in identical memory
  * objects.
  * To actually perform replacements, make copies of the memory object of this value
- * using {@link NCDValMem_FreeExport} and {@link NCDValMem_InitImport}, then call
- * {@link NCDValReplaceProg_Execute} on the copies.
+ * using {@link NCDValMem_InitCopy}, then call {@link NCDValReplaceProg_Execute}
+ * on the copies.
  * The value passed must be a valid value, and not a placeholder.
  * Returns 1 on success, 0 on failure.
  */
@@ -596,8 +584,7 @@ typedef int (*NCDVal_replace_func) (void *arg, int plid, NCDValMem *mem, NCDValR
 /**
  * Executes the replacement program, replacing placeholders in a value.
  * The memory object must given be identical to the memory object which was used in
- * {@link NCDValReplaceProg_Init}; see {@link NCDValMem_FreeExport} and
- * {@link NCDValMem_InitImport}.
+ * {@link NCDValReplaceProg_Init}; see {@link NCDValMem_InitCopy}.
  * This will call the callback 'replace', which should build the values to replace
  * the placeholders.
  * Returns 1 on success and 0 on failure. On failure, the entire memory object enters
