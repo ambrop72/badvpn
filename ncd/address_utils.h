@@ -241,7 +241,7 @@ static int ncd_read_bconnection_addr (NCDValRef val, struct BConnection_addr *ou
             goto fail;
         }
         
-        *out_addr = BConnection_addr_unix(NCDVal_StringValue(data_arg));
+        *out_addr = BConnection_addr_unix(NCDVal_StringValue(data_arg), NCDVal_StringLength(data_arg));
     }
     else if (NCDVal_StringEquals(protocol_arg, "tcp")) {
         BAddr baddr;

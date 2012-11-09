@@ -30,7 +30,10 @@
 #ifndef BADVPN_BCONNECTION_GENERIC_H
 #define BADVPN_BCONNECTION_GENERIC_H
 
+#include <string.h>
+
 #include <misc/debug.h>
+#include <misc/strdup.h>
 #include <base/BLog.h>
 #include <system/BConnection.h>
 
@@ -41,7 +44,10 @@ struct BConnection_addr {
     int type;
     union {
         BAddr baddr;
-        const char *unix_socket_path;
+        struct {
+            const char *str;
+            size_t len;
+        } unix_socket_path;
     } u;
 };
 
@@ -53,11 +59,12 @@ static struct BConnection_addr BConnection_addr_baddr (BAddr baddr)
     return addr;
 }
 
-static struct BConnection_addr BConnection_addr_unix (const char *unix_socket_path)
+static struct BConnection_addr BConnection_addr_unix (const char *unix_socket_path, size_t len)
 {
     struct BConnection_addr addr;
     addr.type = BCONNECTION_ADDR_TYPE_UNIX;
-    addr.u.unix_socket_path = unix_socket_path;
+    addr.u.unix_socket_path.str = unix_socket_path;
+    addr.u.unix_socket_path.len = len;
     return addr;
 }
 
@@ -71,17 +78,29 @@ static int BListener_InitGeneric (BListener *o, struct BConnection_addr addr, BR
 {
     ASSERT(handler)
     BNetwork_Assert();
+    ASSERT(addr.type != BCONNECTION_ADDR_TYPE_UNIX || !memchr(addr.u.unix_socket_path.str, '\0', addr.u.unix_socket_path.len))
     
     switch (addr.type) {
-        case BCONNECTION_ADDR_TYPE_BADDR:
+        case BCONNECTION_ADDR_TYPE_BADDR: {
             return BListener_Init(o, addr.u.baddr, reactor, user, handler);
-        case BCONNECTION_ADDR_TYPE_UNIX:
+        } break;
+        
+        case BCONNECTION_ADDR_TYPE_UNIX: {
 #ifdef BADVPN_USE_WINAPI
             BLog_LogToChannel(BLOG_CHANNEL_BConnection, BLOG_ERROR, "unix sockets not supported");
             return 0;
 #else
-            return BListener_InitUnix(o, addr.u.unix_socket_path, reactor, user, handler);
+            char *str = b_strdup_bin(addr.u.unix_socket_path.str, addr.u.unix_socket_path.len);
+            if (!str) {
+                BLog_LogToChannel(BLOG_CHANNEL_BConnection, BLOG_ERROR, "b_strdup_bin failed");
+                return 0;
+            }
+            int res = BListener_InitUnix(o, str, reactor, user, handler);
+            free(str);
+            return res;
 #endif
+        } break;
+        
         default:
             ASSERT(0);
     }
@@ -92,17 +111,29 @@ static int BConnector_InitGeneric (BConnector *o, struct BConnection_addr addr, 
 {
     ASSERT(handler)
     BNetwork_Assert();
+    ASSERT(addr.type != BCONNECTION_ADDR_TYPE_UNIX || !memchr(addr.u.unix_socket_path.str, '\0', addr.u.unix_socket_path.len))
     
     switch (addr.type) {
-        case BCONNECTION_ADDR_TYPE_BADDR:
+        case BCONNECTION_ADDR_TYPE_BADDR: {
             return BConnector_Init(o, addr.u.baddr, reactor, user, handler);
-        case BCONNECTION_ADDR_TYPE_UNIX:
+        } break;
+        
+        case BCONNECTION_ADDR_TYPE_UNIX: {
 #ifdef BADVPN_USE_WINAPI
             BLog_LogToChannel(BLOG_CHANNEL_BConnection, BLOG_ERROR, "unix sockets not supported");
             return 0;
 #else
-            return BConnector_InitUnix(o, addr.u.unix_socket_path, reactor, user, handler);
+            char *str = b_strdup_bin(addr.u.unix_socket_path.str, addr.u.unix_socket_path.len);
+            if (!str) {
+                BLog_LogToChannel(BLOG_CHANNEL_BConnection, BLOG_ERROR, "b_strdup_bin failed");
+                return 0;
+            }
+            int res = BConnector_InitUnix(o, str, reactor, user, handler);
+            free(str);
+            return res;
 #endif
+        } break;
+        
         default:
             ASSERT(0);
     }
