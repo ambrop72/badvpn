@@ -103,6 +103,7 @@ static int BListener_InitGeneric (BListener *o, struct BConnection_addr addr, BR
         
         default:
             ASSERT(0);
+            return 0;
     }
 }
 
@@ -136,6 +137,7 @@ static int BConnector_InitGeneric (BConnector *o, struct BConnection_addr addr, 
         
         default:
             ASSERT(0);
+            return 0;
     }
 }
 
