@@ -211,7 +211,7 @@ int build_cmdline (struct instance *o, CmdLine *c)
     }
     
     // append stdbuf part
-    if (!build_stdbuf_cmdline(c, o->exec)) {
+    if (!build_stdbuf_cmdline(c, o->exec, strlen(o->exec))) {
         goto fail1;
     }
     
