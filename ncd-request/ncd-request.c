@@ -125,7 +125,7 @@ static int make_connect_addr (const char *str, struct BConnection_addr *out_addr
     size_t i;
     
     if (i = string_begins_with(str, "unix:")) {
-        *out_addr = BConnection_addr_unix(str + i);
+        *out_addr = BConnection_addr_unix(str + i, strlen(str + 1));
     }
     else if (i = string_begins_with(str, "tcp:")) {
         BAddr baddr;
