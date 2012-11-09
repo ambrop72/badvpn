@@ -179,7 +179,7 @@ static void new_templ (void *vo, NCDModuleInst *i, const struct NCDModuleInst_ne
     NCDValMem_Init(&o->mem);
     
     // parse
-    o->succeeded = pfunc(i, NCDVal_StringValue(str_arg), NCDVal_StringLength(str_arg), &o->mem, &o->value);
+    o->succeeded = pfunc(i, NCDVal_StringData(str_arg), NCDVal_StringLength(str_arg), &o->mem, &o->value);
     
     // signal up
     NCDModuleInst_Backend_Up(i);
@@ -259,7 +259,7 @@ static void ipv4_cidr_addr_func_new (void *vo, NCDModuleInst *i, const struct NC
         goto fail0;
     }
     
-    o->succeeded = ipaddr_parse_ipv4_ifaddr_bin(NCDVal_StringValue(str_arg), NCDVal_StringLength(str_arg), &o->ifaddr);
+    o->succeeded = ipaddr_parse_ipv4_ifaddr_bin(NCDVal_StringData(str_arg), NCDVal_StringLength(str_arg), &o->ifaddr);
     
     NCDModuleInst_Backend_Up(i);
     return;
@@ -323,7 +323,7 @@ static void ipv6_cidr_addr_func_new (void *vo, NCDModuleInst *i, const struct NC
         goto fail0;
     }
     
-    o->succeeded = ipaddr6_parse_ipv6_ifaddr_bin(NCDVal_StringValue(str_arg), NCDVal_StringLength(str_arg), &o->ifaddr);
+    o->succeeded = ipaddr6_parse_ipv6_ifaddr_bin(NCDVal_StringData(str_arg), NCDVal_StringLength(str_arg), &o->ifaddr);
     
     NCDModuleInst_Backend_Up(i);
     return;

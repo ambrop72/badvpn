@@ -46,7 +46,7 @@
 
 struct instance {
     NCDModuleInst *i;
-    const char *ifname;
+    NCDValNullTermString ifname_nts;
 };
 
 static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -64,12 +64,17 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->ifname = NCDVal_StringValue(ifname_arg);
+    
+    // null terminate ifname
+    if (!NCDVal_StringNullTerminate(ifname_arg, &o->ifname_nts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail0;
+    }
     
     // set interface up
-    if (!NCDIfConfig_set_up(o->ifname)) {
+    if (!NCDIfConfig_set_up(o->ifname_nts.data)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to set interface up");
-        goto fail0;
+        goto fail1;
     }
     
     // signal up
@@ -77,6 +82,8 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     
     return;
     
+fail1:
+    NCDValNullTermString_Free(&o->ifname_nts);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -87,9 +94,12 @@ static void func_die (void *vo)
     struct instance *o = vo;
     
     // set interface down
-    if (!NCDIfConfig_set_down(o->ifname)) {
+    if (!NCDIfConfig_set_down(o->ifname_nts.data)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to set interface down");
     }
+    
+    // free ifname nts
+    NCDValNullTermString_Free(&o->ifname_nts);
     
     NCDModuleInst_Backend_Dead(o->i);
 }

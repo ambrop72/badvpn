@@ -35,6 +35,7 @@
 
 #include <misc/debug.h>
 #include <misc/parse_number.h>
+#include <misc/strdup.h>
 #include <system/BTime.h>
 #include <ncd/NCDVal.h>
 #include <ncd/NCDStringIndex.h>
@@ -47,6 +48,7 @@ static int ncd_read_uintmax (NCDValRef string, uintmax_t *out) WARN_UNUSED;
 static int ncd_read_time (NCDValRef string, btime_t *out) WARN_UNUSED;
 static NCD_string_id_t ncd_get_string_id (NCDValRef string, NCDStringIndex *string_index);
 static NCDValRef ncd_make_uintmax (NCDValMem *mem, uintmax_t value);
+static char * ncd_strdup (NCDValRef stringnonulls);
 
 static int ncd_is_none (NCDValRef string)
 {
@@ -84,7 +86,7 @@ static int ncd_read_uintmax (NCDValRef string, uintmax_t *out)
     ASSERT(NCDVal_IsString(string))
     ASSERT(out)
     
-    return parse_unsigned_integer_bin(NCDVal_StringValue(string), NCDVal_StringLength(string), out);
+    return parse_unsigned_integer_bin(NCDVal_StringData(string), NCDVal_StringLength(string), out);
 }
 
 static int ncd_read_time (NCDValRef string, btime_t *out)
@@ -113,7 +115,7 @@ static NCD_string_id_t ncd_get_string_id (NCDValRef string, NCDStringIndex *stri
     if (NCDVal_IsIdString(string)) {
         return NCDVal_IdStringId(string);
     } else {
-        return NCDStringIndex_GetBin(string_index, NCDVal_StringValue(string), NCDVal_StringLength(string));
+        return NCDStringIndex_GetBin(string_index, NCDVal_StringData(string), NCDVal_StringLength(string));
     }
 }
 
@@ -126,11 +128,18 @@ static NCDValRef ncd_make_uintmax (NCDValMem *mem, uintmax_t value)
     NCDValRef val = NCDVal_NewStringUninitialized(mem, size);
     
     if (!NCDVal_IsInvalid(val)) {
-        char *data = (char *)NCDVal_StringValue(val);
+        char *data = (char *)NCDVal_StringData(val);
         generate_decimal_repr(value, data, size);
     }
     
     return val;
+}
+
+static char * ncd_strdup (NCDValRef stringnonulls)
+{
+    ASSERT(NCDVal_IsStringNoNulls(stringnonulls))
+    
+    return b_strdup_bin(NCDVal_StringData(stringnonulls), NCDVal_StringLength(stringnonulls));
 }
 
 #endif

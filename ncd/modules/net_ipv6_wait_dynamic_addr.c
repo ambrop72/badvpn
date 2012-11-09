@@ -107,11 +107,19 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *ifname = NCDVal_StringValue(ifname_arg);
+    
+    // null terminate ifname
+    NCDValNullTermString ifname_nts;
+    if (!NCDVal_StringNullTerminate(ifname_arg, &ifname_nts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail0;
+    }
     
     // get interface index
     int ifindex;
-    if (!get_iface_info(ifname, NULL, NULL, &ifindex)) {
+    int res = get_iface_info(ifname_nts.data, NULL, NULL, &ifindex);
+    NCDValNullTermString_Free(&ifname_nts);
+    if (!res) {
         ModuleLog(o->i, BLOG_ERROR, "failed to get interface index");
         goto fail0;
     }

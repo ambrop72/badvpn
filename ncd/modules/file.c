@@ -127,8 +127,17 @@ static void read_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
         goto fail0;
     }
     
+    // get null terminated name
+    NCDValNullTermString filename_nts;
+    if (!NCDVal_StringNullTerminate(filename_arg, &filename_nts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail0;
+    }
+    
     // read file
-    if (!read_file(NCDVal_StringValue(filename_arg), &o->file_data, &o->file_len)) {
+    int res = read_file(filename_nts.data, &o->file_data, &o->file_len);
+    NCDValNullTermString_Free(&filename_nts);
+    if (!res) {
         ModuleLog(i, BLOG_ERROR, "failed to read file");
         goto fail0;
     }
@@ -181,8 +190,17 @@ static void write_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
         goto fail0;
     }
     
+    // get null terminated name
+    NCDValNullTermString filename_nts;
+    if (!NCDVal_StringNullTerminate(filename_arg, &filename_nts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail0;
+    }
+    
     // write file
-    if (!write_file(NCDVal_StringValue(filename_arg), (const uint8_t *)NCDVal_StringValue(contents_arg), NCDVal_StringLength(contents_arg))) {
+    int res = write_file(filename_nts.data, (const uint8_t *)NCDVal_StringData(contents_arg), NCDVal_StringLength(contents_arg));
+    NCDValNullTermString_Free(&filename_nts);
+    if (!res) {
         ModuleLog(i, BLOG_ERROR, "failed to write file");
         goto fail0;
     }
@@ -216,14 +234,21 @@ static void stat_func_new_common (void *vo, NCDModuleInst *i, const struct NCDMo
     if (!NCDVal_IsStringNoNulls(filename_arg)) {
         goto out;
     }
-    const char *filename = NCDVal_StringValue(filename_arg);
+    
+    // null terminate filename
+    NCDValNullTermString filename_nts;
+    if (!NCDVal_StringNullTerminate(filename_arg, &filename_nts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail0;
+    }
     
     int res;
     if (is_lstat) {
-        res = lstat(filename, &o->result);
+        res = lstat(filename_nts.data, &o->result);
     } else {
-        res = stat(filename, &o->result);
+        res = stat(filename_nts.data, &o->result);
     }
+    NCDValNullTermString_Free(&filename_nts);
     
     if (res < 0) {
         goto out;

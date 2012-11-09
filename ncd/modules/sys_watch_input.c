@@ -71,6 +71,7 @@ struct device {
 struct instance {
     NCDModuleInst *i;
     const char *devnode_type;
+    size_t devnode_type_len;
     NCDUdevClient client;
     LinkedList1 devices_list;
     event_template templ;
@@ -158,7 +159,7 @@ fail1:
     return 0;
 }
 
-static int devname_is_type (const char *devname, const char *devname_type)
+static int devname_is_type (const char *devname, const char *devname_type, size_t devname_type_len)
 {
     // skip digits at the end
     size_t i;
@@ -169,7 +170,7 @@ static int devname_is_type (const char *devname, const char *devname_type)
     }
     
     // check if devname_type precedes skipped digits
-    for (size_t j = strlen(devname_type); j > 0; j--) {
+    for (size_t j = devname_type_len; j > 0; j--) {
         if (!(i > 0 && devname[i - 1] == devname_type[j - 1])) {
             return 0;
         }
@@ -290,7 +291,7 @@ static void client_handler (struct instance *o, char *devpath, int have_map, BSt
     const char *subsystem = BStringMap_Get(cache_map, "SUBSYSTEM");
     const char *devname = BStringMap_Get(cache_map, "DEVNAME");
     
-    if (!(subsystem && !strcmp(subsystem, "input") && devname && devname_is_type(devname, o->devnode_type))) {
+    if (!(subsystem && !strcmp(subsystem, "input") && devname && devname_is_type(devname, o->devnode_type, o->devnode_type_len))) {
         if (ex_device) {
             remove_device(o, ex_device);
         }
@@ -353,11 +354,12 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(devnode_type_arg)) {
+    if (!NCDVal_IsString(devnode_type_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->devnode_type = NCDVal_StringValue(devnode_type_arg);
+    o->devnode_type = NCDVal_StringData(devnode_type_arg);
+    o->devnode_type_len = NCDVal_StringLength(devnode_type_arg);
     
     // init client
     NCDUdevClient_Init(&o->client, o->i->params->iparams->umanager, o, (NCDUdevClient_handler)client_handler);

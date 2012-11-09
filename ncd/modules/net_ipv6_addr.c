@@ -52,7 +52,7 @@
 
 struct instance {
     NCDModuleInst *i;
-    const char *ifname;
+    NCDValNullTermString ifname_nts;
     struct ipv6_ifaddr ifaddr;
 };
 
@@ -71,42 +71,48 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(ifname_arg) || !NCDVal_IsStringNoNulls(addr_arg) ||
-        (!NCDVal_IsInvalid(prefix_arg) && !NCDVal_IsStringNoNulls(prefix_arg))
+    if (!NCDVal_IsStringNoNulls(ifname_arg) || !NCDVal_IsString(addr_arg) ||
+        (!NCDVal_IsInvalid(prefix_arg) && !NCDVal_IsString(prefix_arg))
     ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
-    o->ifname = NCDVal_StringValue(ifname_arg);
+    // null terminate ifname
+    if (!NCDVal_StringNullTerminate(ifname_arg, &o->ifname_nts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail0;
+    }
     
     if (NCDVal_IsInvalid(prefix_arg)) {
-        if (!ipaddr6_parse_ipv6_ifaddr(NCDVal_StringValue(addr_arg), &o->ifaddr)) {
+        if (!ipaddr6_parse_ipv6_ifaddr_bin(NCDVal_StringData(addr_arg), NCDVal_StringLength(addr_arg), &o->ifaddr)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong CIDR notation address");
-            goto fail0;
+            goto fail1;
         }
     } else {
-        if (!ipaddr6_parse_ipv6_addr(NCDVal_StringValue(addr_arg), &o->ifaddr.addr)) {
+        if (!ipaddr6_parse_ipv6_addr_bin(NCDVal_StringData(addr_arg), NCDVal_StringLength(addr_arg), &o->ifaddr.addr)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong address");
-            goto fail0;
+            goto fail1;
         }
         
-        if (!ipaddr6_parse_ipv6_prefix(NCDVal_StringValue(prefix_arg), &o->ifaddr.prefix)) {
+        if (!ipaddr6_parse_ipv6_prefix_bin(NCDVal_StringData(prefix_arg), NCDVal_StringLength(prefix_arg), &o->ifaddr.prefix)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong prefix");
-            goto fail0;
+            goto fail1;
         }
     }
     
     // add address
-    if (!NCDIfConfig_add_ipv6_addr(o->ifname, o->ifaddr)) {
+    if (!NCDIfConfig_add_ipv6_addr(o->ifname_nts.data, o->ifaddr)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to add IP address");
-        goto fail0;
+        goto fail1;
     }
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
     return;
     
+fail1:
+    NCDValNullTermString_Free(&o->ifname_nts);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -117,9 +123,12 @@ static void func_die (void *vo)
     struct instance *o = vo;
     
     // remove address
-    if (!NCDIfConfig_remove_ipv6_addr(o->ifname, o->ifaddr)) {
+    if (!NCDIfConfig_remove_ipv6_addr(o->ifname_nts.data, o->ifaddr)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to remove IP address");
     }
+    
+    // free ifname nts
+    NCDValNullTermString_Free(&o->ifname_nts);
     
     NCDModuleInst_Backend_Dead(o->i);
 }

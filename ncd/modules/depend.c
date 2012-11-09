@@ -70,6 +70,7 @@
 struct provide {
     NCDModuleInst *i;
     const char *name;
+    size_t name_len;
     int is_queued;
     union {
         struct {
@@ -87,6 +88,7 @@ struct provide {
 struct depend {
     NCDModuleInst *i;
     const char *name;
+    size_t name_len;
     struct provide *p;
     LinkedList1Node node;
 };
@@ -94,13 +96,13 @@ struct depend {
 static LinkedList1 provides;
 static LinkedList1 free_depends;
 
-static struct provide * find_provide (const char *name)
+static struct provide * find_provide (const char *name, size_t name_len)
 {
     for (LinkedList1Node *n = LinkedList1_GetFirst(&provides); n; n = LinkedList1Node_Next(n)) {
         struct provide *p = UPPER_OBJECT(n, struct provide, provides_node);
         ASSERT(!p->is_queued)
         
-        if (!strcmp(p->name, name)) {
+        if (p->name_len == name_len && !memcmp(p->name, name, name_len)) {
             return p;
         }
     }
@@ -110,7 +112,7 @@ static struct provide * find_provide (const char *name)
 
 static void provide_promote (struct provide *o)
 {
-    ASSERT(!find_provide(o->name))
+    ASSERT(!find_provide(o->name, o->name_len))
     
     // set not queued
     o->is_queued = 0;
@@ -131,7 +133,7 @@ static void provide_promote (struct provide *o)
         struct depend *d = UPPER_OBJECT(n, struct depend, node);
         ASSERT(!d->p)
         
-        if (strcmp(d->name, o->name)) {
+        if (d->name_len != o->name_len || memcmp(d->name, o->name, d->name_len)) {
             n = next;
             continue;
         }
@@ -174,11 +176,12 @@ static void provide_func_new_templ (void *vo, NCDModuleInst *i, const struct NCD
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(name_arg)) {
+    if (!NCDVal_IsString(name_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->name = NCDVal_StringValue(name_arg);
+    o->name = NCDVal_StringData(name_arg);
+    o->name_len = NCDVal_StringLength(name_arg);
     
     // signal up.
     // This comes above provide_promote(), so that effects on related depend statements are
@@ -186,7 +189,7 @@ static void provide_func_new_templ (void *vo, NCDModuleInst *i, const struct NCD
     NCDModuleInst_Backend_Up(o->i);
     
     // check for existing provide with this name
-    struct provide *ep = find_provide(o->name);
+    struct provide *ep = find_provide(o->name, o->name_len);
     if (ep) {
         ASSERT(!ep->is_queued)
         
@@ -290,14 +293,15 @@ static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(name_arg)) {
+    if (!NCDVal_IsString(name_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->name = NCDVal_StringValue(name_arg);
+    o->name = NCDVal_StringData(name_arg);
+    o->name_len = NCDVal_StringLength(name_arg);
     
     // find a provide with our name
-    struct provide *p = find_provide(o->name);
+    struct provide *p = find_provide(o->name, o->name_len);
     ASSERT(!p || !p->is_queued)
     
     if (p && !p->dying) {

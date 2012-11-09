@@ -45,7 +45,7 @@ static int generate_val (NCDValRef value, ExpString *out_str)
     
     switch (NCDVal_Type(value)) {
         case NCDVAL_STRING: {
-            const char *str = NCDVal_StringValue(value);
+            const char *str = NCDVal_StringData(value);
             size_t len = NCDVal_StringLength(value);
             
             if (!ExpString_AppendChar(out_str, '"')) {

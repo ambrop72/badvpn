@@ -129,34 +129,39 @@ static struct NCD_string_request strings[] = {
     {"is_error"}, {"not_eof"}, {NULL}
 };
 
-static int parse_mode (const char *data, char *out)
+static int parse_mode (const char *data, size_t mode_len, char *out)
 {
+    if (mode_len == 0) {
+        return 0;
+    }
     switch (*data) {
         case 'r':
         case 'w':
         case 'a':
             *out++ = *data++;
+            mode_len--;
             break;
         default:
             return 0;
     }
     
+    if (mode_len == 0) {
+        goto finish;
+    }
     switch (*data) {
-        case '\0':
-            goto finish;
         case '+':
             *out++ = *data++;
+            mode_len--;
             break;
         default:
             return 0;
     }
     
-    switch (*data) {
-        case '\0':
-            goto finish;
-        default:
-            return 0;
+    if (mode_len == 0) {
+        goto finish;
     }
+    
+    return 0;
     
 finish:
     *out = '\0';
@@ -192,20 +197,28 @@ static void open_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(filename_arg) || !NCDVal_IsStringNoNulls(mode_arg)) {
+    if (!NCDVal_IsStringNoNulls(filename_arg) || !NCDVal_IsString(mode_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
     // check mode
     char mode[5];
-    if (!parse_mode(NCDVal_StringValue(mode_arg), mode)) {
+    if (!parse_mode(NCDVal_StringData(mode_arg), NCDVal_StringLength(mode_arg), mode)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong mode");
         goto fail0;
     }
     
+    // null terminate filename
+    NCDValNullTermString filename_nts;
+    if (!NCDVal_StringNullTerminate(filename_arg, &filename_nts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail0;
+    }
+    
     // open file
-    o->fh = fopen(NCDVal_StringValue(filename_arg), mode);
+    o->fh = fopen(filename_nts.data, mode);
+    NCDValNullTermString_Free(&filename_nts);
     if (!o->fh) {
         ModuleLog(o->i, BLOG_ERROR, "fopen failed");
     }
@@ -391,7 +404,7 @@ static void write_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
     }
     
     // get data pointer and length
-    const char *data = NCDVal_StringValue(data_arg);
+    const char *data = NCDVal_StringData(data_arg);
     size_t length = NCDVal_StringLength(data_arg);
     
     while (length > 0) {
@@ -435,7 +448,7 @@ static void seek_func_new (void *unused, NCDModuleInst *i, const struct NCDModul
     // parse position
     int position_sign;
     uintmax_t position_mag;
-    if (!parse_signmag_integer_bin(NCDVal_StringValue(position_arg), NCDVal_StringLength(position_arg), &position_sign, &position_mag)) {
+    if (!parse_signmag_integer_bin(NCDVal_StringData(position_arg), NCDVal_StringLength(position_arg), &position_sign, &position_mag)) {
         ModuleLog(i, BLOG_ERROR, "wrong position");
         goto fail0;
     }

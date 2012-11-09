@@ -100,7 +100,7 @@ static void prefix_to_mask_func_init (void *vo, NCDModuleInst *i, const struct N
     
     // parse prefix
     int prefix;
-    if (!ipaddr_parse_ipv4_prefix_bin((char *)NCDVal_StringValue(prefix_arg), NCDVal_StringLength(prefix_arg), &prefix)) {
+    if (!ipaddr_parse_ipv4_prefix_bin((char *)NCDVal_StringData(prefix_arg), NCDVal_StringLength(prefix_arg), &prefix)) {
         ModuleLog(i, BLOG_ERROR, "bad prefix");
         goto fail0;
     }
@@ -132,14 +132,14 @@ static void ipv4_net_from_addr_and_prefix_func_init (void *vo, NCDModuleInst *i,
     
     // parse addr
     uint32_t addr;
-    if (!ipaddr_parse_ipv4_addr_bin((char *)NCDVal_StringValue(addr_arg), NCDVal_StringLength(addr_arg), &addr)) {
+    if (!ipaddr_parse_ipv4_addr_bin((char *)NCDVal_StringData(addr_arg), NCDVal_StringLength(addr_arg), &addr)) {
         ModuleLog(i, BLOG_ERROR, "bad addr");
         goto fail0;
     }
     
     // parse prefix
     int prefix;
-    if (!ipaddr_parse_ipv4_prefix_bin((char *)NCDVal_StringValue(prefix_arg), NCDVal_StringLength(prefix_arg), &prefix)) {
+    if (!ipaddr_parse_ipv4_prefix_bin((char *)NCDVal_StringData(prefix_arg), NCDVal_StringLength(prefix_arg), &prefix)) {
         ModuleLog(i, BLOG_ERROR, "bad prefix");
         goto fail0;
     }
@@ -198,7 +198,7 @@ static void mask_to_prefix_func_init (void *vo, NCDModuleInst *i, const struct N
     
     // parse mask
     uint32_t mask;
-    if (!ipaddr_parse_ipv4_addr_bin((char *)NCDVal_StringValue(mask_arg), NCDVal_StringLength(mask_arg), &mask)) {
+    if (!ipaddr_parse_ipv4_addr_bin((char *)NCDVal_StringData(mask_arg), NCDVal_StringLength(mask_arg), &mask)) {
         ModuleLog(i, BLOG_ERROR, "bad mask");
         goto fail0;
     }

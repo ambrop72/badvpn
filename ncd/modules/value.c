@@ -589,7 +589,7 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value)
             if (NCDVal_IsIdString(value)) {
                 v = value_init_idstring(i, NCDVal_IdStringId(value), NCDVal_IdStringStringIndex(value));
             } else {
-                v = value_init_string(i, NCDVal_StringValue(value), NCDVal_StringLength(value));
+                v = value_init_string(i, NCDVal_StringData(value), NCDVal_StringLength(value));
             }
             if (!v) {
                 goto fail0;
@@ -980,7 +980,7 @@ static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
                 return 0;
             }
             
-            const char *append_string = NCDVal_StringValue(data);
+            const char *append_string = NCDVal_StringData(data);
             size_t append_length = NCDVal_StringLength(data);
             
             if (append_length > SIZE_MAX - v->string.length) {
@@ -1007,7 +1007,7 @@ static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
                 return 0;
             }
             
-            const char *append_string = NCDVal_StringValue(data);
+            const char *append_string = NCDVal_StringData(data);
             size_t append_length = NCDVal_StringLength(data);
             
             const char *string = NCDStringIndex_Value(v->idstring.string_index, v->idstring.id);

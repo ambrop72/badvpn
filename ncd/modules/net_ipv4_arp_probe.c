@@ -130,22 +130,29 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(arg_ifname) || !NCDVal_IsStringNoNulls(arg_addr)) {
+    if (!NCDVal_IsStringNoNulls(arg_ifname) || !NCDVal_IsString(arg_addr)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *ifname = NCDVal_StringValue(arg_ifname);
-    const char *addr_str = NCDVal_StringValue(arg_addr);
     
     // parse address
     uint32_t addr;
-    if (!ipaddr_parse_ipv4_addr((char *)addr_str, &addr)) {
+    if (!ipaddr_parse_ipv4_addr_bin(NCDVal_StringData(arg_addr), NCDVal_StringLength(arg_addr), &addr)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong address");
         goto fail0;
     }
     
+    // null terminate ifname
+    NCDValNullTermString ifname_nts;
+    if (!NCDVal_StringNullTerminate(arg_ifname, &ifname_nts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail0;
+    }
+    
     // init arpprobe
-    if (!BArpProbe_Init(&o->arpprobe, ifname, addr, i->params->iparams->reactor, o, (BArpProbe_handler)arpprobe_handler)) {
+    int res = BArpProbe_Init(&o->arpprobe, ifname_nts.data, addr, i->params->iparams->reactor, o, (BArpProbe_handler)arpprobe_handler);
+    NCDValNullTermString_Free(&ifname_nts);
+    if (!res) {
         ModuleLog(o->i, BLOG_ERROR, "BArpProbe_Init failed");
         goto fail0;
     }

@@ -48,8 +48,13 @@ static void print_value (NCDValRef val, unsigned int indent)
 {
     switch (NCDVal_Type(val)) {
         case NCDVAL_STRING: {
+            NCDValNullTermString nts;
+            FORCE( NCDVal_StringNullTerminate(val, &nts) )
+            
             print_indent(indent);
-            printf("string(%zu) %s\n", NCDVal_StringLength(val), NCDVal_StringValue(val));
+            printf("string(%zu) %s\n", NCDVal_StringLength(val), nts.data);
+            
+            NCDValNullTermString_Free(&nts);
         } break;
         
         case NCDVAL_LIST: {
@@ -105,8 +110,6 @@ int main ()
     NCDValRef s2 = NCDVal_NewString(&mem, "This is reeeeeeeeeeeeeallllllllyyyyy fun!");
     FORCE( !NCDVal_IsInvalid(s2) )
     
-    printf("%s. %s\n", NCDVal_StringValue(s1), NCDVal_StringValue(s2));
-    
     NCDValRef l1 = NCDVal_NewList(&mem, 10);
     FORCE( !NCDVal_IsInvalid(l1) )
     
@@ -135,7 +138,7 @@ int main ()
     
     NCDValRef ids1 = NCDVal_NewIdString(&mem, NCD_STRING_ARG1, &string_index);
     FORCE( !NCDVal_IsInvalid(ids1) )
-    ASSERT( !strcmp(NCDVal_StringValue(ids1), "_arg1") )
+    ASSERT( !memcmp(NCDVal_StringData(ids1), "_arg1", 5) )
     ASSERT( NCDVal_StringLength(ids1) == 5 )
     ASSERT( !NCDVal_StringHasNulls(ids1) )
     ASSERT( NCDVal_StringEquals(ids1, "_arg1") )
@@ -144,7 +147,7 @@ int main ()
     
     NCDValRef ids2 = NCDVal_NewIdString(&mem, NCD_STRING_ARG2, &string_index);
     FORCE( !NCDVal_IsInvalid(ids2) )
-    ASSERT( !strcmp(NCDVal_StringValue(ids2), "_arg2") )
+    ASSERT( !memcmp(NCDVal_StringData(ids2), "_arg2", 5) )
     ASSERT( NCDVal_StringLength(ids2) == 5 )
     ASSERT( !NCDVal_StringHasNulls(ids2) )
     ASSERT( NCDVal_StringEquals(ids2, "_arg2") )
@@ -179,12 +182,12 @@ int main ()
     for (int i = 1; i < 100; i++) {
         s[i] = NCDVal_NewCopy(&mem, s[i - 1]);
         FORCE( !NCDVal_IsInvalid(s[i]) )
-        ASSERT( !strcmp(NCDVal_StringValue(s[i - 1]), "Eeeeeeeeeeeevil.") )
-        ASSERT( !strcmp(NCDVal_StringValue(s[i]), "Eeeeeeeeeeeevil.") )
+        ASSERT( NCDVal_StringEquals(s[i - 1], "Eeeeeeeeeeeevil.") )
+        ASSERT( NCDVal_StringEquals(s[i], "Eeeeeeeeeeeevil.") )
     }
     
     for (int i = 0; i < 100; i++) {
-        ASSERT( !strcmp(NCDVal_StringValue(s[i]), "Eeeeeeeeeeeevil.") )
+        ASSERT( NCDVal_StringEquals(s[i], "Eeeeeeeeeeeevil.") )
     }
     
     NCDValMem_Free(&mem);

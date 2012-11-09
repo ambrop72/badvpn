@@ -330,7 +330,7 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
                 goto fail;
             }
             
-            memcpy((char *)NCDVal_StringValue(copy), NCDVal_StringValue(val), len);
+            memcpy((char *)NCDVal_StringData(copy), NCDVal_StringData(val), len);
             
             return copy;
         } break;
@@ -410,7 +410,7 @@ int NCDVal_Compare (NCDValRef val1, NCDValRef val2)
             size_t len2 = NCDVal_StringLength(val2);
             size_t min_len = len1 < len2 ? len1 : len2;
             
-            int cmp = memcmp(NCDVal_StringValue(val1), NCDVal_StringValue(val2), min_len);
+            int cmp = memcmp(NCDVal_StringData(val1), NCDVal_StringData(val2), min_len);
             if (cmp) {
                 return (cmp > 0) - (cmp < 0);
             }
@@ -525,7 +525,7 @@ int NCDVal_IsStringNoNulls (NCDValRef val)
 {
     NCDVal__AssertVal(val);
     
-    return NCDVal_Type(val) == NCDVAL_STRING && strlen(NCDVal_StringValue(val)) == NCDVal_StringLength(val);
+    return NCDVal_Type(val) == NCDVAL_STRING && !memchr(NCDVal_StringData(val), '\0', NCDVal_StringLength(val));
 }
 
 NCDValRef NCDVal_NewString (NCDValMem *mem, const char *data)
@@ -615,7 +615,7 @@ fail:
     return NCDVal_NewInvalid();
 }
 
-const char * NCDVal_StringValue (NCDValRef string)
+const char * NCDVal_StringData (NCDValRef string)
 {
     ASSERT(NCDVal_IsString(string))
     
@@ -645,6 +645,41 @@ size_t NCDVal_StringLength (NCDValRef string)
     
     struct NCDVal__string *str_e = ptr;;
     return str_e->length;
+}
+
+int NCDVal_StringNullTerminate (NCDValRef string, NCDValNullTermString *out)
+{
+    ASSERT(NCDVal_IsString(string))
+    ASSERT(out)
+    
+    void *ptr = NCDValMem__BufAt(string.mem, string.idx);
+    
+    if (*(int *)ptr == IDSTRING_TYPE) {
+        struct NCDVal__idstring *ids_e = ptr;
+        out->data = (char *)NCDStringIndex_Value(ids_e->string_index, ids_e->string_id);
+        out->is_allocated = 0;
+        return 1;
+    }
+    
+    struct NCDVal__string *str_e = ptr;
+    out->data = str_e->data;
+    out->is_allocated = 0;
+    return 1;
+}
+
+NCDValNullTermString NCDValNullTermString_NewDummy (void)
+{
+    NCDValNullTermString nts;
+    nts.data = NULL;
+    nts.is_allocated = 0;
+    return nts;
+}
+
+void NCDValNullTermString_Free (NCDValNullTermString *o)
+{
+    if (o->is_allocated) {
+        BFree(o->data);
+    }
 }
 
 void NCDVal_IdStringGet (NCDValRef idstring, NCD_string_id_t *out_string_id,
@@ -679,7 +714,10 @@ int NCDVal_StringHasNulls (NCDValRef string)
 {
     ASSERT(NCDVal_IsString(string))
     
-    return strlen(NCDVal_StringValue(string)) != NCDVal_StringLength(string);
+    const char *data = NCDVal_StringData(string);
+    size_t length = NCDVal_StringLength(string);
+    
+    return !!memchr(data, '\0', length);
 }
 
 int NCDVal_StringEquals (NCDValRef string, const char *data)
@@ -687,7 +725,9 @@ int NCDVal_StringEquals (NCDValRef string, const char *data)
     ASSERT(NCDVal_IsString(string))
     ASSERT(data)
     
-    return !NCDVal_StringHasNulls(string) && !strcmp(NCDVal_StringValue(string), data);
+    size_t len = strlen(data);
+    
+    return NCDVal_StringLength(string) == len && !memcmp(NCDVal_StringData(string), data, len);
 }
 
 int NCDVal_StringEqualsId (NCDValRef string, NCD_string_id_t string_id,

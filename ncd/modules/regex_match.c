@@ -113,9 +113,8 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->input = NCDVal_StringValue(input_arg);
+    o->input = NCDVal_StringData(input_arg);
     o->input_len = NCDVal_StringLength(input_arg);
-    const char *regex = NCDVal_StringValue(regex_arg);
     
     // make sure we don't overflow regoff_t
     if (o->input_len > INT_MAX) {
@@ -123,10 +122,18 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         goto fail0;
     }
     
+    // null terminate regex
+    NCDValNullTermString regex_nts;
+    if (!NCDVal_StringNullTerminate(regex_arg, &regex_nts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail0;
+    }
+    
     // compile regex
     regex_t preg;
-    int ret;
-    if ((ret = regcomp(&preg, regex, REG_EXTENDED)) != 0) {
+    int ret = regcomp(&preg, regex_nts.data, REG_EXTENDED);
+    NCDValNullTermString_Free(&regex_nts);
+    if (ret != 0) {
         ModuleLog(o->i, BLOG_ERROR, "regcomp failed (error=%d)", ret);
         goto fail0;
     }
@@ -227,7 +234,15 @@ static void replace_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
             goto fail2;
         }
         
-        int res = regcomp(&regs[num_done_regex], NCDVal_StringValue(regex), REG_EXTENDED);
+        // null terminate regex
+        NCDValNullTermString regex_nts;
+        if (!NCDVal_StringNullTerminate(regex, &regex_nts)) {
+            ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+            goto fail2;
+        }
+        
+        int res = regcomp(&regs[num_done_regex], regex_nts.data, REG_EXTENDED);
+        NCDValNullTermString_Free(&regex_nts);
         if (res != 0) {
             ModuleLog(i, BLOG_ERROR, "regcomp failed for pair %zu (error=%d)", num_done_regex, res);
             goto fail2;
@@ -244,7 +259,7 @@ static void replace_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     }
     
     // input state
-    const char *in = NCDVal_StringValue(input_arg);
+    const char *in = NCDVal_StringData(input_arg);
     size_t in_pos = 0;
     size_t in_len = NCDVal_StringLength(input_arg);
     
@@ -282,7 +297,7 @@ static void replace_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
         
         // append replacement data
         NCDValRef replace = NCDVal_ListGet(replace_arg, match_regex);
-        if (!ExpString_AppendBinary(&out, (const uint8_t *)NCDVal_StringValue(replace), NCDVal_StringLength(replace))) {
+        if (!ExpString_AppendBinary(&out, (const uint8_t *)NCDVal_StringData(replace), NCDVal_StringLength(replace))) {
             ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
             goto fail3;
         }

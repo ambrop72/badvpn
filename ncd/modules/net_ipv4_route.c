@@ -44,10 +44,12 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 #include <misc/debug.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDIfConfig.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_net_ipv4_route.h>
 
@@ -63,7 +65,7 @@ struct instance {
     int type;
     uint32_t gateway;
     int metric;
-    const char *ifname;
+    NCDValNullTermString ifname_nts;
 };
 
 static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -83,9 +85,9 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(dest_arg) || !NCDVal_IsStringNoNulls(gateway_arg) ||
-        !NCDVal_IsStringNoNulls(metric_arg) || !NCDVal_IsStringNoNulls(ifname_arg) ||
-        (!NCDVal_IsInvalid(dest_prefix_arg) && !NCDVal_IsStringNoNulls(dest_prefix_arg))
+    if (!NCDVal_IsString(dest_arg) || !NCDVal_IsString(gateway_arg) ||
+        !NCDVal_IsString(metric_arg) || !NCDVal_IsStringNoNulls(ifname_arg) ||
+        (!NCDVal_IsInvalid(dest_prefix_arg) && !NCDVal_IsString(dest_prefix_arg))
     ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
@@ -93,30 +95,29 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     
     // read dest
     if (NCDVal_IsInvalid(dest_prefix_arg)) {
-        if (!ipaddr_parse_ipv4_ifaddr(NCDVal_StringValue(dest_arg), &o->dest)) {
+        if (!ipaddr_parse_ipv4_ifaddr_bin(NCDVal_StringData(dest_arg), NCDVal_StringLength(dest_arg), &o->dest)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong CIDR notation dest");
             goto fail0;
         }
     } else {
-        if (!ipaddr_parse_ipv4_addr(NCDVal_StringValue(dest_arg), &o->dest.addr)) {
+        if (!ipaddr_parse_ipv4_addr_bin(NCDVal_StringData(dest_arg), NCDVal_StringLength(dest_arg), &o->dest.addr)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong dest addr");
             goto fail0;
         }
-        if (!ipaddr_parse_ipv4_prefix(NCDVal_StringValue(dest_prefix_arg), &o->dest.prefix)) {
+        if (!ipaddr_parse_ipv4_prefix_bin(NCDVal_StringData(dest_prefix_arg), NCDVal_StringLength(dest_prefix_arg), &o->dest.prefix)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong dest prefix");
             goto fail0;
         }
     }
     
     // read gateway and choose type
-    const char *gateway_str = NCDVal_StringValue(gateway_arg);
-    if (!strcmp(gateway_str, "none")) {
+    if (NCDVal_StringEquals(gateway_arg, "none")) {
         o->type = TYPE_IFONLY;
     }
-    else if (!strcmp(gateway_str, "blackhole")) {
+    else if (NCDVal_StringEquals(gateway_arg, "blackhole")) {
         o->type = TYPE_BLACKHOLE;
     } else {
-        if (!ipaddr_parse_ipv4_addr(gateway_str, &o->gateway)) {
+        if (!ipaddr_parse_ipv4_addr_bin(NCDVal_StringData(gateway_arg), NCDVal_StringLength(gateway_arg), &o->gateway)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong gateway");
             goto fail0;
         }
@@ -124,19 +125,27 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     
     // read metric
-    o->metric = atoi(NCDVal_StringValue(metric_arg));
+    uintmax_t metric;
+    if (!ncd_read_uintmax(metric_arg, &metric) || metric > INT_MAX) {
+        ModuleLog(i, BLOG_ERROR, "bad metric");
+        goto fail0;
+    }
+    o->metric = metric;
     
-    // read ifname
-    o->ifname = NCDVal_StringValue(ifname_arg);
+    // null terminate ifname
+    if (!NCDVal_StringNullTerminate(ifname_arg, &o->ifname_nts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail0;
+    }
     
     // add route
     int res = 0; // to remove warning
     switch (o->type) {
         case TYPE_NORMAL:
-            res = NCDIfConfig_add_ipv4_route(o->dest, &o->gateway, o->metric, o->ifname);
+            res = NCDIfConfig_add_ipv4_route(o->dest, &o->gateway, o->metric, o->ifname_nts.data);
             break;
         case TYPE_IFONLY:
-            res = NCDIfConfig_add_ipv4_route(o->dest, NULL, o->metric, o->ifname);
+            res = NCDIfConfig_add_ipv4_route(o->dest, NULL, o->metric, o->ifname_nts.data);
             break;
         case TYPE_BLACKHOLE:
             res = NCDIfConfig_add_ipv4_blackhole_route(o->dest, o->metric);
@@ -145,13 +154,15 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     if (!res) {
         ModuleLog(o->i, BLOG_ERROR, "failed to add route");
-        goto fail0;
+        goto fail1;
     }
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
     return;
     
+fail1:
+    NCDValNullTermString_Free(&o->ifname_nts);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -165,10 +176,10 @@ static void func_die (void *vo)
     int res = 0; // to remove warning
     switch (o->type) {
         case TYPE_NORMAL:
-            res = NCDIfConfig_remove_ipv4_route(o->dest, &o->gateway, o->metric, o->ifname);
+            res = NCDIfConfig_remove_ipv4_route(o->dest, &o->gateway, o->metric, o->ifname_nts.data);
             break;
         case TYPE_IFONLY:
-            res = NCDIfConfig_remove_ipv4_route(o->dest, NULL, o->metric, o->ifname);
+            res = NCDIfConfig_remove_ipv4_route(o->dest, NULL, o->metric, o->ifname_nts.data);
             break;
         case TYPE_BLACKHOLE:
             res = NCDIfConfig_remove_ipv4_blackhole_route(o->dest, o->metric);
@@ -178,6 +189,9 @@ static void func_die (void *vo)
     if (!res) {
         ModuleLog(o->i, BLOG_ERROR, "failed to remove route");
     }
+    
+    // free ifname nts
+    NCDValNullTermString_Free(&o->ifname_nts);
     
     NCDModuleInst_Backend_Dead(o->i);
 }

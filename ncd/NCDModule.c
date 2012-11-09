@@ -405,17 +405,12 @@ int NCDModuleProcess_InitValue (NCDModuleProcess *o, NCDModuleInst *n, NCDValRef
     if (NCDVal_IsIdString(template_name)) {
         template_name_id = NCDVal_IdStringId(template_name);
     } else {
-        const char *str = NCDVal_StringValue(template_name);
+        const char *str = NCDVal_StringData(template_name);
         size_t len = NCDVal_StringLength(template_name);
         
-        if (strlen(str) != len) {
-            BLog(BLOG_ERROR, "template name cannot have nulls");
-            return 0;
-        }
-        
-        template_name_id = NCDStringIndex_Get(n->params->iparams->string_index, str);
+        template_name_id = NCDStringIndex_GetBin(n->params->iparams->string_index, str, len);
         if (template_name_id < 0) {
-            BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
+            BLog(BLOG_ERROR, "NCDStringIndex_GetBin failed");
             return 0;
         }
     }

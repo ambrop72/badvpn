@@ -40,6 +40,7 @@
 #include <misc/offset.h>
 #include <misc/debug.h>
 #include <misc/compare.h>
+#include <misc/strdup.h>
 #include <structure/LinkedList0.h>
 #include <structure/BAVL.h>
 #include <ncd/NCDModule.h>
@@ -50,8 +51,13 @@
 
 struct provide;
 
+struct name_string {
+    char *data;
+    size_t len;
+};
+
 struct name {
-    char *name;
+    struct name_string name;
     BAVLNode names_tree_node;
     BAVL provides_tree;
     LinkedList0 waiting_depends_list;
@@ -80,10 +86,19 @@ static BAVL names_tree;
 static void provide_free (struct provide *o);
 static void depend_free (struct depend *o);
 
-static int stringptr_comparator (void *user, char **v1, char **v2)
+static int name_string_comparator (void *user, void *vv1, void *vv2)
 {
-    int cmp = strcmp(*v1, *v2);
-    return B_COMPARE(cmp, 0);
+    struct name_string *v1 = vv1;
+    struct name_string *v2 = vv2;
+    
+    size_t min_len = (v1->len < v2->len ? v1->len : v2->len);
+    
+    int cmp = memcmp(v1->data, v2->data, min_len);
+    if (cmp) {
+        return B_COMPARE(cmp, 0);
+    }
+    
+    return B_COMPARE(v1->len, v2->len);
 }
 
 static int val_comparator (void *user, NCDValRef *v1, NCDValRef *v2)
@@ -91,22 +106,24 @@ static int val_comparator (void *user, NCDValRef *v1, NCDValRef *v2)
     return NCDVal_Compare(*v1, *v2);
 }
 
-static struct name * find_name (const char *name)
+static struct name * find_name (const char *name, size_t name_len)
 {
-    BAVLNode *tn = BAVL_LookupExact(&names_tree, &name);
+    struct name_string ns = {(char *)name, name_len};
+    BAVLNode *tn = BAVL_LookupExact(&names_tree, &ns);
     if (!tn) {
         return NULL;
     }
     
     struct name *n = UPPER_OBJECT(tn, struct name, names_tree_node);
-    ASSERT(!strcmp(n->name, name))
+    ASSERT(n->name.len == name_len)
+    ASSERT(!memcmp(n->name.data, name, name_len))
     
     return n;
 }
 
-static struct name * name_init (NCDModuleInst *i, const char *name)
+static struct name * name_init (NCDModuleInst *i, const char *name, size_t name_len)
 {
-    ASSERT(!find_name(name))
+    ASSERT(!find_name(name, name_len))
     
     // allocate structure
     struct name *o = malloc(sizeof(*o));
@@ -116,10 +133,11 @@ static struct name * name_init (NCDModuleInst *i, const char *name)
     }
     
     // copy name
-    if (!(o->name = strdup(name))) {
+    if (!(o->name.data = b_strdup_bin(name, name_len))) {
         ModuleLog(i, BLOG_ERROR, "strdup failed");
         goto fail1;
     }
+    o->name.len = name_len;
     
     // insert to names tree
     ASSERT_EXECUTE(BAVL_Insert(&names_tree, &o->names_tree_node, NULL))
@@ -151,7 +169,7 @@ static void name_free (struct name *o)
     BAVL_Remove(&names_tree, &o->names_tree_node);
     
     // free name
-    free(o->name);
+    free(o->name.data);
     
     // free structure
     free(o);
@@ -263,7 +281,7 @@ static void name_start_resetting (struct name *o)
 static int func_globalinit (const struct NCDModuleInst_iparams *params)
 {
     // init names tree
-    BAVL_Init(&names_tree, OFFSET_DIFF(struct name, name, names_tree_node), (BAVL_comparator)stringptr_comparator, NULL);
+    BAVL_Init(&names_tree, OFFSET_DIFF(struct name, name, names_tree_node), name_string_comparator, NULL);
     
     return 1;
 }
@@ -279,15 +297,16 @@ static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(name_arg)) {
+    if (!NCDVal_IsString(name_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *name_str = NCDVal_StringValue(name_arg);
+    const char *name_str = NCDVal_StringData(name_arg);
+    size_t name_len = NCDVal_StringLength(name_arg);
     
     // find name, create new if needed
-    struct name *n = find_name(name_str);
-    if (!n && !(n = name_init(i, name_str))) {
+    struct name *n = find_name(name_str, name_len);
+    if (!n && !(n = name_init(i, name_str, name_len))) {
         goto fail0;
     }
     
@@ -374,15 +393,16 @@ static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(name_arg)) {
+    if (!NCDVal_IsString(name_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *name_str = NCDVal_StringValue(name_arg);
+    const char *name_str = NCDVal_StringData(name_arg);
+    size_t name_len = NCDVal_StringLength(name_arg);
     
     // find name, create new if needed
-    struct name *n = find_name(name_str);
-    if (!n && !(n = name_init(i, name_str))) {
+    struct name *n = find_name(name_str, name_len);
+    if (!n && !(n = name_init(i, name_str, name_len))) {
         goto fail0;
     }
     

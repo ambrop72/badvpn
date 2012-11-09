@@ -763,7 +763,7 @@ static void write_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
     }
     
     // set send state
-    o->data = NCDVal_StringValue(data_arg);
+    o->data = NCDVal_StringData(data_arg);
     o->length = NCDVal_StringLength(data_arg);
     
     // if there's nothing to send, go up immediately

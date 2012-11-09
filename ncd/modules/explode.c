@@ -99,7 +99,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         limit = (n <= SIZE_MAX ? n : SIZE_MAX);
     }
     
-    const char *del_data = NCDVal_StringValue(delimiter_arg);
+    const char *del_data = NCDVal_StringData(delimiter_arg);
     size_t del_len = NCDVal_StringLength(delimiter_arg);
     
     if (del_len == 0) {
@@ -121,7 +121,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     o->num = 0;
     
-    const char *data = NCDVal_StringValue(input_arg);
+    const char *data = NCDVal_StringData(input_arg);
     size_t len = NCDVal_StringLength(input_arg);
     
     while (1) {

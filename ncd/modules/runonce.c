@@ -53,8 +53,10 @@
 #include <string.h>
 
 #include <misc/cmdline.h>
+#include <misc/strdup.h>
 #include <system/BProcess.h>
 #include <ncd/NCDModule.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_runonce.h>
 
@@ -95,7 +97,7 @@ static int build_cmdline (NCDModuleInst *i, NCDValRef cmd_arg, char **exec, CmdL
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    if (!(*exec = strdup(NCDVal_StringValue(exec_arg)))) {
+    if (!(*exec = ncd_strdup(exec_arg))) {
         ModuleLog(i, BLOG_ERROR, "strdup failed");
         goto fail0;
     }
@@ -121,8 +123,8 @@ static int build_cmdline (NCDModuleInst *i, NCDValRef cmd_arg, char **exec, CmdL
             goto fail2;
         }
         
-        if (!CmdLine_Append(cl, NCDVal_StringValue(arg))) {
-            ModuleLog(i, BLOG_ERROR, "CmdLine_Append failed");
+        if (!CmdLine_AppendNoNull(cl, NCDVal_StringData(arg), NCDVal_StringLength(arg))) {
+            ModuleLog(i, BLOG_ERROR, "CmdLine_AppendNoNull failed");
             goto fail2;
         }
     }
@@ -196,22 +198,21 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         NCDValRef opt = NCDVal_ListGet(opts_arg, j);
         
         // read name
-        if (!NCDVal_IsStringNoNulls(opt)) {
+        if (!NCDVal_IsString(opt)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong option name type");
             goto fail0;
         }
-        const char *optname = NCDVal_StringValue(opt);
         
-        if (!strcmp(optname, "term_on_deinit")) {
+        if (NCDVal_StringEquals(opt, "term_on_deinit")) {
             o->term_on_deinit = 1;
         }
-        else if (!strcmp(optname, "keep_stdout")) {
+        else if (NCDVal_StringEquals(opt, "keep_stdout")) {
             keep_stdout = 1;
         }
-        else if (!strcmp(optname, "keep_stderr")) {
+        else if (NCDVal_StringEquals(opt, "keep_stderr")) {
             keep_stderr = 1;
         }
-        else if (!strcmp(optname, "do_setsid")) {
+        else if (NCDVal_StringEquals(opt, "do_setsid")) {
             do_setsid = 1;
         }
         else {

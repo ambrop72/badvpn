@@ -71,7 +71,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     NCDValMem_Init(&o->mem);
     
     // parse value string
-    if (!NCDValParser_Parse(NCDVal_StringValue(str_arg), NCDVal_StringLength(str_arg), &o->mem, &o->val)) {
+    if (!NCDValParser_Parse(NCDVal_StringData(str_arg), NCDVal_StringLength(str_arg), &o->mem, &o->val)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse");
         goto fail1;
     }

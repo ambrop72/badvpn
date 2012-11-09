@@ -164,8 +164,17 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         goto fail0;
     }
     
+    // null terminate device
+    NCDValNullTermString device_nts;
+    if (!NCDVal_StringNullTerminate(device_arg, &device_nts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail0;
+    }
+    
     // open device
-    if ((o->evdev_fd = open(NCDVal_StringValue(device_arg), O_RDONLY)) < 0) {
+    o->evdev_fd = open(device_nts.data, O_RDONLY);
+    NCDValNullTermString_Free(&device_nts);
+    if (o->evdev_fd < 0) {
         ModuleLog(o->i, BLOG_ERROR, "open failed");
         goto fail0;
     }

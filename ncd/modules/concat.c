@@ -73,7 +73,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
             goto fail1;
         }
         
-        if (!ExpString_AppendBinary(&s, (const uint8_t *)NCDVal_StringValue(arg), NCDVal_StringLength(arg))) {
+        if (!ExpString_AppendBinary(&s, (const uint8_t *)NCDVal_StringData(arg), NCDVal_StringLength(arg))) {
             ModuleLog(i, BLOG_ERROR, "ExpString_Append failed");
             goto fail1;
         }

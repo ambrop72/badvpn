@@ -82,20 +82,28 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     o->i = i;
     
     // check arguments
-    NCDValRef arg;
-    if (!NCDVal_ListRead(params->args, 1, &arg)) {
+    NCDValRef ifname_arg;
+    if (!NCDVal_ListRead(params->args, 1, &ifname_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(arg)) {
+    if (!NCDVal_IsStringNoNulls(ifname_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *ifname = NCDVal_StringValue(arg);
+    
+    // null terminate ifname
+    NCDValNullTermString ifname_nts;
+    if (!NCDVal_StringNullTerminate(ifname_arg, &ifname_nts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail0;
+    }
     
     // get interface index
     int ifindex;
-    if (!get_iface_info(ifname, NULL, NULL, &ifindex)) {
+    int res = get_iface_info(ifname_nts.data, NULL, NULL, &ifindex);
+    NCDValNullTermString_Free(&ifname_nts);
+    if (!res) {
         ModuleLog(o->i, BLOG_ERROR, "failed to get interface index");
         goto fail0;
     }

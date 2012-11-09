@@ -52,6 +52,7 @@
 struct instance {
     NCDModuleInst *i;
     const char *ifname;
+    size_t ifname_len;
     NCDUdevClient client;
     regex_t reg;
     char *devpath;
@@ -80,7 +81,7 @@ static void client_handler (struct instance *o, char *devpath, int have_map, BSt
         const char *ifindex_str = BStringMap_Get(cache_map, "IFINDEX");
         
         uintmax_t ifindex;
-        if (!(!match_res && interface && !strcmp(interface, o->ifname) && ifindex_str && parse_unsigned_integer(ifindex_str, &ifindex))) {
+        if (!(!match_res && interface && strlen(interface) == o->ifname_len && !memcmp(interface, o->ifname, o->ifname_len) && ifindex_str && parse_unsigned_integer(ifindex_str, &ifindex))) {
             goto out;
         }
         
@@ -130,7 +131,8 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->ifname = NCDVal_StringValue(arg);
+    o->ifname = NCDVal_StringData(arg);
+    o->ifname_len = NCDVal_StringLength(arg);
     
     // init client
     NCDUdevClient_Init(&o->client, o->i->params->iparams->umanager, o, (NCDUdevClient_handler)client_handler);

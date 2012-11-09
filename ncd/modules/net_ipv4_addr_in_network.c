@@ -83,7 +83,7 @@ static void func_new_common (void *vo, NCDModuleInst *i, const struct NCDModuleI
     
     // parse addr
     uint32_t addr;
-    if (!ipaddr_parse_ipv4_addr_bin(NCDVal_StringValue(arg_addr), NCDVal_StringLength(arg_addr), &addr)) {
+    if (!ipaddr_parse_ipv4_addr_bin(NCDVal_StringData(arg_addr), NCDVal_StringLength(arg_addr), &addr)) {
         ModuleLog(o->i, BLOG_ERROR, "bad address");
         goto fail0;
     }
@@ -91,16 +91,16 @@ static void func_new_common (void *vo, NCDModuleInst *i, const struct NCDModuleI
     // parse network
     struct ipv4_ifaddr network;
     if (NCDVal_IsInvalid(arg_net_prefix)) {
-        if (!ipaddr_parse_ipv4_ifaddr_bin(NCDVal_StringValue(arg_net_addr), NCDVal_StringLength(arg_net_addr), &network)) {
+        if (!ipaddr_parse_ipv4_ifaddr_bin(NCDVal_StringData(arg_net_addr), NCDVal_StringLength(arg_net_addr), &network)) {
             ModuleLog(o->i, BLOG_ERROR, "bad network in CIDR notation");
             goto fail0;
         }
     } else {
-        if (!ipaddr_parse_ipv4_addr_bin(NCDVal_StringValue(arg_net_addr), NCDVal_StringLength(arg_net_addr), &network.addr)) {
+        if (!ipaddr_parse_ipv4_addr_bin(NCDVal_StringData(arg_net_addr), NCDVal_StringLength(arg_net_addr), &network.addr)) {
             ModuleLog(o->i, BLOG_ERROR, "bad network address");
             goto fail0;
         }
-        if (!ipaddr_parse_ipv4_prefix_bin(NCDVal_StringValue(arg_net_prefix), NCDVal_StringLength(arg_net_prefix), &network.prefix)) {
+        if (!ipaddr_parse_ipv4_prefix_bin(NCDVal_StringData(arg_net_prefix), NCDVal_StringLength(arg_net_prefix), &network.prefix)) {
             ModuleLog(o->i, BLOG_ERROR, "bad network prefix");
             goto fail0;
         }

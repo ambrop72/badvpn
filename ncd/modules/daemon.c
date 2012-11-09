@@ -46,8 +46,10 @@
 #include <string.h>
 
 #include <misc/cmdline.h>
+#include <misc/strdup.h>
 #include <system/BProcess.h>
 #include <ncd/NCDModule.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_daemon.h>
 
@@ -94,8 +96,8 @@ static int build_cmdline (NCDModuleInst *i, NCDValRef cmd_arg, char **exec, CmdL
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    if (!(*exec = strdup(NCDVal_StringValue(exec_arg)))) {
-        ModuleLog(i, BLOG_ERROR, "strdup failed");
+    if (!(*exec = ncd_strdup(exec_arg))) {
+        ModuleLog(i, BLOG_ERROR, "ncd_strdup failed");
         goto fail0;
     }
     
@@ -120,8 +122,8 @@ static int build_cmdline (NCDModuleInst *i, NCDValRef cmd_arg, char **exec, CmdL
             goto fail2;
         }
         
-        if (!CmdLine_Append(cl, NCDVal_StringValue(arg))) {
-            ModuleLog(i, BLOG_ERROR, "CmdLine_Append failed");
+        if (!CmdLine_AppendNoNull(cl, NCDVal_StringData(arg), NCDVal_StringLength(arg))) {
+            ModuleLog(i, BLOG_ERROR, "CmdLine_AppendNoNull failed");
             goto fail2;
         }
     }

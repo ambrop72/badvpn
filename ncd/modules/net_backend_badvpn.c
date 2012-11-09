@@ -48,9 +48,11 @@
 
 struct instance {
     NCDModuleInst *i;
-    const char *ifname;
+    NCDValNullTermString ifname_nts;
     const char *user;
+    size_t user_len;
     const char *exec;
+    size_t exec_len;
     NCDValRef args;
     int dying;
     int started;
@@ -71,12 +73,12 @@ void try_process (struct instance *o)
     }
     
     // append exec
-    if (!CmdLine_Append(&c, o->exec)) {
+    if (!CmdLine_AppendNoNull(&c, o->exec, o->exec_len)) {
         goto fail1;
     }
     
     // append tapdev
-    if (!CmdLine_Append(&c, "--tapdev") || !CmdLine_Append(&c, o->ifname)) {
+    if (!CmdLine_Append(&c, "--tapdev") || !CmdLine_Append(&c, o->ifname_nts.data)) {
         goto fail1;
     }
     
@@ -84,7 +86,7 @@ void try_process (struct instance *o)
     size_t count = NCDVal_ListCount(o->args);
     for (size_t j = 0; j < count; j++) {
         NCDValRef arg = NCDVal_ListGet(o->args, j);
-        if (!CmdLine_Append(&c, NCDVal_StringValue(arg))) {
+        if (!CmdLine_AppendNoNull(&c, NCDVal_StringData(arg), NCDVal_StringLength(arg))) {
             goto fail1;
         }
     }
@@ -165,9 +167,11 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->ifname = NCDVal_StringValue(ifname_arg);
-    o->user = NCDVal_StringValue(user_arg);
-    o->exec = NCDVal_StringValue(exec_arg);
+    
+    o->user = NCDVal_StringData(user_arg);
+    o->user_len = NCDVal_StringLength(user_arg);
+    o->exec = NCDVal_StringData(exec_arg);
+    o->exec_len = NCDVal_StringLength(exec_arg);
     o->args = args_arg;
     
     // check arguments
@@ -180,16 +184,22 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         }
     }
     
-    // create TAP device
-    if (!NCDIfConfig_make_tuntap(o->ifname, o->user, 0)) {
-        ModuleLog(o->i, BLOG_ERROR, "failed to create TAP device");
+    // null terminate ifname
+    if (!NCDVal_StringNullTerminate(ifname_arg, &o->ifname_nts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
         goto fail0;
     }
     
-    // set device up
-    if (!NCDIfConfig_set_up(o->ifname)) {
-        ModuleLog(o->i, BLOG_ERROR, "failed to set device up");
+    // create TAP device
+    if (!NCDIfConfig_make_tuntap(o->ifname_nts.data, o->user, 0)) {
+        ModuleLog(o->i, BLOG_ERROR, "failed to create TAP device");
         goto fail1;
+    }
+    
+    // set device up
+    if (!NCDIfConfig_set_up(o->ifname_nts.data)) {
+        ModuleLog(o->i, BLOG_ERROR, "failed to set device up");
+        goto fail2;
     }
     
     // set not dying
@@ -205,10 +215,12 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     try_process(o);
     return;
     
-fail1:
-    if (!NCDIfConfig_remove_tuntap(o->ifname, 0)) {
+fail2:
+    if (!NCDIfConfig_remove_tuntap(o->ifname_nts.data, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to remove TAP device");
     }
+fail1:
+    NCDValNullTermString_Free(&o->ifname_nts);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -222,14 +234,17 @@ void instance_free (struct instance *o)
     BReactor_RemoveTimer(o->i->params->iparams->reactor, &o->timer);
     
     // set device down
-    if (!NCDIfConfig_set_down(o->ifname)) {
+    if (!NCDIfConfig_set_down(o->ifname_nts.data)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to set device down");
     }
     
     // free TAP device
-    if (!NCDIfConfig_remove_tuntap(o->ifname, 0)) {
+    if (!NCDIfConfig_remove_tuntap(o->ifname_nts.data, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to remove TAP device");
     }
+    
+    // free ifname nts
+    NCDValNullTermString_Free(&o->ifname_nts);
     
     NCDModuleInst_Backend_Dead(o->i);
 }

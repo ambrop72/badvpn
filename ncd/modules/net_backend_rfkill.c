@@ -142,40 +142,50 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(type_arg) || !NCDVal_IsStringNoNulls(name_arg)) {
+    if (!NCDVal_IsString(type_arg) || !NCDVal_IsStringNoNulls(name_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *type = NCDVal_StringValue(type_arg);
-    const char *name = NCDVal_StringValue(name_arg);
     
-    if (!strcmp(type, "index")) {
-        if (sscanf(name, "%"SCNu32, &o->index) != 1) {
+    // null terminate name
+    NCDValNullTermString name_nts;
+    if (!NCDVal_StringNullTerminate(name_arg, &name_nts)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail0;
+    }
+    
+    if (NCDVal_StringEquals(type_arg, "index")) {
+        if (sscanf(name_nts.data, "%"SCNu32, &o->index) != 1) {
             ModuleLog(o->i, BLOG_ERROR, "wrong index argument");
-            goto fail0;
+            goto fail1;
         }
     }
-    else if (!strcmp(type, "wlan")) {
-        if (!find_wlan_rfill(name, &o->index)) {
+    else if (NCDVal_StringEquals(type_arg, "wlan")) {
+        if (!find_wlan_rfill(name_nts.data, &o->index)) {
             ModuleLog(o->i, BLOG_ERROR, "failed to find rfkill for wlan interface");
-            goto fail0;
+            goto fail1;
         }
     }
     else {
         ModuleLog(o->i, BLOG_ERROR, "unknown type argument");
-        goto fail0;
+        goto fail1;
     }
     
     // init monitor
     if (!NCDRfkillMonitor_Init(&o->monitor, o->i->params->iparams->reactor, (NCDRfkillMonitor_handler)monitor_handler, o)) {
         ModuleLog(o->i, BLOG_ERROR, "monitor failed");
-        goto fail0;
+        goto fail1;
     }
     
     // set not up
     o->up = 0;
+    
+    // free name nts
+    NCDValNullTermString_Free(&name_nts);
     return;
     
+fail1:
+    NCDValNullTermString_Free(&name_nts);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);

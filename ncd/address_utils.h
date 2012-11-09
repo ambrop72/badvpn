@@ -84,7 +84,7 @@ static int ncd_read_baddr (NCDValRef val, BAddr *out)
         
         addr.type = BADDR_TYPE_IPV4;
         
-        if (!ipaddr_parse_ipv4_addr_bin(NCDVal_StringValue(ipaddr_val), NCDVal_StringLength(ipaddr_val), &addr.ipv4.ip)) {
+        if (!ipaddr_parse_ipv4_addr_bin(NCDVal_StringData(ipaddr_val), NCDVal_StringLength(ipaddr_val), &addr.ipv4.ip)) {
             goto fail;
         }
         
@@ -107,7 +107,7 @@ static int ncd_read_baddr (NCDValRef val, BAddr *out)
         addr.type = BADDR_TYPE_IPV6;
         
         struct ipv6_addr i6addr;
-        if (!ipaddr6_parse_ipv6_addr_bin(NCDVal_StringValue(ipaddr_val), NCDVal_StringLength(ipaddr_val), &i6addr)) {
+        if (!ipaddr6_parse_ipv6_addr_bin(NCDVal_StringData(ipaddr_val), NCDVal_StringLength(ipaddr_val), &i6addr)) {
             goto fail;
         }
         memcpy(addr.ipv6.ip, i6addr.bytes, 16);
@@ -241,7 +241,7 @@ static int ncd_read_bconnection_addr (NCDValRef val, struct BConnection_addr *ou
             goto fail;
         }
         
-        *out_addr = BConnection_addr_unix(NCDVal_StringValue(data_arg), NCDVal_StringLength(data_arg));
+        *out_addr = BConnection_addr_unix(NCDVal_StringData(data_arg), NCDVal_StringLength(data_arg));
     }
     else if (NCDVal_StringEquals(protocol_arg, "tcp")) {
         BAddr baddr;

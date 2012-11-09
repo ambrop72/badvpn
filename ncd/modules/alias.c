@@ -59,24 +59,24 @@ struct instance {
     NCD_string_id_t static_names[NUM_STATIC_NAMES];
 };
 
-static size_t count_names (const char *str)
+static size_t count_names (const char *str, size_t str_len)
 {
     size_t count = 1;
     
-    while (*str) {
+    while (str_len > 0) {
         if (*str == '.') {
             count++;
         }
         str++;
+        str_len--;
     }
     
     return count;
 }
 
-static int add_name (struct instance *o, const char *str, size_t str_len, const char *remain)
+static int add_name (struct instance *o, const char *str, size_t str_len, const char *remain, size_t remain_len)
 {
     ASSERT(str)
-    ASSERT(!memchr(str, '\0', str_len))
     ASSERT(!!o->dynamic_names == (o->num_names > NUM_STATIC_NAMES))
     
     NCD_string_id_t id = NCDStringIndex_GetBin(o->i->params->iparams->string_index, str, str_len);
@@ -90,7 +90,7 @@ static int add_name (struct instance *o, const char *str, size_t str_len, const 
     }
     
     if (o->num_names == NUM_STATIC_NAMES) {
-        size_t num_more = (!remain ? 0 : count_names(remain));
+        size_t num_more = (!remain ? 0 : count_names(remain, remain_len));
         size_t num_all = o->num_names + 1 + num_more;
         
         if (!(o->dynamic_names = BAllocArray(num_all, sizeof(o->dynamic_names[0])))) {
@@ -105,7 +105,7 @@ static int add_name (struct instance *o, const char *str, size_t str_len, const 
     return 1;
 }
 
-static int make_names (struct instance *o, const char *str)
+static int make_names (struct instance *o, const char *str, size_t str_len)
 {
     ASSERT(str)
     
@@ -113,19 +113,20 @@ static int make_names (struct instance *o, const char *str)
     o->dynamic_names = NULL;
     
     size_t i = 0;
-    while (str[i]) {
+    while (i < str_len) {
         if (str[i] == '.') {
-            if (!add_name(o, str, i, str + i + 1)) {
+            if (!add_name(o, str, i, str + (i + 1), str_len - (i + 1))) {
                 goto fail;
             }
             str += i + 1;
+            str_len -= i + 1;
             i = 0;
             continue;
         }
         i++;
     }
     
-    if (!add_name(o, str, i, NULL)) {
+    if (!add_name(o, str, i, NULL, 0)) {
         goto fail;
     }
     
@@ -147,14 +148,13 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(target_arg)) {
+    if (!NCDVal_IsString(target_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *target = NCDVal_StringValue(target_arg);
     
     // parse name string
-    if (!make_names(o, target)) {
+    if (!make_names(o, NCDVal_StringData(target_arg), NCDVal_StringLength(target_arg))) {
         ModuleLog(i, BLOG_ERROR, "make_names failed");
         goto fail0;
     }

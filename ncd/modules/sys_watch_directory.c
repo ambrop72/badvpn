@@ -64,7 +64,7 @@
 
 struct instance {
     NCDModuleInst *i;
-    const char *dir;
+    NCDValNullTermString dir_nts;
     DIR *dir_handle;
     int inotify_fd;
     BFileDescriptor bfd;
@@ -250,37 +250,42 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->dir = NCDVal_StringValue(dir_arg);
+    
+    // null terminate dir
+    if (!NCDVal_StringNullTerminate(dir_arg, &o->dir_nts)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail0;
+    }
     
     // open inotify
     if ((o->inotify_fd = inotify_init()) < 0) {
         ModuleLog(o->i, BLOG_ERROR, "inotify_init failed");
-        goto fail0;
+        goto fail1;
     }
     
     // add watch
-    if (inotify_add_watch(o->inotify_fd, o->dir, IN_CREATE | IN_DELETE | IN_MODIFY | IN_MOVED_FROM | IN_MOVED_TO) < 0) {
+    if (inotify_add_watch(o->inotify_fd, o->dir_nts.data, IN_CREATE | IN_DELETE | IN_MODIFY | IN_MOVED_FROM | IN_MOVED_TO) < 0) {
         ModuleLog(o->i, BLOG_ERROR, "inotify_add_watch failed");
-        goto fail1;
+        goto fail2;
     }
     
     // set non-blocking
     if (!badvpn_set_nonblocking(o->inotify_fd)) {
         ModuleLog(o->i, BLOG_ERROR, "badvpn_set_nonblocking failed");
-        goto fail1;
+        goto fail2;
     }
     
     // init BFileDescriptor
     BFileDescriptor_Init(&o->bfd, o->inotify_fd, (BFileDescriptor_handler)inotify_fd_handler, o);
     if (!BReactor_AddFileDescriptor(o->i->params->iparams->reactor, &o->bfd)) {
         ModuleLog(o->i, BLOG_ERROR, "BReactor_AddFileDescriptor failed");
-        goto fail1;
+        goto fail2;
     }
     
     // open directory
-    if (!(o->dir_handle = opendir(o->dir))) {
+    if (!(o->dir_handle = opendir(o->dir_nts.data))) {
         ModuleLog(o->i, BLOG_ERROR, "opendir failed");
-        goto fail2;
+        goto fail3;
     }
     
     // set not processing
@@ -290,12 +295,14 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     next_dir_event(o);
     return;
     
-fail2:
+fail3:
     BReactor_RemoveFileDescriptor(o->i->params->iparams->reactor, &o->bfd);
-fail1:
+fail2:
     if (close(o->inotify_fd) < 0) {
         ModuleLog(o->i, BLOG_ERROR, "close failed");
     }
+fail1:
+    NCDValNullTermString_Free(&o->dir_nts);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -317,6 +324,9 @@ void instance_free (struct instance *o, int is_error)
     if (close(o->inotify_fd) < 0) {
         ModuleLog(o->i, BLOG_ERROR, "close failed");
     }
+    
+    // free dir nts
+    NCDValNullTermString_Free(&o->dir_nts);
     
     if (is_error) {
         NCDModuleInst_Backend_SetError(o->i);
@@ -352,7 +362,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     }
     
     if (!strcmp(name, "filepath")) {
-        char *str = concat_strings(3, o->dir, "/", o->processing_file);
+        char *str = concat_strings(3, o->dir_nts.data, "/", o->processing_file);
         if (!str) {
             ModuleLog(o->i, BLOG_ERROR, "concat_strings failed");
             goto fail;

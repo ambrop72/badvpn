@@ -35,6 +35,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 #include <misc/offset.h>
 #include <misc/bsort.h>
@@ -43,6 +44,7 @@
 #include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDIfConfig.h>
+#include <ncd/value_utils.h>
 
 #include <generated/blog_channel_ncd_net_dns.h>
 
@@ -201,25 +203,29 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDVal_IsList(servers_arg) || !NCDVal_IsStringNoNulls(priority_arg)) {
+    if (!NCDVal_IsList(servers_arg) || !NCDVal_IsString(priority_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
     
-    int priority = atoi(NCDVal_StringValue(priority_arg));
+    uintmax_t priority;
+    if (!ncd_read_uintmax(priority_arg, &priority) || priority > INT_MAX) {
+        ModuleLog(o->i, BLOG_ERROR, "wrong priority");
+        goto fail1;
+    }
     
     // read servers
     size_t count = NCDVal_ListCount(servers_arg);
     for (size_t j = 0; j < count; j++) {
         NCDValRef server_arg = NCDVal_ListGet(servers_arg, j);
         
-        if (!NCDVal_IsStringNoNulls(server_arg)) {
+        if (!NCDVal_IsString(server_arg)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong type");
             goto fail1;
         }
         
         uint32_t addr;
-        if (!ipaddr_parse_ipv4_addr((char *)NCDVal_StringValue(server_arg), &addr)) {
+        if (!ipaddr_parse_ipv4_addr_bin((char *)NCDVal_StringData(server_arg), NCDVal_StringLength(server_arg), &addr)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong addr");
             goto fail1;
         }

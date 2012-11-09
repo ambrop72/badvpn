@@ -69,8 +69,11 @@
 struct instance {
     NCDModuleInst *i;
     const char *ifname;
+    size_t ifname_len;
     const char *conf;
+    size_t conf_len;
     const char *exec;
+    size_t exec_len;
     NCDValRef args;
     int dying;
     int up;
@@ -211,7 +214,7 @@ int build_cmdline (struct instance *o, CmdLine *c)
     }
     
     // append stdbuf part
-    if (!build_stdbuf_cmdline(c, o->exec, strlen(o->exec))) {
+    if (!build_stdbuf_cmdline(c, o->exec, o->exec_len)) {
         goto fail1;
     }
     
@@ -226,18 +229,18 @@ int build_cmdline (struct instance *o, CmdLine *c)
         }
         
         // append argument
-        if (!CmdLine_Append(c, NCDVal_StringValue(arg))) {
+        if (!CmdLine_AppendNoNull(c, NCDVal_StringData(arg), NCDVal_StringLength(arg))) {
             goto fail1;
         }
     }
     
     // append interface name
-    if (!CmdLine_Append(c, "-i") || !CmdLine_Append(c, o->ifname)) {
+    if (!CmdLine_Append(c, "-i") || !CmdLine_AppendNoNull(c, o->ifname, o->ifname_len)) {
         goto fail1;
     }
     
     // append config file
-    if (!CmdLine_Append(c, "-c") || !CmdLine_Append(c, o->conf)) {
+    if (!CmdLine_Append(c, "-c") || !CmdLine_AppendNoNull(c, o->conf, o->conf_len)) {
         goto fail1;
     }
     
@@ -343,7 +346,7 @@ void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len)
     // prefix, so don't fail if there isn't one.
     size_t l1;
     size_t l2;
-    if (strlen(o->ifname) > 0 && (l1 = data_begins_with((char *)data, data_len, o->ifname)) && (l2 = data_begins_with((char *)data + l1, data_len - l1, ": "))) {
+    if (o->ifname_len > 0 && (l1 = data_begins_with_bin((char *)data, data_len, o->ifname, o->ifname_len)) && (l2 = data_begins_with((char *)data + l1, data_len - l1, ": "))) {
         data += l1 + l2;
         data_len -= l1 + l2;
     }
@@ -416,9 +419,13 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->ifname = NCDVal_StringValue(ifname_arg);
-    o->conf = NCDVal_StringValue(conf_arg);
-    o->exec = NCDVal_StringValue(exec_arg);
+    
+    o->ifname = NCDVal_StringData(ifname_arg);
+    o->ifname_len = NCDVal_StringLength(ifname_arg);
+    o->conf = NCDVal_StringData(conf_arg);
+    o->conf_len = NCDVal_StringLength(conf_arg);
+    o->exec = NCDVal_StringData(exec_arg);
+    o->exec_len = NCDVal_StringLength(exec_arg);
     o->args = args_arg;
     
     // set not dying

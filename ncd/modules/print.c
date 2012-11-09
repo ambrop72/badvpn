@@ -89,7 +89,7 @@ static void do_print (NCDModuleInst *i, NCDValRef args, int ln)
         NCDValRef arg = NCDVal_ListGet(args, j);
         ASSERT(NCDVal_IsString(arg))
         
-        const char *str = NCDVal_StringValue(arg);
+        const char *str = NCDVal_StringData(arg);
         size_t len = NCDVal_StringLength(arg);
         size_t pos = 0;
         

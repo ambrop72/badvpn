@@ -130,6 +130,11 @@ typedef struct {
     size_t num_instrs;
 } NCDValReplaceProg;
 
+typedef struct {
+    char *data;
+    int is_allocated;
+} NCDValNullTermString;
+
 //
 
 #define NCDVAL_STRING 1
@@ -305,8 +310,7 @@ NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len);
 /**
  * Builds a new string value of the given length with undefined contents.
  * You can define the contents of the string later by copying to the address
- * returned by {@link NCDVal_StringValue}. The terminating null byte is
- * however automatically written.
+ * returned by {@link NCDVal_StringData}.
  */
 NCDValRef NCDVal_NewStringUninitialized (NCDValMem *mem, size_t len);
 
@@ -319,7 +323,7 @@ NCDValRef NCDVal_NewStringUninitialized (NCDValMem *mem, size_t len);
  * efficiently as a string identifier via {@link NCDStringIndex}. An ID-string
  * is also a string and is transparent for use. For example, for an ID-string,
  * {@link NCDVal_Type} still returns NCDVAL_STRING, {@link NCDVal_IsString}
- * returns 1, and {@link NCDVal_StringValue} and {@link NCDVal_StringLength}
+ * returns 1, and {@link NCDVal_StringData} and {@link NCDVal_StringLength}
  * both work. The only way to distinguish an ID-string from a non-ID string is
  * by calling {@link NCDVal_IsIdString}.
  */
@@ -327,18 +331,45 @@ NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id,
                               NCDStringIndex *string_index);
 
 /**
- * Returns a pointer to the data of a string value. An extra null byte
- * is always appended to the actual contents of the string.
+ * Returns a pointer to the data of a string value.
+ * WARNING: the string data may not be null-terminated. To get a null-terminated
+ * version, use {@link NCDVal_StringNullTerminate}.
  * The value reference must point to a string value.
  */
-const char * NCDVal_StringValue (NCDValRef string);
+const char * NCDVal_StringData (NCDValRef string);
 
 /**
- * Returns the length of the string value, excluding the automatically
- * appended null byte.
+ * Returns the length of the string value.
  * The value reference must point to a string value.
  */
 size_t NCDVal_StringLength (NCDValRef string);
+
+/**
+ * Produces a null-terminated version of a string value. On success, the result is
+ * stored into a {@link NCDValNullTermString} structure, and the null-terminated
+ * string is available via its 'data' member. This function may either simply pass
+ * through the data pointer as returned by {@link NCDVal_StringData} (if the string
+ * is known to be null-terminated) or produce a null-terminated dynamically allocated
+ * copy.
+ * On success, {@link NCDValNullTermString_Free} should be called to release any allocated
+ * memory when the null-terminated string is no longer needed. This must be called before
+ * the memory object is freed, because it may point to data inside the memory object.
+ * It is guaranteed that *out is not modified on failure.
+ * Returns 1 on success and 0 on failure.
+ */
+int NCDVal_StringNullTerminate (NCDValRef string, NCDValNullTermString *out) WARN_UNUSED;
+
+/**
+ * Returns a dummy {@link NCDValNullTermString} which can be freed using
+ * {@link NCDValNullTermString_Free}, but need not be.
+ */
+NCDValNullTermString NCDValNullTermString_NewDummy (void);
+
+/**
+ * Releases any memory which was dynamically allocated by {@link NCDVal_StringNullTerminate}
+ * to null-terminate a string.
+ */
+void NCDValNullTermString_Free (NCDValNullTermString *o);
 
 /**
  * Returns the string ID and the string index of an ID-string.
@@ -364,8 +395,7 @@ NCD_string_id_t NCDVal_IdStringId (NCDValRef idstring);
 NCDStringIndex * NCDVal_IdStringStringIndex (NCDValRef idstring);
 
 /**
- * Determines if the string value has any null bytes in its contents,
- * i.e. that length > strlen().
+ * Determines if the string value has any null bytes in its contents.
  * The value reference must point to a string value.
  */
 int NCDVal_StringHasNulls (NCDValRef string);

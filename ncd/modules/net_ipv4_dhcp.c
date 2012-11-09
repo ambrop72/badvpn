@@ -115,7 +115,9 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *ifname = NCDVal_StringValue(ifname_arg);
+    
+    NCDValNullTermString hostname_nts = NCDValNullTermString_NewDummy();
+    NCDValNullTermString vendorclassid_nts = NCDValNullTermString_NewDummy();
     
     struct BDHCPClient_opts opts = {};
     
@@ -125,52 +127,78 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         NCDValRef opt = NCDVal_ListGet(opts_arg, j);
         
         // read name
-        if (!NCDVal_IsStringNoNulls(opt)) {
+        if (!NCDVal_IsString(opt)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong option name type");
-            goto fail0;
+            goto fail1;
         }
-        const char *optname = NCDVal_StringValue(opt);
         
-        if (!strcmp(optname, "hostname") || !strcmp(optname, "vendorclassid")) {
+        if (NCDVal_StringEquals(opt, "hostname") || NCDVal_StringEquals(opt, "vendorclassid")) {
+            int is_hostname = NCDVal_StringEquals(opt, "hostname");
+            
             // read value
             if (j == count) {
                 ModuleLog(o->i, BLOG_ERROR, "option value missing");
-                goto fail0;
+                goto fail1;
             }
             NCDValRef val = NCDVal_ListGet(opts_arg, j + 1);
             if (!NCDVal_IsStringNoNulls(val)) {
                 ModuleLog(o->i, BLOG_ERROR, "wrong option value type");
-                goto fail0;
+                goto fail1;
             }
-            const char *optval = NCDVal_StringValue(val);
             
-            if (!strcmp(optname, "hostname")) {
-                opts.hostname = optval;
+            // null terminate
+            NCDValNullTermString nts;
+            if (!NCDVal_StringNullTerminate(val, &nts)) {
+                ModuleLog(o->i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+                goto fail1;
+            }
+            NCDValNullTermString *nts_ptr = (is_hostname ? &hostname_nts : &vendorclassid_nts);
+            NCDValNullTermString_Free(nts_ptr);
+            *nts_ptr = nts;
+            
+            if (is_hostname) {
+                opts.hostname = nts.data;
             } else {
-                opts.vendorclassid = optval;
+                opts.vendorclassid = nts.data;
             }
             
             j++;
         }
-        else if (!strcmp(optname, "auto_clientid")) {
+        else if (NCDVal_StringEquals(opt, "auto_clientid")) {
             opts.auto_clientid = 1;
         }
         else {
             ModuleLog(o->i, BLOG_ERROR, "unknown option name");
-            goto fail0;
+            goto fail1;
         }
     }
     
+    // null terminate ifname
+    NCDValNullTermString ifname_nts;
+    if (!NCDVal_StringNullTerminate(ifname_arg, &ifname_nts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+        goto fail1;
+    }
+    
     // init DHCP
-    if (!BDHCPClient_Init(&o->dhcp, ifname, opts, o->i->params->iparams->reactor, o->i->params->iparams->random2, (BDHCPClient_handler)dhcp_handler, o)) {
+    int res = BDHCPClient_Init(&o->dhcp, ifname_nts.data, opts, o->i->params->iparams->reactor, o->i->params->iparams->random2, (BDHCPClient_handler)dhcp_handler, o);
+    NCDValNullTermString_Free(&ifname_nts);
+    if (!res) {
         ModuleLog(o->i, BLOG_ERROR, "BDHCPClient_Init failed");
-        goto fail0;
+        goto fail1;
     }
     
     // set not up
     o->up = 0;
+    
+    // free options nts's
+    NCDValNullTermString_Free(&hostname_nts);
+    NCDValNullTermString_Free(&vendorclassid_nts);
     return;
     
+fail1:
+    NCDValNullTermString_Free(&hostname_nts);
+    NCDValNullTermString_Free(&vendorclassid_nts);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);

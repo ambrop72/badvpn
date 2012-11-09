@@ -59,6 +59,7 @@
 struct provide {
     NCDModuleInst *i;
     const char *name;
+    size_t name_len;
     LinkedList1Node provides_node;
     LinkedList1 depends;
     int dying;
@@ -76,11 +77,11 @@ struct depend {
 static LinkedList1 provides;
 static LinkedList1 depends;
 
-static struct provide * find_provide (const char *name)
+static struct provide * find_provide (const char *name, size_t name_len)
 {
     for (LinkedList1Node *n = LinkedList1_GetFirst(&provides); n; n = LinkedList1Node_Next(n)) {
         struct provide *p = UPPER_OBJECT(n, struct provide, provides_node);
-        if (!strcmp(p->name, name)) {
+        if (p->name_len == name_len && !memcmp(p->name, name, name_len)) {
             return p;
         }
     }
@@ -94,7 +95,7 @@ static struct provide * depend_find_best_provide (struct depend *o)
     
     for (size_t j = 0; j < count; j++) {
         NCDValRef e = NCDVal_ListGet(o->names, j);
-        struct provide *p = find_provide(NCDVal_StringValue(e));
+        struct provide *p = find_provide(NCDVal_StringData(e), NCDVal_StringLength(e));
         if (p && !p->dying) {
             return p;
         }
@@ -162,14 +163,15 @@ static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(name_arg)) {
+    if (!NCDVal_IsString(name_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->name = NCDVal_StringValue(name_arg);
+    o->name = NCDVal_StringData(name_arg);
+    o->name_len = NCDVal_StringLength(name_arg);
     
     // check for existing provide with this name
-    if (find_provide(o->name)) {
+    if (find_provide(o->name, o->name_len)) {
         ModuleLog(o->i, BLOG_ERROR, "a provide with this name already exists");
         goto fail0;
     }
@@ -256,7 +258,7 @@ static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
     size_t count = NCDVal_ListCount(o->names);
     for (size_t j = 0; j < count; j++) {
         NCDValRef e = NCDVal_ListGet(o->names, j);
-        if (!NCDVal_IsStringNoNulls(e)) {
+        if (!NCDVal_IsString(e)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong type");
             goto fail0;
         }

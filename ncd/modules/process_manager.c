@@ -51,6 +51,7 @@
 
 #include <misc/offset.h>
 #include <misc/debug.h>
+#include <misc/strdup.h>
 #include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
 #include <ncd/value_utils.h>
@@ -75,6 +76,7 @@ struct instance {
 struct process {
     struct instance *manager;
     char *name;
+    size_t name_len;
     BTimer retry_timer;
     LinkedList1Node processes_list_node;
     int have_params;
@@ -88,8 +90,8 @@ struct process {
     int state;
 };
 
-static struct process * find_process (struct instance *o, const char *name);
-static int process_new (struct instance *o, const char *name, NCDValRef template_name, NCDValRef args);
+static struct process * find_process (struct instance *o, const char *name, size_t name_len);
+static int process_new (struct instance *o, const char *name, size_t name_len, NCDValRef template_name, NCDValRef args);
 static void process_free (struct process *p);
 static void process_retry_timer_handler (struct process *p);
 static void process_module_process_handler_event (NCDModuleProcess *process, int event);
@@ -107,12 +109,12 @@ static struct NCD_string_request strings[] = {
     {"_caller"}, {NULL}
 };
 
-struct process * find_process (struct instance *o, const char *name)
+struct process * find_process (struct instance *o, const char *name, size_t name_len)
 {
     LinkedList1Node *n = LinkedList1_GetFirst(&o->processes_list);
     while (n) {
         struct process *p = UPPER_OBJECT(n, struct process, processes_list_node);
-        if (!strcmp(p->name, name)) {
+        if (p->name_len == name_len && !memcmp(p->name, name, name_len)) {
             return p;
         }
         n = LinkedList1Node_Next(n);
@@ -121,10 +123,10 @@ struct process * find_process (struct instance *o, const char *name)
     return NULL;
 }
 
-int process_new (struct instance *o, const char *name, NCDValRef template_name, NCDValRef args)
+int process_new (struct instance *o, const char *name, size_t name_len, NCDValRef template_name, NCDValRef args)
 {
     ASSERT(!o->dying)
-    ASSERT(!find_process(o, name))
+    ASSERT(!find_process(o, name, name_len))
     ASSERT(NCDVal_IsString(template_name))
     ASSERT(NCDVal_IsList(args))
     
@@ -139,10 +141,11 @@ int process_new (struct instance *o, const char *name, NCDValRef template_name, 
     p->manager = o;
     
     // copy name
-    if (!(p->name = strdup(name))) {
-        ModuleLog(o->i, BLOG_ERROR, "strdup failed");
+    if (!(p->name = b_strdup_bin(name, name_len))) {
+        ModuleLog(o->i, BLOG_ERROR, "b_strdup_bin failed");
         goto fail1;
     }
+    p->name_len = name_len;
     
     // init retry timer
     BTimer_Init(&p->retry_timer, RETRY_TIME, (BTimer_handler)process_retry_timer_handler, p);
@@ -371,7 +374,7 @@ void process_try (struct process *p)
     ASSERT(p->have_params)
     ASSERT(!p->have_module_process)
     
-    ModuleLog(o->i, BLOG_INFO, "trying process %s", p->name);
+    ModuleLog(o->i, BLOG_INFO, "trying process");
     
     // move params
     p->process_mem = p->params_mem;
@@ -492,12 +495,13 @@ static void start_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(name_arg) || !NCDVal_IsString(template_name_arg) ||
+    if (!NCDVal_IsString(name_arg) || !NCDVal_IsString(template_name_arg) ||
         !NCDVal_IsList(args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *name = NCDVal_StringValue(name_arg);
+    const char *name = NCDVal_StringData(name_arg);
+    size_t name_len = NCDVal_StringLength(name_arg);
     
     // signal up.
     // Do it before creating the process so that the process starts initializing before our own process continues.
@@ -507,20 +511,20 @@ static void start_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     if (mo->dying) {
-        ModuleLog(i, BLOG_INFO, "manager is dying, not creating process %s", name);
+        ModuleLog(i, BLOG_INFO, "manager is dying, not creating process");
     } else {
-        struct process *p = find_process(mo, name);
+        struct process *p = find_process(mo, name, name_len);
         if (p && p->state != PROCESS_STATE_STOPPING) {
-            ModuleLog(i, BLOG_INFO, "process %s already started", name);
+            ModuleLog(i, BLOG_INFO, "process already started");
         } else {
             if (p) {
                 if (!process_restart(p, template_name_arg, args_arg)) {
-                    ModuleLog(i, BLOG_ERROR, "failed to restart process %s", name);
+                    ModuleLog(i, BLOG_ERROR, "failed to restart process");
                     goto fail0;
                 }
             } else {
-                if (!process_new(mo, name, template_name_arg, args_arg)) {
-                    ModuleLog(i, BLOG_ERROR, "failed to create process %s", name);
+                if (!process_new(mo, name, name_len, template_name_arg, args_arg)) {
+                    ModuleLog(i, BLOG_ERROR, "failed to create process");
                     goto fail0;
                 }
             }
@@ -542,11 +546,12 @@ static void stop_func_new (void *unused, NCDModuleInst *i, const struct NCDModul
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(name_arg)) {
+    if (!NCDVal_IsString(name_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *name = NCDVal_StringValue(name_arg);
+    const char *name = NCDVal_StringData(name_arg);
+    size_t name_len = NCDVal_StringLength(name_arg);
     
     // signal up.
     // Do it before stopping the process so that the process starts terminating before our own process continues.
@@ -556,11 +561,11 @@ static void stop_func_new (void *unused, NCDModuleInst *i, const struct NCDModul
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
     if (mo->dying) {
-        ModuleLog(i, BLOG_INFO, "manager is dying, not stopping process %s", name);
+        ModuleLog(i, BLOG_INFO, "manager is dying, not stopping process");
     } else {
-        struct process *p = find_process(mo, name);
+        struct process *p = find_process(mo, name, name_len);
         if (!(p && p->state != PROCESS_STATE_STOPPING)) {
-            ModuleLog(i, BLOG_INFO, "process %s already stopped", name);
+            ModuleLog(i, BLOG_INFO, "process already stopped");
         } else {
             process_stop(p);
         }

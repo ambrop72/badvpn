@@ -89,14 +89,14 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         
         // append glue
         if (j > 0) {
-            if (!ExpString_AppendBinary(&str, (const uint8_t *)NCDVal_StringValue(glue_arg), NCDVal_StringLength(glue_arg))) {
+            if (!ExpString_AppendBinary(&str, (const uint8_t *)NCDVal_StringData(glue_arg), NCDVal_StringLength(glue_arg))) {
                 ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
                 goto fail1;
             }
         }
         
         // append piece
-        if (!ExpString_AppendBinary(&str, (const uint8_t *)NCDVal_StringValue(piece), NCDVal_StringLength(piece))) {
+        if (!ExpString_AppendBinary(&str, (const uint8_t *)NCDVal_StringData(piece), NCDVal_StringLength(piece))) {
             ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
             goto fail1;
         }
