@@ -36,6 +36,7 @@
 #include <misc/debug.h>
 #include <structure/CAvl.h>
 #include <ncd/NCDStringIndex.h>
+#include <ncd/NCDRefTarget.h>
 
 // these are implementation details. The interface is defined below.
 
@@ -51,6 +52,7 @@ typedef struct {
     char *buf;
     NCDVal__idx size;
     NCDVal__idx used;
+    NCDVal__idx first_ref;
     char fastbuf[NCDVAL_FASTBUF_SIZE];
 } NCDValMem;
 
@@ -62,6 +64,11 @@ typedef struct {
 typedef struct {
     NCDVal__idx idx;
 } NCDValSafeRef;
+
+struct NCDVal__ref {
+    NCDVal__idx next;
+    NCDRefTarget *target;
+};
 
 struct NCDVal__string {
     int type;
@@ -88,6 +95,13 @@ struct NCDVal__idstring {
     int type;
     NCD_string_id_t string_id;
     NCDStringIndex *string_index;
+};
+
+struct NCDVal__externalstring {
+    int type;
+    const char *data;
+    size_t length;
+    struct NCDVal__ref ref;
 };
 
 typedef struct NCDVal__mapelem NCDVal__maptree_entry;
@@ -281,6 +295,14 @@ int NCDVal_IsString (NCDValRef val);
 int NCDVal_IsIdString (NCDValRef val);
 
 /**
+ * Determines if a value is an external string value.
+ * See {@link NCDVal_NewExternalString} for an explanation of external
+ * string values.
+ * The value reference must not be an invalid reference.
+ */
+int NCDVal_IsExternalString (NCDValRef val);
+
+/**
  * Determines if a value is a string value which has no null bytes.
  * The value reference must not be an invalid reference.
  */
@@ -329,6 +351,19 @@ NCDValRef NCDVal_NewStringUninitialized (NCDValMem *mem, size_t len);
  */
 NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id,
                               NCDStringIndex *string_index);
+
+/**
+ * Builds a new string value pointing to the given external data. A reference to
+ * the external data is taken using {@link NCDRefTarget}. The data must not change
+ * while the reference is being held. Like ID-strings, external strings are
+ * transparent for use. An external string can be recognized using
+ * {@link NCDVal_IsExternalString}.
+ * 
+ * Returns a reference to the new value, or an invalid reference
+ * on out of memory.
+ */
+NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len,
+                                    NCDRefTarget *ref_target);
 
 /**
  * Returns a pointer to the data of a string value.
@@ -393,6 +428,13 @@ NCD_string_id_t NCDVal_IdStringId (NCDValRef idstring);
  * {@link NCDVal_IsIdString}).
  */
 NCDStringIndex * NCDVal_IdStringStringIndex (NCDValRef idstring);
+
+/**
+ * Returns the reference target of an external string.
+ * The value given must be an external string value (which can be determined
+ * via {@link NCDVal_IsExternalString}).
+ */
+NCDRefTarget * NCDVal_ExternalStringTarget (NCDValRef externalstring);
 
 /**
  * Determines if the string value has any null bytes in its contents.

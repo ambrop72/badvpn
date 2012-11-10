@@ -35,14 +35,19 @@
 
 #include <misc/bsize.h>
 #include <misc/balloc.h>
+#include <misc/strdup.h>
+#include <misc/offset.h>
 #include <base/BLog.h>
 
 #include "NCDVal.h"
 
 #include <generated/blog_channel_NCDVal.h>
 
+//#define NCDVAL_TEST_EXTERNAL_STRINGS
+
 #define EXTERNAL_TYPE_MASK ((1 << 3) - 1)
 #define IDSTRING_TYPE (NCDVAL_STRING | (1 << 3))
+#define EXTERNALSTRING_TYPE (NCDVAL_STRING | (2 << 3))
 
 static void * NCDValMem__BufAt (NCDValMem *o, NCDVal__idx idx)
 {
@@ -169,6 +174,14 @@ static void NCDVal__AssertValOnly (NCDValMem *mem, NCDVal__idx idx)
             ASSERT(ids_e->string_id >= 0)
             ASSERT(ids_e->string_index)
         } break;
+        case EXTERNALSTRING_TYPE: {
+            ASSERT(idx + sizeof(struct NCDVal__externalstring) <= mem->used)
+            struct NCDVal__externalstring *exs_e = NCDValMem__BufAt(mem, idx);
+            ASSERT(exs_e->data)
+            ASSERT(exs_e->ref.next >= -1)
+            ASSERT(exs_e->ref.next < mem->used)
+            ASSERT(exs_e->ref.target)
+        } break;
         default: ASSERT(0);
     }
 #endif
@@ -220,11 +233,19 @@ void NCDValMem_Init (NCDValMem *o)
     o->buf = NULL;
     o->size = NCDVAL_FASTBUF_SIZE;
     o->used = 0;
+    o->first_ref = -1;
 }
 
 void NCDValMem_Free (NCDValMem *o)
 {
     NCDVal__AssertMem(o);
+    
+    NCDVal__idx refidx = o->first_ref;
+    while (refidx != -1) {
+        struct NCDVal__ref *ref = NCDValMem__BufAt(o, refidx);
+        NCDRefTarget_Deref(ref->target);
+        refidx = ref->next;
+    }
     
     if (o->buf) {
         BFree(o->buf);
@@ -237,6 +258,7 @@ int NCDValMem_InitCopy (NCDValMem *o, NCDValMem *other)
     
     o->size = other->size;
     o->used = other->used;
+    o->first_ref = other->first_ref;
     
     if (!other->buf) {
         o->buf = NULL;
@@ -249,8 +271,27 @@ int NCDValMem_InitCopy (NCDValMem *o, NCDValMem *other)
         memcpy(o->buf, other->buf, other->used);
     }
     
+    NCDVal__idx refidx = o->first_ref;
+    while (refidx != -1) {
+        struct NCDVal__ref *ref = NCDValMem__BufAt(o, refidx);
+        if (!NCDRefTarget_Ref(ref->target)) {
+            goto fail1;
+        }
+        refidx = ref->next;
+    }
+    
     return 1;
     
+fail1:;
+    NCDVal__idx undo_refidx = o->first_ref;
+    while (undo_refidx != refidx) {
+        struct NCDVal__ref *ref = NCDValMem__BufAt(o, undo_refidx);
+        NCDRefTarget_Deref(ref->target);
+        undo_refidx = ref->next;
+    }
+    if (o->buf) {
+        BFree(o->buf);
+    }
 fail0:
     return 0;
 }
@@ -381,6 +422,12 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
             struct NCDVal__idstring *ids_e = ptr;
             
             return NCDVal_NewIdString(mem, ids_e->string_id, ids_e->string_index);
+        } break;
+        
+        case EXTERNALSTRING_TYPE: {
+            struct NCDVal__externalstring *exs_e = ptr;
+            
+            return NCDVal_NewExternalString(mem, exs_e->data, exs_e->length, exs_e->ref.target);
         } break;
         
         default: ASSERT(0);
@@ -521,6 +568,13 @@ int NCDVal_IsIdString (NCDValRef val)
     return !(val.idx < -1) && *(int *)NCDValMem__BufAt(val.mem, val.idx) == IDSTRING_TYPE;
 }
 
+int NCDVal_IsExternalString (NCDValRef val)
+{
+    NCDVal__AssertVal(val);
+    
+    return !(val.idx < -1) && *(int *)NCDValMem__BufAt(val.mem, val.idx) == EXTERNALSTRING_TYPE;
+}
+
 int NCDVal_IsStringNoNulls (NCDValRef val)
 {
     NCDVal__AssertVal(val);
@@ -536,6 +590,56 @@ NCDValRef NCDVal_NewString (NCDValMem *mem, const char *data)
     
     return NCDVal_NewStringBin(mem, (const uint8_t *)data, strlen(data));
 }
+
+#ifdef NCDVAL_TEST_EXTERNAL_STRINGS
+
+struct test_ext_str {
+    NCDRefTarget ref_target;
+    char *data;
+};
+
+static void test_ext_str_ref_target_func_dealloc (NCDRefTarget *ref_target)
+{
+    struct test_ext_str *tes = UPPER_OBJECT(ref_target, struct test_ext_str, ref_target);
+    BFree(tes->data);
+    BFree(tes);
+}
+
+NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len)
+{
+    NCDVal__AssertMem(mem);
+    ASSERT(len == 0 || data)
+    NCDVal_AssertExternal(mem, data, len);
+    
+    struct test_ext_str *tes = BAlloc(sizeof(*tes));
+    if (!tes) {
+        goto fail0;
+    }
+    
+    tes->data = BAlloc(len);
+    if (!tes->data) {
+        goto fail1;
+    }
+    
+    if (len > 0) {
+        memcpy(tes->data, data, len);
+    }
+    
+    NCDRefTarget_Init(&tes->ref_target, test_ext_str_ref_target_func_dealloc);
+    
+    NCDValRef res = NCDVal_NewExternalString(mem, tes->data, len, &tes->ref_target);
+    NCDRefTarget_Deref(&tes->ref_target);
+    return res;
+    
+fail1:
+    BFree(tes);
+fail0:
+    return NCDVal_NewInvalid();
+}
+
+#endif
+
+#ifndef NCDVAL_TEST_EXTERNAL_STRINGS
 
 NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len)
 {
@@ -566,6 +670,8 @@ NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len)
 fail:
     return NCDVal_NewInvalid();
 }
+
+#endif
 
 NCDValRef NCDVal_NewStringUninitialized (NCDValMem *mem, size_t len)
 {
@@ -615,16 +721,56 @@ fail:
     return NCDVal_NewInvalid();
 }
 
+NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len,
+                                    NCDRefTarget *ref_target)
+{
+    NCDVal__AssertMem(mem);
+    ASSERT(data)
+    NCDVal_AssertExternal(mem, data, len);
+    ASSERT(ref_target)
+    
+    bsize_t size = bsize_fromsize(sizeof(struct NCDVal__externalstring));
+    NCDVal__idx idx = NCDValMem__Alloc(mem, size, __alignof(struct NCDVal__externalstring));
+    if (idx < 0) {
+        goto fail;
+    }
+    
+    if (!NCDRefTarget_Ref(ref_target)) {
+        goto fail;
+    }
+    
+    struct NCDVal__externalstring *exs_e = NCDValMem__BufAt(mem, idx);
+    exs_e->type = EXTERNALSTRING_TYPE;
+    exs_e->data = data;
+    exs_e->length = len;
+    exs_e->ref.target = ref_target;
+    exs_e->ref.next = mem->first_ref;
+    
+    mem->first_ref = idx + offsetof(struct NCDVal__externalstring, ref);
+    
+    return NCDVal__Ref(mem, idx);
+    
+fail:
+    return NCDVal_NewInvalid();
+}
+
 const char * NCDVal_StringData (NCDValRef string)
 {
     ASSERT(NCDVal_IsString(string))
     
     void *ptr = NCDValMem__BufAt(string.mem, string.idx);
     
-    if (*(int *)ptr == IDSTRING_TYPE) {
-        struct NCDVal__idstring *ids_e = ptr;
-        const char *value = NCDStringIndex_Value(ids_e->string_index, ids_e->string_id);
-        return value;
+    switch (*(int *)ptr) {
+        case IDSTRING_TYPE: {
+            struct NCDVal__idstring *ids_e = ptr;
+            const char *value = NCDStringIndex_Value(ids_e->string_index, ids_e->string_id);
+            return value;
+        } break;
+        
+        case EXTERNALSTRING_TYPE: {
+            struct NCDVal__externalstring *exs_e = ptr;
+            return exs_e->data;
+        } break;
     }
     
     struct NCDVal__string *str_e = ptr;
@@ -637,10 +783,17 @@ size_t NCDVal_StringLength (NCDValRef string)
     
     void *ptr = NCDValMem__BufAt(string.mem, string.idx);
     
-    if (*(int *)ptr == IDSTRING_TYPE) {
-        struct NCDVal__idstring *ids_e = ptr;
-        const char *value = NCDStringIndex_Value(ids_e->string_index, ids_e->string_id);
-        return strlen(value);
+    switch (*(int *)ptr) {
+        case IDSTRING_TYPE: {
+            struct NCDVal__idstring *ids_e = ptr;
+            const char *value = NCDStringIndex_Value(ids_e->string_index, ids_e->string_id);
+            return strlen(value);
+        } break;
+        
+        case EXTERNALSTRING_TYPE: {
+            struct NCDVal__externalstring *exs_e = ptr;
+            return exs_e->length;
+        } break;
     }
     
     struct NCDVal__string *str_e = ptr;;
@@ -654,11 +807,26 @@ int NCDVal_StringNullTerminate (NCDValRef string, NCDValNullTermString *out)
     
     void *ptr = NCDValMem__BufAt(string.mem, string.idx);
     
-    if (*(int *)ptr == IDSTRING_TYPE) {
-        struct NCDVal__idstring *ids_e = ptr;
-        out->data = (char *)NCDStringIndex_Value(ids_e->string_index, ids_e->string_id);
-        out->is_allocated = 0;
-        return 1;
+    switch (*(int *)ptr) {
+        case IDSTRING_TYPE: {
+            struct NCDVal__idstring *ids_e = ptr;
+            out->data = (char *)NCDStringIndex_Value(ids_e->string_index, ids_e->string_id);
+            out->is_allocated = 0;
+            return 1;
+        } break;
+        
+        case EXTERNALSTRING_TYPE: {
+            struct NCDVal__externalstring *exs_e = ptr;
+            
+            char *copy = b_strdup_bin(exs_e->data, exs_e->length);
+            if (!copy) {
+                return 0;
+            }
+            
+            out->data = copy;
+            out->is_allocated = 1;
+            return 1;
+        } break;
     }
     
     struct NCDVal__string *str_e = ptr;
@@ -710,6 +878,14 @@ NCDStringIndex * NCDVal_IdStringStringIndex (NCDValRef idstring)
     return ids_e->string_index;
 }
 
+NCDRefTarget * NCDVal_ExternalStringTarget (NCDValRef externalstring)
+{
+    ASSERT(NCDVal_IsExternalString(externalstring))
+    
+    struct NCDVal__externalstring *exs_e = NCDValMem__BufAt(externalstring.mem, externalstring.idx);
+    return exs_e->ref.target;
+}
+
 int NCDVal_StringHasNulls (NCDValRef string)
 {
     ASSERT(NCDVal_IsString(string))
@@ -739,10 +915,18 @@ int NCDVal_StringEqualsId (NCDValRef string, NCD_string_id_t string_id,
     
     void *ptr = NCDValMem__BufAt(string.mem, string.idx);
     
-    if (*(int *)ptr == IDSTRING_TYPE) {
-        struct NCDVal__idstring *ids_e = ptr;
-        ASSERT(ids_e->string_index == string_index)
-        return ids_e->string_id == string_id;
+    switch (*(int *)ptr) {
+        case IDSTRING_TYPE: {
+            struct NCDVal__idstring *ids_e = ptr;
+            ASSERT(ids_e->string_index == string_index)
+            return ids_e->string_id == string_id;
+        } break;
+        
+        case EXTERNALSTRING_TYPE: {
+            struct NCDVal__externalstring *exs_e = ptr;
+            const char *string_data = NCDStringIndex_Value(string_index, string_id);
+            return strlen(string_data) == exs_e->length && !memcmp(string_data, exs_e->data, exs_e->length);
+        } break;
     }
     
     const char *string_data = NCDStringIndex_Value(string_index, string_id);
@@ -1056,7 +1240,8 @@ static void replaceprog_build_recurser (NCDValMem *mem, NCDVal__idx idx, size_t 
     
     switch (*((int *)(ptr))) {
         case NCDVAL_STRING:
-        case IDSTRING_TYPE: {
+        case IDSTRING_TYPE:
+        case EXTERNALSTRING_TYPE: {
         } break;
         
         case NCDVAL_LIST: {
