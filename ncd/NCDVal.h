@@ -40,7 +40,7 @@
 
 // these are implementation details. The interface is defined below.
 
-#define NCDVAL_FASTBUF_SIZE 64
+#define NCDVAL_FASTBUF_SIZE 60
 #define NCDVAL_FIRST_SIZE 256
 
 #define NCDVAL_MAXIDX INT_MAX
