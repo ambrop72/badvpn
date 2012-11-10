@@ -541,8 +541,10 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, NCD_string_id_t 
         
         if (name >= NCD_STRING_ARG0 && name <= NCD_STRING_ARG19) {
             int num = name - NCD_STRING_ARG0;
-            *out_object = NCDObject_Build2(-1, o, (void *)((uintptr_t)(num + 1)), (NCDObject_func_getvar2)process_arg_object_func_getvar2, NULL);
-            return 1;
+            if (num < NCDVal_ListCount(o->args)) {
+                *out_object = NCDObject_Build2(-1, o, (void *)((uintptr_t)(num + 1)), (NCDObject_func_getvar2)process_arg_object_func_getvar2, NULL);
+                return 1;
+            }
         }
     }
     
