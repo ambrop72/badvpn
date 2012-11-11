@@ -29,11 +29,16 @@
  * @section DESCRIPTION
  * 
  * Synopsis:
- *   file_open(string filename, string mode)
+ *   file_open(string filename, string mode [, map options])
  * 
  * Variables:
  *   string is_error - "true" if the file_open object is in error state, "false"
  *     otherwise
+ * 
+ * Options:
+ *   "read_size" - the maximum number of bytes that can be read by a single
+ *     read() call. Must be greater than zero. Greater values may improve
+ *     performance, but will increase memory usage. Default: 8192.
  * 
  * Description:
  *   Opens a file for subsequent reading or writing. The 'mode' argument must
@@ -194,11 +199,16 @@ static void open_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
     // check arguments
     NCDValRef filename_arg;
     NCDValRef mode_arg;
-    if (!NCDVal_ListRead(params->args, 2, &filename_arg, &mode_arg)) {
+    NCDValRef options_arg = NCDVal_NewInvalid();
+    if (!NCDVal_ListRead(params->args, 2, &filename_arg, &mode_arg) &&
+        !NCDVal_ListRead(params->args, 3, &filename_arg, &mode_arg, &options_arg)
+    ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsStringNoNulls(filename_arg) || !NCDVal_IsString(mode_arg)) {
+    if (!NCDVal_IsStringNoNulls(filename_arg) || !NCDVal_IsString(mode_arg) ||
+        (!NCDVal_IsInvalid(options_arg) && !NCDVal_IsMap(options_arg))
+    ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
@@ -210,8 +220,31 @@ static void open_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
         goto fail0;
     }
     
+    size_t read_size_opt = READ_BUF_SIZE;
+    
+    // parse options
+    if (!NCDVal_IsInvalid(options_arg)) {
+        int num_recognized = 0;
+        NCDValRef value;
+        
+        if (!NCDVal_IsInvalid(value = NCDVal_MapGetValue(options_arg, "read_size"))) {
+            uintmax_t read_size;
+            if (!NCDVal_IsString(value) || !ncd_read_uintmax(value, &read_size) || read_size > SIZE_MAX || read_size == 0) {
+                ModuleLog(o->i, BLOG_ERROR, "wrong read_size");
+                goto fail0;
+            }
+            num_recognized++;
+            read_size_opt = read_size;
+        }
+        
+        if (NCDVal_MapCount(options_arg) > num_recognized) {
+            ModuleLog(o->i, BLOG_ERROR, "unrecognized options present");
+            goto fail0;
+        }
+    }
+    
     // init store
-    NCDBufStore_Init(&o->store, READ_BUF_SIZE);
+    NCDBufStore_Init(&o->store, read_size_opt);
     
     // null terminate filename
     NCDValNullTermString filename_nts;
@@ -299,15 +332,16 @@ static void read_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
     
     // starting with empty buffer
     char *data = NCDBuf_Data(o->buf);
+    size_t buf_size = NCDBufStore_BufSize(&open_inst->store);
     o->length = 0;
     
-    while (o->length < READ_BUF_SIZE) {
+    while (o->length < buf_size) {
         // read
-        size_t readed = fread(data + o->length, 1, READ_BUF_SIZE - o->length, open_inst->fh);
+        size_t readed = fread(data + o->length, 1, buf_size - o->length, open_inst->fh);
         if (readed == 0) {
             break;
         }
-        ASSERT(readed <= READ_BUF_SIZE - o->length)
+        ASSERT(readed <= buf_size - o->length)
         
         // increment length
         o->length += readed;
