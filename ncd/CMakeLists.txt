@@ -127,6 +127,7 @@ add_library(ncdinterpreter
     NCDPlaceholderDb.c
     NCDMethodIndex.c
     extra/BEventLock.c
+    extra/NCDBuf.c
     modules/var.c
     modules/list.c
     modules/depend.c
