@@ -52,6 +52,7 @@ typedef struct {
 
 void NCDBufStore_Init (NCDBufStore *o, size_t buf_size);
 void NCDBufStore_Free (NCDBufStore *o);
+size_t NCDBufStore_BufSize (NCDBufStore *o);
 NCDBuf * NCDBufStore_GetBuf (NCDBufStore *o);
 
 NCDRefTarget * NCDBuf_RefTarget (NCDBuf *o);

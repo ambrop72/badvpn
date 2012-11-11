@@ -79,6 +79,13 @@ void NCDBufStore_Free (NCDBufStore *o)
     }
 }
 
+size_t NCDBufStore_BufSize (NCDBufStore *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    return o->buf_size;
+}
+
 NCDBuf * NCDBufStore_GetBuf (NCDBufStore *o)
 {
     DebugObject_Access(&o->d_obj);
