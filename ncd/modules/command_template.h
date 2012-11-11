@@ -36,8 +36,8 @@
 #define BADVPN_NCD_MODULES_COMMAND_TEMPLATE_H
 
 #include <misc/cmdline.h>
-#include <ncd/BEventLock.h>
 #include <ncd/NCDModule.h>
+#include <ncd/extra/BEventLock.h>
 
 typedef int (*command_template_build_cmdline) (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl);
 typedef void (*command_template_free_func) (void *user, int is_error);

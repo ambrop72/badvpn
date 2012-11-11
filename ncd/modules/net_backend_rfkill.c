@@ -50,7 +50,7 @@
 
 #include <misc/string_begins_with.h>
 #include <ncd/NCDModule.h>
-#include <ncd/NCDRfkillMonitor.h>
+#include <ncd/extra/NCDRfkillMonitor.h>
 
 #include <generated/blog_channel_ncd_net_backend_rfkill.h>
 

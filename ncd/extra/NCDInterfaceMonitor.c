@@ -43,7 +43,7 @@
 #include <misc/nonblocking.h>
 #include <base/BLog.h>
 
-#include <ncd/NCDInterfaceMonitor.h>
+#include <ncd/extra/NCDInterfaceMonitor.h>
 
 #include <generated/blog_channel_NCDInterfaceMonitor.h>
 

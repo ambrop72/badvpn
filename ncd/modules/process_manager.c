@@ -54,7 +54,7 @@
 #include <misc/strdup.h>
 #include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
-#include <ncd/value_utils.h>
+#include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_process_manager.h>
 

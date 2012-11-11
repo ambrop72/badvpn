@@ -36,7 +36,7 @@
 #include <misc/nonblocking.h>
 #include <base/BLog.h>
 
-#include <ncd/NCDRfkillMonitor.h>
+#include "NCDRfkillMonitor.h"
 
 #include <generated/blog_channel_NCDRfkillMonitor.h>
 

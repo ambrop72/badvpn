@@ -85,8 +85,8 @@
 #include <ncd/NCDValParser.h>
 #include <ncd/NCDValGenerator.h>
 #include <ncd/NCDModule.h>
-#include <ncd/value_utils.h>
-#include <ncd/address_utils.h>
+#include <ncd/extra/value_utils.h>
+#include <ncd/extra/address_utils.h>
 
 #include <generated/blog_channel_ncd_sys_request_server.h>
 

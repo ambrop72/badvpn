@@ -39,7 +39,7 @@
 #include <misc/get_iface_info.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDIfConfig.h>
-#include <ncd/NCDInterfaceMonitor.h>
+#include <ncd/extra/NCDInterfaceMonitor.h>
 
 #include <generated/blog_channel_ncd_net_backend_waitlink.h>
 

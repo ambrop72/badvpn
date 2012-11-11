@@ -6,7 +6,7 @@ set(NCD_ADDITIONAL_LIBS)
 if (NOT EMSCRIPTEN)
     if (BADVPN_USE_LINUX_RFKILL)
         list(APPEND NCD_ADDITIONAL_SOURCES
-            NCDRfkillMonitor.c
+            extra/NCDRfkillMonitor.c
             modules/net_backend_rfkill.c
         )
     endif ()
@@ -24,12 +24,12 @@ if (NOT EMSCRIPTEN)
     endif ()
 
     add_library(ncdinterfacemonitor
-        NCDInterfaceMonitor.c
+        extra/NCDInterfaceMonitor.c
     )
     target_link_libraries(ncdinterfacemonitor base system)
     
     add_library(ncdrequest
-        NCDRequestClient.c
+        extra/NCDRequestClient.c
     )
     target_link_libraries(ncdrequest base system ncdvalgenerator ncdvalparser)
 
@@ -126,7 +126,7 @@ add_library(ncdinterpreter
     NCDInterpProg.c
     NCDPlaceholderDb.c
     NCDMethodIndex.c
-    BEventLock.c
+    extra/BEventLock.c
     modules/var.c
     modules/list.c
     modules/depend.c

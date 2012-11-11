@@ -38,7 +38,7 @@
 #include <system/BTime.h>
 #include <system/BReactor.h>
 #include <system/BSignal.h>
-#include <ncd/NCDInterfaceMonitor.h>
+#include <ncd/extra/NCDInterfaceMonitor.h>
 
 BReactor reactor;
 NCDInterfaceMonitor monitor;

@@ -98,7 +98,7 @@
 
 #include <misc/debug.h>
 #include <misc/find_program.h>
-#include <ncd/BEventLock.h>
+#include <ncd/extra/BEventLock.h>
 
 #include <ncd/modules/command_template.h>
 

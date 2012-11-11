@@ -58,7 +58,7 @@
 
 #include <misc/nonblocking.h>
 #include <misc/debug.h>
-#include <ncd/value_utils.h>
+#include <ncd/extra/value_utils.h>
 
 #include <ncd/NCDModule.h>
 

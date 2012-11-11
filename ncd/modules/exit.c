@@ -40,7 +40,7 @@
 #include <limits.h>
 
 #include <ncd/NCDModule.h>
-#include <ncd/value_utils.h>
+#include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_exit.h>
 

@@ -40,7 +40,7 @@
 #include <system/BAddr.h>
 #include <system/BConnectionGeneric.h>
 #include <ncd/NCDVal.h>
-#include <ncd/value_utils.h>
+#include <ncd/extra/value_utils.h>
 
 static int ncd_read_baddr (NCDValRef val, BAddr *out) WARN_UNUSED;
 static NCDValRef ncd_make_baddr (BAddr addr, NCDValMem *mem);

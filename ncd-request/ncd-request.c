@@ -40,7 +40,7 @@
 #include <system/BAddr.h>
 #include <ncd/NCDValParser.h>
 #include <ncd/NCDValGenerator.h>
-#include <ncd/NCDRequestClient.h>
+#include <ncd/extra/NCDRequestClient.h>
 
 #include <generated/blog_channel_ncd_request.h>
 

@@ -88,9 +88,9 @@
 #include <structure/LinkedList0.h>
 #include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
-#include <ncd/NCDRequestClient.h>
-#include <ncd/value_utils.h>
-#include <ncd/address_utils.h>
+#include <ncd/extra/NCDRequestClient.h>
+#include <ncd/extra/value_utils.h>
+#include <ncd/extra/address_utils.h>
 
 #include <generated/blog_channel_ncd_sys_request_client.h>
 

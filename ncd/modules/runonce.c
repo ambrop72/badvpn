@@ -56,7 +56,7 @@
 #include <misc/strdup.h>
 #include <system/BProcess.h>
 #include <ncd/NCDModule.h>
-#include <ncd/value_utils.h>
+#include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_runonce.h>
 

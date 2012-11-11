@@ -96,7 +96,7 @@
 #include <misc/parse_number.h>
 #include <structure/IndexedList.h>
 #include <ncd/NCDModule.h>
-#include <ncd/value_utils.h>
+#include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_list.h>
 
