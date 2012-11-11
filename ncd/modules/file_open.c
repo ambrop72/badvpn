@@ -104,22 +104,23 @@
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
 #include <ncd/extra/value_utils.h>
+#include <ncd/extra/NCDBuf.h>
 
 #include <generated/blog_channel_ncd_file_open.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-#define START_READ_SIZE 512
-#define MAX_READ_SIZE 8192
+#define READ_BUF_SIZE 8192
 
 struct open_instance {
     NCDModuleInst *i;
     FILE *fh;
+    NCDBufStore store;
 };
 
 struct read_instance {
     NCDModuleInst *i;
-    char *data;
+    NCDBuf *buf;
     size_t length;
 };
 
@@ -209,11 +210,14 @@ static void open_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
         goto fail0;
     }
     
+    // init store
+    NCDBufStore_Init(&o->store, READ_BUF_SIZE);
+    
     // null terminate filename
     NCDValNullTermString filename_nts;
     if (!NCDVal_StringNullTerminate(filename_arg, &filename_nts)) {
         ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
-        goto fail0;
+        goto fail1;
     }
     
     // open file
@@ -227,6 +231,8 @@ static void open_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
     NCDModuleInst_Backend_Up(i);
     return;
     
+fail1:
+    NCDBufStore_Free(&o->store);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -242,6 +248,9 @@ static void open_func_die (void *vo)
             ModuleLog(o->i, BLOG_ERROR, "fclose failed");
         }
     }
+    
+    // free store
+    NCDBufStore_Free(&o->store);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -281,65 +290,41 @@ static void read_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
         goto fail0;
     }
     
-    // allocate buffer
-    size_t capacity = START_READ_SIZE;
-    o->data = BAlloc(capacity);
-    if (!o->data) {
-        ModuleLog(o->i, BLOG_ERROR, "BAlloc failed");
+    // get buffer
+    o->buf = NCDBufStore_GetBuf(&open_inst->store);
+    if (!o->buf) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDBufStore_GetBuf failed");
         goto fail0;
     }
     
     // starting with empty buffer
+    char *data = NCDBuf_Data(o->buf);
     o->length = 0;
     
-    while (1) {
+    while (o->length < READ_BUF_SIZE) {
         // read
-        size_t readed = fread(o->data + o->length, 1, capacity - o->length, open_inst->fh);
+        size_t readed = fread(data + o->length, 1, READ_BUF_SIZE - o->length, open_inst->fh);
         if (readed == 0) {
             break;
         }
-        ASSERT(readed <= capacity - o->length)
+        ASSERT(readed <= READ_BUF_SIZE - o->length)
         
         // increment length
         o->length += readed;
-        
-        if (o->length == capacity) {
-            // do not reallocate beyond limit
-            if (capacity > MAX_READ_SIZE / 2) {
-                break;
-            }
-            
-            // reallocate buffer
-            capacity *= 2;
-            char *new_data = BRealloc(o->data, capacity);
-            if (!new_data) {
-                ModuleLog(o->i, BLOG_ERROR, "BRealloc failed");
-                goto fail1;
-            }
-            o->data = new_data;
-        }
     }
     
-    if (o->length == 0) {
-        // free buffer
-        BFree(o->data);
-        o->data = NULL;
-        
-        // if we couldn't read anything due to an error, trigger
-        // error in the open instance, and don't go up
-        if (!feof(open_inst->fh)) {
-            ModuleLog(o->i, BLOG_ERROR, "fread failed");
-            trigger_error(open_inst);
-            return;
-        }
+    // if we couldn't read anything due to an error, trigger
+    // error in the open instance, and don't go up
+    if (o->length == 0 && !feof(open_inst->fh)) {
+        ModuleLog(o->i, BLOG_ERROR, "fread failed");
+        trigger_error(open_inst);
+        return;
     }
     
     // go up
     NCDModuleInst_Backend_Up(i);
     return;
     
-fail1:
-    BFree(o->data);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -349,10 +334,8 @@ static void read_func_die (void *vo)
 {
     struct read_instance *o = vo;
     
-    // free buffer
-    if (o->data) {
-        BFree(o->data);
-    }
+    // release buffer
+    NCDRefTarget_Deref(NCDBuf_RefTarget(o->buf));
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -362,8 +345,7 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
     struct read_instance *o = vo;
     
     if (name == NCD_STRING_EMPTY) {
-        const char *data = (!o->data ? "" : o->data);
-        *out = NCDVal_NewStringBin(mem, (const uint8_t *)data, o->length);
+        *out = NCDVal_NewStringBin(mem, (const uint8_t *)NCDBuf_Data(o->buf), o->length);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
         }
