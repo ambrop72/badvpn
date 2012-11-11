@@ -149,7 +149,7 @@
 #define CONNECTION_STATE_ERROR 3
 #define CONNECTION_STATE_ABORTED 4
 
-#define READ_BUF_SIZE 1024
+#define READ_BUF_SIZE 8192
 
 struct connection {
     union {
