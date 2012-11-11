@@ -345,9 +345,9 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
     struct read_instance *o = vo;
     
     if (name == NCD_STRING_EMPTY) {
-        *out = NCDVal_NewStringBin(mem, (const uint8_t *)NCDBuf_Data(o->buf), o->length);
+        *out = NCDVal_NewExternalString(mem, NCDBuf_Data(o->buf), o->length, NCDBuf_RefTarget(o->buf));
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewExternalString failed");
         }
         return 1;
     }
