@@ -82,7 +82,7 @@ static void go_deinit (struct instance *o);
 static void init_process_handler_event (NCDModuleProcess *process, int event);
 static void deinit_process_handler_event (NCDModuleProcess *process, int event);
 static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
-static int process_caller_object_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
+static int process_caller_object_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
 static void deinit_timer_handler (struct instance *o);
 static void instance_free (struct instance *o);
 
@@ -209,15 +209,16 @@ static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_
     ASSERT(o->state != STATE_UP)
     
     if (name == strings[STRING_CALLER].id) {
-        *out_object = NCDObject_Build(-1, o, NULL, (NCDObject_func_getobj)process_caller_object_func_getobj);
+        *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, process_caller_object_func_getobj);
         return 1;
     }
     
     return 0;
 }
 
-static int process_caller_object_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
+static int process_caller_object_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object)
 {
+    struct instance *o = NCDObject_DataPtr(obj);
     ASSERT(o->state != STATE_UP)
     
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);

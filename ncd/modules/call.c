@@ -96,8 +96,8 @@ struct instance {
 };
 
 static void instance_free (struct instance *o);
-static int caller_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
-static int ref_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object);
+static int caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
+static int ref_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
 
 enum {STRING_CALLER, STRING_REF};
 
@@ -147,12 +147,12 @@ static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_
     struct instance *o = UPPER_OBJECT(process, struct instance, process);
     
     if (name == strings[STRING_CALLER].id) {
-        *out_object = NCDObject_Build(-1, o, NULL, (NCDObject_func_getobj)caller_obj_func_getobj);
+        *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, caller_obj_func_getobj);
         return 1;
     }
     
     if (name == strings[STRING_REF].id) {
-        *out_object = NCDObject_Build(-1, o, NULL, (NCDObject_func_getobj)ref_obj_func_getobj);
+        *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, ref_obj_func_getobj);
         return 1;
     }
     
@@ -311,13 +311,17 @@ static int func_getobj (void *vo, NCD_string_id_t name, NCDObject *out_object)
     return NCDModuleProcess_GetObj(&o->process, name, out_object);
 }
 
-static int caller_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
+static int caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object)
 {
+    struct instance *o = NCDObject_DataPtr(obj);
+    
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
 }
 
-static int ref_obj_func_getobj (struct instance *o, NCD_string_id_t name, NCDObject *out_object)
+static int ref_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object)
 {
+    struct instance *o = NCDObject_DataPtr(obj);
+    
     if (!o->crh) {
         return 0;
     }

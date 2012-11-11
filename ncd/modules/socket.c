@@ -212,7 +212,7 @@ static void connection_send_handler_done (void *user, int data_len);
 static void connection_recv_handler_done (void *user, int data_len);
 static void connection_process_handler (struct NCDModuleProcess_s *process, int event);
 static int connection_process_func_getspecialobj (struct NCDModuleProcess_s *process, NCD_string_id_t name, NCDObject *out_object);
-static int connection_process_socket_obj_func_getvar (void *user, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
+static int connection_process_socket_obj_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
 static void listen_listener_handler (void *user);
 
 static void connection_log (struct connection *o, int level, const char *fmt, ...)
@@ -478,16 +478,16 @@ static int connection_process_func_getspecialobj (struct NCDModuleProcess_s *pro
     ASSERT(o->type == CONNECTION_TYPE_LISTEN)
     
     if (name == strings[STRING_SOCKET].id) {
-        *out_object = NCDObject_Build(strings[STRING_SYS_SOCKET].id, o, connection_process_socket_obj_func_getvar, NULL);
+        *out_object = NCDObject_Build(strings[STRING_SYS_SOCKET].id, o, connection_process_socket_obj_func_getvar, NCDObject_no_getobj);
         return 1;
     }
     
     return 0;
 }
 
-static int connection_process_socket_obj_func_getvar (void *user, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value)
+static int connection_process_socket_obj_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value)
 {
-    struct connection *o = user;
+    struct connection *o = NCDObject_DataPtr(obj);
     ASSERT(o->type == CONNECTION_TYPE_LISTEN)
     
     if (name == strings[STRING_CLIENT_ADDR].id) {

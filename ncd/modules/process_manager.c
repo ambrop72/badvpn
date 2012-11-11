@@ -96,7 +96,7 @@ static void process_free (struct process *p);
 static void process_retry_timer_handler (struct process *p);
 static void process_module_process_handler_event (NCDModuleProcess *process, int event);
 static int process_module_process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
-static int process_module_process_caller_obj_func_getobj (struct process *p, NCD_string_id_t name, NCDObject *out_object);
+static int process_module_process_caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
 static void process_stop (struct process *p);
 static int process_restart (struct process *p, NCDValRef template_name, NCDValRef args);
 static void process_try (struct process *p);
@@ -279,15 +279,16 @@ int process_module_process_func_getspecialobj (NCDModuleProcess *process, NCD_st
     ASSERT(p->have_module_process)
     
     if (name == strings[STRING_CALLER].id) {
-        *out_object = NCDObject_Build(-1, p, NULL, (NCDObject_func_getobj)process_module_process_caller_obj_func_getobj);
+        *out_object = NCDObject_Build(-1, p, NCDObject_no_getvar, process_module_process_caller_obj_func_getobj);
         return 1;
     }
     
     return 0;
 }
 
-int process_module_process_caller_obj_func_getobj (struct process *p, NCD_string_id_t name, NCDObject *out_object)
+int process_module_process_caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object)
 {
+    struct process *p = NCDObject_DataPtr(obj);
     struct instance *o = p->manager;
     ASSERT(p->have_module_process)
     

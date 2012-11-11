@@ -257,10 +257,9 @@ struct NCDModuleInst_new_params {
      * was called for the object on which the method is being called, in which case
      * this will directly point to the preallocated memory.
      * On the other hand, if this is a method on an internal object built using
-     * only {@link NCDObject_Build} or {@link NCDObject_Build2},
-     * {@link NCDObject_BuildMethodUser} or {@link NCDObject_BuildMethodUser2},
-     * this pointer will be whatever was passed as the "user" argument, for the
-     * former two functions, and as "method_user", for the latter two.
+     * only {@link NCDObject_Build} or {@link NCDObject_BuildFull},
+     * this pointer will be whatever was passed as the "data_ptr" argument, for the
+     * first function, and as "method_user", for the latter function.
      */
     void *method_user;
 };

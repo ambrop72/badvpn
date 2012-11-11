@@ -150,8 +150,8 @@ static void request_handler_reply (struct request_instance *o, NCDValMem reply_m
 static void request_handler_finished (struct request_instance *o, int is_error);
 static void request_process_handler_event (NCDModuleProcess *process, int event);
 static int request_process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
-static int request_process_caller_obj_func_getobj (struct request_instance *o, NCD_string_id_t name, NCDObject *out_object);
-static int request_process_reply_obj_func_getvar (struct request_instance *o, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out);
+static int request_process_caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
+static int request_process_reply_obj_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out);
 static void request_gone (struct request_instance *o, int is_bad);
 static void request_terminate_process (struct request_instance *o);
 static void request_die (struct request_instance *o, int is_error);
@@ -323,27 +323,29 @@ static int request_process_func_getspecialobj (NCDModuleProcess *process, NCD_st
     ASSERT(o->pstate != RPSTATE_NONE)
     
     if (name == strings[STRING_CALLER].id) {
-        *out_object = NCDObject_Build(-1, o, NULL, (NCDObject_func_getobj)request_process_caller_obj_func_getobj);
+        *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, request_process_caller_obj_func_getobj);
         return 1;
     }
     
     if (!o->process_is_finished && name == strings[STRING_REPLY].id) {
-        *out_object = NCDObject_Build(-1, o, (NCDObject_func_getvar)request_process_reply_obj_func_getvar, NULL);
+        *out_object = NCDObject_Build(-1, o, request_process_reply_obj_func_getvar, NCDObject_no_getobj);
         return 1;
     }
     
     return 0;
 }
 
-static int request_process_caller_obj_func_getobj (struct request_instance *o, NCD_string_id_t name, NCDObject *out_object)
+static int request_process_caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object)
 {
+    struct request_instance *o = NCDObject_DataPtr(obj);
     ASSERT(o->pstate != RPSTATE_NONE)
     
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
 }
 
-static int request_process_reply_obj_func_getvar (struct request_instance *o, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
+static int request_process_reply_obj_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
+    struct request_instance *o = NCDObject_DataPtr(obj);
     ASSERT(o->pstate != RPSTATE_NONE)
     ASSERT(!o->process_is_finished)
     

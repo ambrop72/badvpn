@@ -49,10 +49,10 @@
 #define PROCESS_STATE_TERMINATING 4
 #define PROCESS_STATE_TERMINATED 5
 
-static int object_func_getvar (NCDModuleInst *n, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
-static int object_func_getobj (NCDModuleInst *n, NCD_string_id_t name, NCDObject *out_object);
-static int process_args_object_func_getvar (NCDModuleProcess *o, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
-static int process_arg_object_func_getvar2 (NCDModuleProcess *o, void *n_ptr, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
+static int object_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
+static int object_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
+static int process_args_object_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
+static int process_arg_object_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
 
 static void frontend_event (NCDModuleInst *n, int event)
 {
@@ -169,11 +169,9 @@ NCDObject NCDModuleInst_Object (NCDModuleInst *n)
     DebugObject_Access(&n->d_obj);
     ASSERT(n->m->base_type_id >= 0)
     
-    if (n->pass_mem_to_methods) {
-        return NCDObject_BuildMethodUser(n->m->base_type_id, n->mem, n, (NCDObject_func_getvar)object_func_getvar, (NCDObject_func_getobj)object_func_getobj);
-    } else {
-        return NCDObject_Build(n->m->base_type_id, n, (NCDObject_func_getvar)object_func_getvar, (NCDObject_func_getobj)object_func_getobj);
-    }
+    void *method_user = (n->pass_mem_to_methods ? n->mem : n);
+    
+    return NCDObject_BuildFull(n->m->base_type_id, n, 0, method_user, object_func_getvar, object_func_getobj);
 }
 
 void NCDModuleInst_Backend_PassMemToMethods (NCDModuleInst *n)
@@ -199,8 +197,9 @@ static int can_resolve (NCDModuleInst *n)
     }
 }
 
-static int object_func_getvar (NCDModuleInst *n, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value)
+static int object_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value)
 {
+    NCDModuleInst *n = NCDObject_DataPtr(obj);
     DebugObject_Access(&n->d_obj);
     
     if ((!n->m->func_getvar && !n->m->func_getvar2) || !can_resolve(n)) {
@@ -220,8 +219,9 @@ static int object_func_getvar (NCDModuleInst *n, NCD_string_id_t name, NCDValMem
     return res;
 }
 
-static int object_func_getobj (NCDModuleInst *n, NCD_string_id_t name, NCDObject *out_object)
+static int object_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object)
 {
+    NCDModuleInst *n = NCDObject_DataPtr(obj);
     DebugObject_Access(&n->d_obj);
     
     if (!n->m->func_getobj || !can_resolve(n)) {
@@ -535,14 +535,14 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, NCD_string_id_t 
     
     if (!NCDVal_IsInvalid(o->args)) {
         if (name == NCD_STRING_ARGS) {
-            *out_object = NCDObject_Build(-1, o, (NCDObject_func_getvar)process_args_object_func_getvar, NULL);
+            *out_object = NCDObject_Build(-1, o, process_args_object_func_getvar, NCDObject_no_getobj);
             return 1;
         }
         
         if (name >= NCD_STRING_ARG0 && name <= NCD_STRING_ARG19) {
             int num = name - NCD_STRING_ARG0;
             if (num < NCDVal_ListCount(o->args)) {
-                *out_object = NCDObject_Build2(-1, o, (void *)((uintptr_t)(num + 1)), (NCDObject_func_getvar2)process_arg_object_func_getvar2, NULL);
+                *out_object = NCDObject_BuildFull(-1, o, num, NULL, process_arg_object_func_getvar, NCDObject_no_getobj);
                 return 1;
             }
         }
@@ -558,8 +558,9 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, NCD_string_id_t 
     return res;
 }
 
-static int process_args_object_func_getvar (NCDModuleProcess *o, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value)
+static int process_args_object_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value)
 {
+    NCDModuleProcess *o = NCDObject_DataPtr(obj);
     DebugObject_Access(&o->d_obj);
     process_assert_interp(o);
     ASSERT(!NCDVal_IsInvalid(o->args))
@@ -575,8 +576,9 @@ static int process_args_object_func_getvar (NCDModuleProcess *o, NCD_string_id_t
     return 1;
 }
 
-static int process_arg_object_func_getvar2 (NCDModuleProcess *o, void *n_ptr, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value)
+static int process_arg_object_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value)
 {
+    NCDModuleProcess *o = NCDObject_DataPtr(obj);
     DebugObject_Access(&o->d_obj);
     process_assert_interp(o);
     ASSERT(!NCDVal_IsInvalid(o->args))
@@ -585,9 +587,7 @@ static int process_arg_object_func_getvar2 (NCDModuleProcess *o, void *n_ptr, NC
         return 0;
     }
     
-    uintptr_t n = (uintptr_t)n_ptr - 1;
-    
-    *out_value = NCDVal_NewCopy(mem, NCDVal_ListGet(o->args, n));
+    *out_value = NCDVal_NewCopy(mem, NCDVal_ListGet(o->args, NCDObject_DataInt(obj)));
     if (NCDVal_IsInvalid(*out_value)) {
         BLog_LogToChannel(BLOG_CHANNEL_NCDModuleProcess, BLOG_ERROR, "NCDVal_NewCopy failed");
     }
