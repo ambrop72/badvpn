@@ -29,7 +29,12 @@
  * @section DESCRIPTION
  * 
  * Synopsis:
- *   sys.socket sys.connect(string addr)
+ *   sys.socket sys.connect(string addr [, map options])
+ * 
+ * Options:
+ *   "read_size" - the maximum number of bytes that can be read by a single
+ *     read() call. Must be greater than zero. Greater values may improve
+ *     performance, but will increase memory usage. Default: 8192.
  * 
  * Variables:
  *   string is_error - "true" if there was an error with the connection,
@@ -99,7 +104,12 @@
  *   process.
  * 
  * Synopsis:
- *   sys.listen(string address, string client_template, list args)
+ *   sys.listen(string address, string client_template, list args [, map options])
+ * 
+ * Options:
+ *   "read_size" - the maximum number of bytes that can be read by a single
+ *     read() call. Must be greater than zero. Greater values may improve
+ *     performance, but will increase memory usage. Default: 8192.
  * 
  * Variables:
  *   string is_error - "true" if listening failed to inittialize, "false" if
@@ -149,13 +159,14 @@
 #define CONNECTION_STATE_ERROR 3
 #define CONNECTION_STATE_ABORTED 4
 
-#define READ_BUF_SIZE 8192
+#define DEFAULT_READ_BUF_SIZE 8192
 
 struct connection {
     union {
         struct {
             NCDModuleInst *i;
             BConnector connector;
+            size_t read_buf_size;
         } connect;
         struct {
             struct listen_instance *listen_inst;
@@ -192,6 +203,7 @@ struct listen_instance {
     NCDModuleInst *i;
     unsigned int have_error:1;
     unsigned int dying:1;
+    size_t read_buf_size;
     NCDValRef client_template;
     NCDValRef client_template_args;
     BListener listener;
@@ -204,6 +216,7 @@ static struct NCD_string_request strings[] = {
     {"is_error"}, {"not_eof"}, {"_socket"}, {"sys.socket"}, {"client_addr"}, {NULL}
 };
 
+static int parse_options (NCDModuleInst *i, NCDValRef options, size_t *out_read_size);
 static void connection_log (struct connection *o, int level, const char *fmt, ...);
 static void connection_free_connection (struct connection *o);
 static void connection_error (struct connection *o);
@@ -216,6 +229,40 @@ static void connection_process_handler (struct NCDModuleProcess_s *process, int 
 static int connection_process_func_getspecialobj (struct NCDModuleProcess_s *process, NCD_string_id_t name, NCDObject *out_object);
 static int connection_process_socket_obj_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
 static void listen_listener_handler (void *user);
+
+static int parse_options (NCDModuleInst *i, NCDValRef options, size_t *out_read_size)
+{
+    ASSERT(out_read_size)
+    
+    *out_read_size = DEFAULT_READ_BUF_SIZE;
+    
+    if (!NCDVal_IsInvalid(options)) {
+        if (!NCDVal_IsMap(options)) {
+            ModuleLog(i, BLOG_ERROR, "options argument is not a map");
+            return 0;
+        }
+        
+        int num_recognized = 0;
+        NCDValRef value;
+        
+        if (!NCDVal_IsInvalid(value = NCDVal_MapGetValue(options, "read_size"))) {
+            uintmax_t read_size;
+            if (!NCDVal_IsString(value) || !ncd_read_uintmax(value, &read_size) || read_size > SIZE_MAX || read_size == 0) {
+                ModuleLog(i, BLOG_ERROR, "wrong read_size");
+                return 0;
+            }
+            num_recognized++;
+            *out_read_size = read_size;
+        }
+        
+        if (NCDVal_MapCount(options) > num_recognized) {
+            ModuleLog(i, BLOG_ERROR, "unrecognized options present");
+            return 0;
+        }
+    }
+    
+    return 1;
+}
 
 static void connection_log (struct connection *o, int level, const char *fmt, ...)
 {
@@ -343,7 +390,7 @@ static void connection_connector_handler (void *user, int is_error)
     StreamRecvInterface_Receiver_Init(BConnection_RecvAsync_GetIf(&o->connection), connection_recv_handler_done, o);
     
     // init store
-    NCDBufStore_Init(&o->store, READ_BUF_SIZE);
+    NCDBufStore_Init(&o->store, o->connect.read_buf_size);
     
     // set not reading, not writing, recv not closed
     o->read_inst = NULL;
@@ -553,7 +600,7 @@ static void listen_listener_handler (void *user)
     LinkedList0_Prepend(&o->clients_list, &con->listen.clients_list_node);
     
     // init store
-    NCDBufStore_Init(&con->store, READ_BUF_SIZE);
+    NCDBufStore_Init(&con->store, o->read_buf_size);
     
     // set not reading, not writing, recv not closed
     con->read_inst = NULL;
@@ -586,8 +633,16 @@ static void connect_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     
     // read arguments
     NCDValRef address_arg;
-    if (!NCDVal_ListRead(params->args, 1, &address_arg)) {
+    NCDValRef options_arg = NCDVal_NewInvalid();
+    if (!NCDVal_ListRead(params->args, 1, &address_arg) &&
+        !NCDVal_ListRead(params->args, 2, &address_arg, &options_arg)
+    ) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    
+    // parse options
+    if (!parse_options(i, options_arg, &o->connect.read_buf_size)) {
         goto fail0;
     }
     
@@ -864,12 +919,20 @@ static void listen_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
     NCDValRef address_arg;
     NCDValRef client_template_arg;
     NCDValRef args_arg;
-    if (!NCDVal_ListRead(params->args, 3, &address_arg, &client_template_arg, &args_arg)) {
+    NCDValRef options_arg = NCDVal_NewInvalid();
+    if (!NCDVal_ListRead(params->args, 3, &address_arg, &client_template_arg, &args_arg) &&
+        !NCDVal_ListRead(params->args, 4, &address_arg, &client_template_arg, &args_arg, &options_arg)
+    ) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
     if (!NCDVal_IsString(client_template_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    
+    // parse options
+    if (!parse_options(i, options_arg, &o->read_buf_size)) {
         goto fail0;
     }
     
