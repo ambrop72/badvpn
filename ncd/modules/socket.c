@@ -135,6 +135,7 @@
 #include <ncd/NCDModule.h>
 #include <ncd/extra/value_utils.h>
 #include <ncd/extra/address_utils.h>
+#include <ncd/extra/NCDBuf.h>
 
 #include <generated/blog_channel_ncd_socket.h>
 
@@ -168,6 +169,7 @@ struct connection {
     unsigned int state:3;
     unsigned int recv_closed:1;
     BConnection connection;
+    NCDBufStore store;
     struct read_instance *read_inst;
     struct write_instance *write_inst;
 };
@@ -175,8 +177,8 @@ struct connection {
 struct read_instance {
     NCDModuleInst *i;
     struct connection *con_inst;
+    NCDBuf *buf;
     size_t read_size;
-    char buf[READ_BUF_SIZE];
 };
 
 struct write_instance {
@@ -260,6 +262,9 @@ static void connection_free_connection (struct connection *o)
     
     // free connection
     BConnection_Free(&o->connection);
+    
+    // free store
+    NCDBufStore_Free(&o->store);
 }
 
 static void connection_error (struct connection *o)
@@ -336,6 +341,9 @@ static void connection_connector_handler (void *user, int is_error)
     // setup send/recv done callbacks
     StreamPassInterface_Sender_Init(BConnection_SendAsync_GetIf(&o->connection), connection_send_handler_done, o);
     StreamRecvInterface_Receiver_Init(BConnection_RecvAsync_GetIf(&o->connection), connection_recv_handler_done, o);
+    
+    // init store
+    NCDBufStore_Init(&o->store, READ_BUF_SIZE);
     
     // set not reading, not writing, recv not closed
     o->read_inst = NULL;
@@ -421,7 +429,7 @@ static void connection_recv_handler_done (void *user, int data_len)
     ASSERT(o->read_inst->con_inst == o)
     ASSERT(!o->recv_closed)
     ASSERT(data_len > 0)
-    ASSERT(data_len <= READ_BUF_SIZE)
+    ASSERT(data_len <= NCDBufStore_BufSize(&o->store))
     
     struct read_instance *re = o->read_inst;
     
@@ -543,6 +551,9 @@ static void listen_listener_handler (void *user)
     
     // insert to clients list
     LinkedList0_Prepend(&o->clients_list, &con->listen.clients_list_node);
+    
+    // init store
+    NCDBufStore_Init(&con->store, READ_BUF_SIZE);
     
     // set not reading, not writing, recv not closed
     con->read_inst = NULL;
@@ -670,6 +681,13 @@ static void read_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
         goto fail0;
     }
     
+    // get buffer
+    o->buf = NCDBufStore_GetBuf(&con_inst->store);
+    if (!o->buf) {
+        ModuleLog(i, BLOG_ERROR, "NCDBufStore_GetBuf failed");
+        goto fail0;
+    }
+    
     // if eof was reached, go up immediately
     if (con_inst->recv_closed) {
         o->con_inst = NULL;
@@ -685,7 +703,9 @@ static void read_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
     con_inst->read_inst = o;
     
     // receive
-    StreamRecvInterface_Receiver_Recv(BConnection_RecvAsync_GetIf(&con_inst->connection), (uint8_t *)o->buf, READ_BUF_SIZE);
+    size_t buf_size = NCDBufStore_BufSize(&con_inst->store);
+    int to_read = (buf_size > INT_MAX ? INT_MAX : buf_size);
+    StreamRecvInterface_Receiver_Recv(BConnection_RecvAsync_GetIf(&con_inst->connection), (uint8_t *)NCDBuf_Data(o->buf), to_read);
     return;
     
 fail0:
@@ -704,6 +724,9 @@ static void read_func_die (void *vo)
         connection_abort(o->con_inst);
     }
     
+    // release buffer
+    NCDRefTarget_Deref(NCDBuf_RefTarget(o->buf));
+    
     NCDModuleInst_Backend_Dead(o->i);
 }
 
@@ -713,7 +736,7 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
     ASSERT(!o->con_inst)
     
     if (name == NCD_STRING_EMPTY) {
-        *out = NCDVal_NewStringBin(mem, (const uint8_t *)o->buf, o->read_size);
+        *out = NCDVal_NewStringBin(mem, (const uint8_t *)NCDBuf_Data(o->buf), o->read_size);
         if (NCDVal_IsInvalid(*out)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
         }
