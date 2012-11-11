@@ -624,6 +624,13 @@ NCDValRef NCDVal_MapElemVal (NCDValRef map, NCDValMapElem me);
 NCDValMapElem NCDVal_MapFindKey (NCDValRef map, NCDValRef key);
 
 /**
+ * Retrieves the value reference to the value of the map entry whose key is a
+ * string value equal to the given null-terminated string. If there is no such
+ * entry, returns an invalid value reference.
+ */
+NCDValRef NCDVal_MapGetValue (NCDValRef map, const char *key_str);
+
+/**
  * Builds a placeholder replacement program, which is a list of instructions for
  * efficiently replacing placeholders in identical values in identical memory
  * objects.

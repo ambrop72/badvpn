@@ -178,9 +178,8 @@ static void NCDVal__AssertValOnly (NCDValMem *mem, NCDVal__idx idx)
             ASSERT(idx + sizeof(struct NCDVal__externalstring) <= mem->used)
             struct NCDVal__externalstring *exs_e = NCDValMem__BufAt(mem, idx);
             ASSERT(exs_e->data)
-            ASSERT(exs_e->ref.next >= -1)
-            ASSERT(exs_e->ref.next < mem->used)
-            ASSERT(exs_e->ref.target)
+            ASSERT(!exs_e->ref.target || exs_e->ref.next >= -1)
+            ASSERT(!exs_e->ref.target || exs_e->ref.next < mem->used)
         } break;
         default: ASSERT(0);
     }
@@ -426,6 +425,7 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
         
         case EXTERNALSTRING_TYPE: {
             struct NCDVal__externalstring *exs_e = ptr;
+            ASSERT(exs_e->ref.target)
             
             return NCDVal_NewExternalString(mem, exs_e->data, exs_e->length, exs_e->ref.target);
         } break;
@@ -883,6 +883,7 @@ NCDRefTarget * NCDVal_ExternalStringTarget (NCDValRef externalstring)
     ASSERT(NCDVal_IsExternalString(externalstring))
     
     struct NCDVal__externalstring *exs_e = NCDValMem__BufAt(externalstring.mem, externalstring.idx);
+    ASSERT(exs_e->ref.target)
     return exs_e->ref.target;
 }
 
@@ -1224,6 +1225,33 @@ NCDValMapElem NCDVal_MapFindKey (NCDValRef map, NCDValRef key)
     ASSERT(ref.link == -1 || (NCDVal__MapAssertElemOnly(map, ref.link), 1))
     
     return NCDVal__MapElem(ref.link);
+}
+
+NCDValRef NCDVal_MapGetValue (NCDValRef map, const char *key_str)
+{
+    ASSERT(NCDVal_IsMap(map))
+    ASSERT(key_str)
+    
+    NCDValMem mem;
+    mem.buf = NULL;
+    mem.size = NCDVAL_FASTBUF_SIZE;
+    mem.used = sizeof(struct NCDVal__externalstring);
+    mem.first_ref = -1;
+    
+    struct NCDVal__externalstring *exs_e = (void *)mem.fastbuf;
+    exs_e->type = EXTERNALSTRING_TYPE;
+    exs_e->data = key_str;
+    exs_e->length = strlen(key_str);
+    exs_e->ref.target = NULL;
+    
+    NCDValRef key = NCDVal__Ref(&mem, 0);
+    
+    NCDValMapElem elem = NCDVal_MapFindKey(map, key);
+    if (NCDVal_MapElemInvalid(elem)) {
+        return NCDVal_NewInvalid();
+    }
+    
+    return NCDVal_MapElemVal(map, elem);
 }
 
 static void replaceprog_build_recurser (NCDValMem *mem, NCDVal__idx idx, size_t *out_num_instr, NCDValReplaceProg *prog)

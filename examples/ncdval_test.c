@@ -136,6 +136,10 @@ int main ()
     FORCE( NCDVal_MapInsert(m1, k1, v1) )
     FORCE( NCDVal_MapInsert(m1, k2, v2) )
     
+    ASSERT( NCDVal_MapGetValue(m1, "K1").idx == v1.idx )
+    ASSERT( NCDVal_MapGetValue(m1, "K2").idx == v2.idx )
+    ASSERT( NCDVal_IsInvalid(NCDVal_MapGetValue(m1, "K3")) )
+    
     NCDValRef ids1 = NCDVal_NewIdString(&mem, NCD_STRING_ARG1, &string_index);
     FORCE( !NCDVal_IsInvalid(ids1) )
     ASSERT( !memcmp(NCDVal_StringData(ids1), "_arg1", 5) )
@@ -155,6 +159,8 @@ int main ()
     ASSERT( NCDVal_IsIdString(ids2) )
     
     FORCE( NCDVal_MapInsert(m1, ids1, ids2) )
+    
+    ASSERT( NCDVal_MapGetValue(m1, "_arg1").idx == ids2.idx )
     
     print_value(m1, 0);
     
