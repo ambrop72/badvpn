@@ -82,29 +82,29 @@
 struct provide {
     NCDModuleInst *i;
     NCDValRef name;
-    LinkedList1Node provides_node;
-    LinkedList1 depends;
+    LinkedList1Node provides_list_node;
+    LinkedList1 depends_list;
     int dying;
 };
 
 struct depend {
     NCDModuleInst *i;
     NCDValRef names;
-    LinkedList1Node depends_node;
+    LinkedList1Node depends_list_node;
     struct provide *provide;
-    LinkedList1Node provide_node;
+    LinkedList1Node provide_depends_list_node;
     int provide_collapsing;
 };
 
-static LinkedList1 provides;
-static LinkedList1 depends;
+static LinkedList1 provides_list;
+static LinkedList1 depends_list;
 
 static struct provide * find_provide (NCDValRef name)
 {
-    for (LinkedList1Node *n = LinkedList1_GetFirst(&provides); n; n = LinkedList1Node_Next(n)) {
-        struct provide *p = UPPER_OBJECT(n, struct provide, provides_node);
-        if (NCDVal_Compare(p->name, name) == 0) {
-            return p;
+    for (LinkedList1Node *ln = LinkedList1_GetFirst(&provides_list); ln; ln = LinkedList1Node_Next(ln)) {
+        struct provide *provide = UPPER_OBJECT(ln, struct provide, provides_list_node);
+        if (NCDVal_Compare(provide->name, name) == 0) {
+            return provide;
         }
     }
     
@@ -117,9 +117,9 @@ static struct provide * depend_find_best_provide (struct depend *o)
     
     for (size_t j = 0; j < count; j++) {
         NCDValRef name = NCDVal_ListGet(o->names, j);
-        struct provide *p = find_provide(name);
-        if (p && !p->dying) {
-            return p;
+        struct provide *provide = find_provide(name);
+        if (provide && !provide->dying) {
+            return provide;
         }
     }
     
@@ -134,11 +134,11 @@ static void depend_update (struct depend *o)
     }
     
     // find best provide
-    struct provide *bp = depend_find_best_provide(o);
-    ASSERT(!bp || !bp->dying)
+    struct provide *best_provide = depend_find_best_provide(o);
+    ASSERT(!best_provide || !best_provide->dying)
     
     // has anything changed?
-    if (bp == o->provide) {
+    if (best_provide == o->provide) {
         return;
     }
     
@@ -150,13 +150,13 @@ static void depend_update (struct depend *o)
         NCDModuleInst_Backend_Down(o->i);
     } else {
         // insert to provide's list
-        LinkedList1_Append(&bp->depends, &o->provide_node);
+        LinkedList1_Append(&best_provide->depends_list, &o->provide_depends_list_node);
         
         // set not collapsing
         o->provide_collapsing = 0;
         
         // set provide
-        o->provide = bp;
+        o->provide = best_provide;
         
         // signal up
         NCDModuleInst_Backend_Up(o->i);
@@ -166,10 +166,10 @@ static void depend_update (struct depend *o)
 static int func_globalinit (const struct NCDModuleInst_iparams *params)
 {
     // init provides list
-    LinkedList1_Init(&provides);
+    LinkedList1_Init(&provides_list);
     
     // init depends list
-    LinkedList1_Init(&depends);
+    LinkedList1_Init(&depends_list);
     
     return 1;
 }
@@ -196,10 +196,10 @@ static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     }
     
     // insert to provides list
-    LinkedList1_Append(&provides, &o->provides_node);
+    LinkedList1_Append(&provides_list, &o->provides_list_node);
     
     // init depends list
-    LinkedList1_Init(&o->depends);
+    LinkedList1_Init(&o->depends_list);
     
     // set not dying
     o->dying = 0;
@@ -210,9 +210,9 @@ static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     NCDModuleInst_Backend_Up(o->i);
     
     // update depends
-    for (LinkedList1Node *n = LinkedList1_GetFirst(&depends); n; n = LinkedList1Node_Next(n)) {
-        struct depend *d = UPPER_OBJECT(n, struct depend, depends_node);
-        depend_update(d);
+    for (LinkedList1Node *ln = LinkedList1_GetFirst(&depends_list); ln; ln = LinkedList1Node_Next(ln)) {
+        struct depend *depend = UPPER_OBJECT(ln, struct depend, depends_list_node);
+        depend_update(depend);
     }
     
     return;
@@ -224,10 +224,10 @@ fail0:
 
 static void provide_free (struct provide *o)
 {
-    ASSERT(LinkedList1_IsEmpty(&o->depends))
+    ASSERT(LinkedList1_IsEmpty(&o->depends_list))
     
     // remove from provides list
-    LinkedList1_Remove(&provides, &o->provides_node);
+    LinkedList1_Remove(&provides_list, &o->provides_list_node);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -238,7 +238,7 @@ static void provide_func_die (void *vo)
     ASSERT(!o->dying)
     
     // if we have no depends, die immediately
-    if (LinkedList1_IsEmpty(&o->depends)) {
+    if (LinkedList1_IsEmpty(&o->depends_list)) {
         provide_free(o);
         return;
     }
@@ -247,12 +247,12 @@ static void provide_func_die (void *vo)
     o->dying = 1;
     
     // start collapsing our depends
-    for (LinkedList1Node *n = LinkedList1_GetFirst(&o->depends); n; n = LinkedList1Node_Next(n)) {
-        struct depend *d = UPPER_OBJECT(n, struct depend, provide_node);
-        ASSERT(d->provide == o)
+    for (LinkedList1Node *ln = LinkedList1_GetFirst(&o->depends_list); ln; ln = LinkedList1Node_Next(ln)) {
+        struct depend *depend = UPPER_OBJECT(ln, struct depend, provide_depends_list_node);
+        ASSERT(depend->provide == o)
         
         // update depend to make sure it is collapsing
-        depend_update(d);
+        depend_update(depend);
     }
 }
 
@@ -276,14 +276,13 @@ static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
     o->names = names_arg;
     
     // insert to depends list
-    LinkedList1_Append(&depends, &o->depends_node);
+    LinkedList1_Append(&depends_list, &o->depends_list_node);
     
     // set no provide
     o->provide = NULL;
     
     // update
     depend_update(o);
-    
     return;
     
 fail0:
@@ -291,29 +290,24 @@ fail0:
     NCDModuleInst_Backend_Dead(i);
 }
 
-static void depend_free (struct depend *o)
+static void depend_func_die (void *vo)
 {
+    struct depend *o = vo;
+    
     if (o->provide) {
         // remove from provide's list
-        LinkedList1_Remove(&o->provide->depends, &o->provide_node);
+        LinkedList1_Remove(&o->provide->depends_list, &o->provide_depends_list_node);
         
         // if provide is dying and is empty, let it die
-        if (o->provide->dying && LinkedList1_IsEmpty(&o->provide->depends)) {
+        if (o->provide->dying && LinkedList1_IsEmpty(&o->provide->depends_list)) {
             provide_free(o->provide);
         }
     }
     
     // remove from depends list
-    LinkedList1_Remove(&depends, &o->depends_node);
+    LinkedList1_Remove(&depends_list, &o->depends_list_node);
     
     NCDModuleInst_Backend_Dead(o->i);
-}
-
-static void depend_func_die (void *vo)
-{
-    struct depend *o = vo;
-    
-    depend_free(o);
 }
 
 static void depend_func_clean (void *vo)
@@ -325,10 +319,10 @@ static void depend_func_clean (void *vo)
     }
     
     // remove from provide's list
-    LinkedList1_Remove(&o->provide->depends, &o->provide_node);
+    LinkedList1_Remove(&o->provide->depends_list, &o->provide_depends_list_node);
     
     // if provide is dying and is empty, let it die
-    if (o->provide->dying && LinkedList1_IsEmpty(&o->provide->depends)) {
+    if (o->provide->dying && LinkedList1_IsEmpty(&o->provide->depends_list)) {
         provide_free(o->provide);
     }
     
