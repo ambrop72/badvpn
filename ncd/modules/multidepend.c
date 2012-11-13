@@ -81,8 +81,7 @@
 
 struct provide {
     NCDModuleInst *i;
-    const char *name;
-    size_t name_len;
+    NCDValRef name;
     LinkedList1Node provides_node;
     LinkedList1 depends;
     int dying;
@@ -100,11 +99,11 @@ struct depend {
 static LinkedList1 provides;
 static LinkedList1 depends;
 
-static struct provide * find_provide (const char *name, size_t name_len)
+static struct provide * find_provide (NCDValRef name)
 {
     for (LinkedList1Node *n = LinkedList1_GetFirst(&provides); n; n = LinkedList1Node_Next(n)) {
         struct provide *p = UPPER_OBJECT(n, struct provide, provides_node);
-        if (p->name_len == name_len && !memcmp(p->name, name, name_len)) {
+        if (NCDVal_Compare(p->name, name) == 0) {
             return p;
         }
     }
@@ -117,8 +116,8 @@ static struct provide * depend_find_best_provide (struct depend *o)
     size_t count = NCDVal_ListCount(o->names);
     
     for (size_t j = 0; j < count; j++) {
-        NCDValRef e = NCDVal_ListGet(o->names, j);
-        struct provide *p = find_provide(NCDVal_StringData(e), NCDVal_StringLength(e));
+        NCDValRef name = NCDVal_ListGet(o->names, j);
+        struct provide *p = find_provide(name);
         if (p && !p->dying) {
             return p;
         }
@@ -186,15 +185,12 @@ static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(name_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail0;
-    }
-    o->name = NCDVal_StringData(name_arg);
-    o->name_len = NCDVal_StringLength(name_arg);
+    
+    // remember name
+    o->name = name_arg;
     
     // check for existing provide with this name
-    if (find_provide(o->name, o->name_len)) {
+    if (find_provide(o->name)) {
         ModuleLog(o->i, BLOG_ERROR, "a provide with this name already exists");
         goto fail0;
     }
@@ -275,17 +271,9 @@ static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->names = names_arg;
     
-    // check names list
-    size_t count = NCDVal_ListCount(o->names);
-    for (size_t j = 0; j < count; j++) {
-        NCDValRef e = NCDVal_ListGet(o->names, j);
-        if (!NCDVal_IsString(e)) {
-            ModuleLog(o->i, BLOG_ERROR, "wrong type");
-            goto fail0;
-        }
-    }
+    // remember names
+    o->names = names_arg;
     
     // insert to depends list
     LinkedList1_Append(&depends, &o->depends_node);
