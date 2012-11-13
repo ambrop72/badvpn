@@ -28,20 +28,43 @@
  * 
  * @section DESCRIPTION
  * 
- * Multiple-option dependencies module.
+ * This is a compatibility module. It behaves exactly like the depend_scope module,
+ * except that there is a single global scope for dependency names.
  * 
- * Synopsis: multiprovide(string name)
- * Arguments:
- *   name - provider identifier
+ * Use depend_scope instead. If you are using multidepend between non-template
+ * processes, make those processes templates instead and start them via
+ * process_manager(). For example, instead of this:
  * 
- * Synopsis: multidepend(list(string) names)
- * Arguments:
- *   names - list of provider identifiers. The dependency is satisfied by any
- *     provide statement with a provider identifier contained in this list.
- *     The order of provider identifiers in the list specifies priority
- *     (higher priority first).
- * Variables: Provides variables available from the corresponding provide,
- *     ("modname.varname" or "modname").
+ *   process foo {
+ *       multiprovide("FOO");
+ *   }
+ *   
+ *   process bar {
+ *       multidepend({"FOO"});
+ *   }
+ * 
+ * Use this:
+ * 
+ *   process main {
+ *       depend_scope() scope;
+ *       process_manager() mgr;
+ *       mgr->start("foo", "foo", {});
+ *       mgr->start("bar", "bar", {});
+ *   }
+ *   
+ *   template foo {
+ *       _caller.scope->provide("FOO");
+ *   }
+ *   
+ *   template bar {
+ *       _caller.scope->depend({"FOO"});
+ *   }
+ * 
+ * Synopsis:
+ *   multiprovide(name)
+ * 
+ * Synopsis:
+ *   multidepend(list names)
  */
 
 #include <stdlib.h>
