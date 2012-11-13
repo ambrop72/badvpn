@@ -318,19 +318,22 @@ static void depend_func_clean (void *vo)
         return;
     }
     
-    // remove from provide's list
-    LinkedList1_Remove(&o->provide->depends_list, &o->provide_depends_list_node);
+    // save provide
+    struct provide *provide = o->provide;
     
-    // if provide is dying and is empty, let it die
-    if (o->provide->dying && LinkedList1_IsEmpty(&o->provide->depends_list)) {
-        provide_free(o->provide);
-    }
+    // remove from provide's list
+    LinkedList1_Remove(&provide->depends_list, &o->provide_depends_list_node);
     
     // set no provide
     o->provide = NULL;
     
     // update
     depend_update(o);
+    
+    // if provide is dying and is empty, let it die
+    if (provide->dying && LinkedList1_IsEmpty(&provide->depends_list)) {
+        provide_free(provide);
+    }
 }
 
 static int depend_func_getobj (void *vo, NCD_string_id_t objname, NCDObject *out_object)

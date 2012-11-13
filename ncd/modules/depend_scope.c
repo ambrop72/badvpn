@@ -53,13 +53,11 @@
  *   When provide() is requested to deinitialize, if there are any depend()'s bound,
  *   provide() will not finish deinitializing until all the processes containing the
  *   bound depend()'s have backtracked to the point of the corresponding depend().
- *   BUG: Currently, when backtracking finishes for a depend(), the depend() will first
- *   attempt to rebind itself and only after the immediate effects of the rebinding
- *   will the provide() to which is was originally bound finish deinitizing. This may
- *   result in spurious rebindings that are lost shortly after being bound.
- *   SHOULD BE: When backtracking finishes for a depend(), the immediate effects of the
- *   originally bound provide() deinitializing will first happen, and only then will
- *   the depend() attempt to rebind itself.
+ *   More specifically, when backtracking has finished for the last bound depend(),
+ *   first the immediate effects of the provide() finshing deinitialization will happen,
+ *   and only then will the depend() attempt to rebind. (If the converse was true, the
+ *   depend() could rebind, but when deinitialization of the provide()'s process
+ *   continues, lose this binding. See ncd/tests/depend_scope.ncd .)
  * 
  * Synopsis:
  *   depend_scope::depend(list names)
@@ -411,19 +409,24 @@ static void depend_func_clean (void *vo)
         return;
     }
     
-    // remove from provide's list
-    LinkedList1_Remove(&o->provide->depends_list, &o->provide_depends_list_node);
+    // save provide
+    struct provide *provide = o->provide;
     
-    // if provide is dying and is empty, let it die
-    if (o->provide->dying && LinkedList1_IsEmpty(&o->provide->depends_list)) {
-        provide_free(o->provide);
-    }
+    // remove from provide's list
+    LinkedList1_Remove(&provide->depends_list, &o->provide_depends_list_node);
     
     // set no provide
     o->provide = NULL;
     
     // update
     depend_update(o);
+    
+    // if provide is dying and is empty, let it die.
+    // This comes after depend_update so that the side effects of the
+    // provide dying have priority over rebinding the depend.
+    if (provide->dying && LinkedList1_IsEmpty(&provide->depends_list)) {
+        provide_free(provide);
+    }
 }
 
 static int depend_func_getobj (void *vo, NCD_string_id_t objname, NCDObject *out_object)
