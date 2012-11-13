@@ -171,6 +171,7 @@ add_library(ncdinterpreter
     modules/timer.c
     modules/file_open.c
     modules/backtrack.c
+    modules/depend_scope.c
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(ncdinterpreter
