@@ -28,31 +28,41 @@
  * 
  * @section DESCRIPTION
  * 
- * Module which allows starting and stopping processes from templates dynamically.
+ * Module which allows starting and controlling template processes using an imperative
+ * interface.
  * 
  * Synopsis:
  *   process_manager()
  * 
  * Description:
- *   Manages processes. On deinitialization, initiates termination of all
- *   contained processes and waits for them to terminate.
+ *   Represents a set of managed processes. Each process has a "name", which is a value
+ *   that uniquely identifies it within its process manager.
+ *   When deinitialization is requested, requests termination of all managed processes
+ *   and waits for all of them to terminate before deinitializing.
+ *   Managed processes can access objects as seen from the process_manager() statement
+ *   via the special _caller object.
  * 
  * Synopsis:
  *   process_manager::start(name, string template_name, list args)
  * 
  * Description:
- *   Creates a new process from the template named template_name, with arguments args,
- *   identified by name within the process manager. If a process with this name already exists
- *   and is not being terminated, does nothing. If it is being terminated, it will be restarted
- *   using the given parameters after it terminates.
- *   The process can access objects as seen from the process_manager() statement via _caller.
+ *   Creates a new process from the template named 'template_name', with arguments 'args',
+ *   identified by 'name' within the process manager. If a process with this name already exists
+ *   and is not being terminated, does nothing. If it exists and is being terminated, it will
+ *   be restarted using the given parameters after it terminates.
+ *   If the process does not exist, it is created immediately, and the immediate effects
+ *   of the process being created happnen before the immediate effects of the start()
+ *   statement going up.
  * 
  * Synopsis:
  *   process_manager::stop(name)
  * 
  * Description:
- *   Iinitiates termination of the process identified by name within the process manager.
+ *   Initiates termination of the process identified by 'name' within the process manager.
  *   If there is no such process, or the process is already being terminated, does nothing.
+ *   If the process does exist and is not already being terminated, termination of the
+ *   process is requested, and the immediate effects of the termination request happen
+ *   before the immediate effects of the stop() statement going up.
  */
 
 #include <stdlib.h>
