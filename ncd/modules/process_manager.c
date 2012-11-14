@@ -30,19 +30,28 @@
  * 
  * Module which allows starting and stopping processes from templates dynamically.
  * 
- * Synopsis: process_manager()
- * Description: manages processes. On deinitialization, initiates termination of all
+ * Synopsis:
+ *   process_manager()
+ * 
+ * Description:
+ *   Manages processes. On deinitialization, initiates termination of all
  *   contained processes and waits for them to terminate.
  * 
- * Synopsis: process_manager::start(string name, string template_name, list args)
- * Description: creates a new process from the template named template_name, with arguments args,
+ * Synopsis:
+ *   process_manager::start(name, string template_name, list args)
+ * 
+ * Description:
+ *   Creates a new process from the template named template_name, with arguments args,
  *   identified by name within the process manager. If a process with this name already exists
  *   and is not being terminated, does nothing. If it is being terminated, it will be restarted
  *   using the given parameters after it terminates.
  *   The process can access objects as seen from the process_manager() statement via _caller.
  * 
- * Synopsis: process_manager::stop(string name)
- * Description: initiates termination of the process identified by name within the process manager.
+ * Synopsis:
+ *   process_manager::stop(name)
+ * 
+ * Description:
+ *   Iinitiates termination of the process identified by name within the process manager.
  *   If there is no such process, or the process is already being terminated, does nothing.
  */
 
@@ -52,6 +61,7 @@
 #include <misc/offset.h>
 #include <misc/debug.h>
 #include <misc/strdup.h>
+#include <misc/balloc.h>
 #include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
 #include <ncd/extra/value_utils.h>
@@ -75,32 +85,29 @@ struct instance {
 
 struct process {
     struct instance *manager;
-    char *name;
-    size_t name_len;
-    BTimer retry_timer;
     LinkedList1Node processes_list_node;
-    int have_params;
-    NCD_string_id_t params_template_name;
-    NCDValMem params_mem;
-    NCDValRef params_args;
-    int have_module_process;
-    NCDValMem process_mem;
-    NCDValRef process_args;
-    NCDModuleProcess module_process;
+    BSmallTimer retry_timer; // running if state=retrying
     int state;
+    NCD_string_id_t template_name;
+    NCDValMem current_mem;
+    NCDValSafeRef current_name;
+    NCDValSafeRef current_args;
+    NCDValMem next_mem; // next_* if state=restarting
+    NCDValSafeRef next_name;
+    NCDValSafeRef next_args;
+    NCDModuleProcess module_process; // if state!=retrying
 };
 
-static struct process * find_process (struct instance *o, const char *name, size_t name_len);
-static int process_new (struct instance *o, const char *name, size_t name_len, NCDValRef template_name, NCDValRef args);
+static struct process * find_process (struct instance *o, NCDValRef name);
+static int process_new (struct instance *o, NCDValMem *mem, NCDValSafeRef name, NCDValSafeRef template_name, NCDValSafeRef args);
 static void process_free (struct process *p);
-static void process_retry_timer_handler (struct process *p);
-static void process_module_process_handler_event (NCDModuleProcess *process, int event);
-static int process_module_process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
+static void process_try (struct process *p);
+static void process_retry_timer_handler (BSmallTimer *retry_timer);
+static void process_module_process_handler_event (NCDModuleProcess *module_process, int event);
+static int process_module_process_func_getspecialobj (NCDModuleProcess *module_process, NCD_string_id_t name, NCDObject *out_object);
 static int process_module_process_caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
 static void process_stop (struct process *p);
-static int process_restart (struct process *p, NCDValRef template_name, NCDValRef args);
-static void process_try (struct process *p);
-static int process_set_params (struct process *p, NCDValRef template_name, NCDValMem mem, NCDValSafeRef args);
+static int process_restart (struct process *p, NCDValMem *mem, NCDValSafeRef name, NCDValSafeRef template_name, NCDValSafeRef args);
 static void instance_free (struct instance *o);
 
 enum {STRING_CALLER};
@@ -109,12 +116,13 @@ static struct NCD_string_request strings[] = {
     {"_caller"}, {NULL}
 };
 
-struct process * find_process (struct instance *o, const char *name, size_t name_len)
+static struct process * find_process (struct instance *o, NCDValRef name)
 {
     LinkedList1Node *n = LinkedList1_GetFirst(&o->processes_list);
     while (n) {
         struct process *p = UPPER_OBJECT(n, struct process, processes_list_node);
-        if (p->name_len == name_len && !memcmp(p->name, name, name_len)) {
+        ASSERT(p->manager == o)
+        if (NCDVal_Compare(NCDVal_FromSafe(&p->current_mem, p->current_name), name) == 0) {
             return p;
         }
         n = LinkedList1Node_Next(n);
@@ -123,160 +131,171 @@ struct process * find_process (struct instance *o, const char *name, size_t name
     return NULL;
 }
 
-int process_new (struct instance *o, const char *name, size_t name_len, NCDValRef template_name, NCDValRef args)
+static int process_new (struct instance *o, NCDValMem *mem, NCDValSafeRef name, NCDValSafeRef template_name, NCDValSafeRef args)
 {
     ASSERT(!o->dying)
-    ASSERT(!find_process(o, name, name_len))
-    ASSERT(NCDVal_IsString(template_name))
-    ASSERT(NCDVal_IsList(args))
+    ASSERT(!find_process(o, NCDVal_FromSafe(mem, name)))
+    ASSERT(!NCDVal_IsInvalid(NCDVal_FromSafe(mem, name)))
+    ASSERT(NCDVal_IsString(NCDVal_FromSafe(mem, template_name)))
+    ASSERT(NCDVal_IsList(NCDVal_FromSafe(mem, args)))
     
     // allocate structure
-    struct process *p = malloc(sizeof(*p));
+    struct process *p = BAlloc(sizeof(*p));
     if (!p) {
-        ModuleLog(o->i, BLOG_ERROR, "malloc failed");
+        ModuleLog(o->i, BLOG_ERROR, "BAlloc failed");
         goto fail0;
     }
     
     // set manager
     p->manager = o;
-    
-    // copy name
-    if (!(p->name = b_strdup_bin(name, name_len))) {
-        ModuleLog(o->i, BLOG_ERROR, "b_strdup_bin failed");
-        goto fail1;
-    }
-    p->name_len = name_len;
-    
-    // init retry timer
-    BTimer_Init(&p->retry_timer, RETRY_TIME, (BTimer_handler)process_retry_timer_handler, p);
-    
+
     // insert to processes list
     LinkedList1_Append(&o->processes_list, &p->processes_list_node);
+
+    // init retry timer
+    BSmallTimer_Init(&p->retry_timer, process_retry_timer_handler);
     
-    // have no params
-    p->have_params = 0;
-    
-    // have no module process
-    p->have_module_process = 0;
-    
-    // copy arguments
-    NCDValMem mem;
-    NCDValMem_Init(&mem);
-    NCDValRef args2 = NCDVal_NewCopy(&mem, args);
-    if (NCDVal_IsInvalid(args2)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
-        goto fail2;
+    // init template name
+    p->template_name = ncd_get_string_id(NCDVal_FromSafe(mem, template_name), o->i->params->iparams->string_index);
+    if (p->template_name < 0) {
+        ModuleLog(o->i, BLOG_ERROR, "ncd_get_string_id failed");
+        goto fail1;
     }
     
-    // set params
-    if (!process_set_params(p, template_name, mem, NCDVal_ToSafe(args2))) {
-        goto fail2;
+    // init current mem as a copy of mem
+    if (!NCDValMem_InitCopy(&p->current_mem, mem)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDValMem_InitCopy failed");
+        goto fail1;
     }
+    
+    // remember name and args
+    p->current_name = name;
+    p->current_args = args;
     
     // try starting it
     process_try(p);
-    
     return 1;
     
-fail2:
-    NCDValMem_Free(&mem);
-    LinkedList1_Remove(&o->processes_list, &p->processes_list_node);
-    free(p->name);
 fail1:
-    free(p);
+    LinkedList1_Remove(&o->processes_list, &p->processes_list_node);
+    BFree(p);
 fail0:
     return 0;
 }
 
-void process_free (struct process *p)
+static void process_free (struct process *p)
 {
-    ASSERT(!p->have_module_process)
     struct instance *o = p->manager;
     
-    // free params
-    if (p->have_params) {
-        NCDValMem_Free(&p->params_mem);
-    }
+    // free current mem
+    NCDValMem_Free(&p->current_mem);
+    
+    // free timer
+    BReactor_RemoveSmallTimer(o->i->params->iparams->reactor, &p->retry_timer);
     
     // remove from processes list
     LinkedList1_Remove(&o->processes_list, &p->processes_list_node);
     
-    // free timer
-    BReactor_RemoveTimer(o->i->params->iparams->reactor, &p->retry_timer);
-    
-    // free name
-    free(p->name);
-    
     // free structure
-    free(p);
+    BFree(p);
 }
 
-void process_retry_timer_handler (struct process *p)
+static void process_try (struct process *p)
 {
+    struct instance *o = p->manager;
+    ASSERT(!o->dying)
+    ASSERT(!BSmallTimer_IsRunning(&p->retry_timer))
+    
+    ModuleLog(o->i, BLOG_INFO, "trying process");
+    
+    // init module process
+    if (!NCDModuleProcess_InitId(&p->module_process, o->i, p->template_name, NCDVal_FromSafe(&p->current_mem, p->current_args), process_module_process_handler_event)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
+        goto fail;
+    }
+        
+    // set special objects function
+    NCDModuleProcess_SetSpecialFuncs(&p->module_process, process_module_process_func_getspecialobj);
+    
+    // set state
+    p->state = PROCESS_STATE_RUNNING;
+    return;
+    
+fail:
+    // set timer
+    BReactor_SetSmallTimer(o->i->params->iparams->reactor, &p->retry_timer, BTIMER_SET_RELATIVE, RETRY_TIME);
+    
+    // set state
+    p->state = PROCESS_STATE_RETRYING;
+}
+
+static void process_retry_timer_handler (BSmallTimer *retry_timer)
+{
+    struct process *p = UPPER_OBJECT(retry_timer, struct process, retry_timer);
     struct instance *o = p->manager;
     B_USE(o)
     ASSERT(p->state == PROCESS_STATE_RETRYING)
     ASSERT(!o->dying)
-    ASSERT(p->have_params)
-    ASSERT(!p->have_module_process)
     
     // retry
     process_try(p);
 }
 
-void process_module_process_handler_event (NCDModuleProcess *process, int event)
+void process_module_process_handler_event (NCDModuleProcess *module_process, int event)
 {
-    struct process *p = UPPER_OBJECT(process, struct process, module_process);
+    struct process *p = UPPER_OBJECT(module_process, struct process, module_process);
     struct instance *o = p->manager;
-    ASSERT(p->have_module_process)
+    ASSERT(p->state != PROCESS_STATE_RETRYING)
+    ASSERT(p->state != PROCESS_STATE_RESTARTING || !o->dying)
+    ASSERT(!BSmallTimer_IsRunning(&p->retry_timer))
     
-    if (event == NCDMODULEPROCESS_EVENT_DOWN) {
-        // allow process to continue
-        NCDModuleProcess_Continue(&p->module_process);
-    }
-    
-    if (event != NCDMODULEPROCESS_EVENT_TERMINATED) {
-        return;
-    }
-    
-    // free module process
-    NCDModuleProcess_Free(&p->module_process);
-    
-    // free arguments mem
-    NCDValMem_Free(&p->process_mem);
-    
-    // set no module process
-    p->have_module_process = 0;
-    
-    switch (p->state) {
-        case PROCESS_STATE_STOPPING: {
+    switch (event) {
+        case NCDMODULEPROCESS_EVENT_UP: {
+            ASSERT(p->state == PROCESS_STATE_RUNNING)
+        } break;
+        
+        case NCDMODULEPROCESS_EVENT_DOWN: {
+            ASSERT(p->state == PROCESS_STATE_RUNNING)
+            
+            // allow process to continue
+            NCDModuleProcess_Continue(&p->module_process);
+        } break;
+        
+        case NCDMODULEPROCESS_EVENT_TERMINATED: {
+            ASSERT(p->state == PROCESS_STATE_RESTARTING || p->state == PROCESS_STATE_STOPPING)
+            
+            // free module process
+            NCDModuleProcess_Free(&p->module_process);
+            
+            if (p->state == PROCESS_STATE_RESTARTING) {
+                // free current mem
+                NCDValMem_Free(&p->current_mem);
+                
+                // move next mem/values over current mem/values
+                p->current_mem = p->next_mem;
+                p->current_name = p->next_name;
+                p->current_args = p->next_args;
+                
+                // try starting it again
+                process_try(p);
+                return;
+            }
+            
             // free process
             process_free(p);
-        
+            
             // if manager is dying and there are no more processes, let it die
             if (o->dying && LinkedList1_IsEmpty(&o->processes_list)) {
                 instance_free(o);
             }
-            
-            return;
         } break;
-        
-        case PROCESS_STATE_RESTARTING: {
-            ASSERT(!o->dying)
-            ASSERT(p->have_params)
-            
-            // restart
-            process_try(p);
-        } break;
-        
-        default: ASSERT(0);
     }
 }
 
-int process_module_process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object)
+static int process_module_process_func_getspecialobj (NCDModuleProcess *module_process, NCD_string_id_t name, NCDObject *out_object)
 {
-    struct process *p = UPPER_OBJECT(process, struct process, module_process);
-    ASSERT(p->have_module_process)
+    struct process *p = UPPER_OBJECT(module_process, struct process, module_process);
+    ASSERT(p->state != PROCESS_STATE_RETRYING)
     
     if (name == strings[STRING_CALLER].id) {
         *out_object = NCDObject_Build(-1, p, NCDObject_no_getvar, process_module_process_caller_obj_func_getobj);
@@ -286,29 +305,24 @@ int process_module_process_func_getspecialobj (NCDModuleProcess *process, NCD_st
     return 0;
 }
 
-int process_module_process_caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object)
+static int process_module_process_caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object)
 {
     struct process *p = NCDObject_DataPtr(obj);
     struct instance *o = p->manager;
-    ASSERT(p->have_module_process)
+    ASSERT(p->state != PROCESS_STATE_RETRYING)
     
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
 }
 
-void process_stop (struct process *p)
+static void process_stop (struct process *p)
 {
     switch (p->state) {
         case PROCESS_STATE_RETRYING: {
-            ASSERT(!p->have_module_process)
-            
             // free process
             process_free(p);
-            return;
         } break;
         
         case PROCESS_STATE_RUNNING: {
-            ASSERT(p->have_module_process)
-            
             // request process to terminate
             NCDModuleProcess_Terminate(&p->module_process);
             
@@ -317,11 +331,8 @@ void process_stop (struct process *p)
         } break;
         
         case PROCESS_STATE_RESTARTING: {
-            ASSERT(p->have_params)
-            
-            // free params
-            NCDValMem_Free(&p->params_mem);
-            p->have_params = 0;
+            // free next mem
+            NCDValMem_Free(&p->next_mem);
             
             // set state
             p->state = PROCESS_STATE_STOPPING;
@@ -335,98 +346,31 @@ void process_stop (struct process *p)
     }
 }
 
-int process_restart (struct process *p, NCDValRef template_name, NCDValRef args)
+static int process_restart (struct process *p, NCDValMem *mem, NCDValSafeRef name, NCDValSafeRef template_name, NCDValSafeRef args)
 {
     struct instance *o = p->manager;
     ASSERT(!o->dying)
     ASSERT(p->state == PROCESS_STATE_STOPPING)
-    ASSERT(!p->have_params)
-    ASSERT(NCDVal_IsString(template_name))
-    ASSERT(NCDVal_IsList(args))
+    ASSERT(NCDVal_Compare(NCDVal_FromSafe(mem, name), NCDVal_FromSafe(&p->current_mem, p->current_name)) == 0)
+    ASSERT(NCDVal_IsString(NCDVal_FromSafe(mem, template_name)))
+    ASSERT(NCDVal_IsList(NCDVal_FromSafe(mem, args)))
     
-    // copy arguments
-    NCDValMem mem;
-    NCDValMem_Init(&mem);
-    NCDValRef args2 = NCDVal_NewCopy(&mem, args);
-    if (NCDVal_IsInvalid(args2)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
-        goto fail1;
+    // copy mem to next mem
+    if (!NCDValMem_InitCopy(&p->next_mem, mem)) {
+        ModuleLog(o->i, BLOG_ERROR, "NCDValMem_InitCopy failed");
+        goto fail0;
     }
     
-    // set params
-    if (!process_set_params(p, template_name, mem, NCDVal_ToSafe(args2))) {
-        goto fail1;
-    }
+    // remember name and args to next
+    p->next_name = name;
+    p->next_args = args;
     
     // set state
     p->state = PROCESS_STATE_RESTARTING;
-    
     return 1;
     
-fail1:
-    NCDValMem_Free(&mem);
+fail0:
     return 0;
-}
-
-void process_try (struct process *p)
-{
-    struct instance *o = p->manager;
-    ASSERT(!o->dying)
-    ASSERT(p->have_params)
-    ASSERT(!p->have_module_process)
-    
-    ModuleLog(o->i, BLOG_INFO, "trying process");
-    
-    // move params
-    p->process_mem = p->params_mem;
-    p->process_args = NCDVal_Moved(&p->process_mem, p->params_args);
-    
-    // init module process
-    if (!NCDModuleProcess_InitId(&p->module_process, o->i, p->params_template_name, p->process_args, process_module_process_handler_event)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
-        
-        // set timer
-        BReactor_SetTimer(o->i->params->iparams->reactor, &p->retry_timer);
-        
-        // set state
-        p->state = PROCESS_STATE_RETRYING;
-        return;
-    }
-    
-    // set special objects function
-    NCDModuleProcess_SetSpecialFuncs(&p->module_process, process_module_process_func_getspecialobj);
-    
-    // free params
-    p->have_params = 0;
-    
-    // set have module process
-    p->have_module_process = 1;
-    
-    // set state
-    p->state = PROCESS_STATE_RUNNING;
-}
-
-int process_set_params (struct process *p, NCDValRef template_name, NCDValMem mem, NCDValSafeRef args)
-{
-    ASSERT(!p->have_params)
-    ASSERT(NCDVal_IsString(template_name))
-    ASSERT(NCDVal_IsList(NCDVal_FromSafe(&mem, args)))
-    
-    // get string ID for template name
-    p->params_template_name = ncd_get_string_id(template_name, p->manager->i->params->iparams->string_index);
-    if (p->params_template_name < 0) {
-        ModuleLog(p->manager->i, BLOG_ERROR, "ncd_get_string_id failed");
-        return 0;
-    }
-    
-    // eat arguments
-    p->params_mem = mem;
-    p->params_args = NCDVal_FromSafe(&p->params_mem, args);
-    
-    // set have params
-    p->have_params = 1;
-    
-    return 1;
 }
 
 static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -496,13 +440,10 @@ static void start_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(name_arg) || !NCDVal_IsString(template_name_arg) ||
-        !NCDVal_IsList(args_arg)) {
+    if (!NCDVal_IsString(template_name_arg) || !NCDVal_IsList(args_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *name = NCDVal_StringData(name_arg);
-    size_t name_len = NCDVal_StringLength(name_arg);
     
     // signal up.
     // Do it before creating the process so that the process starts initializing before our own process continues.
@@ -514,17 +455,17 @@ static void start_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
     if (mo->dying) {
         ModuleLog(i, BLOG_INFO, "manager is dying, not creating process");
     } else {
-        struct process *p = find_process(mo, name, name_len);
+        struct process *p = find_process(mo, name_arg);
         if (p && p->state != PROCESS_STATE_STOPPING) {
             ModuleLog(i, BLOG_INFO, "process already started");
         } else {
             if (p) {
-                if (!process_restart(p, template_name_arg, args_arg)) {
+                if (!process_restart(p, name_arg.mem, NCDVal_ToSafe(name_arg), NCDVal_ToSafe(template_name_arg), NCDVal_ToSafe(args_arg))) {
                     ModuleLog(i, BLOG_ERROR, "failed to restart process");
                     goto fail0;
                 }
             } else {
-                if (!process_new(mo, name, name_len, template_name_arg, args_arg)) {
+                if (!process_new(mo, name_arg.mem, NCDVal_ToSafe(name_arg), NCDVal_ToSafe(template_name_arg), NCDVal_ToSafe(args_arg))) {
                     ModuleLog(i, BLOG_ERROR, "failed to create process");
                     goto fail0;
                 }
@@ -547,12 +488,6 @@ static void stop_func_new (void *unused, NCDModuleInst *i, const struct NCDModul
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(name_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail0;
-    }
-    const char *name = NCDVal_StringData(name_arg);
-    size_t name_len = NCDVal_StringLength(name_arg);
     
     // signal up.
     // Do it before stopping the process so that the process starts terminating before our own process continues.
@@ -564,7 +499,7 @@ static void stop_func_new (void *unused, NCDModuleInst *i, const struct NCDModul
     if (mo->dying) {
         ModuleLog(i, BLOG_INFO, "manager is dying, not stopping process");
     } else {
-        struct process *p = find_process(mo, name, name_len);
+        struct process *p = find_process(mo, name_arg);
         if (!(p && p->state != PROCESS_STATE_STOPPING)) {
             ModuleLog(i, BLOG_INFO, "process already stopped");
         } else {
