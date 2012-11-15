@@ -43,7 +43,7 @@ template phase2 {
     If (backtrack_check) {
         val_equal(x, "10") a;
         assert(a);
-        exit("0");
+        call("phase3", {});
     };
     
     process_manager() mgr;
@@ -64,6 +64,31 @@ template phase2 {
     val_equal(x, "6") a;
     assert(a);
     
+    backtrack_check->set("true");
+    point->go();
+}
+
+template phase3 {
+    var("0") x;
+    
+    var("false") backtrack_check;
+    backtrack_point() point;
+    If (backtrack_check) {
+        val_equal(x, "10") a;
+        assert(a);
+        exit("0");
+    };
+    
+    process_manager() mgr;
+    
+    mgr->start("increment", {"1", "2", "false"});
+    val_equal(x, "1") a;
+    assert(a);
+    
+    mgr->start("increment", {"3", "4", "false"});
+    val_equal(x, "4") a;
+    assert(a);
+
     backtrack_check->set("true");
     point->go();
 }
