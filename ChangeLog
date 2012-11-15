@@ -1,3 +1,13 @@
+- NCD: process_manager: add 2-argument start() method which doesn't take a process identifier
+
+- NCD: process_manager: allow process identifiers to be any value not just strings
+
+- NCD: multidepend, depend_scope: fix immediate effect order when a depend finishes backtracking
+
+- NCD: add depend_scope module to do exactly what the multidepend module does, but with separate non-global dependency name scopes
+
+- NCD: multidepend: allow dependency names to be any value not just strings
+
 - NCD: implement value::insert(what) for appending to a list
 
 - NCD: change the format of addresses in sys.request_server() and sys.request_client() to be the same as in the socket module
