@@ -44,15 +44,18 @@
  * 
  * Synopsis:
  *   process_manager::start(name, string template_name, list args)
+ *   process_manager::start(string template_name, list args)
  * 
  * Description:
  *   Creates a new process from the template named 'template_name', with arguments 'args',
- *   identified by 'name' within the process manager. If a process with this name already exists
- *   and is not being terminated, does nothing. If it exists and is being terminated, it will
- *   be restarted using the given parameters after it terminates.
- *   If the process does not exist, it is created immediately, and the immediate effects
- *   of the process being created happnen before the immediate effects of the start()
- *   statement going up.
+ *   identified by 'name' within the process manager. If the two-argument form of start() is
+ *   used, the process does not have a name, and cannot be imperatively stopped using
+ *   stop().
+ *   If a process with this name already exists and is not being terminated, does nothing.
+ *   If it exists and is being terminated, it will be restarted using the given parameters
+ *   after it terminates. If the process does not exist, it is created immediately, and the
+ *   immediate effects of the process being created happnen before the immediate effects of
+ *   the start() statement going up.
  * 
  * Synopsis:
  *   process_manager::stop(name)
@@ -128,11 +131,13 @@ static struct NCD_string_request strings[] = {
 
 static struct process * find_process (struct instance *o, NCDValRef name)
 {
+    ASSERT(!NCDVal_IsInvalid(name))
+    
     LinkedList1Node *n = LinkedList1_GetFirst(&o->processes_list);
     while (n) {
         struct process *p = UPPER_OBJECT(n, struct process, processes_list_node);
         ASSERT(p->manager == o)
-        if (NCDVal_Compare(NCDVal_FromSafe(&p->current_mem, p->current_name), name) == 0) {
+        if (!NCDVal_IsInvalid(NCDVal_FromSafe(&p->current_mem, p->current_name)) && NCDVal_Compare(NCDVal_FromSafe(&p->current_mem, p->current_name), name) == 0) {
             return p;
         }
         n = LinkedList1Node_Next(n);
@@ -144,8 +149,7 @@ static struct process * find_process (struct instance *o, NCDValRef name)
 static int process_new (struct instance *o, NCDValMem *mem, NCDValSafeRef name, NCDValSafeRef template_name, NCDValSafeRef args)
 {
     ASSERT(!o->dying)
-    ASSERT(!find_process(o, NCDVal_FromSafe(mem, name)))
-    ASSERT(!NCDVal_IsInvalid(NCDVal_FromSafe(mem, name)))
+    ASSERT(NCDVal_IsInvalid(NCDVal_FromSafe(mem, name)) || !find_process(o, NCDVal_FromSafe(mem, name)))
     ASSERT(NCDVal_IsString(NCDVal_FromSafe(mem, template_name)))
     ASSERT(NCDVal_IsList(NCDVal_FromSafe(mem, args)))
     
@@ -361,7 +365,8 @@ static int process_restart (struct process *p, NCDValMem *mem, NCDValSafeRef nam
     struct instance *o = p->manager;
     ASSERT(!o->dying)
     ASSERT(p->state == PROCESS_STATE_STOPPING)
-    ASSERT(NCDVal_Compare(NCDVal_FromSafe(mem, name), NCDVal_FromSafe(&p->current_mem, p->current_name)) == 0)
+    ASSERT(!NCDVal_IsInvalid(NCDVal_FromSafe(&p->current_mem, p->current_name)) || NCDVal_IsInvalid(NCDVal_FromSafe(mem, name)))
+    ASSERT(NCDVal_IsInvalid(NCDVal_FromSafe(&p->current_mem, p->current_name)) || NCDVal_Compare(NCDVal_FromSafe(mem, name), NCDVal_FromSafe(&p->current_mem, p->current_name)) == 0)
     ASSERT(NCDVal_IsString(NCDVal_FromSafe(mem, template_name)))
     ASSERT(NCDVal_IsList(NCDVal_FromSafe(mem, args)))
     
@@ -443,10 +448,12 @@ static void func_die (void *vo)
 static void start_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     // check arguments
-    NCDValRef name_arg;
+    NCDValRef name_arg = NCDVal_NewInvalid();
     NCDValRef template_name_arg;
     NCDValRef args_arg;
-    if (!NCDVal_ListRead(params->args, 3, &name_arg, &template_name_arg, &args_arg)) {
+    if (!NCDVal_ListRead(params->args, 2, &template_name_arg, &args_arg) &&
+        !NCDVal_ListRead(params->args, 3, &name_arg, &template_name_arg, &args_arg)
+    ) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -465,17 +472,17 @@ static void start_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
     if (mo->dying) {
         ModuleLog(i, BLOG_INFO, "manager is dying, not creating process");
     } else {
-        struct process *p = find_process(mo, name_arg);
+        struct process *p = (NCDVal_IsInvalid(name_arg) ? NULL : find_process(mo, name_arg));
         if (p && p->state != PROCESS_STATE_STOPPING) {
             ModuleLog(i, BLOG_INFO, "process already started");
         } else {
             if (p) {
-                if (!process_restart(p, name_arg.mem, NCDVal_ToSafe(name_arg), NCDVal_ToSafe(template_name_arg), NCDVal_ToSafe(args_arg))) {
+                if (!process_restart(p, args_arg.mem, NCDVal_ToSafe(name_arg), NCDVal_ToSafe(template_name_arg), NCDVal_ToSafe(args_arg))) {
                     ModuleLog(i, BLOG_ERROR, "failed to restart process");
                     goto fail0;
                 }
             } else {
-                if (!process_new(mo, name_arg.mem, NCDVal_ToSafe(name_arg), NCDVal_ToSafe(template_name_arg), NCDVal_ToSafe(args_arg))) {
+                if (!process_new(mo, args_arg.mem, NCDVal_ToSafe(name_arg), NCDVal_ToSafe(template_name_arg), NCDVal_ToSafe(args_arg))) {
                     ModuleLog(i, BLOG_ERROR, "failed to create process");
                     goto fail0;
                 }
