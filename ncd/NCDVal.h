@@ -40,30 +40,13 @@
 
 // these are implementation details. The interface is defined below.
 
-#define NCDVAL_FASTBUF_SIZE 60
+#define NCDVAL_FASTBUF_SIZE 64
 #define NCDVAL_FIRST_SIZE 256
 
 #define NCDVAL_MAXIDX INT_MAX
 #define NCDVAL_MINIDX INT_MIN
 
 typedef int NCDVal__idx;
-
-typedef struct {
-    char *buf;
-    NCDVal__idx size;
-    NCDVal__idx used;
-    NCDVal__idx first_ref;
-    char fastbuf[NCDVAL_FASTBUF_SIZE];
-} NCDValMem;
-
-typedef struct {
-    NCDValMem *mem;
-    NCDVal__idx idx;
-} NCDValRef;
-
-typedef struct {
-    NCDVal__idx idx;
-} NCDValSafeRef;
 
 struct NCDVal__ref {
     NCDVal__idx next;
@@ -103,6 +86,31 @@ struct NCDVal__externalstring {
     size_t length;
     struct NCDVal__ref ref;
 };
+
+typedef struct {
+    char *buf;
+    NCDVal__idx size;
+    NCDVal__idx used;
+    NCDVal__idx first_ref;
+    union {
+        char fastbuf[NCDVAL_FASTBUF_SIZE];
+        struct NCDVal__ref align_ref;
+        struct NCDVal__string align_string;
+        struct NCDVal__list align_list;
+        struct NCDVal__mapelem align_mapelem;
+        struct NCDVal__idstring align_idstring;
+        struct NCDVal__externalstring align_externalstring;
+    };
+} NCDValMem;
+
+typedef struct {
+    NCDValMem *mem;
+    NCDVal__idx idx;
+} NCDValRef;
+
+typedef struct {
+    NCDVal__idx idx;
+} NCDValSafeRef;
 
 typedef struct NCDVal__mapelem NCDVal__maptree_entry;
 typedef NCDValMem *NCDVal__maptree_arg;
