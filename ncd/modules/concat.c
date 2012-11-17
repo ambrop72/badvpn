@@ -28,11 +28,15 @@
  * 
  * @section DESCRIPTION
  * 
- * String concatenation module.
+ * Synopsis:
+ *   concat([string elem ...])
+ *   concatv(list strings)
  * 
- * Synopsis: concat(string elem1, ..., string elemN)
- * Variables:
- *   string (empty) - elem1, ..., elemN concatenated
+ * Description:
+ *   Concatenates zero or more strings. The result is available as the empty
+ *   string variable. For concatv(), the strings are provided as a single
+ *   list argument. For concat(), the strings are provided as arguments
+ *   themselves.
  */
 
 #include <stddef.h>
@@ -66,17 +70,18 @@ static void result_ref_target_func_release (NCDRefTarget *ref_target)
     BFree(result);
 }
 
-static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+static void new_concat_common (void *vo, NCDModuleInst *i, NCDValRef list)
 {
+    ASSERT(NCDVal_IsList(list))
     struct instance *o = vo;
     o->i = i;
     
-    size_t count = NCDVal_ListCount(params->args);
+    size_t count = NCDVal_ListCount(list);
     bsize_t result_size = bsize_fromsize(sizeof(struct result));
     
     // check arguments and compute result size
     for (size_t j = 0; j < count; j++) {
-        NCDValRef arg = NCDVal_ListGet(params->args, j);
+        NCDValRef arg = NCDVal_ListGet(list, j);
         
         if (!NCDVal_IsString(arg)) {
             ModuleLog(i, BLOG_ERROR, "wrong type");
@@ -99,7 +104,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     // copy data to result
     o->result->length = 0;
     for (size_t j = 0; j < count; j++) {
-        NCDValRef arg = NCDVal_ListGet(params->args, j);
+        NCDValRef arg = NCDVal_ListGet(list, j);
         size_t this_len = NCDVal_StringLength(arg);
         memcpy(o->result->data + o->result->length, NCDVal_StringData(arg), this_len);
         o->result->length += this_len;
@@ -107,6 +112,31 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_SetError(i);
+    NCDModuleInst_Backend_Dead(i);
+}
+
+static void func_new_concat (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    new_concat_common(vo, i, params->args);
+}
+
+static void func_new_concatv (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    NCDValRef list_arg;
+    if (!NCDVal_ListRead(params->args, 1, &list_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (!NCDVal_IsList(list_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    
+    new_concat_common(vo, i, list_arg);
     return;
     
 fail0:
@@ -142,7 +172,13 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
 static struct NCDModule modules[] = {
     {
         .type = "concat",
-        .func_new2 = func_new,
+        .func_new2 = func_new_concat,
+        .func_die = func_die,
+        .func_getvar2 = func_getvar2,
+        .alloc_size = sizeof(struct instance)
+    }, {
+        .type = "concatv",
+        .func_new2 = func_new_concatv,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)

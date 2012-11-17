@@ -134,7 +134,6 @@ add_library(ncdinterpreter
     modules/multidepend.c
     modules/dynamic_depend.c
     modules/concat.c
-    modules/concatv.c
     modules/if.c
     modules/strcmp.c
     modules/logical.c
