@@ -45,6 +45,7 @@
 
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
+#include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_choose.h>
 
@@ -97,7 +98,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         }
         
         // update result
-        if (!have_result && NCDVal_StringEquals(c_cond, "true")) {
+        if (!have_result && ncd_read_boolean(c_cond)) {
             o->result = c_result;
             have_result = 1;
         }

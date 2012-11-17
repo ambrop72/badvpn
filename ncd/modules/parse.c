@@ -205,10 +205,9 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     struct instance *o = vo;
     
     if (name == strings[STRING_SUCCEEDED].id) {
-        const char *str = o->succeeded ? "true" : "false";
-        *out = NCDVal_NewString(mem, str);
+        *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
         }
         return 1;
     }
@@ -274,10 +273,9 @@ static int ipv4_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMe
     struct ipv4_cidr_instance *o = vo;
     
     if (name == strings[STRING_SUCCEEDED].id) {
-        const char *str = o->succeeded ? "true" : "false";
-        *out = NCDVal_NewString(mem, str);
+        *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
         }
         return 1;
     }
@@ -338,10 +336,9 @@ static int ipv6_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMe
     struct ipv6_cidr_instance *o = vo;
     
     if (name == strings[STRING_SUCCEEDED].id) {
-        const char *str = o->succeeded ? "true" : "false";
-        *out = NCDVal_NewString(mem, str);
+        *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
         }
         return 1;
     }

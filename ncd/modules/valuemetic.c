@@ -59,6 +59,7 @@
 
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
+#include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_valuemetic.h>
 
@@ -135,11 +136,9 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     struct instance *o = vo;
     
     if (name == NCD_STRING_EMPTY) {
-        const char *str = o->result ? "true" : "false";
-        
-        *out = NCDVal_NewString(mem, str);
+        *out = ncd_make_boolean(mem, o->result, o->i->params->iparams->string_index);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
         }
         return 1;
     }

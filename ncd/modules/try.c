@@ -61,6 +61,7 @@
 
 #include <misc/offset.h>
 #include <ncd/NCDModule.h>
+#include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_try.h>
 
@@ -236,10 +237,9 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     ASSERT(!o->dying)
     
     if (name == strings[STRING_SUCCEEDED].id) {
-        const char *str = (o->succeeded ? "true" : "false");
-        *out = NCDVal_NewString(mem, str);
+        *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
         }
         return 1;
     }

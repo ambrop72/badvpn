@@ -48,6 +48,7 @@
 
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
+#include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_logical.h>
 
@@ -75,7 +76,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
             goto fail0;
         }
         
-        o->value = !NCDVal_StringEquals(arg, "true");
+        o->value = !ncd_read_boolean(arg);
     } else {
         o->value = (is_or ? 0 : 1);
         
@@ -89,7 +90,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
                 goto fail0;
             }
             
-            int this_value = NCDVal_StringEquals(arg, "true");
+            int this_value = ncd_read_boolean(arg);
             if (is_or) {
                 o->value = o->value || this_value;
             } else {
@@ -127,11 +128,9 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     struct instance *o = vo;
     
     if (name == NCD_STRING_EMPTY) {
-        const char *v = (o->value ? "true" : "false");
-        
-        *out = NCDVal_NewString(mem, v);
+        *out = ncd_make_boolean(mem, o->value, o->i->params->iparams->string_index);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
         }
         return 1;
     }

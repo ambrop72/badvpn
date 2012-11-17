@@ -49,6 +49,7 @@
 
 #include <misc/ipaddr.h>
 #include <ncd/NCDModule.h>
+#include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_net_ipv4_addr_in_network.h>
 
@@ -140,10 +141,9 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
-        const char *v = (o->value ? "true" : "false");
-        *out = NCDVal_NewString(mem, v);
+        *out = ncd_make_boolean(mem, o->value, o->i->params->iparams->string_index);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
         }
         return 1;
     }

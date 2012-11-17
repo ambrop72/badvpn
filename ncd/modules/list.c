@@ -648,11 +648,9 @@ static int contains_func_getvar (void *vo, const char *name, NCDValMem *mem, NCD
     struct contains_instance *o = vo;
     
     if (!strcmp(name, "")) {
-        const char *value = (o->contains ? "true" : "false");
-        
-        *out = NCDVal_NewString(mem, value);
+        *out = ncd_make_boolean(mem, o->contains, o->i->params->iparams->string_index);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
         }
         return 1;
     }
@@ -725,11 +723,9 @@ static int find_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
     }
     
     if (!strcmp(name, "found")) {
-        const char *value = (o->is_found ? "true" : "false");
-        
-        *out = NCDVal_NewString(mem, value);
+        *out = ncd_make_boolean(mem, o->is_found, o->i->params->iparams->string_index);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
+            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
         }
         return 1;
     }

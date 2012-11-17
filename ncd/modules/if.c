@@ -43,6 +43,7 @@
 #include <string.h>
 
 #include <ncd/NCDModule.h>
+#include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_if.h>
 
@@ -62,7 +63,7 @@ static void new_templ (NCDModuleInst *i, const struct NCDModuleInst_new_params *
     }
     
     // compute logical value of argument
-    int c = NCDVal_StringEquals(arg, "true");
+    int c = ncd_read_boolean(arg);
     
     // signal up if needed
     if ((is_not && !c) || (!is_not && c)) {
