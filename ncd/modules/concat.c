@@ -35,60 +35,80 @@
  *   string (empty) - elem1, ..., elemN concatenated
  */
 
-#include <stdlib.h>
+#include <stddef.h>
+#include <string.h>
 
-#include <misc/expstring.h>
+#include <misc/balloc.h>
+#include <misc/offset.h>
 #include <ncd/NCDModule.h>
+#include <ncd/NCDRefTarget.h>
 #include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_concat.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
+struct result {
+    NCDRefTarget ref_target;
+    size_t length;
+    char data[];
+};
+
 struct instance {
     NCDModuleInst *i;
-    uint8_t *string;
-    size_t len;
+    struct result *result;
 };
+
+static void result_ref_target_func_release (NCDRefTarget *ref_target)
+{
+    struct result *result = UPPER_OBJECT(ref_target, struct result, ref_target);
+    
+    BFree(result);
+}
 
 static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
     o->i = i;
     
-    // init string
-    ExpString s;
-    if (!ExpString_Init(&s)) {
-        ModuleLog(i, BLOG_ERROR, "ExpString_Init failed");
-        goto fail0;
-    }
-    
-    // append arguments
     size_t count = NCDVal_ListCount(params->args);
+    bsize_t result_size = bsize_fromsize(sizeof(struct result));
+    
+    // check arguments and compute result size
     for (size_t j = 0; j < count; j++) {
         NCDValRef arg = NCDVal_ListGet(params->args, j);
         
         if (!NCDVal_IsString(arg)) {
             ModuleLog(i, BLOG_ERROR, "wrong type");
-            goto fail1;
+            goto fail0;
         }
         
-        if (!ExpString_AppendBinary(&s, (const uint8_t *)NCDVal_StringData(arg), NCDVal_StringLength(arg))) {
-            ModuleLog(i, BLOG_ERROR, "ExpString_Append failed");
-            goto fail1;
-        }
+        result_size = bsize_add(result_size, bsize_fromsize(NCDVal_StringLength(arg)));
     }
     
-    // set string
-    o->string = (uint8_t *)ExpString_Get(&s);
-    o->len = ExpString_Length(&s);
+    // allocate result
+    o->result = BAllocSize(result_size);
+    if (!o->result) {
+        ModuleLog(i, BLOG_ERROR, "BAllocSize failed");
+        goto fail0;
+    }
+    
+    // init ref target
+    NCDRefTarget_Init(&o->result->ref_target, result_ref_target_func_release);
+    
+    // copy data to result
+    o->result->length = 0;
+    for (size_t j = 0; j < count; j++) {
+        NCDValRef arg = NCDVal_ListGet(params->args, j);
+        size_t this_len = NCDVal_StringLength(arg);
+        memcpy(o->result->data + o->result->length, NCDVal_StringData(arg), this_len);
+        o->result->length += this_len;
+    }
     
     // signal up
     NCDModuleInst_Backend_Up(o->i);
     return;
     
-fail1:
-    ExpString_Free(&s);
 fail0:
     NCDModuleInst_Backend_SetError(i);
     NCDModuleInst_Backend_Dead(i);
@@ -98,8 +118,8 @@ static void func_die (void *vo)
 {
     struct instance *o = vo;
     
-    // free string
-    free(o->string);
+    // release result reference
+    NCDRefTarget_Deref(&o->result->ref_target);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -109,9 +129,9 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     struct instance *o = vo;
     
     if (name == NCD_STRING_EMPTY) {
-        *out = NCDVal_NewStringBin(mem, o->string, o->len);
+        *out = NCDVal_NewExternalString(mem, o->result->data, o->result->length, &o->result->ref_target);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
+            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewExternalString failed");
         }
         return 1;
     }
