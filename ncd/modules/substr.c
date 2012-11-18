@@ -52,19 +52,21 @@
 
 struct substr_instance {
     NCDModuleInst *i;
-    NCDRefTarget *ref_target;
     const char *data;
     size_t length;
+    int is_external;
+    NCDRefTarget *external_ref_target;
 };
 
-static void substr_func_new_common (void *vo, NCDModuleInst *i, NCDRefTarget *ref_target, const char *data, size_t length)
+static void substr_func_new_common (void *vo, NCDModuleInst *i, const char *data, size_t length, int is_external, NCDRefTarget *external_ref_target)
 {
     struct substr_instance *o = vo;
     o->i = i;
     
-    o->ref_target = ref_target;
     o->data = data;
     o->length = length;
+    o->is_external = is_external;
+    o->external_ref_target = external_ref_target;
     
     NCDModuleInst_Backend_Up(i);
 }
@@ -74,8 +76,8 @@ static int substr_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, N
     struct substr_instance *o = vo;
     
     if (name == NCD_STRING_EMPTY) {
-        if (o->ref_target) {
-            *out = NCDVal_NewExternalString(mem, o->data, o->length, o->ref_target);
+        if (o->is_external) {
+            *out = NCDVal_NewExternalString(mem, o->data, o->length, o->external_ref_target);
         } else {
             *out = NCDVal_NewStringBin(mem, (const uint8_t *)o->data, o->length);
         }
@@ -134,9 +136,18 @@ static void func_new_substr (void *vo, NCDModuleInst *i, const struct NCDModuleI
         sub_length = max;
     }
     
-    NCDRefTarget *ref_target = (!NCDVal_IsExternalString(str_arg) ? NULL : NCDVal_ExternalStringTarget(str_arg));
+    int is_external = 0;
+    NCDRefTarget *external_ref_target = NULL;
     
-    substr_func_new_common(vo, i, ref_target, sub_data, sub_length);
+    if (NCDVal_IsExternalString(str_arg)) {
+        is_external = 1;
+        external_ref_target = NCDVal_ExternalStringTarget(str_arg);
+    }
+    else if (NCDVal_IsIdString(str_arg)) {
+        is_external = 1;
+    }
+    
+    substr_func_new_common(vo, i, sub_data, sub_length, is_external, external_ref_target);
     return;
     
 fail0:
