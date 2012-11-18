@@ -786,8 +786,7 @@ size_t NCDVal_StringLength (NCDValRef string)
     switch (*(int *)ptr) {
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
-            const char *value = NCDStringIndex_Value(ids_e->string_index, ids_e->string_id);
-            return strlen(value);
+            return NCDStringIndex_Length(ids_e->string_index, ids_e->string_id);
         } break;
         
         case EXTERNALSTRING_TYPE: {
@@ -926,13 +925,15 @@ int NCDVal_StringEqualsId (NCDValRef string, NCD_string_id_t string_id,
         case EXTERNALSTRING_TYPE: {
             struct NCDVal__externalstring *exs_e = ptr;
             const char *string_data = NCDStringIndex_Value(string_index, string_id);
-            return strlen(string_data) == exs_e->length && !memcmp(string_data, exs_e->data, exs_e->length);
+            size_t string_length = NCDStringIndex_Length(string_index, string_id);
+            return (string_length == exs_e->length) && !memcmp(string_data, exs_e->data, string_length);
         } break;
     }
     
-    const char *string_data = NCDStringIndex_Value(string_index, string_id);
     struct NCDVal__string *str_e = ptr;
-    return !strcmp(str_e->data, string_data) && str_e->length == strlen(string_data);
+    const char *string_data = NCDStringIndex_Value(string_index, string_id);
+    size_t string_length = NCDStringIndex_Length(string_index, string_id);
+    return (string_length == str_e->length) && !memcmp(string_data, str_e->data, string_length);
 }
 
 int NCDVal_IsList (NCDValRef val)

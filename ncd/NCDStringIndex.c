@@ -92,11 +92,6 @@ static NCD_string_id_t do_get (NCDStringIndex *o, const char *str, size_t str_le
         return ref.link;
     }
     
-    if (memchr(str, '\0', str_len)) {
-        BLog(BLOG_ERROR, "cannot store strings with nulls");
-        return -1;
-    }
-    
     if (o->entries_size == o->entries_capacity) {
         if (!Array_DoubleUp(o)) {
             BLog(BLOG_ERROR, "Array_DoubleUp failed");
@@ -118,6 +113,7 @@ static NCD_string_id_t do_get (NCDStringIndex *o, const char *str, size_t str_le
         return -1;
     }
     entry->str_len = str_len;
+    entry->has_nulls = !!memchr(str, '\0', str_len);
     
     NCDStringIndex__HashRef newref = {entry, o->entries_size};
     int res = NCDStringIndex__Hash_Insert(&o->hash, o->entries, newref, NULL);
@@ -218,6 +214,26 @@ const char * NCDStringIndex_Value (NCDStringIndex *o, NCD_string_id_t id)
     ASSERT(o->entries[id].str)
     
     return o->entries[id].str;
+}
+
+size_t NCDStringIndex_Length (NCDStringIndex *o, NCD_string_id_t id)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(id >= 0)
+    ASSERT(id < o->entries_size)
+    ASSERT(o->entries[id].str)
+    
+    return o->entries[id].str_len;
+}
+
+int NCDStringIndex_HasNulls (NCDStringIndex *o, NCD_string_id_t id)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(id >= 0)
+    ASSERT(id < o->entries_size)
+    ASSERT(o->entries[id].str)
+    
+    return o->entries[id].has_nulls;
 }
 
 int NCDStringIndex_GetRequests (NCDStringIndex *o, struct NCD_string_request *requests)

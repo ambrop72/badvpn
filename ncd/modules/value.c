@@ -1011,7 +1011,7 @@ static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
             size_t append_length = NCDVal_StringLength(data);
             
             const char *string = NCDStringIndex_Value(v->idstring.string_index, v->idstring.id);
-            size_t length = strlen(string);
+            size_t length = NCDStringIndex_Length(v->idstring.string_index, v->idstring.id);
             
             if (append_length > SIZE_MAX - length) {
                 ModuleLog(i, BLOG_ERROR, "too much data to append");
@@ -1144,7 +1144,7 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
                 len = v->string.length;
                 break;
             case IDSTRING_TYPE:
-                len = strlen(NCDStringIndex_Value(v->idstring.string_index, v->idstring.id));
+                len = NCDStringIndex_Length(v->idstring.string_index, v->idstring.id);
                 break;
             default:
                 ASSERT(0);
@@ -1617,7 +1617,7 @@ static void func_new_substr (void *vo, NCDModuleInst *i, const struct NCDModuleI
     size_t string_len;
     if (mov->type == IDSTRING_TYPE) {
         string_data = NCDStringIndex_Value(mov->idstring.string_index, mov->idstring.id);
-        string_len = strlen(string_data);
+        string_len = NCDStringIndex_Length(mov->idstring.string_index, mov->idstring.id);
     } else {
         string_data = mov->string.string;
         string_len = mov->string.length;

@@ -210,6 +210,9 @@ static int object_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDVa
     if (n->m->func_getvar2) {
         res = n->m->func_getvar2(n->mem, name, mem, out_value);
     } else {
+        if (NCDStringIndex_HasNulls(n->params->iparams->string_index, name)) {
+            return 0;
+        }
         const char *name_str = NCDStringIndex_Value(n->params->iparams->string_index, name);
         res = n->m->func_getvar(n->mem, name_str, mem, out_value);
     }

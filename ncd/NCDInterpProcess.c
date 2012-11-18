@@ -78,17 +78,13 @@ static int convert_value_recurser (NCDPlaceholderDb *pdb, NCDStringIndex *string
             const char *str = NCDValue_StringValue(value);
             size_t len = NCDValue_StringLength(value);
             
-            if (strlen(str) == len) {
-                NCD_string_id_t string_id = NCDStringIndex_Get(string_index, str);
-                if (string_id < 0) {
-                    BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
-                    goto fail;
-                }
-                *out = NCDVal_NewIdString(mem, string_id, string_index);
-            } else {
-                *out = NCDVal_NewStringBin(mem, (const uint8_t *)str, len);
+            NCD_string_id_t string_id = NCDStringIndex_GetBin(string_index, str, len);
+            if (string_id < 0) {
+                BLog(BLOG_ERROR, "NCDStringIndex_GetBin failed");
+                goto fail;
             }
             
+            *out = NCDVal_NewIdString(mem, string_id, string_index);
             if (NCDVal_IsInvalid(*out)) {
                 goto fail;
             }
