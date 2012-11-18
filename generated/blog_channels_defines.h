@@ -134,4 +134,5 @@
 #define BLOG_CHANNEL_ncd_backtrack 133
 #define BLOG_CHANNEL_ncd_socket 134
 #define BLOG_CHANNEL_ncd_depend_scope 135
-#define BLOG_NUM_CHANNELS 136
+#define BLOG_CHANNEL_ncd_substr 136
+#define BLOG_NUM_CHANNELS 137

@@ -134,3 +134,4 @@
 {"ncd_backtrack", 4},
 {"ncd_socket", 4},
 {"ncd_depend_scope", 4},
+{"ncd_substr", 4},
