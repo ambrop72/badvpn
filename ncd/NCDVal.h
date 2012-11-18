@@ -362,10 +362,10 @@ NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id,
 
 /**
  * Builds a new string value pointing to the given external data. A reference to
- * the external data is taken using {@link NCDRefTarget}. The data must not change
- * while the reference is being held. Like ID-strings, external strings are
- * transparent for use. An external string can be recognized using
- * {@link NCDVal_IsExternalString}.
+ * the external data is taken using {@link NCDRefTarget}, unless 'ref_target' is
+ * NULL. The data must not change while this value exists. Like ID-strings,
+ * external strings are transparent for use. An external string can be recognized
+ * using {@link NCDVal_IsExternalString}.
  * 
  * Returns a reference to the new value, or an invalid reference
  * on out of memory.
@@ -438,7 +438,8 @@ NCD_string_id_t NCDVal_IdStringId (NCDValRef idstring);
 NCDStringIndex * NCDVal_IdStringStringIndex (NCDValRef idstring);
 
 /**
- * Returns the reference target of an external string.
+ * Returns the reference target of an external string. This may be NULL
+ * if the external string is not associated with a reference target.
  * The value given must be an external string value (which can be determined
  * via {@link NCDVal_IsExternalString}).
  */

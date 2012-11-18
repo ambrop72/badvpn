@@ -242,6 +242,7 @@ void NCDValMem_Free (NCDValMem *o)
     NCDVal__idx refidx = o->first_ref;
     while (refidx != -1) {
         struct NCDVal__ref *ref = NCDValMem__BufAt(o, refidx);
+        ASSERT(ref->target)
         NCDRefTarget_Deref(ref->target);
         refidx = ref->next;
     }
@@ -273,6 +274,7 @@ int NCDValMem_InitCopy (NCDValMem *o, NCDValMem *other)
     NCDVal__idx refidx = o->first_ref;
     while (refidx != -1) {
         struct NCDVal__ref *ref = NCDValMem__BufAt(o, refidx);
+        ASSERT(ref->target)
         if (!NCDRefTarget_Ref(ref->target)) {
             goto fail1;
         }
@@ -425,7 +427,6 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
         
         case EXTERNALSTRING_TYPE: {
             struct NCDVal__externalstring *exs_e = ptr;
-            ASSERT(exs_e->ref.target)
             
             return NCDVal_NewExternalString(mem, exs_e->data, exs_e->length, exs_e->ref.target);
         } break;
@@ -727,7 +728,6 @@ NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len
     NCDVal__AssertMem(mem);
     ASSERT(data)
     NCDVal_AssertExternal(mem, data, len);
-    ASSERT(ref_target)
     
     bsize_t size = bsize_fromsize(sizeof(struct NCDVal__externalstring));
     NCDVal__idx idx = NCDValMem__Alloc(mem, size, __alignof(struct NCDVal__externalstring));
@@ -735,8 +735,10 @@ NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len
         goto fail;
     }
     
-    if (!NCDRefTarget_Ref(ref_target)) {
-        goto fail;
+    if (ref_target) {
+        if (!NCDRefTarget_Ref(ref_target)) {
+            goto fail;
+        }
     }
     
     struct NCDVal__externalstring *exs_e = NCDValMem__BufAt(mem, idx);
@@ -744,9 +746,11 @@ NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len
     exs_e->data = data;
     exs_e->length = len;
     exs_e->ref.target = ref_target;
-    exs_e->ref.next = mem->first_ref;
     
-    mem->first_ref = idx + offsetof(struct NCDVal__externalstring, ref);
+    if (ref_target) {
+        exs_e->ref.next = mem->first_ref;
+        mem->first_ref = idx + offsetof(struct NCDVal__externalstring, ref);
+    }
     
     return NCDVal__Ref(mem, idx);
     
@@ -882,7 +886,6 @@ NCDRefTarget * NCDVal_ExternalStringTarget (NCDValRef externalstring)
     ASSERT(NCDVal_IsExternalString(externalstring))
     
     struct NCDVal__externalstring *exs_e = NCDValMem__BufAt(externalstring.mem, externalstring.idx);
-    ASSERT(exs_e->ref.target)
     return exs_e->ref.target;
 }
 
