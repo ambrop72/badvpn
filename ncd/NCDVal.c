@@ -579,7 +579,7 @@ int NCDVal_IsStringNoNulls (NCDValRef val)
 {
     NCDVal__AssertVal(val);
     
-    return NCDVal_Type(val) == NCDVAL_STRING && !memchr(NCDVal_StringData(val), '\0', NCDVal_StringLength(val));
+    return NCDVal_Type(val) == NCDVAL_STRING && !NCDVal_StringHasNulls(val);
 }
 
 NCDValRef NCDVal_NewString (NCDValMem *mem, const char *data)
@@ -890,10 +890,20 @@ int NCDVal_StringHasNulls (NCDValRef string)
 {
     ASSERT(NCDVal_IsString(string))
     
-    const char *data = NCDVal_StringData(string);
-    size_t length = NCDVal_StringLength(string);
+    void *ptr = NCDValMem__BufAt(string.mem, string.idx);
     
-    return !!memchr(data, '\0', length);
+    switch (*(int *)ptr) {
+        case IDSTRING_TYPE: {
+            struct NCDVal__idstring *ids_e = ptr;
+            return NCDStringIndex_HasNulls(ids_e->string_index, ids_e->string_id);
+        } break;
+        
+        default: {
+            const char *data = NCDVal_StringData(string);
+            size_t length = NCDVal_StringLength(string);
+            return !!memchr(data, '\0', length);
+        } break;
+    }
 }
 
 int NCDVal_StringEquals (NCDValRef string, const char *data)
