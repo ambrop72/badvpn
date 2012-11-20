@@ -697,7 +697,10 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
                     goto fail;
                 }
                 
-                NCDVal_ListAppend(*out_value, eval);
+                if (!NCDVal_ListAppend(*out_value, eval)) {
+                    ModuleLog(i, BLOG_ERROR, "depth limit exceeded");
+                    goto fail;
+                }
             }
         } break;
         
@@ -722,8 +725,12 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
                     goto fail;
                 }
                 
-                int res = NCDVal_MapInsert(*out_value, key, val);
-                ASSERT_EXECUTE(res)
+                int inserted;
+                if (!NCDVal_MapInsert(*out_value, key, val, &inserted)) {
+                    ModuleLog(i, BLOG_ERROR, "depth limit exceeded");
+                    goto fail;
+                }
+                ASSERT_EXECUTE(inserted)
             }
         } break;
         
@@ -1176,7 +1183,10 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
                 goto fail;
             }
             
-            NCDVal_ListAppend(*out, key);
+            if (!NCDVal_ListAppend(*out, key)) {
+                ModuleLog(o->i, BLOG_ERROR, "depth limit exceeded");
+                goto fail;
+            }
         }
     }
     else if (name == NCD_STRING_EMPTY) {

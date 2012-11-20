@@ -102,7 +102,10 @@ static int convert_value_recurser (NCDPlaceholderDb *pdb, NCDStringIndex *string
                     goto fail;
                 }
                 
-                NCDVal_ListAppend(*out, vval);
+                if (!NCDVal_ListAppend(*out, vval)) {
+                    BLog(BLOG_ERROR, "depth limit exceeded");
+                    goto fail;
+                }
             }
         } break;
         
@@ -123,7 +126,12 @@ static int convert_value_recurser (NCDPlaceholderDb *pdb, NCDStringIndex *string
                     goto fail;
                 }
                 
-                if (!NCDVal_MapInsert(*out, vkey, vval)) {
+                int inserted;
+                if (!NCDVal_MapInsert(*out, vkey, vval, &inserted)) {
+                    BLog(BLOG_ERROR, "depth limit exceeded");
+                    goto fail;
+                }
+                if (!inserted) {
                     BLog(BLOG_ERROR, "duplicate key in map");
                     goto fail;
                 }

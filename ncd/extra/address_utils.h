@@ -150,7 +150,9 @@ static NCDValRef ncd_make_baddr (BAddr addr, NCDValMem *mem)
                 goto fail;
             }
             
-            NCDVal_ListAppend(val, type_val);
+            if (!NCDVal_ListAppend(val, type_val)) {
+                goto fail;
+            }
         } break;
         
         case BADDR_TYPE_IPV4: {
@@ -176,9 +178,15 @@ static NCDValRef ncd_make_baddr (BAddr addr, NCDValMem *mem)
                 goto fail;
             }
             
-            NCDVal_ListAppend(val, type_val);
-            NCDVal_ListAppend(val, ipaddr_val);
-            NCDVal_ListAppend(val, port_val);
+            if (!NCDVal_ListAppend(val, type_val)) {
+                goto fail;
+            }
+            if (!NCDVal_ListAppend(val, ipaddr_val)) {
+                goto fail;
+            }
+            if (!NCDVal_ListAppend(val, port_val)) {
+                goto fail;
+            }
         } break;
         
         case BADDR_TYPE_IPV6: {
@@ -206,9 +214,15 @@ static NCDValRef ncd_make_baddr (BAddr addr, NCDValMem *mem)
                 goto fail;
             }
             
-            NCDVal_ListAppend(val, type_val);
-            NCDVal_ListAppend(val, ipaddr_val);
-            NCDVal_ListAppend(val, port_val);
+            if (!NCDVal_ListAppend(val, type_val)) {
+                goto fail;
+            }
+            if (!NCDVal_ListAppend(val, ipaddr_val)) {
+                goto fail;
+            }
+            if (!NCDVal_ListAppend(val, port_val)) {
+                goto fail;
+            }
         } break;
     }
     

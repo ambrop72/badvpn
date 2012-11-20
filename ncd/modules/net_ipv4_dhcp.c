@@ -319,7 +319,10 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
                 goto fail;
             }
             
-            NCDVal_ListAppend(*out, server);
+            if (!NCDVal_ListAppend(*out, server)) {
+                ModuleLog(o->i, BLOG_ERROR, "NCDVal_ListAppend failed");
+                goto fail;
+            }
         }
         
         return 1;

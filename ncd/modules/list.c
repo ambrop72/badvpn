@@ -308,7 +308,10 @@ static int list_to_value (NCDModuleInst *i, struct instance *o, NCDValMem *mem, 
             goto fail;
         }
         
-        NCDVal_ListAppend(*out_val, copy);
+        if (!NCDVal_ListAppend(*out_val, copy)) {
+            ModuleLog(i, BLOG_ERROR, "depth limit exceeded");
+            goto fail;
+        }
     }
     
     return 1;

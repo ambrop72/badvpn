@@ -1313,7 +1313,10 @@ int statement_instance_func_interp_getargs (void *vinterp, NCDValMem *mem, NCDVa
             goto fail;
         }
         
-        NCDVal_ListAppend(*out_value, arg);
+        if (!NCDVal_ListAppend(*out_value, arg)) {
+            BLog(BLOG_ERROR, "depth limit exceeded");
+            goto fail;
+        }
     }
     
     return 1;

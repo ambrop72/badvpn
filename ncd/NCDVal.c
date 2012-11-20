@@ -45,9 +45,52 @@
 
 //#define NCDVAL_TEST_EXTERNAL_STRINGS
 
-#define EXTERNAL_TYPE_MASK ((1 << 3) - 1)
+#define TYPE_MASK_EXTERNAL_TYPE ((1 << 3) - 1)
+#define TYPE_MASK_INTERNAL_TYPE ((1 << 5) - 1)
+#define TYPE_SHIFT_DEPTH 5
+
 #define IDSTRING_TYPE (NCDVAL_STRING | (1 << 3))
 #define EXTERNALSTRING_TYPE (NCDVAL_STRING | (2 << 3))
+
+static int make_type (int internal_type, int depth)
+{
+    ASSERT(internal_type == NCDVAL_STRING ||
+           internal_type == NCDVAL_LIST ||
+           internal_type == NCDVAL_MAP ||
+           internal_type == IDSTRING_TYPE ||
+           internal_type == EXTERNALSTRING_TYPE)
+    ASSERT(depth >= 0)
+    ASSERT(depth <= NCDVAL_MAX_DEPTH)
+    
+    return (internal_type | (depth << TYPE_SHIFT_DEPTH));
+}
+
+static int get_external_type (int type)
+{
+    return (type & TYPE_MASK_EXTERNAL_TYPE);
+}
+
+static int get_internal_type (int type)
+{
+    return (type & TYPE_MASK_INTERNAL_TYPE);
+}
+
+static int get_depth (int type)
+{
+    return (type >> TYPE_SHIFT_DEPTH);
+}
+
+static int bump_depth (int *type_ptr, int elem_depth)
+{
+    if (get_depth(*type_ptr) < elem_depth + 1) {
+        if (elem_depth + 1 > NCDVAL_MAX_DEPTH) {
+            return 0;
+        }
+        *type_ptr = make_type(get_internal_type(*type_ptr), elem_depth + 1);
+    }
+    
+    return 1;
+}
 
 static void * NCDValMem__BufAt (NCDValMem *o, NCDVal__idx idx)
 {
@@ -145,7 +188,10 @@ static void NCDVal__AssertValOnly (NCDValMem *mem, NCDVal__idx idx)
 #ifndef NDEBUG
     int *type_ptr = NCDValMem__BufAt(mem, idx);
     
-    switch (*type_ptr) {
+    ASSERT(get_depth(*type_ptr) >= 0)
+    ASSERT(get_depth(*type_ptr) <= NCDVAL_MAX_DEPTH)
+    
+    switch (get_internal_type(*type_ptr)) {
         case NCDVAL_STRING: {
             ASSERT(idx + sizeof(struct NCDVal__string) <= mem->used)
             struct NCDVal__string *str_e = NCDValMem__BufAt(mem, idx);
@@ -222,6 +268,23 @@ static void NCDVal__MapAssertElem (NCDValRef map, NCDValMapElem me)
 static NCDVal__idx NCDVal__MapElemIdx (NCDVal__idx mapidx, NCDVal__idx pos)
 {
     return mapidx + offsetof(struct NCDVal__map, elems) + pos * sizeof(struct NCDVal__mapelem);
+}
+
+static int NCDVal__Depth (NCDValRef val)
+{
+    ASSERT(val.idx != -1)
+    
+    // handle placeholders
+    if (val.idx < 0) {
+        return 0;
+    }
+    
+    int *elem_type_ptr = NCDValMem__BufAt(val.mem, val.idx);
+    int depth = get_depth(*elem_type_ptr);
+    ASSERT(depth >= 0)
+    ASSERT(depth <= NCDVAL_MAX_DEPTH)
+    
+    return depth;
 }
 
 #include "NCDVal_maptree.h"
@@ -326,7 +389,7 @@ int NCDVal_Type (NCDValRef val)
     
     int *type_ptr = NCDValMem__BufAt(val.mem, val.idx);
     
-    return (*type_ptr & EXTERNAL_TYPE_MASK);
+    return get_external_type(*type_ptr);
 }
 
 NCDValRef NCDVal_NewInvalid (void)
@@ -363,7 +426,7 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
     
     void *ptr = NCDValMem__BufAt(val.mem, val.idx);
     
-    switch (*(int *)ptr) {
+    switch (get_internal_type(*(int *)ptr)) {
         case NCDVAL_STRING: {
             size_t len = NCDVal_StringLength(val);
             
@@ -391,7 +454,9 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
                     goto fail;
                 }
                 
-                NCDVal_ListAppend(copy, elem_copy);
+                if (!NCDVal_ListAppend(copy, elem_copy)) {
+                    goto fail;
+                }
             }
             
             return copy;
@@ -412,8 +477,11 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
                     goto fail;
                 }
                 
-                int res = NCDVal_MapInsert(copy, key_copy, val_copy);
-                ASSERT_EXECUTE(res)
+                int inserted;
+                if (!NCDVal_MapInsert(copy, key_copy, val_copy, &inserted)) {
+                    goto fail;
+                }
+                ASSERT_EXECUTE(inserted)
             }
             
             return copy;
@@ -566,14 +634,14 @@ int NCDVal_IsIdString (NCDValRef val)
 {
     NCDVal__AssertVal(val);
     
-    return !(val.idx < -1) && *(int *)NCDValMem__BufAt(val.mem, val.idx) == IDSTRING_TYPE;
+    return !(val.idx < -1) && get_internal_type(*(int *)NCDValMem__BufAt(val.mem, val.idx)) == IDSTRING_TYPE;
 }
 
 int NCDVal_IsExternalString (NCDValRef val)
 {
     NCDVal__AssertVal(val);
     
-    return !(val.idx < -1) && *(int *)NCDValMem__BufAt(val.mem, val.idx) == EXTERNALSTRING_TYPE;
+    return !(val.idx < -1) && get_internal_type(*(int *)NCDValMem__BufAt(val.mem, val.idx)) == EXTERNALSTRING_TYPE;
 }
 
 int NCDVal_IsStringNoNulls (NCDValRef val)
@@ -659,7 +727,7 @@ NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len)
     }
     
     struct NCDVal__string *str_e = NCDValMem__BufAt(mem, idx);
-    str_e->type = NCDVAL_STRING;
+    str_e->type = make_type(NCDVAL_STRING, 0);
     str_e->length = len;
     if (len > 0) {
         memcpy(str_e->data, data, len);
@@ -689,7 +757,7 @@ NCDValRef NCDVal_NewStringUninitialized (NCDValMem *mem, size_t len)
     }
     
     struct NCDVal__string *str_e = NCDValMem__BufAt(mem, idx);
-    str_e->type = NCDVAL_STRING;
+    str_e->type = make_type(NCDVAL_STRING, 0);
     str_e->length = len;
     str_e->data[len] = '\0';
     
@@ -712,7 +780,7 @@ NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id, NCDStri
     }
     
     struct NCDVal__idstring *ids_e = NCDValMem__BufAt(mem, idx);
-    ids_e->type = IDSTRING_TYPE;
+    ids_e->type = make_type(IDSTRING_TYPE, 0);
     ids_e->string_id = string_id;
     ids_e->string_index = string_index;
     
@@ -742,7 +810,7 @@ NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len
     }
     
     struct NCDVal__externalstring *exs_e = NCDValMem__BufAt(mem, idx);
-    exs_e->type = EXTERNALSTRING_TYPE;
+    exs_e->type = make_type(EXTERNALSTRING_TYPE, 0);
     exs_e->data = data;
     exs_e->length = len;
     exs_e->ref.target = ref_target;
@@ -764,7 +832,7 @@ const char * NCDVal_StringData (NCDValRef string)
     
     void *ptr = NCDValMem__BufAt(string.mem, string.idx);
     
-    switch (*(int *)ptr) {
+    switch (get_internal_type(*(int *)ptr)) {
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
             const char *value = NCDStringIndex_Value(ids_e->string_index, ids_e->string_id);
@@ -787,7 +855,7 @@ size_t NCDVal_StringLength (NCDValRef string)
     
     void *ptr = NCDValMem__BufAt(string.mem, string.idx);
     
-    switch (*(int *)ptr) {
+    switch (get_internal_type(*(int *)ptr)) {
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
             return NCDStringIndex_Length(ids_e->string_index, ids_e->string_id);
@@ -810,7 +878,7 @@ int NCDVal_StringNullTerminate (NCDValRef string, NCDValNullTermString *out)
     
     void *ptr = NCDValMem__BufAt(string.mem, string.idx);
     
-    switch (*(int *)ptr) {
+    switch (get_internal_type(*(int *)ptr)) {
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
             out->data = (char *)NCDStringIndex_Value(ids_e->string_index, ids_e->string_id);
@@ -895,7 +963,7 @@ int NCDVal_StringHasNulls (NCDValRef string)
     
     void *ptr = NCDValMem__BufAt(string.mem, string.idx);
     
-    switch (*(int *)ptr) {
+    switch (get_internal_type(*(int *)ptr)) {
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
             return NCDStringIndex_HasNulls(ids_e->string_index, ids_e->string_id);
@@ -928,7 +996,7 @@ int NCDVal_StringEqualsId (NCDValRef string, NCD_string_id_t string_id,
     
     void *ptr = NCDValMem__BufAt(string.mem, string.idx);
     
-    switch (*(int *)ptr) {
+    switch (get_internal_type(*(int *)ptr)) {
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
             ASSERT(ids_e->string_index == string_index)
@@ -967,7 +1035,7 @@ NCDValRef NCDVal_NewList (NCDValMem *mem, size_t maxcount)
     }
     
     struct NCDVal__list *list_e = NCDValMem__BufAt(mem, idx);
-    list_e->type = NCDVAL_LIST;
+    list_e->type = make_type(NCDVAL_LIST, 0);
     list_e->maxcount = maxcount;
     list_e->count = 0;
     
@@ -977,7 +1045,7 @@ fail:
     return NCDVal_NewInvalid();
 }
 
-void NCDVal_ListAppend (NCDValRef list, NCDValRef elem)
+int NCDVal_ListAppend (NCDValRef list, NCDValRef elem)
 {
     ASSERT(NCDVal_IsList(list))
     ASSERT(NCDVal_ListCount(list) < NCDVal_ListMaxCount(list))
@@ -986,7 +1054,13 @@ void NCDVal_ListAppend (NCDValRef list, NCDValRef elem)
     
     struct NCDVal__list *list_e = NCDValMem__BufAt(list.mem, list.idx);
     
+    if (!bump_depth(&list_e->type, NCDVal__Depth(elem))) {
+        return 0;
+    }
+    
     list_e->elem_indices[list_e->count++] = elem.idx;
+    
+    return 1;
 }
 
 size_t NCDVal_ListCount (NCDValRef list)
@@ -1086,7 +1160,7 @@ NCDValRef NCDVal_NewMap (NCDValMem *mem, size_t maxcount)
     }
     
     struct NCDVal__map *map_e = NCDValMem__BufAt(mem, idx);
-    map_e->type = NCDVAL_MAP;
+    map_e->type = make_type(NCDVAL_MAP, 0);
     map_e->maxcount = maxcount;
     map_e->count = 0;
     NCDVal__MapTree_Init(&map_e->tree);
@@ -1097,7 +1171,7 @@ fail:
     return NCDVal_NewInvalid();
 }
 
-int NCDVal_MapInsert (NCDValRef map, NCDValRef key, NCDValRef val)
+int NCDVal_MapInsert (NCDValRef map, NCDValRef key, NCDValRef val, int *out_inserted)
 {
     ASSERT(NCDVal_IsMap(map))
     ASSERT(NCDVal_MapCount(map) < NCDVal_MapMaxCount(map))
@@ -1108,6 +1182,11 @@ int NCDVal_MapInsert (NCDValRef map, NCDValRef key, NCDValRef val)
     
     struct NCDVal__map *map_e = NCDValMem__BufAt(map.mem, map.idx);
     
+    int new_type = map_e->type;
+    if (!bump_depth(&new_type, NCDVal__Depth(key)) || !bump_depth(&new_type, NCDVal__Depth(val))) {
+        return 0;
+    }
+    
     NCDVal__idx elemidx = NCDVal__MapElemIdx(map.idx, map_e->count);
     
     struct NCDVal__mapelem *me_e = NCDValMem__BufAt(map.mem, elemidx);
@@ -1117,11 +1196,18 @@ int NCDVal_MapInsert (NCDValRef map, NCDValRef key, NCDValRef val)
     
     int res = NCDVal__MapTree_Insert(&map_e->tree, map.mem, NCDVal__MapTreeDeref(map.mem, elemidx), NULL);
     if (!res) {
-        return 0;
+        if (out_inserted) {
+            *out_inserted = 0;
+        }
+        return 1;
     }
     
+    map_e->type = new_type;
     map_e->count++;
     
+    if (out_inserted) {
+        *out_inserted = 1;
+    }
     return 1;
 }
 
@@ -1253,7 +1339,7 @@ NCDValRef NCDVal_MapGetValue (NCDValRef map, const char *key_str)
     mem.first_ref = -1;
     
     struct NCDVal__externalstring *exs_e = (void *)mem.fastbuf;
-    exs_e->type = EXTERNALSTRING_TYPE;
+    exs_e->type = make_type(EXTERNALSTRING_TYPE, 0);
     exs_e->data = key_str;
     exs_e->length = strlen(key_str);
     exs_e->ref.target = NULL;
@@ -1280,7 +1366,7 @@ static void replaceprog_build_recurser (NCDValMem *mem, NCDVal__idx idx, size_t 
     
     struct NCDVal__instr instr;
     
-    switch (*((int *)(ptr))) {
+    switch (get_internal_type(*((int *)(ptr)))) {
         case NCDVAL_STRING:
         case IDSTRING_TYPE:
         case EXTERNALSTRING_TYPE: {
@@ -1290,6 +1376,8 @@ static void replaceprog_build_recurser (NCDValMem *mem, NCDVal__idx idx, size_t 
             struct NCDVal__list *list_e = ptr;
             
             for (NCDVal__idx i = 0; i < list_e->count; i++) {
+                int elem_changed = 0;
+                
                 if (list_e->elem_indices[i] < -1) {
                     if (prog) {
                         instr.type = NCDVAL_INSTR_PLACEHOLDER;
@@ -1298,10 +1386,24 @@ static void replaceprog_build_recurser (NCDValMem *mem, NCDVal__idx idx, size_t 
                         prog->instrs[prog->num_instrs++] = instr;
                     }
                     (*out_num_instr)++;
+                    elem_changed = 1;
                 } else {
                     size_t elem_num_instr;
                     replaceprog_build_recurser(mem, list_e->elem_indices[i], &elem_num_instr, prog);
                     (*out_num_instr) += elem_num_instr;
+                    if (elem_num_instr > 0) {
+                        elem_changed = 1;
+                    }
+                }
+                
+                if (elem_changed) {
+                    if (prog) {
+                        instr.type = NCDVAL_INSTR_BUMPDEPTH;
+                        instr.bumpdepth.parent_idx = idx;
+                        instr.bumpdepth.child_idx_idx = idx + offsetof(struct NCDVal__list, elem_indices) + i * sizeof(NCDVal__idx);
+                        prog->instrs[prog->num_instrs++] = instr;
+                    }
+                    (*out_num_instr)++;
                 }
             }
         } break;
@@ -1310,7 +1412,8 @@ static void replaceprog_build_recurser (NCDValMem *mem, NCDVal__idx idx, size_t 
             struct NCDVal__map *map_e = ptr;
             
             for (NCDVal__idx i = 0; i < map_e->count; i++) {
-                int need_reinsert = 0;
+                int key_changed = 0;
+                int val_changed = 0;
                 
                 if (map_e->elems[i].key_idx < -1) {
                     if (prog) {
@@ -1320,13 +1423,13 @@ static void replaceprog_build_recurser (NCDValMem *mem, NCDVal__idx idx, size_t 
                         prog->instrs[prog->num_instrs++] = instr;
                     }
                     (*out_num_instr)++;
-                    need_reinsert = 1;
+                    key_changed = 1;
                 } else {
                     size_t key_num_instr;
                     replaceprog_build_recurser(mem, map_e->elems[i].key_idx, &key_num_instr, prog);
                     (*out_num_instr) += key_num_instr;
                     if (key_num_instr > 0) {
-                        need_reinsert = 1;
+                        key_changed = 1;
                     }
                 }
                 
@@ -1338,17 +1441,39 @@ static void replaceprog_build_recurser (NCDValMem *mem, NCDVal__idx idx, size_t 
                         prog->instrs[prog->num_instrs++] = instr;
                     }
                     (*out_num_instr)++;
+                    val_changed = 1;
                 } else {
                     size_t val_num_instr;
                     replaceprog_build_recurser(mem, map_e->elems[i].val_idx, &val_num_instr, prog);
                     (*out_num_instr) += val_num_instr;
+                    if (val_num_instr > 0) {
+                        val_changed = 1;
+                    }
                 }
                 
-                if (need_reinsert) {
+                if (key_changed) {
                     if (prog) {
                         instr.type = NCDVAL_INSTR_REINSERT;
                         instr.reinsert.mapidx = idx;
                         instr.reinsert.elempos = i;
+                        prog->instrs[prog->num_instrs++] = instr;
+                    }
+                    (*out_num_instr)++;
+                    
+                    if (prog) {
+                        instr.type = NCDVAL_INSTR_BUMPDEPTH;
+                        instr.bumpdepth.parent_idx = idx;
+                        instr.bumpdepth.child_idx_idx = idx + offsetof(struct NCDVal__map, elems) + i * sizeof(struct NCDVal__mapelem) + offsetof(struct NCDVal__mapelem, key_idx);
+                        prog->instrs[prog->num_instrs++] = instr;
+                    }
+                    (*out_num_instr)++;
+                }
+                
+                if (val_changed) {
+                    if (prog) {
+                        instr.type = NCDVAL_INSTR_BUMPDEPTH;
+                        instr.bumpdepth.parent_idx = idx;
+                        instr.bumpdepth.child_idx_idx = idx + offsetof(struct NCDVal__map, elems) + i * sizeof(struct NCDVal__mapelem) + offsetof(struct NCDVal__mapelem, val_idx);
                         prog->instrs[prog->num_instrs++] = instr;
                     }
                     (*out_num_instr)++;
@@ -1397,35 +1522,53 @@ int NCDValReplaceProg_Execute (NCDValReplaceProg prog, NCDValMem *mem, NCDVal_re
     for (size_t i = 0; i < prog.num_instrs; i++) {
         struct NCDVal__instr instr = prog.instrs[i];
         
-        if (instr.type == NCDVAL_INSTR_PLACEHOLDER) {
+        switch (instr.type) {
+            case NCDVAL_INSTR_PLACEHOLDER: {
 #ifndef NDEBUG
-            NCDVal__idx *check_plptr = NCDValMem__BufAt(mem, instr.placeholder.plidx);
-            ASSERT(*check_plptr < -1)
-            ASSERT(*check_plptr - NCDVAL_MINIDX == instr.placeholder.plid)
+                NCDVal__idx *check_plptr = NCDValMem__BufAt(mem, instr.placeholder.plidx);
+                ASSERT(*check_plptr < -1)
+                ASSERT(*check_plptr - NCDVAL_MINIDX == instr.placeholder.plid)
 #endif
-            NCDValRef repval;
-            if (!replace(arg, instr.placeholder.plid, mem, &repval) || NCDVal_IsInvalid(repval)) {
-                return 0;
-            }
-            ASSERT(repval.mem == mem)
+                NCDValRef repval;
+                if (!replace(arg, instr.placeholder.plid, mem, &repval) || NCDVal_IsInvalid(repval)) {
+                    return 0;
+                }
+                ASSERT(repval.mem == mem)
+                
+                NCDVal__idx *plptr = NCDValMem__BufAt(mem, instr.placeholder.plidx);
+                *plptr = repval.idx;
+            } break;
             
-            NCDVal__idx *plptr = NCDValMem__BufAt(mem, instr.placeholder.plidx);
-            *plptr = repval.idx;
-        } else {
-            ASSERT(instr.type == NCDVAL_INSTR_REINSERT)
+            case NCDVAL_INSTR_REINSERT: {
+                NCDVal__AssertValOnly(mem, instr.reinsert.mapidx);
+                struct NCDVal__map *map_e = NCDValMem__BufAt(mem, instr.reinsert.mapidx);
+                ASSERT(map_e->type == NCDVAL_MAP)
+                ASSERT(instr.reinsert.elempos >= 0)
+                ASSERT(instr.reinsert.elempos < map_e->count)
+                
+                NCDVal__MapTreeRef ref = {&map_e->elems[instr.reinsert.elempos], NCDVal__MapElemIdx(instr.reinsert.mapidx, instr.reinsert.elempos)};
+                NCDVal__MapTree_Remove(&map_e->tree, mem, ref);
+                if (!NCDVal__MapTree_Insert(&map_e->tree, mem, ref, NULL)) {
+                    BLog(BLOG_ERROR, "duplicate key in map");
+                    return 0;
+                }
+            } break;
             
-            NCDVal__AssertValOnly(mem, instr.reinsert.mapidx);
-            struct NCDVal__map *map_e = NCDValMem__BufAt(mem, instr.reinsert.mapidx);
-            ASSERT(map_e->type == NCDVAL_MAP)
-            ASSERT(instr.reinsert.elempos >= 0)
-            ASSERT(instr.reinsert.elempos < map_e->count)
+            case NCDVAL_INSTR_BUMPDEPTH: {
+                NCDVal__AssertValOnly(mem, instr.bumpdepth.parent_idx);
+                int *parent_type_ptr = NCDValMem__BufAt(mem, instr.bumpdepth.parent_idx);
+                
+                NCDVal__idx *child_type_idx_ptr = NCDValMem__BufAt(mem, instr.bumpdepth.child_idx_idx);
+                NCDVal__AssertValOnly(mem, *child_type_idx_ptr);
+                int *child_type_ptr = NCDValMem__BufAt(mem, *child_type_idx_ptr);
+                
+                if (!bump_depth(parent_type_ptr, get_depth(*child_type_ptr))) {
+                    BLog(BLOG_ERROR, "depth limit exceeded");
+                    return 0;
+                }
+            } break;
             
-            NCDVal__MapTreeRef ref = {&map_e->elems[instr.reinsert.elempos], NCDVal__MapElemIdx(instr.reinsert.mapidx, instr.reinsert.elempos)};
-            NCDVal__MapTree_Remove(&map_e->tree, mem, ref);
-            if (!NCDVal__MapTree_Insert(&map_e->tree, mem, ref, NULL)) {
-                BLog(BLOG_ERROR, "duplicate key in map");
-                return 0;
-            }
+            default: ASSERT(0);
         }
     }
     

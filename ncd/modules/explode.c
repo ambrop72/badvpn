@@ -204,7 +204,10 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
                 ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
                 goto fail;
             }
-            NCDVal_ListAppend(*out, str);
+            if (!NCDVal_ListAppend(*out, str)) {
+                ModuleLog(o->i, BLOG_ERROR, "NCDVal_ListAppend failed");
+                goto fail;
+            }
         }
         return 1;
     }

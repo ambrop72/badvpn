@@ -91,6 +91,8 @@ static void print_value (NCDValRef val, unsigned int indent)
 
 int main ()
 {
+    int res;
+    
     BLog_InitStdout();
     
     NCDStringIndex string_index;
@@ -113,8 +115,8 @@ int main ()
     NCDValRef l1 = NCDVal_NewList(&mem, 10);
     FORCE( !NCDVal_IsInvalid(l1) )
     
-    NCDVal_ListAppend(l1, s1);
-    NCDVal_ListAppend(l1, s2);
+    FORCE( NCDVal_ListAppend(l1, s1) )
+    FORCE( NCDVal_ListAppend(l1, s2) )
     
     print_value(s1, 0);
     print_value(s2, 0);
@@ -133,8 +135,8 @@ int main ()
     NCDValRef m1 = NCDVal_NewMap(&mem, 3);
     FORCE( !NCDVal_IsInvalid(m1) )
     
-    FORCE( NCDVal_MapInsert(m1, k1, v1) )
-    FORCE( NCDVal_MapInsert(m1, k2, v2) )
+    FORCE( NCDVal_MapInsert(m1, k1, v1, &res) && res )
+    FORCE( NCDVal_MapInsert(m1, k2, v2, &res) && res )
     
     ASSERT( NCDVal_MapGetValue(m1, "K1").idx == v1.idx )
     ASSERT( NCDVal_MapGetValue(m1, "K2").idx == v2.idx )
@@ -158,7 +160,7 @@ int main ()
     ASSERT( NCDVal_Type(ids2) == NCDVAL_STRING )
     ASSERT( NCDVal_IsIdString(ids2) )
     
-    FORCE( NCDVal_MapInsert(m1, ids1, ids2) )
+    FORCE( NCDVal_MapInsert(m1, ids1, ids2, &res) && res )
     
     ASSERT( NCDVal_MapGetValue(m1, "_arg1").idx == ids2.idx )
     

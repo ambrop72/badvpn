@@ -42,6 +42,7 @@
 
 #define NCDVAL_FASTBUF_SIZE 64
 #define NCDVAL_FIRST_SIZE 256
+#define NCDVAL_MAX_DEPTH 32
 
 #define NCDVAL_MAXIDX INT_MAX
 #define NCDVAL_MINIDX INT_MIN
@@ -132,6 +133,7 @@ typedef struct {
 
 #define NCDVAL_INSTR_PLACEHOLDER 0
 #define NCDVAL_INSTR_REINSERT 1
+#define NCDVAL_INSTR_BUMPDEPTH 2
 
 struct NCDVal__instr {
     int type;
@@ -144,6 +146,10 @@ struct NCDVal__instr {
             NCDVal__idx mapidx;
             NCDVal__idx elempos;
         } reinsert;
+        struct {
+            NCDVal__idx parent_idx;
+            NCDVal__idx child_idx_idx;
+        } bumpdepth;
     };
 };
 
@@ -490,8 +496,11 @@ NCDValRef NCDVal_NewList (NCDValMem *mem, size_t maxcount);
  * the same memory object as the list.
  * Inserting a value into a list does not in any way change it;
  * internally, the list only points to it.
+ * You must not modify the element after it has been inserted into the
+ * list.
+ * Returns 1 on success and 0 on failure (depth limit exceeded).
  */
-void NCDVal_ListAppend (NCDValRef list, NCDValRef elem);
+int NCDVal_ListAppend (NCDValRef list, NCDValRef elem) WARN_UNUSED;
 
 /**
  * Returns the number of elements in a list value, i.e. the number
@@ -556,10 +565,13 @@ NCDValRef NCDVal_NewMap (NCDValMem *mem, size_t maxcount);
  * internally, the map only points to it.
  * You must not modify the key after inserting it into a map. This is because
  * the map builds an embedded AVL tree of entries indexed by keys.
- * If 'key' does not exist in the map, succeeds, returning 1.
- * If 'key' already exists in the map, fails, returning 0.
+ * If insertion fails due to a maximum depth limit, returns 0.
+ * Otherwise returns 1, and *out_inserted is set to 1 if the key did not
+ * yet exist and the entry was inserted, and to 0 if it did exist and the
+ * entry was not inserted. The 'out_inserted' pointer may be NULL, in which
+ * case *out_inserted is never set.
  */
-int NCDVal_MapInsert (NCDValRef map, NCDValRef key, NCDValRef val);
+int NCDVal_MapInsert (NCDValRef map, NCDValRef key, NCDValRef val, int *out_inserted) WARN_UNUSED;
 
 /**
  * Returns the number of entries in a map value, i.e. the number
