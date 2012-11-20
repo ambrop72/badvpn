@@ -53,6 +53,7 @@ struct value {
 #define ERROR_FLAG_TOKENIZATION  (1 << 1)
 #define ERROR_FLAG_SYNTAX        (1 << 2)
 #define ERROR_FLAG_DUPLICATE_KEY (1 << 3)
+#define ERROR_FLAG_DEPTH         (1 << 4)
 
 struct parser_state {
     NCDValCons cons;
@@ -77,6 +78,9 @@ static void handle_cons_error (struct parser_state *state)
             break;
         case NCDVALCONS_ERROR_DUPLICATE_KEY:
             state->error_flags |= ERROR_FLAG_DUPLICATE_KEY;
+            break;
+        case NCDVALCONS_ERROR_DEPTH:
+            state->error_flags |= ERROR_FLAG_DEPTH;
             break;
         default:
             ASSERT(0);
@@ -170,6 +174,10 @@ fail:
     
     if ((state->error_flags & ERROR_FLAG_DUPLICATE_KEY)) {
         BLog(BLOG_ERROR, "line %zu, character %zu: duplicate key in map error", line, line_char);
+    }
+    
+    if ((state->error_flags & ERROR_FLAG_DEPTH)) {
+        BLog(BLOG_ERROR, "line %zu, character %zu: depth limit exceeded", line, line_char);
     }
     
     return 0;

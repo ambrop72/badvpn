@@ -95,7 +95,8 @@ static int complete_value (NCDValCons *o, NCDValConsVal val, NCDValSafeRef *out,
                 NCDValRef elem = NCDVal_FromSafe(o->mem, o->elems[elemidx].ref);
                 
                 if (!NCDVal_ListAppend(list, elem)) {
-                    goto fail_memory;
+                    *out_error = NCDVALCONS_ERROR_DEPTH;
+                    return 0;
                 }
                 
                 elemidx = o->elems[elemidx].next;
@@ -125,7 +126,8 @@ static int complete_value (NCDValCons *o, NCDValConsVal val, NCDValSafeRef *out,
                 
                 int inserted;
                 if (!NCDVal_MapInsert(map, key, value, &inserted)) {
-                    goto fail_memory;
+                    *out_error = NCDVALCONS_ERROR_DEPTH;
+                    return 0;
                 }
                 if (!inserted) {
                     *out_error = NCDVALCONS_ERROR_DUPLICATE_KEY;

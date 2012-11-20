@@ -76,6 +76,7 @@ typedef struct {
 
 #define NCDVALCONS_ERROR_MEMORY 1
 #define NCDVALCONS_ERROR_DUPLICATE_KEY 2
+#define NCDVALCONS_ERROR_DEPTH 3
 
 /**
  * Initializes a value constructor.
