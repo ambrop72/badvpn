@@ -63,7 +63,7 @@ static void try_connect (SocksUdpGwClient *o)
     ASSERT(!BTimer_IsRunning(&o->reconnect_timer))
     
     // init SOCKS client
-    if (!BSocksClient_Init(&o->socks_client, o->socks_server_addr, o->remote_udpgw_addr, (BSocksClient_handler)socks_client_handler, o, o->reactor)) {
+    if (!BSocksClient_Init(&o->socks_client, o->socks_server_addr, o->auth_info, o->num_auth_info, o->remote_udpgw_addr, (BSocksClient_handler)socks_client_handler, o, o->reactor)) {
         BLog(BLOG_ERROR, "BSocksClient_Init failed");
         goto fail0;
     }
@@ -159,7 +159,9 @@ static void udpgw_handler_received (SocksUdpGwClient *o, BAddr local_addr, BAddr
     return;
 }
 
-int SocksUdpGwClient_Init (SocksUdpGwClient *o, int udp_mtu, int max_connections, int send_buffer_size, btime_t keepalive_time, BAddr socks_server_addr, BAddr remote_udpgw_addr, btime_t reconnect_time, BReactor *reactor, void *user,
+int SocksUdpGwClient_Init (SocksUdpGwClient *o, int udp_mtu, int max_connections, int send_buffer_size, btime_t keepalive_time,
+                           BAddr socks_server_addr, const struct BSocksClient_auth_info *auth_info, size_t num_auth_info,
+                           BAddr remote_udpgw_addr, btime_t reconnect_time, BReactor *reactor, void *user,
                            SocksUdpGwClient_handler_received handler_received)
 {
     ASSERT(udp_mtu >= 0)
@@ -173,6 +175,8 @@ int SocksUdpGwClient_Init (SocksUdpGwClient *o, int udp_mtu, int max_connections
     // init arguments
     o->udp_mtu = udp_mtu;
     o->socks_server_addr = socks_server_addr;
+    o->auth_info = auth_info;
+    o->num_auth_info = num_auth_info;
     o->remote_udpgw_addr = remote_udpgw_addr;
     o->reactor = reactor;
     o->user = user;

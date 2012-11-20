@@ -43,6 +43,7 @@
 #include <misc/byteorder.h>
 #include <misc/balloc.h>
 #include <misc/open_standard_streams.h>
+#include <misc/read_file.h>
 #include <structure/LinkedList1.h>
 #include <base/BLog.h>
 #include <system/BReactor.h>
@@ -98,6 +99,9 @@ struct {
     char *netif_ipaddr;
     char *netif_netmask;
     char *socks_server_addr;
+    char *username;
+    char *password;
+    char *password_file;
     char *udpgw_remote_server_addr;
     int udpgw_max_connections;
     int udpgw_connection_buffer_size;
@@ -134,6 +138,13 @@ BIPAddr netif_netmask;
 
 // SOCKS server address
 BAddr socks_server_addr;
+
+// allocated password file contents
+uint8_t *password_file_contents;
+
+// SOCKS authentication information
+struct BSocksClient_auth_info socks_auth_info[2];
+size_t socks_num_auth_info;
 
 // remote udpgw server addr, if provided
 BAddr udpgw_remote_server_addr;
@@ -266,6 +277,9 @@ int main (int argc, char **argv)
     
     BLog(BLOG_NOTICE, "initializing "GLOBAL_PRODUCT_NAME" "PROGRAM_NAME" "GLOBAL_VERSION);
     
+    // clear password contents pointer
+    password_file_contents = NULL;
+    
     // initialize network
     if (!BNetwork_GlobalInit()) {
         BLog(BLOG_ERROR, "BNetwork_GlobalInit failed");
@@ -325,7 +339,8 @@ int main (int argc, char **argv)
         
         // init udpgw client
         if (!SocksUdpGwClient_Init(&udpgw_client, udp_mtu, DEFAULT_UDPGW_MAX_CONNECTIONS, options.udpgw_connection_buffer_size, UDPGW_KEEPALIVE_TIME,
-                                   socks_server_addr, udpgw_remote_server_addr, UDPGW_RECONNECT_TIME, &ss, NULL, udpgw_client_handler_received
+                                   socks_server_addr, socks_auth_info, socks_num_auth_info,
+                                   udpgw_remote_server_addr, UDPGW_RECONNECT_TIME, &ss, NULL, udpgw_client_handler_received
         )) {
             BLog(BLOG_ERROR, "SocksUdpGwClient_Init failed");
             goto fail4a;
@@ -397,6 +412,7 @@ fail3:
 fail2:
     BReactor_Free(&ss);
 fail1:
+    BFree(password_file_contents);
     BLog(BLOG_NOTICE, "exiting");
     BLog_Free();
 fail0:
@@ -438,6 +454,9 @@ void print_help (const char *name)
         "        --netif-ipaddr <ipaddr>\n"
         "        --netif-netmask <ipnetmask>\n"
         "        --socks-server-addr <addr>\n"
+        "        [--username <username>]\n"
+        "        [--password <password>]\n"
+        "        [--password-file <file>]\n"
         "        [--udpgw-remote-server-addr <addr>]\n"
         "        [--udpgw-max-connections <number>]\n"
         "        [--udpgw-connection-buffer-size <number>]\n"
@@ -472,6 +491,9 @@ int parse_arguments (int argc, char *argv[])
     options.netif_ipaddr = NULL;
     options.netif_netmask = NULL;
     options.socks_server_addr = NULL;
+    options.username = NULL;
+    options.password = NULL;
+    options.password_file = NULL;
     options.udpgw_remote_server_addr = NULL;
     options.udpgw_max_connections = DEFAULT_UDPGW_MAX_CONNECTIONS;
     options.udpgw_connection_buffer_size = DEFAULT_UDPGW_CONNECTION_BUFFER_SIZE;
@@ -584,6 +606,30 @@ int parse_arguments (int argc, char *argv[])
             options.socks_server_addr = argv[i + 1];
             i++;
         }
+        else if (!strcmp(arg, "--username")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.username = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--password")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.password = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--password-file")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.password_file = argv[i + 1];
+            i++;
+        }
         else if (!strcmp(arg, "--udpgw-remote-server-addr")) {
             if (1 >= argc - i) {
                 fprintf(stderr, "%s: requires an argument\n", arg);
@@ -639,11 +685,25 @@ int parse_arguments (int argc, char *argv[])
         return 0;
     }
     
+    if (options.username) {
+        if (!options.password && !options.password_file) {
+            fprintf(stderr, "username given but password not given\n");
+            return 0;
+        }
+        
+        if (options.password && options.password_file) {
+            fprintf(stderr, "--password and --password-file cannot both be given\n");
+            return 0;
+        }
+    }
+    
     return 1;
 }
 
 int process_arguments (void)
 {
+    ASSERT(!password_file_contents)
+    
     // resolve netif ipaddr
     if (!BIPAddr_Resolve(&netif_ipaddr, options.netif_ipaddr, 0)) {
         BLog(BLOG_ERROR, "netif ipaddr: BIPAddr_Resolve failed");
@@ -668,6 +728,31 @@ int process_arguments (void)
     if (!BAddr_Parse2(&socks_server_addr, options.socks_server_addr, NULL, 0, 0)) {
         BLog(BLOG_ERROR, "socks server addr: BAddr_Parse2 failed");
         return 0;
+    }
+    
+    // add none socks authentication method
+    socks_auth_info[0] = BSocksClient_auth_none();
+    socks_num_auth_info = 1;
+    
+    // add password socks authentication method
+    if (options.username) {
+        const char *password;
+        size_t password_len;
+        if (options.password) {
+            password = options.password;
+            password_len = strlen(options.password);
+        } else {
+            if (!read_file(options.password_file, &password_file_contents, &password_len)) {
+                BLog(BLOG_ERROR, "failed to read password file");
+                return 0;
+            }
+            password = (char *)password_file_contents;
+        }
+        
+        socks_auth_info[socks_num_auth_info++] = BSocksClient_auth_password(
+            options.username, strlen(options.username),
+            password, password_len
+        );
     }
     
     // resolve remote udpgw server address
@@ -979,7 +1064,8 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     #ifdef OVERRIDE_DEST_ADDR
     ASSERT_FORCE(BAddr_Parse2(&addr, OVERRIDE_DEST_ADDR, NULL, 0, 1))
     #endif
-    if (!BSocksClient_Init(&client->socks_client, socks_server_addr, addr, (BSocksClient_handler)client_socks_handler, client, &ss)) {
+    if (!BSocksClient_Init(&client->socks_client, socks_server_addr, socks_auth_info, socks_num_auth_info,
+                           addr, (BSocksClient_handler)client_socks_handler, client, &ss)) {
         BLog(BLOG_ERROR, "listener accept: BSocksClient_Init failed");
         SYNC_BREAK
         free(client);

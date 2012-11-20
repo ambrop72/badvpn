@@ -28,6 +28,7 @@
  */
 
 #include <misc/byteorder.h>
+#include <misc/balloc.h>
 #include <base/BLog.h>
 
 #include <socksclient/BSocksClient.h>
@@ -37,6 +38,8 @@
 #define STATE_CONNECTING 1
 #define STATE_SENDING_HELLO 2
 #define STATE_SENT_HELLO 3
+#define STATE_SENDING_PASSWORD 10
+#define STATE_SENT_PASSWORD 11
 #define STATE_SENDING_REQUEST 4
 #define STATE_SENT_REQUEST 5
 #define STATE_RECEIVED_REPLY_HEADER 6
@@ -47,12 +50,14 @@ static void init_control_io (BSocksClient *o);
 static void free_control_io (BSocksClient *o);
 static void init_up_io (BSocksClient *o);
 static void free_up_io (BSocksClient *o);
+static int reserve_buffer (BSocksClient *o, bsize_t size);
 static void start_receive (BSocksClient *o, uint8_t *dest, int total);
 static void do_receive (BSocksClient *o);
 static void connector_handler (BSocksClient* o, int is_error);
 static void connection_handler (BSocksClient* o, int event);
 static void recv_handler_done (BSocksClient *o, int data_len);
 static void send_handler_done (BSocksClient *o);
+static void auth_finished (BSocksClient *p);
 
 void report_error (BSocksClient *o, int error)
 {
@@ -68,7 +73,7 @@ void init_control_io (BSocksClient *o)
     
     // init sending
     BConnection_SendAsync_Init(&o->con);
-    PacketStreamSender_Init(&o->control.send_sender, BConnection_SendAsync_GetIf(&o->con), sizeof(o->control.msg), BReactor_PendingGroup(o->reactor));
+    PacketStreamSender_Init(&o->control.send_sender, BConnection_SendAsync_GetIf(&o->con), INT_MAX, BReactor_PendingGroup(o->reactor));
     o->control.send_if = PacketStreamSender_GetInput(&o->control.send_sender);
     PacketPassInterface_Sender_Init(o->control.send_if, (PacketPassInterface_handler_done)send_handler_done, o);
 }
@@ -99,6 +104,24 @@ void free_up_io (BSocksClient *o)
     
     // free receiving
     BConnection_RecvAsync_Free(&o->con);
+}
+
+int reserve_buffer (BSocksClient *o, bsize_t size)
+{
+    if (size.is_overflow) {
+        BLog(BLOG_ERROR, "size overflow");
+        return 0;
+    }
+    
+    char *buffer = BRealloc(o->buffer, size.value);
+    if (!buffer) {
+        BLog(BLOG_ERROR, "BRealloc failed");
+        return 0;
+    }
+    
+    o->buffer = buffer;
+    
+    return 1;
 }
 
 void start_receive (BSocksClient *o, uint8_t *dest, int total)
@@ -141,17 +164,42 @@ void connector_handler (BSocksClient* o, int is_error)
     // init control I/O
     init_control_io(o);
     
-    // send hello
-    o->control.msg.client_hello.header.ver = hton8(SOCKS_VERSION);
-    o->control.msg.client_hello.header.nmethods = hton8(1);
-    o->control.msg.client_hello.method.method = hton8(SOCKS_METHOD_NO_AUTHENTICATION_REQUIRED);
-    PacketPassInterface_Sender_Send(o->control.send_if, (uint8_t *)&o->control.msg.client_hello, sizeof(o->control.msg.client_hello));
+    // check number of methods
+    if (o->num_auth_info == 0 || o->num_auth_info > 255) {
+        BLog(BLOG_ERROR, "invalid number of authentication methods");
+        goto fail1;
+    }
+    
+    // allocate buffer for sending hello
+    bsize_t size = bsize_add(
+        bsize_fromsize(sizeof(struct BSocksClient__client_hello)), 
+        bsize_mul(
+            bsize_fromsize(o->num_auth_info),
+            bsize_fromsize(sizeof(struct socks_client_hello_method))
+        )
+    );
+    if (!reserve_buffer(o, size)) {
+        goto fail1;
+    }
+    
+    // build hello
+    struct BSocksClient__client_hello *omsg = (void *)o->buffer;
+    omsg->header.ver = hton8(SOCKS_VERSION);
+    omsg->header.nmethods = hton8(o->num_auth_info);
+    for (size_t i = 0; i < o->num_auth_info; i++) {
+        omsg->methods[i].method = hton8(o->auth_info[i].auth_type);
+    }
+    
+    // send
+    PacketPassInterface_Sender_Send(o->control.send_if, (uint8_t *)o->buffer, size.value);
     
     // set state
     o->state = STATE_SENDING_HELLO;
     
     return;
     
+fail1:
+    free_control_io(o);
 fail0:
     report_error(o, BSOCKSCLIENT_EVENT_ERROR);
     return;
@@ -188,83 +236,128 @@ void recv_handler_done (BSocksClient *o, int data_len)
         case STATE_SENT_HELLO: {
             BLog(BLOG_DEBUG, "received hello");
             
-            if (ntoh8(o->control.msg.server_hello.ver != SOCKS_VERSION)) {
+            struct socks_server_hello *imsg = (void *)o->buffer;
+            
+            if (ntoh8(imsg->ver) != SOCKS_VERSION) {
                 BLog(BLOG_NOTICE, "wrong version");
-                report_error(o, BSOCKSCLIENT_EVENT_ERROR);
-                return;
+                goto fail;
             }
             
-            if (ntoh8(o->control.msg.server_hello.method != SOCKS_METHOD_NO_AUTHENTICATION_REQUIRED)) {
-                BLog(BLOG_NOTICE, "wrong method");
-                report_error(o, BSOCKSCLIENT_EVENT_ERROR);
-                return;
-            }
-            
-            // send request
-            o->control.msg.request.header.ver = hton8(SOCKS_VERSION);
-            o->control.msg.request.header.cmd = hton8(SOCKS_CMD_CONNECT);
-            o->control.msg.request.header.rsv = hton8(0);
-            int len = sizeof(o->control.msg.request.header);
-            switch (o->dest_addr.type) {
-                case BADDR_TYPE_IPV4:
-                    o->control.msg.request.header.atyp = hton8(SOCKS_ATYP_IPV4);
-                    o->control.msg.request.addr.ipv4.addr = o->dest_addr.ipv4.ip;
-                    o->control.msg.request.addr.ipv4.port = o->dest_addr.ipv4.port;
-                    len += sizeof(o->control.msg.request.addr.ipv4);
+            size_t auth_index;
+            for (auth_index = 0; auth_index < o->num_auth_info; auth_index++) {
+                if (o->auth_info[auth_index].auth_type == ntoh8(imsg->method)) {
                     break;
-                case BADDR_TYPE_IPV6:
-                    o->control.msg.request.header.atyp = hton8(SOCKS_ATYP_IPV6);
-                    memcpy(o->control.msg.request.addr.ipv6.addr, o->dest_addr.ipv6.ip, sizeof(o->dest_addr.ipv6.ip));
-                    o->control.msg.request.addr.ipv6.port = o->dest_addr.ipv6.port;
-                    len += sizeof(o->control.msg.request.addr.ipv6);
-                    break;
-                default:
-                    ASSERT(0);
+                }
             }
-            PacketPassInterface_Sender_Send(o->control.send_if, (uint8_t *)&o->control.msg.request, len);
             
-            // set state
-            o->state = STATE_SENDING_REQUEST;
+            if (auth_index == o->num_auth_info) {
+                BLog(BLOG_NOTICE, "server didn't accept any authentication method");
+                goto fail;
+            }
+            
+            const struct BSocksClient_auth_info *ai = &o->auth_info[auth_index];
+            
+            switch (ai->auth_type) {
+                case SOCKS_METHOD_NO_AUTHENTICATION_REQUIRED: {
+                    BLog(BLOG_DEBUG, "no authentication");
+                    
+                    auth_finished(o);
+                } break;
+                
+                case SOCKS_METHOD_USERNAME_PASSWORD: {
+                    BLog(BLOG_DEBUG, "password authentication");
+                    
+                    if (ai->password.username_len == 0 || ai->password.username_len > 255 ||
+                        ai->password.password_len == 0 || ai->password.password_len > 255
+                    ) {
+                        BLog(BLOG_NOTICE, "invalid username/password length");
+                        goto fail;
+                    }
+                    
+                    // allocate password packet
+                    bsize_t size = bsize_fromsize(1 + 1 + ai->password.username_len + 1 + ai->password.password_len);
+                    if (!reserve_buffer(o, size)) {
+                        goto fail;
+                    }
+                    
+                    // write password packet
+                    char *ptr = o->buffer;
+                    *ptr++ = 1;
+                    *ptr++ = ai->password.username_len;
+                    memcpy(ptr, ai->password.username, ai->password.username_len);
+                    ptr += ai->password.username_len;
+                    *ptr++ = ai->password.password_len;
+                    memcpy(ptr, ai->password.password, ai->password.password_len);
+                    ptr += ai->password.password_len;
+                    
+                    // start sending
+                    PacketPassInterface_Sender_Send(o->control.send_if, (uint8_t *)o->buffer, size.value);
+                    
+                    // set state
+                    o->state = STATE_SENDING_PASSWORD;
+                } break;
+                
+                default: ASSERT(0);
+            }
         } break;
         
         case STATE_SENT_REQUEST: {
             BLog(BLOG_DEBUG, "received reply header");
             
-            if (ntoh8(o->control.msg.reply.header.ver) != SOCKS_VERSION) {
+            struct BSocksClient__reply *imsg = (void *)o->buffer;
+            
+            if (ntoh8(imsg->header.ver) != SOCKS_VERSION) {
                 BLog(BLOG_NOTICE, "wrong version");
-                report_error(o, BSOCKSCLIENT_EVENT_ERROR);
-                return;
+                goto fail;
             }
             
-            if (ntoh8(o->control.msg.reply.header.rep) != SOCKS_REP_SUCCEEDED) {
+            if (ntoh8(imsg->header.rep) != SOCKS_REP_SUCCEEDED) {
                 BLog(BLOG_NOTICE, "reply not successful");
-                report_error(o, BSOCKSCLIENT_EVENT_ERROR);
-                return;
+                goto fail;
             }
             
             int addr_len;
-            switch (ntoh8(o->control.msg.reply.header.atyp)) {
+            switch (ntoh8(imsg->header.atyp)) {
                 case SOCKS_ATYP_IPV4:
-                    addr_len = sizeof(o->control.msg.reply.addr.ipv4);
+                    addr_len = sizeof(struct socks_addr_ipv4);
                     break;
                 case SOCKS_ATYP_IPV6:
-                    addr_len = sizeof(o->control.msg.reply.addr.ipv6);
+                    addr_len = sizeof(struct socks_addr_ipv6);
                     break;
                 default:
                     BLog(BLOG_NOTICE, "reply has unknown address type");
-                    report_error(o, BSOCKSCLIENT_EVENT_ERROR);
-                    return;
+                    goto fail;
             }
             
             // receive the rest of the reply
-            start_receive(o, (uint8_t *)&o->control.msg.reply.addr, addr_len);
+            start_receive(o, (uint8_t *)&imsg->addr, addr_len);
             
             // set state
             o->state = STATE_RECEIVED_REPLY_HEADER;
         } break;
         
+        case STATE_SENT_PASSWORD: {
+            BLog(BLOG_DEBUG, "received password reply");
+            
+            if (o->buffer[0] != 1) {
+                BLog(BLOG_NOTICE, "password reply has unknown version");
+                goto fail;
+            }
+            
+            if (o->buffer[1] != 0) {
+                BLog(BLOG_NOTICE, "password reply is negative");
+                goto fail;
+            }
+            
+            auth_finished(o);
+        } break;
+        
         case STATE_RECEIVED_REPLY_HEADER: {
             BLog(BLOG_DEBUG, "received reply rest");
+            
+            // free buffer
+            BFree(o->buffer);
+            o->buffer = NULL;
             
             // free control I/O
             free_control_io(o);
@@ -283,18 +376,30 @@ void recv_handler_done (BSocksClient *o, int data_len)
         default:
             ASSERT(0);
     }
+    
+    return;
+    
+fail:
+    report_error(o, BSOCKSCLIENT_EVENT_ERROR);
 }
 
 void send_handler_done (BSocksClient *o)
 {
     DebugObject_Access(&o->d_obj);
+    ASSERT(o->buffer)
     
     switch (o->state) {
         case STATE_SENDING_HELLO: {
             BLog(BLOG_DEBUG, "sent hello");
             
+            // allocate buffer for receiving hello
+            bsize_t size = bsize_fromsize(sizeof(struct socks_server_hello));
+            if (!reserve_buffer(o, size)) {
+                goto fail;
+            }
+            
             // receive hello
-            start_receive(o, (uint8_t *)&o->control.msg.server_hello, sizeof(o->control.msg.server_hello));
+            start_receive(o, (uint8_t *)o->buffer, size.value);
             
             // set state
             o->state = STATE_SENT_HELLO;
@@ -303,28 +408,124 @@ void send_handler_done (BSocksClient *o)
         case STATE_SENDING_REQUEST: {
             BLog(BLOG_DEBUG, "sent request");
             
+            // allocate buffer for receiving reply
+            bsize_t size = bsize_fromsize(sizeof(struct BSocksClient__reply));
+            if (!reserve_buffer(o, size)) {
+                goto fail;
+            }
+            
             // receive reply header
-            start_receive(o, (uint8_t *)&o->control.msg.reply.header, sizeof(o->control.msg.reply.header));
+            start_receive(o, (uint8_t *)o->buffer, sizeof(struct socks_reply_header));
             
             // set state
             o->state = STATE_SENT_REQUEST;
         } break;
         
+        case STATE_SENDING_PASSWORD: {
+            BLog(BLOG_DEBUG, "send password");
+            
+            // allocate buffer for receiving reply
+            bsize_t size = bsize_fromsize(2);
+            if (!reserve_buffer(o, size)) {
+                goto fail;
+            }
+            
+            // receive reply header
+            start_receive(o, (uint8_t *)o->buffer, size.value);
+            
+            // set state
+            o->state = STATE_SENT_PASSWORD;
+        } break;
+        
         default:
             ASSERT(0);
     }
+    
+    return;
+    
+fail:
+    report_error(o, BSOCKSCLIENT_EVENT_ERROR);
 }
 
-int BSocksClient_Init (BSocksClient *o, BAddr server_addr, BAddr dest_addr, BSocksClient_handler handler, void *user, BReactor *reactor)
+void auth_finished (BSocksClient *o)
+{
+    // allocate request buffer
+    bsize_t size = bsize_fromsize(sizeof(struct socks_request_header));
+    switch (o->dest_addr.type) {
+        case BADDR_TYPE_IPV4: size = bsize_add(size, bsize_fromsize(sizeof(struct socks_addr_ipv4))); break;
+        case BADDR_TYPE_IPV6: size = bsize_add(size, bsize_fromsize(sizeof(struct socks_addr_ipv6))); break;
+    }
+    if (!reserve_buffer(o, size)) {
+        report_error(o, BSOCKSCLIENT_EVENT_ERROR);
+        return;
+    }
+    
+    // send request
+    struct BSocksClient__request *omsg = (void *)o->buffer;
+    omsg->header.ver = hton8(SOCKS_VERSION);
+    omsg->header.cmd = hton8(SOCKS_CMD_CONNECT);
+    omsg->header.rsv = hton8(0);
+    switch (o->dest_addr.type) {
+        case BADDR_TYPE_IPV4:
+            omsg->header.atyp = hton8(SOCKS_ATYP_IPV4);
+            omsg->addr.ipv4.addr = o->dest_addr.ipv4.ip;
+            omsg->addr.ipv4.port = o->dest_addr.ipv4.port;
+            break;
+        case BADDR_TYPE_IPV6:
+            omsg->header.atyp = hton8(SOCKS_ATYP_IPV6);
+            memcpy(omsg->addr.ipv6.addr, o->dest_addr.ipv6.ip, sizeof(o->dest_addr.ipv6.ip));
+            omsg->addr.ipv6.port = o->dest_addr.ipv6.port;
+            break;
+        default:
+            ASSERT(0);
+    }
+    PacketPassInterface_Sender_Send(o->control.send_if, (uint8_t *)o->buffer, size.value);
+    
+    // set state
+    o->state = STATE_SENDING_REQUEST;
+}
+
+struct BSocksClient_auth_info BSocksClient_auth_none (void)
+{
+    struct BSocksClient_auth_info info;
+    info.auth_type = SOCKS_METHOD_NO_AUTHENTICATION_REQUIRED;
+    return info;
+}
+
+struct BSocksClient_auth_info BSocksClient_auth_password (const char *username, size_t username_len, const char *password, size_t password_len)
+{
+    struct BSocksClient_auth_info info;
+    info.auth_type = SOCKS_METHOD_USERNAME_PASSWORD;
+    info.password.username = username;
+    info.password.username_len = username_len;
+    info.password.password = password;
+    info.password.password_len = password_len;
+    return info;
+}
+
+int BSocksClient_Init (BSocksClient *o,
+                       BAddr server_addr, const struct BSocksClient_auth_info *auth_info, size_t num_auth_info,
+                       BAddr dest_addr, BSocksClient_handler handler, void *user, BReactor *reactor)
 {
     ASSERT(!BAddr_IsInvalid(&server_addr))
     ASSERT(dest_addr.type == BADDR_TYPE_IPV4 || dest_addr.type == BADDR_TYPE_IPV6)
+#ifndef NDEBUG
+    for (size_t i = 0; i < num_auth_info; i++) {
+        ASSERT(auth_info[i].auth_type == SOCKS_METHOD_NO_AUTHENTICATION_REQUIRED ||
+               auth_info[i].auth_type == SOCKS_METHOD_USERNAME_PASSWORD)
+    }
+#endif
     
     // init arguments
+    o->auth_info = auth_info;
+    o->num_auth_info = num_auth_info;
     o->dest_addr = dest_addr;
     o->handler = handler;
     o->user = user;
     o->reactor = reactor;
+    
+    // set no buffer
+    o->buffer = NULL;
     
     // init connector
     if (!BConnector_Init(&o->connector, server_addr, o->reactor, o, (BConnector_handler)connector_handler)) {
@@ -353,10 +554,6 @@ void BSocksClient_Free (BSocksClient *o)
             // free up I/O
             free_up_io(o);
         } else {
-            ASSERT(o->state == STATE_SENDING_HELLO || o->state == STATE_SENT_HELLO ||
-                o->state == STATE_SENDING_REQUEST || o->state == STATE_SENT_REQUEST ||
-                o->state == STATE_RECEIVED_REPLY_HEADER
-            )
             // free control I/O
             free_control_io(o);
         }
@@ -367,6 +564,11 @@ void BSocksClient_Free (BSocksClient *o)
     
     // free connector
     BConnector_Free(&o->connector);
+    
+    // free buffer
+    if (o->buffer) {
+        BFree(o->buffer);
+    }
 }
 
 StreamPassInterface * BSocksClient_GetSendInterface (BSocksClient *o)

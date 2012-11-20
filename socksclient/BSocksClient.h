@@ -65,7 +65,7 @@ typedef void (*BSocksClient_handler) (void *user, int event);
 B_START_PACKED
 struct BSocksClient__client_hello {
     struct socks_client_hello_header header;
-    struct socks_client_hello_method method;
+    struct socks_client_hello_method methods[];
 } B_PACKED;
 B_END_PACKED
 
@@ -89,12 +89,27 @@ struct BSocksClient__reply {
 } B_PACKED;
 B_END_PACKED
 
+struct BSocksClient_auth_info {
+    int auth_type;
+    union {
+        struct {
+            const char *username;
+            size_t username_len;
+            const char *password;
+            size_t password_len;
+        } password;
+    };
+};
+
 typedef struct {
+    const struct BSocksClient_auth_info *auth_info;
+    size_t num_auth_info;
     BAddr dest_addr;
     BSocksClient_handler handler;
     void *user;
     BReactor *reactor;
     int state;
+    char *buffer;
     BConnector connector;
     BConnection con;
     union {
@@ -102,12 +117,6 @@ typedef struct {
             PacketPassInterface *send_if;
             PacketStreamSender send_sender;
             StreamRecvInterface *recv_if;
-            union {
-                struct BSocksClient__client_hello client_hello;
-                struct socks_server_hello server_hello;
-                struct BSocksClient__request request;
-                struct BSocksClient__reply reply;
-            } msg;
             uint8_t *recv_dest;
             int recv_len;
             int recv_total;
@@ -116,6 +125,9 @@ typedef struct {
     DebugError d_err;
     DebugObject d_obj;
 } BSocksClient;
+
+struct BSocksClient_auth_info BSocksClient_auth_none (void);
+struct BSocksClient_auth_info BSocksClient_auth_password (const char *username, size_t username_len, const char *password, size_t password_len);
 
 /**
  * Initializes the object.
@@ -130,7 +142,9 @@ typedef struct {
  * @param reactor reactor we live in
  * @return 1 on success, 0 on failure
  */
-int BSocksClient_Init (BSocksClient *o, BAddr server_addr, BAddr dest_addr, BSocksClient_handler handler, void *user, BReactor *reactor) WARN_UNUSED;
+int BSocksClient_Init (BSocksClient *o,
+                       BAddr server_addr, const struct BSocksClient_auth_info *auth_info, size_t num_auth_info,
+                       BAddr dest_addr, BSocksClient_handler handler, void *user, BReactor *reactor) WARN_UNUSED;
 
 /**
  * Frees the object.
