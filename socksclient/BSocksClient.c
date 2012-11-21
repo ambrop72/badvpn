@@ -200,6 +200,7 @@ void connector_handler (BSocksClient* o, int is_error)
     
 fail1:
     free_control_io(o);
+    BConnection_Free(&o->con);
 fail0:
     report_error(o, BSOCKSCLIENT_EVENT_ERROR);
     return;
