@@ -707,16 +707,17 @@ void process_work_job_handler_working (struct process *p)
     if (p->ap < p->fp) {
         // order the last living statement to die, if needed
         struct statement *ps = &p->statements[p->fp - 1];
-        if (ps->inst.istate != SSTATE_DYING) {
-            statement_log(ps, BLOG_INFO, "killing");
-            
-            // set statement state DYING
-            ps->inst.istate = SSTATE_DYING;
-            
-            // order it to die
-            NCDModuleInst_Die(&ps->inst);
+        if (ps->inst.istate == SSTATE_DYING) {
             return;
         }
+        
+        statement_log(ps, BLOG_INFO, "killing");
+        
+        // set statement state DYING
+        ps->inst.istate = SSTATE_DYING;
+        
+        // order it to die
+        NCDModuleInst_Die(&ps->inst);
         return;
     }
     
