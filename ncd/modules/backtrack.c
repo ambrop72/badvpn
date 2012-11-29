@@ -80,8 +80,7 @@ static void go_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleI
     NCDModuleInst_Backend_Up(i);
     
     // toggle backtrack point
-    NCDModuleInst_Backend_Down(backtrack_point_inst);
-    NCDModuleInst_Backend_Up(backtrack_point_inst);
+    NCDModuleInst_Backend_DownUp(backtrack_point_inst);
     return;
     
 fail0:

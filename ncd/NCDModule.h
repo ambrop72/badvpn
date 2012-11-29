@@ -497,6 +497,15 @@ void NCDModuleInst_Backend_Up (NCDModuleInst *n);
 void NCDModuleInst_Backend_Down (NCDModuleInst *n);
 
 /**
+ * Puts the backend instance into down state, then immediatly back into the up state.
+ * This effectively causes the interpreter to start backtracking to this statement.
+ * The instance must be in up state, and remains in up state.
+ * 
+ * @param n backend instance handle
+ */
+void NCDModuleInst_Backend_DownUp (NCDModuleInst *n);
+
+/**
  * Destroys the backend instance.
  * The backend instance handle becomes invalid and must not be used from
  * the backend any longer.

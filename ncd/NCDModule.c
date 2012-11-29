@@ -265,6 +265,15 @@ void NCDModuleInst_Backend_Down (NCDModuleInst *n)
     frontend_event(n, NCDMODULE_EVENT_DOWN);
 }
 
+void NCDModuleInst_Backend_DownUp (NCDModuleInst *n)
+{
+    DebugObject_Access(&n->d_obj);
+    ASSERT(n->state == STATE_UP)
+    
+    frontend_event(n, NCDMODULE_EVENT_DOWN);
+    frontend_event(n, NCDMODULE_EVENT_UP);
+}
+
 void NCDModuleInst_Backend_Dead (NCDModuleInst *n)
 {
     DebugObject_Access(&n->d_obj);
