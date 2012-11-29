@@ -1098,9 +1098,9 @@ int NCDVal_ListRead (NCDValRef list, int num, ...)
     ASSERT(NCDVal_IsList(list))
     ASSERT(num >= 0)
     
-    size_t count = NCDVal_ListCount(list);
+    struct NCDVal__list *list_e = NCDValMem__BufAt(list.mem, list.idx);
     
-    if (num != count) {
+    if (num != list_e->count) {
         return 0;
     }
     
@@ -1109,7 +1109,7 @@ int NCDVal_ListRead (NCDValRef list, int num, ...)
     
     for (int i = 0; i < num; i++) {
         NCDValRef *dest = va_arg(ap, NCDValRef *);
-        *dest = NCDVal_ListGet(list, i);
+        *dest = NCDVal__Ref(list.mem, list_e->elem_indices[i]);
     }
     
     va_end(ap);
@@ -1122,9 +1122,9 @@ int NCDVal_ListReadHead (NCDValRef list, int num, ...)
     ASSERT(NCDVal_IsList(list))
     ASSERT(num >= 0)
     
-    size_t count = NCDVal_ListCount(list);
+    struct NCDVal__list *list_e = NCDValMem__BufAt(list.mem, list.idx);
     
-    if (num > count) {
+    if (num > list_e->count) {
         return 0;
     }
     
@@ -1133,7 +1133,7 @@ int NCDVal_ListReadHead (NCDValRef list, int num, ...)
     
     for (int i = 0; i < num; i++) {
         NCDValRef *dest = va_arg(ap, NCDValRef *);
-        *dest = NCDVal_ListGet(list, i);
+        *dest = NCDVal__Ref(list.mem, list_e->elem_indices[i]);
     }
     
     va_end(ap);
