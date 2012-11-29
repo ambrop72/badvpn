@@ -440,25 +440,34 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
         } break;
         
         case NCDVAL_LIST: {
-            size_t count = NCDVal_ListCount(val);
+            struct NCDVal__list *list_e = ptr;
             
-            NCDValRef copy = NCDVal_NewList(mem, count);
-            if (NCDVal_IsInvalid(copy)) {
+            NCDVal__idx size = sizeof(struct NCDVal__list) + list_e->maxcount * sizeof(NCDVal__idx);
+            NCDVal__idx idx = NCDValMem__Alloc(mem, size, __alignof(struct NCDVal__list));
+            if (idx < 0) {
                 goto fail;
             }
             
-            for (size_t i = 0; i < count; i++) {
-                NCDValRef elem_copy = NCDVal_NewCopy(mem, NCDVal_ListGet(val, i));
+            list_e = NCDValMem__BufAt(val.mem, val.idx);
+            struct NCDVal__list *new_list_e = NCDValMem__BufAt(mem, idx);
+            
+            *new_list_e = *list_e;
+            
+            NCDVal__idx count = list_e->count;
+            
+            for (NCDVal__idx i = 0; i < count; i++) {
+                NCDValRef elem_copy = NCDVal_NewCopy(mem, NCDVal__Ref(val.mem, list_e->elem_indices[i]));
                 if (NCDVal_IsInvalid(elem_copy)) {
                     goto fail;
                 }
                 
-                if (!NCDVal_ListAppend(copy, elem_copy)) {
-                    goto fail;
-                }
+                list_e = NCDValMem__BufAt(val.mem, val.idx);
+                new_list_e = NCDValMem__BufAt(mem, idx);
+                
+                new_list_e->elem_indices[i] = elem_copy.idx;
             }
             
-            return copy;
+            return NCDVal__Ref(mem, idx);
         } break;
         
         case NCDVAL_MAP: {
