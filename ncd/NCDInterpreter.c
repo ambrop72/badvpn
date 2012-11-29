@@ -835,45 +835,47 @@ again:
     // order the last living statement to die, if needed
     struct statement *ps = &p->statements[p->fp - 1];
     ASSERT(ps->inst.istate != SSTATE_FORGOTTEN)
-    if (ps->inst.istate != SSTATE_DYING) {
-        statement_log(ps, BLOG_INFO, "killing");
-        
-        // update AP
-        if (p->ap > ps->i) {
-            p->ap = ps->i;
-        }
-        
-        // optimize for statements which can be destroyed immediately
-        if (NCDModuleInst_TryFree(&ps->inst)) {
-            if (BLog_WouldLog(BLOG_INFO, BLOG_CURRENT_CHANNEL)) {
-                if (ps->inst.is_error) {
-                    statement_log(ps, BLOG_ERROR, "died with error");
-                } else {
-                    statement_log(ps, BLOG_INFO, "died");
-                }
-            }
-            
-            // free arguments memory
-            NCDValMem_Free(&ps->args_mem);
-            
-            // set statement state FORGOTTEN
-            ps->inst.istate = SSTATE_FORGOTTEN;
-            
-            // update FP
-            while (p->fp > 0 && p->statements[p->fp - 1].inst.istate == SSTATE_FORGOTTEN) {
-                p->fp--;
-            }
-            
-            goto again;
-        }
-        
-        // set statement state DYING
-        ps->inst.istate = SSTATE_DYING;
-        
-        // order it to die
-        NCDModuleInst_Die(&ps->inst);
+    if (ps->inst.istate == SSTATE_DYING) {
         return;
     }
+    
+    statement_log(ps, BLOG_INFO, "killing");
+    
+    // update AP
+    if (p->ap > ps->i) {
+        p->ap = ps->i;
+    }
+    
+    // optimize for statements which can be destroyed immediately
+    if (NCDModuleInst_TryFree(&ps->inst)) {
+        if (BLog_WouldLog(BLOG_INFO, BLOG_CURRENT_CHANNEL)) {
+            if (ps->inst.is_error) {
+                statement_log(ps, BLOG_ERROR, "died with error");
+            } else {
+                statement_log(ps, BLOG_INFO, "died");
+            }
+        }
+        
+        // free arguments memory
+        NCDValMem_Free(&ps->args_mem);
+        
+        // set statement state FORGOTTEN
+        ps->inst.istate = SSTATE_FORGOTTEN;
+        
+        // update FP
+        while (p->fp > 0 && p->statements[p->fp - 1].inst.istate == SSTATE_FORGOTTEN) {
+            p->fp--;
+        }
+        
+        goto again;
+    }
+    
+    // set statement state DYING
+    ps->inst.istate = SSTATE_DYING;
+    
+    // order it to die
+    NCDModuleInst_Die(&ps->inst);
+    return;
 }
 
 int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRef *out)
