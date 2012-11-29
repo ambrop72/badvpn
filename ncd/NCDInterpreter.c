@@ -736,37 +736,36 @@ void process_work_job_handler_working (struct process *p)
         return;
     }
     
-    // advancing?
-    if (p->ap < p->num_statements) {
-        struct statement *ps = &p->statements[p->ap];
-        ASSERT(ps->inst.istate == SSTATE_FORGOTTEN)
+    // finished?
+    if (p->ap == p->num_statements) {
+        process_log(p, BLOG_INFO, "victory");
         
-        if (p->error) {
-            statement_log(ps, BLOG_INFO, "waiting after error");
-            
-            // clear error
-            p->error = 0;
-            
-            // set wait timer
-            BReactor_SetSmallTimer(p->reactor, &p->wait_timer, BTIMER_SET_RELATIVE, p->interp->params.retry_time);
-        } else {
-            // advance
-            process_advance(p);
+        // set state up
+        process_set_state(p, PSTATE_UP);
+        BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_up, p);
+        
+        // set module process up
+        if (p->module_process) {
+            NCDModuleProcess_Interp_Up(p->module_process);
         }
         return;
     }
     
-    // we've finished
-    process_log(p, BLOG_INFO, "victory");
+    // advancing?
+    struct statement *ps = &p->statements[p->ap];
+    ASSERT(ps->inst.istate == SSTATE_FORGOTTEN)
     
-    // set state up
-    process_set_state(p, PSTATE_UP);
-    BSmallPending_SetHandler(&p->work_job, (BSmallPending_handler)process_work_job_handler_up, p);
-    
-    // set module process up
-    if (p->module_process) {
-        NCDModuleProcess_Interp_Up(p->module_process);
-        return;
+    if (p->error) {
+        statement_log(ps, BLOG_INFO, "waiting after error");
+        
+        // clear error
+        p->error = 0;
+        
+        // set wait timer
+        BReactor_SetSmallTimer(p->reactor, &p->wait_timer, BTIMER_SET_RELATIVE, p->interp->params.retry_time);
+    } else {
+        // advance
+        process_advance(p);
     }
 }
 
