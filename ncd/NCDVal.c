@@ -33,7 +33,6 @@
 #include <stddef.h>
 #include <stdarg.h>
 
-#include <misc/bsize.h>
 #include <misc/balloc.h>
 #include <misc/strdup.h>
 #include <misc/offset.h>
@@ -100,19 +99,15 @@ static void * NCDValMem__BufAt (NCDValMem *o, NCDVal__idx idx)
     return (o->buf ? o->buf : o->fastbuf) + idx;
 }
 
-static NCDVal__idx NCDValMem__Alloc (NCDValMem *o, bsize_t alloc_size, NCDVal__idx align)
+static NCDVal__idx NCDValMem__Alloc (NCDValMem *o, NCDVal__idx alloc_size, NCDVal__idx align)
 {
-    if (alloc_size.is_overflow) {
-        return -1;
-    }
-    
     NCDVal__idx mod = o->used % align;
     NCDVal__idx align_extra = mod ? (align - mod) : 0;
     
-    if (alloc_size.value > NCDVAL_MAXIDX - align_extra) {
+    if (alloc_size > NCDVAL_MAXIDX - align_extra) {
         return -1;
     }
-    NCDVal__idx aligned_alloc_size = align_extra + alloc_size.value;
+    NCDVal__idx aligned_alloc_size = align_extra + alloc_size;
     
     if (aligned_alloc_size > o->size - o->used) {
         NCDVal__idx newsize = (o->buf ? o->size : NCDVAL_FIRST_SIZE);
@@ -716,11 +711,11 @@ NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len)
     ASSERT(len == 0 || data)
     NCDVal_AssertExternal(mem, data, len);
     
-    if (len == SIZE_MAX) {
+    if (len > NCDVAL_MAXIDX - sizeof(struct NCDVal__string) - 1) {
         goto fail;
     }
     
-    bsize_t size = bsize_add(bsize_fromsize(sizeof(struct NCDVal__string)), bsize_fromsize(len + 1));
+    NCDVal__idx size = sizeof(struct NCDVal__string) + len + 1;
     NCDVal__idx idx = NCDValMem__Alloc(mem, size, __alignof(struct NCDVal__string));
     if (idx < 0) {
         goto fail;
@@ -746,11 +741,11 @@ NCDValRef NCDVal_NewStringUninitialized (NCDValMem *mem, size_t len)
 {
     NCDVal__AssertMem(mem);
     
-    if (len == SIZE_MAX) {
+    if (len > NCDVAL_MAXIDX - sizeof(struct NCDVal__string) - 1) {
         goto fail;
     }
     
-    bsize_t size = bsize_add(bsize_fromsize(sizeof(struct NCDVal__string)), bsize_fromsize(len + 1));
+    NCDVal__idx size = sizeof(struct NCDVal__string) + len + 1;
     NCDVal__idx idx = NCDValMem__Alloc(mem, size, __alignof(struct NCDVal__string));
     if (idx < 0) {
         goto fail;
@@ -773,7 +768,7 @@ NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id, NCDStri
     ASSERT(string_id >= 0)
     ASSERT(string_index)
     
-    bsize_t size = bsize_fromsize(sizeof(struct NCDVal__idstring));
+    NCDVal__idx size = sizeof(struct NCDVal__idstring);
     NCDVal__idx idx = NCDValMem__Alloc(mem, size, __alignof(struct NCDVal__idstring));
     if (idx < 0) {
         goto fail;
@@ -797,7 +792,7 @@ NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len
     ASSERT(data)
     NCDVal_AssertExternal(mem, data, len);
     
-    bsize_t size = bsize_fromsize(sizeof(struct NCDVal__externalstring));
+    NCDVal__idx size = sizeof(struct NCDVal__externalstring);
     NCDVal__idx idx = NCDValMem__Alloc(mem, size, __alignof(struct NCDVal__externalstring));
     if (idx < 0) {
         goto fail;
@@ -1028,7 +1023,11 @@ NCDValRef NCDVal_NewList (NCDValMem *mem, size_t maxcount)
 {
     NCDVal__AssertMem(mem);
     
-    bsize_t size = bsize_add(bsize_fromsize(sizeof(struct NCDVal__list)), bsize_mul(bsize_fromsize(maxcount), bsize_fromsize(sizeof(NCDVal__idx))));
+    if (maxcount > (NCDVAL_MAXIDX - sizeof(struct NCDVal__list)) / sizeof(NCDVal__idx)) {
+        goto fail;
+    }
+    
+    NCDVal__idx size = sizeof(struct NCDVal__list) + maxcount * sizeof(NCDVal__idx);
     NCDVal__idx idx = NCDValMem__Alloc(mem, size, __alignof(struct NCDVal__list));
     if (idx < 0) {
         goto fail;
@@ -1153,7 +1152,11 @@ NCDValRef NCDVal_NewMap (NCDValMem *mem, size_t maxcount)
 {
     NCDVal__AssertMem(mem);
     
-    bsize_t size = bsize_add(bsize_fromsize(sizeof(struct NCDVal__map)), bsize_mul(bsize_fromsize(maxcount), bsize_fromsize(sizeof(struct NCDVal__mapelem))));
+    if (maxcount > (NCDVAL_MAXIDX - sizeof(struct NCDVal__map)) / sizeof(struct NCDVal__mapelem)) {
+        goto fail;
+    }
+    
+    NCDVal__idx size = sizeof(struct NCDVal__map) + maxcount * sizeof(struct NCDVal__mapelem);
     NCDVal__idx idx = NCDValMem__Alloc(mem, size, __alignof(struct NCDVal__map));
     if (idx < 0) {
         goto fail;
