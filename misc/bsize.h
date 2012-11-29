@@ -54,32 +54,19 @@ static bsize_t bsize_mul (bsize_t s1, bsize_t s2);
 
 bsize_t bsize_fromsize (size_t v)
 {
-    bsize_t s;
-    s.is_overflow = 0;
-    s.value = v;
+    bsize_t s = {0, v};
     return s;
 }
 
 bsize_t bsize_fromint (int v)
 {
-    bsize_t s;
-    
-    if (v < 0 || v > SIZE_MAX) {
-        s.is_overflow = 1;
-    } else {
-        s.is_overflow = 0;
-        s.value = v;
-    }
-    
+    bsize_t s = {(v < 0 || v > SIZE_MAX), v};
     return s;
 }
 
 static bsize_t bsize_overflow (void)
 {
-    bsize_t s;
-    
-    s.is_overflow = 1;
-    
+    bsize_t s = {1, 0};
     return s;
 }
 
@@ -111,46 +98,19 @@ int bsize_toint (bsize_t s, int *out)
 
 bsize_t bsize_add (bsize_t s1, bsize_t s2)
 {
-    bsize_t s;
-    
-    if (s1.is_overflow || s2.is_overflow || s2.value > SIZE_MAX - s1.value) {
-        s.is_overflow = 1;
-    } else {
-        s.is_overflow = 0;
-        s.value = s1.value + s2.value;
-    }
-    
+    bsize_t s = {(s1.is_overflow || s2.is_overflow || s2.value > SIZE_MAX - s1.value), (s1.value + s2.value)};
     return s;
 }
 
 bsize_t bsize_max (bsize_t s1, bsize_t s2)
 {
-    bsize_t s;
-    
-    if (s1.is_overflow || s2.is_overflow) {
-        s.is_overflow = 1;
-    } else {
-        s.is_overflow = 0;
-        s.value = s1.value;
-        if (s.value < s2.value) {
-            s.value = s2.value;
-        }
-    }
-    
+    bsize_t s = {(s1.is_overflow || s2.is_overflow), ((s1.value > s2.value) * s1.value + (s1.value <= s2.value) * s2.value)};
     return s;
 }
 
 bsize_t bsize_mul (bsize_t s1, bsize_t s2)
 {
-    bsize_t s;
-    
-    if (s1.is_overflow || s2.is_overflow || (s1.value != 0 && s2.value > SIZE_MAX / s1.value)) {
-        s.is_overflow = 1;
-    } else {
-        s.is_overflow = 0;
-        s.value = s1.value * s2.value;
-    }
-    
+    bsize_t s = {(s1.is_overflow || s2.is_overflow || (s1.value != 0 && s2.value > SIZE_MAX / s1.value)), (s1.value * s2.value)};
     return s;
 }
 
