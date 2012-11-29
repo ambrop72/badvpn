@@ -50,7 +50,8 @@
 
 #define NCDMODULE_EVENT_UP 1
 #define NCDMODULE_EVENT_DOWN 2
-#define NCDMODULE_EVENT_DEAD 3
+#define NCDMODULE_EVENT_DOWNUP 3
+#define NCDMODULE_EVENT_DEAD 4
 
 struct NCDModuleInst_s;
 struct NCDModuleProcess_s;

@@ -1204,6 +1204,25 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
             }
         } break;
         
+        case NCDMODULE_EVENT_DOWNUP: {
+            ASSERT(ps->inst.istate == SSTATE_ADULT)
+            
+            if (BLog_WouldLog(BLOG_INFO, BLOG_CURRENT_CHANNEL)) {
+                statement_log(ps, BLOG_INFO, "down");
+                statement_log(ps, BLOG_INFO, "up");
+            }
+            
+            // clear error
+            if (ps->i < p->ap) {
+                p->error = 0;
+            }
+            
+            // update AP
+            if (p->ap > ps->i + 1) {
+                p->ap = ps->i + 1;
+            }
+        } break;
+        
         case NCDMODULE_EVENT_DEAD: {
             if (BLog_WouldLog(BLOG_INFO, BLOG_CURRENT_CHANNEL)) {
                 if (ps->inst.is_error) {
