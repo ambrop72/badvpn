@@ -423,16 +423,20 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
     
     switch (get_internal_type(*(int *)ptr)) {
         case NCDVAL_STRING: {
-            size_t len = NCDVal_StringLength(val);
+            struct NCDVal__string *str_e = ptr;
             
-            NCDValRef copy = NCDVal_NewStringUninitialized(mem, len);
-            if (NCDVal_IsInvalid(copy)) {
+            NCDVal__idx size = sizeof(struct NCDVal__string) + str_e->length + 1;
+            NCDVal__idx idx = NCDValMem__Alloc(mem, size, __alignof(struct NCDVal__string));
+            if (idx < 0) {
                 goto fail;
             }
             
-            memcpy((char *)NCDVal_StringData(copy), NCDVal_StringData(val), len);
+            str_e = NCDValMem__BufAt(val.mem, val.idx);
+            struct NCDVal__string *new_str_e = NCDValMem__BufAt(mem, idx);
             
-            return copy;
+            memcpy(new_str_e, str_e, size);
+            
+            return NCDVal__Ref(mem, idx);
         } break;
         
         case NCDVAL_LIST: {
