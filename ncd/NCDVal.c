@@ -487,9 +487,18 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
         } break;
         
         case IDSTRING_TYPE: {
-            struct NCDVal__idstring *ids_e = ptr;
+            NCDVal__idx size = sizeof(struct NCDVal__idstring);
+            NCDVal__idx idx = NCDValMem__Alloc(mem, size, __alignof(struct NCDVal__idstring));
+            if (idx < 0) {
+                goto fail;
+            }
             
-            return NCDVal_NewIdString(mem, ids_e->string_id, ids_e->string_index);
+            struct NCDVal__idstring *ids_e = NCDValMem__BufAt(val.mem, val.idx);
+            struct NCDVal__idstring *new_ids_e = NCDValMem__BufAt(mem, idx);
+            
+            *new_ids_e = *ids_e;
+            
+            return NCDVal__Ref(mem, idx);
         } break;
         
         case EXTERNALSTRING_TYPE: {
