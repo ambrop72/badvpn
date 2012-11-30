@@ -466,7 +466,7 @@ static void fd_handler (BDatagram *o, int events)
     int have_send = 0;
     int have_recv = 0;
     
-    if ((events & BREACTOR_WRITE) || ((events & BREACTOR_ERROR) && o->send.inited && o->send.busy && o->send.have_addrs)) {
+    if ((events & BREACTOR_WRITE) || ((events & (BREACTOR_ERROR|BREACTOR_HUP)) && o->send.inited && o->send.busy && o->send.have_addrs)) {
         ASSERT(o->send.inited)
         ASSERT(o->send.busy)
         ASSERT(o->send.have_addrs)
@@ -474,7 +474,7 @@ static void fd_handler (BDatagram *o, int events)
         have_send = 1;
     }
     
-    if ((events & BREACTOR_READ) || ((events & BREACTOR_ERROR) && o->recv.inited && o->recv.busy && o->recv.started)) {
+    if ((events & BREACTOR_READ) || ((events & (BREACTOR_ERROR|BREACTOR_HUP)) && o->recv.inited && o->recv.busy && o->recv.started)) {
         ASSERT(o->recv.inited)
         ASSERT(o->recv.busy)
         ASSERT(o->recv.started)
