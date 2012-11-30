@@ -98,9 +98,6 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *meth
     // set initial state
     n->state = STATE_DOWN_CLEAN;
     
-    // clear error flag
-    n->is_error = 0;
-    
     // give NCDModuleInst to methods, not mem
     n->pass_mem_to_methods = 0;
     
@@ -292,9 +289,8 @@ void NCDModuleInst_Backend_DeadError (NCDModuleInst *n)
            n->state == STATE_UP || n->state == STATE_DYING)
     
     n->state = STATE_DEAD;
-    n->is_error = 1;
     
-    frontend_event(n, NCDMODULE_EVENT_DEAD);
+    frontend_event(n, NCDMODULE_EVENT_DEADERROR);
     return;
 }
 

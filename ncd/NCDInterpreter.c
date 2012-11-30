@@ -848,13 +848,7 @@ again:
     
     // optimize for statements which can be destroyed immediately
     if (NCDModuleInst_TryFree(&ps->inst)) {
-        if (BLog_WouldLog(BLOG_INFO, BLOG_CURRENT_CHANNEL)) {
-            if (ps->inst.is_error) {
-                statement_log(ps, BLOG_ERROR, "died with error");
-            } else {
-                statement_log(ps, BLOG_INFO, "died");
-            }
-        }
+        statement_log(ps, BLOG_INFO, "died");
         
         // free arguments memory
         NCDValMem_Free(&ps->args_mem);
@@ -1224,13 +1218,30 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
         } break;
         
         case NCDMODULE_EVENT_DEAD: {
-            if (BLog_WouldLog(BLOG_INFO, BLOG_CURRENT_CHANNEL)) {
-                if (ps->inst.is_error) {
-                    statement_log(ps, BLOG_ERROR, "died with error");
-                } else {
-                    statement_log(ps, BLOG_INFO, "died");
-                }
+            statement_log(ps, BLOG_INFO, "died");
+            
+            // free instance
+            NCDModuleInst_Free(&ps->inst);
+            
+            // free arguments memory
+            NCDValMem_Free(&ps->args_mem);
+            
+            // set state FORGOTTEN
+            ps->inst.istate = SSTATE_FORGOTTEN;
+            
+            // update AP
+            if (p->ap > ps->i) {
+                p->ap = ps->i;
             }
+            
+            // update FP
+            while (p->fp > 0 && p->statements[p->fp - 1].inst.istate == SSTATE_FORGOTTEN) {
+                p->fp--;
+            }
+        } break;
+        
+        case NCDMODULE_EVENT_DEADERROR: {
+            statement_log(ps, BLOG_ERROR, "died with error");
             
             // free instance
             NCDModuleInst_Free(&ps->inst);
@@ -1242,7 +1253,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
             ps->inst.istate = SSTATE_FORGOTTEN;
             
             // set error
-            if (ps->inst.is_error && ps->i < p->ap) {
+            if (ps->i < p->ap) {
                 p->error = 1;
             }
             

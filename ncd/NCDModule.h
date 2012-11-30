@@ -52,6 +52,7 @@
 #define NCDMODULE_EVENT_DOWN 2
 #define NCDMODULE_EVENT_DOWNUP 3
 #define NCDMODULE_EVENT_DEAD 4
+#define NCDMODULE_EVENT_DEADERROR 5
 
 struct NCDModuleInst_s;
 struct NCDModuleProcess_s;
@@ -355,7 +356,6 @@ typedef struct NCDModuleInst_s {
     const struct NCDModuleInst_params *params;
     void *mem; // not modified by NCDModuleInst (but passed to module)
     unsigned int state:3;
-    unsigned int is_error:1;
     unsigned int pass_mem_to_methods:1;
     unsigned int istate:3; // untouched by NCDModuleInst
     DebugObject d_obj;
