@@ -294,9 +294,6 @@ static int open_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
     
     if (name == strings[STRING_IS_ERROR].id) {
         *out = ncd_make_boolean(mem, !o->fh, o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     
@@ -380,17 +377,11 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
     
     if (name == NCD_STRING_EMPTY) {
         *out = NCDVal_NewExternalString(mem, NCDBuf_Data(o->buf), o->length, NCDBuf_RefTarget(o->buf));
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewExternalString failed");
-        }
         return 1;
     }
     
     if (name == strings[STRING_NOT_EOF].id) {
         *out = ncd_make_boolean(mem, (o->length != 0), o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     

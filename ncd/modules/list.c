@@ -155,7 +155,6 @@ static struct elem * insert_value (NCDModuleInst *i, struct instance *o, NCDValR
     
     e->val = NCDVal_NewCopy(&e->mem, val);
     if (NCDVal_IsInvalid(e->val)) {
-        ModuleLog(i, BLOG_ERROR, "NCDVal_NewCopy failed");
         goto fail1;
     }
     
@@ -295,7 +294,6 @@ static int list_to_value (NCDModuleInst *i, struct instance *o, NCDValMem *mem, 
 {
     *out_val = NCDVal_NewList(mem, IndexedList_Count(&o->il));
     if (NCDVal_IsInvalid(*out_val)) {
-        ModuleLog(i, BLOG_ERROR, "NCDVal_NewList failed");
         goto fail;
     }
     
@@ -304,12 +302,10 @@ static int list_to_value (NCDModuleInst *i, struct instance *o, NCDValMem *mem, 
         
         NCDValRef copy = NCDVal_NewCopy(mem, e->val);
         if (NCDVal_IsInvalid(copy)) {
-            ModuleLog(i, BLOG_ERROR, "NCDVal_NewCopy failed");
             goto fail;
         }
         
         if (!NCDVal_ListAppend(*out_val, copy)) {
-            ModuleLog(i, BLOG_ERROR, "depth limit exceeded");
             goto fail;
         }
     }
@@ -390,9 +386,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     
     if (!strcmp(name, "length")) {
         *out = ncd_make_uintmax(mem, list_count(o));
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_uintmax failed");
-        }
         return 1;
     }
     
@@ -495,9 +488,6 @@ static int length_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDVa
     
     if (!strcmp(name, "")) {
         *out = ncd_make_uintmax(mem, o->length);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_uintmax failed");
-        }
         return 1;
     }
     
@@ -543,7 +533,6 @@ static void get_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst
     // copy value
     o->val = NCDVal_NewCopy(&o->mem, e->val);
     if (NCDVal_IsInvalid(o->val)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
         goto fail1;
     }
     
@@ -574,9 +563,6 @@ static int get_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRe
     
     if (!strcmp(name, "")) {
         *out = NCDVal_NewCopy(mem, o->val);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
-        }
         return 1;
     }
     
@@ -652,9 +638,6 @@ static int contains_func_getvar (void *vo, const char *name, NCDValMem *mem, NCD
     
     if (!strcmp(name, "")) {
         *out = ncd_make_boolean(mem, o->contains, o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     
@@ -719,17 +702,11 @@ static int find_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
         }
         
         *out = NCDVal_NewString(mem, value);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     
     if (!strcmp(name, "found")) {
         *out = ncd_make_boolean(mem, o->is_found, o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     

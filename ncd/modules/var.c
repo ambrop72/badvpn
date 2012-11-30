@@ -71,7 +71,6 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     // copy value
     o->value = NCDVal_NewCopy(&o->mem, value_arg);
     if (NCDVal_IsInvalid(o->value)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
         goto fail1;
     }
     
@@ -102,9 +101,6 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     
     if (name == NCD_STRING_EMPTY) {
         *out = NCDVal_NewCopy(mem, o->value);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
-        }
         return 1;
     }
     
@@ -130,7 +126,6 @@ static void set_func_new (void *unused, NCDModuleInst *i, const struct NCDModule
     // copy value
     NCDValRef copy = NCDVal_NewCopy(&mem, value_arg);
     if (NCDVal_IsInvalid(copy)) {
-        ModuleLog(i, BLOG_ERROR, "NCDVal_NewCopy failed");
         goto fail1;
     }
     

@@ -536,17 +536,11 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         }
         
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     
     if (!strcmp(name, "ssid")) {
         *out = NCDVal_NewString(mem, o->info_ssid);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     

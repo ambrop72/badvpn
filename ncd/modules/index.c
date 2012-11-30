@@ -136,9 +136,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     
     if (!strcmp(name, "")) {
         *out = ncd_make_uintmax(mem, o->value);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_uintmax failed");
-        }
         return 1;
     }
     

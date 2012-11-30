@@ -168,9 +168,6 @@ static int read_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NC
     
     if (name == NCD_STRING_EMPTY) {
         *out = NCDVal_NewStringBin(mem, o->file_data, o->file_len);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
-        }
         return 1;
     }
     
@@ -282,9 +279,6 @@ static int stat_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NC
     
     if (name == strings[STRING_SUCCEEDED].id) {
         *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     
@@ -312,9 +306,6 @@ static int stat_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NC
         }
         
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     
@@ -327,9 +318,6 @@ static int stat_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NC
         }
         
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     

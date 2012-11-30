@@ -129,9 +129,6 @@ int event_template_getvar (event_template *o, const char *name, NCDValMem *mem, 
     }
     
     *out = NCDVal_NewString(mem, val);
-    if (NCDVal_IsInvalid(*out)) {
-        TemplateLog(o, BLOG_ERROR, "NCDVal_NewString failed");
-    }
     return 1;
 }
 

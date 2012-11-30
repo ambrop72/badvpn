@@ -102,7 +102,6 @@ static int parse_number (NCDModuleInst *i, const char *str, size_t str_len, NCDV
     
     *out = ncd_make_uintmax(mem, n);
     if (NCDVal_IsInvalid(*out)) {
-        ModuleLog(i, BLOG_ERROR, "ncd_make_uintmax failed");
         return 0;
     }
     
@@ -132,7 +131,6 @@ static int parse_ipv4_addr (NCDModuleInst *i, const char *str, size_t str_len, N
     
     *out = NCDVal_NewString(mem, buf);
     if (NCDVal_IsInvalid(*out)) {
-        ModuleLog(i, BLOG_ERROR, "NCDVal_NewString failed");
         return 0;
     }
     
@@ -152,7 +150,6 @@ static int parse_ipv6_addr (NCDModuleInst *i, const char *str, size_t str_len, N
     
     *out = NCDVal_NewString(mem, buf);
     if (NCDVal_IsInvalid(*out)) {
-        ModuleLog(i, BLOG_ERROR, "NCDVal_NewString failed");
         return 0;
     }
     
@@ -206,17 +203,11 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     
     if (name == strings[STRING_SUCCEEDED].id) {
         *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     
     if (o->succeeded && name == NCD_STRING_EMPTY) {
         *out = NCDVal_NewCopy(mem, o->value);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
-        }
         return 1;
     }
     
@@ -274,9 +265,6 @@ static int ipv4_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMe
     
     if (name == strings[STRING_SUCCEEDED].id) {
         *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     
@@ -300,9 +288,6 @@ static int ipv4_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMe
     }
     
     *out = NCDVal_NewString(mem, str);
-    if (NCDVal_IsInvalid(*out)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-    }
     return 1;
 }
 
@@ -337,9 +322,6 @@ static int ipv6_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMe
     
     if (name == strings[STRING_SUCCEEDED].id) {
         *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     
@@ -363,9 +345,6 @@ static int ipv6_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMe
     }
     
     *out = NCDVal_NewString(mem, str);
-    if (NCDVal_IsInvalid(*out)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-    }
     return 1;
 }
 

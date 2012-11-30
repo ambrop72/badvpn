@@ -351,9 +351,6 @@ static int request_process_reply_obj_func_getvar (const NCDObject *obj, NCD_stri
     
     if (name == strings[STRING_DATA].id) {
         *out = NCDVal_NewCopy(mem, o->process_reply_data);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
-        }
         return 1;
     }
     

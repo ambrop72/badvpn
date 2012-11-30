@@ -429,9 +429,6 @@ static int element_list_index_object_func_getvar (const NCDObject *obj, NCD_stri
     }
     
     *out = ncd_make_uintmax(mem, e->i);
-    if (NCDVal_IsInvalid(*out)) {
-        ModuleLog(o->i, BLOG_ERROR, "ncd_make_uintmax failed");
-    }
     return 1;
 }
 
@@ -447,9 +444,6 @@ static int element_list_elem_object_func_getvar (const NCDObject *obj, NCD_strin
     }
     
     *out = NCDVal_NewCopy(mem, e->list_elem);
-    if (NCDVal_IsInvalid(*out)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
-    }
     return 1;
 }
 
@@ -465,9 +459,6 @@ static int element_map_key_object_func_getvar (const NCDObject *obj, NCD_string_
     }
     
     *out = NCDVal_NewCopy(mem, e->map_key);
-    if (NCDVal_IsInvalid(*out)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
-    }
     return 1;
 }
 
@@ -483,9 +474,6 @@ static int element_map_val_object_func_getvar (const NCDObject *obj, NCD_string_
     }
     
     *out = NCDVal_NewCopy(mem, e->map_val);
-    if (NCDVal_IsInvalid(*out)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
-    }
     return 1;
 }
 

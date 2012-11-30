@@ -137,9 +137,6 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     
     if (name == NCD_STRING_EMPTY) {
         *out = ncd_make_boolean(mem, o->result, o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     

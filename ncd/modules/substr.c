@@ -81,9 +81,6 @@ static int substr_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, N
         } else {
             *out = NCDVal_NewStringBin(mem, (const uint8_t *)o->data, o->length);
         }
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewExternalString/NCDVal_NewStringBin failed");
-        }
         return 1;
     }
     

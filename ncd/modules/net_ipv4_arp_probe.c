@@ -189,9 +189,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     
     if (!strcmp(name, "exists")) {
         *out = ncd_make_boolean(mem, o->state == STATE_EXIST, o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     

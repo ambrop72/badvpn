@@ -347,17 +347,11 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     
     if (!strcmp(name, "event_type")) {
         *out = NCDVal_NewString(mem, o->processing_type);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     
     if (!strcmp(name, "filename")) {
         *out = NCDVal_NewString(mem, o->processing_file);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     
@@ -369,9 +363,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         }
         
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         
         free(str);
         return 1;

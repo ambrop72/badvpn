@@ -232,9 +232,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         ipaddr_print_addr(addr, str);
         
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     
@@ -254,9 +251,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         sprintf(str, "%d", ifaddr.prefix);
         
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     
@@ -276,9 +270,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         ipaddr_print_ifaddr(ifaddr, str);
         
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     
@@ -293,9 +284,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         }
         
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     
@@ -305,7 +293,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         
         *out = NCDVal_NewList(mem, num_servers);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewList failed");
             goto fail;
         }
         
@@ -315,12 +302,10 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
             
             NCDValRef server = NCDVal_NewString(mem, str);
             if (NCDVal_IsInvalid(server)) {
-                ModuleLog(o->i, BLOG_ERROR, "NCDVal_IsInvalid failed");
                 goto fail;
             }
             
             if (!NCDVal_ListAppend(*out, server)) {
-                ModuleLog(o->i, BLOG_ERROR, "NCDVal_ListAppend failed");
                 goto fail;
             }
         }
@@ -337,9 +322,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     

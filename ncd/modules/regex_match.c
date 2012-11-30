@@ -162,9 +162,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     
     if (!strcmp(name, "succeeded")) {
         *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     
@@ -181,9 +178,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
             size_t len = m->rm_eo - m->rm_so;
             
             *out = NCDVal_NewStringBin(mem, (uint8_t *)o->input + m->rm_so, len);
-            if (NCDVal_IsInvalid(*out)) {
-                ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
-            }
             return 1;
         }
     }
@@ -349,9 +343,6 @@ static int replace_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDV
     
     if (!strcmp(name, "")) {
         *out = NCDVal_NewStringBin(mem, (uint8_t *)o->output, o->output_len);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
-        }
         return 1;
     }
     

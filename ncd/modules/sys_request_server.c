@@ -491,21 +491,14 @@ static int request_process_func_getspecialobj (NCDModuleProcess *process, NCD_st
 static int request_process_request_obj_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
 {
     struct request *r = NCDObject_DataPtr(obj);
-    struct instance *o = r->con->inst;
     
     if (name == strings[STRING_DATA].id) {
         *out = NCDVal_NewCopy(mem, r->request_data);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
-        }
         return 1;
     }
     
     if (name == strings[STRING_CLIENT_ADDR].id) {
         *out = ncd_make_baddr(r->con->addr, mem);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_baddr failed");
-        }
         return 1;
     }
     

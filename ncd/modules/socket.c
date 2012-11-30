@@ -701,9 +701,6 @@ static int connect_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, 
     if (name == strings[STRING_IS_ERROR].id) {
         int is_error = (o->state == CONNECTION_STATE_ERROR);
         *out = ncd_make_boolean(mem, is_error, o->connect.i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->connect.i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     
@@ -792,17 +789,11 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
     
     if (name == NCD_STRING_EMPTY) {
         *out = NCDVal_NewExternalString(mem, NCDBuf_Data(o->buf), o->read_size, NCDBuf_RefTarget(o->buf));
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewExternalString failed");
-        }
         return 1;
     }
     
     if (name == strings[STRING_NOT_EOF].id) {
         *out = ncd_make_boolean(mem, (o->read_size != 0), o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     
@@ -1013,9 +1004,6 @@ static int listen_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, N
     
     if (name == strings[STRING_IS_ERROR].id) {
         *out = ncd_make_boolean(mem, o->have_error, o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     

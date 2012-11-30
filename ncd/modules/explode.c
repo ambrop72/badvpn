@@ -194,18 +194,15 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     if (name == NCD_STRING_EMPTY) {
         *out = NCDVal_NewList(mem, o->num);
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewList failed");
             goto fail;
         }
         for (size_t j = 0; j < o->num; j++) {
             struct substring *elem = &((struct substring *)o->arr.v)[j];
             NCDValRef str = NCDVal_NewStringBin(mem, (uint8_t *)elem->data, elem->len);
             if (NCDVal_IsInvalid(str)) {
-                ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewStringBin failed");
                 goto fail;
             }
             if (!NCDVal_ListAppend(*out, str)) {
-                ModuleLog(o->i, BLOG_ERROR, "NCDVal_ListAppend failed");
                 goto fail;
             }
         }

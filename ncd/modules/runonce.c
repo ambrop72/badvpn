@@ -302,9 +302,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         snprintf(str, sizeof(str), "%d", o->exit_status);
         
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     

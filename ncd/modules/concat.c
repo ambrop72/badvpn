@@ -160,9 +160,6 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     
     if (name == NCD_STRING_EMPTY) {
         *out = NCDVal_NewExternalString(mem, o->result->data, o->result->length, &o->result->ref_target);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewExternalString failed");
-        }
         return 1;
     }
     

@@ -162,9 +162,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         char str[IPADDR6_PRINT_MAX];
         ipaddr6_print_addr(o->ifaddr.addr, str);
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     
@@ -172,9 +169,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         char str[10];
         sprintf(str, "%d", o->ifaddr.prefix);
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     
@@ -182,9 +176,6 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         char str[IPADDR6_PRINT_MAX];
         ipaddr6_print_ifaddr(o->ifaddr, str);
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     

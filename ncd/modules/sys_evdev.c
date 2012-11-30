@@ -236,9 +236,6 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     
     if (name == strings[STRING_TYPE].id) {
         *out = NCDVal_NewString(mem, evdev_type_to_str(o->event.type));
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     
@@ -246,17 +243,11 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
         char str[50];
         snprintf(str, sizeof(str), "%"PRIi32, o->event.value);
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     
     if (name == strings[STRING_CODE_NUMERIC].id) {
         *out = ncd_make_uintmax(mem, o->event.code);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_uintmax failed");
-        }
         return 1;
     }
     
@@ -299,9 +290,6 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
         }
         
         *out = NCDVal_NewString(mem, str);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     

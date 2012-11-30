@@ -630,7 +630,6 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value)
                 
                 NCDValRef key = NCDVal_NewCopy(&key_mem, ekey);
                 if (NCDVal_IsInvalid(key)) {
-                    BLog(BLOG_ERROR, "NCDVal_NewCopy failed");
                     NCDValMem_Free(&key_mem);
                     goto fail1;
                 }
@@ -671,7 +670,6 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
         case NCDVAL_STRING: {
             *out_value = NCDVal_NewStringBin(mem, (const uint8_t *)v->string.string, v->string.length);
             if (NCDVal_IsInvalid(*out_value)) {
-                ModuleLog(i, BLOG_ERROR, "NCDVal_NewStringBin failed");
                 goto fail;
             }
         } break;
@@ -679,7 +677,6 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
         case IDSTRING_TYPE: {
             *out_value = NCDVal_NewIdString(mem, v->idstring.id, v->idstring.string_index);
             if (NCDVal_IsInvalid(*out_value)) {
-                ModuleLog(i, BLOG_ERROR, "NCDVal_NewIdString failed");
                 goto fail;
             }
         } break;
@@ -687,7 +684,6 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
         case NCDVAL_LIST: {
             *out_value = NCDVal_NewList(mem, value_list_len(v));
             if (NCDVal_IsInvalid(*out_value)) {
-                ModuleLog(i, BLOG_ERROR, "NCDVal_NewList failed");
                 goto fail;
             }
             
@@ -698,7 +694,6 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
                 }
                 
                 if (!NCDVal_ListAppend(*out_value, eval)) {
-                    ModuleLog(i, BLOG_ERROR, "depth limit exceeded");
                     goto fail;
                 }
             }
@@ -707,7 +702,6 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
         case NCDVAL_MAP: {
             *out_value = NCDVal_NewMap(mem, value_map_len(v));
             if (NCDVal_IsInvalid(*out_value)) {
-                ModuleLog(i, BLOG_ERROR, "NCDVal_NewMap failed");
                 goto fail;
             }
             
@@ -716,7 +710,6 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
                 
                 NCDValRef key = NCDVal_NewCopy(mem, ev->map_parent.key);
                 if (NCDVal_IsInvalid(key)) {
-                    ModuleLog(i, BLOG_ERROR, "NCDVal_NewCopy failed");
                     goto fail;
                 }
                 
@@ -727,7 +720,6 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
                 
                 int inserted;
                 if (!NCDVal_MapInsert(*out_value, key, val, &inserted)) {
-                    ModuleLog(i, BLOG_ERROR, "depth limit exceeded");
                     goto fail;
                 }
                 ASSERT_EXECUTE(inserted)
@@ -864,7 +856,6 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef
             
             NCDValRef key = NCDVal_NewCopy(&key_mem, where);
             if (NCDVal_IsInvalid(key)) {
-                ModuleLog(i, BLOG_ERROR, "NCDVal_NewCopy failed");
                 NCDValMem_Free(&key_mem);
                 goto fail1;
             }
@@ -1116,9 +1107,6 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     
     if (name == strings[STRING_EXISTS].id) {
         *out = ncd_make_boolean(mem, !!v, o->i->params->iparams->string_index);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "ncd_make_boolean failed");
-        }
         return 1;
     }
     
@@ -1134,9 +1122,6 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     
     if (name == strings[STRING_TYPE].id) {
         *out = NCDVal_NewString(mem, get_type_str(v->type));
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
     }
     else if (name == strings[STRING_LENGTH].id) {
         size_t len = 0; // to remove warning
@@ -1158,9 +1143,6 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
         }
         
         *out = ncd_make_uintmax(mem, len);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
     }
     else if (name == strings[STRING_KEYS].id) {
         if (v->type != NCDVAL_MAP) {
@@ -1170,7 +1152,6 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
         
         *out = NCDVal_NewList(mem, value_map_len(v));
         if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewList failed");
             goto fail;
         }
         
@@ -1179,12 +1160,10 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
             
             NCDValRef key = NCDVal_NewCopy(mem, ev->map_parent.key);
             if (NCDVal_IsInvalid(key)) {
-                ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
                 goto fail;
             }
             
             if (!NCDVal_ListAppend(*out, key)) {
-                ModuleLog(o->i, BLOG_ERROR, "depth limit exceeded");
                 goto fail;
             }
         }

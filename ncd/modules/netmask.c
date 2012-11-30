@@ -171,9 +171,6 @@ static int addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NC
         ipaddr_print_addr(o->addr, buf);
         
         *out = NCDVal_NewString(mem, buf);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     
@@ -234,9 +231,6 @@ static int prefix_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, 
         sprintf(buf, "%d", o->prefix);
         
         *out = NCDVal_NewString(mem, buf);
-        if (NCDVal_IsInvalid(*out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewString failed");
-        }
         return 1;
     }
     

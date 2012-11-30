@@ -217,7 +217,6 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         // copy arguments
         NCDValRef args = NCDVal_NewCopy(&o->args_mem, args_arg);
         if (NCDVal_IsInvalid(args)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDVal_NewCopy failed");
             NCDValMem_Free(&o->args_mem);
             goto fail0;
         }
