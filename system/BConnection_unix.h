@@ -67,22 +67,19 @@ struct BConnection_s {
     int wait_events;
     struct {
         BReactorLimit limit;
-        int inited;
         StreamPassInterface iface;
         BPending job;
-        int busy;
         const uint8_t *busy_data;
         int busy_data_len;
+        int state;
     } send;
     struct {
         BReactorLimit limit;
-        int inited;
-        int closed;
         StreamRecvInterface iface;
         BPending job;
-        int busy;
         uint8_t *busy_data;
         int busy_data_avail;
+        int state;
     } recv;
     DebugError d_err;
     DebugObject d_obj;

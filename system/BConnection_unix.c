@@ -45,6 +45,16 @@
 
 #define MAX_UNIX_SOCKET_PATH 200
 
+#define SEND_STATE_NOT_INITED 0
+#define SEND_STATE_READY 1
+#define SEND_STATE_BUSY 2
+
+#define RECV_STATE_NOT_INITED 0
+#define RECV_STATE_READY 1
+#define RECV_STATE_BUSY 2
+#define RECV_STATE_INITED_CLOSED 3
+#define RECV_STATE_NOT_INITED_CLOSED 4
+
 struct sys_addr {
     socklen_t len;
     union {
@@ -229,8 +239,7 @@ static void connection_report_error (BConnection *o)
 static void connection_send (BConnection *o)
 {
     DebugError_AssertNoError(&o->d_err);
-    ASSERT(o->send.inited)
-    ASSERT(o->send.busy)
+    ASSERT(o->send.state == SEND_STATE_BUSY)
     
     // limit
     if (!BReactorLimit_Increment(&o->send.limit)) {
@@ -258,8 +267,8 @@ static void connection_send (BConnection *o)
     ASSERT(bytes > 0)
     ASSERT(bytes <= o->send.busy_data_len)
     
-    // set not busy
-    o->send.busy = 0;
+    // set ready
+    o->send.state = SEND_STATE_READY;
     
     // done
     StreamPassInterface_Done(&o->send.iface, bytes);
@@ -268,9 +277,7 @@ static void connection_send (BConnection *o)
 static void connection_recv (BConnection *o)
 {
     DebugError_AssertNoError(&o->d_err);
-    ASSERT(o->recv.inited)
-    ASSERT(o->recv.busy)
-    ASSERT(!o->recv.closed)
+    ASSERT(o->recv.state == RECV_STATE_BUSY)
     
     // limit
     if (!BReactorLimit_Increment(&o->recv.limit)) {
@@ -296,8 +303,8 @@ static void connection_recv (BConnection *o)
     }
     
     if (bytes == 0) {
-        // set recv closed
-        o->recv.closed = 1;
+        // set recv inited closed
+        o->recv.state = RECV_STATE_INITED_CLOSED;
         
         // report recv closed
         o->handler(o->user, BCONNECTION_EVENT_RECVCLOSED);
@@ -308,7 +315,7 @@ static void connection_recv (BConnection *o)
     ASSERT(bytes <= o->recv.busy_data_avail)
     
     // set not busy
-    o->recv.busy = 0;
+    o->recv.state = RECV_STATE_READY;
     
     // done
     StreamRecvInterface_Done(&o->recv.iface, bytes);
@@ -326,18 +333,13 @@ static void connection_fd_handler (BConnection *o, int events)
     int have_send = 0;
     int have_recv = 0;
     
-    if ((events & BREACTOR_WRITE) || ((events & BREACTOR_ERROR) && o->send.inited && o->send.busy)) {
-        ASSERT(o->send.inited)
-        ASSERT(o->send.busy)
-        
+    if ((events & BREACTOR_WRITE) || ((events & BREACTOR_ERROR) && o->send.state == SEND_STATE_BUSY)) {
+        ASSERT(o->send.state == SEND_STATE_BUSY)
         have_send = 1;
     }
     
-    if ((events & BREACTOR_READ) || ((events & BREACTOR_ERROR) && o->recv.inited && o->recv.busy && !o->recv.closed)) {
-        ASSERT(o->recv.inited)
-        ASSERT(o->recv.busy)
-        ASSERT(!o->recv.closed)
-        
+    if ((events & BREACTOR_READ) || ((events & BREACTOR_ERROR) && o->recv.state == RECV_STATE_BUSY)) {
+        ASSERT(o->recv.state == RECV_STATE_BUSY)
         have_recv = 1;
     }
     
@@ -364,8 +366,7 @@ static void connection_send_job_handler (BConnection *o)
 {
     DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
-    ASSERT(o->send.inited)
-    ASSERT(o->send.busy)
+    ASSERT(o->send.state == SEND_STATE_BUSY)
     
     connection_send(o);
     return;
@@ -375,9 +376,7 @@ static void connection_recv_job_handler (BConnection *o)
 {
     DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
-    ASSERT(o->recv.inited)
-    ASSERT(o->recv.busy)
-    ASSERT(!o->recv.closed)
+    ASSERT(o->recv.state == RECV_STATE_BUSY)
     
     connection_recv(o);
     return;
@@ -387,8 +386,7 @@ static void connection_send_if_handler_send (BConnection *o, uint8_t *data, int 
 {
     DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
-    ASSERT(o->send.inited)
-    ASSERT(!o->send.busy)
+    ASSERT(o->send.state == SEND_STATE_READY)
     ASSERT(data_len > 0)
     
     // remember data
@@ -396,7 +394,7 @@ static void connection_send_if_handler_send (BConnection *o, uint8_t *data, int 
     o->send.busy_data_len = data_len;
     
     // set busy
-    o->send.busy = 1;
+    o->send.state = SEND_STATE_BUSY;
     
     connection_send(o);
     return;
@@ -406,9 +404,7 @@ static void connection_recv_if_handler_recv (BConnection *o, uint8_t *data, int 
 {
     DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
-    ASSERT(o->recv.inited)
-    ASSERT(!o->recv.busy)
-    ASSERT(!o->recv.closed)
+    ASSERT(o->recv.state == RECV_STATE_READY)
     ASSERT(data_avail > 0)
     
     // remember data
@@ -416,7 +412,7 @@ static void connection_recv_if_handler_recv (BConnection *o, uint8_t *data, int 
     o->recv.busy_data_avail = data_avail;
     
     // set busy
-    o->recv.busy = 1;
+    o->recv.state = RECV_STATE_BUSY;
     
     connection_recv(o);
     return;
@@ -892,11 +888,8 @@ int BConnection_Init (BConnection *o, struct BConnection_source source, BReactor
     BReactorLimit_Init(&o->recv.limit, o->reactor, BCONNECTION_RECV_LIMIT);
     
     // set send and recv not inited
-    o->send.inited = 0;
-    o->recv.inited = 0;
-    
-    // set recv not closed
-    o->recv.closed = 0;
+    o->send.state = SEND_STATE_NOT_INITED;
+    o->recv.state = RECV_STATE_NOT_INITED;
     
     DebugError_Init(&o->d_err, BReactor_PendingGroup(o->reactor));
     DebugObject_Init(&o->d_obj);
@@ -916,8 +909,8 @@ void BConnection_Free (BConnection *o)
 {
     DebugObject_Free(&o->d_obj);
     DebugError_Free(&o->d_err);
-    ASSERT(!o->recv.inited)
-    ASSERT(!o->send.inited)
+    ASSERT(o->send.state == SEND_STATE_NOT_INITED)
+    ASSERT(o->recv.state == RECV_STATE_NOT_INITED || o->recv.state == RECV_STATE_NOT_INITED_CLOSED)
     
     // free limits
     BReactorLimit_Free(&o->recv.limit);
@@ -959,7 +952,7 @@ void BConnection_SendAsync_Init (BConnection *o)
 {
     DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
-    ASSERT(!o->send.inited)
+    ASSERT(o->send.state == SEND_STATE_NOT_INITED)
     
     // init interface
     StreamPassInterface_Init(&o->send.iface, (StreamPassInterface_handler_send)connection_send_if_handler_send, o, BReactor_PendingGroup(o->reactor));
@@ -967,17 +960,14 @@ void BConnection_SendAsync_Init (BConnection *o)
     // init job
     BPending_Init(&o->send.job, BReactor_PendingGroup(o->reactor), (BPending_handler)connection_send_job_handler, o);
     
-    // set not busy
-    o->send.busy = 0;
-    
-    // set inited
-    o->send.inited = 1;
+    // set ready
+    o->send.state = SEND_STATE_READY;
 }
 
 void BConnection_SendAsync_Free (BConnection *o)
 {
     DebugObject_Access(&o->d_obj);
-    ASSERT(o->send.inited)
+    ASSERT(o->send.state == SEND_STATE_READY || o->send.state == SEND_STATE_BUSY)
     
     // update events
     o->wait_events &= ~BREACTOR_WRITE;
@@ -990,13 +980,13 @@ void BConnection_SendAsync_Free (BConnection *o)
     StreamPassInterface_Free(&o->send.iface);
     
     // set not inited
-    o->send.inited = 0;
+    o->send.state = SEND_STATE_NOT_INITED;
 }
 
 StreamPassInterface * BConnection_SendAsync_GetIf (BConnection *o)
 {
     DebugObject_Access(&o->d_obj);
-    ASSERT(o->send.inited)
+    ASSERT(o->send.state == SEND_STATE_READY || o->send.state == SEND_STATE_BUSY)
     
     return &o->send.iface;
 }
@@ -1005,8 +995,7 @@ void BConnection_RecvAsync_Init (BConnection *o)
 {
     DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
-    ASSERT(!o->recv.inited)
-    ASSERT(!o->recv.closed)
+    ASSERT(o->recv.state == RECV_STATE_NOT_INITED)
     
     // init interface
     StreamRecvInterface_Init(&o->recv.iface, (StreamRecvInterface_handler_recv)connection_recv_if_handler_recv, o, BReactor_PendingGroup(o->reactor));
@@ -1014,17 +1003,14 @@ void BConnection_RecvAsync_Init (BConnection *o)
     // init job
     BPending_Init(&o->recv.job, BReactor_PendingGroup(o->reactor), (BPending_handler)connection_recv_job_handler, o);
     
-    // set not busy
-    o->recv.busy = 0;
-    
-    // set inited
-    o->recv.inited = 1;
+    // set ready
+    o->recv.state = RECV_STATE_READY;
 }
 
 void BConnection_RecvAsync_Free (BConnection *o)
 {
     DebugObject_Access(&o->d_obj);
-    ASSERT(o->recv.inited)
+    ASSERT(o->recv.state == RECV_STATE_READY || o->recv.state == RECV_STATE_BUSY || o->recv.state == RECV_STATE_INITED_CLOSED)
     
     // update events
     o->wait_events &= ~BREACTOR_READ;
@@ -1037,13 +1023,13 @@ void BConnection_RecvAsync_Free (BConnection *o)
     StreamRecvInterface_Free(&o->recv.iface);
     
     // set not inited
-    o->recv.inited = 0;
+    o->recv.state = RECV_STATE_NOT_INITED;
 }
 
 StreamRecvInterface * BConnection_RecvAsync_GetIf (BConnection *o)
 {
     DebugObject_Access(&o->d_obj);
-    ASSERT(o->recv.inited)
+    ASSERT(o->recv.state == RECV_STATE_READY || o->recv.state == RECV_STATE_BUSY || o->recv.state == RECV_STATE_INITED_CLOSED)
     
     return &o->recv.iface;
 }
