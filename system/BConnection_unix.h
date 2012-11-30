@@ -63,6 +63,7 @@ struct BConnection_s {
     BConnection_handler handler;
     int fd;
     int close_fd;
+    int is_hupd;
     BFileDescriptor bfd;
     int wait_events;
     struct {

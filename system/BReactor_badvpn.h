@@ -171,6 +171,7 @@ struct BFileDescriptor_t;
 #define BREACTOR_READ (1 << 0)
 #define BREACTOR_WRITE (1 << 1)
 #define BREACTOR_ERROR (1 << 2)
+#define BREACTOR_HUP (1 << 3)
 
 /**
  * Handler function invoked by the reactor when one or more events are detected.
@@ -181,7 +182,7 @@ struct BFileDescriptor_t;
  *
  * @param user value passed to {@link BFileDescriptor_Init}
  * @param events bitmask composed of a subset of monitored events (BREACTOR_READ, BREACTOR_WRITE),
- *               and possibly the error event (BREACTOR_ERROR).
+ *               and possibly the error event BREACTOR_ERROR and the hang-up event BREACTOR_HUP.
  *               Will be nonzero.
  */
 typedef void (*BFileDescriptor_handler) (void *user, int events);

@@ -848,8 +848,11 @@ int BReactor_Exec (BReactor *bsys)
             if ((bfd->waitEvents&BREACTOR_WRITE) && (event->events&EPOLLOUT)) {
                 events |= BREACTOR_WRITE;
             }
-            if ((event->events&EPOLLERR) || (event->events&EPOLLHUP)) {
+            if ((event->events&EPOLLERR)) {
                 events |= BREACTOR_ERROR;
+            }
+            if ((event->events&EPOLLHUP)) {
+                events |= BREACTOR_HUP;
             }
             
             if (!events) {

@@ -96,7 +96,7 @@ static void fd_handler (BTap *o, int events)
     DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
     
-    if (events&BREACTOR_ERROR) {
+    if (events&(BREACTOR_ERROR|BREACTOR_HUP)) {
         BLog(BLOG_WARNING, "device fd reports error?");
     }
     

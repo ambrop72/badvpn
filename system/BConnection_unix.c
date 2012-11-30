@@ -242,17 +242,19 @@ static void connection_send (BConnection *o)
     ASSERT(o->send.state == SEND_STATE_BUSY)
     
     // limit
-    if (!BReactorLimit_Increment(&o->send.limit)) {
-        // wait for fd
-        o->wait_events |= BREACTOR_WRITE;
-        BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
-        return;
+    if (!o->is_hupd) {
+        if (!BReactorLimit_Increment(&o->send.limit)) {
+            // wait for fd
+            o->wait_events |= BREACTOR_WRITE;
+            BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
+            return;
+        }
     }
     
     // send
     int bytes = write(o->fd, o->send.busy_data, o->send.busy_data_len);
     if (bytes < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        if (!o->is_hupd && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             // wait for fd
             o->wait_events |= BREACTOR_WRITE;
             BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
@@ -280,17 +282,19 @@ static void connection_recv (BConnection *o)
     ASSERT(o->recv.state == RECV_STATE_BUSY)
     
     // limit
-    if (!BReactorLimit_Increment(&o->recv.limit)) {
-        // wait for fd
-        o->wait_events |= BREACTOR_READ;
-        BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
-        return;
+    if (!o->is_hupd) {
+        if (!BReactorLimit_Increment(&o->recv.limit)) {
+            // wait for fd
+            o->wait_events |= BREACTOR_READ;
+            BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
+            return;
+        }
     }
     
     // recv
     int bytes = read(o->fd, o->recv.busy_data, o->recv.busy_data_avail);
     if (bytes < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        if (!o->is_hupd && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             // wait for fd
             o->wait_events |= BREACTOR_READ;
             BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
@@ -325,6 +329,7 @@ static void connection_fd_handler (BConnection *o, int events)
 {
     DebugObject_Access(&o->d_obj);
     DebugError_AssertNoError(&o->d_err);
+    ASSERT(!o->is_hupd)
     
     // clear handled events
     o->wait_events &= ~events;
@@ -333,12 +338,18 @@ static void connection_fd_handler (BConnection *o, int events)
     int have_send = 0;
     int have_recv = 0;
     
-    if ((events & BREACTOR_WRITE) || ((events & BREACTOR_ERROR) && o->send.state == SEND_STATE_BUSY)) {
+    // if we got a HUP event, stop monitoring the file descriptor
+    if ((events & BREACTOR_HUP)) {
+        BReactor_RemoveFileDescriptor(o->reactor, &o->bfd);
+        o->is_hupd = 1;
+    }
+    
+    if ((events & BREACTOR_WRITE) || ((events & (BREACTOR_ERROR|BREACTOR_HUP)) && o->send.state == SEND_STATE_BUSY)) {
         ASSERT(o->send.state == SEND_STATE_BUSY)
         have_send = 1;
     }
     
-    if ((events & BREACTOR_READ) || ((events & BREACTOR_ERROR) && o->recv.state == RECV_STATE_BUSY)) {
+    if ((events & BREACTOR_READ) || ((events & (BREACTOR_ERROR|BREACTOR_HUP)) && o->recv.state == RECV_STATE_BUSY)) {
         ASSERT(o->recv.state == RECV_STATE_BUSY)
         have_recv = 1;
     }
@@ -357,9 +368,11 @@ static void connection_fd_handler (BConnection *o, int events)
         return;
     }
     
-    BLog(BLOG_ERROR, "fd error event");
-    connection_report_error(o);
-    return;
+    if (!o->is_hupd) {
+        BLog(BLOG_ERROR, "fd error event");
+        connection_report_error(o);
+        return;
+    }
 }
 
 static void connection_send_job_handler (BConnection *o)
@@ -873,6 +886,9 @@ int BConnection_Init (BConnection *o, struct BConnection_source source, BReactor
         } break;
     }
     
+    // set not HUPd
+    o->is_hupd = 0;
+    
     // init BFileDescriptor
     BFileDescriptor_Init(&o->bfd, o->fd, (BFileDescriptor_handler)connection_fd_handler, o);
     if (!BReactor_AddFileDescriptor(o->reactor, &o->bfd)) {
@@ -917,7 +933,9 @@ void BConnection_Free (BConnection *o)
     BReactorLimit_Free(&o->send.limit);
     
     // free BFileDescriptor
-    BReactor_RemoveFileDescriptor(o->reactor, &o->bfd);
+    if (!o->is_hupd) {
+        BReactor_RemoveFileDescriptor(o->reactor, &o->bfd);
+    }
     
     // close fd
     if (o->close_fd) {
@@ -970,8 +988,10 @@ void BConnection_SendAsync_Free (BConnection *o)
     ASSERT(o->send.state == SEND_STATE_READY || o->send.state == SEND_STATE_BUSY)
     
     // update events
-    o->wait_events &= ~BREACTOR_WRITE;
-    BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
+    if (!o->is_hupd) {
+        o->wait_events &= ~BREACTOR_WRITE;
+        BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
+    }
     
     // free job
     BPending_Free(&o->send.job);
@@ -1013,8 +1033,10 @@ void BConnection_RecvAsync_Free (BConnection *o)
     ASSERT(o->recv.state == RECV_STATE_READY || o->recv.state == RECV_STATE_BUSY || o->recv.state == RECV_STATE_INITED_CLOSED)
     
     // update events
-    o->wait_events &= ~BREACTOR_READ;
-    BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
+    if (!o->is_hupd) {
+        o->wait_events &= ~BREACTOR_READ;
+        BReactor_SetFileDescriptorEvents(o->reactor, &o->bfd, o->wait_events);
+    }
     
     // free job
     BPending_Free(&o->recv.job);
