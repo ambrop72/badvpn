@@ -222,8 +222,7 @@ fail2:
 fail1:
     NCDValNullTermString_Free(&o->ifname_nts);
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 void instance_free (struct instance *o)

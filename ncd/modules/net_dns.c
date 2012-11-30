@@ -253,8 +253,7 @@ fail2:
     LinkedList1_Remove(&instances, &o->instances_node);
 fail1:
     remove_ipv4_dns_entries(o);
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_die (void *vo)

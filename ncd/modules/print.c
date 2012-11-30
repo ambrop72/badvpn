@@ -124,8 +124,7 @@ static void rprint_func_new_common (void *vo, NCDModuleInst *i, const struct NCD
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void rprint_func_die (void *vo)
@@ -149,8 +148,7 @@ static void print_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void println_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -165,8 +163,7 @@ static void println_func_new (void *unused, NCDModuleInst *i, const struct NCDMo
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void rprint_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)

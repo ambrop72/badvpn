@@ -87,8 +87,7 @@ static void refhere_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void refhere_func_die (void *vo)
@@ -140,8 +139,7 @@ static void ref_func_new_templ (void *vo, NCDModuleInst *i, const struct NCDModu
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void ref_func_new_from_refhere (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)

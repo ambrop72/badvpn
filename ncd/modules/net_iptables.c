@@ -406,9 +406,10 @@ void template_free_func (void *vo, int is_error)
     struct instance *o = vo;
     
     if (is_error) {
-        NCDModuleInst_Backend_SetError(o->i);
+        NCDModuleInst_Backend_DeadError(o->i);
+    } else {
+        NCDModuleInst_Backend_Dead(o->i);
     }
-    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void append_iptables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -526,8 +527,7 @@ static void unlock_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void unlock_func_die (void *vo)

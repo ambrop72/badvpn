@@ -171,8 +171,7 @@ fail2:
 fail1:
     BFree(table);
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_die (void *vo)

@@ -120,8 +120,7 @@ static void new_templ (void *vo, NCDModuleInst *i, const struct NCDModuleInst_ne
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_die (void *vo)

@@ -112,8 +112,7 @@ static void prefix_to_mask_func_init (void *vo, NCDModuleInst *i, const struct N
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void ipv4_net_from_addr_and_prefix_func_init (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -151,8 +150,7 @@ static void ipv4_net_from_addr_and_prefix_func_init (void *vo, NCDModuleInst *i,
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void addr_func_die (void *vo)
@@ -211,8 +209,7 @@ static void mask_to_prefix_func_init (void *vo, NCDModuleInst *i, const struct N
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void prefix_func_die (void *vo)

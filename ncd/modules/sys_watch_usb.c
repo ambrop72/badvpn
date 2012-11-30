@@ -78,7 +78,7 @@ struct instance {
     event_template templ;
 };
 
-static void templ_func_free (struct instance *o);
+static void templ_func_free (struct instance *o, int is_error);
 
 static struct device * find_device_by_devname (struct instance *o, const char *devname)
 {
@@ -338,11 +338,10 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
-static void templ_func_free (struct instance *o)
+static void templ_func_free (struct instance *o, int is_error)
 {
     // free devices
     while (!LinkedList1_IsEmpty(&o->devices_list)) {
@@ -353,7 +352,11 @@ static void templ_func_free (struct instance *o)
     // free client
     NCDUdevClient_Free(&o->client);
     
-    NCDModuleInst_Backend_Dead(o->i);
+    if (is_error) {
+        NCDModuleInst_Backend_DeadError(o->i);
+    } else {
+        NCDModuleInst_Backend_Dead(o->i);
+    }
 }
 
 static void func_die (void *vo)
@@ -395,8 +398,7 @@ static void nextevent_func_new (void *unused, NCDModuleInst *i, const struct NCD
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static struct NCDModule modules[] = {

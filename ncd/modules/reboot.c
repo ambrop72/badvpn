@@ -61,8 +61,7 @@ static void func_new_hard_reboot (void *unused, NCDModuleInst *i, const struct N
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_new_hard_poweroff (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -84,8 +83,7 @@ static void func_new_hard_poweroff (void *unused, NCDModuleInst *i, const struct
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static struct NCDModule modules[] = {

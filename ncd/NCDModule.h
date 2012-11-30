@@ -516,6 +516,12 @@ void NCDModuleInst_Backend_DownUp (NCDModuleInst *n);
 void NCDModuleInst_Backend_Dead (NCDModuleInst *n);
 
 /**
+ * Like {@link NCDModuleInst_Backend_Dead}, but also reports an error condition
+ * to the interpreter.
+ */
+void NCDModuleInst_Backend_DeadError (NCDModuleInst *n);
+
+/**
  * Resolves an object for a backend instance, from the point of the instance's
  * statement in the containing process.
  * 
@@ -541,15 +547,6 @@ void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const 
  * as a va_list. This allows creation of logging wrappers.
  */
 void NCDModuleInst_Backend_LogVarArg (NCDModuleInst *n, int channel, int level, const char *fmt, va_list vl);
-
-/**
- * Sets the error flag for the module instance.
- * The error flag only has no effect until the backend calls
- * {@link NCDModuleInst_Backend_Dead}.
- * 
- * @param n backend instance handle
- */
-void NCDModuleInst_Backend_SetError (NCDModuleInst *n);
 
 /**
  * Initiates interpreter termination.
@@ -739,8 +736,7 @@ typedef void (*NCDModule_func_globalfree) (void);
  * The backend is initialized in down state.
  * 
  * If the backend fails initialization, this function should report the backend
- * instance to have died with error by calling {@link NCDModuleInst_Backend_SetError}
- * and {@link NCDModuleInst_Backend_Dead}.
+ * instance to have died with error by calling {@link NCDModuleInst_Backend_DeadError}.
  * 
  * @param o if the module specifies a positive alloc_size value in the {@link NCDModule}
  *          structure, this will point to the allocated memory that can be used by the

@@ -91,8 +91,7 @@ void event_template_new (event_template *o, NCDModuleInst *i, int blog_channel, 
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(o->i);
-    o->func_free(o->user);
+    o->func_free(o->user, 1);
     return;
 }
 
@@ -114,7 +113,7 @@ void event_template_die (event_template *o)
     // free events array
     BFree(o->events);
     
-    o->func_free(o->user);
+    o->func_free(o->user, 0);
     return;
 }
 

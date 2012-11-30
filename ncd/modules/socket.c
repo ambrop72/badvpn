@@ -670,8 +670,7 @@ error:
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void connect_func_die (void *vo)
@@ -761,8 +760,7 @@ static void read_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void read_func_die (void *vo)
@@ -854,8 +852,7 @@ static void write_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void write_func_die (void *vo)
@@ -897,8 +894,7 @@ static void close_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void listen_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -962,8 +958,7 @@ error:
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void listen_func_die (void *vo)

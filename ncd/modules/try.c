@@ -201,8 +201,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void instance_free (struct instance *o)
@@ -277,8 +276,7 @@ static void assert_func_new (void *unused, NCDModuleInst *i, const struct NCDMod
     return;
     
 fail1:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static struct NCDModule modules[] = {

@@ -115,8 +115,7 @@ static void new_concat_common (void *vo, NCDModuleInst *i, NCDValRef list)
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_new_concat (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -140,8 +139,7 @@ static void func_new_concatv (void *vo, NCDModuleInst *i, const struct NCDModule
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_die (void *vo)

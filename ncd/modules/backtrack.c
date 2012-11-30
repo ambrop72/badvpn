@@ -61,8 +61,7 @@ static void func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void go_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -84,8 +83,7 @@ static void go_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleI
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static struct NCDModule modules[] = {

@@ -267,8 +267,7 @@ static void open_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
 fail1:
     NCDBufStore_Free(&o->store);
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void open_func_die (void *vo)
@@ -357,8 +356,7 @@ static void read_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void read_func_die (void *vo)
@@ -434,8 +432,7 @@ static void write_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void seek_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -517,8 +514,7 @@ static void seek_func_new (void *unused, NCDModuleInst *i, const struct NCDModul
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void close_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -552,8 +548,7 @@ static void close_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static struct NCDModule modules[] = {

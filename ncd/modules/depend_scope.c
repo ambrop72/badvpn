@@ -231,8 +231,7 @@ static void scope_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void scope_func_die (void *vo)
@@ -296,8 +295,7 @@ static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void provide_free (struct provide *o)
@@ -374,8 +372,7 @@ static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void depend_func_die (void *vo)

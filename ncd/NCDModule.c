@@ -285,6 +285,19 @@ void NCDModuleInst_Backend_Dead (NCDModuleInst *n)
     return;
 }
 
+void NCDModuleInst_Backend_DeadError (NCDModuleInst *n)
+{
+    DebugObject_Access(&n->d_obj);
+    ASSERT(n->state == STATE_DOWN_CLEAN || n->state == STATE_DOWN_UNCLEAN ||
+           n->state == STATE_UP || n->state == STATE_DYING)
+    
+    n->state = STATE_DEAD;
+    n->is_error = 1;
+    
+    frontend_event(n, NCDMODULE_EVENT_DEAD);
+    return;
+}
+
 int NCDModuleInst_Backend_GetObj (NCDModuleInst *n, NCD_string_id_t name, NCDObject *out_object)
 {
     DebugObject_Access(&n->d_obj);
@@ -314,17 +327,6 @@ void NCDModuleInst_Backend_LogVarArg (NCDModuleInst *n, int channel, int level, 
     DebugObject_Access(&n->d_obj);
     
     BLog_LogViaFuncVarArg(n->params->logfunc, n, channel, level, fmt, vl);
-}
-
-void NCDModuleInst_Backend_SetError (NCDModuleInst *n)
-{
-    DebugObject_Access(&n->d_obj);
-    ASSERT(n->state == STATE_DOWN_UNCLEAN || n->state == STATE_DOWN_CLEAN ||
-           n->state == STATE_UP ||
-           n->state == STATE_DYING)
-    ASSERT(!n->is_error)
-    
-    n->is_error = 1;
 }
 
 void NCDModuleInst_Backend_InterpExit (NCDModuleInst *n, int exit_code)

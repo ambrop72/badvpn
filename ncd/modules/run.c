@@ -156,9 +156,10 @@ void template_free_func (void *vo, int is_error)
     BEventLock_Free(&o->lock);
     
     if (is_error) {
-        NCDModuleInst_Backend_SetError(o->i);
+        NCDModuleInst_Backend_DeadError(o->i);
+    } else {
+        NCDModuleInst_Backend_Dead(o->i);
     }
-    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)

@@ -101,8 +101,7 @@ static void func_new_from_value (void *vo, NCDModuleInst *i, const struct NCDMod
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_new_from_index (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -119,8 +118,7 @@ static void func_new_from_index (void *vo, NCDModuleInst *i, const struct NCDMod
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_die (void *vo)

@@ -214,8 +214,7 @@ static void provide_func_new_templ (void *vo, NCDModuleInst *i, const struct NCD
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -324,8 +323,7 @@ static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void depend_free (struct depend *o)

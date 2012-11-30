@@ -171,8 +171,7 @@ static void func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name,
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void instance_free (struct instance *o)
@@ -202,8 +201,7 @@ static void func_new_call (void *vo, NCDModuleInst *i, const struct NCDModuleIns
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_new_embcall (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -222,8 +220,7 @@ static void func_new_embcall (void *vo, NCDModuleInst *i, const struct NCDModule
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_new_call_if (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -248,8 +245,7 @@ static void func_new_call_if (void *vo, NCDModuleInst *i, const struct NCDModule
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_new_embcall_if (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -273,8 +269,7 @@ static void func_new_embcall_if (void *vo, NCDModuleInst *i, const struct NCDMod
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_new_call_ifelse (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -304,8 +299,7 @@ static void func_new_call_ifelse (void *vo, NCDModuleInst *i, const struct NCDMo
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_new_embcall_ifelse (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -334,8 +328,7 @@ static void func_new_embcall_ifelse (void *vo, NCDModuleInst *i, const struct NC
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_new_embcall_multif (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -379,8 +372,7 @@ static void func_new_embcall_multif (void *vo, NCDModuleInst *i, const struct NC
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_die (void *vo)

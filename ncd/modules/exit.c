@@ -74,8 +74,7 @@ static void func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static struct NCDModule modules[] = {

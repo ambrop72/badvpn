@@ -410,8 +410,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 void instance_free (struct instance *o)
@@ -493,8 +492,7 @@ static void start_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void stop_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -527,8 +525,7 @@ static void stop_func_new (void *unused, NCDModuleInst *i, const struct NCDModul
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static struct NCDModule modules[] = {

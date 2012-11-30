@@ -152,8 +152,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)
@@ -323,8 +322,7 @@ fail2:
     }
     BFree(regs);
 fail1:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void replace_func_die (void *vo)

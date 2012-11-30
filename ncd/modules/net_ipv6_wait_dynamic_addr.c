@@ -63,7 +63,7 @@ struct instance {
     int up;
 };
 
-static void instance_free (struct instance *o);
+static void instance_free (struct instance *o, int is_error);
 
 static void monitor_handler (struct instance *o, struct NCDInterfaceMonitor_event event)
 {
@@ -88,8 +88,7 @@ static void monitor_handler_error (struct instance *o)
 {
     ModuleLog(o->i, BLOG_ERROR, "monitor error");
     
-    NCDModuleInst_Backend_SetError(o->i);
-    instance_free(o);
+    instance_free(o, 1);
 }
 
 static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -135,22 +134,25 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
-static void instance_free (struct instance *o)
+static void instance_free (struct instance *o, int is_error)
 {
     // free monitor
     NCDInterfaceMonitor_Free(&o->monitor);
     
-    NCDModuleInst_Backend_Dead(o->i);
+    if (is_error) {
+        NCDModuleInst_Backend_DeadError(o->i);
+    } else {
+        NCDModuleInst_Backend_Dead(o->i);
+    }
 }
 
 static void func_die (void *vo)
 {
     struct instance *o = vo;
-    instance_free(o);
+    instance_free(o, 0);
 }
 
 static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *out)

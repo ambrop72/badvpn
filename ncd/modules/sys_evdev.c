@@ -202,8 +202,7 @@ fail1:
         ModuleLog(o->i, BLOG_ERROR, "close failed");
     }
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 void instance_free (struct instance *o, int is_error)
@@ -218,9 +217,10 @@ void instance_free (struct instance *o, int is_error)
     }
     
     if (is_error) {
-        NCDModuleInst_Backend_SetError(o->i);
+        NCDModuleInst_Backend_DeadError(o->i);
+    } else {
+        NCDModuleInst_Backend_Dead(o->i);
     }
-    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -323,8 +323,7 @@ static void nextevent_func_new (void *unused, NCDModuleInst *i, const struct NCD
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static struct NCDModule modules[] = {

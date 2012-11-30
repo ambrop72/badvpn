@@ -335,8 +335,7 @@ static void func_new_list (void *vo, NCDModuleInst *i, const struct NCDModuleIns
     
 fail1:
     cut_list_front(o, 0);
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_new_listfrom (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -358,8 +357,7 @@ static void func_new_listfrom (void *vo, NCDModuleInst *i, const struct NCDModul
     
 fail1:
     cut_list_front(o, 0);
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_die (void *vo)
@@ -414,8 +412,7 @@ static void append_func_new (void *unused, NCDModuleInst *i, const struct NCDMod
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void appendv_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -444,8 +441,7 @@ static void appendv_func_new (void *unused, NCDModuleInst *i, const struct NCDMo
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void length_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -471,8 +467,7 @@ static void length_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void length_func_die (void *vo)
@@ -543,8 +538,7 @@ static void get_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst
 fail1:
     NCDValMem_Free(&o->mem);
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void get_func_die (void *vo)
@@ -594,8 +588,7 @@ static void shift_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void contains_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -621,8 +614,7 @@ static void contains_func_new (void *vo, NCDModuleInst *i, const struct NCDModul
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void contains_func_die (void *vo)
@@ -679,8 +671,7 @@ static void find_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void find_func_die (void *vo)
@@ -750,8 +741,7 @@ static void removeat_func_new (void *unused, NCDModuleInst *i, const struct NCDM
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void remove_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -781,8 +771,7 @@ static void remove_func_new (void *unused, NCDModuleInst *i, const struct NCDMod
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void set_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -806,8 +795,7 @@ static void set_func_new (void *unused, NCDModuleInst *i, const struct NCDModule
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static struct NCDModule modules[] = {

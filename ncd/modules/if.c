@@ -73,8 +73,7 @@ static void new_templ (NCDModuleInst *i, const struct NCDModuleInst_new_params *
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)

@@ -34,7 +34,7 @@
 #include <stringmap/BStringMap.h>
 #include <ncd/NCDModule.h>
 
-typedef void (*event_template_func_free) (void *user);
+typedef void (*event_template_func_free) (void *user, int is_error);
 
 typedef struct {
     NCDModuleInst *i;

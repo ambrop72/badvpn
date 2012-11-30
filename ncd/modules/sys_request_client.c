@@ -504,8 +504,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void instance_free (struct instance *o, int with_error)
@@ -521,9 +520,10 @@ static void instance_free (struct instance *o, int with_error)
     NCDRequestClient_Free(&o->client);
     
     if (with_error) {
-        NCDModuleInst_Backend_SetError(o->i);
+        NCDModuleInst_Backend_DeadError(o->i);
+    } else {
+        NCDModuleInst_Backend_Dead(o->i);
     }
-    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void func_die (void *vo)
@@ -589,8 +589,7 @@ static void request_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void request_instance_free (struct request_instance *o, int with_error)
@@ -610,9 +609,10 @@ static void request_instance_free (struct request_instance *o, int with_error)
     }
     
     if (with_error) {
-        NCDModuleInst_Backend_SetError(o->i);
+        NCDModuleInst_Backend_DeadError(o->i);
+    } else {
+        NCDModuleInst_Backend_Dead(o->i);
     }
-    NCDModuleInst_Backend_Dead(o->i);
 }
 
 static void request_func_die (void *vo)

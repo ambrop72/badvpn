@@ -130,8 +130,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void instance_free (struct instance *o)
@@ -203,8 +202,7 @@ static void updown_func_new_templ (NCDModuleInst *i, const struct NCDModuleInst_
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void up_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -247,8 +245,7 @@ static void rdownup_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void rdownup_func_die (void *vo)
@@ -303,8 +300,7 @@ static void use_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void use_func_die (void *vo)

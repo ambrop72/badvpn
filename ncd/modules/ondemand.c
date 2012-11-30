@@ -86,7 +86,7 @@ static int ondemand_start_process (struct ondemand *o);
 static void ondemand_terminate_process (struct ondemand *o);
 static void ondemand_process_handler (NCDModuleProcess *process, int event);
 static void ondemand_free (struct ondemand *o);
-static void demand_free (struct demand *o);
+static void demand_free (struct demand *o, int is_error);
 
 static int ondemand_start_process (struct ondemand *o)
 {
@@ -200,8 +200,7 @@ static void ondemand_process_handler (NCDModuleProcess *process, int event)
                     while (!LinkedList1_IsEmpty(&o->demands_list)) {
                         struct demand *demand = UPPER_OBJECT(LinkedList1_GetFirst(&o->demands_list), struct demand, demands_list_node);
                         ASSERT(demand->od == o)
-                        NCDModuleInst_Backend_SetError(demand->i);
-                        demand_free(demand);
+                        demand_free(demand, 1);
                     }
                 }
             }
@@ -242,8 +241,7 @@ static void ondemand_func_new (void *vo, NCDModuleInst *i, const struct NCDModul
     return;
     
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void ondemand_free (struct ondemand *o)
@@ -254,7 +252,7 @@ static void ondemand_free (struct ondemand *o)
     while (!LinkedList1_IsEmpty(&o->demands_list)) {
         struct demand *demand = UPPER_OBJECT(LinkedList1_GetFirst(&o->demands_list), struct demand, demands_list_node);
         ASSERT(demand->od == o)
-        demand_free(demand);
+        demand_free(demand, 0);
     }
     
     NCDModuleInst_Backend_Dead(o->i);
@@ -316,11 +314,10 @@ static void demand_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
 fail1:
     LinkedList1_Remove(&o->od->demands_list, &o->demands_list_node);
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
-static void demand_free (struct demand *o)
+static void demand_free (struct demand *o, int is_error)
 {
     // remove from ondemand's demands list
     LinkedList1_Remove(&o->od->demands_list, &o->demands_list_node);
@@ -330,14 +327,18 @@ static void demand_free (struct demand *o)
         ondemand_terminate_process(o->od);
     }
     
-    NCDModuleInst_Backend_Dead(o->i);
+    if (is_error) {
+        NCDModuleInst_Backend_DeadError(o->i);
+    } else {
+        NCDModuleInst_Backend_Dead(o->i);
+    }
 }
 
 static void demand_func_die (void *vo)
 {
     struct demand *o = vo;
     
-    demand_free(o);
+    demand_free(o, 0);
 }
 
 static int demand_func_getobj (void *vo, NCD_string_id_t objname, NCDObject *out_object)

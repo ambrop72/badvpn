@@ -97,7 +97,7 @@ static void process_error (struct instance *o);
 static void process_handler_terminated (struct instance *o, int normally, uint8_t normally_exit_status);
 static void process_handler_closed (struct instance *o, int is_error);
 static void process_pipe_handler_send (struct instance *o, uint8_t *data, int data_len);
-static void instance_free (struct instance *o);
+static void instance_free (struct instance *o, int is_error);
 
 int parse_hex_digit (uint8_t d, uint8_t *out)
 {
@@ -301,12 +301,8 @@ void process_handler_terminated (struct instance *o, int normally, uint8_t norma
 {
     ModuleLog(o->i, (o->dying ? BLOG_INFO : BLOG_ERROR), "process terminated");
     
-    if (!o->dying) {
-        NCDModuleInst_Backend_SetError(o->i);
-    }
-    
     // die
-    instance_free(o);
+    instance_free(o, !o->dying);
     return;
 }
 
@@ -482,11 +478,10 @@ fail2:
 fail1:
     CmdLine_Free(&c);
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
-void instance_free (struct instance *o)
+void instance_free (struct instance *o, int is_error)
 {
     // free info
     if (o->have_info) {
@@ -504,7 +499,11 @@ void instance_free (struct instance *o)
     // free process
     BInputProcess_Free(&o->process);
     
-    NCDModuleInst_Backend_Dead(o->i);
+    if (is_error) {
+        NCDModuleInst_Backend_DeadError(o->i);
+    } else {
+        NCDModuleInst_Backend_Dead(o->i);
+    }
 }
 
 static void func_die (void *vo)

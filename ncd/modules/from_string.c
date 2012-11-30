@@ -83,8 +83,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
 fail1:
     NCDValMem_Free(&o->mem);
 fail0:
-    NCDModuleInst_Backend_SetError(i);
-    NCDModuleInst_Backend_Dead(i);
+    NCDModuleInst_Backend_DeadError(i);
 }
 
 static void func_die (void *vo)
