@@ -421,6 +421,7 @@ static int element_list_index_object_func_getvar (const NCDObject *obj, NCD_stri
 {
     struct element *e = NCDObject_DataPtr(obj);
     struct instance *o = e->inst;
+    B_USE(o)
     ASSERT(e->state != ESTATE_FORGOTTEN)
     ASSERT(o->type == NCDVAL_LIST)
     
@@ -436,6 +437,7 @@ static int element_list_elem_object_func_getvar (const NCDObject *obj, NCD_strin
 {
     struct element *e = NCDObject_DataPtr(obj);
     struct instance *o = e->inst;
+    B_USE(o)
     ASSERT(e->state != ESTATE_FORGOTTEN)
     ASSERT(o->type == NCDVAL_LIST)
     
@@ -451,6 +453,7 @@ static int element_map_key_object_func_getvar (const NCDObject *obj, NCD_string_
 {
     struct element *e = NCDObject_DataPtr(obj);
     struct instance *o = e->inst;
+    B_USE(o)
     ASSERT(e->state != ESTATE_FORGOTTEN)
     ASSERT(o->type == NCDVAL_MAP)
     
@@ -466,6 +469,7 @@ static int element_map_val_object_func_getvar (const NCDObject *obj, NCD_string_
 {
     struct element *e = NCDObject_DataPtr(obj);
     struct instance *o = e->inst;
+    B_USE(o)
     ASSERT(e->state != ESTATE_FORGOTTEN)
     ASSERT(o->type == NCDVAL_MAP)
     
