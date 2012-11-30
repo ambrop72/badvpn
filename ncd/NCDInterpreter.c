@@ -122,6 +122,8 @@ static btime_t statement_instance_func_interp_getretrytime (void *vinterp);
 static void process_moduleprocess_func_event (struct process *p, int event);
 static int process_moduleprocess_func_getobj (struct process *p, NCD_string_id_t name, NCDObject *out_object);
 
+#define STATEMENT_LOG(ps, channel, ...) if (BLog_WouldLog(BLOG_CURRENT_CHANNEL, channel)) statement_log(ps, channel, __VA_ARGS__)
+
 int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_len, struct NCDInterpreter_params params)
 {
     ASSERT(program);
@@ -711,7 +713,7 @@ void process_work_job_handler_working (struct process *p)
             return;
         }
         
-        statement_log(ps, BLOG_INFO, "killing");
+        STATEMENT_LOG(ps, BLOG_INFO, "killing");
         
         // set statement state DYING
         ps->inst.istate = SSTATE_DYING;
@@ -729,7 +731,7 @@ void process_work_job_handler_working (struct process *p)
         struct statement *ps = &p->statements[p->ap - 1];
         ASSERT(ps->inst.istate == SSTATE_CHILD)
         
-        statement_log(ps, BLOG_INFO, "clean");
+        STATEMENT_LOG(ps, BLOG_INFO, "clean");
         
         // report clean
         NCDModuleInst_Clean(&ps->inst);
@@ -756,7 +758,7 @@ void process_work_job_handler_working (struct process *p)
     ASSERT(ps->inst.istate == SSTATE_FORGOTTEN)
     
     if (p->error) {
-        statement_log(ps, BLOG_INFO, "waiting after error");
+        STATEMENT_LOG(ps, BLOG_INFO, "waiting after error");
         
         // clear error
         p->error = 0;
@@ -839,7 +841,7 @@ again:
         return;
     }
     
-    statement_log(ps, BLOG_INFO, "killing");
+    STATEMENT_LOG(ps, BLOG_INFO, "killing");
     
     // update AP
     if (p->ap > ps->i) {
@@ -848,7 +850,7 @@ again:
     
     // optimize for statements which can be destroyed immediately
     if (NCDModuleInst_TryFree(&ps->inst)) {
-        statement_log(ps, BLOG_INFO, "died");
+        STATEMENT_LOG(ps, BLOG_INFO, "died");
         
         // free arguments memory
         NCDValMem_Free(&ps->args_mem);
@@ -899,7 +901,7 @@ void process_advance (struct process *p)
     struct statement *ps = &p->statements[p->ap];
     ASSERT(ps->inst.istate == SSTATE_FORGOTTEN)
     
-    statement_log(ps, BLOG_INFO, "initializing");
+    STATEMENT_LOG(ps, BLOG_INFO, "initializing");
     
     // need to determine the module and object to use it on (if it's a method)
     const struct NCDModule *module;
@@ -917,7 +919,7 @@ void process_advance (struct process *p)
         
         if (!module) {
             const char *cmdname_str = NCDInterpProcess_StatementCmdName(p->iprocess, p->ap, &p->interp->string_index);
-            statement_log(ps, BLOG_ERROR, "unknown simple statement: %s", cmdname_str);
+            STATEMENT_LOG(ps, BLOG_ERROR, "unknown simple statement: %s", cmdname_str);
             goto fail0;
         }
     } else {
@@ -930,7 +932,7 @@ void process_advance (struct process *p)
         // get object type
         NCD_string_id_t object_type = NCDObject_Type(&object);
         if (object_type < 0) {
-            statement_log(ps, BLOG_ERROR, "cannot call method on object with no type");
+            STATEMENT_LOG(ps, BLOG_ERROR, "cannot call method on object with no type");
             goto fail0;
         }
         
@@ -943,7 +945,7 @@ void process_advance (struct process *p)
         if (!module) {
             const char *type_str = NCDStringIndex_Value(&p->interp->string_index, object_type);
             const char *cmdname_str = NCDInterpProcess_StatementCmdName(p->iprocess, p->ap, &p->interp->string_index);
-            statement_log(ps, BLOG_ERROR, "unknown method statement: %s::%s", type_str, cmdname_str);
+            STATEMENT_LOG(ps, BLOG_ERROR, "unknown method statement: %s::%s", type_str, cmdname_str);
             goto fail0;
         }
     }
@@ -952,19 +954,19 @@ void process_advance (struct process *p)
     NCDValRef args;
     NCDValReplaceProg prog;
     if (!NCDInterpProcess_CopyStatementArgs(p->iprocess, ps->i, &ps->args_mem, &args, &prog)) {
-        statement_log(ps, BLOG_ERROR, "NCDInterpProcess_CopyStatementArgs failed");
+        STATEMENT_LOG(ps, BLOG_ERROR, "NCDInterpProcess_CopyStatementArgs failed");
         goto fail0;
     }
     
     // replace placeholders with values of variables
     if (!NCDValReplaceProg_Execute(prog, &ps->args_mem, replace_placeholders_callback, p)) {
-        statement_log(ps, BLOG_ERROR, "failed to replace variables in arguments with values");
+        STATEMENT_LOG(ps, BLOG_ERROR, "failed to replace variables in arguments with values");
         goto fail1;
     }
     
     // allocate memory
     if (!statement_allocate_memory(ps, module->alloc_size)) {
-        statement_log(ps, BLOG_ERROR, "failed to allocate memory");
+        STATEMENT_LOG(ps, BLOG_ERROR, "failed to allocate memory");
         goto fail1;
     }
     
@@ -1099,10 +1101,6 @@ void statement_logfunc (struct statement *ps)
 
 void statement_log (struct statement *ps, int level, const char *fmt, ...)
 {
-    if (!BLog_WouldLog(BLOG_CURRENT_CHANNEL, level)) {
-        return;
-    }
-    
     va_list vl;
     va_start(vl, fmt);
     BLog_LogViaFuncVarArg((BLog_logfunc)statement_logfunc, ps, BLOG_CURRENT_CHANNEL, level, fmt, vl);
@@ -1132,7 +1130,7 @@ int statement_allocate_memory (struct statement *ps, int alloc_size)
         // allocate new memory
         char *new_mem = malloc(alloc_size);
         if (!new_mem) {
-            statement_log(ps, BLOG_ERROR, "malloc failed");
+            STATEMENT_LOG(ps, BLOG_ERROR, "malloc failed");
             return 0;
         }
         
@@ -1173,7 +1171,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
         case NCDMODULE_EVENT_UP: {
             ASSERT(ps->inst.istate == SSTATE_CHILD)
             
-            statement_log(ps, BLOG_INFO, "up");
+            STATEMENT_LOG(ps, BLOG_INFO, "up");
             
             // set state ADULT
             ps->inst.istate = SSTATE_ADULT;
@@ -1182,7 +1180,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
         case NCDMODULE_EVENT_DOWN: {
             ASSERT(ps->inst.istate == SSTATE_ADULT)
             
-            statement_log(ps, BLOG_INFO, "down");
+            STATEMENT_LOG(ps, BLOG_INFO, "down");
             
             // set state CHILD
             ps->inst.istate = SSTATE_CHILD;
@@ -1201,10 +1199,8 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
         case NCDMODULE_EVENT_DOWNUP: {
             ASSERT(ps->inst.istate == SSTATE_ADULT)
             
-            if (BLog_WouldLog(BLOG_INFO, BLOG_CURRENT_CHANNEL)) {
-                statement_log(ps, BLOG_INFO, "down");
-                statement_log(ps, BLOG_INFO, "up");
-            }
+            STATEMENT_LOG(ps, BLOG_INFO, "down");
+            STATEMENT_LOG(ps, BLOG_INFO, "up");
             
             // clear error
             if (ps->i < p->ap) {
@@ -1218,7 +1214,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
         } break;
         
         case NCDMODULE_EVENT_DEAD: {
-            statement_log(ps, BLOG_INFO, "died");
+            STATEMENT_LOG(ps, BLOG_INFO, "died");
             
             // free instance
             NCDModuleInst_Free(&ps->inst);
@@ -1241,7 +1237,7 @@ void statement_instance_func_event (NCDModuleInst *inst, int event)
         } break;
         
         case NCDMODULE_EVENT_DEADERROR: {
-            statement_log(ps, BLOG_ERROR, "died with error");
+            STATEMENT_LOG(ps, BLOG_ERROR, "died with error");
             
             // free instance
             NCDModuleInst_Free(&ps->inst);
