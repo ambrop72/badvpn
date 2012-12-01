@@ -587,6 +587,7 @@ static void read_pipe_connection_handler (void *vo, int event)
         // if we have read operation, make it finish with eof
         if (o->read_inst) {
             ASSERT(o->read_inst->read_pipe_inst == o)
+            ASSERT(o->read_inst->buf)
             o->read_inst->read_pipe_inst = NULL;
             o->read_inst->read_size = 0;
             NCDModuleInst_Backend_Up(o->read_inst->i);
@@ -718,16 +719,17 @@ static void read_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
     
     // check if a read error has already occured
     if (read_pipe_inst->state == READER_STATE_ERROR) {
-        ModuleLog(i, BLOG_ERROR, "read error already occured");
+        ModuleLog(i, BLOG_ERROR, "read() is disallowed after a read error has occured");
         goto fail0;
     }
     
     // check if the read_pipe has been aborted
     if (read_pipe_inst->state == READER_STATE_ABORTED) {
-        ModuleLog(i, BLOG_ERROR, "further reads are disallowed after a read has been aborted");
+        ModuleLog(i, BLOG_ERROR, "read() is disallowed after a read() has been aborted");
         goto fail0;
     }
     
+    // if EOF has already been encountered, complete the read immediately
     if (read_pipe_inst->state == READER_STATE_EOF) {
         o->buf = NULL;
         o->read_pipe_inst = NULL;
@@ -736,9 +738,11 @@ static void read_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
         return;
     }
     
+    ASSERT(read_pipe_inst->state == READER_STATE_RUNNING)
+    
     // check if there's already a read in progress
     if (read_pipe_inst->read_inst) {
-        ModuleLog(i, BLOG_ERROR, "read is already in progress");
+        ModuleLog(i, BLOG_ERROR, "read() is disallowed while another read() is in progress");
         goto fail0;
     }
     
@@ -773,6 +777,7 @@ static void read_func_die (void *vo)
     if (o->read_pipe_inst) {
         ASSERT(o->read_pipe_inst->state == READER_STATE_RUNNING)
         ASSERT(o->read_pipe_inst->read_inst == o)
+        ASSERT(o->buf)
         read_pipe_abort(o->read_pipe_inst);
     }
     
@@ -788,9 +793,10 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
 {
     struct read_instance *o = vo;
     ASSERT(!o->read_pipe_inst)
+    ASSERT(!(o->read_size > 0) || o->buf)
     
     if (name == NCD_STRING_EMPTY) {
-        if (o->buf) {
+        if (o->read_size > 0) {
             *out = NCDVal_NewExternalString(mem, NCDBuf_Data(o->buf), o->read_size, NCDBuf_RefTarget(o->buf));
         } else {
             *out = NCDVal_NewIdString(mem, NCD_STRING_EMPTY, o->i->params->iparams->string_index);
@@ -799,7 +805,8 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
     }
     
     if (name == strings[STRING_NOT_EOF].id) {
-        *out = ncd_make_boolean(mem, (o->read_size != 0), o->i->params->iparams->string_index);
+        int not_eof = (o->read_size > 0);
+        *out = ncd_make_boolean(mem, not_eof, o->i->params->iparams->string_index);
         return 1;
     }
     
@@ -997,9 +1004,11 @@ static void write_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
         goto fail0;
     }
     
+    ASSERT(write_pipe_inst->state == WRITER_STATE_RUNNING)
+    
     // check if there's already a write in progress
     if (write_pipe_inst->write_inst) {
-        ModuleLog(i, BLOG_ERROR, "write is already in progress");
+        ModuleLog(i, BLOG_ERROR, "write() is disallowed while another write() is in progress");
         goto fail0;
     }
     
