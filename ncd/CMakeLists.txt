@@ -63,6 +63,7 @@ if (NOT EMSCRIPTEN)
         modules/net_ipv6_addr.c
         modules/net_ipv6_route.c
         modules/socket.c
+        modules/sys_start_process.c
     )
     
     list(APPEND NCD_ADDITIONAL_LIBS
