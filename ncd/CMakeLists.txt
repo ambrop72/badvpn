@@ -35,6 +35,7 @@ if (NOT EMSCRIPTEN)
 
     list(APPEND NCD_ADDITIONAL_SOURCES
         NCDIfConfig.c
+        extra/build_cmdline.c
         modules/command_template.c
         modules/event_template.c
         modules/regex_match.c
