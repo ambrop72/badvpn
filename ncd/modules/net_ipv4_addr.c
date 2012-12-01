@@ -44,7 +44,7 @@
 #include <string.h>
 
 #include <ncd/NCDModule.h>
-#include <ncd/NCDIfConfig.h>
+#include <ncd/extra/NCDIfConfig.h>
 
 #include <generated/blog_channel_ncd_net_ipv4_addr.h>
 

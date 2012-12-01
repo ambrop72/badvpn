@@ -43,7 +43,7 @@
 #include <misc/compare.h>
 #include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
-#include <ncd/NCDIfConfig.h>
+#include <ncd/extra/NCDIfConfig.h>
 #include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_net_dns.h>

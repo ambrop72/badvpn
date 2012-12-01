@@ -45,7 +45,7 @@
 #include <misc/debug.h>
 #include <base/BLog.h>
 
-#include <ncd/NCDIfConfig.h>
+#include "NCDIfConfig.h"
 
 #include <generated/blog_channel_NCDIfConfig.h>
 

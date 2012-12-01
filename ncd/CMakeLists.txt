@@ -34,7 +34,7 @@ if (NOT EMSCRIPTEN)
     target_link_libraries(ncdrequest base system ncdvalgenerator ncdvalparser)
 
     list(APPEND NCD_ADDITIONAL_SOURCES
-        NCDIfConfig.c
+        extra/NCDIfConfig.c
         extra/build_cmdline.c
         modules/command_template.c
         modules/event_template.c
