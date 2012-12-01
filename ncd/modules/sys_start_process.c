@@ -138,10 +138,10 @@
 
 #define READ_BUF_SIZE 8192
 
-#define STATE_ERROR 1
-#define STATE_RUNNING 2
-#define STATE_TERMINATED 3
-#define STATE_DYING 4
+#define PROCESS_STATE_ERROR 1
+#define PROCESS_STATE_RUNNING 2
+#define PROCESS_STATE_TERMINATED 3
+#define PROCESS_STATE_DYING 4
 
 #define READER_STATE_RUNNING 1
 #define READER_STATE_EOF 2
@@ -238,16 +238,20 @@ static int parse_mode (NCDModuleInst *i, NCDValRef mode_arg, int *out_read, int 
     return 1;
 }
 
-static void instance_free (struct process_instance *o)
+static void process_free (struct process_instance *o)
 {
     // close write fd
     if (o->write_fd != -1) {
-        close(o->write_fd);
+        if (close(o->write_fd) < 0) {
+            ModuleLog(o->i, BLOG_ERROR, "close failed");
+        }
     }
     
     // close read fd
     if (o->read_fd != -1) {
-        close(o->read_fd);
+        if (close(o->read_fd) < 0) {
+            ModuleLog(o->i, BLOG_ERROR, "close failed");
+        }
     }
     
     NCDModuleInst_Backend_Dead(o->i);
@@ -256,7 +260,7 @@ static void instance_free (struct process_instance *o)
 static void process_handler (void *vo, int normally, uint8_t normally_exit_status)
 {
     struct process_instance *o = vo;
-    ASSERT(o->state == STATE_RUNNING || o->state == STATE_DYING)
+    ASSERT(o->state == PROCESS_STATE_RUNNING || o->state == PROCESS_STATE_DYING)
     
     ModuleLog(o->i, BLOG_INFO, "process terminated");
     
@@ -278,13 +282,13 @@ static void process_handler (void *vo, int normally, uint8_t normally_exit_statu
     }
     
     // if we have been requested to die, then die now
-    if (o->state == STATE_DYING) {
-        instance_free(o);
+    if (o->state == PROCESS_STATE_DYING) {
+        process_free(o);
         return;
     }
     
     // set state
-    o->state = STATE_TERMINATED;
+    o->state = PROCESS_STATE_TERMINATED;
 }
 
 static void process_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -365,7 +369,9 @@ static void process_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     
     // close child fds
     while (num_fds-- > 0) {
-        close(fds[num_fds]);
+        if (close(fds[num_fds]) < 0) {
+            ModuleLog(i, BLOG_ERROR, "close failed");
+        }
     }
     
     // init waits list
@@ -376,7 +382,7 @@ static void process_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     o->write_fd = write_fd;
     
     // set state
-    o->state = STATE_RUNNING;
+    o->state = PROCESS_STATE_RUNNING;
     
     // go up
     NCDModuleInst_Backend_Up(i);
@@ -388,29 +394,35 @@ fail0:
     
 error1:
     if (write_fd != -1) {
-        close(write_fd);
+        if (close(write_fd) < 0) {
+            ModuleLog(i, BLOG_ERROR, "close failed");
+        }
     }
     if (read_fd != -1) {
-        close(read_fd);
+        if (close(read_fd) < 0) {
+            ModuleLog(i, BLOG_ERROR, "close failed");
+        }
     }
     while (num_fds-- > 0) {
-        close(fds[num_fds]);
+        if (close(fds[num_fds]) < 0) {
+            ModuleLog(i, BLOG_ERROR, "close failed");
+        }
     }
     
     o->read_fd = -1;
     o->write_fd = -1;
-    o->state = STATE_ERROR;
+    o->state = PROCESS_STATE_ERROR;
     NCDModuleInst_Backend_Up(i);
 }
 
 static void process_func_die (void *vo)
 {
     struct process_instance *o = vo;
-    ASSERT(o->state != STATE_DYING)
+    ASSERT(o->state != PROCESS_STATE_DYING)
     
     // if process is not running, die immediately
-    if (o->state != STATE_RUNNING) {
-        instance_free(o);
+    if (o->state != PROCESS_STATE_RUNNING) {
+        process_free(o);
         return;
     }
     
@@ -420,7 +432,7 @@ static void process_func_die (void *vo)
     BProcess_Terminate(&o->process);
     
     // set state
-    o->state = STATE_DYING;
+    o->state = PROCESS_STATE_DYING;
 }
 
 static int process_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
@@ -428,7 +440,7 @@ static int process_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, 
     struct process_instance *o = vo;
     
     if (name == strings[STRING_IS_ERROR].id) {
-        int is_error = (o->state == STATE_ERROR);
+        int is_error = (o->state == PROCESS_STATE_ERROR);
         *out = ncd_make_boolean(mem, is_error, o->i->params->iparams->string_index);
         return 1;
     }
@@ -448,12 +460,12 @@ static void wait_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
     
     struct process_instance *pinst = params->method_user;
     
-    if (pinst->state == STATE_ERROR) {
-        ModuleLog(i, BLOG_ERROR, "process did not start successfully");
+    if (pinst->state == PROCESS_STATE_ERROR) {
+        ModuleLog(i, BLOG_ERROR, "wait() is disallowed after the process has failed to start");
         goto fail0;
     }
     
-    if (pinst->state == STATE_TERMINATED) {
+    if (pinst->state == PROCESS_STATE_TERMINATED) {
         // not waiting, set no pinst
         o->pinst = NULL;
         
@@ -514,12 +526,12 @@ static void terminate_kill_new_common (void *vo, NCDModuleInst *i, const struct 
     
     struct process_instance *pinst = params->method_user;
     
-    if (pinst->state == STATE_ERROR) {
-        ModuleLog(i, BLOG_ERROR, "process did not start successfully");
+    if (pinst->state == PROCESS_STATE_ERROR) {
+        ModuleLog(i, BLOG_ERROR, "terminate()/kill() is disallowed after the process has failed to start");
         goto fail0;
     }
     
-    if (pinst->state != STATE_TERMINATED) {
+    if (pinst->state != PROCESS_STATE_TERMINATED) {
         if (is_kill) {
             BProcess_Kill(&pinst->process);
         } else {
