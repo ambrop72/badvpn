@@ -97,12 +97,12 @@
 struct instance {
     NCDModuleInst *i;
     NCDModuleProcess process;
-    int embed;
     int state;
 };
 
 static void process_handler_event (NCDModuleProcess *process, int event);
-static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
+static int process_func_getspecialobj_embed (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
+static int process_func_getspecialobj_noembed (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
 static int caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
 static void func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name, NCDValRef args, int embed);
 static void instance_free (struct instance *o);
@@ -150,13 +150,16 @@ static void process_handler_event (NCDModuleProcess *process, int event)
     }
 }
 
-static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object)
+static int process_func_getspecialobj_embed (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object)
 {
     struct instance *o = UPPER_OBJECT(process, struct instance, process);
     
-    if (o->embed) {
-        return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
-    }
+    return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
+}
+
+static int process_func_getspecialobj_noembed (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object)
+{
+    struct instance *o = UPPER_OBJECT(process, struct instance, process);
     
     if (name == strings[STRING_CALLER].id) {
         *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, caller_obj_func_getobj);
@@ -182,9 +185,6 @@ static void func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name,
     struct instance *o = vo;
     o->i = i;
     
-    // remember embed
-    o->embed = embed;
-    
     if (NCDVal_IsInvalid(template_name) || ncd_is_none(template_name)) {
         // signal up
         NCDModuleInst_Backend_Up(o->i);
@@ -199,7 +199,11 @@ static void func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name,
         }
         
         // set special functions
-        NCDModuleProcess_SetSpecialFuncs(&o->process, process_func_getspecialobj);
+        if (embed) {
+            NCDModuleProcess_SetSpecialFuncs(&o->process, process_func_getspecialobj_embed);
+        } else {
+            NCDModuleProcess_SetSpecialFuncs(&o->process, process_func_getspecialobj_noembed);
+        }
         
         // set state working
         o->state = STATE_WORKING;
