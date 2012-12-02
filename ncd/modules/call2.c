@@ -30,11 +30,6 @@
  * 
  * Synopsis:
  *   call2(string template, list args)
- *   call2_if(string cond, string template, list args)
- *   call2_ifelse(string cond, string template, string else_template, list args)
- *   embcall2(string template)
- *   embcall2_if(string cond, string template)
- *   embcall2_ifelse(string cond, string template, string else_template)
  *   embcall2_multif(string cond1, string template1, ..., [string else_template])
  */
 
@@ -204,133 +199,6 @@ fail0:
     NCDModuleInst_Backend_DeadError(i);
 }
 
-static void func_new_embcall (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
-{
-    NCDValRef template_arg;
-    if (!NCDVal_ListRead(params->args, 1, &template_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail0;
-    }
-    if (!NCDVal_IsString(template_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail0;
-    }
-    
-    func_new_templ(vo, i, template_arg, NCDVal_NewInvalid(), 1);
-    return;
-    
-fail0:
-    NCDModuleInst_Backend_DeadError(i);
-}
-
-static void func_new_call_if (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
-{
-    NCDValRef cond_arg;
-    NCDValRef template_arg;
-    NCDValRef args_arg;
-    if (!NCDVal_ListRead(params->args, 3, &cond_arg, &template_arg, &args_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail0;
-    }
-    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsString(template_arg) || !NCDVal_IsList(args_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail0;
-    }
-    
-    if (ncd_read_boolean(cond_arg)) {
-        template_arg = NCDVal_NewInvalid();
-    }
-    
-    func_new_templ(vo, i, template_arg, args_arg, 0);
-    return;
-    
-fail0:
-    NCDModuleInst_Backend_DeadError(i);
-}
-
-static void func_new_embcall_if (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
-{
-    NCDValRef cond_arg;
-    NCDValRef template_arg;
-    if (!NCDVal_ListRead(params->args, 2, &cond_arg, &template_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail0;
-    }
-    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsString(template_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail0;
-    }
-    
-    if (ncd_read_boolean(cond_arg)) {
-        template_arg = NCDVal_NewInvalid();
-    }
-    
-    func_new_templ(vo, i, template_arg, NCDVal_NewInvalid(), 1);
-    return;
-    
-fail0:
-    NCDModuleInst_Backend_DeadError(i);
-}
-
-static void func_new_call_ifelse (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
-{
-    NCDValRef cond_arg;
-    NCDValRef template_arg;
-    NCDValRef else_template_arg;
-    NCDValRef args_arg;
-    if (!NCDVal_ListRead(params->args, 4, &cond_arg, &template_arg, &else_template_arg, &args_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail0;
-    }
-    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsString(template_arg) || !NCDVal_IsString(else_template_arg) || !NCDVal_IsList(args_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail0;
-    }
-    
-    NCDValRef template_value;
-    
-    if (ncd_read_boolean(cond_arg)) {
-        template_value = template_arg;
-    } else {
-        template_value = else_template_arg;
-    }
-    
-    func_new_templ(vo, i, template_value, args_arg, 0);
-    return;
-    
-fail0:
-    NCDModuleInst_Backend_DeadError(i);
-}
-
-static void func_new_embcall_ifelse (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
-{
-    NCDValRef cond_arg;
-    NCDValRef template_arg;
-    NCDValRef else_template_arg;
-    if (!NCDVal_ListRead(params->args, 3, &cond_arg, &template_arg, &else_template_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail0;
-    }
-    if (!NCDVal_IsString(cond_arg) || !NCDVal_IsString(template_arg) || !NCDVal_IsString(else_template_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail0;
-    }
-    
-    NCDValRef template_value;
-    
-    if (ncd_read_boolean(cond_arg)) {
-        template_value = template_arg;
-    } else {
-        template_value = else_template_arg;
-    }
-    
-    func_new_templ(vo, i, template_value, NCDVal_NewInvalid(), 1);
-    return;
-    
-fail0:
-    NCDModuleInst_Backend_DeadError(i);
-}
-
 static void func_new_embcall_multif (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef args = params->args;
@@ -422,46 +290,6 @@ static struct NCDModule modules[] = {
     {
         .type = "call2",
         .func_new2 = func_new_call,
-        .func_die = func_die,
-        .func_clean = func_clean,
-        .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
-        .alloc_size = sizeof(struct instance)
-    }, {
-        .type = "call2_if",
-        .func_new2 = func_new_call_if,
-        .func_die = func_die,
-        .func_clean = func_clean,
-        .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
-        .alloc_size = sizeof(struct instance)
-    }, {
-        .type = "call2_ifelse",
-        .func_new2 = func_new_call_ifelse,
-        .func_die = func_die,
-        .func_clean = func_clean,
-        .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
-        .alloc_size = sizeof(struct instance)
-    }, {
-        .type = "embcall2",
-        .func_new2 = func_new_embcall,
-        .func_die = func_die,
-        .func_clean = func_clean,
-        .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
-        .alloc_size = sizeof(struct instance)
-    }, {
-        .type = "embcall2_if",
-        .func_new2 = func_new_embcall_if,
-        .func_die = func_die,
-        .func_clean = func_clean,
-        .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
-        .alloc_size = sizeof(struct instance)
-    }, {
-        .type = "embcall2_ifelse",
-        .func_new2 = func_new_embcall_ifelse,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
