@@ -59,83 +59,13 @@ struct instance {
     NCD_string_id_t static_names[NUM_STATIC_NAMES];
 };
 
-static size_t count_names (const char *str, size_t str_len)
-{
-    size_t count = 1;
-    
-    while (str_len > 0) {
-        if (*str == '.') {
-            count++;
-        }
-        str++;
-        str_len--;
-    }
-    
-    return count;
-}
-
-static int add_name (struct instance *o, const char *str, size_t str_len, const char *remain, size_t remain_len)
-{
-    ASSERT(str)
-    ASSERT(!!o->dynamic_names == (o->num_names > NUM_STATIC_NAMES))
-    
-    NCD_string_id_t id = NCDStringIndex_GetBin(o->i->params->iparams->string_index, str, str_len);
-    if (id < 0) {
-        return 0;
-    }
-    
-    if (o->num_names < NUM_STATIC_NAMES) {
-        o->static_names[o->num_names++] = id;
-        return 1;
-    }
-    
-    if (o->num_names == NUM_STATIC_NAMES) {
-        size_t num_more = (!remain ? 0 : count_names(remain, remain_len));
-        size_t num_all = o->num_names + 1 + num_more;
-        
-        if (!(o->dynamic_names = BAllocArray(num_all, sizeof(o->dynamic_names[0])))) {
-            return 0;
-        }
-        
-        memcpy(o->dynamic_names, o->static_names, NUM_STATIC_NAMES * sizeof(o->dynamic_names[0]));
-    }
-    
-    o->dynamic_names[o->num_names++] = id;
-    
-    return 1;
-}
-
-static int make_names (struct instance *o, const char *str, size_t str_len)
-{
-    ASSERT(str)
-    
-    o->num_names = 0;
-    o->dynamic_names = NULL;
-    
-    size_t i = 0;
-    while (i < str_len) {
-        if (str[i] == '.') {
-            if (!add_name(o, str, i, str + (i + 1), str_len - (i + 1))) {
-                goto fail;
-            }
-            str += i + 1;
-            str_len -= i + 1;
-            i = 0;
-            continue;
-        }
-        i++;
-    }
-    
-    if (!add_name(o, str, i, NULL, 0)) {
-        goto fail;
-    }
-    
-    return 1;
-    
-fail:
-    BFree(o->dynamic_names);
-    return 0;
-}
+#define NAMES_PARAM_NAME AliasNames
+#define NAMES_PARAM_TYPE struct instance
+#define NAMES_PARAM_MEMBER_DYNAMIC_NAMES dynamic_names
+#define NAMES_PARAM_MEMBER_STATIC_NAMES static_names
+#define NAMES_PARAM_MEMBER_NUM_NAMES num_names
+#define NAMES_PARAM_NUM_STATIC_NAMES NUM_STATIC_NAMES
+#include <ncd/extra/make_fast_names.h>
 
 static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
@@ -154,7 +84,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     
     // parse name string
-    if (!make_names(o, NCDVal_StringData(target_arg), NCDVal_StringLength(target_arg))) {
+    if (!AliasNames_InitNames(o, i->params->iparams->string_index, NCDVal_StringData(target_arg), NCDVal_StringLength(target_arg))) {
         ModuleLog(i, BLOG_ERROR, "make_names failed");
         goto fail0;
     }
@@ -171,7 +101,7 @@ static void func_die (void *vo)
 {
     struct instance *o = vo;
     
-    BFree(o->dynamic_names);
+    AliasNames_FreeNames(o);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -181,7 +111,7 @@ static int func_getobj (void *vo, NCD_string_id_t name, NCDObject *out_object)
     struct instance *o = vo;
     ASSERT(o->num_names > 0)
     
-    NCD_string_id_t *names = (o->dynamic_names ? o->dynamic_names : o->static_names);
+    NCD_string_id_t *names = AliasNames_GetNames(o);
     
     NCDObject object;
     if (!NCDModuleInst_Backend_GetObj(o->i, names[0], &object)) {
