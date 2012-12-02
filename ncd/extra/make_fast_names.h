@@ -44,7 +44,9 @@
 
 #define MakeFastNames_count_names MERGE(NAMES_PARAM_NAME, _count_names)
 #define MakeFastNames_add_name MERGE(NAMES_PARAM_NAME, _add_name)
-#define MakeFastNames NAMES_PARAM_NAME
+#define MakeFastNames_InitNames MERGE(NAMES_PARAM_NAME, _InitNames)
+#define MakeFastNames_FreeNames MERGE(NAMES_PARAM_NAME, _FreeNames)
+#define MakeFastNames_GetNames MERGE(NAMES_PARAM_NAME, _GetNames)
 
 static size_t MakeFastNames_count_names (const char *str, size_t str_len)
 {
@@ -92,7 +94,7 @@ static int MakeFastNames_add_name (NAMES_PARAM_TYPE *o, NCDStringIndex *string_i
     return 1;
 }
 
-static int MakeFastNames (NAMES_PARAM_TYPE *o, NCDStringIndex *string_index, const char *str, size_t str_len)
+static int MakeFastNames_InitNames (NAMES_PARAM_TYPE *o, NCDStringIndex *string_index, const char *str, size_t str_len)
 {
     ASSERT(str)
     
@@ -124,9 +126,25 @@ fail:
     return 0;
 }
 
+static void MakeFastNames_FreeNames (NAMES_PARAM_TYPE *o)
+{
+    if (o->NAMES_PARAM_MEMBER_DYNAMIC_NAMES) {
+        BFree(o->NAMES_PARAM_MEMBER_DYNAMIC_NAMES);
+    }
+}
+
+static NCD_string_id_t * MakeFastNames_GetNames (NAMES_PARAM_TYPE *o)
+{
+    ASSERT(o->NAMES_PARAM_MEMBER_NUM_NAMES > 0)
+    
+    return (o->NAMES_PARAM_MEMBER_DYNAMIC_NAMES ? o->NAMES_PARAM_MEMBER_DYNAMIC_NAMES : o->NAMES_PARAM_MEMBER_STATIC_NAMES);
+}
+
 #undef MakeFastNames_count_names
 #undef MakeFastNames_add_name
-#undef MakeFastNames
+#undef MakeFastNames_InitNames
+#undef MakeFastNames_FreeNames
+#undef MakeFastNames_GetNames
 
 #undef NAMES_PARAM_NAME
 #undef NAMES_PARAM_TYPE
