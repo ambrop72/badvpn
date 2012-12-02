@@ -30,7 +30,49 @@
  * 
  * Synopsis:
  *   call(string template, list args)
+ * 
+ * Description:
+ *   Calls a process template. The 'template' argument is the name of the process
+ *   template to call, and the 'list' argument is a list of arguments for the
+ *   process template. Calling a process template is roughly equivalent to placing
+ *   the statements within that template into the place of call(), except for the
+ *   points presented next. The 'template' argument can be a special value "<none>",
+ *   which makes call() a no-op.
+ * 
+ *   The process created from the called template will be able to access the arguments
+ *   that were given in the 'args' argument to call() via the '_argN' predefined\
+ *   objects (e.g. _arg0 for the first argumens), and also via '_args' for the entire
+ *   argument list.
+ *
+ *   The called process also will be able to access objects within the calling
+ *   process as seen by the call() statement. However such any access needs to happen
+ *   via a special '_caller' predefined object. For example, if there is a statement
+ *   'var("a") x;' somewhere above the call() statement, the called process can access
+ *   it as '_caller.x'.
+ * 
+ *   Note that call() preserves backtracking semantics, i.e. when a statement within
+ *   the called process goes down after having gone up, the behaviour really is as
+ *   if the call() statement was replaced with the statements in the called template,
+ *   (disregarding variable resolution).
+ * 
+ *   Because the template name is an argument, call() can be used for branching.
+ *   For example, if we have an object 'x' with the value "true" or "false", a
+ *   branch can be performed by defining two process templates, 'branch_true'
+ *   and 'branch_false', and branching with the following code:
+ * 
+ *     concat("branch_", x) name;
+ *     call(name, {});
+ * 
+ * Synopsis:
  *   embcall2_multif(string cond1, string template1, ..., [string else_template])
+ * 
+ * Description:
+ *   This is an internal command used to implement the 'If' clause. The arguments
+ *   are pairs of (cond, template), where 'cond' is a condition in form of a string,
+ *   and 'template' is the name of the process template for this condition. The
+ *   template corresponding to the first condition equal to "true" is called; if
+ *   there is no true condition, either the template 'else_template' is called,
+ *   if it is provided, or nothing is performed, if 'else_template' is not provided.
  */
 
 #include <stdlib.h>
