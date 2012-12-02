@@ -47,7 +47,6 @@ extern const struct NCDModuleGroup ncdmodule_sleep;
 extern const struct NCDModuleGroup ncdmodule_print;
 extern const struct NCDModuleGroup ncdmodule_blocker;
 extern const struct NCDModuleGroup ncdmodule_spawn;
-extern const struct NCDModuleGroup ncdmodule_call;
 extern const struct NCDModuleGroup ncdmodule_imperative;
 extern const struct NCDModuleGroup ncdmodule_ref;
 extern const struct NCDModuleGroup ncdmodule_index;
@@ -130,7 +129,6 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_print,
     &ncdmodule_blocker,
     &ncdmodule_spawn,
-    &ncdmodule_call,
     &ncdmodule_imperative,
     &ncdmodule_ref,
     &ncdmodule_index,

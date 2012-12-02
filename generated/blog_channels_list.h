@@ -20,7 +20,6 @@
 {"ncd_runonce", 4},
 {"ncd_daemon", 4},
 {"ncd_spawn", 4},
-{"ncd_call", 4},
 {"ncd_imperative", 4},
 {"ncd_ref", 4},
 {"ncd_index", 4},

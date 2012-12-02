@@ -143,7 +143,6 @@ add_library(ncdinterpreter
     modules/print.c
     modules/blocker.c
     modules/spawn.c
-    modules/call.c
     modules/imperative.c
     modules/ref.c
     modules/index.c

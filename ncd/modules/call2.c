@@ -29,7 +29,7 @@
  * @section DESCRIPTION
  * 
  * Synopsis:
- *   call2(string template, list args)
+ *   call(string template, list args)
  *   embcall2_multif(string cond1, string template1, ..., [string else_template])
  */
 
@@ -288,7 +288,7 @@ static int func_getobj (void *vo, NCD_string_id_t name, NCDObject *out_object)
 
 static struct NCDModule modules[] = {
     {
-        .type = "call2",
+        .type = "call",
         .func_new2 = func_new_call,
         .func_die = func_die,
         .func_clean = func_clean,
