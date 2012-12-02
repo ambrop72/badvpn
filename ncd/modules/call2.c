@@ -64,6 +64,19 @@
  *     call(name, {});
  * 
  * Synopsis:
+ *   call_with_caller_target(string template, list args, string caller_target)
+ * 
+ * Description:
+ *   Like call(), except that the target of the '_caller' predefined object is
+ *   specified by the 'caller_target' argument. This is indented to be used from
+ *   generic code for user-specified callbacks, allowing the user to easily refer to
+ *   his own objects from inside the callback.
+ * 
+ *   The 'caller_target' must be a non-empty string referring to an actual object;
+ *   there is no choice of 'caller_target' that would make call_with_caller_target()
+ *   equivalent to call().
+ * 
+ * Synopsis:
  *   embcall2_multif(string cond1, string template1, ..., [string else_template])
  * 
  * Description:
@@ -94,16 +107,35 @@
 #define STATE_TERMINATING 4
 #define STATE_NONE 5
 
+#define NUM_STATIC_NAMES 4
+
 struct instance {
     NCDModuleInst *i;
     NCDModuleProcess process;
     int state;
 };
 
+struct instance_with_caller_target {
+    struct instance base;
+    NCD_string_id_t *dynamic_names;
+    size_t num_names;
+    NCD_string_id_t static_names[NUM_STATIC_NAMES];
+};
+
+#define NAMES_PARAM_NAME CallNames
+#define NAMES_PARAM_TYPE struct instance_with_caller_target
+#define NAMES_PARAM_MEMBER_DYNAMIC_NAMES dynamic_names
+#define NAMES_PARAM_MEMBER_STATIC_NAMES static_names
+#define NAMES_PARAM_MEMBER_NUM_NAMES num_names
+#define NAMES_PARAM_NUM_STATIC_NAMES NUM_STATIC_NAMES
+#include <ncd/extra/make_fast_names.h>
+
 static void process_handler_event (NCDModuleProcess *process, int event);
 static int process_func_getspecialobj_embed (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
 static int process_func_getspecialobj_noembed (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
+static int process_func_getspecialobj_with_caller_target (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
 static int caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
+static int caller_obj_func_getobj_with_caller_target (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
 static void func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name, NCDValRef args, int embed);
 static void instance_free (struct instance *o);
 
@@ -169,11 +201,48 @@ static int process_func_getspecialobj_noembed (NCDModuleProcess *process, NCD_st
     return 0;
 }
 
+static int process_func_getspecialobj_with_caller_target (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object)
+{
+    struct instance *o = UPPER_OBJECT(process, struct instance, process);
+    
+    if (name == strings[STRING_CALLER].id) {
+        *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, caller_obj_func_getobj_with_caller_target);
+        return 1;
+    }
+    
+    return 0;
+}
+
 static int caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object)
 {
     struct instance *o = NCDObject_DataPtr(obj);
     
     return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
+}
+
+static int caller_obj_func_getobj_with_caller_target (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object)
+{
+    struct instance_with_caller_target *o_ch = NCDObject_DataPtr(obj);
+    ASSERT(o_ch->num_names > 0)
+    
+    NCD_string_id_t *names = CallNames_GetNames(o_ch);
+    
+    NCDObject object;
+    if (!NCDModuleInst_Backend_GetObj(o_ch->base.i, names[0], &object)) {
+        return 0;
+    }
+    
+    NCDObject obj2;
+    if (!NCDObject_ResolveObjExprCompact(&object, names + 1, o_ch->num_names - 1, &obj2)) {
+        return 0;
+    }
+    
+    if (name == NCD_STRING_EMPTY) {
+        *out_object = obj2;
+        return 1;
+    }
+    
+    return NCDObject_GetObj(&obj2, name, out_object);
 }
 
 static void func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name, NCDValRef args, int embed)
@@ -245,6 +314,57 @@ fail0:
     NCDModuleInst_Backend_DeadError(i);
 }
 
+static void func_new_call_with_caller_target (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    struct instance *o = vo;
+    struct instance_with_caller_target *o_ct = vo;
+    o->i = i;
+    
+    NCDValRef template_arg;
+    NCDValRef args_arg;
+    NCDValRef caller_target_arg;
+    if (!NCDVal_ListRead(params->args, 3, &template_arg, &args_arg, &caller_target_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (!NCDVal_IsString(template_arg) || !NCDVal_IsList(args_arg) || !NCDVal_IsString(caller_target_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    
+    if (!CallNames_InitNames(o_ct, i->params->iparams->string_index, NCDVal_StringData(caller_target_arg), NCDVal_StringLength(caller_target_arg))) {
+        ModuleLog(i, BLOG_ERROR, "CallerNames_InitNames failed");
+        goto fail0;
+    }
+    
+    if (ncd_is_none(template_arg)) {
+        // signal up
+        NCDModuleInst_Backend_Up(i);
+        
+        // set state none
+        o->state = STATE_NONE;
+    } else {
+        // create process
+        if (!NCDModuleProcess_InitValue(&o->process, i, template_arg, args_arg, process_handler_event)) {
+            ModuleLog(i, BLOG_ERROR, "NCDModuleProcess_Init failed");
+            goto fail1;
+        }
+        
+        // set special functions
+        NCDModuleProcess_SetSpecialFuncs(&o->process, process_func_getspecialobj_with_caller_target);
+        
+        // set state working
+        o->state = STATE_WORKING;
+    }
+    
+    return;
+    
+fail1:
+    CallNames_FreeNames(o_ct);
+fail0:
+    NCDModuleInst_Backend_DeadError(i);
+}
+
 static void func_new_embcall_multif (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     NCDValRef args = params->args;
@@ -307,6 +427,15 @@ static void func_die (void *vo)
     o->state = STATE_TERMINATING;
 }
 
+static void func_die_with_caller_target (void *vo)
+{
+    struct instance_with_caller_target *o_ct = vo;
+    
+    CallNames_FreeNames(o_ct);
+    
+    func_die(vo);
+}
+
 static void func_clean (void *vo)
 {
     struct instance *o = vo;
@@ -341,6 +470,14 @@ static struct NCDModule modules[] = {
         .func_getobj = func_getobj,
         .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
         .alloc_size = sizeof(struct instance)
+    }, {
+        .type = "call_with_caller_target",
+        .func_new2 = func_new_call_with_caller_target,
+        .func_die = func_die_with_caller_target,
+        .func_clean = func_clean,
+        .func_getobj = func_getobj,
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
+        .alloc_size = sizeof(struct instance_with_caller_target)
     }, {
         .type = "embcall2_multif",
         .func_new2 = func_new_embcall_multif,
