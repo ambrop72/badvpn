@@ -130,12 +130,14 @@ typedef struct {
  * Initializes and starts the interpreter.
  * 
  * @param o the interpreter
- * @param program pointer to NCD program text
- * @param program_len number of characters in program
+ * @param program the program to execute in AST format. The program must
+ *                not contain any 'include' or 'include_guard' directives.
+ *                The interpreter takes ownership of the program, regardless
+ *                of the success of this function.
  * @param params other parameters
  * @return 1 on success, 0 on failure
  */
-int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_len, struct NCDInterpreter_params params) WARN_UNUSED;
+int NCDInterpreter_Init (NCDInterpreter *o, NCDProgram program, struct NCDInterpreter_params params) WARN_UNUSED;
 
 /**
  * Frees the interpreter.

@@ -36,6 +36,7 @@
 #include <system/BTime.h>
 #include <system/BReactor.h>
 #include <ncd/NCDInterpreter.h>
+#include <ncd/NCDConfigParser.h>
 
 #include <generated/blog_channel_ncd.h>
 
@@ -71,9 +72,9 @@ int main ()
 }
 
 __attribute__((used))
-void emncd_start (const char *program, int loglevel)
+void emncd_start (const char *program_text, int loglevel)
 {
-    ASSERT(program);
+    ASSERT(program_text);
     ASSERT(loglevel >= 0);
     ASSERT(loglevel <= BLOG_DEBUG);
     
@@ -82,11 +83,25 @@ void emncd_start (const char *program, int loglevel)
         return;
     }
     
-    fprintf(stderr, "--- starting interpreter ---\n");
-    
     for (int i = 0; i < BLOG_NUM_CHANNELS; i++) {
         BLog_SetChannelLoglevel(i, loglevel);
     }
+    
+    // parse program
+    NCDProgram program;
+    if (!NCDConfigParser_Parse((char *)program_text ,strlen(program_text), &program)) {
+        fprintf(stderr, "--- error: failed to parse the program ---\n");
+        return;
+    }
+    
+    // include commands are not implemented currently
+    if (NCDProgram_ContainsElemType(&program, NCDPROGRAMELEM_INCLUDE) || NCDProgram_ContainsElemType(&program, NCDPROGRAMELEM_INCLUDE_GUARD)) {
+        fprintf(stderr, "--- error: include mechanism is not supported in emncd ---\n");
+        NCDProgram_Free(&program);
+        return;
+    }
+    
+    fprintf(stderr, "--- starting interpreter ---\n");
     
     struct NCDInterpreter_params params;
     params.handler_finished = interpreter_handler_finished;
@@ -96,8 +111,8 @@ void emncd_start (const char *program, int loglevel)
     params.num_extra_args = 0;
     params.reactor = &reactor;
     
-    if (!NCDInterpreter_Init(&interpreter, program, strlen(program), params)) {
-        fprintf(stderr, "--- failed to initialize the interpreter (syntax error?) ---\n");
+    if (!NCDInterpreter_Init(&interpreter, program, params)) {
+        fprintf(stderr, "--- failed to initialize the interpreter ---\n");
         return;
     }
     

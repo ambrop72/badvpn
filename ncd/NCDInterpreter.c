@@ -37,7 +37,6 @@
 #include <misc/balloc.h>
 #include <misc/expstring.h>
 #include <base/BLog.h>
-#include <ncd/NCDConfigParser.h>
 #include <ncd/NCDSugar.h>
 #include <ncd/modules/modules.h>
 
@@ -124,9 +123,10 @@ static int process_moduleprocess_func_getobj (struct process *p, NCD_string_id_t
 
 #define STATEMENT_LOG(ps, channel, ...) if (BLog_WouldLog(BLOG_CURRENT_CHANNEL, channel)) statement_log(ps, channel, __VA_ARGS__)
 
-int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_len, struct NCDInterpreter_params params)
+int NCDInterpreter_Init (NCDInterpreter *o, NCDProgram program, struct NCDInterpreter_params params)
 {
-    ASSERT(program);
+    ASSERT(!NCDProgram_ContainsElemType(&program, NCDPROGRAMELEM_INCLUDE));
+    ASSERT(!NCDProgram_ContainsElemType(&program, NCDPROGRAMELEM_INCLUDE_GUARD));
     ASSERT(params.handler_finished);
     ASSERT(params.num_extra_args >= 0);
     ASSERT(params.reactor);
@@ -145,6 +145,9 @@ int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_
     
     // set not terminating
     o->terminating = 0;
+    
+    // set program
+    o->program = program;
     
     // init string index
     if (!NCDStringIndex_Init(&o->string_index)) {
@@ -175,32 +178,16 @@ int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_
         }
     }
     
-    // parse config file
-    if (!NCDConfigParser_Parse((char *)program, program_len, &o->program)) {
-        BLog(BLOG_ERROR, "NCDConfigParser_Parse failed");
-        goto fail3;
-    }
-    
-    // include commands are not implemented currently
-    if (NCDProgram_ContainsElemType(&o->program, NCDPROGRAMELEM_INCLUDE)) {
-        BLog(BLOG_ERROR, "TODO include not implemented");
-        goto fail4;
-    }
-    if (NCDProgram_ContainsElemType(&o->program, NCDPROGRAMELEM_INCLUDE_GUARD)) {
-        BLog(BLOG_ERROR, "TODO include_guard not implemented");
-        goto fail4;
-    }
-    
     // desugar
     if (!NCDSugar_Desugar(&o->program)) {
         BLog(BLOG_ERROR, "NCDSugar_Desugar failed");
-        goto fail4;
+        goto fail3;
     }
     
     // init placeholder database
     if (!NCDPlaceholderDb_Init(&o->placeholder_db, &o->string_index)) {
         BLog(BLOG_ERROR, "NCDPlaceholderDb_Init failed");
-        goto fail4;
+        goto fail3;
     }
     
     // init interp program
@@ -307,9 +294,6 @@ fail6:
 fail5:
     // free placeholder database
     NCDPlaceholderDb_Free(&o->placeholder_db);
-fail4:
-    // free program AST
-    NCDProgram_Free(&o->program);
 fail3:
     // free module index
     NCDModuleIndex_Free(&o->mindex);
@@ -320,6 +304,8 @@ fail1:
     // free string index
     NCDStringIndex_Free(&o->string_index);
 fail0:
+    // free program AST
+    NCDProgram_Free(&o->program);
     return 0;
 }
 

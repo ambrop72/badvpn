@@ -44,6 +44,7 @@
 #include <udevmonitor/NCDUdevManager.h>
 #include <random/BRandom2.h>
 #include <ncd/NCDInterpreter.h>
+#include <ncd/NCDConfigParser.h>
 
 #ifdef BADVPN_USE_SYSLOG
 #include <base/BLog_syslog.h>
@@ -204,6 +205,22 @@ int main (int argc, char **argv)
         goto fail5;
     }
     
+    // parse program
+    NCDProgram program;
+    int res = NCDConfigParser_Parse((char *)file, file_len, &program);
+    free(file);
+    if (!res) {
+        BLog(BLOG_ERROR, "failed to parse program");
+        goto fail5;
+    }
+    
+    // include commands are not implemented currently
+    if (NCDProgram_ContainsElemType(&program, NCDPROGRAMELEM_INCLUDE) || NCDProgram_ContainsElemType(&program, NCDPROGRAMELEM_INCLUDE_GUARD)) {
+        BLog(BLOG_ERROR, "TODO include not implemented");
+        NCDProgram_Free(&program);
+        goto fail5;
+    }
+    
     // setup interpreter parameters
     struct NCDInterpreter_params params;
     params.handler_finished = interpreter_handler_finished;
@@ -217,9 +234,7 @@ int main (int argc, char **argv)
     params.random2 = &random2;
     
     // initialize interpreter
-    int res = NCDInterpreter_Init(&interpreter, (const char *)file, file_len, params);
-    free(file);
-    if (!res) {
+    if (!NCDInterpreter_Init(&interpreter, program, params)) {
         goto fail5;
     }
     
