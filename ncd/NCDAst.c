@@ -451,6 +451,19 @@ int NCDProgramElem_InitInclude (NCDProgramElem *o, const char *path_data, size_t
     return 1;
 }
 
+int NCDProgramElem_InitIncludeGuard (NCDProgramElem *o, const char *id_data, size_t id_length)
+{
+    if (!(o->include_guard.id_data = b_strdup_bin(id_data, id_length))) {
+        return 0;
+    }
+    
+    o->type = NCDPROGRAMELEM_INCLUDE_GUARD;
+    o->include_guard.id_length = id_length;
+    
+    return 1;
+}
+
+
 void NCDProgramElem_Free (NCDProgramElem *o)
 {
     switch (o->type) {
@@ -460,6 +473,10 @@ void NCDProgramElem_Free (NCDProgramElem *o)
         
         case NCDPROGRAMELEM_INCLUDE: {
             free(o->include.path_data);
+        } break;
+        
+        case NCDPROGRAMELEM_INCLUDE_GUARD: {
+            free(o->include_guard.id_data);
         } break;
         
         default: ASSERT(0);
@@ -490,6 +507,20 @@ size_t NCDProgramElem_IncludePathLength (NCDProgramElem *o)
     ASSERT(o->type == NCDPROGRAMELEM_INCLUDE)
     
     return o->include.path_length;
+}
+
+const char * NCDProgramElem_IncludeGuardIdData (NCDProgramElem *o)
+{
+    ASSERT(o->type == NCDPROGRAMELEM_INCLUDE_GUARD)
+    
+    return o->include_guard.id_data;
+}
+
+size_t NCDProgramElem_IncludeGuardIdLength (NCDProgramElem *o)
+{
+    ASSERT(o->type == NCDPROGRAMELEM_INCLUDE_GUARD)
+    
+    return o->include_guard.id_length;
 }
 
 int NCDProcess_Init (NCDProcess *o, int is_template, const char *name, NCDBlock block)

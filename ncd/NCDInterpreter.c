@@ -186,6 +186,10 @@ int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_
         BLog(BLOG_ERROR, "TODO include not implemented");
         goto fail4;
     }
+    if (NCDProgram_ContainsElemType(&o->program, NCDPROGRAMELEM_INCLUDE_GUARD)) {
+        BLog(BLOG_ERROR, "TODO include_guard not implemented");
+        goto fail4;
+    }
     
     // desugar
     if (!NCDSugar_Desugar(&o->program)) {

@@ -234,6 +234,7 @@ fail:
 int NCDSugar_Desugar (NCDProgram *prog)
 {
     ASSERT(!NCDProgram_ContainsElemType(prog, NCDPROGRAMELEM_INCLUDE))
+    ASSERT(!NCDProgram_ContainsElemType(prog, NCDPROGRAMELEM_INCLUDE_GUARD))
     
     struct desugar_state state;
     state.prog = prog;

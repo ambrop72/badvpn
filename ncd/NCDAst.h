@@ -90,6 +90,10 @@ struct NCDProgramElem_s {
             char *path_data;
             size_t path_length;
         } include;
+        struct {
+            char *id_data;
+            size_t id_length;
+        } include_guard;
     };
 };
 
@@ -150,6 +154,7 @@ struct IfBlockIf {
 
 #define NCDPROGRAMELEM_PROCESS 1
 #define NCDPROGRAMELEM_INCLUDE 2
+#define NCDPROGRAMELEM_INCLUDE_GUARD 3
 
 #define NCDSTATEMENT_REG 1
 #define NCDSTATEMENT_IF 2
@@ -186,11 +191,14 @@ int NCDProgram_ContainsElemType (NCDProgram *o, int elem_type);
 
 void NCDProgramElem_InitProcess (NCDProgramElem *o, NCDProcess process);
 int NCDProgramElem_InitInclude (NCDProgramElem *o, const char *path_data, size_t path_length) WARN_UNUSED;
+int NCDProgramElem_InitIncludeGuard (NCDProgramElem *o, const char *id_data, size_t id_length) WARN_UNUSED;
 void NCDProgramElem_Free (NCDProgramElem *o);
 int NCDProgramElem_Type (NCDProgramElem *o);
 NCDProcess * NCDProgramElem_Process (NCDProgramElem *o);
 const char * NCDProgramElem_IncludePathData (NCDProgramElem *o);
 size_t NCDProgramElem_IncludePathLength (NCDProgramElem *o);
+const char * NCDProgramElem_IncludeGuardIdData (NCDProgramElem *o);
+size_t NCDProgramElem_IncludeGuardIdLength (NCDProgramElem *o);
 
 int NCDProcess_Init (NCDProcess *o, int is_template, const char *name, NCDBlock block) WARN_UNUSED;
 void NCDProcess_Free (NCDProcess *o);

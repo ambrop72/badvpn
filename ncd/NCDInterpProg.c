@@ -45,6 +45,7 @@ int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDStringIndex *stri
 {
     ASSERT(prog)
     ASSERT(!NCDProgram_ContainsElemType(prog, NCDPROGRAMELEM_INCLUDE))
+    ASSERT(!NCDProgram_ContainsElemType(prog, NCDPROGRAMELEM_INCLUDE_GUARD))
     ASSERT(string_index)
     ASSERT(pdb)
     ASSERT(module_index)

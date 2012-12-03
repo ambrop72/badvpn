@@ -276,6 +276,10 @@ int main (int argc, char **argv)
                 printf("include path=%s\n", NCDProgramElem_IncludePathData(elem));
             } break;
             
+            case NCDPROGRAMELEM_INCLUDE_GUARD: {
+                printf("include_guard id=%s\n", NCDProgramElem_IncludeGuardIdData(elem));
+            } break;
+            
             default: ASSERT(0);
         }
     }
