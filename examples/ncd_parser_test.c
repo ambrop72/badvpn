@@ -264,9 +264,20 @@ int main (int argc, char **argv)
     }
     
     // print
-    for (NCDProcess *p = NCDProgram_FirstProcess(&prog); p; p = NCDProgram_NextProcess(&prog, p)) {
-        printf("process name=%s is_template=%d\n", NCDProcess_Name(p), NCDProcess_IsTemplate(p));
-        print_block(NCDProcess_Block(p), 2);
+    for (NCDProgramElem *elem = NCDProgram_FirstElem(&prog); elem; elem = NCDProgram_NextElem(&prog, elem)) {
+        switch (NCDProgramElem_Type(elem)) {
+            case NCDPROGRAMELEM_PROCESS: {
+                NCDProcess *p = NCDProgramElem_Process(elem);
+                printf("process name=%s is_template=%d\n", NCDProcess_Name(p), NCDProcess_IsTemplate(p));
+                print_block(NCDProcess_Block(p), 2);
+            } break;
+            
+            case NCDPROGRAMELEM_INCLUDE: {
+                printf("include path=%s\n", NCDProgramElem_IncludePathData(elem));
+            } break;
+            
+            default: ASSERT(0);
+        }
     }
     
     res = 0;

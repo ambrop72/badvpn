@@ -60,8 +60,11 @@ static int add_template (struct desugar_state *state, NCDBlock block, NCDValue *
         return 0;
     }
     
-    if (!NCDProgram_PrependProcess(state->prog, proc_tmp)) {
-        NCDProcess_Free(&proc_tmp);
+    NCDProgramElem elem;
+    NCDProgramElem_InitProcess(&elem, proc_tmp);
+    
+    if (!NCDProgram_PrependElem(state->prog, elem)) {
+        NCDProgramElem_Free(&elem);
         return 0;
     }
     
@@ -230,11 +233,16 @@ fail:
 
 int NCDSugar_Desugar (NCDProgram *prog)
 {
+    ASSERT(!NCDProgram_ContainsElemType(prog, NCDPROGRAMELEM_INCLUDE))
+    
     struct desugar_state state;
     state.prog = prog;
     state.template_name_ctr = 0;
     
-    for (NCDProcess *proc = NCDProgram_FirstProcess(prog); proc; proc = NCDProgram_NextProcess(prog, proc)) {
+    for (NCDProgramElem *elem = NCDProgram_FirstElem(prog); elem; elem = NCDProgram_NextElem(prog, elem)) {
+        ASSERT(NCDProgramElem_Type(elem) == NCDPROGRAMELEM_PROCESS)
+        NCDProcess *proc = NCDProgramElem_Process(elem);
+        
         if (!desugar_block(&state, NCDProcess_Block(proc))) {
             return 0;
         }

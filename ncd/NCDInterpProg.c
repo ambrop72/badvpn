@@ -44,16 +44,17 @@
 int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDStringIndex *string_index, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index)
 {
     ASSERT(prog)
+    ASSERT(!NCDProgram_ContainsElemType(prog, NCDPROGRAMELEM_INCLUDE))
     ASSERT(string_index)
     ASSERT(pdb)
     ASSERT(module_index)
     ASSERT(method_index)
     
-    if (NCDProgram_NumProcesses(prog) > INT_MAX) {
+    if (NCDProgram_NumElems(prog) > INT_MAX) {
         BLog(BLOG_ERROR, "too many processes");
         goto fail0;
     }
-    int num_procs = NCDProgram_NumProcesses(prog);
+    int num_procs = NCDProgram_NumElems(prog);
     
     if (!(o->procs = BAllocArray(num_procs, sizeof(o->procs[0])))) {
         BLog(BLOG_ERROR, "BAllocArray failed");
@@ -67,7 +68,10 @@ int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDStringIndex *stri
     
     o->num_procs = 0;
     
-    for (NCDProcess *p = NCDProgram_FirstProcess(prog); p; p = NCDProgram_NextProcess(prog, p)) {
+    for (NCDProgramElem *elem = NCDProgram_FirstElem(prog); elem; elem = NCDProgram_NextElem(prog, elem)) {
+        ASSERT(NCDProgramElem_Type(elem) == NCDPROGRAMELEM_PROCESS)
+        NCDProcess *p = NCDProgramElem_Process(elem);
+        
         struct NCDInterpProg__process *e = &o->procs[o->num_procs];
         
         e->name = NCDStringIndex_Get(string_index, NCDProcess_Name(p));

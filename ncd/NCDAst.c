@@ -32,6 +32,7 @@
 #include <string.h>
 
 #include <misc/offset.h>
+#include <misc/strdup.h>
 
 #include "NCDAst.h"
 
@@ -354,71 +355,141 @@ const char * NCDValue_VarName (NCDValue *o)
 
 void NCDProgram_Init (NCDProgram *o)
 {
-    LinkedList1_Init(&o->processes_list);
-    o->num_processes = 0;
+    LinkedList1_Init(&o->elems_list);
+    o->num_elems = 0;
 }
 
 void NCDProgram_Free (NCDProgram *o)
 {
     LinkedList1Node *ln;
-    while (ln = LinkedList1_GetFirst(&o->processes_list)) {
-        struct ProgramProcess *e = UPPER_OBJECT(ln, struct ProgramProcess, processes_list_node);
-        NCDProcess_Free(&e->p);
-        LinkedList1_Remove(&o->processes_list, &e->processes_list_node);
+    while (ln = LinkedList1_GetFirst(&o->elems_list)) {
+        struct ProgramElem *e = UPPER_OBJECT(ln, struct ProgramElem, elems_list_node);
+        NCDProgramElem_Free(&e->elem);
+        LinkedList1_Remove(&o->elems_list, &e->elems_list_node);
         free(e);
     }
 }
 
-NCDProcess * NCDProgram_PrependProcess (NCDProgram *o, NCDProcess p)
+NCDProgramElem * NCDProgram_PrependElem (NCDProgram *o, NCDProgramElem elem)
 {
-    if (o->num_processes == SIZE_MAX) {
+    if (o->num_elems == SIZE_MAX) {
         return NULL;
     }
     
-    struct ProgramProcess *e = malloc(sizeof(*e));
+    struct ProgramElem *e = malloc(sizeof(*e));
     if (!e) {
         return NULL;
     }
     
-    LinkedList1_Prepend(&o->processes_list, &e->processes_list_node);
-    e->p = p;
+    LinkedList1_Prepend(&o->elems_list, &e->elems_list_node);
+    e->elem = elem;
     
-    o->num_processes++;
+    o->num_elems++;
     
-    return &e->p;
+    return &e->elem;
 }
 
-NCDProcess * NCDProgram_FirstProcess (NCDProgram *o)
+NCDProgramElem * NCDProgram_FirstElem (NCDProgram *o)
 {
-    LinkedList1Node *ln = LinkedList1_GetFirst(&o->processes_list);
+    LinkedList1Node *ln = LinkedList1_GetFirst(&o->elems_list);
     if (!ln) {
         return NULL;
     }
     
-    struct ProgramProcess *e = UPPER_OBJECT(ln, struct ProgramProcess, processes_list_node);
+    struct ProgramElem *e = UPPER_OBJECT(ln, struct ProgramElem, elems_list_node);
     
-    return &e->p;
+    return &e->elem;
 }
 
-NCDProcess * NCDProgram_NextProcess (NCDProgram *o, NCDProcess *ep)
+NCDProgramElem * NCDProgram_NextElem (NCDProgram *o, NCDProgramElem *ee)
 {
-    ASSERT(ep)
+    ASSERT(ee)
     
-    struct ProgramProcess *cur_e = UPPER_OBJECT(ep, struct ProgramProcess, p);
+    struct ProgramElem *cur_e = UPPER_OBJECT(ee, struct ProgramElem, elem);
     
-    LinkedList1Node *ln = LinkedList1Node_Next(&cur_e->processes_list_node);
+    LinkedList1Node *ln = LinkedList1Node_Next(&cur_e->elems_list_node);
     if (!ln) {
         return NULL;
     }
     
-    struct ProgramProcess *e = UPPER_OBJECT(ln, struct ProgramProcess, processes_list_node);
+    struct ProgramElem *e = UPPER_OBJECT(ln, struct ProgramElem, elems_list_node);
     
-    return &e->p;
+    return &e->elem;
 }
 
-size_t NCDProgram_NumProcesses (NCDProgram *o)
+size_t NCDProgram_NumElems (NCDProgram *o)
 {
-    return o->num_processes;
+    return o->num_elems;
+}
+
+int NCDProgram_ContainsElemType (NCDProgram *o, int elem_type)
+{
+    for (NCDProgramElem *elem = NCDProgram_FirstElem(o); elem; elem = NCDProgram_NextElem(o, elem)) {
+        if (NCDProgramElem_Type(elem) == elem_type) {
+            return 1;
+        }
+    }
+    
+    return 0;
+}
+
+void NCDProgramElem_InitProcess (NCDProgramElem *o, NCDProcess process)
+{
+    o->type = NCDPROGRAMELEM_PROCESS;
+    o->process = process;
+}
+
+int NCDProgramElem_InitInclude (NCDProgramElem *o, const char *path_data, size_t path_length)
+{
+    if (!(o->include.path_data = b_strdup_bin(path_data, path_length))) {
+        return 0;
+    }
+    
+    o->type = NCDPROGRAMELEM_INCLUDE;
+    o->include.path_length = path_length;
+    
+    return 1;
+}
+
+void NCDProgramElem_Free (NCDProgramElem *o)
+{
+    switch (o->type) {
+        case NCDPROGRAMELEM_PROCESS: {
+            NCDProcess_Free(&o->process);
+        } break;
+        
+        case NCDPROGRAMELEM_INCLUDE: {
+            free(o->include.path_data);
+        } break;
+        
+        default: ASSERT(0);
+    }
+}
+
+int NCDProgramElem_Type (NCDProgramElem *o)
+{
+    return o->type;
+}
+
+NCDProcess * NCDProgramElem_Process (NCDProgramElem *o)
+{
+    ASSERT(o->type == NCDPROGRAMELEM_PROCESS)
+    
+    return &o->process;
+}
+
+const char * NCDProgramElem_IncludePathData (NCDProgramElem *o)
+{
+    ASSERT(o->type == NCDPROGRAMELEM_INCLUDE)
+    
+    return o->include.path_data;
+}
+
+size_t NCDProgramElem_IncludePathLength (NCDProgramElem *o)
+{
+    ASSERT(o->type == NCDPROGRAMELEM_INCLUDE)
+    
+    return o->include.path_length;
 }
 
 int NCDProcess_Init (NCDProcess *o, int is_template, const char *name, NCDBlock block)

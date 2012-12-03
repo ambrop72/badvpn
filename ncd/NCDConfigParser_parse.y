@@ -154,10 +154,13 @@ processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_C
     }
     B.have = 0;
 
+    NCDProgramElem elem;
+    NCDProgramElem_InitProcess(&elem, proc);
+    
     NCDProgram prog;
     NCDProgram_Init(&prog);
 
-    if (!NCDProgram_PrependProcess(&prog, proc)) {
+    if (!NCDProgram_PrependElem(&prog, elem)) {
         goto failA1;
     }
 
@@ -167,7 +170,7 @@ processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_C
 
 failA1:
     NCDProgram_Free(&prog);
-    NCDProcess_Free(&proc);
+    NCDProgramElem_Free(&elem);
 failA0:
     R.have = 0;
     parser_out->out_of_memory = 1;
@@ -187,8 +190,11 @@ processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_C
         goto failB0;
     }
     B.have = 0;
+    
+    NCDProgramElem elem;
+    NCDProgramElem_InitProcess(&elem, proc);
 
-    if (!NCDProgram_PrependProcess(&N.v, proc)) {
+    if (!NCDProgram_PrependElem(&N.v, elem)) {
         goto failB1;
     }
 
@@ -198,7 +204,7 @@ processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_C
     goto doneB;
 
 failB1:
-    NCDProcess_Free(&proc);
+    NCDProgramElem_Free(&elem);
 failB0:
     R.have = 0;
     parser_out->out_of_memory = 1;

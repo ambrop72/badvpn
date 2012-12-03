@@ -181,6 +181,12 @@ int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_
         goto fail3;
     }
     
+    // include commands are not implemented currently
+    if (NCDProgram_ContainsElemType(&o->program, NCDPROGRAMELEM_INCLUDE)) {
+        BLog(BLOG_ERROR, "TODO include not implemented");
+        goto fail4;
+    }
+    
     // desugar
     if (!NCDSugar_Desugar(&o->program)) {
         BLog(BLOG_ERROR, "NCDSugar_Desugar failed");
@@ -247,7 +253,10 @@ int NCDInterpreter_Init (NCDInterpreter *o, const char *program, size_t program_
     LinkedList1_Init(&o->processes);
     
     // init processes
-    for (NCDProcess *p = NCDProgram_FirstProcess(&o->program); p; p = NCDProgram_NextProcess(&o->program, p)) {
+    for (NCDProgramElem *elem = NCDProgram_FirstElem(&o->program); elem; elem = NCDProgram_NextElem(&o->program, elem)) {
+        ASSERT(NCDProgramElem_Type(elem) == NCDPROGRAMELEM_PROCESS)
+        NCDProcess *p = NCDProgramElem_Process(elem);
+        
         if (NCDProcess_IsTemplate(p)) {
             continue;
         }
@@ -439,8 +448,11 @@ int alloc_base_type_strings (NCDInterpreter *interp, const struct NCDModuleGroup
 
 void clear_process_cache (NCDInterpreter *interp)
 {
-    for (NCDProcess *p = NCDProgram_FirstProcess(&interp->program); p; p = NCDProgram_NextProcess(&interp->program, p)) {
-        NCD_string_id_t name_id = NCDStringIndex_Lookup(&interp->string_index, NCDProcess_Name(p));
+    for (NCDProgramElem *elem = NCDProgram_FirstElem(&interp->program); elem; elem = NCDProgram_NextElem(&interp->program, elem)) {
+        ASSERT(NCDProgramElem_Type(elem) == NCDPROGRAMELEM_PROCESS)
+        NCDProcess *ast_p = NCDProgramElem_Process(elem);
+        
+        NCD_string_id_t name_id = NCDStringIndex_Lookup(&interp->string_index, NCDProcess_Name(ast_p));
         NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&interp->iprogram, name_id);
         
         struct process *p;

@@ -38,6 +38,7 @@
 
 typedef struct NCDValue_s NCDValue;
 typedef struct NCDProgram_s NCDProgram;
+typedef struct NCDProgramElem_s NCDProgramElem;
 typedef struct NCDProcess_s NCDProcess;
 typedef struct NCDBlock_s NCDBlock;
 typedef struct NCDStatement_s NCDStatement;
@@ -66,8 +67,8 @@ struct NCDValue_s {
 };
 
 struct NCDProgram_s {
-    LinkedList1 processes_list;
-    size_t num_processes;
+    LinkedList1 elems_list;
+    size_t num_elems;
 };
 
 struct NCDBlock_s {
@@ -79,6 +80,17 @@ struct NCDProcess_s {
     int is_template;
     char *name;
     NCDBlock block;
+};
+
+struct NCDProgramElem_s {
+    int type;
+    union {
+        NCDProcess process;
+        struct {
+            char *path_data;
+            size_t path_length;
+        } include;
+    };
 };
 
 struct NCDIfBlock_s {
@@ -114,9 +126,9 @@ struct NCDIf_s {
     NCDBlock block;
 };
 
-struct ProgramProcess {
-    LinkedList1Node processes_list_node;
-    NCDProcess p;
+struct ProgramElem {
+    LinkedList1Node elems_list_node;
+    NCDProgramElem elem;
 };
 
 struct BlockStatement {
@@ -135,6 +147,9 @@ struct IfBlockIf {
 #define NCDVALUE_LIST 2
 #define NCDVALUE_MAP 3
 #define NCDVALUE_VAR 4
+
+#define NCDPROGRAMELEM_PROCESS 1
+#define NCDPROGRAMELEM_INCLUDE 2
 
 #define NCDSTATEMENT_REG 1
 #define NCDSTATEMENT_IF 2
@@ -163,10 +178,19 @@ const char * NCDValue_VarName (NCDValue *o);
 
 void NCDProgram_Init (NCDProgram *o);
 void NCDProgram_Free (NCDProgram *o);
-NCDProcess * NCDProgram_PrependProcess (NCDProgram *o, NCDProcess p) WARN_UNUSED;
-NCDProcess * NCDProgram_FirstProcess (NCDProgram *o);
-NCDProcess * NCDProgram_NextProcess (NCDProgram *o, NCDProcess *ep);
-size_t NCDProgram_NumProcesses (NCDProgram *o);
+NCDProgramElem * NCDProgram_PrependElem (NCDProgram *o, NCDProgramElem elem) WARN_UNUSED;
+NCDProgramElem * NCDProgram_FirstElem (NCDProgram *o);
+NCDProgramElem * NCDProgram_NextElem (NCDProgram *o, NCDProgramElem *ee);
+size_t NCDProgram_NumElems (NCDProgram *o);
+int NCDProgram_ContainsElemType (NCDProgram *o, int elem_type);
+
+void NCDProgramElem_InitProcess (NCDProgramElem *o, NCDProcess process);
+int NCDProgramElem_InitInclude (NCDProgramElem *o, const char *path_data, size_t path_length) WARN_UNUSED;
+void NCDProgramElem_Free (NCDProgramElem *o);
+int NCDProgramElem_Type (NCDProgramElem *o);
+NCDProcess * NCDProgramElem_Process (NCDProgramElem *o);
+const char * NCDProgramElem_IncludePathData (NCDProgramElem *o);
+size_t NCDProgramElem_IncludePathLength (NCDProgramElem *o);
 
 int NCDProcess_Init (NCDProcess *o, int is_template, const char *name, NCDBlock block) WARN_UNUSED;
 void NCDProcess_Free (NCDProcess *o);
