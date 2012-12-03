@@ -114,6 +114,9 @@ static int tokenizer_output (void *user, int token, char *value, size_t value_le
         case NCD_TOKEN_INCLUDE:
             printf("include\n");
             break;
+        case NCD_TOKEN_INCLUDE_GUARD:
+            printf("include_guard\n");
+            break;
         default:
             ASSERT(0);
     }
