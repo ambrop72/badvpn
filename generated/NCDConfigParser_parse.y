@@ -180,6 +180,36 @@ doneA:
     free_program(N);
 }
 
+processes(R) ::= INCLUDE_GUARD STRING(A) processes(N). {
+    ASSERT(A.str)
+    if (!N.have) {
+        goto failZ0;
+    }
+    
+    NCDProgramElem elem;
+    if (!NCDProgramElem_InitIncludeGuard(&elem, A.str, A.len)) {
+        goto failZ0;
+    }
+    
+    if (!NCDProgram_PrependElem(&N.v, elem)) {
+        goto failZ1;
+    }
+    
+    R.have = 1;
+    R.v = N.v;
+    N.have = 0;
+    goto doneZ;
+
+failZ1:
+    NCDProgramElem_Free(&elem);
+failZ0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneZ:
+    free_token(A);
+    free_program(N);
+}
+
 processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE processes(N). {
     ASSERT(A.str)
     if (!B.have || !N.have) {
