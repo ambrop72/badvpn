@@ -1,6 +1,6 @@
 State 0:
           input ::= * processes
-          processes ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE
+      (1) processes ::= *
           processes ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes
           process_or_template ::= * PROCESS
           process_or_template ::= * TEMPLATE
@@ -10,6 +10,7 @@ State 0:
                      processes shift  31
            process_or_template shift  32
                          input accept
+                     {default} reduce 1
 
 State 1:
           statement ::= dotted_name ROUND_OPEN * statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
@@ -265,7 +266,6 @@ State 10:
                          value shift  65
 
 State 11:
-          processes ::= process_or_template NAME CURLY_OPEN * statements CURLY_CLOSE
           processes ::= process_or_template NAME CURLY_OPEN * statements CURLY_CLOSE processes
           statement ::= * dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
           statement ::= * dotted_name ARROW dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
@@ -402,8 +402,7 @@ State 17:
                    dotted_name shift  29
 
 State 18:
-          processes ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE
-      (1) processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE *
+      (1) processes ::= *
           processes ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes
           processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE * processes
           process_or_template ::= * PROCESS
@@ -527,19 +526,16 @@ State 31:
                              $ reduce 0
 
 State 32:
-          processes ::= process_or_template * NAME CURLY_OPEN statements CURLY_CLOSE
           processes ::= process_or_template * NAME CURLY_OPEN statements CURLY_CLOSE processes
 
                           NAME shift  33
 
 State 33:
-          processes ::= process_or_template NAME * CURLY_OPEN statements CURLY_CLOSE
           processes ::= process_or_template NAME * CURLY_OPEN statements CURLY_CLOSE processes
 
                     CURLY_OPEN shift  11
 
 State 34:
-          processes ::= process_or_template NAME CURLY_OPEN statements * CURLY_CLOSE
           processes ::= process_or_template NAME CURLY_OPEN statements * CURLY_CLOSE processes
 
                    CURLY_CLOSE shift  18
@@ -872,7 +868,7 @@ Symbols:
    19: PROCESS
    20: TEMPLATE
    21: error:
-   22: processes: PROCESS TEMPLATE
+   22: processes: <lambda> PROCESS TEMPLATE
    23: statement: NAME IF FOREACH
    24: elif_maybe: <lambda> ELIF
    25: elif: ELIF

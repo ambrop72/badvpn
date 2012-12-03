@@ -142,41 +142,12 @@ input ::= processes(A). {
     }
 }
 
-processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE. {
-    ASSERT(A.str)
-    if (!B.have) {
-        goto failA0;
-    }
-
-    NCDProcess proc;
-    if (!NCDProcess_Init(&proc, T, A.str, B.v)) {
-        goto failA0;
-    }
-    B.have = 0;
-
-    NCDProgramElem elem;
-    NCDProgramElem_InitProcess(&elem, proc);
-    
+processes(R) ::= . {
     NCDProgram prog;
     NCDProgram_Init(&prog);
-
-    if (!NCDProgram_PrependElem(&prog, elem)) {
-        goto failA1;
-    }
-
+    
     R.have = 1;
     R.v = prog;
-    goto doneA;
-
-failA1:
-    NCDProgram_Free(&prog);
-    NCDProgramElem_Free(&elem);
-failA0:
-    R.have = 0;
-    parser_out->out_of_memory = 1;
-doneA:
-    free_token(A);
-    free_block(B);
 }
 
 processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE processes(N). {
