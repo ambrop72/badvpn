@@ -1,14 +1,16 @@
 State 0:
           input ::= * processes
       (1) processes ::= *
+          processes ::= * INCLUDE STRING processes
           processes ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes
           process_or_template ::= * PROCESS
           process_or_template ::= * TEMPLATE
 
-                       PROCESS shift  69
-                      TEMPLATE shift  70
-                     processes shift  31
-           process_or_template shift  32
+                       INCLUDE shift  33
+                       PROCESS shift  72
+                      TEMPLATE shift  73
+                     processes shift  32
+           process_or_template shift  34
                          input accept
                      {default} reduce 1
 
@@ -16,7 +18,7 @@ State 1:
           statement ::= dotted_name ROUND_OPEN * statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
           dotted_name ::= * NAME
           dotted_name ::= * NAME DOT dotted_name
-     (18) statement_args_maybe ::= *
+     (19) statement_args_maybe ::= *
           statement_args_maybe ::= * list_contents
           list_contents ::= * value
           list_contents ::= * value COMMA list_contents
@@ -29,23 +31,23 @@ State 1:
           value ::= * list
           value ::= * map
 
-                          NAME shift  37
+                        STRING shift  82
+                          NAME shift  39
                     CURLY_OPEN shift  3
                   BRACKET_OPEN shift  4
-                        STRING shift  79
-                   dotted_name shift  80
-          statement_args_maybe shift  35
-                 list_contents shift  74
-                          list shift  81
-                           map shift  82
-                         value shift  38
-                     {default} reduce 18
+                   dotted_name shift  83
+          statement_args_maybe shift  37
+                 list_contents shift  77
+                          list shift  84
+                           map shift  85
+                         value shift  40
+                     {default} reduce 19
 
 State 2:
           statement ::= dotted_name ARROW dotted_name ROUND_OPEN * statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
           dotted_name ::= * NAME
           dotted_name ::= * NAME DOT dotted_name
-     (18) statement_args_maybe ::= *
+     (19) statement_args_maybe ::= *
           statement_args_maybe ::= * list_contents
           list_contents ::= * value
           list_contents ::= * value COMMA list_contents
@@ -58,17 +60,17 @@ State 2:
           value ::= * list
           value ::= * map
 
-                          NAME shift  37
+                        STRING shift  82
+                          NAME shift  39
                     CURLY_OPEN shift  3
                   BRACKET_OPEN shift  4
-                        STRING shift  79
-                   dotted_name shift  80
-          statement_args_maybe shift  44
-                 list_contents shift  74
-                          list shift  81
-                           map shift  82
-                         value shift  38
-                     {default} reduce 18
+                   dotted_name shift  83
+          statement_args_maybe shift  46
+                 list_contents shift  77
+                          list shift  84
+                           map shift  85
+                         value shift  40
+                     {default} reduce 19
 
 State 3:
           dotted_name ::= * NAME
@@ -86,16 +88,16 @@ State 3:
           value ::= * list
           value ::= * map
 
-                          NAME shift  37
+                        STRING shift  82
+                          NAME shift  39
                     CURLY_OPEN shift  3
-                   CURLY_CLOSE shift  76
+                   CURLY_CLOSE shift  79
                   BRACKET_OPEN shift  4
-                        STRING shift  79
-                   dotted_name shift  80
-                 list_contents shift  39
-                          list shift  81
-                           map shift  82
-                         value shift  38
+                   dotted_name shift  83
+                 list_contents shift  41
+                          list shift  84
+                           map shift  85
+                         value shift  40
 
 State 4:
           dotted_name ::= * NAME
@@ -113,16 +115,16 @@ State 4:
           value ::= * list
           value ::= * map
 
-                          NAME shift  37
+                        STRING shift  82
+                          NAME shift  39
                     CURLY_OPEN shift  3
                   BRACKET_OPEN shift  4
-                 BRACKET_CLOSE shift  83
-                        STRING shift  79
-                   dotted_name shift  80
-                          list shift  81
-                  map_contents shift  42
-                           map shift  82
-                         value shift  40
+                 BRACKET_CLOSE shift  86
+                   dotted_name shift  83
+                          list shift  84
+                  map_contents shift  44
+                           map shift  85
+                         value shift  42
 
 State 5:
           dotted_name ::= * NAME
@@ -139,15 +141,15 @@ State 5:
           value ::= * list
           value ::= * map
 
-                          NAME shift  37
+                        STRING shift  82
+                          NAME shift  39
                     CURLY_OPEN shift  3
                   BRACKET_OPEN shift  4
-                        STRING shift  79
-                   dotted_name shift  80
-                 list_contents shift  75
-                          list shift  81
-                           map shift  82
-                         value shift  38
+                   dotted_name shift  83
+                 list_contents shift  78
+                          list shift  84
+                           map shift  85
+                         value shift  40
 
 State 6:
           dotted_name ::= * NAME
@@ -164,15 +166,15 @@ State 6:
           value ::= * list
           value ::= * map
 
-                          NAME shift  37
+                        STRING shift  82
+                          NAME shift  39
                     CURLY_OPEN shift  3
                   BRACKET_OPEN shift  4
-                        STRING shift  79
-                   dotted_name shift  80
-                          list shift  81
-                  map_contents shift  78
-                           map shift  82
-                         value shift  40
+                   dotted_name shift  83
+                          list shift  84
+                  map_contents shift  81
+                           map shift  85
+                         value shift  42
 
 State 7:
           dotted_name ::= * NAME
@@ -188,14 +190,14 @@ State 7:
           value ::= * list
           value ::= * map
 
-                          NAME shift  37
+                        STRING shift  82
+                          NAME shift  39
                     CURLY_OPEN shift  3
                   BRACKET_OPEN shift  4
-                        STRING shift  79
-                   dotted_name shift  80
-                          list shift  81
-                           map shift  82
-                         value shift  41
+                   dotted_name shift  83
+                          list shift  84
+                           map shift  85
+                         value shift  43
 
 State 8:
           statement ::= IF ROUND_OPEN * value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif_maybe else_maybe name_maybe SEMICOLON
@@ -210,14 +212,14 @@ State 8:
           value ::= * list
           value ::= * map
 
-                          NAME shift  37
+                        STRING shift  82
+                          NAME shift  39
                     CURLY_OPEN shift  3
                   BRACKET_OPEN shift  4
-                        STRING shift  79
-                   dotted_name shift  80
-                          list shift  81
-                           map shift  82
-                         value shift  47
+                   dotted_name shift  83
+                          list shift  84
+                           map shift  85
+                         value shift  49
 
 State 9:
           statement ::= FOREACH ROUND_OPEN * value AS NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
@@ -233,14 +235,14 @@ State 9:
           value ::= * list
           value ::= * map
 
-                          NAME shift  37
+                        STRING shift  82
+                          NAME shift  39
                     CURLY_OPEN shift  3
                   BRACKET_OPEN shift  4
-                        STRING shift  79
-                   dotted_name shift  80
-                          list shift  81
-                           map shift  82
-                         value shift  53
+                   dotted_name shift  83
+                          list shift  84
+                           map shift  85
+                         value shift  55
 
 State 10:
           elif ::= ELIF ROUND_OPEN * value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE
@@ -256,14 +258,14 @@ State 10:
           value ::= * list
           value ::= * map
 
-                          NAME shift  37
+                        STRING shift  82
+                          NAME shift  39
                     CURLY_OPEN shift  3
                   BRACKET_OPEN shift  4
-                        STRING shift  79
-                   dotted_name shift  80
-                          list shift  81
-                           map shift  82
-                         value shift  65
+                   dotted_name shift  83
+                          list shift  84
+                           map shift  85
+                         value shift  67
 
 State 11:
           processes ::= process_or_template NAME CURLY_OPEN * statements CURLY_CLOSE processes
@@ -277,12 +279,12 @@ State 11:
           dotted_name ::= * NAME
           dotted_name ::= * NAME DOT dotted_name
 
-                          NAME shift  37
-                            IF shift  46
-                       FOREACH shift  52
+                          NAME shift  39
+                            IF shift  48
+                       FOREACH shift  54
                      statement shift  15
-                    statements shift  34
-                   dotted_name shift  29
+                    statements shift  36
+                   dotted_name shift  30
 
 State 12:
           statement ::= * dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
@@ -296,12 +298,12 @@ State 12:
           dotted_name ::= * NAME
           dotted_name ::= * NAME DOT dotted_name
 
-                          NAME shift  37
-                            IF shift  46
-                       FOREACH shift  52
+                          NAME shift  39
+                            IF shift  48
+                       FOREACH shift  54
                      statement shift  15
-                    statements shift  49
-                   dotted_name shift  29
+                    statements shift  51
+                   dotted_name shift  30
 
 State 13:
           statement ::= * dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
@@ -315,12 +317,12 @@ State 13:
           dotted_name ::= * NAME
           dotted_name ::= * NAME DOT dotted_name
 
-                          NAME shift  37
-                            IF shift  46
-                       FOREACH shift  52
+                          NAME shift  39
+                            IF shift  48
+                       FOREACH shift  54
                      statement shift  15
-                    statements shift  63
-                   dotted_name shift  29
+                    statements shift  65
+                   dotted_name shift  30
 
 State 14:
           statement ::= * dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
@@ -334,12 +336,12 @@ State 14:
           dotted_name ::= * NAME
           dotted_name ::= * NAME DOT dotted_name
 
-                          NAME shift  37
-                            IF shift  46
-                       FOREACH shift  52
+                          NAME shift  39
+                            IF shift  48
+                       FOREACH shift  54
                      statement shift  15
-                    statements shift  56
-                   dotted_name shift  29
+                    statements shift  58
+                   dotted_name shift  30
 
 State 15:
           statement ::= * dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
@@ -348,19 +350,19 @@ State 15:
           statement ::= * FOREACH ROUND_OPEN value AS NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
           statement ::= * FOREACH ROUND_OPEN value AS NAME COLON NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
           statements ::= * statement
-     (14) statements ::= statement *
+     (15) statements ::= statement *
           statements ::= * statement statements
           statements ::= statement * statements
           dotted_name ::= * NAME
           dotted_name ::= * NAME DOT dotted_name
 
-                          NAME shift  37
-                            IF shift  46
-                       FOREACH shift  52
+                          NAME shift  39
+                            IF shift  48
+                       FOREACH shift  54
                      statement shift  15
-                    statements shift  88
-                   dotted_name shift  29
-                     {default} reduce 14
+                    statements shift  91
+                   dotted_name shift  30
+                     {default} reduce 15
 
 State 16:
           statement ::= * dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
@@ -374,12 +376,12 @@ State 16:
           dotted_name ::= * NAME
           dotted_name ::= * NAME DOT dotted_name
 
-                          NAME shift  37
-                            IF shift  46
-                       FOREACH shift  52
+                          NAME shift  39
+                            IF shift  48
+                       FOREACH shift  54
                      statement shift  15
-                    statements shift  61
-                   dotted_name shift  29
+                    statements shift  63
+                   dotted_name shift  30
 
 State 17:
           statement ::= * dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
@@ -394,493 +396,521 @@ State 17:
           dotted_name ::= * NAME
           dotted_name ::= * NAME DOT dotted_name
 
-                          NAME shift  37
-                            IF shift  46
-                       FOREACH shift  52
+                          NAME shift  39
+                            IF shift  48
+                       FOREACH shift  54
                      statement shift  15
-                    statements shift  67
-                   dotted_name shift  29
+                    statements shift  69
+                   dotted_name shift  30
 
 State 18:
       (1) processes ::= *
+          processes ::= * INCLUDE STRING processes
+          processes ::= INCLUDE STRING * processes
+          processes ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes
+          process_or_template ::= * PROCESS
+          process_or_template ::= * TEMPLATE
+
+                       INCLUDE shift  33
+                       PROCESS shift  72
+                      TEMPLATE shift  73
+                     processes shift  70
+           process_or_template shift  34
+                     {default} reduce 1
+
+State 19:
+      (1) processes ::= *
+          processes ::= * INCLUDE STRING processes
           processes ::= * process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes
           processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE * processes
           process_or_template ::= * PROCESS
           process_or_template ::= * TEMPLATE
 
-                       PROCESS shift  69
-                      TEMPLATE shift  70
-                     processes shift  68
-           process_or_template shift  32
+                       INCLUDE shift  33
+                       PROCESS shift  72
+                      TEMPLATE shift  73
+                     processes shift  71
+           process_or_template shift  34
                      {default} reduce 1
 
-State 19:
+State 20:
           statement ::= IF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE * elif_maybe else_maybe name_maybe SEMICOLON
-      (8) elif_maybe ::= *
+      (9) elif_maybe ::= *
           elif_maybe ::= * elif
           elif ::= * ELIF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE
           elif ::= * ELIF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif
 
-                          ELIF shift  64
-                    elif_maybe shift  24
-                          elif shift  91
-                     {default} reduce 8
-
-State 20:
-          statement ::= dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE * name_maybe SEMICOLON
-     (32) name_maybe ::= *
-          name_maybe ::= * NAME
-
-                          NAME shift  72
-                    name_maybe shift  36
-                     {default} reduce 32
+                          ELIF shift  66
+                    elif_maybe shift  25
+                          elif shift  94
+                     {default} reduce 9
 
 State 21:
+          statement ::= dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE * name_maybe SEMICOLON
+     (33) name_maybe ::= *
+          name_maybe ::= * NAME
+
+                          NAME shift  75
+                    name_maybe shift  38
+                     {default} reduce 33
+
+State 22:
           dotted_name ::= * NAME
           dotted_name ::= * NAME DOT dotted_name
           dotted_name ::= NAME DOT * dotted_name
 
-                          NAME shift  37
-                   dotted_name shift  73
+                          NAME shift  39
+                   dotted_name shift  76
 
-State 22:
+State 23:
           statement ::= dotted_name ARROW * dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
           dotted_name ::= * NAME
           dotted_name ::= * NAME DOT dotted_name
 
-                          NAME shift  37
-                   dotted_name shift  43
-
-State 23:
-          statement ::= dotted_name ARROW dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE * name_maybe SEMICOLON
-     (32) name_maybe ::= *
-          name_maybe ::= * NAME
-
-                          NAME shift  72
-                    name_maybe shift  45
-                     {default} reduce 32
+                          NAME shift  39
+                   dotted_name shift  45
 
 State 24:
-          statement ::= IF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif_maybe * else_maybe name_maybe SEMICOLON
-     (12) else_maybe ::= *
-          else_maybe ::= * ELSE CURLY_OPEN statements CURLY_CLOSE
+          statement ::= dotted_name ARROW dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE * name_maybe SEMICOLON
+     (33) name_maybe ::= *
+          name_maybe ::= * NAME
 
-                          ELSE shift  51
-                    else_maybe shift  25
-                     {default} reduce 12
+                          NAME shift  75
+                    name_maybe shift  47
+                     {default} reduce 33
 
 State 25:
-          statement ::= IF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif_maybe else_maybe * name_maybe SEMICOLON
-     (32) name_maybe ::= *
-          name_maybe ::= * NAME
+          statement ::= IF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif_maybe * else_maybe name_maybe SEMICOLON
+     (13) else_maybe ::= *
+          else_maybe ::= * ELSE CURLY_OPEN statements CURLY_CLOSE
 
-                          NAME shift  72
-                    name_maybe shift  50
-                     {default} reduce 32
+                          ELSE shift  53
+                    else_maybe shift  26
+                     {default} reduce 13
 
 State 26:
-          statement ::= FOREACH ROUND_OPEN value AS NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE * name_maybe SEMICOLON
-     (32) name_maybe ::= *
+          statement ::= IF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif_maybe else_maybe * name_maybe SEMICOLON
+     (33) name_maybe ::= *
           name_maybe ::= * NAME
 
-                          NAME shift  72
-                    name_maybe shift  57
-                     {default} reduce 32
+                          NAME shift  75
+                    name_maybe shift  52
+                     {default} reduce 33
 
 State 27:
-          statement ::= FOREACH ROUND_OPEN value AS NAME COLON NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE * name_maybe SEMICOLON
-     (32) name_maybe ::= *
+          statement ::= FOREACH ROUND_OPEN value AS NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE * name_maybe SEMICOLON
+     (33) name_maybe ::= *
           name_maybe ::= * NAME
 
-                          NAME shift  72
-                    name_maybe shift  62
-                     {default} reduce 32
+                          NAME shift  75
+                    name_maybe shift  59
+                     {default} reduce 33
 
 State 28:
+          statement ::= FOREACH ROUND_OPEN value AS NAME COLON NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE * name_maybe SEMICOLON
+     (33) name_maybe ::= *
+          name_maybe ::= * NAME
+
+                          NAME shift  75
+                    name_maybe shift  64
+                     {default} reduce 33
+
+State 29:
           elif ::= * ELIF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE
-     (10) elif ::= ELIF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE *
+     (11) elif ::= ELIF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE *
           elif ::= * ELIF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif
           elif ::= ELIF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE * elif
 
-                          ELIF shift  64
-                          elif shift  92
-                     {default} reduce 10
+                          ELIF shift  66
+                          elif shift  95
+                     {default} reduce 11
 
-State 29:
+State 30:
           statement ::= dotted_name * ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
           statement ::= dotted_name * ARROW dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
 
                     ROUND_OPEN shift  1
-                         ARROW shift  22
+                         ARROW shift  23
 
-State 30:
+State 31:
           statement ::= FOREACH ROUND_OPEN value AS NAME * ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
           statement ::= FOREACH ROUND_OPEN value AS NAME * COLON NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
 
-                   ROUND_CLOSE shift  55
-                         COLON shift  58
+                   ROUND_CLOSE shift  57
+                         COLON shift  60
 
-State 31:
+State 32:
       (0) input ::= processes *
 
                              $ reduce 0
 
-State 32:
+State 33:
+          processes ::= INCLUDE * STRING processes
+
+                        STRING shift  18
+
+State 34:
           processes ::= process_or_template * NAME CURLY_OPEN statements CURLY_CLOSE processes
 
-                          NAME shift  33
+                          NAME shift  35
 
-State 33:
+State 35:
           processes ::= process_or_template NAME * CURLY_OPEN statements CURLY_CLOSE processes
 
                     CURLY_OPEN shift  11
 
-State 34:
+State 36:
           processes ::= process_or_template NAME CURLY_OPEN statements * CURLY_CLOSE processes
 
-                   CURLY_CLOSE shift  18
-
-State 35:
-          statement ::= dotted_name ROUND_OPEN statement_args_maybe * ROUND_CLOSE name_maybe SEMICOLON
-
-                   ROUND_CLOSE shift  20
-
-State 36:
-          statement ::= dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe * SEMICOLON
-
-                     SEMICOLON shift  71
+                   CURLY_CLOSE shift  19
 
 State 37:
-     (16) dotted_name ::= NAME *
-          dotted_name ::= NAME * DOT dotted_name
+          statement ::= dotted_name ROUND_OPEN statement_args_maybe * ROUND_CLOSE name_maybe SEMICOLON
 
-                           DOT shift  21
-                     {default} reduce 16
+                   ROUND_CLOSE shift  21
 
 State 38:
-     (20) list_contents ::= value *
+          statement ::= dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe * SEMICOLON
+
+                     SEMICOLON shift  74
+
+State 39:
+     (17) dotted_name ::= NAME *
+          dotted_name ::= NAME * DOT dotted_name
+
+                           DOT shift  22
+                     {default} reduce 17
+
+State 40:
+     (21) list_contents ::= value *
           list_contents ::= value * COMMA list_contents
 
                          COMMA shift  5
-                     {default} reduce 20
+                     {default} reduce 21
 
-State 39:
+State 41:
           list ::= CURLY_OPEN list_contents * CURLY_CLOSE
 
-                   CURLY_CLOSE shift  77
+                   CURLY_CLOSE shift  80
 
-State 40:
+State 42:
           map_contents ::= value * COLON value
           map_contents ::= value * COLON value COMMA map_contents
 
                          COLON shift  7
 
-State 41:
-     (24) map_contents ::= value COLON value *
+State 43:
+     (25) map_contents ::= value COLON value *
           map_contents ::= value COLON value * COMMA map_contents
 
                          COMMA shift  6
-                     {default} reduce 24
+                     {default} reduce 25
 
-State 42:
+State 44:
           map ::= BRACKET_OPEN map_contents * BRACKET_CLOSE
 
-                 BRACKET_CLOSE shift  84
+                 BRACKET_CLOSE shift  87
 
-State 43:
+State 45:
           statement ::= dotted_name ARROW dotted_name * ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON
 
                     ROUND_OPEN shift  2
 
-State 44:
+State 46:
           statement ::= dotted_name ARROW dotted_name ROUND_OPEN statement_args_maybe * ROUND_CLOSE name_maybe SEMICOLON
 
-                   ROUND_CLOSE shift  23
+                   ROUND_CLOSE shift  24
 
-State 45:
+State 47:
           statement ::= dotted_name ARROW dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe * SEMICOLON
 
-                     SEMICOLON shift  85
+                     SEMICOLON shift  88
 
-State 46:
+State 48:
           statement ::= IF * ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif_maybe else_maybe name_maybe SEMICOLON
 
                     ROUND_OPEN shift  8
 
-State 47:
+State 49:
           statement ::= IF ROUND_OPEN value * ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif_maybe else_maybe name_maybe SEMICOLON
 
-                   ROUND_CLOSE shift  48
+                   ROUND_CLOSE shift  50
 
-State 48:
+State 50:
           statement ::= IF ROUND_OPEN value ROUND_CLOSE * CURLY_OPEN statements CURLY_CLOSE elif_maybe else_maybe name_maybe SEMICOLON
 
                     CURLY_OPEN shift  12
 
-State 49:
+State 51:
           statement ::= IF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements * CURLY_CLOSE elif_maybe else_maybe name_maybe SEMICOLON
 
-                   CURLY_CLOSE shift  19
+                   CURLY_CLOSE shift  20
 
-State 50:
+State 52:
           statement ::= IF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif_maybe else_maybe name_maybe * SEMICOLON
 
-                     SEMICOLON shift  86
+                     SEMICOLON shift  89
 
-State 51:
+State 53:
           else_maybe ::= ELSE * CURLY_OPEN statements CURLY_CLOSE
 
                     CURLY_OPEN shift  13
 
-State 52:
+State 54:
           statement ::= FOREACH * ROUND_OPEN value AS NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
           statement ::= FOREACH * ROUND_OPEN value AS NAME COLON NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
 
                     ROUND_OPEN shift  9
 
-State 53:
+State 55:
           statement ::= FOREACH ROUND_OPEN value * AS NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
           statement ::= FOREACH ROUND_OPEN value * AS NAME COLON NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
 
-                            AS shift  54
+                            AS shift  56
 
-State 54:
+State 56:
           statement ::= FOREACH ROUND_OPEN value AS * NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
           statement ::= FOREACH ROUND_OPEN value AS * NAME COLON NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
 
-                          NAME shift  30
+                          NAME shift  31
 
-State 55:
+State 57:
           statement ::= FOREACH ROUND_OPEN value AS NAME ROUND_CLOSE * CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
 
                     CURLY_OPEN shift  14
 
-State 56:
+State 58:
           statement ::= FOREACH ROUND_OPEN value AS NAME ROUND_CLOSE CURLY_OPEN statements * CURLY_CLOSE name_maybe SEMICOLON
 
-                   CURLY_CLOSE shift  26
-
-State 57:
-          statement ::= FOREACH ROUND_OPEN value AS NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe * SEMICOLON
-
-                     SEMICOLON shift  87
-
-State 58:
-          statement ::= FOREACH ROUND_OPEN value AS NAME COLON * NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
-
-                          NAME shift  59
+                   CURLY_CLOSE shift  27
 
 State 59:
-          statement ::= FOREACH ROUND_OPEN value AS NAME COLON NAME * ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
+          statement ::= FOREACH ROUND_OPEN value AS NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe * SEMICOLON
 
-                   ROUND_CLOSE shift  60
+                     SEMICOLON shift  90
 
 State 60:
+          statement ::= FOREACH ROUND_OPEN value AS NAME COLON * NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
+
+                          NAME shift  61
+
+State 61:
+          statement ::= FOREACH ROUND_OPEN value AS NAME COLON NAME * ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
+
+                   ROUND_CLOSE shift  62
+
+State 62:
           statement ::= FOREACH ROUND_OPEN value AS NAME COLON NAME ROUND_CLOSE * CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON
 
                     CURLY_OPEN shift  16
 
-State 61:
+State 63:
           statement ::= FOREACH ROUND_OPEN value AS NAME COLON NAME ROUND_CLOSE CURLY_OPEN statements * CURLY_CLOSE name_maybe SEMICOLON
 
-                   CURLY_CLOSE shift  27
-
-State 62:
-          statement ::= FOREACH ROUND_OPEN value AS NAME COLON NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe * SEMICOLON
-
-                     SEMICOLON shift  89
-
-State 63:
-          else_maybe ::= ELSE CURLY_OPEN statements * CURLY_CLOSE
-
-                   CURLY_CLOSE shift  90
+                   CURLY_CLOSE shift  28
 
 State 64:
+          statement ::= FOREACH ROUND_OPEN value AS NAME COLON NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe * SEMICOLON
+
+                     SEMICOLON shift  92
+
+State 65:
+          else_maybe ::= ELSE CURLY_OPEN statements * CURLY_CLOSE
+
+                   CURLY_CLOSE shift  93
+
+State 66:
           elif ::= ELIF * ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE
           elif ::= ELIF * ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif
 
                     ROUND_OPEN shift  10
 
-State 65:
+State 67:
           elif ::= ELIF ROUND_OPEN value * ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE
           elif ::= ELIF ROUND_OPEN value * ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif
 
-                   ROUND_CLOSE shift  66
+                   ROUND_CLOSE shift  68
 
-State 66:
+State 68:
           elif ::= ELIF ROUND_OPEN value ROUND_CLOSE * CURLY_OPEN statements CURLY_CLOSE
           elif ::= ELIF ROUND_OPEN value ROUND_CLOSE * CURLY_OPEN statements CURLY_CLOSE elif
 
                     CURLY_OPEN shift  17
 
-State 67:
+State 69:
           elif ::= ELIF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements * CURLY_CLOSE
           elif ::= ELIF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements * CURLY_CLOSE elif
 
-                   CURLY_CLOSE shift  28
+                   CURLY_CLOSE shift  29
 
-State 68:
-      (2) processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes *
+State 70:
+      (2) processes ::= INCLUDE STRING processes *
 
                      {default} reduce 2
 
-State 69:
-     (34) process_or_template ::= PROCESS *
-
-                     {default} reduce 34
-
-State 70:
-     (35) process_or_template ::= TEMPLATE *
-
-                     {default} reduce 35
-
 State 71:
-      (3) statement ::= dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON *
+      (3) processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes *
 
                      {default} reduce 3
 
 State 72:
-     (33) name_maybe ::= NAME *
+     (35) process_or_template ::= PROCESS *
 
-                     {default} reduce 33
+                     {default} reduce 35
 
 State 73:
-     (17) dotted_name ::= NAME DOT dotted_name *
+     (36) process_or_template ::= TEMPLATE *
 
-                     {default} reduce 17
+                     {default} reduce 36
 
 State 74:
-     (19) statement_args_maybe ::= list_contents *
-
-                     {default} reduce 19
-
-State 75:
-     (21) list_contents ::= value COMMA list_contents *
-
-                     {default} reduce 21
-
-State 76:
-     (22) list ::= CURLY_OPEN CURLY_CLOSE *
-
-                     {default} reduce 22
-
-State 77:
-     (23) list ::= CURLY_OPEN list_contents CURLY_CLOSE *
-
-                     {default} reduce 23
-
-State 78:
-     (25) map_contents ::= value COLON value COMMA map_contents *
-
-                     {default} reduce 25
-
-State 79:
-     (28) value ::= STRING *
-
-                     {default} reduce 28
-
-State 80:
-     (29) value ::= dotted_name *
-
-                     {default} reduce 29
-
-State 81:
-     (30) value ::= list *
-
-                     {default} reduce 30
-
-State 82:
-     (31) value ::= map *
-
-                     {default} reduce 31
-
-State 83:
-     (26) map ::= BRACKET_OPEN BRACKET_CLOSE *
-
-                     {default} reduce 26
-
-State 84:
-     (27) map ::= BRACKET_OPEN map_contents BRACKET_CLOSE *
-
-                     {default} reduce 27
-
-State 85:
-      (4) statement ::= dotted_name ARROW dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON *
+      (4) statement ::= dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON *
 
                      {default} reduce 4
 
+State 75:
+     (34) name_maybe ::= NAME *
+
+                     {default} reduce 34
+
+State 76:
+     (18) dotted_name ::= NAME DOT dotted_name *
+
+                     {default} reduce 18
+
+State 77:
+     (20) statement_args_maybe ::= list_contents *
+
+                     {default} reduce 20
+
+State 78:
+     (22) list_contents ::= value COMMA list_contents *
+
+                     {default} reduce 22
+
+State 79:
+     (23) list ::= CURLY_OPEN CURLY_CLOSE *
+
+                     {default} reduce 23
+
+State 80:
+     (24) list ::= CURLY_OPEN list_contents CURLY_CLOSE *
+
+                     {default} reduce 24
+
+State 81:
+     (26) map_contents ::= value COLON value COMMA map_contents *
+
+                     {default} reduce 26
+
+State 82:
+     (29) value ::= STRING *
+
+                     {default} reduce 29
+
+State 83:
+     (30) value ::= dotted_name *
+
+                     {default} reduce 30
+
+State 84:
+     (31) value ::= list *
+
+                     {default} reduce 31
+
+State 85:
+     (32) value ::= map *
+
+                     {default} reduce 32
+
 State 86:
-      (5) statement ::= IF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif_maybe else_maybe name_maybe SEMICOLON *
+     (27) map ::= BRACKET_OPEN BRACKET_CLOSE *
+
+                     {default} reduce 27
+
+State 87:
+     (28) map ::= BRACKET_OPEN map_contents BRACKET_CLOSE *
+
+                     {default} reduce 28
+
+State 88:
+      (5) statement ::= dotted_name ARROW dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON *
 
                      {default} reduce 5
 
-State 87:
-      (6) statement ::= FOREACH ROUND_OPEN value AS NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON *
+State 89:
+      (6) statement ::= IF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif_maybe else_maybe name_maybe SEMICOLON *
 
                      {default} reduce 6
 
-State 88:
-     (15) statements ::= statement statements *
-
-                     {default} reduce 15
-
-State 89:
-      (7) statement ::= FOREACH ROUND_OPEN value AS NAME COLON NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON *
+State 90:
+      (7) statement ::= FOREACH ROUND_OPEN value AS NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON *
 
                      {default} reduce 7
 
-State 90:
-     (13) else_maybe ::= ELSE CURLY_OPEN statements CURLY_CLOSE *
-
-                     {default} reduce 13
-
 State 91:
-      (9) elif_maybe ::= elif *
+     (16) statements ::= statement statements *
 
-                     {default} reduce 9
+                     {default} reduce 16
 
 State 92:
-     (11) elif ::= ELIF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif *
+      (8) statement ::= FOREACH ROUND_OPEN value AS NAME COLON NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON *
 
-                     {default} reduce 11
+                     {default} reduce 8
+
+State 93:
+     (14) else_maybe ::= ELSE CURLY_OPEN statements CURLY_CLOSE *
+
+                     {default} reduce 14
+
+State 94:
+     (10) elif_maybe ::= elif *
+
+                     {default} reduce 10
+
+State 95:
+     (12) elif ::= ELIF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif *
+
+                     {default} reduce 12
 
 ----------------------------------------------------
 Symbols:
     0: $:
-    1: NAME
-    2: CURLY_OPEN
-    3: CURLY_CLOSE
-    4: ROUND_OPEN
-    5: ROUND_CLOSE
-    6: SEMICOLON
-    7: ARROW
-    8: IF
-    9: FOREACH
-   10: AS
-   11: COLON
-   12: ELIF
-   13: ELSE
-   14: DOT
-   15: COMMA
-   16: BRACKET_OPEN
-   17: BRACKET_CLOSE
-   18: STRING
-   19: PROCESS
-   20: TEMPLATE
-   21: error:
-   22: processes: <lambda> PROCESS TEMPLATE
-   23: statement: NAME IF FOREACH
-   24: elif_maybe: <lambda> ELIF
-   25: elif: ELIF
-   26: else_maybe: <lambda> ELSE
-   27: statements: NAME IF FOREACH
-   28: dotted_name: NAME
-   29: statement_args_maybe: <lambda> NAME CURLY_OPEN BRACKET_OPEN STRING
-   30: list_contents: NAME CURLY_OPEN BRACKET_OPEN STRING
-   31: list: CURLY_OPEN
-   32: map_contents: NAME CURLY_OPEN BRACKET_OPEN STRING
-   33: map: BRACKET_OPEN
-   34: value: NAME CURLY_OPEN BRACKET_OPEN STRING
-   35: name_maybe: <lambda> NAME
-   36: process_or_template: PROCESS TEMPLATE
-   37: input: PROCESS TEMPLATE
+    1: INCLUDE
+    2: STRING
+    3: NAME
+    4: CURLY_OPEN
+    5: CURLY_CLOSE
+    6: ROUND_OPEN
+    7: ROUND_CLOSE
+    8: SEMICOLON
+    9: ARROW
+   10: IF
+   11: FOREACH
+   12: AS
+   13: COLON
+   14: ELIF
+   15: ELSE
+   16: DOT
+   17: COMMA
+   18: BRACKET_OPEN
+   19: BRACKET_CLOSE
+   20: PROCESS
+   21: TEMPLATE
+   22: error:
+   23: processes: <lambda> INCLUDE PROCESS TEMPLATE
+   24: statement: NAME IF FOREACH
+   25: elif_maybe: <lambda> ELIF
+   26: elif: ELIF
+   27: else_maybe: <lambda> ELSE
+   28: statements: NAME IF FOREACH
+   29: dotted_name: NAME
+   30: statement_args_maybe: <lambda> STRING NAME CURLY_OPEN BRACKET_OPEN
+   31: list_contents: STRING NAME CURLY_OPEN BRACKET_OPEN
+   32: list: CURLY_OPEN
+   33: map_contents: STRING NAME CURLY_OPEN BRACKET_OPEN
+   34: map: BRACKET_OPEN
+   35: value: STRING NAME CURLY_OPEN BRACKET_OPEN
+   36: name_maybe: <lambda> NAME
+   37: process_or_template: PROCESS TEMPLATE
+   38: input: INCLUDE PROCESS TEMPLATE

@@ -150,6 +150,36 @@ processes(R) ::= . {
     R.v = prog;
 }
 
+processes(R) ::= INCLUDE STRING(A) processes(N). {
+    ASSERT(A.str)
+    if (!N.have) {
+        goto failA0;
+    }
+    
+    NCDProgramElem elem;
+    if (!NCDProgramElem_InitInclude(&elem, A.str, A.len)) {
+        goto failA0;
+    }
+    
+    if (!NCDProgram_PrependElem(&N.v, elem)) {
+        goto failA1;
+    }
+    
+    R.have = 1;
+    R.v = N.v;
+    N.have = 0;
+    goto doneA;
+
+failA1:
+    NCDProgramElem_Free(&elem);
+failA0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneA:
+    free_token(A);
+    free_program(N);
+}
+
 processes(R) ::= process_or_template(T) NAME(A) CURLY_OPEN statements(B) CURLY_CLOSE processes(N). {
     ASSERT(A.str)
     if (!B.have || !N.have) {
