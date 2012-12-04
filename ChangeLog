@@ -1,3 +1,17 @@
+- NCD: implement the "include" and "include_guard" directives, which allow separating reusable code into files
+
+- NCD: modules: call2: implement call_with_caller_target(), which makes it easier to write reusable code that calls back user-provided code
+
+- NCD: modules: call2: remove call2_if(), call2_ifelse(), embcall2(), embcall2_if(), embcall2_ifelse()
+
+- NCD: modules: add sys.start_process(), which implements starting and controlling external processes and reading/writing their stdout/stdin
+
+- tun2socks: implement SOCKS password authentication
+
+- NCD: track the depth of values and limit the maximum depth. This avoids stack overflow with very deeply nested values.
+
+- NCD: modules: add substr()
+
 - NCD: process_manager: add 2-argument start() method which doesn't take a process identifier
 
 - NCD: process_manager: allow process identifiers to be any value not just strings
