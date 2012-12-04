@@ -130,6 +130,15 @@ static void LinkedList1_InsertAfter (LinkedList1 *list, LinkedList1Node *node, L
 static void LinkedList1_Remove (LinkedList1 *list, LinkedList1Node *node);
 
 /**
+ * Inserts the nodes in the list \a ins_list into this list, after the node \a target.
+ * If \a target is NULL, the nodes are inserted to the beginning.
+ * Note that because the first and last node in \a ins_list are modified
+ * (unless the list is empty), \a ins_list is invalidated and must no longer
+ * be used to access the inserted nodes.
+ */
+static void LinkedList1_InsertListAfter (LinkedList1 *list, LinkedList1 ins_list, LinkedList1Node *target);
+
+/**
  * Returns the next node of a given node.
  * 
  * @param node reference node
@@ -226,6 +235,30 @@ void LinkedList1_Remove (LinkedList1 *list, LinkedList1Node *node)
         node->n->p = node->p;
     } else {
         list->last = node->p;
+    }
+}
+
+void LinkedList1_InsertListAfter (LinkedList1 *list, LinkedList1 ins_list, LinkedList1Node *target)
+{
+    if (!ins_list.first) {
+        return;
+    }
+    
+    LinkedList1Node *t_next = (target ? target->n : list->first);
+    
+    ins_list.first->p = target;
+    ins_list.last->n = t_next;
+    
+    if (target) {
+        target->n = ins_list.first;
+    } else {
+        list->first = ins_list.first;
+    }
+    
+    if (t_next) {
+        t_next->p = ins_list.last;
+    } else {
+        list->last = ins_list.last;
     }
 }
 
