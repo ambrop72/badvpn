@@ -135,3 +135,4 @@
 {"ncd_depend_scope", 4},
 {"ncd_substr", 4},
 {"ncd_sys_start_process", 4},
+{"NCDBuildProgram", 4},

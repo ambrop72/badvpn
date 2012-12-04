@@ -119,6 +119,11 @@ add_library(ncdvalcons
 )
 target_link_libraries(ncdvalcons ncdval)
 
+add_library(ncdbuildprogram
+    NCDBuildProgram.c
+)
+target_link_libraries(ncdbuildprogram base ncdast ncdconfigparser)
+
 add_library(ncdinterpreter
     NCDInterpreter.c
     NCDModule.c
@@ -208,7 +213,7 @@ endif ()
 
 if (NOT EMSCRIPTEN)
     add_executable(badvpn-ncd ncd.c)
-    target_link_libraries(badvpn-ncd ncdinterpreter)
+    target_link_libraries(badvpn-ncd ncdinterpreter ncdbuildprogram)
     
     install(
         TARGETS badvpn-ncd

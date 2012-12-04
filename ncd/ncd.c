@@ -34,7 +34,6 @@
 
 #include <misc/version.h>
 #include <misc/loglevel.h>
-#include <misc/read_file.h>
 #include <misc/open_standard_streams.h>
 #include <misc/string_begins_with.h>
 #include <base/BLog.h>
@@ -44,7 +43,7 @@
 #include <udevmonitor/NCDUdevManager.h>
 #include <random/BRandom2.h>
 #include <ncd/NCDInterpreter.h>
-#include <ncd/NCDConfigParser.h>
+#include <ncd/NCDBuildProgram.h>
 
 #ifdef BADVPN_USE_SYSLOG
 #include <base/BLog_syslog.h>
@@ -197,27 +196,10 @@ int main (int argc, char **argv)
         goto fail4;
     }
     
-    // read config file
-    uint8_t *file;
-    size_t file_len;
-    if (!read_file(options.config_file, &file, &file_len)) {
-        BLog(BLOG_ERROR, "failed to read config file");
-        goto fail5;
-    }
-    
-    // parse program
+    // build program
     NCDProgram program;
-    int res = NCDConfigParser_Parse((char *)file, file_len, &program);
-    free(file);
-    if (!res) {
-        BLog(BLOG_ERROR, "failed to parse program");
-        goto fail5;
-    }
-    
-    // include commands are not implemented currently
-    if (NCDProgram_ContainsElemType(&program, NCDPROGRAMELEM_INCLUDE) || NCDProgram_ContainsElemType(&program, NCDPROGRAMELEM_INCLUDE_GUARD)) {
-        BLog(BLOG_ERROR, "TODO include not implemented");
-        NCDProgram_Free(&program);
+    if (!NCDBuildProgram_Build(options.config_file, &program)) {
+        BLog(BLOG_ERROR, "failed to build program");
         goto fail5;
     }
     

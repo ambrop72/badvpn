@@ -135,4 +135,5 @@
 #define BLOG_CHANNEL_ncd_depend_scope 134
 #define BLOG_CHANNEL_ncd_substr 135
 #define BLOG_CHANNEL_ncd_sys_start_process 136
-#define BLOG_NUM_CHANNELS 137
+#define BLOG_CHANNEL_NCDBuildProgram 137
+#define BLOG_NUM_CHANNELS 138
