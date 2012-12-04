@@ -188,6 +188,8 @@ NCDProgramElem * NCDProgram_FirstElem (NCDProgram *o);
 NCDProgramElem * NCDProgram_NextElem (NCDProgram *o, NCDProgramElem *ee);
 size_t NCDProgram_NumElems (NCDProgram *o);
 int NCDProgram_ContainsElemType (NCDProgram *o, int elem_type);
+void NCDProgram_RemoveElem (NCDProgram *o, NCDProgramElem *ee);
+int NCDProgram_ReplaceElemWithProgram (NCDProgram *o, NCDProgramElem *ee, NCDProgram replace_prog) WARN_UNUSED;
 
 void NCDProgramElem_InitProcess (NCDProgramElem *o, NCDProcess process);
 int NCDProgramElem_InitInclude (NCDProgramElem *o, const char *path_data, size_t path_length) WARN_UNUSED;

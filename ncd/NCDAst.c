@@ -433,6 +433,37 @@ int NCDProgram_ContainsElemType (NCDProgram *o, int elem_type)
     return 0;
 }
 
+void NCDProgram_RemoveElem (NCDProgram *o, NCDProgramElem *ee)
+{
+    ASSERT(ee)
+    
+    struct ProgramElem *e = UPPER_OBJECT(ee, struct ProgramElem, elem);
+    NCDProgramElem_Free(&e->elem);
+    LinkedList1_Remove(&o->elems_list, &e->elems_list_node);
+    free(e);
+    
+    ASSERT(o->num_elems > 0)
+    o->num_elems--;
+}
+
+int NCDProgram_ReplaceElemWithProgram (NCDProgram *o, NCDProgramElem *ee, NCDProgram replace_prog)
+{
+    ASSERT(ee)
+    
+    if (replace_prog.num_elems > SIZE_MAX - o->num_elems) {
+        return 0;
+    }
+    
+    struct ProgramElem *e = UPPER_OBJECT(ee, struct ProgramElem, elem);
+    
+    LinkedList1_InsertListAfter(&o->elems_list, replace_prog.elems_list, &e->elems_list_node);
+    o->num_elems += replace_prog.num_elems;
+    
+    NCDProgram_RemoveElem(o, ee);
+    
+    return 1;
+}
+
 void NCDProgramElem_InitProcess (NCDProgramElem *o, NCDProcess process)
 {
     o->type = NCDPROGRAMELEM_PROCESS;
