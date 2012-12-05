@@ -75,7 +75,14 @@ static const char *static_strings[] = {
     "_arg19",
     "true",
     "false",
-    "<none>"
+    "<none>",
+    "_caller",
+    "succeeded",
+    "is_error",
+    "not_eof",
+    "length",
+    "type",
+    "exit_status"
 };
 
 static NCD_string_id_t do_get (NCDStringIndex *o, const char *str, size_t str_len)
