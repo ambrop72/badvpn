@@ -139,12 +139,6 @@ static int caller_obj_func_getobj_with_caller_target (const NCDObject *obj, NCD_
 static void func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name, NCDValRef args, int embed);
 static void instance_free (struct instance *o);
 
-enum {STRING_CALLER};
-
-static struct NCD_string_request strings[] = {
-    {"_caller"}, {NULL}
-};
-
 static void process_handler_event (NCDModuleProcess *process, int event)
 {
     struct instance *o = UPPER_OBJECT(process, struct instance, process);
@@ -193,7 +187,7 @@ static int process_func_getspecialobj_noembed (NCDModuleProcess *process, NCD_st
 {
     struct instance *o = UPPER_OBJECT(process, struct instance, process);
     
-    if (name == strings[STRING_CALLER].id) {
+    if (name == NCD_STRING_CALLER) {
         *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, caller_obj_func_getobj);
         return 1;
     }
@@ -205,7 +199,7 @@ static int process_func_getspecialobj_with_caller_target (NCDModuleProcess *proc
 {
     struct instance *o = UPPER_OBJECT(process, struct instance, process);
     
-    if (name == strings[STRING_CALLER].id) {
+    if (name == NCD_STRING_CALLER) {
         *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, caller_obj_func_getobj_with_caller_target);
         return 1;
     }
@@ -492,6 +486,5 @@ static struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_call2 = {
-    .modules = modules,
-    .strings = strings
+    .modules = modules
 };

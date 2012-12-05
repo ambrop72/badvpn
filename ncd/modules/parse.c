@@ -84,10 +84,10 @@ struct ipv6_cidr_instance {
     struct ipv6_ifaddr ifaddr;
 };
 
-enum {STRING_SUCCEEDED, STRING_ADDR, STRING_PREFIX};
+enum {STRING_ADDR, STRING_PREFIX};
 
 static struct NCD_string_request strings[] = {
-    {"succeeded"}, {"addr"}, {"prefix"}, {NULL}
+    {"addr"}, {"prefix"}, {NULL}
 };
 
 typedef int (*parse_func) (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out);
@@ -200,7 +200,7 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
 {
     struct instance *o = vo;
     
-    if (name == strings[STRING_SUCCEEDED].id) {
+    if (name == NCD_STRING_SUCCEEDED) {
         *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
         return 1;
     }
@@ -261,7 +261,7 @@ static int ipv4_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMe
 {
     struct ipv4_cidr_instance *o = vo;
     
-    if (name == strings[STRING_SUCCEEDED].id) {
+    if (name == NCD_STRING_SUCCEEDED) {
         *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
         return 1;
     }
@@ -317,7 +317,7 @@ static int ipv6_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMe
 {
     struct ipv6_cidr_instance *o = vo;
     
-    if (name == strings[STRING_SUCCEEDED].id) {
+    if (name == NCD_STRING_SUCCEEDED) {
         *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
         return 1;
     }

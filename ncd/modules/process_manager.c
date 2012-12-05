@@ -77,6 +77,7 @@
 #include <misc/balloc.h>
 #include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 #include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_process_manager.h>
@@ -122,12 +123,6 @@ static int process_module_process_caller_obj_func_getobj (const NCDObject *obj, 
 static void process_stop (struct process *p);
 static int process_restart (struct process *p, NCDValMem *mem, NCDValSafeRef name, NCDValSafeRef template_name, NCDValSafeRef args);
 static void instance_free (struct instance *o);
-
-enum {STRING_CALLER};
-
-static struct NCD_string_request strings[] = {
-    {"_caller"}, {NULL}
-};
 
 static struct process * find_process (struct instance *o, NCDValRef name)
 {
@@ -311,7 +306,7 @@ static int process_module_process_func_getspecialobj (NCDModuleProcess *module_p
     struct process *p = UPPER_OBJECT(module_process, struct process, module_process);
     ASSERT(p->state != PROCESS_STATE_RETRYING)
     
-    if (name == strings[STRING_CALLER].id) {
+    if (name == NCD_STRING_CALLER) {
         *out_object = NCDObject_Build(-1, p, NCDObject_no_getvar, process_module_process_caller_obj_func_getobj);
         return 1;
     }
@@ -546,6 +541,5 @@ static struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_process_manager = {
-    .modules = modules,
-    .strings = strings
+    .modules = modules
 };

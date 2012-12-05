@@ -254,10 +254,10 @@ static void valref_free (struct valref *r);
 static struct value * valref_val (struct valref *r);
 static void valref_break (struct valref *r);
 
-enum {STRING_EXISTS, STRING_TYPE, STRING_LENGTH, STRING_KEYS};
+enum {STRING_EXISTS, STRING_KEYS};
 
 static struct NCD_string_request strings[] = {
-    {"exists"}, {"type"}, {"length"}, {"keys"}, {NULL}
+    {"exists"}, {"keys"}, {NULL}
 };
 
 #include "value_maptree.h"
@@ -1110,7 +1110,7 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
         return 1;
     }
     
-    if (name != strings[STRING_TYPE].id && name != strings[STRING_LENGTH].id &&
+    if (name != NCD_STRING_TYPE && name != NCD_STRING_LENGTH &&
         name != strings[STRING_KEYS].id && name != NCD_STRING_EMPTY) {
         return 0;
     }
@@ -1120,10 +1120,10 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
         return 0;
     }
     
-    if (name == strings[STRING_TYPE].id) {
+    if (name == NCD_STRING_TYPE) {
         *out = NCDVal_NewString(mem, get_type_str(v->type));
     }
-    else if (name == strings[STRING_LENGTH].id) {
+    else if (name == NCD_STRING_LENGTH) {
         size_t len = 0; // to remove warning
         switch (v->type) {
             case NCDVAL_LIST:

@@ -106,12 +106,6 @@ struct stat_instance {
     struct stat result;
 };
 
-enum {STRING_SUCCEEDED, STRING_TYPE, STRING_SIZE};
-
-static struct NCD_string_request strings[] = {
-    {"succeeded"}, {"type"}, {"size"}, {NULL}
-};
-
 static void read_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct read_instance *o = vo;
@@ -274,12 +268,12 @@ static int stat_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NC
 {
     struct stat_instance *o = vo;
     
-    if (name == strings[STRING_SUCCEEDED].id) {
+    if (name == NCD_STRING_SUCCEEDED) {
         *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
         return 1;
     }
     
-    if (name == strings[STRING_TYPE].id) {
+    if (name == NCD_STRING_TYPE) {
         const char *str;
         
         if (!o->succeeded) {
@@ -306,7 +300,7 @@ static int stat_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NC
         return 1;
     }
     
-    if (name == strings[STRING_SIZE].id) {
+    if (name == NCD_STRING_SIZE) {
         char str[50];
         if (!o->succeeded) {
             strcpy(str, "failed");
@@ -347,6 +341,5 @@ static struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_file = {
-    .modules = modules,
-    .strings = strings
+    .modules = modules
 };

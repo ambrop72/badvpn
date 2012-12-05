@@ -128,6 +128,7 @@
 #include <system/BProcess.h>
 #include <system/BConnection.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 #include <ncd/extra/NCDBuf.h>
 #include <ncd/extra/value_utils.h>
 #include <ncd/extra/build_cmdline.h>
@@ -199,12 +200,6 @@ struct write_instance {
     struct write_pipe_instance *write_pipe_inst;
     const char *data;
     size_t length;
-};
-
-enum {STRING_IS_ERROR, STRING_EXIT_STATUS, STRING_NOT_EOF};
-
-static struct NCD_string_request strings[] = {
-    {"is_error"}, {"exit_status"}, {"not_eof"}, {NULL}
 };
 
 static int parse_mode (NCDModuleInst *i, NCDValRef mode_arg, int *out_read, int *out_write)
@@ -439,7 +434,7 @@ static int process_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, 
 {
     struct process_instance *o = vo;
     
-    if (name == strings[STRING_IS_ERROR].id) {
+    if (name == NCD_STRING_IS_ERROR) {
         int is_error = (o->state == PROCESS_STATE_ERROR);
         *out = ncd_make_boolean(mem, is_error, o->i->params->iparams->string_index);
         return 1;
@@ -505,7 +500,7 @@ static int wait_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
     struct wait_instance *o = vo;
     ASSERT(!o->pinst)
     
-    if (name == strings[STRING_EXIT_STATUS].id) {
+    if (name == NCD_STRING_EXIT_STATUS) {
         if (o->exit_status == -1) {
             *out = NCDVal_NewString(mem, "-1");
         } else {
@@ -708,7 +703,7 @@ static int read_pipe_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem
 {
     struct read_pipe_instance *o = vo;
     
-    if (name == strings[STRING_IS_ERROR].id) {
+    if (name == NCD_STRING_IS_ERROR) {
         int is_error = (o->state == READER_STATE_ERROR);
         *out = ncd_make_boolean(mem, is_error, o->i->params->iparams->string_index);
         return 1;
@@ -816,7 +811,7 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
         return 1;
     }
     
-    if (name == strings[STRING_NOT_EOF].id) {
+    if (name == NCD_STRING_NOT_EOF) {
         int not_eof = (o->read_size > 0);
         *out = ncd_make_boolean(mem, not_eof, o->i->params->iparams->string_index);
         return 1;
@@ -972,7 +967,7 @@ static int write_pipe_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *me
 {
     struct write_pipe_instance *o = vo;
     
-    if (name == strings[STRING_IS_ERROR].id) {
+    if (name == NCD_STRING_IS_ERROR) {
         int is_error = (o->state == WRITER_STATE_ERROR);
         *out = ncd_make_boolean(mem, is_error, o->i->params->iparams->string_index);
         return 1;
@@ -1153,6 +1148,5 @@ static struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_sys_start_process = {
-    .modules = modules,
-    .strings = strings
+    .modules = modules
 };

@@ -61,6 +61,7 @@
 
 #include <misc/offset.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 #include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_try.h>
@@ -85,10 +86,10 @@ static int process_caller_object_func_getobj (const NCDObject *obj, NCD_string_i
 static void start_terminating (struct instance *o);
 static void instance_free (struct instance *o);
 
-enum {STRING_CALLER, STRING_TRY, STRING_TRY_TRY, STRING_SUCCEEDED};
+enum {STRING_TRY, STRING_TRY_TRY};
 
 static struct NCD_string_request strings[] = {
-    {"_caller"}, {"_try"}, {"try.try"}, {"succeeded"}, {NULL}
+    {"_try"}, {"try.try"}, {NULL}
 };
 
 static void process_handler_event (NCDModuleProcess *process, int event)
@@ -136,7 +137,7 @@ static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_
     struct instance *o = UPPER_OBJECT(process, struct instance, process);
     ASSERT(o->state == STATE_INIT || o->state == STATE_DEINIT)
     
-    if (name == strings[STRING_CALLER].id) {
+    if (name == NCD_STRING_CALLER) {
         *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, process_caller_object_func_getobj);
         return 1;
     }
@@ -235,7 +236,7 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     ASSERT(o->state == STATE_FINISHED)
     ASSERT(!o->dying)
     
-    if (name == strings[STRING_SUCCEEDED].id) {
+    if (name == NCD_STRING_SUCCEEDED) {
         *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
         return 1;
     }

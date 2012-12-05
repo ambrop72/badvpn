@@ -55,6 +55,7 @@
 #include <misc/string_begins_with.h>
 #include <misc/offset.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 #include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_imperative.h>
@@ -85,12 +86,6 @@ static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_
 static int process_caller_object_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
 static void deinit_timer_handler (struct instance *o);
 static void instance_free (struct instance *o);
-
-enum {STRING_CALLER};
-
-static struct NCD_string_request strings[] = {
-    {"_caller"}, {NULL}
-};
 
 static int start_process (struct instance *o, NCDValRef template_name, NCDValRef args, NCDModuleProcess_handler_event handler)
 {
@@ -208,7 +203,7 @@ static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_
     struct instance *o = UPPER_OBJECT(process, struct instance, process);
     ASSERT(o->state != STATE_UP)
     
-    if (name == strings[STRING_CALLER].id) {
+    if (name == NCD_STRING_CALLER) {
         *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, process_caller_object_func_getobj);
         return 1;
     }
@@ -325,6 +320,5 @@ static struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_imperative = {
-    .modules = modules,
-    .strings = strings
+    .modules = modules
 };

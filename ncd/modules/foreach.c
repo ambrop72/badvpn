@@ -138,10 +138,10 @@ static int element_map_key_object_func_getvar (const NCDObject *obj, NCD_string_
 static int element_map_val_object_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out);
 static void instance_free (struct instance *o);
 
-enum {STRING_CALLER, STRING_INDEX, STRING_ELEM, STRING_KEY, STRING_VAL};
+enum {STRING_INDEX, STRING_ELEM, STRING_KEY, STRING_VAL};
 
 static struct NCD_string_request strings[] = {
-    {"_caller"}, {"_index"}, {"_elem"}, {"_key"}, {"_val"}, {NULL}
+    {"_index"}, {"_elem"}, {"_key"}, {"_val"}, {NULL}
 };
 
 static void assert_state (struct instance *o)
@@ -399,7 +399,7 @@ static int element_process_func_getspecialobj (NCDModuleProcess *process, NCD_st
         return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
     }
     
-    if (name == strings[STRING_CALLER].id) {
+    if (name == NCD_STRING_CALLER) {
         *out_object = NCDObject_Build(-1, e, NCDObject_no_getvar, element_caller_object_func_getobj);
         return 1;
     }

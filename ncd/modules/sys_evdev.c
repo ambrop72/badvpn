@@ -58,9 +58,9 @@
 
 #include <misc/nonblocking.h>
 #include <misc/debug.h>
-#include <ncd/extra/value_utils.h>
-
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
+#include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_sys_evdev.h>
 
@@ -78,10 +78,10 @@ struct instance {
 
 static void instance_free (struct instance *o, int is_error);
 
-enum {STRING_TYPE, STRING_VALUE, STRING_CODE_NUMERIC, STRING_CODE};
+enum {STRING_VALUE, STRING_CODE_NUMERIC, STRING_CODE};
 
 static struct NCD_string_request strings[] = {
-    {"type"}, {"value"}, {"code_numeric"}, {"code"}, {NULL}
+    {"value"}, {"code_numeric"}, {"code"}, {NULL}
 };
 
 #define MAKE_LOOKUP_FUNC(_name_) \
@@ -234,7 +234,7 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     struct instance *o = vo;
     ASSERT(o->processing)
     
-    if (name == strings[STRING_TYPE].id) {
+    if (name == NCD_STRING_TYPE) {
         *out = NCDVal_NewString(mem, evdev_type_to_str(o->event.type));
         return 1;
     }

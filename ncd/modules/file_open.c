@@ -129,12 +129,6 @@ struct read_instance {
     size_t length;
 };
 
-enum {STRING_IS_ERROR, STRING_NOT_EOF};
-
-static struct NCD_string_request strings[] = {
-    {"is_error"}, {"not_eof"}, {NULL}
-};
-
 static int parse_mode (const char *data, size_t mode_len, char *out)
 {
     if (mode_len == 0) {
@@ -291,7 +285,7 @@ static int open_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
 {
     struct open_instance *o = vo;
     
-    if (name == strings[STRING_IS_ERROR].id) {
+    if (name == NCD_STRING_IS_ERROR) {
         *out = ncd_make_boolean(mem, !o->fh, o->i->params->iparams->string_index);
         return 1;
     }
@@ -378,7 +372,7 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
         return 1;
     }
     
-    if (name == strings[STRING_NOT_EOF].id) {
+    if (name == NCD_STRING_NOT_EOF) {
         *out = ncd_make_boolean(mem, (o->length != 0), o->i->params->iparams->string_index);
         return 1;
     }
@@ -579,6 +573,5 @@ static struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_file_open = {
-    .modules = modules,
-    .strings = strings
+    .modules = modules
 };

@@ -88,6 +88,7 @@
 #include <structure/LinkedList0.h>
 #include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 #include <ncd/extra/NCDRequestClient.h>
 #include <ncd/extra/value_utils.h>
 #include <ncd/extra/address_utils.h>
@@ -161,10 +162,10 @@ static int request_init_finished_process (struct request_instance *o);
 static void instance_free (struct instance *o, int with_error);
 static void request_instance_free (struct request_instance *o, int with_error);
 
-enum {STRING_CALLER, STRING_REPLY, STRING_DATA};
+enum {STRING_REPLY, STRING_DATA};
 
 static struct NCD_string_request strings[] = {
-    {"_caller"}, {"_reply"}, {"data"}, {NULL}
+    {"_reply"}, {"data"}, {NULL}
 };
 
 static void client_handler_error (struct instance *o)
@@ -322,7 +323,7 @@ static int request_process_func_getspecialobj (NCDModuleProcess *process, NCD_st
     struct request_instance *o = UPPER_OBJECT(process, struct request_instance, process);
     ASSERT(o->pstate != RPSTATE_NONE)
     
-    if (name == strings[STRING_CALLER].id) {
+    if (name == NCD_STRING_CALLER) {
         *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, request_process_caller_obj_func_getobj);
         return 1;
     }

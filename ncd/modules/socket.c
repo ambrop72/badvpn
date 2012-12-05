@@ -143,6 +143,7 @@
 #include <system/BConnection.h>
 #include <system/BConnectionGeneric.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 #include <ncd/extra/value_utils.h>
 #include <ncd/extra/address_utils.h>
 #include <ncd/extra/NCDBuf.h>
@@ -210,10 +211,10 @@ struct listen_instance {
     LinkedList0 clients_list;
 };
 
-enum {STRING_IS_ERROR, STRING_NOT_EOF, STRING_SOCKET, STRING_SYS_SOCKET, STRING_CLIENT_ADDR};
+enum {STRING_SOCKET, STRING_SYS_SOCKET, STRING_CLIENT_ADDR};
 
 static struct NCD_string_request strings[] = {
-    {"is_error"}, {"not_eof"}, {"_socket"}, {"sys.socket"}, {"client_addr"}, {NULL}
+    {"_socket"}, {"sys.socket"}, {"client_addr"}, {NULL}
 };
 
 static int parse_options (NCDModuleInst *i, NCDValRef options, size_t *out_read_size);
@@ -697,7 +698,7 @@ static int connect_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, 
     ASSERT(o->type == CONNECTION_TYPE_CONNECT)
     ASSERT(o->state != CONNECTION_STATE_CONNECTING)
     
-    if (name == strings[STRING_IS_ERROR].id) {
+    if (name == NCD_STRING_IS_ERROR) {
         int is_error = (o->state == CONNECTION_STATE_ERROR);
         *out = ncd_make_boolean(mem, is_error, o->connect.i->params->iparams->string_index);
         return 1;
@@ -790,7 +791,7 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
         return 1;
     }
     
-    if (name == strings[STRING_NOT_EOF].id) {
+    if (name == NCD_STRING_NOT_EOF) {
         *out = ncd_make_boolean(mem, (o->read_size != 0), o->i->params->iparams->string_index);
         return 1;
     }
@@ -997,7 +998,7 @@ static int listen_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, N
 {
     struct listen_instance *o = vo;
     
-    if (name == strings[STRING_IS_ERROR].id) {
+    if (name == NCD_STRING_IS_ERROR) {
         *out = ncd_make_boolean(mem, o->have_error, o->i->params->iparams->string_index);
         return 1;
     }

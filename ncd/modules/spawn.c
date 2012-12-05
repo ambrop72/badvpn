@@ -58,6 +58,7 @@
 #include <misc/debug.h>
 #include <structure/LinkedList0.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_spawn.h>
 
@@ -92,12 +93,6 @@ static void bring_joins_down (struct instance *o);
 static void continue_working (struct instance *o);
 static void continue_terminating (struct instance *o);
 static void instance_free (struct instance *o);
-
-enum {STRING_CALLER};
-
-static struct NCD_string_request strings[] = {
-    {"_caller"}, {NULL}
-};
 
 static void assert_dirty_state (struct instance *o)
 {
@@ -160,7 +155,7 @@ static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_
 {
     struct instance *o = UPPER_OBJECT(process, struct instance, process);
     
-    if (name == strings[STRING_CALLER].id) {
+    if (name == NCD_STRING_CALLER) {
         *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, caller_obj_func_getobj);
         return 1;
     }
@@ -411,6 +406,5 @@ static struct NCDModule modules[] = {
 };
 
 const struct NCDModuleGroup ncdmodule_spawn = {
-    .modules = modules,
-    .strings = strings
+    .modules = modules
 };
