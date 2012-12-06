@@ -172,24 +172,6 @@ int NCDInterpreter_Init (NCDInterpreter *o, NCDProgram program, struct NCDInterp
         }
     }
     
-    // desugar
-    if (!NCDSugar_Desugar(&o->program)) {
-        BLog(BLOG_ERROR, "NCDSugar_Desugar failed");
-        goto fail3;
-    }
-    
-    // init placeholder database
-    if (!NCDPlaceholderDb_Init(&o->placeholder_db, &o->string_index)) {
-        BLog(BLOG_ERROR, "NCDPlaceholderDb_Init failed");
-        goto fail3;
-    }
-    
-    // init interp program
-    if (!NCDInterpProg_Init(&o->iprogram, &o->program, &o->string_index, &o->placeholder_db, &o->mindex)) {
-        BLog(BLOG_ERROR, "NCDInterpProg_Init failed");
-        goto fail5;
-    }
-    
     // init pointers to global resources in out struct NCDModuleInst_iparams.
     // Don't initialize any callback at this point as these must not be called
     // from globalinit functions of modules.
@@ -211,16 +193,34 @@ int NCDInterpreter_Init (NCDInterpreter *o, NCDProgram program, struct NCDInterp
         // map strings
         if ((*g)->strings && !NCDStringIndex_GetRequests(&o->string_index, (*g)->strings)) {
             BLog(BLOG_ERROR, "NCDStringIndex_GetRequests failed for some module");
-            goto fail6;
+            goto fail4;
         }
         
         // call func_globalinit
         if ((*g)->func_globalinit && !(*g)->func_globalinit(&o->module_iparams)) {
             BLog(BLOG_ERROR, "globalinit failed for some module");
-            goto fail6;
+            goto fail4;
         }
         
         o->num_inited_modules++;
+    }
+    
+    // desugar
+    if (!NCDSugar_Desugar(&o->program)) {
+        BLog(BLOG_ERROR, "NCDSugar_Desugar failed");
+        goto fail4;
+    }
+    
+    // init placeholder database
+    if (!NCDPlaceholderDb_Init(&o->placeholder_db, &o->string_index)) {
+        BLog(BLOG_ERROR, "NCDPlaceholderDb_Init failed");
+        goto fail4;
+    }
+    
+    // init interp program
+    if (!NCDInterpProg_Init(&o->iprogram, &o->program, &o->string_index, &o->placeholder_db, &o->mindex)) {
+        BLog(BLOG_ERROR, "NCDInterpProg_Init failed");
+        goto fail5;
     }
     
     // init the rest of the module parameters structures
@@ -275,7 +275,12 @@ fail7:;
     }
     // clear process cache (process_free() above may push to cache)
     clear_process_cache(o);
-fail6:
+    // free interp program
+    NCDInterpProg_Free(&o->iprogram);
+fail5:
+    // free placeholder database
+    NCDPlaceholderDb_Free(&o->placeholder_db);
+fail4:
     // free modules
     while (o->num_inited_modules-- > 0) {
         const struct NCDModuleGroup **g = &ncd_modules[o->num_inited_modules];
@@ -283,11 +288,6 @@ fail6:
             (*g)->func_globalfree();
         }
     }
-    // free interp program
-    NCDInterpProg_Free(&o->iprogram);
-fail5:
-    // free placeholder database
-    NCDPlaceholderDb_Free(&o->placeholder_db);
 fail3:
     // free module index
     NCDModuleIndex_Free(&o->mindex);
@@ -318,6 +318,12 @@ void NCDInterpreter_Free (NCDInterpreter *o)
     // clear process cache
     clear_process_cache(o);
     
+    // free interp program
+    NCDInterpProg_Free(&o->iprogram);
+    
+    // free placeholder database
+    NCDPlaceholderDb_Free(&o->placeholder_db);
+    
     // free modules
     while (o->num_inited_modules-- > 0) {
         const struct NCDModuleGroup **g = &ncd_modules[o->num_inited_modules];
@@ -326,20 +332,14 @@ void NCDInterpreter_Free (NCDInterpreter *o)
         }
     }
     
-    // free interp program
-    NCDInterpProg_Free(&o->iprogram);
-    
-    // free placeholder database
-    NCDPlaceholderDb_Free(&o->placeholder_db);
-    
-    // free program AST
-    NCDProgram_Free(&o->program);
-    
     // free module index
     NCDModuleIndex_Free(&o->mindex);
     
     // free string index
     NCDStringIndex_Free(&o->string_index);
+    
+    // free program AST
+    NCDProgram_Free(&o->program);
 }
 
 void NCDInterpreter_RequestShutdown (NCDInterpreter *o, int exit_code)
