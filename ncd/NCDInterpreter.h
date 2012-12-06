@@ -37,7 +37,6 @@
 #include <system/BTime.h>
 #include <system/BReactor.h>
 #include <ncd/NCDStringIndex.h>
-#include <ncd/NCDMethodIndex.h>
 #include <ncd/NCDModuleIndex.h>
 #include <ncd/NCDAst.h>
 #include <ncd/NCDPlaceholderDb.h>
@@ -97,9 +96,6 @@ typedef struct {
 
     // string index
     NCDStringIndex string_index;
-
-    // method index
-    NCDMethodIndex method_index;
 
     // module index
     NCDModuleIndex mindex;

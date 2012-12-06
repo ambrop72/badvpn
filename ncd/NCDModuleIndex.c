@@ -109,8 +109,10 @@ static int add_method (char *type, const struct NCDModule *module, NCDMethodInde
     return 1;
 }
 
-int NCDModuleIndex_Init (NCDModuleIndex *o)
+int NCDModuleIndex_Init (NCDModuleIndex *o, NCDStringIndex *string_index)
 {
+    ASSERT(string_index)
+    
     // allocate modules array
     if (!(o->modules = BAllocArray(NCDMODULEINDEX_MAX_MODULES, sizeof(o->modules[0])))) {
         BLog(BLOG_ERROR, "BAllocArray failed");
@@ -129,9 +131,17 @@ int NCDModuleIndex_Init (NCDModuleIndex *o)
     // init base types tree
     BAVL_Init(&o->base_types_tree, OFFSET_DIFF(struct NCDModuleIndex_base_type, base_type, base_types_tree_node), (BAVL_comparator)string_pointer_comparator, NULL);
     
+    // init method index
+    if (!NCDMethodIndex_Init(&o->method_index, string_index)) {
+        BLog(BLOG_ERROR, "NCDMethodIndex_Init failed");
+        goto fail2;
+    }
+    
     DebugObject_Init(&o->d_obj);
     return 1;
     
+fail2:
+    NCDModuleIndex__MHash_Free(&o->modules_hash);
 fail1:
     BFree(o->modules);
 fail0:
@@ -149,6 +159,9 @@ void NCDModuleIndex_Free (NCDModuleIndex *o)
         free(bt);
     }
     
+    // free method index
+    NCDMethodIndex_Free(&o->method_index);
+    
     // free modules hash
     NCDModuleIndex__MHash_Free(&o->modules_hash);
     
@@ -156,11 +169,10 @@ void NCDModuleIndex_Free (NCDModuleIndex *o)
     BFree(o->modules);
 }
 
-int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *group, NCDMethodIndex *method_index)
+int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *group)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(group)
-    ASSERT(method_index)
     
     for (const struct NCDModule *nm = group->modules; nm->type; nm++) {
         if (find_module(o, nm->type)) {
@@ -208,7 +220,7 @@ int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *gro
         
         o->num_modules++;
         
-        if (!add_method(m->type, nm, method_index)) {
+        if (!add_method(m->type, nm, &o->method_index)) {
             BLog(BLOG_ERROR, "failed to add method to method index");
             return 0;
         }
@@ -235,4 +247,19 @@ const struct NCDModule * NCDModuleIndex_FindModule (NCDModuleIndex *o, const cha
     }
     
     return m->module;
+}
+
+int NCDModuleIndex_GetMethodNameId (NCDModuleIndex *o, const char *method_name)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(method_name)
+    
+    return NCDMethodIndex_GetMethodNameId(&o->method_index, method_name);
+}
+
+const struct NCDModule * NCDModuleIndex_GetMethodModule (NCDModuleIndex *o, NCD_string_id_t obj_type, int method_name_id)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    return NCDMethodIndex_GetMethodModule(&o->method_index, obj_type, method_name_id);
 }

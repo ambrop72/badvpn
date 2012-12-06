@@ -155,21 +155,15 @@ int NCDInterpreter_Init (NCDInterpreter *o, NCDProgram program, struct NCDInterp
         goto fail0;
     }
     
-    // init method index
-    if (!NCDMethodIndex_Init(&o->method_index, &o->string_index)) {
-        BLog(BLOG_ERROR, "NCDMethodIndex_Init failed");
-        goto fail1;
-    }
-    
     // init module index
-    if (!NCDModuleIndex_Init(&o->mindex)) {
+    if (!NCDModuleIndex_Init(&o->mindex, &o->string_index)) {
         BLog(BLOG_ERROR, "NCDModuleIndex_Init failed");
         goto fail2;
     }
     
     // add module groups to index and allocate string id's for base_type's
     for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
-        if (!NCDModuleIndex_AddGroup(&o->mindex, *g, &o->method_index)) {
+        if (!NCDModuleIndex_AddGroup(&o->mindex, *g)) {
             BLog(BLOG_ERROR, "NCDModuleIndex_AddGroup failed");
             goto fail3;
         }
@@ -191,7 +185,7 @@ int NCDInterpreter_Init (NCDInterpreter *o, NCDProgram program, struct NCDInterp
     }
     
     // init interp program
-    if (!NCDInterpProg_Init(&o->iprogram, &o->program, &o->string_index, &o->placeholder_db, &o->mindex, &o->method_index)) {
+    if (!NCDInterpProg_Init(&o->iprogram, &o->program, &o->string_index, &o->placeholder_db, &o->mindex)) {
         BLog(BLOG_ERROR, "NCDInterpProg_Init failed");
         goto fail5;
     }
@@ -298,9 +292,6 @@ fail3:
     // free module index
     NCDModuleIndex_Free(&o->mindex);
 fail2:
-    // free method index
-    NCDMethodIndex_Free(&o->method_index);
-fail1:
     // free string index
     NCDStringIndex_Free(&o->string_index);
 fail0:
@@ -346,9 +337,6 @@ void NCDInterpreter_Free (NCDInterpreter *o)
     
     // free module index
     NCDModuleIndex_Free(&o->mindex);
-    
-    // free method index
-    NCDMethodIndex_Free(&o->method_index);
     
     // free string index
     NCDStringIndex_Free(&o->string_index);
@@ -942,7 +930,7 @@ void process_advance (struct process *p)
         method_context = NCDObject_MethodUser(&object);
         
         // find module based on type of object
-        module = NCDInterpProcess_StatementGetMethodModule(p->iprocess, p->ap, object_type, &p->interp->method_index);
+        module = NCDInterpProcess_StatementGetMethodModule(p->iprocess, p->ap, object_type, &p->interp->mindex);
         
         if (!module) {
             const char *type_str = NCDStringIndex_Value(&p->interp->string_index, object_type);

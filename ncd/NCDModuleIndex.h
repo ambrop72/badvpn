@@ -65,12 +65,15 @@ typedef struct {
     int num_modules;
     NCDModuleIndex__MHash modules_hash;
     BAVL base_types_tree;
+    NCDMethodIndex method_index;
     DebugObject d_obj;
 } NCDModuleIndex;
 
-int NCDModuleIndex_Init (NCDModuleIndex *o) WARN_UNUSED;
+int NCDModuleIndex_Init (NCDModuleIndex *o, NCDStringIndex *string_index) WARN_UNUSED;
 void NCDModuleIndex_Free (NCDModuleIndex *o);
-int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *group, NCDMethodIndex *method_index) WARN_UNUSED;
+int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *group) WARN_UNUSED;
 const struct NCDModule * NCDModuleIndex_FindModule (NCDModuleIndex *o, const char *type);
+int NCDModuleIndex_GetMethodNameId (NCDModuleIndex *o, const char *method_name);
+const struct NCDModule * NCDModuleIndex_GetMethodModule (NCDModuleIndex *o, NCD_string_id_t obj_type, int method_name_id);
 
 #endif

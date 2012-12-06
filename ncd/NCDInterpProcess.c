@@ -161,13 +161,12 @@ fail:
     return 0;
 }
 
-int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIndex *string_index, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index, NCDMethodIndex *method_index)
+int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIndex *string_index, NCDPlaceholderDb *pdb, NCDModuleIndex *module_index)
 {
     ASSERT(process)
     ASSERT(string_index)
     ASSERT(pdb)
     ASSERT(module_index)
-    ASSERT(method_index)
     
     NCDBlock *block = NCDProcess_Block(process);
     
@@ -247,9 +246,9 @@ int NCDInterpProcess_Init (NCDInterpProcess *o, NCDProcess *process, NCDStringIn
                 goto loop_fail2;
             }
             
-            e->binding.method_name_id = NCDMethodIndex_GetMethodNameId(method_index, NCDStatement_RegCmdName(s));
+            e->binding.method_name_id = NCDModuleIndex_GetMethodNameId(module_index, NCDStatement_RegCmdName(s));
             if (e->binding.method_name_id == -1) {
-                BLog(BLOG_ERROR, "NCDMethodIndex_GetMethodNameId failed");
+                BLog(BLOG_ERROR, "NCDModuleIndex_GetMethodNameId failed");
                 goto loop_fail3;
             }
         } else {
@@ -368,16 +367,16 @@ const struct NCDModule * NCDInterpProcess_StatementGetSimpleModule (NCDInterpPro
     return o->stmts[i].binding.simple_module;
 }
 
-const struct NCDModule * NCDInterpProcess_StatementGetMethodModule (NCDInterpProcess *o, int i, NCD_string_id_t obj_type, NCDMethodIndex *method_index)
+const struct NCDModule * NCDInterpProcess_StatementGetMethodModule (NCDInterpProcess *o, int i, NCD_string_id_t obj_type, NCDModuleIndex *module_index)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
     ASSERT(i < o->num_stmts)
     ASSERT(o->stmts[i].objnames)
     ASSERT(obj_type >= 0)
-    ASSERT(method_index)
+    ASSERT(module_index)
     
-    return NCDMethodIndex_GetMethodModule(method_index, obj_type, o->stmts[i].binding.method_name_id);
+    return NCDModuleIndex_GetMethodModule(module_index, obj_type, o->stmts[i].binding.method_name_id);
 }
 
 int NCDInterpProcess_CopyStatementArgs (NCDInterpProcess *o, int i, NCDValMem *out_valmem, NCDValRef *out_val, NCDValReplaceProg *out_prog)
