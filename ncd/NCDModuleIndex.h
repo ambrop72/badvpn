@@ -49,11 +49,13 @@ struct NCDModuleIndex_module {
     char type[NCDMODULEINDEX_MAX_TYPE_LEN + 1];
 };
 
+#ifndef NDEBUG
 struct NCDModuleIndex_base_type {
     const char *base_type;
     const struct NCDModuleGroup *group;
     BAVLNode base_types_tree_node;
 };
+#endif
 
 struct NCDModuleIndex_group {
     const struct NCDModuleGroup *group;
@@ -71,7 +73,9 @@ typedef struct {
     struct NCDModuleIndex_module *modules;
     int num_modules;
     NCDModuleIndex__MHash modules_hash;
+#ifndef NDEBUG
     BAVL base_types_tree;
+#endif
     LinkedList0 groups_list;
     NCDMethodIndex method_index;
     DebugObject d_obj;

@@ -62,6 +62,7 @@ static struct NCDModuleIndex_module * find_module (NCDModuleIndex *o, const char
     return ref.ptr;
 }
 
+#ifndef NDEBUG
 static struct NCDModuleIndex_base_type * find_base_type (NCDModuleIndex *o, const char *base_type)
 {
     BAVLNode *node = BAVL_LookupExact(&o->base_types_tree, &base_type);
@@ -74,6 +75,7 @@ static struct NCDModuleIndex_base_type * find_base_type (NCDModuleIndex *o, cons
     
     return bt;
 }
+#endif
 
 static int add_method (char *type, const struct NCDModule *module, NCDMethodIndex *method_index, int *out_method_id)
 {
@@ -131,8 +133,10 @@ int NCDModuleIndex_Init (NCDModuleIndex *o, NCDStringIndex *string_index)
         goto fail1;
     }
     
+#ifndef NDEBUG
     // init base types tree
     BAVL_Init(&o->base_types_tree, OFFSET_DIFF(struct NCDModuleIndex_base_type, base_type, base_types_tree_node), (BAVL_comparator)string_pointer_comparator, NULL);
+#endif
     
     // init groups list
     LinkedList0_Init(&o->groups_list);
@@ -169,12 +173,14 @@ void NCDModuleIndex_Free (NCDModuleIndex *o)
         BFree(ig);
     }
     
+#ifndef NDEBUG
     // free base types
     while (!BAVL_IsEmpty(&o->base_types_tree)) {
         struct NCDModuleIndex_base_type *bt = UPPER_OBJECT(BAVL_GetFirst(&o->base_types_tree), struct NCDModuleIndex_base_type, base_types_tree_node);
         BAVL_Remove(&o->base_types_tree, &bt->base_types_tree_node);
         free(bt);
     }
+#endif
     
     // free method index
     NCDMethodIndex_Free(&o->method_index);
@@ -253,6 +259,7 @@ int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *gro
             goto loop_fail0;
         }
         
+#ifndef NDEBUG
         struct NCDModuleIndex_base_type *bt = find_base_type(o, base_type);
         if (bt) {
             if (bt->group != group) {
@@ -269,6 +276,7 @@ int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *gro
             bt->group = group;
             ASSERT_EXECUTE(BAVL_Insert(&o->base_types_tree, &bt->base_types_tree_node, NULL))
         }
+#endif
         
         NCDModuleIndex__MHashRef ref = {m, o->num_modules};
         int res = NCDModuleIndex__MHash_Insert(&o->modules_hash, o->modules, ref, NULL);
@@ -278,10 +286,12 @@ int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *gro
         num_inited_modules++;
         continue;
         
+#ifndef NDEBUG
     loop_fail1:
         if (m->method_id >= 0) {
             NCDMethodIndex_RemoveMethod(&o->method_index, m->method_id);
         }
+#endif
     loop_fail0:
         goto fail2;
     }
@@ -291,18 +301,20 @@ int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *gro
 fail2:
     while (num_inited_modules-- > 0) {
         o->num_modules--;
-        struct NCDModule *nm = group->modules + num_inited_modules;
         struct NCDModuleIndex_module *m = &o->modules[o->num_modules];
         
         NCDModuleIndex__MHashRef ref = {m, o->num_modules};
         NCDModuleIndex__MHash_Remove(&o->modules_hash, o->modules, ref);
         
+#ifndef NDEBUG
+        struct NCDModule *nm = group->modules + num_inited_modules;
         struct NCDModuleIndex_base_type *bt = find_base_type(o, (nm->base_type ? nm->base_type : nm->type));
         if (bt) {
             ASSERT(bt->group == group)
             BAVL_Remove(&o->base_types_tree, &bt->base_types_tree_node);
             free(bt);
         }
+#endif
         
         if (m->method_id >= 0) {
             NCDMethodIndex_RemoveMethod(&o->method_index, m->method_id);
