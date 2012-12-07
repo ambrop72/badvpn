@@ -97,9 +97,16 @@ void NCDMethodIndex_Free (NCDMethodIndex *o);
  * @param method_name name of method, e.g. "meow" in "cat::meow".
  *                    Must not be NULL.
  * @param module pointer to module structure. Must not be NULL.
- * @return 1 on success, 0 on failure
+ * @return on success, a non-negative identifier; on failure, -1
  */
-int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, const char *method_name, const struct NCDModule *module) WARN_UNUSED;
+int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, const char *method_name, const struct NCDModule *module);
+
+/**
+ * Removes a method from the index.
+ * 
+ * @param method_name_id method name identifier
+ */
+void NCDMethodIndex_RemoveMethod (NCDMethodIndex *o, int method_name_id);
 
 /**
  * Obtains an internal integer identifier for a method name. The intention is that

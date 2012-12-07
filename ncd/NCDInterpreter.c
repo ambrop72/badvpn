@@ -82,7 +82,6 @@ struct process {
 
 static void start_terminate (NCDInterpreter *interp, int exit_code);
 static char * implode_id_strings (NCDInterpreter *interp, const NCD_string_id_t *names, size_t num_names, char del);
-static int alloc_base_type_strings (NCDInterpreter *interp, const struct NCDModuleGroup *g);
 static void clear_process_cache (NCDInterpreter *interp);
 static struct process * process_allocate (NCDInterpreter *interp, NCDInterpProcess *iprocess);
 static void process_release (struct process *p, int no_push);
@@ -161,17 +160,6 @@ int NCDInterpreter_Init (NCDInterpreter *o, NCDProgram program, struct NCDInterp
         goto fail2;
     }
     
-    // add module groups to index and allocate string id's for base_type's
-    for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
-        if (!NCDModuleIndex_AddGroup(&o->mindex, *g)) {
-            BLog(BLOG_ERROR, "NCDModuleIndex_AddGroup failed");
-            goto fail3;
-        }
-        if (!alloc_base_type_strings(o, *g)) {
-            goto fail3;
-        }
-    }
-    
     // init pointers to global resources in out struct NCDModuleInst_iparams.
     // Don't initialize any callback at this point as these must not be called
     // from globalinit functions of modules.
@@ -187,34 +175,24 @@ int NCDInterpreter_Init (NCDInterpreter *o, NCDProgram program, struct NCDInterp
 #endif
     o->module_iparams.string_index = &o->string_index;
     
-    // init modules
-    o->num_inited_modules = 0;
+    // add module groups to index and allocate string id's for base_type's
     for (const struct NCDModuleGroup **g = ncd_modules; *g; g++) {
-        // map strings
-        if ((*g)->strings && !NCDStringIndex_GetRequests(&o->string_index, (*g)->strings)) {
-            BLog(BLOG_ERROR, "NCDStringIndex_GetRequests failed for some module");
-            goto fail4;
+        if (!NCDModuleIndex_AddGroup(&o->mindex, *g, &o->module_iparams, &o->string_index)) {
+            BLog(BLOG_ERROR, "NCDModuleIndex_AddGroup failed");
+            goto fail3;
         }
-        
-        // call func_globalinit
-        if ((*g)->func_globalinit && !(*g)->func_globalinit(&o->module_iparams)) {
-            BLog(BLOG_ERROR, "globalinit failed for some module");
-            goto fail4;
-        }
-        
-        o->num_inited_modules++;
     }
     
     // desugar
     if (!NCDSugar_Desugar(&o->program)) {
         BLog(BLOG_ERROR, "NCDSugar_Desugar failed");
-        goto fail4;
+        goto fail3;
     }
     
     // init placeholder database
     if (!NCDPlaceholderDb_Init(&o->placeholder_db, &o->string_index)) {
         BLog(BLOG_ERROR, "NCDPlaceholderDb_Init failed");
-        goto fail4;
+        goto fail3;
     }
     
     // init interp program
@@ -280,14 +258,6 @@ fail7:;
 fail5:
     // free placeholder database
     NCDPlaceholderDb_Free(&o->placeholder_db);
-fail4:
-    // free modules
-    while (o->num_inited_modules-- > 0) {
-        const struct NCDModuleGroup **g = &ncd_modules[o->num_inited_modules];
-        if ((*g)->func_globalfree) {
-            (*g)->func_globalfree();
-        }
-    }
 fail3:
     // free module index
     NCDModuleIndex_Free(&o->mindex);
@@ -323,14 +293,6 @@ void NCDInterpreter_Free (NCDInterpreter *o)
     
     // free placeholder database
     NCDPlaceholderDb_Free(&o->placeholder_db);
-    
-    // free modules
-    while (o->num_inited_modules-- > 0) {
-        const struct NCDModuleGroup **g = &ncd_modules[o->num_inited_modules];
-        if ((*g)->func_globalfree) {
-            (*g)->func_globalfree();
-        }
-    }
     
     // free module index
     NCDModuleIndex_Free(&o->mindex);
@@ -406,22 +368,6 @@ fail1:
     ExpString_Free(&str);
 fail0:
     return NULL;
-}
-
-int alloc_base_type_strings (NCDInterpreter *interp, const struct NCDModuleGroup *g)
-{
-    for (struct NCDModule *m = g->modules; m->type; m++) {
-        const char *type = (m->base_type ? m->base_type : m->type);
-        ASSERT(type)
-        
-        m->base_type_id = NCDStringIndex_Get(&interp->string_index, type);
-        if (m->base_type_id < 0) {
-            BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
-            return 0;
-        }
-    }
-    
-    return 1;
 }
 
 void clear_process_cache (NCDInterpreter *interp)

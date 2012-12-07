@@ -33,17 +33,19 @@
 #include <misc/debug.h>
 #include <structure/BAVL.h>
 #include <structure/CHash.h>
+#include <structure/LinkedList0.h>
 #include <base/DebugObject.h>
 #include <ncd/NCDModule.h>
 #include <ncd/NCDMethodIndex.h>
 
-#define NCDMODULEINDEX_MAX_TYPE_LEN 43
+#define NCDMODULEINDEX_MAX_TYPE_LEN 39
 #define NCDMODULEINDEX_MAX_MODULES 256
 #define NCDMODULEINDEX_MODULES_HASH_SIZE 512
 
 struct NCDModuleIndex_module {
     const struct NCDModule *module;
     int hash_next;
+    int method_id;
     char type[NCDMODULEINDEX_MAX_TYPE_LEN + 1];
 };
 
@@ -51,6 +53,11 @@ struct NCDModuleIndex_base_type {
     const char *base_type;
     const struct NCDModuleGroup *group;
     BAVLNode base_types_tree_node;
+};
+
+struct NCDModuleIndex_group {
+    const struct NCDModuleGroup *group;
+    LinkedList0Node groups_list_node;
 };
 
 typedef struct NCDModuleIndex_module NCDModuleIndex__mhash_entry;
@@ -65,13 +72,14 @@ typedef struct {
     int num_modules;
     NCDModuleIndex__MHash modules_hash;
     BAVL base_types_tree;
+    LinkedList0 groups_list;
     NCDMethodIndex method_index;
     DebugObject d_obj;
 } NCDModuleIndex;
 
 int NCDModuleIndex_Init (NCDModuleIndex *o, NCDStringIndex *string_index) WARN_UNUSED;
 void NCDModuleIndex_Free (NCDModuleIndex *o);
-int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *group) WARN_UNUSED;
+int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *group, const struct NCDModuleInst_iparams *iparams, NCDStringIndex *string_index) WARN_UNUSED;
 const struct NCDModule * NCDModuleIndex_FindModule (NCDModuleIndex *o, const char *type);
 int NCDModuleIndex_GetMethodNameId (NCDModuleIndex *o, const char *method_name);
 const struct NCDModule * NCDModuleIndex_GetMethodModule (NCDModuleIndex *o, NCD_string_id_t obj_type, int method_name_id);

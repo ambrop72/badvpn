@@ -180,10 +180,10 @@ int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, const cha
         goto fail0;
     }
     
+    int entry_idx;
     int first_entry_idx;
     
     if (!find_method_name(o, method_name, &first_entry_idx)) {
-        int entry_idx;
         if (!add_method_name(o, method_name, &entry_idx)) {
             goto fail0;
         }
@@ -204,6 +204,7 @@ int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, const cha
             goto fail0;
         }
         
+        entry_idx = o->num_entries;
         struct NCDMethodIndex__entry *entry = &o->entries[o->num_entries];
         
         entry->obj_type = obj_type_id;
@@ -215,10 +216,19 @@ int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, const cha
         o->num_entries++;
     }
     
-    return 1;
+    return entry_idx;
     
 fail0:
-    return 0;
+    return -1;
+}
+
+void NCDMethodIndex_RemoveMethod (NCDMethodIndex *o, int method_name_id)
+{
+    ASSERT(method_name_id >= 0)
+    ASSERT(method_name_id < o->num_entries)
+    ASSERT(o->entries[method_name_id].obj_type >= 0)
+    
+    o->entries[method_name_id].obj_type = -1;
 }
 
 int NCDMethodIndex_GetMethodNameId (NCDMethodIndex *o, const char *method_name)
