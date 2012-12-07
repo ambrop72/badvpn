@@ -113,9 +113,6 @@ typedef struct {
     struct NCDModuleInst_params module_params;
     struct NCDModuleInst_iparams module_iparams;
     
-    // number of modules we have found and inited
-    size_t num_inited_modules;
-    
     // processes
     LinkedList1 processes;
     
