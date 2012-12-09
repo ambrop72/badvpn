@@ -117,7 +117,7 @@ static int guard_exists (struct guard *top_guard, const char *id_data, size_t id
 static char * make_dir_path (const char *file_path)
 {
     int found_slash = 0;
-    size_t last_slash;
+    size_t last_slash = 0; // initialize to remove warning
     
     for (size_t i = 0; file_path[i]; i++) {
         if (file_path[i] == '/') {
