@@ -73,12 +73,13 @@ static void set_process_state (NCDModuleProcess *p, int state)
 #endif
 }
 
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *method_context, NCDValRef args, const struct NCDModuleInst_params *params)
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDInterpModule *m, void *method_context, NCDValRef args, const struct NCDModuleInst_params *params)
 {
     ASSERT(m)
-    ASSERT(m->func_new2)
-    ASSERT(m->alloc_size >= 0)
+    ASSERT(m->module.func_new2)
+    ASSERT(m->module.alloc_size >= 0)
     ASSERT(m->base_type_id >= 0)
+    ASSERT(m->group)
     ASSERT(n->mem)
     ASSERT(NCDVal_IsList(args))
     ASSERT(params)
@@ -107,7 +108,7 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *meth
     new_params.method_user = method_context;
     new_params.args = args;
     
-    n->m->func_new2(n->mem, n, &new_params);
+    n->m->module.func_new2(n->mem, n, &new_params);
 }
 
 void NCDModuleInst_Free (NCDModuleInst *n)
@@ -123,12 +124,12 @@ void NCDModuleInst_Die (NCDModuleInst *n)
     
     n->state = STATE_DYING;
     
-    if (!n->m->func_die) {
+    if (!n->m->module.func_die) {
         NCDModuleInst_Backend_Dead(n);
         return;
     }
     
-    n->m->func_die(n->mem);
+    n->m->module.func_die(n->mem);
     return;
 }
 
@@ -137,7 +138,7 @@ int NCDModuleInst_TryFree (NCDModuleInst *n)
     DebugObject_Access(&n->d_obj);
     ASSERT(n->state == STATE_UP || n->state == STATE_DOWN_CLEAN || n->state == STATE_DOWN_UNCLEAN)
     
-    if (n->m->func_die) {
+    if (n->m->module.func_die) {
         return 0;
     }
     
@@ -154,8 +155,8 @@ void NCDModuleInst_Clean (NCDModuleInst *n)
     if (n->state == STATE_DOWN_UNCLEAN) {
         n->state = STATE_DOWN_CLEAN;
             
-        if (n->m->func_clean) {
-            n->m->func_clean(n->mem);
+        if (n->m->module.func_clean) {
+            n->m->module.func_clean(n->mem);
             return;
         }
     }
@@ -188,7 +189,7 @@ static int can_resolve (NCDModuleInst *n)
             return 1;
         case STATE_DOWN_CLEAN:
         case STATE_DOWN_UNCLEAN:
-            return !!(n->m->flags & NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN);
+            return !!(n->m->module.flags & NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN);
         default:
             return 0;
     }
@@ -199,19 +200,19 @@ static int object_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDVa
     NCDModuleInst *n = NCDObject_DataPtr(obj);
     DebugObject_Access(&n->d_obj);
     
-    if ((!n->m->func_getvar && !n->m->func_getvar2) || !can_resolve(n)) {
+    if ((!n->m->module.func_getvar && !n->m->module.func_getvar2) || !can_resolve(n)) {
         return 0;
     }
     
     int res;
-    if (n->m->func_getvar2) {
-        res = n->m->func_getvar2(n->mem, name, mem, out_value);
+    if (n->m->module.func_getvar2) {
+        res = n->m->module.func_getvar2(n->mem, name, mem, out_value);
     } else {
         if (NCDStringIndex_HasNulls(n->params->iparams->string_index, name)) {
             return 0;
         }
         const char *name_str = NCDStringIndex_Value(n->params->iparams->string_index, name);
-        res = n->m->func_getvar(n->mem, name_str, mem, out_value);
+        res = n->m->module.func_getvar(n->mem, name_str, mem, out_value);
     }
     ASSERT(res == 0 || res == 1)
     ASSERT(res == 0 || (NCDVal_Assert(*out_value), 1))
@@ -224,11 +225,11 @@ static int object_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDOb
     NCDModuleInst *n = NCDObject_DataPtr(obj);
     DebugObject_Access(&n->d_obj);
     
-    if (!n->m->func_getobj || !can_resolve(n)) {
+    if (!n->m->module.func_getobj || !can_resolve(n)) {
         return 0;
     }
     
-    int res = n->m->func_getobj(n->mem, name, out_object);
+    int res = n->m->module.func_getobj(n->mem, name, out_object);
     ASSERT(res == 0 || res == 1)
     
     return res;

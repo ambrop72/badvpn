@@ -38,40 +38,35 @@
 #include <ncd/NCDModule.h>
 #include <ncd/NCDMethodIndex.h>
 
-#define NCDMODULEINDEX_MAX_TYPE_LEN 39
-#define NCDMODULEINDEX_MAX_MODULES 256
 #define NCDMODULEINDEX_MODULES_HASH_SIZE 512
 
 struct NCDModuleIndex_module {
-    const struct NCDModule *module;
-    int hash_next;
+    struct NCDInterpModule imodule;
+    struct NCDModuleIndex_module *hash_next;
     int method_id;
-    char type[NCDMODULEINDEX_MAX_TYPE_LEN + 1];
 };
 
 #ifndef NDEBUG
 struct NCDModuleIndex_base_type {
     const char *base_type;
-    const struct NCDModuleGroup *group;
+    struct NCDModuleIndex_group *group;
     BAVLNode base_types_tree_node;
 };
 #endif
 
 struct NCDModuleIndex_group {
-    const struct NCDModuleGroup *group;
     LinkedList0Node groups_list_node;
+    struct NCDInterpModuleGroup igroup;
+    struct NCDModuleIndex_module modules[];
 };
 
-typedef struct NCDModuleIndex_module NCDModuleIndex__mhash_entry;
+typedef struct NCDModuleIndex_module *NCDModuleIndex__mhash_link;
 typedef const char *NCDModuleIndex__mhash_key;
-typedef struct NCDModuleIndex_module *NCDModuleIndex__mhash_arg;
 
 #include "NCDModuleIndex_mhash.h"
 #include <structure/CHash_decl.h>
 
 typedef struct {
-    struct NCDModuleIndex_module *modules;
-    int num_modules;
     NCDModuleIndex__MHash modules_hash;
 #ifndef NDEBUG
     BAVL base_types_tree;
@@ -84,8 +79,8 @@ typedef struct {
 int NCDModuleIndex_Init (NCDModuleIndex *o, NCDStringIndex *string_index) WARN_UNUSED;
 void NCDModuleIndex_Free (NCDModuleIndex *o);
 int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *group, const struct NCDModuleInst_iparams *iparams, NCDStringIndex *string_index) WARN_UNUSED;
-const struct NCDModule * NCDModuleIndex_FindModule (NCDModuleIndex *o, const char *type);
+const struct NCDInterpModule * NCDModuleIndex_FindModule (NCDModuleIndex *o, const char *type);
 int NCDModuleIndex_GetMethodNameId (NCDModuleIndex *o, const char *method_name);
-const struct NCDModule * NCDModuleIndex_GetMethodModule (NCDModuleIndex *o, NCD_string_id_t obj_type, int method_name_id);
+const struct NCDInterpModule * NCDModuleIndex_GetMethodModule (NCDModuleIndex *o, NCD_string_id_t obj_type, int method_name_id);
 
 #endif

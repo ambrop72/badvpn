@@ -67,6 +67,7 @@
 #include "linux_input_names.h"
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define ModuleString(i, id) ((i)->m->group->strings[(id)])
 
 struct instance {
     NCDModuleInst *i;
@@ -80,8 +81,8 @@ static void instance_free (struct instance *o, int is_error);
 
 enum {STRING_VALUE, STRING_CODE_NUMERIC, STRING_CODE};
 
-static struct NCD_string_request strings[] = {
-    {"value"}, {"code_numeric"}, {"code"}, {NULL}
+static const char *strings[] = {
+    "value", "code_numeric", "code", NULL
 };
 
 #define MAKE_LOOKUP_FUNC(_name_) \
@@ -239,19 +240,19 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
         return 1;
     }
     
-    if (name == strings[STRING_VALUE].id) {
+    if (name == ModuleString(o->i, STRING_VALUE)) {
         char str[50];
         snprintf(str, sizeof(str), "%"PRIi32, o->event.value);
         *out = NCDVal_NewString(mem, str);
         return 1;
     }
     
-    if (name == strings[STRING_CODE_NUMERIC].id) {
+    if (name == ModuleString(o->i, STRING_CODE_NUMERIC)) {
         *out = ncd_make_uintmax(mem, o->event.code);
         return 1;
     }
     
-    if (name == strings[STRING_CODE].id) {
+    if (name == ModuleString(o->i, STRING_CODE)) {
         const char *str = "unknown";
         
         #define MAKE_CASE(_evname_, _name_) \

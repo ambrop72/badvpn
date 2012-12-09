@@ -379,7 +379,7 @@ static void lock_job_handler (struct lock_instance *o)
     }
 }
 
-static int func_globalinit (const struct NCDModuleInst_iparams *params)
+static int func_globalinit (struct NCDInterpModuleGroup *group, const struct NCDModuleInst_iparams *params)
 {
     // init iptables lock
     BEventLock_Init(&iptables_lock, BReactor_PendingGroup(params->reactor));
@@ -387,7 +387,7 @@ static int func_globalinit (const struct NCDModuleInst_iparams *params)
     return 1;
 }
 
-static void func_globalfree (void)
+static void func_globalfree (struct NCDInterpModuleGroup *group)
 {
     // free iptables lock
     BEventLock_Free(&iptables_lock);

@@ -56,6 +56,8 @@
 
 struct NCDModuleInst_s;
 struct NCDModuleProcess_s;
+struct NCDInterpModule;
+struct NCDInterpModuleGroup;
 
 /**
  * Function called to inform the interpeter of state changes of the
@@ -352,7 +354,7 @@ struct NCDModuleInst_iparams {
  * specified in a {@link NCDModule}.
  */
 typedef struct NCDModuleInst_s {
-    const struct NCDModule *m;
+    const struct NCDInterpModule *m;
     const struct NCDModuleInst_params *params;
     void *mem; // not modified by NCDModuleInst (but passed to module)
     unsigned int state:3;
@@ -394,7 +396,8 @@ typedef struct NCDModuleProcess_s {
  * can use it as outside the lifetime of NCDModuleInst.
  * 
  * @param n the instance
- * @param m structure of module functions implementing the module backend
+ * @param m pointer to the {@link NCDInterpModule} structure representing the module
+ *          to be instantiated
  * @param method_context a context pointer passed to the module backend, applicable to method-like
  *                       statements only. This should be set to the 'user' member of the
  *                       {@link NCDObject} which represents the base object for the method.
@@ -405,7 +408,7 @@ typedef struct NCDModuleProcess_s {
  * @param user argument to callback functions
  * @param params more parameters, see {@link NCDModuleInst_params}
  */
-void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDModule *m, void *method_context, NCDValRef args, const struct NCDModuleInst_params *params);
+void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDInterpModule *m, void *method_context, NCDValRef args, const struct NCDModuleInst_params *params);
 
 /**
  * Frees the instance.
@@ -722,14 +725,14 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, NCD_string_id_t 
  *               {@link BReactor}, {@link BProcessManager} and {@link NCDUdevManager}.
  * @return 1 on success, 0 on failure
  */
-typedef int (*NCDModule_func_globalinit) (const struct NCDModuleInst_iparams *params);
+typedef int (*NCDModule_func_globalinit) (struct NCDInterpModuleGroup *group, const struct NCDModuleInst_iparams *params);
 
 /**
  * Function called to clean up after {@link NCDModule_func_globalinit} and modules
  * in a module group.
  * There are no backend instances alive from this module group.
  */ 
-typedef void (*NCDModule_func_globalfree) (void);
+typedef void (*NCDModule_func_globalfree) (struct NCDInterpModuleGroup *group);
 
 /**
  * Handler called to create an new module backend instance.
@@ -881,13 +884,6 @@ struct NCDModule {
      * argument to {@link NCDModule_func_new2} and other calls.
      */
     int alloc_size;
-    
-    /**
-     * The string identifier of this module's base_type (or type if base_type is
-     * not specified) according to {@link NCDStringIndex}. This is initialized
-     * by the interpreter on startup and should not be set by the module.
-     */
-    NCD_string_id_t base_type_id;
 };
 
 /**
@@ -911,18 +907,64 @@ struct NCDModuleGroup {
      * Array of module backends. The array must be terminated with a
      * structure that has a NULL type member.
      */
-    struct NCDModule *modules;
+    const struct NCDModule *modules;
     
     /**
-     * A pointer to an array of requests for string identifiers. The 'str'
-     * member of each element of this array should be set to a string which
-     * is to be mapped to an identifier using {@link NCDStringIndex}. The
-     * array must be terminated with an element with a NULL 'str' member.
-     * The interpreter will use {@link NCDStringIndex_GetRequests} to set
-     * the corresponds 'id' members.
-     * This can be NULL if the module does not require mapping any strings.
+     * A pointer to an array of strings which will be mapped to
+     * {@link NCDStringIndex} string identifiers for the module to use.
+     * The array must be terminated by NULL. The resulting string
+     * identifiers will be available in the 'strings' member in
+     * {@link NCDInterpModuleGroup}.
      */
-    struct NCD_string_request *strings;
+    const char *const*strings;
+};
+
+/**
+ * Represents an {@link NCDModule} within an interpreter.
+ * This structure is initialized by the interpreter when it loads a module group.
+ */
+struct NCDInterpModule {
+    /**
+     * A copy of the original NCDModule structure,
+     */
+    struct NCDModule module;
+    
+    /**
+     * The string identifier of this module's base_type (or type if base_type is
+     * not specified) according to {@link NCDStringIndex}.
+     */
+    NCD_string_id_t base_type_id;
+    
+    /**
+     * A pointer to the {@link NCDInterpModuleGroup} representing the group
+     * this module belongs to.
+     */
+    struct NCDInterpModuleGroup *group;
+};
+
+/**
+ * Represents an {@link NCDModuleGroup} within an interpreter.
+ * This structure is initialized by the interpreter when it loads a module group.
+ */
+struct NCDInterpModuleGroup {
+    /**
+     * A copy of the original NCDModuleGroup structure.
+     */
+    struct NCDModuleGroup group;
+    
+    /**
+     * An array of string identifiers corresponding to the strings
+     * in the 'strings' member of NCDModuleGroup. May be NULL if there
+     * are no strings in the NCDModuleGroup.
+     */
+    NCD_string_id_t *strings;
+    
+    /**
+     * Pointer which allows the module to keep private interpreter-wide state.
+     * This can be freely modified by the module; the interpeter will not
+     * read or write it.
+     */
+    void *group_state;
 };
 
 #endif

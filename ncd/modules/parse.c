@@ -64,6 +64,7 @@
 #include <generated/blog_channel_ncd_parse.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define ModuleString(i, id) ((i)->m->group->strings[(id)])
 
 struct instance {
     NCDModuleInst *i;
@@ -86,8 +87,8 @@ struct ipv6_cidr_instance {
 
 enum {STRING_ADDR, STRING_PREFIX};
 
-static struct NCD_string_request strings[] = {
-    {"addr"}, {"prefix"}, {NULL}
+static const char *strings[] = {
+    "addr", "prefix", NULL
 };
 
 typedef int (*parse_func) (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out);
@@ -275,10 +276,10 @@ static int ipv4_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMe
     if (name == NCD_STRING_EMPTY) {
         ipaddr_print_ifaddr(o->ifaddr, str);
     }
-    else if (name == strings[STRING_ADDR].id) {
+    else if (name == ModuleString(o->i, STRING_ADDR)) {
         ipaddr_print_addr(o->ifaddr.addr, str);
     }
-    else if (name == strings[STRING_PREFIX].id) {
+    else if (name == ModuleString(o->i, STRING_PREFIX)) {
         sprintf(str, "%d", o->ifaddr.prefix);
     }
     else {
@@ -331,10 +332,10 @@ static int ipv6_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMe
     if (name == NCD_STRING_EMPTY) {
         ipaddr6_print_ifaddr(o->ifaddr, str);
     }
-    else if (name == strings[STRING_ADDR].id) {
+    else if (name == ModuleString(o->i, STRING_ADDR)) {
         ipaddr6_print_addr(o->ifaddr.addr, str);
     }
-    else if (name == strings[STRING_PREFIX].id) {
+    else if (name == ModuleString(o->i, STRING_PREFIX)) {
         sprintf(str, "%d", o->ifaddr.prefix);
     }
     else {

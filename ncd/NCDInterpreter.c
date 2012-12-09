@@ -840,7 +840,7 @@ void process_advance (struct process *p)
     STATEMENT_LOG(ps, BLOG_INFO, "initializing");
     
     // need to determine the module and object to use it on (if it's a method)
-    const struct NCDModule *module;
+    const struct NCDInterpModule *module;
     void *method_context = NULL;
     
     // get object names, e.g. "my.cat" in "my.cat->meow();"
@@ -901,7 +901,7 @@ void process_advance (struct process *p)
     }
     
     // allocate memory
-    if (!statement_allocate_memory(ps, module->alloc_size)) {
+    if (!statement_allocate_memory(ps, module->module.alloc_size)) {
         STATEMENT_LOG(ps, BLOG_ERROR, "failed to allocate memory");
         goto fail1;
     }

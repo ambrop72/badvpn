@@ -67,6 +67,7 @@
 #include <generated/blog_channel_ncd_try.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define ModuleString(i, id) ((i)->m->group->strings[(id)])
 
 struct instance {
     NCDModuleInst *i;
@@ -88,8 +89,8 @@ static void instance_free (struct instance *o);
 
 enum {STRING_TRY, STRING_TRY_TRY};
 
-static struct NCD_string_request strings[] = {
-    {"_try"}, {"try.try"}, {NULL}
+static const char *strings[] = {
+    "_try", "try.try", NULL
 };
 
 static void process_handler_event (NCDModuleProcess *process, int event)
@@ -142,8 +143,8 @@ static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_
         return 1;
     }
     
-    if (name == strings[STRING_TRY].id) {
-        *out_object = NCDObject_Build(strings[STRING_TRY_TRY].id, o, NCDObject_no_getvar, NCDObject_no_getobj);
+    if (name == ModuleString(o->i, STRING_TRY)) {
+        *out_object = NCDObject_Build(ModuleString(o->i, STRING_TRY_TRY), o, NCDObject_no_getvar, NCDObject_no_getobj);
         return 1;
     }
     

@@ -96,6 +96,7 @@
 #include <generated/blog_channel_ncd_sys_request_client.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define ModuleString(i, id) ((i)->m->group->strings[(id)])
 
 #define CSTATE_CONNECTING 1
 #define CSTATE_CONNECTED 2
@@ -164,8 +165,8 @@ static void request_instance_free (struct request_instance *o, int with_error);
 
 enum {STRING_REPLY, STRING_DATA};
 
-static struct NCD_string_request strings[] = {
-    {"_reply"}, {"data"}, {NULL}
+static const char *strings[] = {
+    "_reply", "data", NULL
 };
 
 static void client_handler_error (struct instance *o)
@@ -328,7 +329,7 @@ static int request_process_func_getspecialobj (NCDModuleProcess *process, NCD_st
         return 1;
     }
     
-    if (!o->process_is_finished && name == strings[STRING_REPLY].id) {
+    if (!o->process_is_finished && name == ModuleString(o->i, STRING_REPLY)) {
         *out_object = NCDObject_Build(-1, o, request_process_reply_obj_func_getvar, NCDObject_no_getobj);
         return 1;
     }
@@ -350,7 +351,7 @@ static int request_process_reply_obj_func_getvar (const NCDObject *obj, NCD_stri
     ASSERT(o->pstate != RPSTATE_NONE)
     ASSERT(!o->process_is_finished)
     
-    if (name == strings[STRING_DATA].id) {
+    if (name == ModuleString(o->i, STRING_DATA)) {
         *out = NCDVal_NewCopy(mem, o->process_reply_data);
         return 1;
     }

@@ -91,6 +91,7 @@
 #include <generated/blog_channel_ncd_sys_request_server.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define ModuleString(i, id) ((i)->m->group->strings[(id)])
 
 #define SEND_PAYLOAD_MTU 32768
 #define RECV_PAYLOAD_MTU 32768
@@ -169,9 +170,9 @@ static void instance_free (struct instance *o);
 enum {STRING_REQUEST, STRING_DATA, STRING_CLIENT_ADDR,
       STRING_SYS_REQUEST_SERVER_REQUEST};
 
-static struct NCD_string_request strings[] = {
-    {"_request"}, {"data"}, {"client_addr"},
-    {"sys.request_server.request"}, {NULL}
+static const char *strings[] = {
+    "_request", "data", "client_addr",
+    "sys.request_server.request", NULL
 };
 
 static void listener_handler (struct instance *o)
@@ -480,8 +481,8 @@ static int request_process_func_getspecialobj (NCDModuleProcess *process, NCD_st
 {
     struct request *r = UPPER_OBJECT(process, struct request, process);
     
-    if (name == strings[STRING_REQUEST].id) {
-        *out_object = NCDObject_Build(strings[STRING_SYS_REQUEST_SERVER_REQUEST].id, r, request_process_request_obj_func_getvar, NCDObject_no_getobj);
+    if (name == ModuleString(r->con->inst->i, STRING_REQUEST)) {
+        *out_object = NCDObject_Build(ModuleString(r->con->inst->i, STRING_SYS_REQUEST_SERVER_REQUEST), r, request_process_request_obj_func_getvar, NCDObject_no_getobj);
         return 1;
     }
     
@@ -492,12 +493,12 @@ static int request_process_request_obj_func_getvar (const NCDObject *obj, NCD_st
 {
     struct request *r = NCDObject_DataPtr(obj);
     
-    if (name == strings[STRING_DATA].id) {
+    if (name == ModuleString(r->con->inst->i, STRING_DATA)) {
         *out = NCDVal_NewCopy(mem, r->request_data);
         return 1;
     }
     
-    if (name == strings[STRING_CLIENT_ADDR].id) {
+    if (name == ModuleString(r->con->inst->i, STRING_CLIENT_ADDR)) {
         *out = ncd_make_baddr(r->con->addr, mem);
         return 1;
     }

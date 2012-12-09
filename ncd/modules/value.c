@@ -167,6 +167,7 @@
 #include <generated/blog_channel_ncd_value.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define ModuleString(i, id) ((i)->m->group->strings[(id)])
 
 #define IDSTRING_TYPE (NCDVAL_STRING | (1 << 3))
 
@@ -256,8 +257,8 @@ static void valref_break (struct valref *r);
 
 enum {STRING_EXISTS, STRING_KEYS};
 
-static struct NCD_string_request strings[] = {
-    {"exists"}, {"keys"}, {NULL}
+static const char *strings[] = {
+    "exists", "keys", NULL
 };
 
 #include "value_maptree.h"
@@ -1105,13 +1106,13 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     struct instance *o = vo;
     struct value *v = valref_val(&o->ref);
     
-    if (name == strings[STRING_EXISTS].id) {
+    if (name == ModuleString(o->i, STRING_EXISTS)) {
         *out = ncd_make_boolean(mem, !!v, o->i->params->iparams->string_index);
         return 1;
     }
     
     if (name != NCD_STRING_TYPE && name != NCD_STRING_LENGTH &&
-        name != strings[STRING_KEYS].id && name != NCD_STRING_EMPTY) {
+        name != ModuleString(o->i, STRING_KEYS) && name != NCD_STRING_EMPTY) {
         return 0;
     }
     
@@ -1144,7 +1145,7 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
         
         *out = ncd_make_uintmax(mem, len);
     }
-    else if (name == strings[STRING_KEYS].id) {
+    else if (name == ModuleString(o->i, STRING_KEYS)) {
         if (v->type != NCDVAL_MAP) {
             ModuleLog(o->i, BLOG_ERROR, "value is not a map (reading keys variable)");
             return 0;

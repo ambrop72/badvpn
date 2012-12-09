@@ -357,7 +357,7 @@ void NCDInterpProcess_StatementObjNames (NCDInterpProcess *o, int i, const NCD_s
     *out_num_objnames = o->stmts[i].num_objnames;
 }
 
-const struct NCDModule * NCDInterpProcess_StatementGetSimpleModule (NCDInterpProcess *o, int i)
+const struct NCDInterpModule * NCDInterpProcess_StatementGetSimpleModule (NCDInterpProcess *o, int i)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)
@@ -367,7 +367,7 @@ const struct NCDModule * NCDInterpProcess_StatementGetSimpleModule (NCDInterpPro
     return o->stmts[i].binding.simple_module;
 }
 
-const struct NCDModule * NCDInterpProcess_StatementGetMethodModule (NCDInterpProcess *o, int i, NCD_string_id_t obj_type, NCDModuleIndex *module_index)
+const struct NCDInterpModule * NCDInterpProcess_StatementGetMethodModule (NCDInterpProcess *o, int i, NCD_string_id_t obj_type, NCDModuleIndex *module_index)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(i >= 0)

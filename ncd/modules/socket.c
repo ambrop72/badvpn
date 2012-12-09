@@ -151,6 +151,7 @@
 #include <generated/blog_channel_ncd_socket.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define ModuleString(i, id) ((i)->m->group->strings[(id)])
 
 #define CONNECTION_TYPE_CONNECT 1
 #define CONNECTION_TYPE_LISTEN 2
@@ -213,8 +214,8 @@ struct listen_instance {
 
 enum {STRING_SOCKET, STRING_SYS_SOCKET, STRING_CLIENT_ADDR};
 
-static struct NCD_string_request strings[] = {
-    {"_socket"}, {"sys.socket"}, {"client_addr"}, {NULL}
+static const char *strings[] = {
+    "_socket", "sys.socket", "client_addr", NULL
 };
 
 static int parse_options (NCDModuleInst *i, NCDValRef options, size_t *out_read_size);
@@ -533,8 +534,8 @@ static int connection_process_func_getspecialobj (struct NCDModuleProcess_s *pro
     struct connection *o = UPPER_OBJECT(process, struct connection, listen.process);
     ASSERT(o->type == CONNECTION_TYPE_LISTEN)
     
-    if (name == strings[STRING_SOCKET].id) {
-        *out_object = NCDObject_Build(strings[STRING_SYS_SOCKET].id, o, connection_process_socket_obj_func_getvar, NCDObject_no_getobj);
+    if (name == ModuleString(o->listen.listen_inst->i, STRING_SOCKET)) {
+        *out_object = NCDObject_Build(ModuleString(o->listen.listen_inst->i, STRING_SYS_SOCKET), o, connection_process_socket_obj_func_getvar, NCDObject_no_getobj);
         return 1;
     }
     
@@ -546,7 +547,7 @@ static int connection_process_socket_obj_func_getvar (const NCDObject *obj, NCD_
     struct connection *o = NCDObject_DataPtr(obj);
     ASSERT(o->type == CONNECTION_TYPE_LISTEN)
     
-    if (name == strings[STRING_CLIENT_ADDR].id) {
+    if (name == ModuleString(o->listen.listen_inst->i, STRING_CLIENT_ADDR)) {
         *out_value = ncd_make_baddr(o->listen.addr, mem);
         if (NCDVal_IsInvalid(*out_value)) {
             connection_log(o, BLOG_ERROR, "ncd_make_baddr failed");

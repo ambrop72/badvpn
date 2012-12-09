@@ -168,13 +168,13 @@ void NCDMethodIndex_Free (NCDMethodIndex *o)
     NamesArray_Free(o);
 }
 
-int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, const char *method_name, const struct NCDModule *module)
+int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, size_t obj_type_len, const char *method_name, const struct NCDInterpModule *module)
 {
     ASSERT(obj_type)
     ASSERT(method_name)
     ASSERT(module)
     
-    NCD_string_id_t obj_type_id = NCDStringIndex_Get(o->string_index, obj_type);
+    NCD_string_id_t obj_type_id = NCDStringIndex_GetBin(o->string_index, obj_type, obj_type_len);
     if (obj_type_id < 0) {
         BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
         goto fail0;
@@ -249,7 +249,7 @@ int NCDMethodIndex_GetMethodNameId (NCDMethodIndex *o, const char *method_name)
     return first_entry_idx;
 }
 
-const struct NCDModule * NCDMethodIndex_GetMethodModule (NCDMethodIndex *o, NCD_string_id_t obj_type, int method_name_id)
+const struct NCDInterpModule * NCDMethodIndex_GetMethodModule (NCDMethodIndex *o, NCD_string_id_t obj_type, int method_name_id)
 {
     ASSERT(obj_type >= 0)
     ASSERT(method_name_id >= 0)

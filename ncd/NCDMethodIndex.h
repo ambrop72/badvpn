@@ -46,7 +46,7 @@ struct NCDMethodIndex__method_name {
 
 struct NCDMethodIndex__entry {
     NCD_string_id_t obj_type;
-    const struct NCDModule *module;
+    const struct NCDInterpModule *module;
     int next;
 };
 
@@ -59,7 +59,7 @@ typedef struct NCDMethodIndex__method_name *NCDMethodIndex__hasharg;
 
 /**
  * The method index associates (object_type, method_name) pairs to pointers
- * to corresponding \link NCDModule structures (whose type strings would
+ * to corresponding \link NCDInterpModule structures (whose type strings would
  * be "object_type::method_name").
  * More precisely, the method names are represented as indices into an
  * internal array, which allows very efficient lookup when the method names
@@ -93,13 +93,14 @@ void NCDMethodIndex_Free (NCDMethodIndex *o);
  * Duplicate methods will not be detected here.
  * 
  * @param obj_type object type of method, e.g. "cat" in "cat::meow".
- *                 Must not be NULL.
+ *                 Must not be NULL. Does not have to be null-terminated.
+ * @param obj_type_len number of characters in obj_type
  * @param method_name name of method, e.g. "meow" in "cat::meow".
  *                    Must not be NULL.
  * @param module pointer to module structure. Must not be NULL.
  * @return on success, a non-negative identifier; on failure, -1
  */
-int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, const char *method_name, const struct NCDModule *module);
+int NCDMethodIndex_AddMethod (NCDMethodIndex *o, const char *obj_type, size_t obj_type_len, const char *method_name, const struct NCDInterpModule *module);
 
 /**
  * Removes a method from the index.
@@ -129,6 +130,6 @@ int NCDMethodIndex_GetMethodNameId (NCDMethodIndex *o, const char *method_name);
  *                       by a successfull call of \link NCDMethodIndex_GetMethodNameId.
  * @return module pointer, or NULL if no such method exists
  */
-const struct NCDModule * NCDMethodIndex_GetMethodModule (NCDMethodIndex *o, NCD_string_id_t obj_type, int method_name_id);
+const struct NCDInterpModule * NCDMethodIndex_GetMethodModule (NCDMethodIndex *o, NCD_string_id_t obj_type, int method_name_id);
 
 #endif

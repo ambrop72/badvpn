@@ -80,6 +80,7 @@
 #include <generated/blog_channel_ncd_foreach.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define ModuleString(i, id) ((i)->m->group->strings[(id)])
 
 #define ISTATE_WORKING 1
 #define ISTATE_UP 2
@@ -140,8 +141,8 @@ static void instance_free (struct instance *o);
 
 enum {STRING_INDEX, STRING_ELEM, STRING_KEY, STRING_VAL};
 
-static struct NCD_string_request strings[] = {
-    {"_index"}, {"_elem"}, {"_key"}, {"_val"}, {NULL}
+static const char *strings[] = {
+    "_index", "_elem", "_key", "_val", NULL
 };
 
 static void assert_state (struct instance *o)
@@ -588,12 +589,12 @@ static void func_new_foreach (void *vo, NCDModuleInst *i, const struct NCDModule
     
     switch (NCDVal_Type(arg_collection)) {
         case NCDVAL_LIST: {
-            name1 = strings[STRING_INDEX].id;
-            name2 = strings[STRING_ELEM].id;
+            name1 = ModuleString(i, STRING_INDEX);
+            name2 = ModuleString(i, STRING_ELEM);
         } break;
         case NCDVAL_MAP: {
-            name1 = strings[STRING_KEY].id;
-            name2 = strings[STRING_VAL].id;
+            name1 = ModuleString(i, STRING_KEY);
+            name2 = ModuleString(i, STRING_VAL);
         } break;
         default:
             ModuleLog(i, BLOG_ERROR, "invalid collection type");
