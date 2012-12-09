@@ -41,6 +41,7 @@
 #include <misc/debug.h>
 #include <misc/compare.h>
 #include <misc/strdup.h>
+#include <misc/balloc.h>
 #include <structure/LinkedList0.h>
 #include <structure/BAVL.h>
 #include <ncd/NCDModule.h>
@@ -48,6 +49,7 @@
 #include <generated/blog_channel_ncd_dynamic_depend.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define ModuleGlobal(i) ((i)->m->group->group_state)
 
 struct provide;
 
@@ -57,6 +59,7 @@ struct name_string {
 };
 
 struct name {
+    struct global *g;
     struct name_string name;
     BAVLNode names_tree_node;
     BAVL provides_tree;
@@ -81,7 +84,9 @@ struct depend {
     LinkedList0Node depends_list_node;
 };
 
-static BAVL names_tree;
+struct global {
+    BAVL names_tree;
+};
 
 static void provide_free (struct provide *o);
 static void depend_free (struct depend *o);
@@ -106,10 +111,10 @@ static int val_comparator (void *user, NCDValRef *v1, NCDValRef *v2)
     return NCDVal_Compare(*v1, *v2);
 }
 
-static struct name * find_name (const char *name, size_t name_len)
+static struct name * find_name (struct global *g, const char *name, size_t name_len)
 {
     struct name_string ns = {(char *)name, name_len};
-    BAVLNode *tn = BAVL_LookupExact(&names_tree, &ns);
+    BAVLNode *tn = BAVL_LookupExact(&g->names_tree, &ns);
     if (!tn) {
         return NULL;
     }
@@ -121,9 +126,9 @@ static struct name * find_name (const char *name, size_t name_len)
     return n;
 }
 
-static struct name * name_init (NCDModuleInst *i, const char *name, size_t name_len)
+static struct name * name_init (NCDModuleInst *i, struct global *g, const char *name, size_t name_len)
 {
-    ASSERT(!find_name(name, name_len))
+    ASSERT(!find_name(g, name, name_len))
     
     // allocate structure
     struct name *o = malloc(sizeof(*o));
@@ -131,6 +136,9 @@ static struct name * name_init (NCDModuleInst *i, const char *name, size_t name_
         ModuleLog(i, BLOG_ERROR, "malloc failed");
         goto fail0;
     }
+    
+    // set global state
+    o->g = g;
     
     // copy name
     if (!(o->name.data = b_strdup_bin(name, name_len))) {
@@ -140,7 +148,7 @@ static struct name * name_init (NCDModuleInst *i, const char *name, size_t name_
     o->name.len = name_len;
     
     // insert to names tree
-    ASSERT_EXECUTE(BAVL_Insert(&names_tree, &o->names_tree_node, NULL))
+    ASSERT_EXECUTE(BAVL_Insert(&g->names_tree, &o->names_tree_node, NULL))
     
     // init provides tree
     BAVL_Init(&o->provides_tree, OFFSET_DIFF(struct provide, order_value, provides_tree_node), (BAVL_comparator)val_comparator, NULL);
@@ -166,7 +174,7 @@ static void name_free (struct name *o)
     ASSERT(!o->cur_p)
     
     // remove from names tree
-    BAVL_Remove(&names_tree, &o->names_tree_node);
+    BAVL_Remove(&o->g->names_tree, &o->names_tree_node);
     
     // free name
     free(o->name.data);
@@ -280,14 +288,34 @@ static void name_start_resetting (struct name *o)
 
 static int func_globalinit (struct NCDInterpModuleGroup *group, const struct NCDModuleInst_iparams *params)
 {
+    // allocate global state structure
+    struct global *g = BAlloc(sizeof(*g));
+    if (!g) {
+        BLog(BLOG_ERROR, "BAlloc failed");
+        return 0;
+    }
+    
+    // set group state pointer
+    group->group_state = g;
+    
     // init names tree
-    BAVL_Init(&names_tree, OFFSET_DIFF(struct name, name, names_tree_node), name_string_comparator, NULL);
+    BAVL_Init(&g->names_tree, OFFSET_DIFF(struct name, name, names_tree_node), name_string_comparator, NULL);
     
     return 1;
 }
 
+static void func_globalfree (struct NCDInterpModuleGroup *group)
+{
+    struct global *g = group->group_state;
+    ASSERT(BAVL_IsEmpty(&g->names_tree))
+    
+    // free global state structure
+    BFree(g);
+}
+
 static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
+    struct global *g = ModuleGlobal(i);
     struct provide *o = vo;
     o->i = i;
     
@@ -305,8 +333,8 @@ static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     size_t name_len = NCDVal_StringLength(name_arg);
     
     // find name, create new if needed
-    struct name *n = find_name(name_str, name_len);
-    if (!n && !(n = name_init(i, name_str, name_len))) {
+    struct name *n = find_name(g, name_str, name_len);
+    if (!n && !(n = name_init(i, g, name_str, name_len))) {
         goto fail0;
     }
     
@@ -383,6 +411,7 @@ static void provide_func_die (void *vo)
 
 static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
+    struct global *g = ModuleGlobal(i);
     struct depend *o = vo;
     o->i = i;
     
@@ -400,8 +429,8 @@ static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
     size_t name_len = NCDVal_StringLength(name_arg);
     
     // find name, create new if needed
-    struct name *n = find_name(name_str, name_len);
-    if (!n && !(n = name_init(i, name_str, name_len))) {
+    struct name *n = find_name(g, name_str, name_len);
+    if (!n && !(n = name_init(i, g, name_str, name_len))) {
         goto fail0;
     }
     
@@ -514,5 +543,6 @@ static struct NCDModule modules[] = {
 
 const struct NCDModuleGroup ncdmodule_dynamic_depend = {
     .func_globalinit = func_globalinit,
+    .func_globalfree = func_globalfree,
     .modules = modules
 };

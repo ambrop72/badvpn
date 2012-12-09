@@ -98,6 +98,7 @@
 
 #include <misc/debug.h>
 #include <misc/find_program.h>
+#include <misc/balloc.h>
 #include <ncd/extra/BEventLock.h>
 
 #include <ncd/modules/command_template.h>
@@ -105,10 +106,13 @@
 #include <generated/blog_channel_ncd_net_iptables.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define ModuleGlobal(i) ((i)->m->group->group_state)
 
 static void template_free_func (void *vo, int is_error);
 
-static BEventLock iptables_lock;
+struct global {
+    BEventLock iptables_lock;
+};
 
 struct instance {
     NCDModuleInst *i;
@@ -381,24 +385,40 @@ static void lock_job_handler (struct lock_instance *o)
 
 static int func_globalinit (struct NCDInterpModuleGroup *group, const struct NCDModuleInst_iparams *params)
 {
+    // allocate global state structure
+    struct global *g = BAlloc(sizeof(*g));
+    if (!g) {
+        BLog(BLOG_ERROR, "BAlloc failed");
+        return 0;
+    }
+    
+    // set group state pointer
+    group->group_state = g;
+    
     // init iptables lock
-    BEventLock_Init(&iptables_lock, BReactor_PendingGroup(params->reactor));
+    BEventLock_Init(&g->iptables_lock, BReactor_PendingGroup(params->reactor));
     
     return 1;
 }
 
 static void func_globalfree (struct NCDInterpModuleGroup *group)
 {
+    struct global *g = group->group_state;
+    
     // free iptables lock
-    BEventLock_Free(&iptables_lock);
+    BEventLock_Free(&g->iptables_lock);
+    
+    // free global state structure
+    BFree(g);
 }
 
 static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, command_template_build_cmdline build_cmdline)
 {
+    struct global *g = ModuleGlobal(i);
     struct instance *o = vo;
     o->i = i;
     
-    command_template_new(&o->cti, i, params, build_cmdline, template_free_func, o, BLOG_CURRENT_CHANNEL, &iptables_lock);
+    command_template_new(&o->cti, i, params, build_cmdline, template_free_func, o, BLOG_CURRENT_CHANNEL, &g->iptables_lock);
 }
 
 void template_free_func (void *vo, int is_error)
@@ -451,11 +471,12 @@ static void func_die (void *vo)
 
 static void lock_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
+    struct global *g = ModuleGlobal(i);
     struct lock_instance *o = vo;
     o->i = i;
     
     // init lock job
-    BEventLockJob_Init(&o->lock_job, &iptables_lock, (BEventLock_handler)lock_job_handler, o);
+    BEventLockJob_Init(&o->lock_job, &g->iptables_lock, (BEventLock_handler)lock_job_handler, o);
     BEventLockJob_Wait(&o->lock_job);
     
     // set no unlock

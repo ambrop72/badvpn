@@ -49,6 +49,7 @@
 #include <generated/blog_channel_ncd_net_dns.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define ModuleGlobal(i) ((i)->m->group->group_state)
 
 struct instance {
     NCDModuleInst *i;
@@ -62,7 +63,9 @@ struct ipv4_dns_entry {
     int priority;
 };
 
-static LinkedList1 instances;
+struct global {
+    LinkedList1 instances;
+};
 
 static struct ipv4_dns_entry * add_ipv4_dns_entry (struct instance *o, uint32_t addr, int priority)
 {
@@ -100,11 +103,11 @@ static void remove_ipv4_dns_entries (struct instance *o)
     }
 }
 
-static size_t num_servers (void)
+static size_t num_servers (struct global *g)
 {
     size_t c = 0;
     
-    for (LinkedList1Node *n = LinkedList1_GetFirst(&instances); n; n = LinkedList1Node_Next(n)) {
+    for (LinkedList1Node *n = LinkedList1_GetFirst(&g->instances); n; n = LinkedList1Node_Next(n)) {
         struct instance *o = UPPER_OBJECT(n, struct instance, instances_node);
         for (LinkedList1Node *en = LinkedList1_GetFirst(&o->ipv4_dns_servers); en; en = LinkedList1Node_Next(en)) {
             c++;
@@ -126,12 +129,12 @@ static int dns_sort_comparator (const void *v1, const void *v2)
     return B_COMPARE(e1->priority, e2->priority);
 }
 
-static int set_servers (void)
+static int set_servers (struct global *g)
 {
     int ret = 0;
     
     // count servers
-    size_t num_ipv4_dns_servers = num_servers();
+    size_t num_ipv4_dns_servers = num_servers(g);
     
     // allocate sort array
     struct dns_sort_entry *servers = BAllocArray(num_ipv4_dns_servers, sizeof(servers[0]));
@@ -141,7 +144,7 @@ static int set_servers (void)
     size_t num_servers = 0;
     
     // fill sort array
-    for (LinkedList1Node *n = LinkedList1_GetFirst(&instances); n; n = LinkedList1Node_Next(n)) {
+    for (LinkedList1Node *n = LinkedList1_GetFirst(&g->instances); n; n = LinkedList1Node_Next(n)) {
         struct instance *o = UPPER_OBJECT(n, struct instance, instances_node);
         for (LinkedList1Node *en = LinkedList1_GetFirst(&o->ipv4_dns_servers); en; en = LinkedList1Node_Next(en)) {
             struct ipv4_dns_entry *e = UPPER_OBJECT(en, struct ipv4_dns_entry, list_node);
@@ -183,13 +186,34 @@ fail0:
 
 static int func_globalinit (struct NCDInterpModuleGroup *group, const struct NCDModuleInst_iparams *params)
 {
-    LinkedList1_Init(&instances);
+    // allocate global state structure
+    struct global *g = BAlloc(sizeof(*g));
+    if (!g) {
+        BLog(BLOG_ERROR, "BAlloc failed");
+        return 0;
+    }
+    
+    // set group state pointer
+    group->group_state = g;
+    
+    // init instances list
+    LinkedList1_Init(&g->instances);
     
     return 1;
 }
 
+static void func_globalfree (struct NCDInterpModuleGroup *group)
+{
+    struct global *g = group->group_state;
+    ASSERT(LinkedList1_IsEmpty(&g->instances))
+    
+    // free global state structure
+    BFree(g);
+}
+
 static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
+    struct global *g = ModuleGlobal(i);
     struct instance *o = vo;
     o->i = i;
     
@@ -237,10 +261,10 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     
     // add to instances
-    LinkedList1_Append(&instances, &o->instances_node);
+    LinkedList1_Append(&g->instances, &o->instances_node);
     
     // set servers
-    if (!set_servers()) {
+    if (!set_servers(g)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to set DNS servers");
         goto fail2;
     }
@@ -250,7 +274,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     return;
     
 fail2:
-    LinkedList1_Remove(&instances, &o->instances_node);
+    LinkedList1_Remove(&g->instances, &o->instances_node);
 fail1:
     remove_ipv4_dns_entries(o);
     NCDModuleInst_Backend_DeadError(i);
@@ -259,12 +283,13 @@ fail1:
 static void func_die (void *vo)
 {
     struct instance *o = vo;
+    struct global *g = ModuleGlobal(o->i);
     
     // remove from instances
-    LinkedList1_Remove(&instances, &o->instances_node);
+    LinkedList1_Remove(&g->instances, &o->instances_node);
     
     // set servers
-    set_servers();
+    set_servers(g);
     
     // free servers
     remove_ipv4_dns_entries(o);
@@ -285,5 +310,6 @@ static struct NCDModule modules[] = {
 
 const struct NCDModuleGroup ncdmodule_net_dns = {
     .func_globalinit = func_globalinit,
+    .func_globalfree = func_globalfree,
     .modules = modules
 };

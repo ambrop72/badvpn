@@ -72,12 +72,14 @@
 
 #include <misc/offset.h>
 #include <misc/debug.h>
+#include <misc/balloc.h>
 #include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
 
 #include <generated/blog_channel_ncd_multidepend.h>
 
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define ModuleGlobal(i) ((i)->m->group->group_state)
 
 struct provide {
     NCDModuleInst *i;
@@ -96,12 +98,14 @@ struct depend {
     int provide_collapsing;
 };
 
-static LinkedList1 provides_list;
-static LinkedList1 depends_list;
+struct global {
+    LinkedList1 provides_list;
+    LinkedList1 depends_list;
+};
 
-static struct provide * find_provide (NCDValRef name)
+static struct provide * find_provide (struct global *g, NCDValRef name)
 {
-    for (LinkedList1Node *ln = LinkedList1_GetFirst(&provides_list); ln; ln = LinkedList1Node_Next(ln)) {
+    for (LinkedList1Node *ln = LinkedList1_GetFirst(&g->provides_list); ln; ln = LinkedList1Node_Next(ln)) {
         struct provide *provide = UPPER_OBJECT(ln, struct provide, provides_list_node);
         if (NCDVal_Compare(provide->name, name) == 0) {
             return provide;
@@ -113,11 +117,13 @@ static struct provide * find_provide (NCDValRef name)
 
 static struct provide * depend_find_best_provide (struct depend *o)
 {
+    struct global *g = ModuleGlobal(o->i);
+    
     size_t count = NCDVal_ListCount(o->names);
     
     for (size_t j = 0; j < count; j++) {
         NCDValRef name = NCDVal_ListGet(o->names, j);
-        struct provide *provide = find_provide(name);
+        struct provide *provide = find_provide(g, name);
         if (provide && !provide->dying) {
             return provide;
         }
@@ -165,17 +171,38 @@ static void depend_update (struct depend *o)
 
 static int func_globalinit (struct NCDInterpModuleGroup *group, const struct NCDModuleInst_iparams *params)
 {
+    // allocate global state structure
+    struct global *g = BAlloc(sizeof(*g));
+    if (!g) {
+        BLog(BLOG_ERROR, "BAlloc failed");
+        return 0;
+    }
+    
+    // set group state pointer
+    group->group_state = g;
+    
     // init provides list
-    LinkedList1_Init(&provides_list);
+    LinkedList1_Init(&g->provides_list);
     
     // init depends list
-    LinkedList1_Init(&depends_list);
+    LinkedList1_Init(&g->depends_list);
     
     return 1;
 }
 
+static void func_globalfree (struct NCDInterpModuleGroup *group)
+{
+    struct global *g = group->group_state;
+    ASSERT(LinkedList1_IsEmpty(&g->depends_list))
+    ASSERT(LinkedList1_IsEmpty(&g->provides_list))
+    
+    // free global state structure
+    BFree(g);
+}
+
 static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
+    struct global *g = ModuleGlobal(i);
     struct provide *o = vo;
     o->i = i;
     
@@ -190,13 +217,13 @@ static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     o->name = name_arg;
     
     // check for existing provide with this name
-    if (find_provide(o->name)) {
+    if (find_provide(g, o->name)) {
         ModuleLog(o->i, BLOG_ERROR, "a provide with this name already exists");
         goto fail0;
     }
     
     // insert to provides list
-    LinkedList1_Append(&provides_list, &o->provides_list_node);
+    LinkedList1_Append(&g->provides_list, &o->provides_list_node);
     
     // init depends list
     LinkedList1_Init(&o->depends_list);
@@ -210,7 +237,7 @@ static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     NCDModuleInst_Backend_Up(o->i);
     
     // update depends
-    for (LinkedList1Node *ln = LinkedList1_GetFirst(&depends_list); ln; ln = LinkedList1Node_Next(ln)) {
+    for (LinkedList1Node *ln = LinkedList1_GetFirst(&g->depends_list); ln; ln = LinkedList1Node_Next(ln)) {
         struct depend *depend = UPPER_OBJECT(ln, struct depend, depends_list_node);
         depend_update(depend);
     }
@@ -223,10 +250,11 @@ fail0:
 
 static void provide_free (struct provide *o)
 {
+    struct global *g = ModuleGlobal(o->i);
     ASSERT(LinkedList1_IsEmpty(&o->depends_list))
     
     // remove from provides list
-    LinkedList1_Remove(&provides_list, &o->provides_list_node);
+    LinkedList1_Remove(&g->provides_list, &o->provides_list_node);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -257,6 +285,7 @@ static void provide_func_die (void *vo)
 
 static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
+    struct global *g = ModuleGlobal(i);
     struct depend *o = vo;
     o->i = i;
     
@@ -275,7 +304,7 @@ static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
     o->names = names_arg;
     
     // insert to depends list
-    LinkedList1_Append(&depends_list, &o->depends_list_node);
+    LinkedList1_Append(&g->depends_list, &o->depends_list_node);
     
     // set no provide
     o->provide = NULL;
@@ -291,6 +320,7 @@ fail0:
 static void depend_func_die (void *vo)
 {
     struct depend *o = vo;
+    struct global *g = ModuleGlobal(o->i);
     
     if (o->provide) {
         // remove from provide's list
@@ -303,7 +333,7 @@ static void depend_func_die (void *vo)
     }
     
     // remove from depends list
-    LinkedList1_Remove(&depends_list, &o->depends_list_node);
+    LinkedList1_Remove(&g->depends_list, &o->depends_list_node);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -366,5 +396,6 @@ static struct NCDModule modules[] = {
 
 const struct NCDModuleGroup ncdmodule_multidepend = {
     .func_globalinit = func_globalinit,
+    .func_globalfree = func_globalfree,
     .modules = modules
 };
