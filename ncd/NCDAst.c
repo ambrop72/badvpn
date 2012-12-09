@@ -47,6 +47,21 @@ struct NCDValue__map_element {
     NCDValue val;
 };
 
+struct ProgramElem {
+    LinkedList1Node elems_list_node;
+    NCDProgramElem elem;
+};
+
+struct BlockStatement {
+    LinkedList1Node statements_list_node;
+    NCDStatement s;
+};
+
+struct IfBlockIf {
+    LinkedList1Node ifs_list_node;
+    NCDIf ifc;
+};
+
 static void value_assert (NCDValue *o)
 {
     switch (o->type) {
