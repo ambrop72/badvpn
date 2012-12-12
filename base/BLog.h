@@ -83,6 +83,7 @@ static void BLog_SetChannelLoglevel (int channel, int loglevel);
 static int BLog_WouldLog (int channel, int level);
 static void BLog_AppendVarArg (const char *fmt, va_list vl);
 static void BLog_Append (const char *fmt, ...);
+static void BLog_AppendBytes (const char *data, size_t len);
 static void BLog_Finish (int channel, int level);
 static void BLog_LogToChannelVarArg (int channel, int level, const char *fmt, va_list vl);
 static void BLog_LogToChannel (int channel, int level, const char *fmt, ...);
@@ -154,7 +155,8 @@ void BLog_AppendVarArg (const char *fmt, va_list vl)
 {
     ASSERT(blog_global.initialized)
     
-    ASSERT(blog_global.logbuf_pos >= 0 && blog_global.logbuf_pos < sizeof(blog_global.logbuf))
+    ASSERT(blog_global.logbuf_pos >= 0)
+    ASSERT(blog_global.logbuf_pos < sizeof(blog_global.logbuf))
     
     int w = vsnprintf(blog_global.logbuf + blog_global.logbuf_pos, sizeof(blog_global.logbuf) - blog_global.logbuf_pos, fmt, vl);
     
@@ -175,6 +177,21 @@ void BLog_Append (const char *fmt, ...)
     va_end(vl);
 }
 
+void BLog_AppendBytes (const char *data, size_t len)
+{
+    ASSERT(blog_global.initialized)
+    
+    ASSERT(blog_global.logbuf_pos >= 0)
+    ASSERT(blog_global.logbuf_pos < sizeof(blog_global.logbuf))
+    
+    size_t avail = (sizeof(blog_global.logbuf) - 1) - blog_global.logbuf_pos;
+    len = (len > avail ? avail : len);
+    
+    memcpy(blog_global.logbuf + blog_global.logbuf_pos, data, len);
+    blog_global.logbuf_pos += len;
+    blog_global.logbuf[blog_global.logbuf_pos] = '\0';
+}
+
 void BLog_Finish (int channel, int level)
 {
     ASSERT(blog_global.initialized)
@@ -182,7 +199,8 @@ void BLog_Finish (int channel, int level)
     ASSERT(level >= BLOG_ERROR && level <= BLOG_DEBUG)
     ASSERT(BLog_WouldLog(channel, level))
     
-    ASSERT(blog_global.logbuf_pos >= 0 && blog_global.logbuf_pos < sizeof(blog_global.logbuf))
+    ASSERT(blog_global.logbuf_pos >= 0)
+    ASSERT(blog_global.logbuf_pos < sizeof(blog_global.logbuf))
     ASSERT(blog_global.logbuf[blog_global.logbuf_pos] == '\0')
     
     blog_global.log_func(channel, level, blog_global.logbuf);
