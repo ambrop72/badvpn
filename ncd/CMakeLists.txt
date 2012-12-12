@@ -178,6 +178,7 @@ add_library(ncdinterpreter
     modules/backtrack.c
     modules/depend_scope.c
     modules/substr.c
+    modules/log.c
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(ncdinterpreter
