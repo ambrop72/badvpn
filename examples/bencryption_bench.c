@@ -63,7 +63,7 @@ int main (int argc, char **argv)
     char *cipher_str = argv[2];
     
     int mode;
-    int cipher;
+    int cipher = 0; // silence warning
     int num_blocks = atoi(argv[3]);
     int num_ops = atoi(argv[4]);
     
