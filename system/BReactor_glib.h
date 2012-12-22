@@ -36,6 +36,7 @@
 
 #include <misc/debug.h>
 #include <misc/debugcounter.h>
+#include <misc/offset.h>
 #include <structure/LinkedList1.h>
 #include <base/DebugObject.h>
 #include <base/BPending.h>
@@ -43,15 +44,32 @@
 
 typedef struct BReactor_s BReactor;
 
+struct BSmallTimer_t;
+
+#define BTIMER_SET_ABSOLUTE 1
+#define BTIMER_SET_RELATIVE 2
+
+typedef void (*BSmallTimer_handler) (struct BSmallTimer_t *timer);
 typedef void (*BTimer_handler) (void *user);
 
-typedef struct BTimer_t {
-    btime_t msTime;
-    BTimer_handler handler;
-    void *handler_pointer;
-    uint8_t active;
+typedef struct BSmallTimer_t {
+    union {
+        BSmallTimer_handler smalll; // MSVC doesn't like "small"
+        BTimer_handler heavy;
+    } handler;
     BReactor *reactor;
     GSource *source;
+    uint8_t active;
+    uint8_t is_small;
+} BSmallTimer;
+
+void BSmallTimer_Init (BSmallTimer *bt, BSmallTimer_handler handler);
+int BSmallTimer_IsRunning (BSmallTimer *bt);
+
+typedef struct {
+    BSmallTimer base;
+    void *user;
+    btime_t msTime;
 } BTimer;
 
 void BTimer_Init (BTimer *bt, btime_t msTime, BTimer_handler handler, void *user);
@@ -98,6 +116,8 @@ int BReactor_Init (BReactor *bsys) WARN_UNUSED;
 void BReactor_Free (BReactor *bsys);
 int BReactor_Exec (BReactor *bsys);
 void BReactor_Quit (BReactor *bsys, int code);
+void BReactor_SetSmallTimer (BReactor *bsys, BSmallTimer *bt, int mode, btime_t time);
+void BReactor_RemoveSmallTimer (BReactor *bsys, BSmallTimer *bt);
 void BReactor_SetTimer (BReactor *bsys, BTimer *bt);
 void BReactor_SetTimerAfter (BReactor *bsys, BTimer *bt, btime_t after);
 void BReactor_SetTimerAbsolute (BReactor *bsys, BTimer *bt, btime_t time);

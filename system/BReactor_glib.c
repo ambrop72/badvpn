@@ -42,6 +42,14 @@ struct fd_source {
     BFileDescriptor *bfd;
 };
 
+static void assert_timer (BSmallTimer *bt)
+{
+    ASSERT(bt->is_small == 0 || bt->is_small == 1)
+    ASSERT(bt->active == 0 || bt->active == 1)
+    ASSERT(!bt->active || bt->reactor)
+    ASSERT(!bt->active || bt->source)
+}
+
 static void dispatch_pending (BReactor *o)
 {
     while (!o->exiting && BPendingGroup_HasJobs(&o->pending_jobs)) {
@@ -102,9 +110,11 @@ static int get_fd_dispatchable_events (BFileDescriptor *bfd)
 
 static gboolean timer_source_handler (gpointer data)
 {
-    BTimer *bt = (void *)data;
-    BReactor *reactor = bt->reactor;
+    BSmallTimer *bt = (void *)data;
+    assert_timer(bt);
     ASSERT(bt->active)
+    
+    BReactor *reactor = bt->reactor;
     
     if (reactor->exiting) {
         return FALSE;
@@ -115,7 +125,13 @@ static gboolean timer_source_handler (gpointer data)
     bt->active = 0;
     DebugCounter_Decrement(&reactor->d_timers_ctr);
     
-    bt->handler(bt->handler_pointer);
+    if (bt->is_small) {
+        bt->handler.smalll(bt);
+    } else {
+        BTimer *btimer = UPPER_OBJECT(bt, BTimer, base);
+        bt->handler.heavy(btimer->user);
+    }
+    
     dispatch_pending(reactor);
     reset_limits(reactor);
     
@@ -164,19 +180,32 @@ static gboolean fd_source_func_dispatch (GSource *source, GSourceFunc callback, 
     return TRUE;
 }
 
+void BSmallTimer_Init (BSmallTimer *bt, BSmallTimer_handler handler)
+{
+    bt->handler.smalll = handler;
+    bt->active = 0;
+    bt->is_small = 1;
+}
+
+int BSmallTimer_IsRunning (BSmallTimer *bt)
+{
+    assert_timer(bt);
+    
+    return bt->active;
+}
+
 void BTimer_Init (BTimer *bt, btime_t msTime, BTimer_handler handler, void *user)
 {
+    bt->base.handler.heavy = handler;
+    bt->base.active = 0;
+    bt->base.is_small = 0;
+    bt->user = user;
     bt->msTime = msTime;
-    bt->handler = handler;
-    bt->handler_pointer = user;
-    bt->active = 0;
 }
 
 int BTimer_IsRunning (BTimer *bt)
 {
-    ASSERT(bt->active == 0 || bt->active == 1)
-    
-    return bt->active;
+    return BSmallTimer_IsRunning(&bt->base);
 }
 
 void BFileDescriptor_Init (BFileDescriptor *bs, int fd, BFileDescriptor_handler handler, void *user)
@@ -243,42 +272,36 @@ void BReactor_Quit (BReactor *bsys, int code)
     g_main_loop_quit(bsys->gloop);
 }
 
-void BReactor_SetTimer (BReactor *bsys, BTimer *bt)
-{
-    BReactor_SetTimerAfter(bsys, bt, bt->msTime);
-}
-
-void BReactor_SetTimerAfter (BReactor *bsys, BTimer *bt, btime_t after)
-{
-    BReactor_SetTimerAbsolute(bsys, bt, btime_add(btime_gettime(), after));
-}
-
-void BReactor_SetTimerAbsolute (BReactor *bsys, BTimer *bt, btime_t time)
+void BReactor_SetSmallTimer (BReactor *bsys, BSmallTimer *bt, int mode, btime_t time)
 {
     DebugObject_Access(&bsys->d_obj);
+    assert_timer(bt);
     
     // remove timer if it's already set
-    BReactor_RemoveTimer(bsys, bt);
+    BReactor_RemoveSmallTimer(bsys, bt);
+    
+    // if mode is absolute, subtract current time
+    if (mode == BTIMER_SET_ABSOLUTE) {
+        btime_t now = btime_gettime();
+        time = (time < now ? 0 : time - now);
+    }
     
     // set active and reactor
     bt->active = 1;
     bt->reactor = bsys;
     
-    // calculate relative time
-    btime_t now = btime_gettime();
-    btime_t relTime = (time < now ? 0 : time - now);
-    
     // init source
-    bt->source = g_timeout_source_new(relTime);
+    bt->source = g_timeout_source_new(time);
     g_source_set_callback(bt->source, timer_source_handler, bt, NULL);
     g_source_attach(bt->source, g_main_loop_get_context(bsys->gloop));
     
     DebugCounter_Increment(&bsys->d_timers_ctr);
 }
 
-void BReactor_RemoveTimer (BReactor *bsys, BTimer *bt)
+void BReactor_RemoveSmallTimer (BReactor *bsys, BSmallTimer *bt)
 {
     DebugObject_Access(&bsys->d_obj);
+    assert_timer(bt);
     
     // do nothing if timer is not active
     if (!bt->active) {
@@ -293,6 +316,26 @@ void BReactor_RemoveTimer (BReactor *bsys, BTimer *bt)
     bt->active = 0;
     
     DebugCounter_Decrement(&bsys->d_timers_ctr);
+}
+
+void BReactor_SetTimer (BReactor *bsys, BTimer *bt)
+{
+    BReactor_SetSmallTimer(bsys, &bt->base, BTIMER_SET_RELATIVE, bt->msTime);
+}
+
+void BReactor_SetTimerAfter (BReactor *bsys, BTimer *bt, btime_t after)
+{
+    BReactor_SetSmallTimer(bsys, &bt->base, BTIMER_SET_RELATIVE, after);
+}
+
+void BReactor_SetTimerAbsolute (BReactor *bsys, BTimer *bt, btime_t time)
+{
+    BReactor_SetSmallTimer(bsys, &bt->base, BTIMER_SET_ABSOLUTE, time);
+}
+
+void BReactor_RemoveTimer (BReactor *bsys, BTimer *bt)
+{
+    return BReactor_RemoveSmallTimer(bsys, &bt->base);
 }
 
 BPendingGroup * BReactor_PendingGroup (BReactor *bsys)
