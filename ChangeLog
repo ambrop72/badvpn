@@ -1,3 +1,5 @@
+Version 1.999.126:
+
 - NCD: modules: sleep: interpret empty string time as no sleeping, add sleep(ms_start) with one argument
 
 - NCD: modules: add log module for message logging using the BLog system
