@@ -89,8 +89,12 @@ static int get_fd_dispatchable_events (BFileDescriptor *bfd)
         ev |= BREACTOR_WRITE;
     }
     
-    if ((bfd->pollfd.revents & G_IO_ERR) || (bfd->pollfd.revents & G_IO_HUP)) {
+    if ((bfd->pollfd.revents & G_IO_ERR)) {
         ev |= BREACTOR_ERROR;
+    }
+    
+    if ((bfd->pollfd.revents & G_IO_HUP)) {
+        ev |= BREACTOR_HUP;
     }
     
     return ev;

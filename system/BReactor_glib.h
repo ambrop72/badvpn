@@ -62,6 +62,7 @@ struct BFileDescriptor_t;
 #define BREACTOR_READ (1 << 0)
 #define BREACTOR_WRITE (1 << 1)
 #define BREACTOR_ERROR (1 << 2)
+#define BREACTOR_HUP (1 << 3)
 
 typedef void (*BFileDescriptor_handler) (void *user, int events);
 
