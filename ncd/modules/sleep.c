@@ -28,10 +28,16 @@
  * 
  * @section DESCRIPTION
  * 
- * Module which sleeps a given number of milliseconds on inititalization and
- * deinitialization.
+ * Synopsis:
+ *   sleep(string ms_start [, string ms_stop])
  * 
- * Synopsis: sleep(string ms_start, string ms_stop)
+ * Description:
+ *   On init, sleeps 'ms_start' milliseconds then goes up, or goes up immediately
+ *   if 'ms_start' is an empty string.
+ *   On deinit, sleeps 'ms_stop' milliseconds then dies, or dies immediately if
+ *   'ms_stop' is an empty string. If a deinit is requested while the init sleep
+ *   is still in progress, the init sleep is aborted and the deinit sleep is started
+ *   immediately (if any).
  */
 
 #include <stdlib.h>
@@ -41,6 +47,7 @@
 #include <limits.h>
 
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 #include <ncd/extra/value_utils.h>
 
 #include <generated/blog_channel_ncd_sleep.h>
@@ -49,7 +56,6 @@
 
 struct instance {
     NCDModuleInst *i;
-    btime_t ms_start;
     btime_t ms_stop;
     BTimer timer;
     int dying;
@@ -77,31 +83,39 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     
     // check arguments
     NCDValRef ms_start_arg;
-    NCDValRef ms_stop_arg;
-    if (!NCDVal_ListRead(params->args, 2, &ms_start_arg, &ms_stop_arg)) {
+    NCDValRef ms_stop_arg = NCDVal_NewInvalid();
+    if (!NCDVal_ListRead(params->args, 1, &ms_start_arg) &&
+        !NCDVal_ListRead(params->args, 2, &ms_start_arg, &ms_stop_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(ms_start_arg) || !NCDVal_IsString(ms_stop_arg)) {
+    if (!NCDVal_IsString(ms_start_arg) || (!NCDVal_IsInvalid(ms_stop_arg) && !NCDVal_IsString(ms_stop_arg))) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     
-    uintmax_t ms_start;
-    uintmax_t ms_stop;
+    uintmax_t ms;
+    btime_t ms_start;
     
-    if (!ncd_read_uintmax(ms_start_arg, &ms_start) || ms_start > INT64_MAX) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong start time");
-        goto fail0;
+    if (NCDVal_StringEqualsId(ms_start_arg, NCD_STRING_EMPTY, i->params->iparams->string_index)) {
+        ms_start = -1;
+    } else {
+        if (!ncd_read_uintmax(ms_start_arg, &ms) || ms > INT64_MAX) {
+            ModuleLog(o->i, BLOG_ERROR, "wrong start time");
+            goto fail0;
+        }
+        ms_start = ms;
     }
     
-    if (!ncd_read_uintmax(ms_stop_arg, &ms_stop) || ms_stop > INT64_MAX) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong stop time");
-        goto fail0;
+    if (NCDVal_IsInvalid(ms_stop_arg) || NCDVal_StringEqualsId(ms_stop_arg, NCD_STRING_EMPTY, i->params->iparams->string_index)) {
+        o->ms_stop = -1;
+    } else {
+        if (!ncd_read_uintmax(ms_stop_arg, &ms) || ms > INT64_MAX) {
+            ModuleLog(o->i, BLOG_ERROR, "wrong stop time");
+            goto fail0;
+        }
+        o->ms_stop = ms;
     }
-    
-    o->ms_start = ms_start;
-    o->ms_stop = ms_stop;
     
     // init timer
     BTimer_Init(&o->timer, 0, timer_handler, o);
@@ -109,8 +123,14 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     // set not dying
     o->dying = 0;
     
-    // set timer
-    BReactor_SetTimerAfter(o->i->params->iparams->reactor, &o->timer, o->ms_start);
+    if (ms_start < 0) {
+        // go up
+        NCDModuleInst_Backend_Up(i);
+    } else {
+        // set timer
+        BReactor_SetTimerAfter(o->i->params->iparams->reactor, &o->timer, ms_start);
+    }
+    
     return;
     
 fail0:
@@ -128,6 +148,12 @@ void instance_free (struct instance *o)
 static void func_die (void *vo)
 {
     struct instance *o = vo;
+    
+    if (o->ms_stop < 0) {
+        // die immediately
+        instance_free(o);
+        return;
+    }
     
     // set dying
     o->dying = 1;
