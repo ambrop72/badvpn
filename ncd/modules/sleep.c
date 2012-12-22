@@ -35,9 +35,9 @@
  *   On init, sleeps 'ms_start' milliseconds then goes up, or goes up immediately
  *   if 'ms_start' is an empty string.
  *   On deinit, sleeps 'ms_stop' milliseconds then dies, or dies immediately if
- *   'ms_stop' is an empty string. If a deinit is requested while the init sleep
- *   is still in progress, the init sleep is aborted and the deinit sleep is started
- *   immediately (if any).
+ *   'ms_stop' is an empty string or is not provided. If a deinit is requested while
+ *   the init sleep is still in progress, the init sleep is aborted and the deinit
+ *   sleep is started immediately (if any).
  */
 
 #include <stdlib.h>
