@@ -1,3 +1,7 @@
+- NCD: modules: sleep: interpret empty string time as no sleeping, add sleep(ms_start) with one argument
+
+- NCD: modules: add log module for message logging using the BLog system
+
 - NCD: implement the "include" and "include_guard" directives, which allow separating reusable code into files
 
 - NCD: modules: call2: implement call_with_caller_target(), which makes it easier to write reusable code that calls back user-provided code
