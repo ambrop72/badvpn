@@ -39,6 +39,7 @@
 #include <misc/debug.h>
 #include <misc/byteorder.h>
 #include <misc/packed.h>
+#include <misc/read_write_int.h>
 
 #define IPV4_PROTOCOL_IGMP 2
 #define IPV4_PROTOCOL_UDP 17
@@ -67,22 +68,14 @@ B_END_PACKED
 
 #define IPV4_MAKE_VERSION_IHL(size) (((size)/4) + (4 << 4))
 
-B_START_PACKED
-struct ipv4_short {
-    uint16_t v;
-} B_PACKED;
-B_END_PACKED
-
 static uint16_t ipv4_checksum (uint8_t *ip_hdr, uint16_t len)
 {
     ASSERT(len % 2 == 0)
     
-    struct ipv4_short *s = (struct ipv4_short *)ip_hdr;
-    
     uint32_t t = 0;
     
     for (uint16_t i = 0; i < len / 2; i++) {
-        t += ntoh16(s[i].v);
+        t += badvpn_read_be16((const char *)ip_hdr + 2 * i);
     }
     
     while (t >> 16) {

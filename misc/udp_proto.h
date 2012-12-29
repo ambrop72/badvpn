@@ -39,6 +39,7 @@
 #include <misc/debug.h>
 #include <misc/byteorder.h>
 #include <misc/ipv4_proto.h>
+#include <misc/read_write_int.h>
 
 B_START_PACKED
 struct udp_header {
@@ -53,12 +54,10 @@ static uint32_t udp_checksum_summer (uint8_t *data, uint16_t len)
 {
     ASSERT(len % 2 == 0)
     
-    struct ipv4_short *s = (struct ipv4_short *)data;
-    
     uint32_t t = 0;
     
     for (uint16_t i = 0; i < len / 2; i++) {
-        t += ntoh16(s[i].v);
+        t += badvpn_read_be16((const char *)data + 2 * i);
     }
     
     return t;
