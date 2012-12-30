@@ -39,10 +39,7 @@
 #define DHCP_SERVER_PORT 67
 #define DHCP_CLIENT_PORT 68
 
-struct combined_header {
-    struct ipv4_header ip;
-    struct udp_header udp;
-} __attribute__((packed));
+#define IPUDP_HEADER_SIZE (sizeof(struct ipv4_header) + sizeof(struct udp_header))
 
 static void input_handler_send (DHCPIpUdpDecoder *o, uint8_t *data, int data_len)
 {
@@ -110,7 +107,7 @@ static void output_handler_done (DHCPIpUdpDecoder *o)
 
 void DHCPIpUdpDecoder_Init (DHCPIpUdpDecoder *o, PacketPassInterface *output, BPendingGroup *pg)
 {
-    ASSERT(PacketPassInterface_GetMTU(output) <= INT_MAX - sizeof(struct combined_header))
+    ASSERT(PacketPassInterface_GetMTU(output) <= INT_MAX - IPUDP_HEADER_SIZE)
     
     // init arguments
     o->output = output;
@@ -119,7 +116,7 @@ void DHCPIpUdpDecoder_Init (DHCPIpUdpDecoder *o, PacketPassInterface *output, BP
     PacketPassInterface_Sender_Init(o->output, (PacketPassInterface_handler_done)output_handler_done, o);
     
     // init input
-    PacketPassInterface_Init(&o->input, sizeof(struct combined_header) + PacketPassInterface_GetMTU(o->output), (PacketPassInterface_handler_send)input_handler_send, o, pg);
+    PacketPassInterface_Init(&o->input, IPUDP_HEADER_SIZE + PacketPassInterface_GetMTU(o->output), (PacketPassInterface_handler_send)input_handler_send, o, pg);
     
     DebugObject_Init(&o->d_obj);
 }
