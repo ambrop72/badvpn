@@ -133,7 +133,7 @@ else ()
 
     if (NOT CMAKE_C_COMPILER_ID STREQUAL "PathScale")
         add_definitions(-Werror=implicit-function-declaration -Wno-switch-enum -Wno-unused-function
-                        -Wno-tautological-constant-out-of-range-compare)
+                        -Wno-tautological-constant-out-of-range-compare -Wstrict-aliasing)
     endif ()
     
     if (CMAKE_C_COMPILER_ID MATCHES "^Clang")
