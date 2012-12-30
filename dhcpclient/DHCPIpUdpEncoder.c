@@ -40,10 +40,7 @@
 #define DHCP_SERVER_PORT 67
 #define DHCP_CLIENT_PORT 68
 
-struct combined_header {
-    struct ipv4_header ip;
-    struct udp_header udp;
-} __attribute__((packed));
+#define IPUDP_HEADER_SIZE (sizeof(struct ipv4_header) + sizeof(struct udp_header))
 
 static void output_handler_recv (DHCPIpUdpEncoder *o, uint8_t *data)
 {
@@ -53,47 +50,46 @@ static void output_handler_recv (DHCPIpUdpEncoder *o, uint8_t *data)
     o->data = data;
     
     // receive payload
-    PacketRecvInterface_Receiver_Recv(o->input, o->data + sizeof(struct combined_header));
+    PacketRecvInterface_Receiver_Recv(o->input, o->data + IPUDP_HEADER_SIZE);
 }
 
 static void input_handler_done (DHCPIpUdpEncoder *o, int data_len)
 {
     DebugObject_Access(&o->d_obj);
     
-    struct combined_header header;
-    
-    // write IP header
-    struct ipv4_header *iph = &header.ip;
-    iph->version4_ihl4 = IPV4_MAKE_VERSION_IHL(sizeof(*iph));
-    iph->ds = hton8(0);
-    iph->total_length = hton16(sizeof(struct combined_header) + data_len);
-    iph->identification = hton16(0);
-    iph->flags3_fragmentoffset13 = hton16(0);
-    iph->ttl = hton8(64);
-    iph->protocol = hton8(IPV4_PROTOCOL_UDP);
-    iph->checksum = hton16(0);
-    iph->source_address = hton32(0x00000000);
-    iph->destination_address = hton32(0xFFFFFFFF);
-    iph->checksum = ipv4_checksum(iph, NULL, 0);
+    // build IP header
+    struct ipv4_header iph;
+    iph.version4_ihl4 = IPV4_MAKE_VERSION_IHL(sizeof(iph));
+    iph.ds = hton8(0);
+    iph.total_length = hton16(IPUDP_HEADER_SIZE + data_len);
+    iph.identification = hton16(0);
+    iph.flags3_fragmentoffset13 = hton16(0);
+    iph.ttl = hton8(64);
+    iph.protocol = hton8(IPV4_PROTOCOL_UDP);
+    iph.checksum = hton16(0);
+    iph.source_address = hton32(0x00000000);
+    iph.destination_address = hton32(0xFFFFFFFF);
+    iph.checksum = ipv4_checksum(&iph, NULL, 0);
     
     // write UDP header
-    struct udp_header *udph = &header.udp;
-    udph->source_port = hton16(DHCP_CLIENT_PORT);
-    udph->dest_port = hton16(DHCP_SERVER_PORT);
-    udph->length = hton16(sizeof(*udph) + data_len);
-    udph->checksum = hton16(0);
-    udph->checksum = udp_checksum(udph, o->data + sizeof(struct combined_header), data_len, iph->source_address, iph->destination_address);
+    struct udp_header udph;
+    udph.source_port = hton16(DHCP_CLIENT_PORT);
+    udph.dest_port = hton16(DHCP_SERVER_PORT);
+    udph.length = hton16(sizeof(udph) + data_len);
+    udph.checksum = hton16(0);
+    udph.checksum = udp_checksum(&udph, o->data + IPUDP_HEADER_SIZE, data_len, iph.source_address, iph.destination_address);
     
     // write header
-    memcpy(o->data, &header, sizeof(header));
+    memcpy(o->data, &iph, sizeof(iph));
+    memcpy(o->data + sizeof(iph), &udph, sizeof(udph));
     
     // finish packet
-    PacketRecvInterface_Done(&o->output, sizeof(struct combined_header) + data_len);
+    PacketRecvInterface_Done(&o->output, IPUDP_HEADER_SIZE + data_len);
 }
 
 void DHCPIpUdpEncoder_Init (DHCPIpUdpEncoder *o, PacketRecvInterface *input, BPendingGroup *pg)
 {
-    ASSERT(PacketRecvInterface_GetMTU(input) <= INT_MAX - sizeof(struct combined_header))
+    ASSERT(PacketRecvInterface_GetMTU(input) <= INT_MAX - IPUDP_HEADER_SIZE)
     
     // init arguments
     o->input = input;
@@ -102,7 +98,7 @@ void DHCPIpUdpEncoder_Init (DHCPIpUdpEncoder *o, PacketRecvInterface *input, BPe
     PacketRecvInterface_Receiver_Init(o->input, (PacketRecvInterface_handler_done)input_handler_done, o);
     
     // init output
-    PacketRecvInterface_Init(&o->output, sizeof(struct combined_header) + PacketRecvInterface_GetMTU(o->input), (PacketRecvInterface_handler_recv)output_handler_recv, o, pg);
+    PacketRecvInterface_Init(&o->output, IPUDP_HEADER_SIZE + PacketRecvInterface_GetMTU(o->input), (PacketRecvInterface_handler_recv)output_handler_recv, o, pg);
     
     DebugObject_Init(&o->d_obj);
 }
