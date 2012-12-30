@@ -34,6 +34,7 @@
 #include <misc/minmax.h>
 #include <misc/balloc.h>
 #include <misc/bsize.h>
+#include <misc/dhcp_proto.h>
 #include <base/BLog.h>
 
 #include <dhcpclient/BDHCPClientCore.h>
@@ -85,86 +86,114 @@ static void send_message (
     }
     
     // write header
-    memset(o->send_buf, 0, sizeof(*o->send_buf));
-    o->send_buf->op = hton8(DHCP_OP_BOOTREQUEST);
-    o->send_buf->htype = hton8(DHCP_HARDWARE_ADDRESS_TYPE_ETHERNET);
-    o->send_buf->hlen = hton8(6);
-    o->send_buf->xid = xid;
-    o->send_buf->secs = hton16(0);
-    memcpy(o->send_buf->chaddr, o->client_mac_addr, sizeof(o->client_mac_addr));
-    o->send_buf->magic = hton32(DHCP_MAGIC);
+    struct dhcp_header header;
+    memset(&header, 0, sizeof(header));
+    header.op = hton8(DHCP_OP_BOOTREQUEST);
+    header.htype = hton8(DHCP_HARDWARE_ADDRESS_TYPE_ETHERNET);
+    header.hlen = hton8(6);
+    header.xid = xid;
+    header.secs = hton16(0);
+    memcpy(header.chaddr, o->client_mac_addr, sizeof(o->client_mac_addr));
+    header.magic = hton32(DHCP_MAGIC);
+    memcpy(o->send_buf, &header, sizeof(header));
     
     // write options
     
-    struct dhcp_option_header *out = (void *)(o->send_buf + 1);
+    char *out = o->send_buf + sizeof(header);
+    struct dhcp_option_header oh;
     
     // DHCP message type
-    out->type = hton8(DHCP_OPTION_DHCP_MESSAGE_TYPE);
-    out->len = hton8(sizeof(struct dhcp_option_dhcp_message_type));
-    ((struct dhcp_option_dhcp_message_type *)(out + 1))->type = hton8(type);
-    out = (void *)((uint8_t *)(out + 1) + ntoh8(out->len));
+    {
+        oh.type = hton8(DHCP_OPTION_DHCP_MESSAGE_TYPE);
+        oh.len = hton8(sizeof(struct dhcp_option_dhcp_message_type));
+        struct dhcp_option_dhcp_message_type opt;
+        opt.type = hton8(type);
+        memcpy(out, &oh, sizeof(oh));
+        memcpy(out + sizeof(oh), &opt, sizeof(opt));
+        out += sizeof(oh) + sizeof(opt);
+    }
     
     if (have_requested_ip_address) {
         // requested IP address
-        out->type = hton8(DHCP_OPTION_REQUESTED_IP_ADDRESS);
-        out->len = hton8(sizeof(struct dhcp_option_addr));
-        ((struct dhcp_option_addr *)(out + 1))->addr = requested_ip_address;
-        out = (void *)((uint8_t *)(out + 1) + ntoh8(out->len));
+        oh.type = hton8(DHCP_OPTION_REQUESTED_IP_ADDRESS);
+        oh.len = hton8(sizeof(struct dhcp_option_addr));
+        struct dhcp_option_addr opt;
+        opt.addr = requested_ip_address;
+        memcpy(out, &oh, sizeof(oh));
+        memcpy(out + sizeof(oh), &opt, sizeof(opt));
+        out += sizeof(oh) + sizeof(opt);
     }
     
     if (have_dhcp_server_identifier) {
         // DHCP server identifier
-        out->type = hton8(DHCP_OPTION_DHCP_SERVER_IDENTIFIER);
-        out->len = hton8(sizeof(struct dhcp_option_dhcp_server_identifier));
-        ((struct dhcp_option_dhcp_server_identifier *)(out + 1))->id = dhcp_server_identifier;
-        out = (void *)((uint8_t *)(out + 1) + ntoh8(out->len));
+        oh.type = hton8(DHCP_OPTION_DHCP_SERVER_IDENTIFIER);
+        oh.len = hton8(sizeof(struct dhcp_option_dhcp_server_identifier));
+        struct dhcp_option_dhcp_server_identifier opt;
+        opt.id = dhcp_server_identifier;
+        memcpy(out, &oh, sizeof(oh));
+        memcpy(out + sizeof(oh), &opt, sizeof(opt));
+        out += sizeof(oh) + sizeof(opt);
     }
     
     // maximum message size
-    out->type = hton8(DHCP_OPTION_MAXIMUM_MESSAGE_SIZE);
-    out->len = hton8(sizeof(struct dhcp_option_maximum_message_size));
-    ((struct dhcp_option_maximum_message_size *)(out + 1))->size = hton16(IP_UDP_HEADERS_SIZE + PacketRecvInterface_GetMTU(o->recv_if));
-    out = (void *)((uint8_t *)(out + 1) + ntoh8(out->len));
+    {
+        oh.type = hton8(DHCP_OPTION_MAXIMUM_MESSAGE_SIZE);
+        oh.len = hton8(sizeof(struct dhcp_option_maximum_message_size));
+        struct dhcp_option_maximum_message_size opt;
+        opt.size = hton16(IP_UDP_HEADERS_SIZE + PacketRecvInterface_GetMTU(o->recv_if));
+        memcpy(out, &oh, sizeof(oh));
+        memcpy(out + sizeof(oh), &opt, sizeof(opt));
+        out += sizeof(oh) + sizeof(opt);
+    }
     
     // parameter request list
-    out->type = hton8(DHCP_OPTION_PARAMETER_REQUEST_LIST);
-    out->len = hton8(4);
-    ((uint8_t *)(out + 1))[0] = DHCP_OPTION_SUBNET_MASK;
-    ((uint8_t *)(out + 1))[1] = DHCP_OPTION_ROUTER;
-    ((uint8_t *)(out + 1))[2] = DHCP_OPTION_DOMAIN_NAME_SERVER;
-    ((uint8_t *)(out + 1))[3] = DHCP_OPTION_IP_ADDRESS_LEASE_TIME;
-    out = (void *)((uint8_t *)(out + 1) + ntoh8(out->len));
+    {
+        oh.type = hton8(DHCP_OPTION_PARAMETER_REQUEST_LIST);
+        oh.len = hton8(4);
+        uint8_t opt[4];
+        opt[0] = DHCP_OPTION_SUBNET_MASK;
+        opt[1] = DHCP_OPTION_ROUTER;
+        opt[2] = DHCP_OPTION_DOMAIN_NAME_SERVER;
+        opt[3] = DHCP_OPTION_IP_ADDRESS_LEASE_TIME;
+        memcpy(out, &oh, sizeof(oh));
+        memcpy(out + sizeof(oh), &opt, sizeof(opt));
+        out += sizeof(oh) + sizeof(opt);
+    }
     
     if (o->hostname) {
         // host name
-        out->type = hton8(DHCP_OPTION_HOST_NAME);
-        out->len = hton8(strlen(o->hostname));
-        memcpy(out + 1, o->hostname, strlen(o->hostname));
-        out = (void *)((uint8_t *)(out + 1) + ntoh8(out->len));
+        oh.type = hton8(DHCP_OPTION_HOST_NAME);
+        oh.len = hton8(strlen(o->hostname));
+        memcpy(out, &oh, sizeof(oh));
+        memcpy(out + sizeof(oh), o->hostname, strlen(o->hostname));
+        out += sizeof(oh) + strlen(o->hostname);
     }
     
     if (o->vendorclassid) {
         // vendor class identifier
-        out->type = hton8(DHCP_OPTION_VENDOR_CLASS_IDENTIFIER);
-        out->len = hton8(strlen(o->vendorclassid));
-        memcpy(out + 1, o->vendorclassid, strlen(o->vendorclassid));
-        out = (void *)((uint8_t *)(out + 1) + ntoh8(out->len));
+        oh.type = hton8(DHCP_OPTION_VENDOR_CLASS_IDENTIFIER);
+        oh.len = hton8(strlen(o->vendorclassid));
+        memcpy(out, &oh, sizeof(oh));
+        memcpy(out + sizeof(oh), o->vendorclassid, strlen(o->vendorclassid));
+        out += sizeof(oh) + strlen(o->vendorclassid);
     }
     
     if (o->clientid) {
         // client identifier
-        out->type = hton8(DHCP_OPTION_CLIENT_IDENTIFIER);
-        out->len = hton8(o->clientid_len);
-        memcpy(out + 1, o->clientid, o->clientid_len);
-        out = (void *)((uint8_t *)(out + 1) + ntoh8(out->len));
+        oh.type = hton8(DHCP_OPTION_CLIENT_IDENTIFIER);
+        oh.len = hton8(o->clientid_len);
+        memcpy(out, &oh, sizeof(oh));
+        memcpy(out + sizeof(oh), o->clientid, o->clientid_len);
+        out += sizeof(oh) + o->clientid_len;
     }
     
     // end option
-    *((uint8_t *)out) = 0xFF;
-    out = (void *)((uint8_t *)out + 1);
+    uint8_t end = 0xFF;
+    memcpy(out, &end, sizeof(end));
+    out += sizeof(end);
     
     // send it
-    PacketPassInterface_Sender_Send(o->send_if, (uint8_t *)o->send_buf, (uint8_t *)out - (uint8_t *)o->send_buf);
+    PacketPassInterface_Sender_Send(o->send_if, (uint8_t *)o->send_buf, out - o->send_buf);
     o->sending = 1;
 }
 
@@ -190,38 +219,41 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
     
     // check header
     
-    if (data_len < sizeof(*o->recv_buf)) {
+    if (data_len < sizeof(struct dhcp_header)) {
         return;
     }
     
-    if (ntoh8(o->recv_buf->op) != DHCP_OP_BOOTREPLY) {
+    struct dhcp_header header;
+    memcpy(&header, o->recv_buf, sizeof(header));
+    
+    if (ntoh8(header.op) != DHCP_OP_BOOTREPLY) {
         return;
     }
     
-    if (ntoh8(o->recv_buf->htype) != DHCP_HARDWARE_ADDRESS_TYPE_ETHERNET) {
+    if (ntoh8(header.htype) != DHCP_HARDWARE_ADDRESS_TYPE_ETHERNET) {
         return;
     }
     
-    if (ntoh8(o->recv_buf->hlen) != 6) {
+    if (ntoh8(header.hlen) != 6) {
         return;
     }
     
-    if (o->recv_buf->xid != o->xid) {
+    if (header.xid != o->xid) {
         return;
     }
     
-    if (memcmp(o->recv_buf->chaddr, o->client_mac_addr, sizeof(o->client_mac_addr))) {
+    if (memcmp(header.chaddr, o->client_mac_addr, sizeof(o->client_mac_addr))) {
         return;
     }
     
-    if (ntoh32(o->recv_buf->magic) != DHCP_MAGIC) {
+    if (ntoh32(header.magic) != DHCP_MAGIC) {
         return;
     }
     
     // parse and check options
     
-    uint8_t *pos = (uint8_t *)o->recv_buf + sizeof(*o->recv_buf);
-    int len = data_len - sizeof(*o->recv_buf);
+    uint8_t *pos = (uint8_t *)o->recv_buf + sizeof(header);
+    int len = data_len - sizeof(header);
     
     int have_end = 0;
     
@@ -266,17 +298,18 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
         if (len < sizeof(struct dhcp_option_header)) {
             return;
         }
-        struct dhcp_option_header *opt = (void *)pos;
-        pos += sizeof(*opt);
-        len -= sizeof(*opt);
-        int opt_type = ntoh8(opt->type);
-        int opt_len = ntoh8(opt->len);
+        struct dhcp_option_header opt;
+        memcpy(&opt, pos, sizeof(opt));
+        pos += sizeof(opt);
+        len -= sizeof(opt);
+        int opt_type = ntoh8(opt.type);
+        int opt_len = ntoh8(opt.len);
         
         // check option payload
         if (opt_len > len) {
             return;
         }
-        void *optval = pos;
+        uint8_t *optval = pos;
         pos += opt_len;
         len -= opt_len;
         
@@ -285,18 +318,20 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
                 if (opt_len != sizeof(struct dhcp_option_dhcp_message_type)) {
                     return;
                 }
-                struct dhcp_option_dhcp_message_type *val = optval;
+                struct dhcp_option_dhcp_message_type val;
+                memcpy(&val, optval, sizeof(val));
                 
-                dhcp_message_type = ntoh8(val->type);
+                dhcp_message_type = ntoh8(val.type);
             } break;
             
             case DHCP_OPTION_DHCP_SERVER_IDENTIFIER: {
                 if (opt_len != sizeof(struct dhcp_option_dhcp_server_identifier)) {
                     return;
                 }
-                struct dhcp_option_dhcp_server_identifier *val = optval;
+                struct dhcp_option_dhcp_server_identifier val;
+                memcpy(&val, optval, sizeof(val));
                 
-                dhcp_server_identifier = val->id;
+                dhcp_server_identifier = val.id;
                 have_dhcp_server_identifier = 1;
             } break;
             
@@ -304,9 +339,10 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
                 if (opt_len != sizeof(struct dhcp_option_time)) {
                     return;
                 }
-                struct dhcp_option_time *val = optval;
+                struct dhcp_option_time val;
+                memcpy(&val, optval, sizeof(val));
                 
-                ip_address_lease_time = ntoh32(val->time);
+                ip_address_lease_time = ntoh32(val.time);
                 have_ip_address_lease_time = 1;
             } break;
             
@@ -314,9 +350,10 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
                 if (opt_len != sizeof(struct dhcp_option_addr)) {
                     return;
                 }
-                struct dhcp_option_addr *val = optval;
+                struct dhcp_option_addr val;
+                memcpy(&val, optval, sizeof(val));
                 
-                subnet_mask = val->addr;
+                subnet_mask = val.addr;
                 have_subnet_mask = 1;
             } break;
             
@@ -324,22 +361,25 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
                 if (opt_len != sizeof(struct dhcp_option_addr)) {
                     return;
                 }
-                struct dhcp_option_addr *val = optval;
+                struct dhcp_option_addr val;
+                memcpy(&val, optval, sizeof(val));
                 
-                router = val->addr;
+                router = val.addr;
                 have_router = 1;
             } break;
             
             case DHCP_OPTION_DOMAIN_NAME_SERVER: {
-                if (opt_len % 4) {
+                if (opt_len % sizeof(struct dhcp_option_addr)) {
                     return;
                 }
                 
-                int num_servers = opt_len / 4;
+                int num_servers = opt_len / sizeof(struct dhcp_option_addr);
                 
                 int i;
                 for (i = 0; i < num_servers && i < BDHCPCLIENTCORE_MAX_DOMAIN_NAME_SERVERS; i++) {
-                    domain_name_servers[i] = ((struct dhcp_option_addr *)optval + i)->addr;
+                    struct dhcp_option_addr addr;
+                    memcpy(&addr, optval + i * sizeof(addr), sizeof(addr));
+                    domain_name_servers[i] = addr.addr;
                 }
                 
                 domain_name_servers_count = i;
@@ -423,7 +463,7 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
         return;
     }
     
-    if (ntoh32(o->recv_buf->yiaddr) == 0) {
+    if (ntoh32(header.yiaddr) == 0) {
         return;
     }
     
@@ -439,7 +479,7 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
         BLog(BLOG_INFO, "received OFFER");
         
         // remember offer
-        o->offered.yiaddr = o->recv_buf->yiaddr;
+        o->offered.yiaddr = header.yiaddr;
         o->offered.dhcp_server_identifier = dhcp_server_identifier;
         
         // send request
@@ -458,7 +498,7 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
         o->request_count = 1;
     }
     else if (o->state == STATE_SENT_REQUEST && dhcp_message_type == DHCP_MESSAGE_TYPE_ACK) {
-        if (o->recv_buf->yiaddr != o->offered.yiaddr) {
+        if (header.yiaddr != o->offered.yiaddr) {
             return;
         }
         
@@ -493,7 +533,7 @@ static void recv_handler_done (BDHCPClientCore *o, int data_len)
         return;
     }
     else if (o->state == STATE_RENEWING && dhcp_message_type == DHCP_MESSAGE_TYPE_ACK) {
-        if (o->recv_buf->yiaddr != o->offered.yiaddr) {
+        if (header.yiaddr != o->offered.yiaddr) {
             return;
         }
         

@@ -37,7 +37,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <misc/dhcp_proto.h>
 #include <system/BReactor.h>
 #include <base/DebugObject.h>
 #include <random/BRandom2.h>
@@ -72,8 +71,8 @@ typedef struct {
     char *vendorclassid;
     uint8_t *clientid;
     size_t clientid_len;
-    struct dhcp_header *send_buf;
-    struct dhcp_header *recv_buf;
+    char *send_buf;
+    char *recv_buf;
     int sending;
     BTimer reset_timer;
     BTimer request_timer;
