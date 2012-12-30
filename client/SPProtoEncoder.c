@@ -103,9 +103,10 @@ static void encode_work_func (SPProtoEncoder *o)
     
     // write OTP
     if (SPPROTO_HAVE_OTP(o->sp_params)) {
-        struct spproto_otpdata *header_otpd = (struct spproto_otpdata *)(header + SPPROTO_HEADER_OTPDATA_OFF(o->sp_params));
-        header_otpd->seed_id = htol16(o->tw_seed_id);
-        header_otpd->otp = o->tw_otp;
+        struct spproto_otpdata header_otpd;
+        header_otpd.seed_id = htol16(o->tw_seed_id);
+        header_otpd.otp = o->tw_otp;
+        memcpy(header + SPPROTO_HEADER_OTPDATA_OFF(o->sp_params), &header_otpd, sizeof(header_otpd));
     }
     
     // write hash

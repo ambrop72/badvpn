@@ -565,9 +565,10 @@ static struct reply * reply_init (struct connection *c, uint32_t request_id, NCD
     
     r->send_buf = (uint8_t *)ExpString_Get(&str);
     
-    struct reply_header *header = (void *)r->send_buf;
-    header->pp.len = htol16(len - sizeof(header->pp));
-    header->rp.request_id = htol32(request_id);
+    struct reply_header header;
+    header.pp.len = htol16(len - sizeof(header.pp));
+    header.rp.request_id = htol32(request_id);
+    memcpy(r->send_buf, &header, sizeof(header));
     
     return r;
     
@@ -588,9 +589,12 @@ static void reply_start (struct reply *r, uint32_t type)
         struct requestproto_header rp;
     } __attribute__((packed));
     
-    struct reply_header *header = (void *)r->send_buf;
-    header->rp.type = htol32(type);
-    int len = ltoh16(header->pp.len) + sizeof(struct packetproto_header);
+    struct reply_header header;
+    memcpy(&header, r->send_buf, sizeof(header));
+    header.rp.type = htol32(type);
+    memcpy(r->send_buf, &header, sizeof(header));
+    
+    int len = ltoh16(header.pp.len) + sizeof(struct packetproto_header);
     
     PacketPassInterface_Sender_Send(r->send_qflow_if, r->send_buf, len);
 }

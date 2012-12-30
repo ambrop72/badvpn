@@ -27,6 +27,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <string.h>
+
 #include <protocol/scproto.h>
 #include <misc/byteorder.h>
 
@@ -36,8 +38,9 @@ static void output_handler_recv (SCKeepaliveSource *o, uint8_t *data)
 {
     DebugObject_Access(&o->d_obj);
     
-    struct sc_header *header = (struct sc_header *)data;
-    header->type = htol8(SCID_KEEPALIVE);
+    struct sc_header header;
+    header.type = htol8(SCID_KEEPALIVE);
+    memcpy(data, &header, sizeof(header));
     
     PacketRecvInterface_Done(&o->output, sizeof(struct sc_header));
 }

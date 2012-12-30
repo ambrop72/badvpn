@@ -130,10 +130,11 @@ static void recv_interface_handler_send (UdpGwClient *o, uint8_t *data, int data
         BLog(BLOG_ERROR, "missing header");
         return;
     }
-    struct udpgw_header *header = (struct udpgw_header *)data;
-    data += sizeof(*header);
-    data_len -= sizeof(*header);
-    uint16_t conid = ltoh16(header->conid);
+    struct udpgw_header header;
+    memcpy(&header, data, sizeof(header));
+    data += sizeof(header);
+    data_len -= sizeof(header);
+    uint16_t conid = ltoh16(header.conid);
     
     // check remaining data
     if (data_len > o->udp_mtu) {
@@ -149,7 +150,7 @@ static void recv_interface_handler_send (UdpGwClient *o, uint8_t *data, int data
     }
     
     // check remote address
-    if (con->conaddr.remote_addr.ipv4.port != header->addr_port || con->conaddr.remote_addr.ipv4.ip != header->addr_ip) {
+    if (con->conaddr.remote_addr.ipv4.port != header.addr_port || con->conaddr.remote_addr.ipv4.ip != header.addr_ip) {
         BLog(BLOG_ERROR, "wrong remote address");
         return;
     }
@@ -335,17 +336,18 @@ static void connection_send (struct UdpGwClient_connection *con, uint8_t flags, 
     }
     
     // write header
-    struct udpgw_header *header = (struct udpgw_header *)out;
-    header->flags = ltoh8(flags);
-    header->conid = ltoh16(con->conid);
-    header->addr_ip = con->conaddr.remote_addr.ipv4.ip;
-    header->addr_port = con->conaddr.remote_addr.ipv4.port;
+    struct udpgw_header header;
+    header.flags = ltoh8(flags);
+    header.conid = ltoh16(con->conid);
+    header.addr_ip = con->conaddr.remote_addr.ipv4.ip;
+    header.addr_port = con->conaddr.remote_addr.ipv4.port;
+    memcpy(out, &header, sizeof(header));
     
     // write packet to buffer
-    memcpy(out + sizeof(*header), data, data_len);
+    memcpy(out + sizeof(header), data, data_len);
     
     // submit packet to buffer
-    BufferWriter_EndPacket(con->send_if, sizeof(*header) + data_len);
+    BufferWriter_EndPacket(con->send_if, sizeof(header) + data_len);
 }
 
 static struct UdpGwClient_connection * reuse_connection (UdpGwClient *o, struct UdpGwClient_conaddr conaddr)

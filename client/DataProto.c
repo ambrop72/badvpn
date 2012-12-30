@@ -91,8 +91,10 @@ void notifier_handler (DataProtoSink *o, uint8_t *data, int data_len)
     }
     
     // modify existing packet here
-    struct dataproto_header *header = (struct dataproto_header *)data;
-    header->flags = htol8(flags);
+    struct dataproto_header header;
+    memcpy(&header, data, sizeof(header));
+    header.flags = hton8(flags);
+    memcpy(data, &header, sizeof(header));
 }
 
 void up_job_handler (DataProtoSink *o)
@@ -489,13 +491,14 @@ void DataProtoFlow_Route (DataProtoFlow *o, int more)
     ASSERT(more == 0 || more == 1)
     struct DataProtoFlow_buffer *b = o->b;
     
-    // write header
-    struct dataproto_header *header = (struct dataproto_header *)o->source->current_buf;
-    // don't set flags, it will be set in notifier_handler
-    header->from_id = htol16(o->source_id);
-    header->num_peer_ids = htol16(1);
-    struct dataproto_peer_id *id = (struct dataproto_peer_id *)(header + 1);
-    id->id = htol16(o->dest_id);
+    // write header. Don't set flags, it will be set in notifier_handler.
+    struct dataproto_header header;
+    struct dataproto_peer_id id;
+    header.from_id = htol16(o->source_id);
+    header.num_peer_ids = htol16(1);
+    id.id = htol16(o->dest_id);
+    memcpy(o->source->current_buf, &header, sizeof(header));
+    memcpy(o->source->current_buf + sizeof(header), &id, sizeof(id));
     
     // route
     uint8_t *next_buf;

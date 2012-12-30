@@ -772,11 +772,12 @@ void client_recv_if_handler_send (struct client *client, uint8_t *data, int data
         client_log(client, BLOG_ERROR, "missing header");
         return;
     }
-    struct udpgw_header *header = (struct udpgw_header *)data;
-    data += sizeof(*header);
-    data_len -= sizeof(*header);
-    uint8_t flags = ltoh8(header->flags);
-    uint16_t conid = ltoh16(header->conid);
+    struct udpgw_header header;
+    memcpy(&header, data, sizeof(header));
+    data += sizeof(header);
+    data_len -= sizeof(header);
+    uint8_t flags = ltoh8(header.flags);
+    uint16_t conid = ltoh16(header.conid);
     
     // reset disconnect timer
     BReactor_SetTimer(&ss, &client->disconnect_timer);
@@ -798,7 +799,7 @@ void client_recv_if_handler_send (struct client *client, uint8_t *data, int data
     ASSERT(!con || !con->closing)
     
     // if connection exists, close it if needed
-    if (con && ((flags & UDPGW_CLIENT_FLAG_REBIND) || con->addr.ipv4.ip != header->addr_ip || con->addr.ipv4.port != header->addr_port)) {
+    if (con && ((flags & UDPGW_CLIENT_FLAG_REBIND) || con->addr.ipv4.ip != header.addr_ip || con->addr.ipv4.port != header.addr_port)) {
         connection_log(con, BLOG_DEBUG, "close old");
         
         connection_close(con);
@@ -816,7 +817,7 @@ void client_recv_if_handler_send (struct client *client, uint8_t *data, int data
         
         // read address
         BAddr addr;
-        BAddr_InitIPv4(&addr, header->addr_ip, header->addr_port);
+        BAddr_InitIPv4(&addr, header.addr_ip, header.addr_port);
         
         // create new connection
         connection_init(client, conid, addr, data, data_len);
@@ -1147,17 +1148,18 @@ int connection_send_to_client (struct connection *con, uint8_t flags, const uint
     }
     
     // write header
-    struct udpgw_header *header = (struct udpgw_header *)out;
-    header->flags = htol8(flags);
-    header->conid = htol16(con->conid);
-    header->addr_ip = con->addr.ipv4.ip;
-    header->addr_port = con->addr.ipv4.port;
+    struct udpgw_header header;
+    header.flags = htol8(flags);
+    header.conid = htol16(con->conid);
+    header.addr_ip = con->addr.ipv4.ip;
+    header.addr_port = con->addr.ipv4.port;
+    memcpy(out, &header, sizeof(header));
     
     // write message
-    memcpy(out + sizeof(*header), data, data_len);
+    memcpy(out + sizeof(header), data, data_len);
     
     // submit written message
-    BufferWriter_EndPacket(con->send_if, sizeof(*header) + data_len);
+    BufferWriter_EndPacket(con->send_if, sizeof(header) + data_len);
     
     return 1;
 }

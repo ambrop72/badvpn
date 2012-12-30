@@ -28,6 +28,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 
 #include <misc/debug.h>
 #include <misc/strdup.h>
@@ -213,13 +214,15 @@ void pending_handler (ServerConnection *o)
     DebugObject_Access(&o->d_obj);
     
     // send hello
-    struct sc_client_hello *packet;
-    if (!start_packet(o, (void **)&packet, sizeof(struct sc_client_hello))) {
+    struct sc_client_hello omsg;
+    void *packet;
+    if (!start_packet(o, &packet, sizeof(omsg))) {
         BLog(BLOG_ERROR, "no buffer for hello");
         report_error(o);
         return;
     }
-    packet->version = htol16(SC_VERSION);
+    omsg.version = htol16(SC_VERSION);
+    memcpy(packet, &omsg, sizeof(omsg));
     end_packet(o, SCID_CLIENTHELLO);
 }
 
@@ -299,10 +302,11 @@ void input_handler_send (ServerConnection *o, uint8_t *data, int data_len)
         report_error(o);
         return;
     }
-    struct sc_header *header = (struct sc_header *)data;
-    data += sizeof(*header);
-    data_len -= sizeof(*header);
-    uint8_t type = ltoh8(header->type);
+    struct sc_header header;
+    memcpy(&header, data, sizeof(header));
+    data += sizeof(header);
+    data_len -= sizeof(header);
+    uint8_t type = ltoh8(header.type);
     
     // call appropriate handler based on packet type
     switch (type) {
@@ -338,14 +342,15 @@ void packet_hello (ServerConnection *o, uint8_t *data, int data_len)
         report_error(o);
         return;
     }
-    struct sc_server_hello *msg = (struct sc_server_hello *)data;
-    peerid_t id = ltoh16(msg->id);
+    struct sc_server_hello msg;
+    memcpy(&msg, data, sizeof(msg));
+    peerid_t id = ltoh16(msg.id);
     
     // change state
     o->state = STATE_COMPLETE;
     
     // report
-    o->handler_ready(o->user, id, msg->clientAddr);
+    o->handler_ready(o->user, id, msg.clientAddr);
     return;
 }
 
@@ -363,8 +368,9 @@ void packet_newclient (ServerConnection *o, uint8_t *data, int data_len)
         return;
     }
     
-    struct sc_server_newclient *msg = (struct sc_server_newclient *)data;
-    peerid_t id = ltoh16(msg->id);
+    struct sc_server_newclient msg;
+    memcpy(&msg, data, sizeof(msg));
+    peerid_t id = ltoh16(msg.id);
     
     // schedule reporting new client
     o->newclient_data = data;
@@ -372,13 +378,15 @@ void packet_newclient (ServerConnection *o, uint8_t *data, int data_len)
     BPending_Set(&o->newclient_job);
     
     // send acceptpeer
-    struct sc_client_acceptpeer *packet;
-    if (!start_packet(o, (void **)&packet, sizeof(*packet))) {
+    struct sc_client_acceptpeer omsg;
+    void *packet;
+    if (!start_packet(o, &packet, sizeof(omsg))) {
         BLog(BLOG_ERROR, "newclient: out of buffer for acceptpeer");
         report_error(o);
         return;
     }
-    packet->clientid = htol16(id);
+    omsg.clientid = htol16(id);
+    memcpy(packet, &omsg, sizeof(omsg));
     end_packet(o, SCID_ACCEPTPEER);
 }
 
@@ -396,8 +404,9 @@ void packet_endclient (ServerConnection *o, uint8_t *data, int data_len)
         return;
     }
     
-    struct sc_server_endclient *msg = (struct sc_server_endclient *)data;
-    peerid_t id = ltoh16(msg->id);
+    struct sc_server_endclient msg;
+    memcpy(&msg, data, sizeof(msg));
+    peerid_t id = ltoh16(msg.id);
     
     // report
     o->handler_endclient(o->user, id);
@@ -424,8 +433,9 @@ void packet_inmsg (ServerConnection *o, uint8_t *data, int data_len)
         return;
     }
     
-    struct sc_server_inmsg *msg = (struct sc_server_inmsg *)data;
-    peerid_t peer_id = ltoh16(msg->clientid);
+    struct sc_server_inmsg msg;
+    memcpy(&msg, data, sizeof(msg));
+    peerid_t peer_id = ltoh16(msg.clientid);
     uint8_t *payload = data + sizeof(struct sc_server_inmsg);
     int payload_len = data_len - sizeof(struct sc_server_inmsg);
     
@@ -464,8 +474,9 @@ void end_packet (ServerConnection *o, uint8_t type)
     ASSERT(o->output_local_packet_len <= SC_MAX_PAYLOAD)
     
     // write header
-    struct sc_header *header = (struct sc_header *)o->output_local_packet;
-    header->type = htol8(type);
+    struct sc_header header;
+    header.type = htol8(type);
+    memcpy(o->output_local_packet, &header, sizeof(header));
     
     // finish writing packet
     BufferWriter_EndPacket(o->output_local_if, sizeof(struct sc_header) + o->output_local_packet_len);
@@ -615,12 +626,13 @@ void newclient_job_handler (ServerConnection *o)
     DebugObject_Access(&o->d_obj);
     ASSERT(o->state == STATE_COMPLETE)
     
-    struct sc_server_newclient *msg = (struct sc_server_newclient *)o->newclient_data;
-    peerid_t id = ltoh16(msg->id);
-    int flags = ltoh16(msg->flags);
+    struct sc_server_newclient msg;
+    memcpy(&msg, o->newclient_data, sizeof(msg));
+    peerid_t id = ltoh16(msg.id);
+    int flags = ltoh16(msg.flags);
     
-    uint8_t *cert_data = (uint8_t *)(msg + 1);
-    int cert_len = o->newclient_data_len - sizeof(*msg);
+    uint8_t *cert_data = o->newclient_data + sizeof(msg);
+    int cert_len = o->newclient_data_len - sizeof(msg);
     
     // report new client
     o->handler_newclient(o->user, id, flags, cert_data, cert_len);

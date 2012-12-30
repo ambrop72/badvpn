@@ -28,6 +28,7 @@
  */
 
 #include <stddef.h>
+#include <string.h>
 
 #include <protocol/packetproto.h>
 #include <misc/balign.h>
@@ -53,7 +54,9 @@ static void input_handler_done (PacketProtoEncoder *enc, int in_len)
     DebugObject_Access(&enc->d_obj);
     
     // write length
-    ((struct packetproto_header *)enc->output_packet)->len = htol16(in_len);
+    struct packetproto_header pp;
+    pp.len = htol16(in_len);
+    memcpy(enc->output_packet, &pp, sizeof(pp));
     
     // finish output packet
     enc->output_packet = NULL;

@@ -50,39 +50,41 @@ struct udp_header {
 } B_PACKED;
 B_END_PACKED
 
-static uint32_t udp_checksum_summer (uint8_t *data, uint16_t len)
+static uint32_t udp_checksum_summer (const char *data, uint16_t len)
 {
     ASSERT(len % 2 == 0)
     
     uint32_t t = 0;
     
     for (uint16_t i = 0; i < len / 2; i++) {
-        t += badvpn_read_be16((const char *)data + 2 * i);
+        t += badvpn_read_be16(data + 2 * i);
     }
     
     return t;
 }
 
-static uint16_t udp_checksum (uint8_t *udp, uint16_t len, uint32_t source_addr, uint32_t dest_addr)
+static uint16_t udp_checksum (const struct udp_header *header, const uint8_t *payload, uint16_t payload_len, uint32_t source_addr, uint32_t dest_addr)
 {
     uint32_t t = 0;
     
-    t += udp_checksum_summer((uint8_t *)&source_addr, sizeof(source_addr));
-    t += udp_checksum_summer((uint8_t *)&dest_addr, sizeof(dest_addr));
+    t += udp_checksum_summer((char *)&source_addr, sizeof(source_addr));
+    t += udp_checksum_summer((char *)&dest_addr, sizeof(dest_addr));
     
     uint16_t x;
     x = hton16(IPV4_PROTOCOL_UDP);
-    t += udp_checksum_summer((uint8_t *)&x, sizeof(x));
-    x = hton16(len);
-    t += udp_checksum_summer((uint8_t *)&x, sizeof(x));
+    t += udp_checksum_summer((char *)&x, sizeof(x));
+    x = hton16(sizeof(*header) + payload_len);
+    t += udp_checksum_summer((char *)&x, sizeof(x));
     
-    if (len % 2 == 0) {
-        t += udp_checksum_summer(udp, len);
+    t += udp_checksum_summer((const char *)header, sizeof(*header));
+    
+    if (payload_len % 2 == 0) {
+        t += udp_checksum_summer((const char *)payload, payload_len);
     } else {
-        t += udp_checksum_summer(udp, len - 1);
+        t += udp_checksum_summer((const char *)payload, payload_len - 1);
         
-        x = hton16(((uint16_t)udp[len - 1]) << 8);
-        t += udp_checksum_summer((uint8_t *)&x, sizeof(x));
+        x = hton16(((uint16_t)payload[payload_len - 1]) << 8);
+        t += udp_checksum_summer((char *)&x, sizeof(x));
     }
     
     while (t >> 16) {

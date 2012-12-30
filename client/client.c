@@ -1877,12 +1877,15 @@ void peer_resetpeer (struct peer_data *peer)
     peer_free_chat(peer);
     
     // build resetpeer packet
-    struct packetproto_header *pp_header = (struct packetproto_header *)peer->resetpeer_packet;
-    pp_header->len = htol16(sizeof(struct sc_header) + sizeof(struct sc_client_resetpeer));
-    struct sc_header *sc_header = (struct sc_header *)(pp_header + 1);
-    sc_header->type = htol8(SCID_RESETPEER);
-    struct sc_client_resetpeer *sc_resetpeer = (struct sc_client_resetpeer *)(sc_header + 1);
-    sc_resetpeer->clientid = htol16(peer->id);
+    struct packetproto_header pp_header;
+    struct sc_header sc_header;
+    struct sc_client_resetpeer sc_resetpeer;
+    pp_header.len = htol16(sizeof(struct sc_header) + sizeof(struct sc_client_resetpeer));
+    sc_header.type = htol8(SCID_RESETPEER);
+    sc_resetpeer.clientid = htol16(peer->id);
+    memcpy(peer->resetpeer_packet, &pp_header, sizeof(pp_header));
+    memcpy(peer->resetpeer_packet + sizeof(pp_header), &sc_header, sizeof(sc_header));
+    memcpy(peer->resetpeer_packet + sizeof(pp_header) + sizeof(sc_header), &sc_resetpeer, sizeof(sc_resetpeer));
     
     // init resetpeer sourse
     SinglePacketSource_Init(&peer->resetpeer_source, peer->resetpeer_packet, sizeof(peer->resetpeer_packet), BReactor_PendingGroup(&ss));

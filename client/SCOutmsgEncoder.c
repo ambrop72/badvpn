@@ -29,6 +29,7 @@
 
 #include <stddef.h>
 #include <limits.h>
+#include <string.h>
 
 #include <misc/balign.h>
 #include <misc/debug.h>
@@ -53,12 +54,14 @@ static void input_handler_done (SCOutmsgEncoder *o, int in_len)
     ASSERT(o->output_packet)
     
     // write SC header
-    struct sc_header *header = (struct sc_header *)o->output_packet;
-    header->type = htol8(SCID_OUTMSG);
+    struct sc_header header;
+    header.type = htol8(SCID_OUTMSG);
+    memcpy(o->output_packet, &header, sizeof(header));
     
     // write outmsg
-    struct sc_client_outmsg *outmsg = (struct sc_client_outmsg *)(header + 1);
-    outmsg->clientid = htol16(o->peer_id);
+    struct sc_client_outmsg outmsg;
+    outmsg.clientid = htol16(o->peer_id);
+    memcpy(o->output_packet + sizeof(header), &outmsg, sizeof(outmsg));
     
     // finish output packet
     o->output_packet = NULL;

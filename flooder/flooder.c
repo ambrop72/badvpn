@@ -656,11 +656,13 @@ void flood_source_handler_recv (void *user, uint8_t *data)
     
     BLog(BLOG_INFO, "message to %d", (int)peer_id);
     
-    struct sc_header *header = (struct sc_header *)data;
-    header->type = SCID_OUTMSG;
+    struct sc_header header;
+    header.type = SCID_OUTMSG;
+    memcpy(data, &header, sizeof(header));
     
-    struct sc_client_outmsg *msg = (struct sc_client_outmsg *)(data + sizeof(struct sc_header));
-    msg->clientid = htol16(peer_id);
+    struct sc_client_outmsg omsg;
+    omsg.clientid = htol16(peer_id);
+    memcpy(data + sizeof(header), &omsg, sizeof(omsg));
     
     memset(data + sizeof(struct sc_header) + sizeof(struct sc_client_outmsg), 0, SC_MAX_MSGLEN);
     

@@ -123,9 +123,10 @@ static void decode_work_func (SPProtoDecoder *o)
     // check OTP
     if (SPPROTO_HAVE_OTP(o->sp_params)) {
         // remember seed and OTP (can't check from here)
-        struct spproto_otpdata *header_otpd = (struct spproto_otpdata *)(header + SPPROTO_HEADER_OTPDATA_OFF(o->sp_params));
-        o->tw_out_seed_id = ltoh16(header_otpd->seed_id);
-        o->tw_out_otp = header_otpd->otp;
+        struct spproto_otpdata header_otpd;
+        memcpy(&header_otpd, header + SPPROTO_HEADER_OTPDATA_OFF(o->sp_params), sizeof(header_otpd));
+        o->tw_out_seed_id = ltoh16(header_otpd.seed_id);
+        o->tw_out_otp = header_otpd.otp;
     }
     
     // check hash

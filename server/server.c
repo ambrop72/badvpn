@@ -1333,8 +1333,9 @@ void client_end_control_packet (struct client_data *client, uint8_t type)
     ASSERT(client->output_control_packet_len <= SC_MAX_PAYLOAD)
     
     // write header
-    struct sc_header *header = (struct sc_header *)client->output_control_packet;
-    header->type = htol8(type);
+    struct sc_header header;
+    header.type = htol8(type);
+    memcpy(client->output_control_packet, &header, sizeof(header));
     
     // finish writing packet
     BufferWriter_EndPacket(client->output_control_input, sizeof(struct sc_header) + client->output_control_packet_len);
@@ -1367,14 +1368,16 @@ int client_send_newclient (struct client_data *client, struct client_data *nc, i
         cert_len = (client->version == SC_OLDVERSION_BROKENCERT ?  nc->cert_old_len : nc->cert_len);
     }
     
-    struct sc_server_newclient *pack;
-    if (client_start_control_packet(client, (void **)&pack, sizeof(struct sc_server_newclient) + cert_len) < 0) {
+    struct sc_server_newclient omsg;
+    void *pack;
+    if (client_start_control_packet(client, &pack, sizeof(omsg) + cert_len) < 0) {
         return -1;
     }
-    pack->id = htol16(nc->id);
-    pack->flags = htol16(flags);
+    omsg.id = htol16(nc->id);
+    omsg.flags = htol16(flags);
+    memcpy(pack, &omsg, sizeof(omsg));
     if (cert_len > 0) {
-        memcpy(pack + 1, cert_data, cert_len);
+        memcpy((char *)pack + sizeof(omsg), cert_data, cert_len);
     }
     client_end_control_packet(client, SCID_NEWCLIENT);
     
@@ -1386,11 +1389,13 @@ int client_send_endclient (struct client_data *client, peerid_t end_id)
     ASSERT(client->initstatus == INITSTATUS_COMPLETE)
     ASSERT(!client->dying)
     
-    struct sc_server_endclient *pack;
-    if (client_start_control_packet(client, (void **)&pack, sizeof(struct sc_server_endclient)) < 0) {
+    struct sc_server_endclient omsg;
+    void *pack;
+    if (client_start_control_packet(client, &pack, sizeof(omsg)) < 0) {
         return -1;
     }
-    pack->id = htol16(end_id);
+    omsg.id = htol16(end_id);
+    memcpy(pack, &omsg, sizeof(omsg));
     client_end_control_packet(client, SCID_ENDCLIENT);
     
     return 0;
@@ -1415,10 +1420,11 @@ void client_input_handler_send (struct client_data *client, uint8_t *data, int d
         client_remove(client);
         return;
     }
-    struct sc_header *header = (struct sc_header *)data;
-    data += sizeof(*header);
-    data_len -= sizeof(*header);
-    uint8_t type = ltoh8(header->type);
+    struct sc_header header;
+    memcpy(&header, data, sizeof(header));
+    data += sizeof(header);
+    data_len -= sizeof(header);
+    uint8_t type = ltoh8(header.type);
     
     ASSERT(data_len >= 0)
     ASSERT(data_len <= SC_MAX_PAYLOAD)
@@ -1461,8 +1467,9 @@ void process_packet_hello (struct client_data *client, uint8_t *data, int data_l
         return;
     }
     
-    struct sc_client_hello *msg = (struct sc_client_hello *)data;
-    client->version = ltoh16(msg->version);
+    struct sc_client_hello msg;
+    memcpy(&msg, data, sizeof(msg));
+    client->version = ltoh16(msg.version);
     
     switch (client->version) {
         case SC_VERSION:
@@ -1512,13 +1519,15 @@ void process_packet_hello (struct client_data *client, uint8_t *data, int data_l
     }
     
     // send hello
-    struct sc_server_hello *pack;
-    if (client_start_control_packet(client, (void **)&pack, sizeof(struct sc_server_hello)) < 0) {
+    struct sc_server_hello omsg;
+    void *pack;
+    if (client_start_control_packet(client, &pack, sizeof(omsg)) < 0) {
         return;
     }
-    pack->flags = htol16(0);
-    pack->id = htol16(client->id);
-    pack->clientAddr = (client->addr.type == BADDR_TYPE_IPV4 ? client->addr.ipv4.ip : hton32(0));
+    omsg.flags = htol16(0);
+    omsg.id = htol16(client->id);
+    omsg.clientAddr = (client->addr.type == BADDR_TYPE_IPV4 ? client->addr.ipv4.ip : hton32(0));
+    memcpy(pack, &omsg, sizeof(omsg));
     client_end_control_packet(client, SCID_SERVERHELLO);
     
     return;
@@ -1541,8 +1550,9 @@ void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_
         return;
     }
     
-    struct sc_client_outmsg *msg = (struct sc_client_outmsg *)data;
-    peerid_t id = ltoh16(msg->clientid);
+    struct sc_client_outmsg msg;
+    memcpy(&msg, data, sizeof(msg));
+    peerid_t id = ltoh16(msg.clientid);
     int payload_size = data_len - sizeof(struct sc_client_outmsg);
     
     if (payload_size > SC_MAX_MSGLEN) {
@@ -1583,15 +1593,17 @@ void process_packet_outmsg (struct client_data *client, uint8_t *data, int data_
 #endif
     
     // send packet
-    struct sc_server_inmsg *pack;
-    if (!peer_flow_start_packet(flow, (void **)&pack, sizeof(struct sc_server_inmsg) + payload_size)) {
+    struct sc_server_inmsg omsg;
+    void *pack;
+    if (!peer_flow_start_packet(flow, &pack, sizeof(omsg) + payload_size)) {
         // out of buffer, reset these two clients
         client_log(client, BLOG_WARNING, "out of buffer; resetting to %d", (int)flow->dest_client->id);
         peer_flow_start_reset(flow);
         return;
     }
-    pack->clientid = htol16(client->id);
-    memcpy((uint8_t *)(pack + 1), payload, payload_size);
+    omsg.clientid = htol16(client->id);
+    memcpy(pack, &omsg, sizeof(omsg));
+    memcpy((char *)pack + sizeof(omsg), payload, payload_size);
     peer_flow_end_packet(flow, SCID_INMSG);
 }
 
@@ -1609,8 +1621,9 @@ void process_packet_resetpeer (struct client_data *client, uint8_t *data, int da
         return;
     }
     
-    struct sc_client_resetpeer *msg = (struct sc_client_resetpeer *)data;
-    peerid_t id = ltoh16(msg->clientid);
+    struct sc_client_resetpeer msg;
+    memcpy(&msg, data, sizeof(msg));
+    peerid_t id = ltoh16(msg.clientid);
     
     // lookup flow to destination client
     struct peer_flow *flow = find_flow(client, id);
@@ -1651,8 +1664,9 @@ void process_packet_acceptpeer (struct client_data *client, uint8_t *data, int d
         return;
     }
     
-    struct sc_client_acceptpeer *msg = (struct sc_client_acceptpeer *)data;
-    peerid_t id = ltoh16(msg->clientid);
+    struct sc_client_acceptpeer msg;
+    memcpy(&msg, data, sizeof(msg));
+    peerid_t id = ltoh16(msg.clientid);
     
     // lookup flow to destination client
     struct peer_flow *flow = find_flow(client, id);
@@ -1851,8 +1865,9 @@ void peer_flow_end_packet (struct peer_flow *flow, uint8_t type)
     ASSERT(flow->packet_len <= SC_MAX_PAYLOAD)
     
     // write header
-    struct sc_header *header = (struct sc_header *)flow->packet;
-    header->type = type;
+    struct sc_header header;
+    header.type = type;
+    memcpy(flow->packet, &header, sizeof(header));
     
     // finish writing packet
     BufferWriter_EndPacket(flow->input, sizeof(struct sc_header) + flow->packet_len);

@@ -32,6 +32,7 @@
 #include <stdint.h>
 #include <limits.h>
 #include <inttypes.h>
+#include <string.h>
 
 #include <misc/byteorder.h>
 #include <misc/expstring.h>
@@ -344,10 +345,11 @@ static int build_requestproto_packet (uint32_t request_id, uint32_t type, NCDVal
     
     uint8_t *packet = (uint8_t *)ExpString_Get(&str);
     
-    struct header *header = (void *)packet;
-    header->pp.len = htol16(len - sizeof(struct packetproto_header));
-    header->rp.request_id = htol32(request_id);
-    header->rp.type = htol32(type);
+    struct header header;
+    header.pp.len = htol16(len - sizeof(struct packetproto_header));
+    header.rp.request_id = htol32(request_id);
+    header.rp.type = htol32(type);
+    memcpy(packet, &header, sizeof(header));
     
     *out_data = packet;
     *out_len = len;
@@ -366,12 +368,13 @@ static void build_nodata_packet (uint32_t request_id, uint32_t type, uint8_t *da
         struct requestproto_header rp;
     } __attribute__((packed));
     
-    struct header *header = (void *)data;
-    header->pp.len = htol16(sizeof(header->rp));
-    header->rp.request_id = htol32(request_id);
-    header->rp.type = htol32(type);
+    struct header header;
+    header.pp.len = htol16(sizeof(header.rp));
+    header.rp.request_id = htol32(request_id);
+    header.rp.type = htol32(type);
+    memcpy(data, &header, sizeof(header));
     
-    *out_len = sizeof(*header);
+    *out_len = sizeof(header);
 }
 
 static int req_is_aborted (struct NCDRequestClient_req *req)

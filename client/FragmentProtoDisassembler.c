@@ -54,11 +54,12 @@ static void write_chunks (FragmentProtoDisassembler *o)
         }
         
         // write chunk header
-        struct fragmentproto_chunk_header *header = (struct fragmentproto_chunk_header *)(o->out + o->out_used);
-        header->frame_id = htol16(o->frame_id);
-        header->chunk_start = htol16(o->in_used);
-        header->chunk_len = htol16(chunk_len);
-        header->is_last = (chunk_len == IN_AVAIL);
+        struct fragmentproto_chunk_header header;
+        header.frame_id = htol16(o->frame_id);
+        header.chunk_start = htol16(o->in_used);
+        header.chunk_len = htol16(chunk_len);
+        header.is_last = (chunk_len == IN_AVAIL);
+        memcpy(o->out + o->out_used, &header, sizeof(header));
         
         // write chunk data
         memcpy(o->out + o->out_used + sizeof(struct fragmentproto_chunk_header), o->in + o->in_used, chunk_len);

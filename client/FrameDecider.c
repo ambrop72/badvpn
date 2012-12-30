@@ -388,23 +388,24 @@ void FrameDecider_AnalyzeAndDecide (FrameDecider *o, const uint8_t *frame, int f
     if (len < sizeof(struct ethernet_header)) {
         return;
     }
-    struct ethernet_header *eh = (struct ethernet_header *)pos;
+    struct ethernet_header eh;
+    memcpy(&eh, pos, sizeof(eh));
     pos += sizeof(struct ethernet_header);
     len -= sizeof(struct ethernet_header);
     
     int is_igmp = 0;
     
-    switch (ntoh16(eh->type)) {
+    switch (ntoh16(eh.type)) {
         case ETHERTYPE_IPV4: {
             // check IPv4 header
-            struct ipv4_header *ipv4_header;
+            struct ipv4_header ipv4_header;
             if (!ipv4_check((uint8_t *)pos, len, &ipv4_header, (uint8_t **)&pos, &len)) {
                 BLog(BLOG_INFO, "decide: wrong IP packet");
                 goto out;
             }
             
             // check if it's IGMP
-            if (ntoh8(ipv4_header->protocol) != IPV4_PROTOCOL_IGMP) {
+            if (ntoh8(ipv4_header.protocol) != IPV4_PROTOCOL_IGMP) {
                 goto out;
             }
             
@@ -416,31 +417,34 @@ void FrameDecider_AnalyzeAndDecide (FrameDecider *o, const uint8_t *frame, int f
                 BLog(BLOG_INFO, "decide: IGMP: short packet");
                 goto out;
             }
-            struct igmp_base *igmp_base = (struct igmp_base *)pos;
+            struct igmp_base igmp_base;
+            memcpy(&igmp_base, pos, sizeof(igmp_base));
             pos += sizeof(struct igmp_base);
             len -= sizeof(struct igmp_base);
             
-            switch (ntoh8(igmp_base->type)) {
+            switch (ntoh8(igmp_base.type)) {
                 case IGMP_TYPE_MEMBERSHIP_QUERY: {
-                    if (len == sizeof(struct igmp_v2_extra) && ntoh8(igmp_base->max_resp_code) != 0) {
+                    if (len == sizeof(struct igmp_v2_extra) && ntoh8(igmp_base.max_resp_code) != 0) {
                         // V2 query
-                        struct igmp_v2_extra *query = (struct igmp_v2_extra *)pos;
+                        struct igmp_v2_extra query;
+                        memcpy(&query, pos, sizeof(query));
                         pos += sizeof(struct igmp_v2_extra);
                         len -= sizeof(struct igmp_v2_extra);
                         
-                        if (ntoh32(query->group) != 0) {
+                        if (ntoh32(query.group) != 0) {
                             // got a Group-Specific Query, lower group timers to LMQT
-                            lower_group_timers_to_lmqt(o, query->group);
+                            lower_group_timers_to_lmqt(o, query.group);
                         }
                     }
                     else if (len >= sizeof(struct igmp_v3_query_extra)) {
                         // V3 query
-                        struct igmp_v3_query_extra *query = (struct igmp_v3_query_extra *)pos;
+                        struct igmp_v3_query_extra query;
+                        memcpy(&query, pos, sizeof(query));
                         pos += sizeof(struct igmp_v3_query_extra);
                         len -= sizeof(struct igmp_v3_query_extra);
                         
                         // iterate sources
-                        uint16_t num_sources = ntoh16(query->number_of_sources);
+                        uint16_t num_sources = ntoh16(query.number_of_sources);
                         int i;
                         for (i = 0; i < num_sources; i++) {
                             // check source
@@ -452,9 +456,9 @@ void FrameDecider_AnalyzeAndDecide (FrameDecider *o, const uint8_t *frame, int f
                             len -= sizeof(struct igmp_source);
                         }
                         
-                        if (ntoh32(query->group) != 0 && num_sources == 0) {
+                        if (ntoh32(query.group) != 0 && num_sources == 0) {
                             // got a Group-Specific Query, lower group timers to LMQT
-                            lower_group_timers_to_lmqt(o, query->group);
+                            lower_group_timers_to_lmqt(o, query.group);
                         }
                     }
                 } break;
@@ -468,16 +472,16 @@ out:;
     const uint8_t multicast_mac_header[] = {0x01, 0x00, 0x5e};
     
     // if it's broadcast or IGMP, flood it
-    if (is_igmp || !memcmp(eh->dest, broadcast_mac, sizeof(broadcast_mac))) {
+    if (is_igmp || !memcmp(eh.dest, broadcast_mac, sizeof(broadcast_mac))) {
         o->decide_state = DECIDE_STATE_FLOOD;
         o->decide_flood_current = LinkedList1_GetFirst(&o->peers_list);
         return;
     }
     
     // if it's multicast, forward to all peers with the given sig
-    if (!memcmp(eh->dest, multicast_mac_header, sizeof(multicast_mac_header))) {
+    if (!memcmp(eh.dest, multicast_mac_header, sizeof(multicast_mac_header))) {
         // extract group's sig from destination MAC
-        uint32_t sig = compute_sig_for_mac(eh->dest);
+        uint32_t sig = compute_sig_for_mac(eh.dest);
         
         // look up the sig in multicast tree
         struct _FrameDecider_group_entry *master = FDMulticastTree_LookupExact(&o->multicast_tree, 0, sig);
@@ -492,7 +496,7 @@ out:;
     }
     
     // look for MAC entry
-    struct _FrameDecider_mac_entry *entry = FDMacsTree_LookupExact(&o->macs_tree, 0, eh->dest);
+    struct _FrameDecider_mac_entry *entry = FDMacsTree_LookupExact(&o->macs_tree, 0, eh.dest);
     if (entry) {
         o->decide_state = DECIDE_STATE_UNICAST;
         o->decide_unicast_peer = entry->peer;
@@ -675,24 +679,25 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int fr
     if (len < sizeof(struct ethernet_header)) {
         goto out;
     }
-    struct ethernet_header *eh = (struct ethernet_header *)pos;
+    struct ethernet_header eh;
+    memcpy(&eh, pos, sizeof(eh));
     pos += sizeof(struct ethernet_header);
     len -= sizeof(struct ethernet_header);
     
     // register source MAC address with this peer
-    add_mac_to_peer(o, eh->source);
+    add_mac_to_peer(o, eh.source);
     
-    switch (ntoh16(eh->type)) {
+    switch (ntoh16(eh.type)) {
         case ETHERTYPE_IPV4: {
             // check IPv4 header
-            struct ipv4_header *ipv4_header;
+            struct ipv4_header ipv4_header;
             if (!ipv4_check((uint8_t *)pos, len, &ipv4_header, (uint8_t **)&pos, &len)) {
                 PeerLog(o, BLOG_INFO, "analyze: wrong IP packet");
                 goto out;
             }
             
             // check if it's IGMP
-            if (ntoh8(ipv4_header->protocol) != IPV4_PROTOCOL_IGMP) {
+            if (ntoh8(ipv4_header.protocol) != IPV4_PROTOCOL_IGMP) {
                 goto out;
             }
             
@@ -701,23 +706,25 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int fr
                 PeerLog(o, BLOG_INFO, "analyze: IGMP: short packet");
                 goto out;
             }
-            struct igmp_base *igmp_base = (struct igmp_base *)pos;
+            struct igmp_base igmp_base;
+            memcpy(&igmp_base, pos, sizeof(igmp_base));
             pos += sizeof(struct igmp_base);
             len -= sizeof(struct igmp_base);
             
-            switch (ntoh8(igmp_base->type)) {
+            switch (ntoh8(igmp_base.type)) {
                 case IGMP_TYPE_V2_MEMBERSHIP_REPORT: {
                     // check extra
                     if (len < sizeof(struct igmp_v2_extra)) {
                         PeerLog(o, BLOG_INFO, "analyze: IGMP: short v2 report");
                         goto out;
                     }
-                    struct igmp_v2_extra *report = (struct igmp_v2_extra *)pos;
+                    struct igmp_v2_extra report;
+                    memcpy(&report, pos, sizeof(report));
                     pos += sizeof(struct igmp_v2_extra);
                     len -= sizeof(struct igmp_v2_extra);
                     
                     // add to group
-                    add_group_to_peer(o, report->group);
+                    add_group_to_peer(o, report.group);
                 } break;
                 
                 case IGMP_TYPE_V3_MEMBERSHIP_REPORT: {
@@ -726,24 +733,26 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int fr
                         PeerLog(o, BLOG_INFO, "analyze: IGMP: short v3 report");
                         goto out;
                     }
-                    struct igmp_v3_report_extra *report = (struct igmp_v3_report_extra *)pos;
+                    struct igmp_v3_report_extra report;
+                    memcpy(&report, pos, sizeof(report));
                     pos += sizeof(struct igmp_v3_report_extra);
                     len -= sizeof(struct igmp_v3_report_extra);
                     
                     // iterate records
-                    uint16_t num_records = ntoh16(report->number_of_group_records);
+                    uint16_t num_records = ntoh16(report.number_of_group_records);
                     for (int i = 0; i < num_records; i++) {
                         // check record
                         if (len < sizeof(struct igmp_v3_report_record)) {
                             PeerLog(o, BLOG_INFO, "analyze: IGMP: short record header");
                             goto out;
                         }
-                        struct igmp_v3_report_record *record = (struct igmp_v3_report_record *)pos;
+                        struct igmp_v3_report_record record;
+                        memcpy(&record, pos, sizeof(record));
                         pos += sizeof(struct igmp_v3_report_record);
                         len -= sizeof(struct igmp_v3_report_record);
                         
                         // iterate sources
-                        uint16_t num_sources = ntoh16(record->number_of_sources);
+                        uint16_t num_sources = ntoh16(record.number_of_sources);
                         int j;
                         for (j = 0; j < num_sources; j++) {
                             // check source
@@ -756,7 +765,7 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int fr
                         }
                         
                         // check aux data
-                        uint16_t aux_len = ntoh16(record->aux_data_len);
+                        uint16_t aux_len = ntoh16(record.aux_data_len);
                         if (len < aux_len) {
                             PeerLog(o, BLOG_INFO, "analyze: IGMP: short record aux data");
                             goto out;
@@ -764,16 +773,16 @@ void FrameDeciderPeer_Analyze (FrameDeciderPeer *o, const uint8_t *frame, int fr
                         pos += aux_len;
                         len -= aux_len;
                         
-                        switch (record->type) {
+                        switch (record.type) {
                             case IGMP_RECORD_TYPE_MODE_IS_INCLUDE:
                             case IGMP_RECORD_TYPE_CHANGE_TO_INCLUDE_MODE:
                                 if (num_sources != 0) {
-                                    add_group_to_peer(o, record->group);
+                                    add_group_to_peer(o, record.group);
                                 }
                                 break;
                             case IGMP_RECORD_TYPE_MODE_IS_EXCLUDE:
                             case IGMP_RECORD_TYPE_CHANGE_TO_EXCLUDE_MODE:
-                                add_group_to_peer(o, record->group);
+                                add_group_to_peer(o, record.group);
                                 break;
                         }
                     }

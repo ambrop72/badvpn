@@ -52,7 +52,7 @@
 #include <misc/byteorder.h>
 #include <misc/debug.h>
 #include <misc/print_macros.h>
-#include <misc/packed.h>
+#include <misc/read_write_int.h>
 
 #define BADDR_TYPE_NONE 0
 #define BADDR_TYPE_IPV4 1
@@ -422,13 +422,6 @@ void BAddr_SetPort (BAddr *addr, uint16_t port)
     }
 }
 
-B_START_PACKED
-struct _BAddr_ipv6_addr
-{
-    uint16_t addr[8];
-} B_PACKED;
-B_END_PACKED
-
 void BIPAddr_Print (BIPAddr *addr, char *out)
 {
     switch (addr->type) {
@@ -444,18 +437,18 @@ void BIPAddr_Print (BIPAddr *addr, char *out)
             );
             break;
         case BADDR_TYPE_IPV6: {
-            struct _BAddr_ipv6_addr *s = (struct _BAddr_ipv6_addr *)addr->ipv6;
+            const char *ptr = (void *)addr->ipv6;
             sprintf(out,
                 "%"PRIx16":%"PRIx16":%"PRIx16":%"PRIx16":"
                 "%"PRIx16":%"PRIx16":%"PRIx16":%"PRIx16,
-                ntoh16(s->addr[0]),
-                ntoh16(s->addr[1]),
-                ntoh16(s->addr[2]),
-                ntoh16(s->addr[3]),
-                ntoh16(s->addr[4]),
-                ntoh16(s->addr[5]),
-                ntoh16(s->addr[6]),
-                ntoh16(s->addr[7])
+                badvpn_read_be16(ptr + 0),
+                badvpn_read_be16(ptr + 2),
+                badvpn_read_be16(ptr + 4),
+                badvpn_read_be16(ptr + 6),
+                badvpn_read_be16(ptr + 8),
+                badvpn_read_be16(ptr + 10),
+                badvpn_read_be16(ptr + 12),
+                badvpn_read_be16(ptr + 14)
             );
         } break;
         default:

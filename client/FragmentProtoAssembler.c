@@ -293,12 +293,13 @@ static void process_input (FragmentProtoAssembler *o)
             PeerLog(o, BLOG_INFO, "too little data for chunk header");
             break;
         }
-        struct fragmentproto_chunk_header *header = (struct fragmentproto_chunk_header *)(o->in + o->in_pos);
+        struct fragmentproto_chunk_header header;
+        memcpy(&header, o->in + o->in_pos, sizeof(header));
         o->in_pos += sizeof(struct fragmentproto_chunk_header);
-        fragmentproto_frameid frame_id = ltoh16(header->frame_id);
-        int chunk_start = ltoh16(header->chunk_start);
-        int chunk_len = ltoh16(header->chunk_len);
-        int is_last = ltoh8(header->is_last);
+        fragmentproto_frameid frame_id = ltoh16(header.frame_id);
+        int chunk_start = ltoh16(header.chunk_start);
+        int chunk_len = ltoh16(header.chunk_len);
+        int is_last = ltoh8(header.is_last);
         
         // check is_last field
         if (!(is_last == 0 || is_last == 1)) {

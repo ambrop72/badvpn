@@ -915,7 +915,7 @@ int process_device_udp_packet (uint8_t *data, int data_len)
     }
     
     // parse IPv4 header
-    struct ipv4_header *ipv4_header;
+    struct ipv4_header ipv4_header;
     if (!ipv4_check(data, data_len, &ipv4_header, &data, &data_len)) {
         goto fail;
     }
@@ -924,21 +924,22 @@ int process_device_udp_packet (uint8_t *data, int data_len)
     if (data_len < sizeof(struct udp_header)) {
         goto fail;
     }
-    struct udp_header *udp_header = (struct udp_header *)data;
-    data += sizeof(*udp_header);
-    data_len -= sizeof(*udp_header);
+    struct udp_header udp_header;
+    memcpy(&udp_header, data, sizeof(udp_header));
+    data += sizeof(udp_header);
+    data_len -= sizeof(udp_header);
     
     // verify UDP payload
-    int udp_length = ntoh16(udp_header->length);
-    if (udp_length < sizeof(*udp_header)) {
+    int udp_length = ntoh16(udp_header.length);
+    if (udp_length < sizeof(udp_header)) {
         goto fail;
     }
-    if (udp_length > sizeof(*udp_header) + data_len) {
+    if (udp_length > sizeof(udp_header) + data_len) {
         goto fail;
     }
     
     // ignore stray data
-    data_len = udp_length - sizeof(*udp_header);
+    data_len = udp_length - sizeof(udp_header);
     
     // check payload length
     if (data_len > udp_mtu) {
@@ -946,10 +947,9 @@ int process_device_udp_packet (uint8_t *data, int data_len)
     }
     
     // verify UDP checksum
-    uint16_t checksum_in_packet = udp_header->checksum;
-    udp_header->checksum = 0;
-    uint16_t checksum_computed = udp_checksum((uint8_t *)udp_header, udp_length, ipv4_header->source_address, ipv4_header->destination_address);
-    udp_header->checksum = checksum_in_packet;
+    uint16_t checksum_in_packet = udp_header.checksum;
+    udp_header.checksum = 0;
+    uint16_t checksum_computed = udp_checksum(&udp_header, data, data_len, ipv4_header.source_address, ipv4_header.destination_address);
     if (checksum_in_packet != checksum_computed) {
         goto fail;
     }
@@ -958,9 +958,9 @@ int process_device_udp_packet (uint8_t *data, int data_len)
     
     // construct addresses
     BAddr local_addr;
-    BAddr_InitIPv4(&local_addr, ipv4_header->source_address, udp_header->source_port);
+    BAddr_InitIPv4(&local_addr, ipv4_header.source_address, udp_header.source_port);
     BAddr remote_addr;
-    BAddr_InitIPv4(&remote_addr, ipv4_header->destination_address, udp_header->dest_port);
+    BAddr_InitIPv4(&remote_addr, ipv4_header.destination_address, udp_header.dest_port);
     
     // submit packet to udpgw
     SocksUdpGwClient_SubmitPacket(&udpgw_client, local_addr, remote_addr, data, data_len);
@@ -1582,37 +1582,33 @@ void udpgw_client_handler_received (void *unused, BAddr local_addr, BAddr remote
     
     BLog(BLOG_INFO, "UDP: from udpgw %d bytes", data_len);
     
-    // write IP header
-    struct ipv4_header *iph = (struct ipv4_header *)device_write_buf;
-    iph->version4_ihl4 = IPV4_MAKE_VERSION_IHL(sizeof(*iph));
-    iph->ds = hton8(0);
-    iph->total_length = hton16(sizeof(*iph) + sizeof(struct udp_header) + data_len);
-    iph->identification = hton16(0);
-    iph->flags3_fragmentoffset13 = hton16(0);
-    iph->ttl = hton8(64);
-    iph->protocol = hton8(IPV4_PROTOCOL_UDP);
-    iph->checksum = hton16(0);
-    iph->source_address = remote_addr.ipv4.ip;
-    iph->destination_address = local_addr.ipv4.ip;
+    // build IP header
+    struct ipv4_header iph;
+    iph.version4_ihl4 = IPV4_MAKE_VERSION_IHL(sizeof(iph));
+    iph.ds = hton8(0);
+    iph.total_length = hton16(sizeof(iph) + sizeof(struct udp_header) + data_len);
+    iph.identification = hton16(0);
+    iph.flags3_fragmentoffset13 = hton16(0);
+    iph.ttl = hton8(64);
+    iph.protocol = hton8(IPV4_PROTOCOL_UDP);
+    iph.checksum = hton16(0);
+    iph.source_address = remote_addr.ipv4.ip;
+    iph.destination_address = local_addr.ipv4.ip;
+    iph.checksum = ipv4_checksum(&iph, NULL, 0);
     
-    // compute and write IP header checksum
-    uint32_t checksum = ipv4_checksum((uint8_t *)iph, sizeof(*iph));
-    iph->checksum = checksum;
+    // build UDP header
+    struct udp_header udph;
+    udph.source_port = remote_addr.ipv4.port;
+    udph.dest_port = local_addr.ipv4.port;
+    udph.length = hton16(sizeof(udph) + data_len);
+    udph.checksum = hton16(0);
+    udph.checksum = udp_checksum(&udph, data, data_len, iph.source_address, iph.destination_address);
     
-    // write UDP header
-    struct udp_header *udph = (struct udp_header *)(device_write_buf + sizeof(*iph));
-    udph->source_port = remote_addr.ipv4.port;
-    udph->dest_port = local_addr.ipv4.port;
-    udph->length = hton16(sizeof(*udph) + data_len);
-    udph->checksum = hton16(0);
-    
-    // write data
-    memcpy(device_write_buf + sizeof(*iph) + sizeof(struct udp_header), data, data_len);
-    
-    // compute checksum
-    checksum = udp_checksum((uint8_t *)udph, sizeof(*udph) + data_len, iph->source_address, iph->destination_address);
-    udph->checksum = checksum;
+    // write packet
+    memcpy(device_write_buf, &iph, sizeof(iph));
+    memcpy(device_write_buf + sizeof(iph), &udph, sizeof(udph));
+    memcpy(device_write_buf + sizeof(iph) + sizeof(udph), data, data_len);
     
     // submit packet
-    BTap_Send(&device, device_write_buf, sizeof(*iph) + sizeof(*udph) + data_len);
+    BTap_Send(&device, device_write_buf, sizeof(iph) + sizeof(udph) + data_len);
 }

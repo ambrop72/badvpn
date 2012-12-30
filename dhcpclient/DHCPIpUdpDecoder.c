@@ -28,6 +28,7 @@
  */
 
 #include <limits.h>
+#include <string.h>
 
 #include <misc/ipv4_proto.h>
 #include <misc/udp_proto.h>
@@ -48,7 +49,7 @@ static void input_handler_send (DHCPIpUdpDecoder *o, uint8_t *data, int data_len
     ASSERT(data_len >= 0)
     DebugObject_Access(&o->d_obj);
     
-    struct ipv4_header *iph;
+    struct ipv4_header iph;
     uint8_t *pl;
     int pl_len;
     
@@ -56,43 +57,43 @@ static void input_handler_send (DHCPIpUdpDecoder *o, uint8_t *data, int data_len
         goto fail;
     }
     
-    if (ntoh8(iph->protocol) != IPV4_PROTOCOL_UDP) {
+    if (ntoh8(iph.protocol) != IPV4_PROTOCOL_UDP) {
         goto fail;
     }
     
     if (pl_len < sizeof(struct udp_header)) {
         goto fail;
     }
-    struct udp_header *udph = (void *)pl;
+    struct udp_header udph;
+    memcpy(&udph, pl, sizeof(udph));
     
-    if (ntoh16(udph->source_port) != DHCP_SERVER_PORT) {
+    if (ntoh16(udph.source_port) != DHCP_SERVER_PORT) {
         goto fail;
     }
     
-    if (ntoh16(udph->dest_port) != DHCP_CLIENT_PORT) {
+    if (ntoh16(udph.dest_port) != DHCP_CLIENT_PORT) {
         goto fail;
     }
     
-    int udph_length = ntoh16(udph->length);
-    if (udph_length < sizeof(*udph)) {
+    int udph_length = ntoh16(udph.length);
+    if (udph_length < sizeof(udph)) {
         goto fail;
     }
     if (udph_length > data_len - (pl - data)) {
         goto fail;
     }
     
-    if (ntoh16(udph->checksum) != 0) {
-        uint16_t checksum_in_packet = udph->checksum;
-        udph->checksum = 0;
-        uint16_t checksum_computed = udp_checksum((uint8_t *)udph, udph_length, iph->source_address, iph->destination_address);
-        udph->checksum = checksum_in_packet;
+    if (ntoh16(udph.checksum) != 0) {
+        uint16_t checksum_in_packet = udph.checksum;
+        udph.checksum = 0;
+        uint16_t checksum_computed = udp_checksum(&udph, pl + sizeof(udph), udph_length - sizeof(udph), iph.source_address, iph.destination_address);
         if (checksum_in_packet != checksum_computed) {
             goto fail;
         }
     }
     
     // pass payload to output
-    PacketPassInterface_Sender_Send(o->output, (uint8_t *)(udph + 1), udph_length - sizeof(*udph));
+    PacketPassInterface_Sender_Send(o->output, pl + sizeof(udph), udph_length - sizeof(udph));
     
     return;
     

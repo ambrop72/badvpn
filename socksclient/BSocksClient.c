@@ -27,6 +27,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <string.h>
+
 #include <misc/byteorder.h>
 #include <misc/balloc.h>
 #include <base/BLog.h>
@@ -172,7 +174,7 @@ void connector_handler (BSocksClient* o, int is_error)
     
     // allocate buffer for sending hello
     bsize_t size = bsize_add(
-        bsize_fromsize(sizeof(struct BSocksClient__client_hello)), 
+        bsize_fromsize(sizeof(struct socks_client_hello_header)), 
         bsize_mul(
             bsize_fromsize(o->num_auth_info),
             bsize_fromsize(sizeof(struct socks_client_hello_method))
@@ -182,12 +184,17 @@ void connector_handler (BSocksClient* o, int is_error)
         goto fail1;
     }
     
-    // build hello
-    struct BSocksClient__client_hello *omsg = (void *)o->buffer;
-    omsg->header.ver = hton8(SOCKS_VERSION);
-    omsg->header.nmethods = hton8(o->num_auth_info);
+    // write hello header
+    struct socks_client_hello_header header;
+    header.ver = hton8(SOCKS_VERSION);
+    header.nmethods = hton8(o->num_auth_info);
+    memcpy(o->buffer, &header, sizeof(header));
+    
+    // write hello methods
     for (size_t i = 0; i < o->num_auth_info; i++) {
-        omsg->methods[i].method = hton8(o->auth_info[i].auth_type);
+        struct socks_client_hello_method method;
+        method.method = hton8(o->auth_info[i].auth_type);
+        memcpy(o->buffer + sizeof(header) + i * sizeof(method), &method, sizeof(method));
     }
     
     // send
@@ -237,16 +244,17 @@ void recv_handler_done (BSocksClient *o, int data_len)
         case STATE_SENT_HELLO: {
             BLog(BLOG_DEBUG, "received hello");
             
-            struct socks_server_hello *imsg = (void *)o->buffer;
+            struct socks_server_hello imsg;
+            memcpy(&imsg, o->buffer, sizeof(imsg));
             
-            if (ntoh8(imsg->ver) != SOCKS_VERSION) {
+            if (ntoh8(imsg.ver) != SOCKS_VERSION) {
                 BLog(BLOG_NOTICE, "wrong version");
                 goto fail;
             }
             
             size_t auth_index;
             for (auth_index = 0; auth_index < o->num_auth_info; auth_index++) {
-                if (o->auth_info[auth_index].auth_type == ntoh8(imsg->method)) {
+                if (o->auth_info[auth_index].auth_type == ntoh8(imsg.method)) {
                     break;
                 }
             }
@@ -305,20 +313,21 @@ void recv_handler_done (BSocksClient *o, int data_len)
         case STATE_SENT_REQUEST: {
             BLog(BLOG_DEBUG, "received reply header");
             
-            struct BSocksClient__reply *imsg = (void *)o->buffer;
+            struct socks_reply_header imsg;
+            memcpy(&imsg, o->buffer, sizeof(imsg));
             
-            if (ntoh8(imsg->header.ver) != SOCKS_VERSION) {
+            if (ntoh8(imsg.ver) != SOCKS_VERSION) {
                 BLog(BLOG_NOTICE, "wrong version");
                 goto fail;
             }
             
-            if (ntoh8(imsg->header.rep) != SOCKS_REP_SUCCEEDED) {
+            if (ntoh8(imsg.rep) != SOCKS_REP_SUCCEEDED) {
                 BLog(BLOG_NOTICE, "reply not successful");
                 goto fail;
             }
             
             int addr_len;
-            switch (ntoh8(imsg->header.atyp)) {
+            switch (ntoh8(imsg.atyp)) {
                 case SOCKS_ATYP_IPV4:
                     addr_len = sizeof(struct socks_addr_ipv4);
                     break;
@@ -331,7 +340,7 @@ void recv_handler_done (BSocksClient *o, int data_len)
             }
             
             // receive the rest of the reply
-            start_receive(o, (uint8_t *)&imsg->addr, addr_len);
+            start_receive(o, (uint8_t *)o->buffer + sizeof(imsg), addr_len);
             
             // set state
             o->state = STATE_RECEIVED_REPLY_HEADER;
@@ -410,7 +419,10 @@ void send_handler_done (BSocksClient *o)
             BLog(BLOG_DEBUG, "sent request");
             
             // allocate buffer for receiving reply
-            bsize_t size = bsize_fromsize(sizeof(struct BSocksClient__reply));
+            bsize_t size = bsize_add(
+                bsize_fromsize(sizeof(struct socks_reply_header)),
+                bsize_max(bsize_fromsize(sizeof(struct socks_addr_ipv4)), bsize_fromsize(sizeof(struct socks_addr_ipv6)))
+            );
             if (!reserve_buffer(o, size)) {
                 goto fail;
             }
@@ -461,25 +473,32 @@ void auth_finished (BSocksClient *o)
         return;
     }
     
-    // send request
-    struct BSocksClient__request *omsg = (void *)o->buffer;
-    omsg->header.ver = hton8(SOCKS_VERSION);
-    omsg->header.cmd = hton8(SOCKS_CMD_CONNECT);
-    omsg->header.rsv = hton8(0);
+    // write request
+    struct socks_request_header header;
+    header.ver = hton8(SOCKS_VERSION);
+    header.cmd = hton8(SOCKS_CMD_CONNECT);
+    header.rsv = hton8(0);
     switch (o->dest_addr.type) {
-        case BADDR_TYPE_IPV4:
-            omsg->header.atyp = hton8(SOCKS_ATYP_IPV4);
-            omsg->addr.ipv4.addr = o->dest_addr.ipv4.ip;
-            omsg->addr.ipv4.port = o->dest_addr.ipv4.port;
-            break;
-        case BADDR_TYPE_IPV6:
-            omsg->header.atyp = hton8(SOCKS_ATYP_IPV6);
-            memcpy(omsg->addr.ipv6.addr, o->dest_addr.ipv6.ip, sizeof(o->dest_addr.ipv6.ip));
-            omsg->addr.ipv6.port = o->dest_addr.ipv6.port;
-            break;
+        case BADDR_TYPE_IPV4: {
+            header.atyp = hton8(SOCKS_ATYP_IPV4);
+            struct socks_addr_ipv4 addr;
+            addr.addr = o->dest_addr.ipv4.ip;
+            addr.port = o->dest_addr.ipv4.port;
+            memcpy(o->buffer + sizeof(header), &addr, sizeof(addr));
+        } break;
+        case BADDR_TYPE_IPV6: {
+            header.atyp = hton8(SOCKS_ATYP_IPV6);
+            struct socks_addr_ipv6 addr;
+            memcpy(addr.addr, o->dest_addr.ipv6.ip, sizeof(o->dest_addr.ipv6.ip));
+            addr.port = o->dest_addr.ipv6.port;
+            memcpy(o->buffer + sizeof(header), &addr, sizeof(addr));
+        } break;
         default:
             ASSERT(0);
     }
+    memcpy(o->buffer, &header, sizeof(header));
+    
+    // send request
     PacketPassInterface_Sender_Send(o->control.send_if, (uint8_t *)o->buffer, size.value);
     
     // set state

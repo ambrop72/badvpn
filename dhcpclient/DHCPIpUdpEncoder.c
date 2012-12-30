@@ -28,6 +28,8 @@
  */
 
 #include <limits.h>
+#include <string.h>
+#include <stddef.h>
 
 #include <misc/ipv4_proto.h>
 #include <misc/udp_proto.h>
@@ -58,10 +60,10 @@ static void input_handler_done (DHCPIpUdpEncoder *o, int data_len)
 {
     DebugObject_Access(&o->d_obj);
     
-    struct combined_header *header = (void *)o->data;
+    struct combined_header header;
     
     // write IP header
-    struct ipv4_header *iph = &header->ip;
+    struct ipv4_header *iph = &header.ip;
     iph->version4_ihl4 = IPV4_MAKE_VERSION_IHL(sizeof(*iph));
     iph->ds = hton8(0);
     iph->total_length = hton16(sizeof(struct combined_header) + data_len);
@@ -72,21 +74,18 @@ static void input_handler_done (DHCPIpUdpEncoder *o, int data_len)
     iph->checksum = hton16(0);
     iph->source_address = hton32(0x00000000);
     iph->destination_address = hton32(0xFFFFFFFF);
-    
-    // compute and write IP header checksum
-    uint32_t checksum = ipv4_checksum((uint8_t *)iph, sizeof(*iph));
-    iph->checksum = checksum;
+    iph->checksum = ipv4_checksum(iph, NULL, 0);
     
     // write UDP header
-    struct udp_header *udph = &header->udp;
+    struct udp_header *udph = &header.udp;
     udph->source_port = hton16(DHCP_CLIENT_PORT);
     udph->dest_port = hton16(DHCP_SERVER_PORT);
     udph->length = hton16(sizeof(*udph) + data_len);
     udph->checksum = hton16(0);
+    udph->checksum = udp_checksum(udph, o->data + sizeof(struct combined_header), data_len, iph->source_address, iph->destination_address);
     
-    // compute checksum
-    checksum = udp_checksum((uint8_t *)udph, sizeof(*udph) + data_len, iph->source_address, iph->destination_address);
-    udph->checksum = checksum;
+    // write header
+    memcpy(o->data, &header, sizeof(header));
     
     // finish packet
     PacketRecvInterface_Done(&o->output, sizeof(struct combined_header) + data_len);

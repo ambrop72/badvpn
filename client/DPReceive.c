@@ -29,6 +29,7 @@
 
 #include <stddef.h>
 #include <limits.h>
+#include <string.h>
 
 #include <protocol/dataproto.h>
 #include <misc/byteorder.h>
@@ -71,12 +72,13 @@ static void receiver_recv_handler_send (DPReceiveReceiver *o, uint8_t *packet, i
         BLog(BLOG_WARNING, "no dataproto header");
         goto out;
     }
-    struct dataproto_header *header = (struct dataproto_header *)data;
-    data += sizeof(*header);
-    data_len -= sizeof(*header);
-    uint8_t flags = ltoh8(header->flags);
-    peerid_t from_id = ltoh16(header->from_id);
-    int num_ids = ltoh16(header->num_peer_ids);
+    struct dataproto_header header;
+    memcpy(&header, data, sizeof(header));
+    data += sizeof(header);
+    data_len -= sizeof(header);
+    uint8_t flags = ltoh8(header.flags);
+    peerid_t from_id = ltoh16(header.from_id);
+    int num_ids = ltoh16(header.num_peer_ids);
     
     // check destination ID
     if (!(num_ids == 0 || num_ids == 1)) {
@@ -85,13 +87,15 @@ static void receiver_recv_handler_send (DPReceiveReceiver *o, uint8_t *packet, i
     }
     peerid_t to_id = 0; // to remove warning
     if (num_ids == 1) {
-        if (data_len < sizeof(to_id)) {
+        if (data_len < sizeof(struct dataproto_peer_id)) {
             BLog(BLOG_WARNING, "missing destination");
             goto out;
         }
-        to_id = ((struct dataproto_peer_id *)data)->id;
-        data += sizeof(to_id);
-        data_len -= sizeof(to_id);
+        struct dataproto_peer_id id;
+        memcpy(&id, data, sizeof(id));
+        to_id = ltoh16(id.id);
+        data += sizeof(id);
+        data_len -= sizeof(id);
     }
     
     // check remaining data

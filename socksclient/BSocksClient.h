@@ -62,33 +62,6 @@
  */
 typedef void (*BSocksClient_handler) (void *user, int event);
 
-B_START_PACKED
-struct BSocksClient__client_hello {
-    struct socks_client_hello_header header;
-    struct socks_client_hello_method methods[];
-} B_PACKED;
-B_END_PACKED
-
-B_START_PACKED
-struct BSocksClient__request {
-    struct socks_request_header header;
-    union {
-        struct socks_addr_ipv4 ipv4;
-        struct socks_addr_ipv6 ipv6;
-    } addr;
-} B_PACKED;
-B_END_PACKED
-
-B_START_PACKED
-struct BSocksClient__reply {
-    struct socks_reply_header header;
-    union {
-        struct socks_addr_ipv4 ipv4;
-        struct socks_addr_ipv6 ipv6;
-    } addr;
-} B_PACKED;
-B_END_PACKED
-
 struct BSocksClient_auth_info {
     int auth_type;
     union {

@@ -27,6 +27,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <string.h>
+
 #include <protocol/dataproto.h>
 #include <misc/byteorder.h>
 
@@ -36,10 +38,11 @@ static void output_handler_recv (DataProtoKeepaliveSource *o, uint8_t *data)
 {
     DebugObject_Access(&o->d_obj);
     
-    struct dataproto_header *header = (struct dataproto_header *)data;
-    header->flags = htol8(0);
-    header->from_id = htol16(0);
-    header->num_peer_ids = htol16(0);
+    struct dataproto_header header;
+    header.flags = htol8(0);
+    header.from_id = htol16(0);
+    header.num_peer_ids = htol16(0);
+    memcpy(data, &header, sizeof(header));
     
     // finish packet
     PacketRecvInterface_Done(&o->output, sizeof(struct dataproto_header));
