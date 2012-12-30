@@ -198,6 +198,7 @@ function generate_header ($name, $directives, $messages) {
 */
 
 #include <stdint.h>
+#include <string.h>
 
 #include <misc/debug.h>
 #include <misc/byteorder.h>
@@ -351,8 +352,10 @@ EOD;
     {$add_count_assert}
     {$add_length_assert}
 
-    ((struct BProto_header_s *)(o->out + o->used))->id = htol16({$entry["id"]});
-    ((struct BProto_header_s *)(o->out + o->used))->type = htol16({$type});
+    struct BProto_header_s header;
+    header.id = htol16({$entry["id"]});
+    header.type = htol16({$type});
+    memcpy(o->out + o->used, &header, sizeof(header));
     o->used += sizeof(struct BProto_header_s);
 
 
@@ -360,14 +363,18 @@ EOD;
             switch ($entry["type"]["type"]) {
                 case "uint":
                     echo <<<EOD
-    ((struct BProto_uint{$entry["type"]["size"]}_s *)(o->out + o->used))->v = htol{$entry["type"]["size"]}(v);
+    struct BProto_uint{$entry["type"]["size"]}_s data;
+    data.v = htol{$entry["type"]["size"]}(v);
+    memcpy(o->out + o->used, &data, sizeof(data));
     o->used += sizeof(struct BProto_uint{$entry["type"]["size"]}_s);
 
 EOD;
                     break;
                 case "data":
                     echo <<<EOD
-    ((struct BProto_data_header_s *)(o->out + o->used))->len = htol32(len);
+    struct BProto_data_header_s data;
+    data.len = htol32(len);
+    memcpy(o->out + o->used, &data, sizeof(data));
     o->used += sizeof(struct BProto_data_header_s);
 
     uint8_t *dest = (o->out + o->used);
@@ -377,7 +384,9 @@ EOD;
                     break;
                 case "constdata":
                     echo <<<EOD
-    ((struct BProto_data_header_s *)(o->out + o->used))->len = htol32({$entry["type"]["size"]});
+    struct BProto_data_header_s data;
+    data.len = htol32({$entry["type"]["size"]});
+    memcpy(o->out + o->used, &data, sizeof(data));
     o->used += sizeof(struct BProto_data_header_s);
 
     uint8_t *dest = (o->out + o->used);
@@ -451,11 +460,12 @@ EOD;
         if (!(left >= sizeof(struct BProto_header_s))) {
             return 0;
         }
-        struct BProto_header_s *header = (struct BProto_header_s *)(o->buf + pos);
+        struct BProto_header_s header;
+        memcpy(&header, o->buf + pos, sizeof(header));
         pos += sizeof(struct BProto_header_s);
         left -= sizeof(struct BProto_header_s);
-        uint16_t type = ltoh16(header->type);
-        uint16_t id = ltoh16(header->id);
+        uint16_t type = ltoh16(header.type);
+        uint16_t id = ltoh16(header.id);
 
         switch (type) {
 
@@ -507,11 +517,12 @@ EOD;
                 if (!(left >= sizeof(struct BProto_data_header_s))) {
                     return 0;
                 }
-                struct BProto_data_header_s *val = (struct BProto_data_header_s *)(o->buf + pos);
+                struct BProto_data_header_s val;
+                memcpy(&val, o->buf + pos, sizeof(val));
                 pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                uint32_t payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val.len);
                 if (!(left >= payload_len)) {
                     return 0;
                 }
@@ -644,11 +655,12 @@ EOD;
 
     while (left > 0) {
         ASSERT(left >= sizeof(struct BProto_header_s))
-        struct BProto_header_s *header = (struct BProto_header_s *)(o->buf + o->{$entry["name"]}_start + o->{$entry["name"]}_pos);
+        struct BProto_header_s header;
+        memcpy(&header, o->buf + o->{$entry["name"]}_start + o->{$entry["name"]}_pos, sizeof(header));
         o->{$entry["name"]}_pos += sizeof(struct BProto_header_s);
         left -= sizeof(struct BProto_header_s);
-        uint16_t type = ltoh16(header->type);
-        uint16_t id = ltoh16(header->id);
+        uint16_t type = ltoh16(header.type);
+        uint16_t id = ltoh16(header.id);
 
         switch (type) {
 
@@ -662,7 +674,8 @@ EOD;
 EOD;
                 if ($entry["type"]["type"] == "uint" && $entry["type"]["size"] == $bits) {
                     echo <<<EOD
-                struct BProto_uint{$bits}_s *val = (struct BProto_uint{$bits}_s *)(o->buf + o->{$entry["name"]}_start + o->{$entry["name"]}_pos);
+                struct BProto_uint{$bits}_s val;
+                memcpy(&val, o->buf + o->{$entry["name"]}_start + o->{$entry["name"]}_pos, sizeof(val));
 
 EOD;
                 }
@@ -675,7 +688,7 @@ EOD;
                     echo <<<EOD
 
                 if (id == {$entry["id"]}) {
-                    *v = ltoh{$bits}(val->v);
+                    *v = ltoh{$bits}(val.v);
                     return 1;
                 }
 
@@ -693,11 +706,12 @@ EOD;
             case BPROTO_TYPE_CONSTDATA:
             {
                 ASSERT(left >= sizeof(struct BProto_data_header_s))
-                struct BProto_data_header_s *val = (struct BProto_data_header_s *)(o->buf + o->{$entry["name"]}_start + o->{$entry["name"]}_pos);
+                struct BProto_data_header_s val;
+                memcpy(&val, o->buf + o->{$entry["name"]}_start + o->{$entry["name"]}_pos, sizeof(val));
                 o->{$entry["name"]}_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                uint32_t payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val.len);
                 ASSERT(left >= payload_len)
 
 EOD;

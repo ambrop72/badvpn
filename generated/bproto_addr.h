@@ -4,6 +4,7 @@
 */
 
 #include <stdint.h>
+#include <string.h>
 
 #include <misc/debug.h>
 #include <misc/byteorder.h>
@@ -90,11 +91,15 @@ void addrWriter_Addtype (addrWriter *o, uint8_t v)
     ASSERT(o->type_count == 0)
     
 
-    ((struct BProto_header_s *)(o->out + o->used))->id = htol16(1);
-    ((struct BProto_header_s *)(o->out + o->used))->type = htol16(BPROTO_TYPE_UINT8);
+    struct BProto_header_s header;
+    header.id = htol16(1);
+    header.type = htol16(BPROTO_TYPE_UINT8);
+    memcpy(o->out + o->used, &header, sizeof(header));
     o->used += sizeof(struct BProto_header_s);
 
-    ((struct BProto_uint8_s *)(o->out + o->used))->v = htol8(v);
+    struct BProto_uint8_s data;
+    data.v = htol8(v);
+    memcpy(o->out + o->used, &data, sizeof(data));
     o->used += sizeof(struct BProto_uint8_s);
 
     o->type_count++;
@@ -106,11 +111,15 @@ uint8_t * addrWriter_Addip_port (addrWriter *o)
     ASSERT(o->ip_port_count == 0)
     
 
-    ((struct BProto_header_s *)(o->out + o->used))->id = htol16(2);
-    ((struct BProto_header_s *)(o->out + o->used))->type = htol16(BPROTO_TYPE_CONSTDATA);
+    struct BProto_header_s header;
+    header.id = htol16(2);
+    header.type = htol16(BPROTO_TYPE_CONSTDATA);
+    memcpy(o->out + o->used, &header, sizeof(header));
     o->used += sizeof(struct BProto_header_s);
 
-    ((struct BProto_data_header_s *)(o->out + o->used))->len = htol32(2);
+    struct BProto_data_header_s data;
+    data.len = htol32(2);
+    memcpy(o->out + o->used, &data, sizeof(data));
     o->used += sizeof(struct BProto_data_header_s);
 
     uint8_t *dest = (o->out + o->used);
@@ -127,11 +136,15 @@ uint8_t * addrWriter_Addipv4_addr (addrWriter *o)
     ASSERT(o->ipv4_addr_count == 0)
     
 
-    ((struct BProto_header_s *)(o->out + o->used))->id = htol16(3);
-    ((struct BProto_header_s *)(o->out + o->used))->type = htol16(BPROTO_TYPE_CONSTDATA);
+    struct BProto_header_s header;
+    header.id = htol16(3);
+    header.type = htol16(BPROTO_TYPE_CONSTDATA);
+    memcpy(o->out + o->used, &header, sizeof(header));
     o->used += sizeof(struct BProto_header_s);
 
-    ((struct BProto_data_header_s *)(o->out + o->used))->len = htol32(4);
+    struct BProto_data_header_s data;
+    data.len = htol32(4);
+    memcpy(o->out + o->used, &data, sizeof(data));
     o->used += sizeof(struct BProto_data_header_s);
 
     uint8_t *dest = (o->out + o->used);
@@ -148,11 +161,15 @@ uint8_t * addrWriter_Addipv6_addr (addrWriter *o)
     ASSERT(o->ipv6_addr_count == 0)
     
 
-    ((struct BProto_header_s *)(o->out + o->used))->id = htol16(4);
-    ((struct BProto_header_s *)(o->out + o->used))->type = htol16(BPROTO_TYPE_CONSTDATA);
+    struct BProto_header_s header;
+    header.id = htol16(4);
+    header.type = htol16(BPROTO_TYPE_CONSTDATA);
+    memcpy(o->out + o->used, &header, sizeof(header));
     o->used += sizeof(struct BProto_header_s);
 
-    ((struct BProto_data_header_s *)(o->out + o->used))->len = htol32(16);
+    struct BProto_data_header_s data;
+    data.len = htol32(16);
+    memcpy(o->out + o->used, &data, sizeof(data));
     o->used += sizeof(struct BProto_data_header_s);
 
     uint8_t *dest = (o->out + o->used);
@@ -196,11 +213,12 @@ int addrParser_Init (addrParser *o, uint8_t *buf, int buf_len)
         if (!(left >= sizeof(struct BProto_header_s))) {
             return 0;
         }
-        struct BProto_header_s *header = (struct BProto_header_s *)(o->buf + pos);
+        struct BProto_header_s header;
+        memcpy(&header, o->buf + pos, sizeof(header));
         pos += sizeof(struct BProto_header_s);
         left -= sizeof(struct BProto_header_s);
-        uint16_t type = ltoh16(header->type);
-        uint16_t id = ltoh16(header->id);
+        uint16_t type = ltoh16(header.type);
+        uint16_t id = ltoh16(header.id);
 
         switch (type) {
             case BPROTO_TYPE_UINT8: {
@@ -264,11 +282,12 @@ int addrParser_Init (addrParser *o, uint8_t *buf, int buf_len)
                 if (!(left >= sizeof(struct BProto_data_header_s))) {
                     return 0;
                 }
-                struct BProto_data_header_s *val = (struct BProto_data_header_s *)(o->buf + pos);
+                struct BProto_data_header_s val;
+                memcpy(&val, o->buf + pos, sizeof(val));
                 pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                uint32_t payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val.len);
                 if (!(left >= payload_len)) {
                     return 0;
                 }
@@ -362,21 +381,23 @@ int addrParser_Gettype (addrParser *o, uint8_t *v)
 
     while (left > 0) {
         ASSERT(left >= sizeof(struct BProto_header_s))
-        struct BProto_header_s *header = (struct BProto_header_s *)(o->buf + o->type_start + o->type_pos);
+        struct BProto_header_s header;
+        memcpy(&header, o->buf + o->type_start + o->type_pos, sizeof(header));
         o->type_pos += sizeof(struct BProto_header_s);
         left -= sizeof(struct BProto_header_s);
-        uint16_t type = ltoh16(header->type);
-        uint16_t id = ltoh16(header->id);
+        uint16_t type = ltoh16(header.type);
+        uint16_t id = ltoh16(header.id);
 
         switch (type) {
             case BPROTO_TYPE_UINT8: {
                 ASSERT(left >= sizeof(struct BProto_uint8_s))
-                struct BProto_uint8_s *val = (struct BProto_uint8_s *)(o->buf + o->type_start + o->type_pos);
+                struct BProto_uint8_s val;
+                memcpy(&val, o->buf + o->type_start + o->type_pos, sizeof(val));
                 o->type_pos += sizeof(struct BProto_uint8_s);
                 left -= sizeof(struct BProto_uint8_s);
 
                 if (id == 1) {
-                    *v = ltoh8(val->v);
+                    *v = ltoh8(val.v);
                     return 1;
                 }
             } break;
@@ -399,11 +420,12 @@ int addrParser_Gettype (addrParser *o, uint8_t *v)
             case BPROTO_TYPE_CONSTDATA:
             {
                 ASSERT(left >= sizeof(struct BProto_data_header_s))
-                struct BProto_data_header_s *val = (struct BProto_data_header_s *)(o->buf + o->type_start + o->type_pos);
+                struct BProto_data_header_s val;
+                memcpy(&val, o->buf + o->type_start + o->type_pos, sizeof(val));
                 o->type_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                uint32_t payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val.len);
                 ASSERT(left >= payload_len)
                 o->type_pos += payload_len;
                 left -= payload_len;
@@ -435,11 +457,12 @@ int addrParser_Getip_port (addrParser *o, uint8_t **data)
 
     while (left > 0) {
         ASSERT(left >= sizeof(struct BProto_header_s))
-        struct BProto_header_s *header = (struct BProto_header_s *)(o->buf + o->ip_port_start + o->ip_port_pos);
+        struct BProto_header_s header;
+        memcpy(&header, o->buf + o->ip_port_start + o->ip_port_pos, sizeof(header));
         o->ip_port_pos += sizeof(struct BProto_header_s);
         left -= sizeof(struct BProto_header_s);
-        uint16_t type = ltoh16(header->type);
-        uint16_t id = ltoh16(header->id);
+        uint16_t type = ltoh16(header.type);
+        uint16_t id = ltoh16(header.id);
 
         switch (type) {
             case BPROTO_TYPE_UINT8: {
@@ -466,11 +489,12 @@ int addrParser_Getip_port (addrParser *o, uint8_t **data)
             case BPROTO_TYPE_CONSTDATA:
             {
                 ASSERT(left >= sizeof(struct BProto_data_header_s))
-                struct BProto_data_header_s *val = (struct BProto_data_header_s *)(o->buf + o->ip_port_start + o->ip_port_pos);
+                struct BProto_data_header_s val;
+                memcpy(&val, o->buf + o->ip_port_start + o->ip_port_pos, sizeof(val));
                 o->ip_port_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                uint32_t payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val.len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->ip_port_start + o->ip_port_pos;
                 o->ip_port_pos += payload_len;
@@ -508,11 +532,12 @@ int addrParser_Getipv4_addr (addrParser *o, uint8_t **data)
 
     while (left > 0) {
         ASSERT(left >= sizeof(struct BProto_header_s))
-        struct BProto_header_s *header = (struct BProto_header_s *)(o->buf + o->ipv4_addr_start + o->ipv4_addr_pos);
+        struct BProto_header_s header;
+        memcpy(&header, o->buf + o->ipv4_addr_start + o->ipv4_addr_pos, sizeof(header));
         o->ipv4_addr_pos += sizeof(struct BProto_header_s);
         left -= sizeof(struct BProto_header_s);
-        uint16_t type = ltoh16(header->type);
-        uint16_t id = ltoh16(header->id);
+        uint16_t type = ltoh16(header.type);
+        uint16_t id = ltoh16(header.id);
 
         switch (type) {
             case BPROTO_TYPE_UINT8: {
@@ -539,11 +564,12 @@ int addrParser_Getipv4_addr (addrParser *o, uint8_t **data)
             case BPROTO_TYPE_CONSTDATA:
             {
                 ASSERT(left >= sizeof(struct BProto_data_header_s))
-                struct BProto_data_header_s *val = (struct BProto_data_header_s *)(o->buf + o->ipv4_addr_start + o->ipv4_addr_pos);
+                struct BProto_data_header_s val;
+                memcpy(&val, o->buf + o->ipv4_addr_start + o->ipv4_addr_pos, sizeof(val));
                 o->ipv4_addr_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                uint32_t payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val.len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->ipv4_addr_start + o->ipv4_addr_pos;
                 o->ipv4_addr_pos += payload_len;
@@ -581,11 +607,12 @@ int addrParser_Getipv6_addr (addrParser *o, uint8_t **data)
 
     while (left > 0) {
         ASSERT(left >= sizeof(struct BProto_header_s))
-        struct BProto_header_s *header = (struct BProto_header_s *)(o->buf + o->ipv6_addr_start + o->ipv6_addr_pos);
+        struct BProto_header_s header;
+        memcpy(&header, o->buf + o->ipv6_addr_start + o->ipv6_addr_pos, sizeof(header));
         o->ipv6_addr_pos += sizeof(struct BProto_header_s);
         left -= sizeof(struct BProto_header_s);
-        uint16_t type = ltoh16(header->type);
-        uint16_t id = ltoh16(header->id);
+        uint16_t type = ltoh16(header.type);
+        uint16_t id = ltoh16(header.id);
 
         switch (type) {
             case BPROTO_TYPE_UINT8: {
@@ -612,11 +639,12 @@ int addrParser_Getipv6_addr (addrParser *o, uint8_t **data)
             case BPROTO_TYPE_CONSTDATA:
             {
                 ASSERT(left >= sizeof(struct BProto_data_header_s))
-                struct BProto_data_header_s *val = (struct BProto_data_header_s *)(o->buf + o->ipv6_addr_start + o->ipv6_addr_pos);
+                struct BProto_data_header_s val;
+                memcpy(&val, o->buf + o->ipv6_addr_start + o->ipv6_addr_pos, sizeof(val));
                 o->ipv6_addr_pos += sizeof(struct BProto_data_header_s);
                 left -= sizeof(struct BProto_data_header_s);
 
-                uint32_t payload_len = ltoh32(val->len);
+                uint32_t payload_len = ltoh32(val.len);
                 ASSERT(left >= payload_len)
                 uint8_t *payload = o->buf + o->ipv6_addr_start + o->ipv6_addr_pos;
                 o->ipv6_addr_pos += payload_len;
