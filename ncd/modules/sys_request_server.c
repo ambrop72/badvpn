@@ -321,9 +321,10 @@ static void connection_recv_if_handler_send (struct connection *c, uint8_t *data
         goto fail;
     }
     
-    struct requestproto_header *header = (void *)data;
-    uint32_t request_id = ltoh32(header->request_id);
-    uint32_t type = ltoh32(header->type);
+    struct requestproto_header header;
+    memcpy(&header, data, sizeof(header));
+    uint32_t request_id = ltoh32(header.request_id);
+    uint32_t type = ltoh32(header.type);
     
     switch (type) {
         case REQUESTPROTO_TYPE_CLIENT_REQUEST: {
@@ -332,7 +333,7 @@ static void connection_recv_if_handler_send (struct connection *c, uint8_t *data
                 goto fail;
             }
             
-            if (!request_init(c, request_id, data + sizeof(*header), data_len - sizeof(*header))) {
+            if (!request_init(c, request_id, data + sizeof(header), data_len - sizeof(header))) {
                 goto fail;
             }
         } break;
