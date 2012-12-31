@@ -536,18 +536,13 @@ static struct reply * reply_init (struct connection *c, uint32_t request_id, NCD
     r->send_qflow_if = PacketPassFifoQueueFlow_GetInput(&r->send_qflow);
     PacketPassInterface_Sender_Init(r->send_qflow_if, (PacketPassInterface_handler_done)reply_send_qflow_if_handler_done, r);
     
-    struct reply_header {
-        struct packetproto_header pp;
-        struct requestproto_header rp;
-    } __attribute__((packed));
-    
     ExpString str;
     if (!ExpString_Init(&str)) {
         ModuleLog(o->i, BLOG_ERROR, "ExpString_Init failed");
         goto fail1;
     }
     
-    if (!ExpString_AppendZeros(&str, sizeof(struct reply_header))) {
+    if (!ExpString_AppendZeros(&str, sizeof(struct packetproto_header) + sizeof(struct requestproto_header))) {
         ModuleLog(o->i, BLOG_ERROR, "ExpString_AppendZeros failed");
         goto fail2;
     }
@@ -565,10 +560,14 @@ static struct reply * reply_init (struct connection *c, uint32_t request_id, NCD
     
     r->send_buf = (uint8_t *)ExpString_Get(&str);
     
-    struct reply_header header;
-    header.pp.len = htol16(len - sizeof(header.pp));
-    header.rp.request_id = htol32(request_id);
-    memcpy(r->send_buf, &header, sizeof(header));
+    struct packetproto_header pp;
+    pp.len = htol16(len - sizeof(pp));
+    
+    struct requestproto_header rp;
+    rp.request_id = htol32(request_id);
+    
+    memcpy(r->send_buf, &pp, sizeof(pp));
+    memcpy(r->send_buf + sizeof(pp), &rp, sizeof(rp));
     
     return r;
     
@@ -584,17 +583,15 @@ fail0:
 
 static void reply_start (struct reply *r, uint32_t type)
 {
-    struct reply_header {
-        struct packetproto_header pp;
-        struct requestproto_header rp;
-    } __attribute__((packed));
+    struct requestproto_header rp;
+    memcpy(&rp, r->send_buf + sizeof(struct packetproto_header), sizeof(rp));
+    rp.type = htol32(type);
+    memcpy(r->send_buf + sizeof(struct packetproto_header), &rp, sizeof(rp));
     
-    struct reply_header header;
-    memcpy(&header, r->send_buf, sizeof(header));
-    header.rp.type = htol32(type);
-    memcpy(r->send_buf, &header, sizeof(header));
+    struct packetproto_header pp;
+    memcpy(&pp, r->send_buf, sizeof(pp));
     
-    int len = ltoh16(header.pp.len) + sizeof(struct packetproto_header);
+    int len = ltoh16(pp.len) + sizeof(struct packetproto_header);
     
     PacketPassInterface_Sender_Send(r->send_qflow_if, r->send_buf, len);
 }
