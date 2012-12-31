@@ -36,6 +36,8 @@
 
 #include <stdint.h>
 
+#include <misc/packed.h>
+
 #define DHCP_OP_BOOTREQUEST 1
 #define DHCP_OP_BOOTREPLY 2
 
@@ -69,6 +71,7 @@
 #define DHCP_MESSAGE_TYPE_NAK 6
 #define DHCP_MESSAGE_TYPE_RELEASE 7
 
+B_START_PACKED
 struct dhcp_header {
     uint8_t op;
     uint8_t htype;
@@ -85,31 +88,44 @@ struct dhcp_header {
     uint8_t sname[64];
     uint8_t file[128];
     uint32_t magic;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct dhcp_option_header {
     uint8_t type;
     uint8_t len;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct dhcp_option_dhcp_message_type {
     uint8_t type;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct dhcp_option_maximum_message_size {
     uint16_t size;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct dhcp_option_dhcp_server_identifier {
     uint32_t id;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct dhcp_option_time {
     uint32_t time;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
+B_START_PACKED
 struct dhcp_option_addr {
     uint32_t addr;
-} __attribute__((packed));
+} B_PACKED;
+B_END_PACKED
 
 #endif
