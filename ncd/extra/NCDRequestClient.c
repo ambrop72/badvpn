@@ -316,18 +316,13 @@ static int get_free_request_id (NCDRequestClient *o, uint32_t *out)
 
 static int build_requestproto_packet (uint32_t request_id, uint32_t type, NCDValRef payload_value, uint8_t **out_data, int *out_len)
 {
-    struct header {
-        struct packetproto_header pp;
-        struct requestproto_header rp;
-    } __attribute__((packed));
-    
     ExpString str;
     if (!ExpString_Init(&str)) {
         BLog(BLOG_ERROR, "ExpString_Init failed");
         goto fail0;
     }
     
-    if (!ExpString_AppendZeros(&str, sizeof(struct header))) {
+    if (!ExpString_AppendZeros(&str, sizeof(struct packetproto_header) + sizeof(struct requestproto_header))) {
         BLog(BLOG_ERROR, "ExpString_AppendBinary failed");
         goto fail1;
     }
@@ -345,11 +340,15 @@ static int build_requestproto_packet (uint32_t request_id, uint32_t type, NCDVal
     
     uint8_t *packet = (uint8_t *)ExpString_Get(&str);
     
-    struct header header;
-    header.pp.len = htol16(len - sizeof(struct packetproto_header));
-    header.rp.request_id = htol32(request_id);
-    header.rp.type = htol32(type);
-    memcpy(packet, &header, sizeof(header));
+    struct packetproto_header pp;
+    pp.len = htol16(len - sizeof(struct packetproto_header));
+    
+    struct requestproto_header rp;
+    rp.request_id = htol32(request_id);
+    rp.type = htol32(type);
+    
+    memcpy(packet, &pp, sizeof(pp));
+    memcpy(packet + sizeof(pp), &rp, sizeof(rp));
     
     *out_data = packet;
     *out_len = len;
@@ -363,18 +362,17 @@ fail0:
 
 static void build_nodata_packet (uint32_t request_id, uint32_t type, uint8_t *data, int *out_len)
 {
-    struct header {
-        struct packetproto_header pp;
-        struct requestproto_header rp;
-    } __attribute__((packed));
+    struct packetproto_header pp;
+    pp.len = htol16(sizeof(struct requestproto_header));
     
-    struct header header;
-    header.pp.len = htol16(sizeof(header.rp));
-    header.rp.request_id = htol32(request_id);
-    header.rp.type = htol32(type);
-    memcpy(data, &header, sizeof(header));
+    struct requestproto_header rp;
+    rp.request_id = htol32(request_id);
+    rp.type = htol32(type);
     
-    *out_len = sizeof(header);
+    memcpy(data, &pp, sizeof(pp));
+    memcpy(data + sizeof(pp), &rp, sizeof(rp));
+    
+    *out_len = sizeof(pp) + sizeof(rp);
 }
 
 static int req_is_aborted (struct NCDRequestClient_req *req)
