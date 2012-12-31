@@ -110,6 +110,7 @@ typedef struct {
         struct NCDVal__mapelem align_mapelem;
         struct NCDVal__idstring align_idstring;
         struct NCDVal__externalstring align_externalstring;
+        struct NCDVal__composedstring align_composedstring;
     };
 } NCDValMem;
 
