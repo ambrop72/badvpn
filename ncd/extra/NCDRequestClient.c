@@ -196,12 +196,13 @@ static void recv_if_handler_send (NCDRequestClient *o, uint8_t *data, int data_l
         goto fail;
     }
     
-    struct requestproto_header *header = (struct requestproto_header *)data;
-    uint32_t request_id = ltoh32(header->request_id);
-    uint32_t type = ltoh32(header->type);
+    struct requestproto_header header;
+    memcpy(&header, data, sizeof(header));
+    uint32_t request_id = ltoh32(header.request_id);
+    uint32_t type = ltoh32(header.type);
     
-    uint8_t *payload = data + sizeof(*header);
-    int payload_len = data_len - sizeof(*header);
+    uint8_t *payload = data + sizeof(header);
+    int payload_len = data_len - sizeof(header);
     
     // find request
     struct NCDRequestClient_req *req = find_req(o, request_id);
