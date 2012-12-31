@@ -42,22 +42,23 @@
 
 #include <generated/blog_channel_NCDVal.h>
 
-//#define NCDVAL_TEST_EXTERNAL_STRINGS
-
 #define TYPE_MASK_EXTERNAL_TYPE ((1 << 3) - 1)
 #define TYPE_MASK_INTERNAL_TYPE ((1 << 5) - 1)
 #define TYPE_SHIFT_DEPTH 5
 
+#define STOREDSTRING_TYPE (NCDVAL_STRING | (0 << 3))
 #define IDSTRING_TYPE (NCDVAL_STRING | (1 << 3))
 #define EXTERNALSTRING_TYPE (NCDVAL_STRING | (2 << 3))
+#define COMPOSEDSTRING_TYPE (NCDVAL_STRING | (3 << 3))
 
 static int make_type (int internal_type, int depth)
 {
-    ASSERT(internal_type == NCDVAL_STRING ||
-           internal_type == NCDVAL_LIST ||
+    ASSERT(internal_type == NCDVAL_LIST ||
            internal_type == NCDVAL_MAP ||
+           internal_type == STOREDSTRING_TYPE ||
            internal_type == IDSTRING_TYPE ||
-           internal_type == EXTERNALSTRING_TYPE)
+           internal_type == EXTERNALSTRING_TYPE ||
+           internal_type == COMPOSEDSTRING_TYPE)
     ASSERT(depth >= 0)
     ASSERT(depth <= NCDVAL_MAX_DEPTH)
     
@@ -187,7 +188,7 @@ static void NCDVal__AssertValOnly (NCDValMem *mem, NCDVal__idx idx)
     ASSERT(get_depth(*type_ptr) <= NCDVAL_MAX_DEPTH)
     
     switch (get_internal_type(*type_ptr)) {
-        case NCDVAL_STRING: {
+        case STOREDSTRING_TYPE: {
             ASSERT(idx + sizeof(struct NCDVal__string) <= mem->used)
             struct NCDVal__string *str_e = NCDValMem__BufAt(mem, idx);
             ASSERT(str_e->length >= 0)
@@ -221,6 +222,13 @@ static void NCDVal__AssertValOnly (NCDValMem *mem, NCDVal__idx idx)
             ASSERT(exs_e->data)
             ASSERT(!exs_e->ref.target || exs_e->ref.next >= -1)
             ASSERT(!exs_e->ref.target || exs_e->ref.next < mem->used)
+        } break;
+        case COMPOSEDSTRING_TYPE: {
+            ASSERT(idx + sizeof(struct NCDVal__composedstring) <= mem->used)
+            struct NCDVal__composedstring *cms_e = NCDValMem__BufAt(mem, idx);
+            ASSERT(cms_e->func_getptr)
+            ASSERT(!cms_e->ref.target || cms_e->ref.next >= -1)
+            ASSERT(!cms_e->ref.target || cms_e->ref.next < mem->used)
         } break;
         default: ASSERT(0);
     }
@@ -422,7 +430,7 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
     void *ptr = NCDValMem__BufAt(val.mem, val.idx);
     
     switch (get_internal_type(*(int *)ptr)) {
-        case NCDVAL_STRING: {
+        case STOREDSTRING_TYPE: {
             struct NCDVal__string *str_e = ptr;
             
             NCDVal__idx size = sizeof(struct NCDVal__string) + str_e->length + 1;
@@ -516,6 +524,17 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
             return NCDVal_NewExternalString(mem, exs_e->data, exs_e->length, exs_e->ref.target);
         } break;
         
+        case COMPOSEDSTRING_TYPE: {
+            struct NCDVal__composedstring *cms_e = ptr;
+            
+            struct NCDVal_string_resource resource;
+            resource.func_getptr = cms_e->func_getptr;
+            resource.user = cms_e->user;
+            resource.ref_target = cms_e->ref.target;
+            
+            return NCDVal_NewComposedString(mem, resource, cms_e->offset, cms_e->length);
+        } break;
+        
         default: ASSERT(0);
     }
     
@@ -543,7 +562,7 @@ int NCDVal_Compare (NCDValRef val1, NCDValRef val2)
             size_t len2 = NCDVal_StringLength(val2);
             size_t min_len = len1 < len2 ? len1 : len2;
             
-            int cmp = memcmp(NCDVal_StringData(val1), NCDVal_StringData(val2), min_len);
+            int cmp = NCDVal_StringMemCmp(val1, val2, 0, 0, min_len);
             if (cmp) {
                 return (cmp > 0) - (cmp < 0);
             }
@@ -647,6 +666,31 @@ int NCDVal_IsString (NCDValRef val)
     return NCDVal_Type(val) == NCDVAL_STRING;
 }
 
+int NCDVal_IsContinuousString (NCDValRef val)
+{
+    NCDVal__AssertVal(val);
+    
+    if (val.idx < -1) {
+        return 0;
+    }
+    
+    switch (get_internal_type(*(int *)NCDValMem__BufAt(val.mem, val.idx))) {
+        case STOREDSTRING_TYPE:
+        case IDSTRING_TYPE:
+        case EXTERNALSTRING_TYPE:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+int NCDVal_IsStoredString (NCDValRef val)
+{
+    NCDVal__AssertVal(val);
+    
+    return !(val.idx < -1) && get_internal_type(*(int *)NCDValMem__BufAt(val.mem, val.idx)) == STOREDSTRING_TYPE;
+}
+
 int NCDVal_IsIdString (NCDValRef val)
 {
     NCDVal__AssertVal(val);
@@ -659,6 +703,13 @@ int NCDVal_IsExternalString (NCDValRef val)
     NCDVal__AssertVal(val);
     
     return !(val.idx < -1) && get_internal_type(*(int *)NCDValMem__BufAt(val.mem, val.idx)) == EXTERNALSTRING_TYPE;
+}
+
+int NCDVal_IsComposedString (NCDValRef val)
+{
+    NCDVal__AssertVal(val);
+    
+    return !(val.idx < -1) && get_internal_type(*(int *)NCDValMem__BufAt(val.mem, val.idx)) == COMPOSEDSTRING_TYPE;
 }
 
 int NCDVal_IsStringNoNulls (NCDValRef val)
@@ -677,56 +728,6 @@ NCDValRef NCDVal_NewString (NCDValMem *mem, const char *data)
     return NCDVal_NewStringBin(mem, (const uint8_t *)data, strlen(data));
 }
 
-#ifdef NCDVAL_TEST_EXTERNAL_STRINGS
-
-struct test_ext_str {
-    NCDRefTarget ref_target;
-    char *data;
-};
-
-static void test_ext_str_ref_target_func_dealloc (NCDRefTarget *ref_target)
-{
-    struct test_ext_str *tes = UPPER_OBJECT(ref_target, struct test_ext_str, ref_target);
-    BFree(tes->data);
-    BFree(tes);
-}
-
-NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len)
-{
-    NCDVal__AssertMem(mem);
-    ASSERT(len == 0 || data)
-    NCDVal_AssertExternal(mem, data, len);
-    
-    struct test_ext_str *tes = BAlloc(sizeof(*tes));
-    if (!tes) {
-        goto fail0;
-    }
-    
-    tes->data = BAlloc(len);
-    if (!tes->data) {
-        goto fail1;
-    }
-    
-    if (len > 0) {
-        memcpy(tes->data, data, len);
-    }
-    
-    NCDRefTarget_Init(&tes->ref_target, test_ext_str_ref_target_func_dealloc);
-    
-    NCDValRef res = NCDVal_NewExternalString(mem, tes->data, len, &tes->ref_target);
-    NCDRefTarget_Deref(&tes->ref_target);
-    return res;
-    
-fail1:
-    BFree(tes);
-fail0:
-    return NCDVal_NewInvalid();
-}
-
-#endif
-
-#ifndef NCDVAL_TEST_EXTERNAL_STRINGS
-
 NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len)
 {
     NCDVal__AssertMem(mem);
@@ -744,7 +745,7 @@ NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len)
     }
     
     struct NCDVal__string *str_e = NCDValMem__BufAt(mem, idx);
-    str_e->type = make_type(NCDVAL_STRING, 0);
+    str_e->type = make_type(STOREDSTRING_TYPE, 0);
     str_e->length = len;
     if (len > 0) {
         memcpy(str_e->data, data, len);
@@ -756,8 +757,6 @@ NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len)
 fail:
     return NCDVal_NewInvalid();
 }
-
-#endif
 
 NCDValRef NCDVal_NewStringUninitialized (NCDValMem *mem, size_t len)
 {
@@ -774,7 +773,7 @@ NCDValRef NCDVal_NewStringUninitialized (NCDValMem *mem, size_t len)
     }
     
     struct NCDVal__string *str_e = NCDValMem__BufAt(mem, idx);
-    str_e->type = make_type(NCDVAL_STRING, 0);
+    str_e->type = make_type(STOREDSTRING_TYPE, 0);
     str_e->length = len;
     str_e->data[len] = '\0';
     
@@ -843,13 +842,54 @@ fail:
     return NCDVal_NewInvalid();
 }
 
-const char * NCDVal_StringData (NCDValRef string)
+NCDValRef NCDVal_NewComposedString (NCDValMem *mem, struct NCDVal_string_resource resource, size_t offset, size_t length)
 {
-    ASSERT(NCDVal_IsString(string))
+    NCDVal__AssertMem(mem);
+    ASSERT(resource.func_getptr)
     
-    void *ptr = NCDValMem__BufAt(string.mem, string.idx);
+    NCDVal__idx size = sizeof(struct NCDVal__composedstring);
+    NCDVal__idx idx = NCDValMem__Alloc(mem, size, __alignof(struct NCDVal__composedstring));
+    if (idx < 0) {
+        goto fail;
+    }
+    
+    if (resource.ref_target) {
+        if (!NCDRefTarget_Ref(resource.ref_target)) {
+            goto fail;
+        }
+    }
+    
+    struct NCDVal__composedstring *cms_e = NCDValMem__BufAt(mem, idx);
+    cms_e->type = make_type(COMPOSEDSTRING_TYPE, 0);
+    cms_e->offset = offset;
+    cms_e->length = length;
+    cms_e->func_getptr = resource.func_getptr;
+    cms_e->user = resource.user;
+    cms_e->ref.target = resource.ref_target;
+    
+    if (resource.ref_target) {
+        cms_e->ref.next = mem->first_ref;
+        mem->first_ref = idx + offsetof(struct NCDVal__composedstring, ref);
+    }
+    
+    return NCDVal__Ref(mem, idx);
+    
+fail:
+    return NCDVal_NewInvalid();
+}
+
+const char * NCDVal_StringData (NCDValRef contstring)
+{
+    ASSERT(NCDVal_IsContinuousString(contstring))
+    
+    void *ptr = NCDValMem__BufAt(contstring.mem, contstring.idx);
     
     switch (get_internal_type(*(int *)ptr)) {
+        case STOREDSTRING_TYPE: {
+            struct NCDVal__string *str_e = ptr;
+            return str_e->data;
+        } break;
+        
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
             const char *value = NCDStringIndex_Value(ids_e->string_index, ids_e->string_id);
@@ -860,10 +900,11 @@ const char * NCDVal_StringData (NCDValRef string)
             struct NCDVal__externalstring *exs_e = ptr;
             return exs_e->data;
         } break;
+        
+        default:
+            ASSERT(0);
+            return NULL;
     }
-    
-    struct NCDVal__string *str_e = ptr;
-    return str_e->data;
 }
 
 size_t NCDVal_StringLength (NCDValRef string)
@@ -873,6 +914,11 @@ size_t NCDVal_StringLength (NCDValRef string)
     void *ptr = NCDValMem__BufAt(string.mem, string.idx);
     
     switch (get_internal_type(*(int *)ptr)) {
+        case STOREDSTRING_TYPE: {
+            struct NCDVal__string *str_e = ptr;
+            return str_e->length;
+        } break;
+        
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
             return NCDStringIndex_Length(ids_e->string_index, ids_e->string_id);
@@ -882,10 +928,62 @@ size_t NCDVal_StringLength (NCDValRef string)
             struct NCDVal__externalstring *exs_e = ptr;
             return exs_e->length;
         } break;
+        
+        case COMPOSEDSTRING_TYPE: {
+            struct NCDVal__composedstring *cms_e = ptr;
+            return cms_e->length;
+        } break;
+        
+        default:
+            ASSERT(0);
+            return 0;
+    }
+}
+
+void NCDVal_StringGetPtr (NCDValRef string, size_t offset, size_t max_length, const char **out_data, size_t *out_length)
+{
+    ASSERT(NCDVal_IsString(string))
+    ASSERT(offset <= NCDVal_StringLength(string))
+    ASSERT(out_data)
+    ASSERT(out_length)
+    
+    void *ptr = NCDValMem__BufAt(string.mem, string.idx);
+    
+    switch (get_internal_type(*(int *)ptr)) {
+        case STOREDSTRING_TYPE: {
+            struct NCDVal__string *str_e = ptr;
+            *out_data = str_e->data + offset;
+            *out_length = str_e->length - offset;
+        } break;
+        
+        case IDSTRING_TYPE: {
+            struct NCDVal__idstring *ids_e = ptr;
+            *out_data = NCDStringIndex_Value(ids_e->string_index, ids_e->string_id) + offset;
+            *out_length = NCDStringIndex_Length(ids_e->string_index, ids_e->string_id) - offset;
+        } break;
+        
+        case EXTERNALSTRING_TYPE: {
+            struct NCDVal__externalstring *exs_e = ptr;
+            *out_data = exs_e->data + offset;
+            *out_length = exs_e->length - offset;
+        } break;
+        
+        case COMPOSEDSTRING_TYPE: {
+            struct NCDVal__composedstring *cms_e = ptr;
+            cms_e->func_getptr(cms_e->user, cms_e->offset + offset, out_data, out_length);
+            ASSERT(*out_data)
+            ASSERT(offset == cms_e->length || *out_length > 0)
+        } break;
+        
+        default:
+            ASSERT(0);
+            *out_data = NULL;
+            *out_length = 0;
     }
     
-    struct NCDVal__string *str_e = ptr;;
-    return str_e->length;
+    if (*out_length > max_length) {
+        *out_length = max_length;
+    }
 }
 
 int NCDVal_StringNullTerminate (NCDValRef string, NCDValNullTermString *out)
@@ -896,6 +994,13 @@ int NCDVal_StringNullTerminate (NCDValRef string, NCDValNullTermString *out)
     void *ptr = NCDValMem__BufAt(string.mem, string.idx);
     
     switch (get_internal_type(*(int *)ptr)) {
+        case STOREDSTRING_TYPE: {
+            struct NCDVal__string *str_e = ptr;
+            out->data = str_e->data;
+            out->is_allocated = 0;
+            return 1;
+        } break;
+        
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
             out->data = (char *)NCDStringIndex_Value(ids_e->string_index, ids_e->string_id);
@@ -915,12 +1020,32 @@ int NCDVal_StringNullTerminate (NCDValRef string, NCDValNullTermString *out)
             out->is_allocated = 1;
             return 1;
         } break;
+        
+        case COMPOSEDSTRING_TYPE: {
+            struct NCDVal__composedstring *cms_e = ptr;
+            size_t length = cms_e->length;
+            
+            if (length == SIZE_MAX) {
+                return 0;
+            }
+            
+            char *copy = BAlloc(length + 1);
+            if (!copy) {
+                return 0;
+            }
+            
+            NCDVal_StringCopyOut(string, 0, length, copy);
+            copy[length] = '\0';
+            
+            out->data = copy;
+            out->is_allocated = 1;
+            return 1;
+        } break;
+        
+        default:
+            ASSERT(0);
+            return 0;
     }
-    
-    struct NCDVal__string *str_e = ptr;
-    out->data = str_e->data;
-    out->is_allocated = 0;
-    return 1;
 }
 
 NCDValNullTermString NCDValNullTermString_NewDummy (void)
@@ -974,6 +1099,29 @@ NCDRefTarget * NCDVal_ExternalStringTarget (NCDValRef externalstring)
     return exs_e->ref.target;
 }
 
+struct NCDVal_string_resource NCDVal_ComposedStringResource (NCDValRef composedstring)
+{
+    ASSERT(NCDVal_IsComposedString(composedstring))
+    
+    struct NCDVal__composedstring *cms_e = NCDValMem__BufAt(composedstring.mem, composedstring.idx);
+    
+    struct NCDVal_string_resource res;
+    res.func_getptr = cms_e->func_getptr;
+    res.user = cms_e->user;
+    res.ref_target = cms_e->ref.target;
+    
+    return res;
+}
+
+size_t NCDVal_ComposedStringOffset (NCDValRef composedstring)
+{
+    ASSERT(NCDVal_IsComposedString(composedstring))
+    
+    struct NCDVal__composedstring *cms_e = NCDValMem__BufAt(composedstring.mem, composedstring.idx);
+    
+    return cms_e->offset;
+}
+
 int NCDVal_StringHasNulls (NCDValRef string)
 {
     ASSERT(NCDVal_IsString(string))
@@ -986,11 +1134,31 @@ int NCDVal_StringHasNulls (NCDValRef string)
             return NCDStringIndex_HasNulls(ids_e->string_index, ids_e->string_id);
         } break;
         
-        default: {
+        case STOREDSTRING_TYPE:
+        case EXTERNALSTRING_TYPE: {
             const char *data = NCDVal_StringData(string);
             size_t length = NCDVal_StringLength(string);
             return !!memchr(data, '\0', length);
         } break;
+        
+        case COMPOSEDSTRING_TYPE: {
+            size_t pos = 0;
+            size_t length = NCDVal_StringLength(string);
+            while (pos < length) {
+                const char *chunk_data;
+                size_t chunk_len;
+                NCDVal_StringGetPtr(string, pos, length - pos, &chunk_data, &chunk_len);
+                if (memchr(chunk_data, '\0', chunk_len)) {
+                    return 1;
+                }
+                pos += chunk_len;
+            }
+            return 0;
+        } break;
+        
+        default:
+            ASSERT(0);
+            return 0;
     }
 }
 
@@ -999,9 +1167,9 @@ int NCDVal_StringEquals (NCDValRef string, const char *data)
     ASSERT(NCDVal_IsString(string))
     ASSERT(data)
     
-    size_t len = strlen(data);
+    size_t data_len = strlen(data);
     
-    return NCDVal_StringLength(string) == len && !memcmp(NCDVal_StringData(string), data, len);
+    return NCDVal_StringLength(string) == data_len && NCDVal_StringRegionEquals(string, 0, data_len, data);
 }
 
 int NCDVal_StringEqualsId (NCDValRef string, NCD_string_id_t string_id,
@@ -1014,6 +1182,13 @@ int NCDVal_StringEqualsId (NCDValRef string, NCD_string_id_t string_id,
     void *ptr = NCDValMem__BufAt(string.mem, string.idx);
     
     switch (get_internal_type(*(int *)ptr)) {
+        case STOREDSTRING_TYPE: {
+            struct NCDVal__string *str_e = ptr;
+            const char *string_data = NCDStringIndex_Value(string_index, string_id);
+            size_t string_length = NCDStringIndex_Length(string_index, string_id);
+            return (string_length == str_e->length) && !memcmp(string_data, str_e->data, string_length);
+        } break;
+        
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
             ASSERT(ids_e->string_index == string_index)
@@ -1026,12 +1201,102 @@ int NCDVal_StringEqualsId (NCDValRef string, NCD_string_id_t string_id,
             size_t string_length = NCDStringIndex_Length(string_index, string_id);
             return (string_length == exs_e->length) && !memcmp(string_data, exs_e->data, string_length);
         } break;
+        
+        case COMPOSEDSTRING_TYPE: {
+            struct NCDVal__composedstring *cms_e = ptr;
+            const char *string_data = NCDStringIndex_Value(string_index, string_id);
+            size_t string_length = NCDStringIndex_Length(string_index, string_id);
+            return (string_length == cms_e->length) && NCDVal_StringRegionEquals(string, 0, string_length, string_data);
+        } break;
+        
+        default:
+            ASSERT(0);
+            return 0;
+    }
+}
+
+int NCDVal_StringMemCmp (NCDValRef string1, NCDValRef string2, size_t start1, size_t start2, size_t length)
+{
+    ASSERT(NCDVal_IsString(string1))
+    ASSERT(NCDVal_IsString(string2))
+    ASSERT(start1 <= NCDVal_StringLength(string1))
+    ASSERT(start2 <= NCDVal_StringLength(string2))
+    ASSERT(length <= NCDVal_StringLength(string1) - start1)
+    ASSERT(length <= NCDVal_StringLength(string2) - start2)
+    
+    if (NCDVal_IsContinuousString(string1) && NCDVal_IsContinuousString(string2)) {
+        return memcmp(NCDVal_StringData(string1) + start1, NCDVal_StringData(string2) + start2, length);
     }
     
-    struct NCDVal__string *str_e = ptr;
-    const char *string_data = NCDStringIndex_Value(string_index, string_id);
-    size_t string_length = NCDStringIndex_Length(string_index, string_id);
-    return (string_length == str_e->length) && !memcmp(string_data, str_e->data, string_length);
+    size_t pos1 = 0;
+    while (pos1 < length) {
+        const char *chunk_data1;
+        size_t chunk_len1;
+        NCDVal_StringGetPtr(string1, start1 + pos1, length - pos1, &chunk_data1, &chunk_len1);
+        
+        size_t pos2 = 0;
+        while (pos2 < chunk_len1) {
+            const char *chunk_data2;
+            size_t chunk_len2;
+            NCDVal_StringGetPtr(string2, start2 + pos1 + pos2, chunk_len1 - pos2, &chunk_data2, &chunk_len2);
+            
+            int cmp = memcmp(chunk_data1 + pos2, chunk_data2, chunk_len2);
+            if (cmp) {
+                return cmp;
+            }
+            
+            pos2 += chunk_len2;
+        }
+        
+        pos1 += chunk_len1;
+    }
+    
+    return 0;
+}
+
+void NCDVal_StringCopyOut (NCDValRef string, size_t start, size_t length, char *dst)
+{
+    ASSERT(NCDVal_IsString(string))
+    ASSERT(start <= NCDVal_StringLength(string))
+    ASSERT(length <= NCDVal_StringLength(string) - start)
+    
+    if (NCDVal_IsContinuousString(string)) {
+        memcpy(dst, NCDVal_StringData(string) + start, length);
+        return;
+    }
+    
+    size_t pos = 0;
+    while (pos < length) {
+        const char *chunk_data;
+        size_t chunk_len;
+        NCDVal_StringGetPtr(string, start + pos, length - pos, &chunk_data, &chunk_len);
+        memcpy(dst + pos, chunk_data, chunk_len);
+        pos += chunk_len;
+    }
+}
+
+int NCDVal_StringRegionEquals (NCDValRef string, size_t start, size_t length, const char *data)
+{
+    ASSERT(NCDVal_IsString(string))
+    ASSERT(start <= NCDVal_StringLength(string))
+    ASSERT(length <= NCDVal_StringLength(string) - start)
+    
+    if (NCDVal_IsContinuousString(string)) {
+        return !memcmp(NCDVal_StringData(string) + start, data, length);
+    }
+    
+    size_t pos = 0;
+    while (pos < length) {
+        const char *chunk_data;
+        size_t chunk_len;
+        NCDVal_StringGetPtr(string, start + pos, length - pos, &chunk_data, &chunk_len);
+        if (memcmp(chunk_data, data + pos, chunk_len)) {
+            return 0;
+        }
+        pos += chunk_len;
+    }
+    
+    return 1;
 }
 
 int NCDVal_IsList (NCDValRef val)
@@ -1392,9 +1657,10 @@ static void replaceprog_build_recurser (NCDValMem *mem, NCDVal__idx idx, size_t 
     struct NCDVal__instr instr;
     
     switch (get_internal_type(*((int *)(ptr)))) {
-        case NCDVAL_STRING:
+        case STOREDSTRING_TYPE:
         case IDSTRING_TYPE:
-        case EXTERNALSTRING_TYPE: {
+        case EXTERNALSTRING_TYPE:
+        case COMPOSEDSTRING_TYPE: {
         } break;
         
         case NCDVAL_LIST: {
