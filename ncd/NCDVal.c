@@ -341,6 +341,7 @@ static NCDValRef NCDVal__CopyComposedStringToStored (NCDValRef val)
         const char *chunk_data;
         size_t chunk_len;
         cms_e.func_getptr(cms_e.user, cms_e.offset + pos, &chunk_data, &chunk_len);
+        ASSERT(chunk_data)
         ASSERT(chunk_len > 0)
         if (chunk_len > cms_e.length - pos) {
             chunk_len = cms_e.length - pos;
@@ -1048,7 +1049,8 @@ size_t NCDVal_StringLength (NCDValRef string)
 void NCDVal_StringGetPtr (NCDValRef string, size_t offset, size_t max_length, const char **out_data, size_t *out_length)
 {
     ASSERT(NCDVal_IsString(string))
-    ASSERT(offset <= NCDVal_StringLength(string))
+    ASSERT(offset < NCDVal_StringLength(string))
+    ASSERT(max_length > 0)
     ASSERT(out_data)
     ASSERT(out_length)
     
@@ -1077,7 +1079,7 @@ void NCDVal_StringGetPtr (NCDValRef string, size_t offset, size_t max_length, co
             struct NCDVal__composedstring *cms_e = ptr;
             cms_e->func_getptr(cms_e->user, cms_e->offset + offset, out_data, out_length);
             ASSERT(*out_data)
-            ASSERT(offset == cms_e->length || *out_length > 0)
+            ASSERT(*out_length > 0)
         } break;
         
         default:

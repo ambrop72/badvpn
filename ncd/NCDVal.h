@@ -427,11 +427,12 @@ NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len
  * access the underlying string resource.
  * \a user is whatever was passed to 'resource.user' in {@link NCDVal_NewComposedString}.
  * \a offset is the offset from the beginning of the string exposed by the resource; it will be
- * >= 'offset' and <= 'offset' + 'length' as given to NCDVal_NewComposedString.
+ * >= 'offset' and < 'offset' + 'length' as given to NCDVal_NewComposedString.
  * This callback must set *\a out_data and *\a out_length to represent a continuous (sub-)region
  * of the string that starts at the byte at index \a offset. The pointed-to data must remain
  * valid and unchanged until all references to the string resource are released.
- * \a *out_data must be set to non-NULL even if there is no more data in the resource.
+ * \a *out_data must be set to non-NULL and *\a out_length must be set to greater than zero,
+ * since the conditions above imply that there is at least one byte available from \a offset.
  */
 typedef void (*NCDVal_ComposedString_func_getptr) (void *user, size_t offset, const char **out_data, size_t *out_length);
 
@@ -471,22 +472,24 @@ size_t NCDVal_StringLength (NCDValRef string);
 
 /**
  * Returns a pointer into a continuous chunk of data within a String.
- * The \a offset must be lesser or equal to the length of the string.
+ * The \a offset must be lesser than the length of the string, and \a max_length
+ * must be greater than zero.
  * Both \a out_data and \a out_length must be non-NULL. *\a out_data will be set to point
  * into a continuous data chunk starting at \a offset from the beginning of the string, and
  * *\a out_length will be set to the number of bytes which are available from that pointer,
  * and to no more than \a max_length.
  * 
  * It is only guaranteed that:
- * - if offset < length_of_string and max_length > 0, then *out_length > 0,
+ * - *out_length > 0,
  * - *out_length <= max_length.
  * 
  * This means that:
  * - *out_length may be smaller than the remainder of the string,
- * - *out_length may be larger than length_of_string - offset, unless limited by max_length.
+ * - *out_length may be larger than length_of_string - offset, i.e. you may be provided
+ *   bytes that are outside of this string, unless limited by max_length.
  * 
- * For clarification, the following code is provided which prints the entire string
- * to standard output.
+ * For clarification, the following code is provided which prints any String to standard
+ * output.
  * 
  * size_t pos = 0;
  * size_t length = NCDVal_StringLength(string);
