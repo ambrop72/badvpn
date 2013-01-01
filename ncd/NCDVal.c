@@ -290,6 +290,68 @@ static int NCDVal__Depth (NCDValRef val)
     return depth;
 }
 
+static int NCDValMem__NeedRegisterLink (NCDValMem *mem, NCDVal__idx val_idx)
+{
+    NCDVal__AssertValOnly(mem, val_idx);
+    
+    return !(val_idx < -1) && get_internal_type(*(int *)NCDValMem__BufAt(mem, val_idx)) == COMPOSEDSTRING_TYPE;
+}
+
+static int NCDValMem__RegisterLink (NCDValMem *mem, NCDVal__idx val_idx, NCDVal__idx link_idx)
+{
+    NCDVal__AssertValOnly(mem, val_idx);
+    ASSERT(NCDValMem__NeedRegisterLink(mem, val_idx))
+    
+    NCDVal__idx cms_link_idx = NCDValMem__Alloc(mem, sizeof(struct NCDVal__cms_link), __alignof(struct NCDVal__cms_link));
+    if (cms_link_idx < 0) {
+        return 0;
+    }
+    
+    struct NCDVal__cms_link *cms_link = NCDValMem__BufAt(mem, cms_link_idx);
+    cms_link->link_idx = link_idx;
+    cms_link->next_cms_link = mem->first_cms_link;
+    mem->first_cms_link = cms_link_idx;
+    
+    return 1;
+}
+
+static void NCDValMem__PopLastRegisteredLink (NCDValMem *mem)
+{
+    ASSERT(mem->first_cms_link != -1)
+    
+    struct NCDVal__cms_link *cms_link = NCDValMem__BufAt(mem, mem->first_cms_link);
+    mem->first_cms_link = cms_link->next_cms_link;
+}
+
+static NCDValRef NCDVal__CopyComposedStringToStored (NCDValRef val)
+{
+    ASSERT(NCDVal_IsComposedString(val))
+    
+    struct NCDVal__composedstring cms_e = *(struct NCDVal__composedstring *)NCDValMem__BufAt(val.mem, val.idx);
+    
+    NCDValRef copy = NCDVal_NewStringUninitialized(val.mem, cms_e.length);
+    if (NCDVal_IsInvalid(copy)) {
+        return NCDVal_NewInvalid();
+    }
+    
+    char *copy_data = (char *)NCDVal_StringData(copy);
+    
+    size_t pos = 0;
+    while (pos < cms_e.length) {
+        const char *chunk_data;
+        size_t chunk_len;
+        cms_e.func_getptr(cms_e.user, cms_e.offset + pos, &chunk_data, &chunk_len);
+        ASSERT(chunk_len > 0)
+        if (chunk_len > cms_e.length - pos) {
+            chunk_len = cms_e.length - pos;
+        }
+        memcpy(copy_data + pos, chunk_data, chunk_len);
+        pos += chunk_len;
+    }
+    
+    return copy;
+}
+
 #include "NCDVal_maptree.h"
 #include <structure/CAvl_impl.h>
 
@@ -299,6 +361,7 @@ void NCDValMem_Init (NCDValMem *o)
     o->size = NCDVAL_FASTBUF_SIZE;
     o->used = 0;
     o->first_ref = -1;
+    o->first_cms_link = -1;
 }
 
 void NCDValMem_Free (NCDValMem *o)
@@ -325,6 +388,7 @@ int NCDValMem_InitCopy (NCDValMem *o, NCDValMem *other)
     o->size = other->size;
     o->used = other->used;
     o->first_ref = other->first_ref;
+    o->first_cms_link = other->first_cms_link;
     
     if (!other->buf) {
         o->buf = NULL;
@@ -361,6 +425,41 @@ fail1:;
     }
 fail0:
     return 0;
+}
+
+int NCDValMem_ConvertNonContinuousStrings (NCDValMem *o, NCDValRef *root_val)
+{
+    NCDVal__AssertMem(o);
+    ASSERT(root_val)
+    ASSERT(root_val->mem == o)
+    NCDVal__AssertValOnly(o, root_val->idx);
+    
+    while (o->first_cms_link != -1) {
+        struct NCDVal__cms_link cms_link = *(struct NCDVal__cms_link *)NCDValMem__BufAt(o, o->first_cms_link);
+        
+        NCDVal__idx val_idx = *(NCDVal__idx *)NCDValMem__BufAt(o, cms_link.link_idx);
+        NCDValRef val = NCDVal__Ref(o, val_idx);
+        ASSERT(NCDVal_IsComposedString(val))
+        
+        NCDValRef copy = NCDVal__CopyComposedStringToStored(val);
+        if (NCDVal_IsInvalid(copy)) {
+            return 0;
+        }
+        
+        *(int *)NCDValMem__BufAt(o, cms_link.link_idx) = copy.idx;
+        
+        o->first_cms_link = cms_link.next_cms_link;
+    }
+    
+    if (NCDVal_IsComposedString(*root_val)) {
+        NCDValRef copy = NCDVal__CopyComposedStringToStored(*root_val);
+        if (NCDVal_IsInvalid(copy)) {
+            return 0;
+        }
+        *root_val = copy;
+    }
+    
+    return 1;
 }
 
 void NCDVal_Assert (NCDValRef val)
@@ -467,6 +566,12 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
                 NCDValRef elem_copy = NCDVal_NewCopy(mem, NCDVal__Ref(val.mem, list_e->elem_indices[i]));
                 if (NCDVal_IsInvalid(elem_copy)) {
                     goto fail;
+                }
+                
+                if (NCDValMem__NeedRegisterLink(mem, elem_copy.idx)) {
+                    if (!NCDValMem__RegisterLink(mem, elem_copy.idx, idx + offsetof(struct NCDVal__list, elem_indices) + i * sizeof(NCDVal__idx))) {
+                        goto fail;
+                    }
                 }
                 
                 list_e = NCDValMem__BufAt(val.mem, val.idx);
@@ -1340,10 +1445,19 @@ int NCDVal_ListAppend (NCDValRef list, NCDValRef elem)
     
     struct NCDVal__list *list_e = NCDValMem__BufAt(list.mem, list.idx);
     
-    if (!bump_depth(&list_e->type, NCDVal__Depth(elem))) {
+    int new_type = list_e->type;
+    if (!bump_depth(&new_type, NCDVal__Depth(elem))) {
         return 0;
     }
     
+    if (NCDValMem__NeedRegisterLink(list.mem, elem.idx)) {
+        if (!NCDValMem__RegisterLink(list.mem, elem.idx, list.idx + offsetof(struct NCDVal__list, elem_indices) + list_e->count * sizeof(NCDVal__idx))) {
+            return 0;
+        }
+        list_e = NCDValMem__BufAt(list.mem, list.idx);
+    }
+    
+    list_e->type = new_type;
     list_e->elem_indices[list_e->count++] = elem.idx;
     
     return 1;
@@ -1474,10 +1588,24 @@ int NCDVal_MapInsert (NCDValRef map, NCDValRef key, NCDValRef val, int *out_inse
     
     int new_type = map_e->type;
     if (!bump_depth(&new_type, NCDVal__Depth(key)) || !bump_depth(&new_type, NCDVal__Depth(val))) {
-        return 0;
+        goto fail0;
     }
     
     NCDVal__idx elemidx = NCDVal__MapElemIdx(map.idx, map_e->count);
+    
+    if (NCDValMem__NeedRegisterLink(map.mem, key.idx)) {
+        if (!NCDValMem__RegisterLink(map.mem, key.idx, elemidx + offsetof(struct NCDVal__mapelem, key_idx))) {
+            goto fail0;
+        }
+        map_e = NCDValMem__BufAt(map.mem, map.idx);
+    }
+    
+    if (NCDValMem__NeedRegisterLink(map.mem, val.idx)) {
+        if (!NCDValMem__RegisterLink(map.mem, val.idx, elemidx + offsetof(struct NCDVal__mapelem, val_idx))) {
+            goto fail1;
+        }
+        map_e = NCDValMem__BufAt(map.mem, map.idx);
+    }
     
     struct NCDVal__mapelem *me_e = NCDValMem__BufAt(map.mem, elemidx);
     ASSERT(me_e == &map_e->elems[map_e->count])
@@ -1499,6 +1627,13 @@ int NCDVal_MapInsert (NCDValRef map, NCDValRef key, NCDValRef val, int *out_inse
         *out_inserted = 1;
     }
     return 1;
+    
+fail1:
+    if (NCDValMem__NeedRegisterLink(map.mem, key.idx)) {
+        NCDValMem__PopLastRegisteredLink(map.mem);
+    }
+fail0:
+    return 0;
 }
 
 size_t NCDVal_MapCount (NCDValRef map)

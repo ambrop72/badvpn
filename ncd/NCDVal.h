@@ -97,11 +97,17 @@ struct NCDVal__composedstring {
     struct NCDVal__ref ref;
 };
 
+struct NCDVal__cms_link {
+    NCDVal__idx link_idx;
+    NCDVal__idx next_cms_link;
+};
+
 typedef struct {
     char *buf;
     NCDVal__idx size;
     NCDVal__idx used;
     NCDVal__idx first_ref;
+    NCDVal__idx first_cms_link;
     union {
         char fastbuf[NCDVAL_FASTBUF_SIZE];
         struct NCDVal__ref align_ref;
@@ -111,6 +117,7 @@ typedef struct {
         struct NCDVal__idstring align_idstring;
         struct NCDVal__externalstring align_externalstring;
         struct NCDVal__composedstring align_composedstring;
+        struct NCDVal__cms_link align_cms_link;
     };
 } NCDValMem;
 
@@ -218,6 +225,19 @@ void NCDValMem_Free (NCDValMem *o);
  * Returns 1 on success and 0 on failure.
  */
 int NCDValMem_InitCopy (NCDValMem *o, NCDValMem *other) WARN_UNUSED;
+
+/**
+ * For each internal link (e.g. list element) to a ComposedString in the memory
+ * object, copies the ComposedString to some kind ContinuousString, and updates
+ * the link to point to the new ContinuousString.
+ * Additionally, if *\a root_val points to a ComposedString, copies it to a new
+ * ContinuousString and updates *\a root_val to point to it.
+ * \a root_val must be non-NULL and *\a root_val must not be an invalid value
+ * reference.
+ * Returns 1 on success and 0 on failure. On failure, some strings may have
+ * been converted, but the memory object is left in a consistent state.
+ */
+int NCDValMem_ConvertNonContinuousStrings (NCDValMem *o, NCDValRef *root_val) WARN_UNUSED;
 
 /**
  * Does nothing.
