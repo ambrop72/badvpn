@@ -34,8 +34,125 @@
 #include <ncd/static_strings.h>
 #include <base/BLog.h>
 #include <misc/debug.h>
+#include <misc/balloc.h>
+#include <misc/offset.h>
 
 #define FORCE(cmd) if (!(cmd)) { fprintf(stderr, "failed\n"); exit(1); }
+
+struct composed_string {
+    NCDRefTarget ref_target;
+    size_t length;
+    size_t chunk_size;
+    char **chunks;
+};
+
+static void composed_string_ref_target_func_release (NCDRefTarget *ref_target)
+{
+    struct composed_string *cs = UPPER_OBJECT(ref_target, struct composed_string, ref_target);
+    
+    size_t num_chunks = cs->length / cs->chunk_size;
+    if (cs->length % cs->chunk_size) {
+        num_chunks++;
+    }
+    
+    for (size_t i = 0; i < num_chunks; i++) {
+        BFree(cs->chunks[i]);
+    }
+    
+    BFree(cs->chunks);
+    BFree(cs);
+}
+
+static void composed_string_func_getptr (void *user, size_t offset, const char **out_data, size_t *out_length)
+{
+    struct composed_string *cs = user;
+    ASSERT(offset < cs->length)
+    
+    *out_data = cs->chunks[offset / cs->chunk_size] + (offset % cs->chunk_size);
+    *out_length = cs->chunk_size - (offset % cs->chunk_size);
+}
+
+static NCDValRef build_composed_string (NCDValMem *mem, const char *data, size_t length, size_t chunk_size)
+{
+    ASSERT(chunk_size > 0)
+    
+    struct composed_string *cs = BAlloc(sizeof(*cs));
+    if (!cs) {
+        goto fail0;
+    }
+    
+    cs->length = length;
+    cs->chunk_size = chunk_size;
+    
+    size_t num_chunks = cs->length / cs->chunk_size;
+    if (cs->length % cs->chunk_size) {
+        num_chunks++;
+    }
+    
+    cs->chunks = BAllocArray(num_chunks, sizeof(cs->chunks[0]));
+    if (!cs->chunk_size) {
+        goto fail1;
+    }
+    
+    size_t i;
+    for (i = 0; i < num_chunks; i++) {
+        cs->chunks[i] = BAlloc(cs->chunk_size);
+        if (!cs->chunks[i]) {
+            goto fail2;
+        }
+        
+        size_t to_copy = length;
+        if (to_copy > cs->chunk_size) {
+            to_copy = cs->chunk_size;
+        }
+        
+        memcpy(cs->chunks[i], data, to_copy);
+        data += to_copy;
+        length -= to_copy;
+    }
+    
+    NCDRefTarget_Init(&cs->ref_target, composed_string_ref_target_func_release);
+    
+    struct NCDVal_string_resource resource;
+    resource.func_getptr = composed_string_func_getptr;
+    resource.user = cs;
+    resource.ref_target = &cs->ref_target;
+    
+    NCDValRef val = NCDVal_NewComposedString(mem, resource, 0, cs->length);
+    NCDRefTarget_Deref(&cs->ref_target);
+    return val;
+    
+fail2:
+    while (i-- > 0) {
+        BFree(cs->chunks[i]);
+    }
+    BFree(cs->chunks);
+fail1:
+    BFree(cs);
+fail0:
+    return NCDVal_NewInvalid();
+}
+
+static void test_string (NCDValRef str, const char *data, size_t length)
+{
+    FORCE( !NCDVal_IsInvalid(str) )
+    FORCE( NCDVal_IsString(str) )
+    FORCE( NCDVal_StringLength(str) == length )
+    FORCE( NCDVal_StringHasNulls(str) == !!memchr(data, '\0', length) )
+    FORCE( NCDVal_IsStringNoNulls(str) == !memchr(data, '\0', length) )
+    FORCE( NCDVal_StringRegionEquals(str, 0, length, data) )
+    
+    for (size_t i = 0; i < length; i++) {
+        const char *chunk_data;
+        size_t chunk_length;
+        NCDVal_StringGetPtr(str, i, length - i, &chunk_data, &chunk_length);
+        
+        FORCE( chunk_length > 0 )
+        FORCE( chunk_length <= length - i )
+        FORCE( !memcmp(chunk_data, data + i, chunk_length) )
+        FORCE( NCDVal_StringRegionEquals(str, i, chunk_length, data + i) )
+    }
+}
 
 static void print_indent (int indent)
 {
@@ -104,7 +221,7 @@ int main ()
     NCDValMem_Init(&mem);
     
     NCDValRef s1 = NCDVal_NewString(&mem, "Hello World");
-    FORCE( !NCDVal_IsInvalid(s1) )
+    test_string(s1, "Hello World", 11);
     ASSERT( NCDVal_IsString(s1) )
     ASSERT( !NCDVal_IsIdString(s1) )
     ASSERT( NCDVal_Type(s1) == NCDVAL_STRING )
@@ -143,7 +260,7 @@ int main ()
     ASSERT( NCDVal_IsInvalid(NCDVal_MapGetValue(m1, "K3")) )
     
     NCDValRef ids1 = NCDVal_NewIdString(&mem, NCD_STRING_ARG1, &string_index);
-    FORCE( !NCDVal_IsInvalid(ids1) )
+    test_string(ids1, "_arg1", 5);
     ASSERT( !memcmp(NCDVal_StringData(ids1), "_arg1", 5) )
     ASSERT( NCDVal_StringLength(ids1) == 5 )
     ASSERT( !NCDVal_StringHasNulls(ids1) )
@@ -152,7 +269,7 @@ int main ()
     ASSERT( NCDVal_IsIdString(ids1) )
     
     NCDValRef ids2 = NCDVal_NewIdString(&mem, NCD_STRING_ARG2, &string_index);
-    FORCE( !NCDVal_IsInvalid(ids2) )
+    test_string(ids2, "_arg2", 5);
     ASSERT( !memcmp(NCDVal_StringData(ids2), "_arg2", 5) )
     ASSERT( NCDVal_StringLength(ids2) == 5 )
     ASSERT( !NCDVal_StringHasNulls(ids2) )
@@ -197,6 +314,60 @@ int main ()
     for (int i = 0; i < 100; i++) {
         ASSERT( NCDVal_StringEquals(s[i], "Eeeeeeeeeeeevil.") )
     }
+    
+    NCDValMem_Free(&mem);
+    
+    NCDValMem_Init(&mem);
+    
+    NCDValRef cstr1 = build_composed_string(&mem, "Hello World", 11, 3);
+    test_string(cstr1, "Hello World", 11);
+    FORCE( NCDVal_IsComposedString(cstr1) )
+    FORCE( !NCDVal_IsContinuousString(cstr1) )
+    FORCE( NCDVal_StringEquals(cstr1, "Hello World") )
+    FORCE( !NCDVal_StringEquals(cstr1, "Hello World ") )
+    FORCE( !NCDVal_StringEquals(cstr1, "Hello WorlD") )
+    
+    NCDValRef cstr2 = build_composed_string(&mem, "GoodBye", 7, 1);
+    test_string(cstr2, "GoodBye", 7);
+    FORCE( NCDVal_IsComposedString(cstr2) )
+    FORCE( !NCDVal_IsContinuousString(cstr2) )
+    FORCE( NCDVal_StringEquals(cstr2, "GoodBye") )
+    FORCE( !NCDVal_StringEquals(cstr2, " GoodBye") )
+    FORCE( !NCDVal_StringEquals(cstr2, "goodBye") )
+    
+    NCDValRef cstr3 = build_composed_string(&mem, "Bad\x00String", 10, 4);
+    test_string(cstr3, "Bad\x00String", 10);
+    FORCE( NCDVal_IsComposedString(cstr3) )
+    FORCE( !NCDVal_IsContinuousString(cstr3) )
+    
+    FORCE( NCDVal_StringMemCmp(cstr1, cstr2, 1, 2, 3) < 0 )
+    FORCE( NCDVal_StringMemCmp(cstr1, cstr2, 7, 1, 4) > 0 )
+    
+    char buf[10];
+    NCDVal_StringCopyOut(cstr1, 1, 10, buf);
+    FORCE( !memcmp(buf, "ello World", 10) )
+    
+    NCDValRef clist1 = NCDVal_NewList(&mem, 3);
+    FORCE( !NCDVal_IsInvalid(clist1) )
+    FORCE( NCDVal_ListAppend(clist1, cstr1) )
+    FORCE( NCDVal_ListAppend(clist1, cstr2) )
+    FORCE( NCDVal_ListAppend(clist1, cstr3) )
+    FORCE( NCDVal_ListCount(clist1) == 3 )
+    
+    FORCE( NCDValMem_ConvertNonContinuousStrings(&mem, &clist1) )
+    FORCE( NCDVal_ListCount(clist1) == 3 )
+    
+    NCDValRef fixed_str1 = NCDVal_ListGet(clist1, 0);
+    NCDValRef fixed_str2 = NCDVal_ListGet(clist1, 1);
+    NCDValRef fixed_str3 = NCDVal_ListGet(clist1, 2);
+    
+    FORCE( NCDVal_IsContinuousString(fixed_str1) )
+    FORCE( NCDVal_IsContinuousString(fixed_str2) )
+    FORCE( NCDVal_IsContinuousString(fixed_str3) )
+    
+    test_string(fixed_str1, "Hello World", 11);
+    test_string(fixed_str2, "GoodBye", 7);
+    test_string(fixed_str3, "Bad\x00String", 10);
     
     NCDValMem_Free(&mem);
     
