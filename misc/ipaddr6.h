@@ -266,8 +266,12 @@ void ipaddr6_ipv6_mask_from_prefix (int prefix, struct ipv6_addr *out_mask)
     int quot = prefix / 8;
     int rem = prefix % 8;
     
-    memset(out_mask->bytes, UINT8_MAX, quot);
-    memset(out_mask->bytes + quot, 0, 16 - quot);
+    if (quot > 0) {
+        memset(out_mask->bytes, UINT8_MAX, quot);
+    }
+    if (16 - quot > 0) {
+        memset(out_mask->bytes + quot, 0, 16 - quot);
+    }
     
     for (int i = 0; i < rem; i++) {
         out_mask->bytes[quot] |= (uint8_t)1 << (8 - i - 1);
