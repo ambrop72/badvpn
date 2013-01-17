@@ -1976,6 +1976,10 @@ int NCDValReplaceProg_Execute (NCDValReplaceProg prog, NCDValMem *mem, NCDVal_re
                 }
                 ASSERT(repval.mem == mem)
                 
+                if (NCDValMem__NeedRegisterLink(mem, repval.idx)) {
+                    NCDValMem__RegisterLink(mem, repval.idx, instr.placeholder.plidx);
+                }
+                
                 NCDVal__idx *plptr = NCDValMem__BufAt(mem, instr.placeholder.plidx);
                 *plptr = repval.idx;
             } break;
