@@ -1046,6 +1046,19 @@ size_t NCDVal_StringLength (NCDValRef string)
     }
 }
 
+void NCDValStringResource_GetPtr (NCDValStringResource resource, size_t offset, size_t max_length, const char **out_data, size_t *out_length)
+{
+    ASSERT(max_length > 0)
+    ASSERT(out_data)
+    ASSERT(out_length)
+    
+    resource.func_getptr(resource.user, offset, out_data, out_length);
+    
+    if (*out_length > max_length) {
+        *out_length = max_length;
+    }
+}
+
 void NCDVal_StringGetPtr (NCDValRef string, size_t offset, size_t max_length, const char **out_data, size_t *out_length)
 {
     ASSERT(NCDVal_IsString(string))

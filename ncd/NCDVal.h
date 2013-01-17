@@ -447,6 +447,15 @@ typedef struct {
 } NCDValStringResource;
 
 /**
+ * Like {@link NCDVal_StringGetPtr}, but directly acceses a string resource backing a
+ * ComposedString. The \a offset here is from the beginning of the resource; assuming you have
+ * obtained the resource from a ComposedString using {@link NCDVal_ComposedStringResource},
+ * you should not access data outside of the range outside of the one defined by
+ * {@link NCDVal_ComposedStringOffset} and {@link NCDVal_StringLength}.
+ */
+void NCDValStringResource_GetPtr (NCDValStringResource resource, size_t offset, size_t max_length, const char **out_data, size_t *out_length);
+
+/**
  * Builds a new ComposedString from a string resource.
  * A reference to the underlying string resource via the {@link NCDRefTarget} object
  * specified in 'resource.ref_target'.
