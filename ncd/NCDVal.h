@@ -440,11 +440,11 @@ typedef void (*NCDVal_ComposedString_func_getptr) (void *user, size_t offset, co
  * Structure representing a string resource used by ComposedString's,
  * to simplify {@link NCDVal_NewComposedString} and {@link NCDVal_ComposedStringResource}.
  */
-struct NCDVal_string_resource {
+typedef struct {
     NCDVal_ComposedString_func_getptr func_getptr;
     void *user;
     NCDRefTarget *ref_target;
-};
+} NCDValStringResource;
 
 /**
  * Builds a new ComposedString from a string resource.
@@ -454,7 +454,7 @@ struct NCDVal_string_resource {
  * A ComposedString is a kind of String with an abstract representation exposed via the
  * {@link NCDVal_ComposedString_func_getptr} callback.
  */
-NCDValRef NCDVal_NewComposedString (NCDValMem *mem, struct NCDVal_string_resource resource, size_t offset, size_t length);
+NCDValRef NCDVal_NewComposedString (NCDValMem *mem, NCDValStringResource resource, size_t offset, size_t length);
 
 /**
  * Returns a pointer to the data of a ContinuousString.
@@ -555,7 +555,7 @@ NCDRefTarget * NCDVal_ExternalStringTarget (NCDValRef externalstring);
 /**
  * Returns the underlying string resource of a ComposedString.
  */
-struct NCDVal_string_resource NCDVal_ComposedStringResource (NCDValRef composedstring);
+NCDValStringResource NCDVal_ComposedStringResource (NCDValRef composedstring);
 
 /**
  * Returns the resource offset of a ComposedString.

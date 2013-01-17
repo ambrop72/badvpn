@@ -113,7 +113,7 @@ static NCDValRef build_composed_string (NCDValMem *mem, const char *data, size_t
     
     NCDRefTarget_Init(&cs->ref_target, composed_string_ref_target_func_release);
     
-    struct NCDVal_string_resource resource;
+    NCDValStringResource resource;
     resource.func_getptr = composed_string_func_getptr;
     resource.user = cs;
     resource.ref_target = &cs->ref_target;
