@@ -75,6 +75,30 @@ static SAvlEntry * SAvl_LookupExact (const SAvl *o, SAvlArg arg, SAvlKey key)
     return ref.link;
 }
 
+static SAvlEntry * SAvl_GetFirstGreater (const SAvl *o, SAvlArg arg, SAvlKey key)
+{
+    SAvl__TreeRef ref = SAvl__Tree_GetFirstGreater(&o->tree, arg, key);
+    return ref.link;
+}
+
+static SAvlEntry * SAvl_GetLastLesser (const SAvl *o, SAvlArg arg, SAvlKey key)
+{
+    SAvl__TreeRef ref = SAvl__Tree_GetLastLesser(&o->tree, arg, key);
+    return ref.link;
+}
+
+static SAvlEntry * SAvl_GetFirstGreaterEqual (const SAvl *o, SAvlArg arg, SAvlKey key)
+{
+    SAvl__TreeRef ref = SAvl__Tree_GetFirstGreaterEqual(&o->tree, arg, key);
+    return ref.link;
+}
+
+static SAvlEntry * SAvl_GetLastLesserEqual (const SAvl *o, SAvlArg arg, SAvlKey key)
+{
+    SAvl__TreeRef ref = SAvl__Tree_GetLastLesserEqual(&o->tree, arg, key);
+    return ref.link;
+}
+
 #endif
 
 static SAvlEntry * SAvl_GetFirst (const SAvl *o, SAvlArg arg)

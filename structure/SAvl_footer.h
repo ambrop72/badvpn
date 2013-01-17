@@ -51,6 +51,10 @@
 #undef SAvl_Remove
 #undef SAvl_Lookup
 #undef SAvl_LookupExact
+#undef SAvl_GetFirstGreater
+#undef SAvl_GetLastLesser
+#undef SAvl_GetFirstGreaterEqual
+#undef SAvl_GetLastLesserEqual
 #undef SAvl_GetFirst
 #undef SAvl_GetLast
 #undef SAvl_GetNext
@@ -70,6 +74,10 @@
 #undef SAvl__Tree_Remove
 #undef SAvl__Tree_Lookup
 #undef SAvl__Tree_LookupExact
+#undef SAvl__Tree_GetFirstGreater
+#undef SAvl__Tree_GetLastLesser
+#undef SAvl__Tree_GetFirstGreaterEqual
+#undef SAvl__Tree_GetLastLesserEqual
 #undef SAvl__Tree_GetFirst
 #undef SAvl__Tree_GetLast
 #undef SAvl__Tree_GetNext

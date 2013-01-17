@@ -53,6 +53,10 @@ static void SAvl_Remove (SAvl *o, SAvlArg arg, SAvlEntry *entry);
 #if !SAVL_PARAM_FEATURE_NOKEYS
 static SAvlEntry * SAvl_Lookup (const SAvl *o, SAvlArg arg, SAvlKey key);
 static SAvlEntry * SAvl_LookupExact (const SAvl *o, SAvlArg arg, SAvlKey key);
+static SAvlEntry * SAvl_GetFirstGreater (const SAvl *o, SAvlArg arg, SAvlKey key);
+static SAvlEntry * SAvl_GetLastLesser (const SAvl *o, SAvlArg arg, SAvlKey key);
+static SAvlEntry * SAvl_GetFirstGreaterEqual (const SAvl *o, SAvlArg arg, SAvlKey key);
+static SAvlEntry * SAvl_GetLastLesserEqual (const SAvl *o, SAvlArg arg, SAvlKey key);
 #endif
 static SAvlEntry * SAvl_GetFirst (const SAvl *o, SAvlArg arg);
 static SAvlEntry * SAvl_GetLast (const SAvl *o, SAvlArg arg);
