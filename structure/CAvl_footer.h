@@ -64,6 +64,10 @@
 #undef CAvl_Remove
 #undef CAvl_Lookup
 #undef CAvl_LookupExact
+#undef CAvl_GetFirstGreater
+#undef CAvl_GetLastLesser
+#undef CAvl_GetFirstGreaterEqual
+#undef CAvl_GetLastLesserEqual
 #undef CAvl_GetFirst
 #undef CAvl_GetLast
 #undef CAvl_GetNext

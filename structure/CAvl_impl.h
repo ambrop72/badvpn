@@ -638,6 +638,82 @@ static CAvlRef CAvl_LookupExact (const CAvl *o, CAvlArg arg, CAvlKey key)
     }
 }
 
+static CAvlRef CAvl_GetFirstGreater (const CAvl *o, CAvlArg arg, CAvlKey key)
+{
+    CAvlRef c = CAvl_Lookup(o, arg, key);
+    if (CAvlIsNullRef(c)) {
+        return CAvl_nullref();
+    }
+    
+    if (CAvl_compare_key_entry(arg, key, c) >= 0) {
+        c = CAvl_GetNext(o, arg, c);
+        if (CAvlIsNullRef(c)) {
+            return CAvl_nullref();
+        }
+    }
+    
+    ASSERT(CAvl_compare_key_entry(arg, key, c) < 0);
+    
+    return c;
+}
+
+static CAvlRef CAvl_GetLastLesser (const CAvl *o, CAvlArg arg, CAvlKey key)
+{
+    CAvlRef c = CAvl_Lookup(o, arg, key);
+    if (CAvlIsNullRef(c)) {
+        return CAvl_nullref();
+    }
+    
+    if (CAvl_compare_key_entry(arg, key, c) <= 0) {
+        c = CAvl_GetPrev(o, arg, c);
+        if (CAvlIsNullRef(c)) {
+            return CAvl_nullref();
+        }
+    }
+    
+    ASSERT(CAvl_compare_key_entry(arg, key, c) > 0);
+    
+    return c;
+}
+
+static CAvlRef CAvl_GetFirstGreaterEqual (const CAvl *o, CAvlArg arg, CAvlKey key)
+{
+    CAvlRef c = CAvl_Lookup(o, arg, key);
+    if (CAvlIsNullRef(c)) {
+        return CAvl_nullref();
+    }
+    
+    if (CAvl_compare_key_entry(arg, key, c) > 0) {
+        c = CAvl_GetNext(o, arg, c);
+        if (CAvlIsNullRef(c)) {
+            return CAvl_nullref();
+        }
+    }
+    
+    ASSERT(CAvl_compare_key_entry(arg, key, c) <= 0);
+    
+    return c;
+}
+
+static CAvlRef CAvl_GetLastLesserEqual (const CAvl *o, CAvlArg arg, CAvlKey key)
+{
+    CAvlRef c = CAvl_Lookup(o, arg, key);
+    if (CAvlIsNullRef(c)) {
+        return CAvl_nullref();
+    }
+    
+    if (CAvl_compare_key_entry(arg, key, c) < 0) {
+        c = CAvl_GetPrev(o, arg, c);
+        if (CAvlIsNullRef(c)) {
+            return CAvl_nullref();
+        }
+    }
+    
+    ASSERT(CAvl_compare_key_entry(arg, key, c) >= 0);
+    
+    return c;
+}
+
 #endif
 
 static CAvlRef CAvl_GetFirst (const CAvl *o, CAvlArg arg)

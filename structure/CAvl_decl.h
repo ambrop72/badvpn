@@ -52,6 +52,10 @@ static void CAvl_Remove (CAvl *o, CAvlArg arg, CAvlRef node);
 #if !CAVL_PARAM_FEATURE_KEYS_ARE_INDICES && !CAVL_PARAM_FEATURE_NOKEYS
 static CAvlRef CAvl_Lookup (const CAvl *o, CAvlArg arg, CAvlKey key);
 static CAvlRef CAvl_LookupExact (const CAvl *o, CAvlArg arg, CAvlKey key);
+static CAvlRef CAvl_GetFirstGreater (const CAvl *o, CAvlArg arg, CAvlKey key);
+static CAvlRef CAvl_GetLastLesser (const CAvl *o, CAvlArg arg, CAvlKey key);
+static CAvlRef CAvl_GetFirstGreaterEqual (const CAvl *o, CAvlArg arg, CAvlKey key);
+static CAvlRef CAvl_GetLastLesserEqual (const CAvl *o, CAvlArg arg, CAvlKey key);
 #endif
 static CAvlRef CAvl_GetFirst (const CAvl *o, CAvlArg arg);
 static CAvlRef CAvl_GetLast (const CAvl *o, CAvlArg arg);
