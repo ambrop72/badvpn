@@ -247,7 +247,9 @@ struct NCDModuleInst_new_params {
     /**
      * A reference to the argument list for the module instance.
      * The reference remains valid as long as the backend instance
-     * exists.
+     * exists. Unless the module has the NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+     * flag set, it is guaranteed that any strings within the arguments will be
+     * some kind of ContinuousString.
      */
     NCDValRef args;
     
@@ -404,7 +406,10 @@ typedef struct NCDModuleProcess_s {
  *                       The caller must ensure that the NCDObject that was used is of the type
  *                       expected by the module being instanciated.
  * @param args arguments to the module. Must be a list value. Must be available and unchanged
- *             as long as the instance exists.
+ *             as long as the instance exists. Unless the module has the
+ *             NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS flag set, any strings within the
+ *             arguments must be some kind of ContinuousString. This can be ensured by calling
+ *             {@link NCDValMem_ConvertNonContinuousStrings}.
  * @param user argument to callback functions
  * @param params more parameters, see {@link NCDModuleInst_params}
  */
@@ -813,6 +818,7 @@ typedef int (*NCDModule_func_getobj) (void *o, NCD_string_id_t name, NCDObject *
 typedef void (*NCDModule_func_clean) (void *o);
 
 #define NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN (1 << 0)
+#define NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS (1 << 1)
 
 /**
  * Structure encapsulating the implementation of a module backend.
@@ -874,6 +880,12 @@ struct NCDModule {
      *   Whether the interpreter is allowed to call func_getvar and func_getobj
      *   even when the backend instance is in down state (as opposed to just
      *   in up state.
+     * 
+     * - NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+     *   If not set, strings within arguments which are not some kind of ContinuousString
+     *   will be converted to some kind of ContinuousString before the module's init
+     *   function is called. If set, they will not be, and the module must work with any
+     *   kind of strings (i.e. {@link NCDVal_StringData} may not be allowed).
      */
     int flags;
     
