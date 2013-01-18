@@ -40,12 +40,14 @@
 #include <limits.h>
 
 #include <misc/debug.h>
+#include <misc/cstring.h>
 
 // public parsing functions
 static int decode_decimal_digit (char c);
 static int decode_hex_digit (char c);
 static int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out) WARN_UNUSED;
 static int parse_unsigned_integer (const char *str, uintmax_t *out) WARN_UNUSED;
+static int parse_unsigned_integer_cstr (b_cstring cstr, size_t offset, size_t length, uintmax_t *out) WARN_UNUSED;
 static int parse_unsigned_hex_integer_bin (const char *str, size_t str_len, uintmax_t *out) WARN_UNUSED;
 static int parse_unsigned_hex_integer (const char *str, uintmax_t *out) WARN_UNUSED;
 static int parse_signmag_integer_bin (const char *str, size_t str_len, int *out_sign, uintmax_t *out_mag) WARN_UNUSED;
@@ -151,6 +153,37 @@ int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out)
 int parse_unsigned_integer (const char *str, uintmax_t *out)
 {
     return parse_unsigned_integer_bin(str, strlen(str), out);
+}
+
+int parse_unsigned_integer_cstr (b_cstring cstr, size_t offset, size_t length, uintmax_t *out)
+{
+    b_cstring_assert_range(cstr, offset, length);
+    
+    if (length == 0) {
+        return 0;
+    }
+    
+    uintmax_t n = 0;
+    
+    B_CSTRING_LOOP_RANGE(cstr, offset, length, pos, chunk_data, chunk_length, {
+        for (size_t i = 0; i < chunk_length; i++) {
+            int digit = decode_decimal_digit(chunk_data[i]);
+            if (digit < 0) {
+                return 0;
+            }
+            if (n > UINTMAX_MAX / 10) {
+                return 0;
+            }
+            n *= 10;
+            if (digit > UINTMAX_MAX - n) {
+                return 0;
+            }
+            n += digit;
+        }
+    })
+    
+    *out = n;
+    return 1;
 }
 
 int parse_unsigned_hex_integer_bin (const char *str, size_t str_len, uintmax_t *out)
