@@ -34,6 +34,7 @@
 #include <stdint.h>
 
 #include <misc/debug.h>
+#include <misc/cstring.h>
 #include <structure/CAvl.h>
 #include <ncd/NCDStringIndex.h>
 #include <ncd/NCDRefTarget.h>
@@ -525,6 +526,14 @@ size_t NCDVal_StringLength (NCDValRef string);
  * }
  */
 void NCDVal_StringGetPtr (NCDValRef string, size_t offset, size_t max_length, const char **out_data, size_t *out_length);
+
+/**
+ * Returns a {@link b_cstring} interface to the given string value.
+ * The returned cstring is valid as long as the memory object exists.
+ * However, if the memory object is moved or copied, the cstring is
+ * invalid in the new or moved (respectively) memory object.
+ */
+b_cstring NCDVal_StringCstring (NCDValRef string);
 
 /**
  * Produces a null-terminated continuous version of a String. On success, the result is

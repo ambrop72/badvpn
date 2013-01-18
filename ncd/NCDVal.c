@@ -1147,6 +1147,63 @@ void NCDVal_StringGetPtr (NCDValRef string, size_t offset, size_t max_length, co
     }
 }
 
+static const char * NCDVal__composedstring_cstring_func (const b_cstring *cstr, size_t offset, size_t *out_length)
+{
+    ASSERT(offset < cstr->length)
+    ASSERT(out_length)
+    ASSERT(cstr->func == NCDVal__composedstring_cstring_func)
+    
+    size_t str_offset = cstr->user1.size;
+    NCDVal_ComposedString_func_getptr func_getptr = (NCDVal_ComposedString_func_getptr)cstr->user2.fptr;
+    void *user = cstr->user3.ptr;
+    
+    const char *data;
+    func_getptr(user, str_offset + offset, &data, out_length);
+    
+    ASSERT(data)
+    ASSERT(*out_length > 0)
+    
+    return data;
+}
+
+b_cstring NCDVal_StringCstring (NCDValRef string)
+{
+    ASSERT(NCDVal_IsString(string))
+    
+    void *ptr = NCDValMem__BufAt(string.mem, string.idx);
+    
+    switch (get_internal_type(*(int *)ptr)) {
+        case STOREDSTRING_TYPE: {
+            struct NCDVal__string *str_e = ptr;
+            return b_cstring_make_buf(str_e->data, str_e->length);
+        } break;
+        
+        case IDSTRING_TYPE: {
+            struct NCDVal__idstring *ids_e = ptr;
+            return b_cstring_make_buf(NCDStringIndex_Value(ids_e->string_index, ids_e->string_id), NCDStringIndex_Length(ids_e->string_index, ids_e->string_id));
+        } break;
+        
+        case EXTERNALSTRING_TYPE: {
+            struct NCDVal__externalstring *exs_e = ptr;
+            return b_cstring_make_buf(exs_e->data, exs_e->length);
+        } break;
+        
+        case COMPOSEDSTRING_TYPE: {
+            struct NCDVal__composedstring *cms_e = ptr;
+            b_cstring cstr;
+            cstr.length = cms_e->length;
+            cstr.func = NCDVal__composedstring_cstring_func;
+            cstr.user1.size = cms_e->offset;
+            cstr.user2.fptr = (void (*) (void))cms_e->func_getptr;
+            cstr.user3.ptr = cms_e->user;
+            return cstr;
+        } break;
+        
+        default:
+            ASSERT(0);
+    }
+}
+
 int NCDVal_StringNullTerminate (NCDValRef string, NCDValNullTermString *out)
 {
     ASSERT(NCDVal_IsString(string))
