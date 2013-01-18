@@ -331,6 +331,15 @@ NCDValRef NCDVal_FromSafe (NCDValMem *mem, NCDValSafeRef sval);
 NCDValRef NCDVal_Moved (NCDValMem *mem, NCDValRef val);
 
 /**
+ * Determines if all strings within this value are ContinuousString's,
+ * by recusively walking the entire value.
+ * If all strings are ContinuousString's, returns 1; if there is at least
+ * one string which is not a ContinuousString, returns 0.
+ * The value reference must not be an invalid reference.
+ */
+int NCDVal_HasOnlyContinuousStrings (NCDValRef val);
+
+/**
  * Determines if the value implements the String interface.
  * The value reference must not be an invalid reference.
  */

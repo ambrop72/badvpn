@@ -765,6 +765,47 @@ NCDValRef NCDVal_Moved (NCDValMem *mem, NCDValRef val)
     return val2;
 }
 
+int NCDVal_HasOnlyContinuousStrings (NCDValRef val)
+{
+    NCDVal__AssertVal(val);
+    
+    switch (NCDVal_Type(val)) {
+        case NCDVAL_STRING: {
+            if (!NCDVal_IsContinuousString(val)) {
+                return 0;
+            }
+        } break;
+        
+        case NCDVAL_LIST: {
+            size_t count = NCDVal_ListCount(val);
+            for (size_t i = 0; i < count; i++) {
+                NCDValRef elem = NCDVal_ListGet(val, i);
+                if (!NCDVal_HasOnlyContinuousStrings(elem)) {
+                    return 0;
+                }
+            }
+        } break;
+        
+        case NCDVAL_MAP: {
+            for (NCDValMapElem me = NCDVal_MapFirst(val); !NCDVal_MapElemInvalid(me); me = NCDVal_MapNext(val, me)) {
+                NCDValRef e_key = NCDVal_MapElemKey(val, me);
+                NCDValRef e_val = NCDVal_MapElemVal(val, me);
+                if (!NCDVal_HasOnlyContinuousStrings(e_key) || !NCDVal_HasOnlyContinuousStrings(e_val)) {
+                    return 0;
+                }
+            }
+        } break;
+        
+        case NCDVAL_PLACEHOLDER: {
+        } break;
+        
+        default:
+            ASSERT(0);
+    }
+    
+    return 1;
+}
+
 int NCDVal_IsString (NCDValRef val)
 {
     NCDVal__AssertVal(val);
