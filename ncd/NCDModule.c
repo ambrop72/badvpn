@@ -415,10 +415,14 @@ int NCDModuleProcess_InitValue (NCDModuleProcess *o, NCDModuleInst *n, NCDValRef
     if (NCDVal_IsIdString(template_name)) {
         template_name_id = NCDVal_IdStringId(template_name);
     } else {
-        const char *str = NCDVal_StringData(template_name);
-        size_t len = NCDVal_StringLength(template_name);
+        NCDValContString cts;
+        if (!NCDVal_StringContinuize(template_name, &cts)) {
+            BLog(BLOG_ERROR, "NCDVal_StringContinuize failed");
+            return 0;
+        }
         
-        template_name_id = NCDStringIndex_GetBin(n->params->iparams->string_index, str, len);
+        template_name_id = NCDStringIndex_GetBin(n->params->iparams->string_index, cts.data, NCDVal_StringLength(template_name));
+        NCDValContString_Free(&cts);
         if (template_name_id < 0) {
             BLog(BLOG_ERROR, "NCDStringIndex_GetBin failed");
             return 0;
