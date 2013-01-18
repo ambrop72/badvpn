@@ -45,7 +45,6 @@ static int generate_val (NCDValRef value, ExpString *out_str)
     
     switch (NCDVal_Type(value)) {
         case NCDVAL_STRING: {
-            const char *str = NCDVal_StringData(value);
             size_t len = NCDVal_StringLength(value);
             
             if (!ExpString_AppendChar(out_str, '"')) {
@@ -53,30 +52,39 @@ static int generate_val (NCDValRef value, ExpString *out_str)
                 goto fail;
             }
             
-            for (size_t i = 0; i < len; i++) {
-                if (str[i] == '\0') {
-                    char buf[5];
-                    snprintf(buf, sizeof(buf), "\\x%02"PRIx8, (uint8_t)str[i]);
-                    
-                    if (!ExpString_Append(out_str, buf)) {
-                        BLog(BLOG_ERROR, "ExpString_Append failed");
-                        goto fail;
+            size_t pos = 0;
+            while (pos < len) {
+                const char *chunk_data;
+                size_t chunk_len;
+                NCDVal_StringGetPtr(value, pos, len - pos, &chunk_data, &chunk_len);
+                
+                for (size_t i = 0; i < chunk_len; i++) {
+                    if (chunk_data[i] == '\0') {
+                        char buf[5];
+                        snprintf(buf, sizeof(buf), "\\x%02"PRIx8, (uint8_t)chunk_data[i]);
+                        
+                        if (!ExpString_Append(out_str, buf)) {
+                            BLog(BLOG_ERROR, "ExpString_Append failed");
+                            goto fail;
+                        }
+                        
+                        continue;
                     }
                     
-                    continue;
-                }
-                
-                if (str[i] == '"' || str[i] == '\\') {
-                    if (!ExpString_AppendChar(out_str, '\\')) {
+                    if (chunk_data[i] == '"' || chunk_data[i] == '\\') {
+                        if (!ExpString_AppendChar(out_str, '\\')) {
+                            BLog(BLOG_ERROR, "ExpString_AppendChar failed");
+                            goto fail;
+                        }
+                    }
+                    
+                    if (!ExpString_AppendChar(out_str, chunk_data[i])) {
                         BLog(BLOG_ERROR, "ExpString_AppendChar failed");
                         goto fail;
                     }
                 }
                 
-                if (!ExpString_AppendChar(out_str, str[i])) {
-                    BLog(BLOG_ERROR, "ExpString_AppendChar failed");
-                    goto fail;
-                }
+                pos += chunk_len;
             }
             
             if (!ExpString_AppendChar(out_str, '"')) {
