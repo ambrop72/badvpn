@@ -1183,6 +1183,46 @@ void NCDValNullTermString_Free (NCDValNullTermString *o)
     }
 }
 
+int NCDVal_StringContinuize (NCDValRef string, NCDValContString *out)
+{
+    ASSERT(NCDVal_IsString(string))
+    ASSERT(out)
+    
+    if (NCDVal_IsContinuousString(string)) {
+        out->data = NCDVal_StringData(string);
+        out->is_allocated = 0;
+        return 1;
+    }
+    
+    size_t length = NCDVal_StringLength(string);
+    
+    char *data = BAlloc(length);
+    if (!data) {
+        return 0;
+    }
+    
+    NCDVal_StringCopyOut(string, 0, length, data);
+    
+    out->data = data;
+    out->is_allocated = 1;
+    return 1;
+}
+
+NCDValContString NCDValContString_NewDummy (void)
+{
+    NCDValContString cts;
+    cts.data = NULL;
+    cts.is_allocated = 0;
+    return cts;
+}
+
+void NCDValContString_Free (NCDValContString *o)
+{
+    if (o->is_allocated) {
+        BFree(o->data);
+    }
+}
+
 void NCDVal_IdStringGet (NCDValRef idstring, NCD_string_id_t *out_string_id,
                          NCDStringIndex **out_string_index)
 {

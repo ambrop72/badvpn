@@ -180,6 +180,11 @@ typedef struct {
     int is_allocated;
 } NCDValNullTermString;
 
+typedef struct {
+    char *data;
+    int is_allocated;
+} NCDValContString;
+
 //
 
 #define NCDVAL_STRING 1
@@ -537,6 +542,31 @@ NCDValNullTermString NCDValNullTermString_NewDummy (void);
  * to null-terminate a string.
  */
 void NCDValNullTermString_Free (NCDValNullTermString *o);
+
+/**
+ * Produces a continuous version of a String. On success, the result is stored into an
+ * {@link NCDValContString} structure, and the continuous string is available via its
+ * 'data' member. This function may either simply pass through the data pointer (if the
+ * string is known to be continuous) or produce a continuous dynamically allocated copy.
+ * On success, {@link NCDValContString_Free} should be called to release any allocated
+ * memory when the continuous string is no longer needed. This must be called before
+ * the memory object is freed, because it may point to data inside the memory object.
+ * It is guaranteed that *out is not modified on failure.
+ * Returns 1 on success and 0 on failure.
+ */
+int NCDVal_StringContinuize (NCDValRef string, NCDValContString *out) WARN_UNUSED;
+
+/**
+ * Returns a dummy {@link NCDValContString} which can be freed using
+ * {@link NCDValContString_Free}, but need not be.
+ */
+NCDValContString NCDValContString_NewDummy (void);
+
+/**
+ * Releases any memory which was dynamically allocated by {@link NCDVal_StringContinuize}
+ * to continuize a string.
+ */
+void NCDValContString_Free (NCDValContString *o);
 
 /**
  * Returns the string ID and the string index of an IdString.
