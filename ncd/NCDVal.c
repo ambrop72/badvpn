@@ -1230,7 +1230,7 @@ int NCDVal_StringContinuize (NCDValRef string, NCDValContString *out)
     ASSERT(out)
     
     if (NCDVal_IsContinuousString(string)) {
-        out->data = NCDVal_StringData(string);
+        out->data = (char *)NCDVal_StringData(string);
         out->is_allocated = 0;
         return 1;
     }
