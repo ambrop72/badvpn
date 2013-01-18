@@ -36,6 +36,7 @@
 #include <misc/debug.h>
 #include <misc/parse_number.h>
 #include <misc/strdup.h>
+#include <misc/balloc.h>
 #include <system/BTime.h>
 #include <ncd/NCDVal.h>
 #include <ncd/NCDStringIndex.h>
@@ -86,7 +87,42 @@ static int ncd_read_uintmax (NCDValRef string, uintmax_t *out)
     ASSERT(NCDVal_IsString(string))
     ASSERT(out)
     
-    return parse_unsigned_integer_bin(NCDVal_StringData(string), NCDVal_StringLength(string), out);
+    size_t length = NCDVal_StringLength(string);
+    
+    if (NCDVal_IsContinuousString(string)) {
+        return parse_unsigned_integer_bin(NCDVal_StringData(string), length, out);
+    }
+    
+    if (length == 0) {
+        return 0;
+    }
+    
+    uintmax_t n = 0;
+    
+    size_t pos = 0;
+    while (pos < length) {
+        const char *chunk_data;
+        size_t chunk_len;
+        NCDVal_StringGetPtr(string, pos, length - pos, &chunk_data, &chunk_len);
+        for (size_t i = 0; i < chunk_len; i++) {
+            int digit = decode_decimal_digit(chunk_data[i]);
+            if (digit < 0) {
+                return 0;
+            }
+            if (n > UINTMAX_MAX / 10) {
+                return 0;
+            }
+            n *= 10;
+            if (digit > UINTMAX_MAX - n) {
+                return 0;
+            }
+            n += digit;
+        }
+        pos += chunk_len;
+    }
+    
+    *out = n;
+    return 1;
 }
 
 static int ncd_read_time (NCDValRef string, btime_t *out)
@@ -114,9 +150,22 @@ static NCD_string_id_t ncd_get_string_id (NCDValRef string, NCDStringIndex *stri
     
     if (NCDVal_IsIdString(string)) {
         return NCDVal_IdStringId(string);
-    } else {
+    } else if (NCDVal_IsContinuousString(string)) {
         return NCDStringIndex_GetBin(string_index, NCDVal_StringData(string), NCDVal_StringLength(string));
     }
+    
+    size_t length = NCDVal_StringLength(string);
+    
+    char *temp = BAlloc(length);
+    if (!temp) {
+        return -1;
+    }
+    NCDVal_StringCopyOut(string, 0, length, temp);
+    
+    NCD_string_id_t res = NCDStringIndex_GetBin(string_index, temp, length);
+    BFree(temp);
+    
+    return res;
 }
 
 static NCDValRef ncd_make_uintmax (NCDValMem *mem, uintmax_t value)
@@ -139,7 +188,24 @@ static char * ncd_strdup (NCDValRef stringnonulls)
 {
     ASSERT(NCDVal_IsStringNoNulls(stringnonulls))
     
-    return b_strdup_bin(NCDVal_StringData(stringnonulls), NCDVal_StringLength(stringnonulls));
+    size_t length = NCDVal_StringLength(stringnonulls);
+    
+    if (NCDVal_IsContinuousString(stringnonulls)) {
+        return b_strdup_bin(NCDVal_StringData(stringnonulls), length);
+    }
+    
+    if (length == SIZE_MAX) {
+        return NULL;
+    }
+    
+    char *data = BAlloc(length + 1);
+    if (!data) {
+        return NULL;
+    }
+    NCDVal_StringCopyOut(stringnonulls, 0, length, data);
+    data[length] = '\0';
+    
+    return data;
 }
 
 #endif
