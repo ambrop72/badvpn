@@ -89,21 +89,21 @@ static void do_print (NCDModuleInst *i, NCDValRef args, int ln)
         NCDValRef arg = NCDVal_ListGet(args, j);
         ASSERT(NCDVal_IsString(arg))
         
-        const char *str = NCDVal_StringData(arg);
-        size_t len = NCDVal_StringLength(arg);
-        size_t pos = 0;
+        b_cstring arg_cstr = NCDVal_StringCstring(arg);
         
-        while (pos < len) {
-            ssize_t res = fwrite(str + pos, 1, len - pos, stdout);
-            if (res <= 0) {
-                break;
+        B_CSTRING_LOOP_RANGE(arg_cstr, 0, arg_cstr.length, pos, chunk_data, chunk_length, {
+            size_t chunk_pos = 0;
+            while (chunk_pos < chunk_length) {
+                ssize_t res = fwrite(chunk_data + chunk_pos, 1, chunk_length - chunk_pos, stdout);
+                if (res <= 0) {
+                    goto out;
+                }
+                chunk_pos += res;
             }
-            
-            pos += res;
-            len -= res;
-        }
+        })
     }
     
+out:
     if (ln) {
         printf("\n");
     }
@@ -179,20 +179,24 @@ static void rprintln_func_new (void *vo, NCDModuleInst *i, const struct NCDModul
 static struct NCDModule modules[] = {
     {
         .type = "print",
-        .func_new2 = print_func_new
+        .func_new2 = print_func_new,
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "println",
-        .func_new2 = println_func_new
+        .func_new2 = println_func_new,
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "rprint",
         .func_new2 = rprint_func_new,
         .func_die = rprint_func_die,
-        .alloc_size = sizeof(struct rprint_instance)
+        .alloc_size = sizeof(struct rprint_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
      }, {
         .type = "rprintln",
         .func_new2 = rprintln_func_new,
         .func_die = rprint_func_die,
-        .alloc_size = sizeof(struct rprint_instance)
+        .alloc_size = sizeof(struct rprint_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = NULL
     }
