@@ -315,14 +315,12 @@ static int b_cstring_memchr (b_cstring cstr, size_t offset, size_t length, char 
 {
     b_cstring_assert_range(cstr, offset, length);
     
-    B_CSTRING_LOOP_RANGE(cstr, offset, length, pos, chunk_data, chunk_length, {
-        for (size_t i = 0; i < chunk_length; i++) {
-            if (chunk_data[i] == ch) {
-                if (out_pos) {
-                    *out_pos = pos + i;
-                }
-                return 1;
+    B_CSTRING_LOOP_CHARS_RANGE(cstr, offset, length, cur_ch_pos, cur_ch, {
+        if (cur_ch == ch) {
+            if (out_pos) {
+                *out_pos = cur_ch_pos;
             }
+            return 1;
         }
     })
     
