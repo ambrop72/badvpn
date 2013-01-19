@@ -1360,20 +1360,10 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
             case NCDVAL_MAP:
                 len = value_map_len(v);
                 break;
-            case STOREDSTRING_TYPE:
-                len = v->storedstring.length;
-                break;
-            case IDSTRING_TYPE:
-                len = NCDStringIndex_Length(v->idstring.string_index, v->idstring.id);
-                break;
-            case EXTERNALSTRING_TYPE:
-                len = v->externalstring.length;
-                break;
-            case COMPOSEDSTRING_TYPE:
-                len = v->composedstring.length;
-                break;
             default:
-                ASSERT(0);
+                ASSERT(value_is_string(v))
+                len = value_string_length(v);
+                break;
         }
         
         *out = ncd_make_uintmax(mem, len);
