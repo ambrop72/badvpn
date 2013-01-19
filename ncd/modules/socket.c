@@ -197,8 +197,8 @@ struct read_instance {
 struct write_instance {
     NCDModuleInst *i;
     struct connection *con_inst;
-    const char *data;
-    size_t length;
+    b_cstring cstr;
+    size_t pos;
 };
 
 struct listen_instance {
@@ -447,20 +447,21 @@ static void connection_send_handler_done (void *user, int data_len)
     ASSERT(o->state == CONNECTION_STATE_ESTABLISHED)
     ASSERT(o->write_inst)
     ASSERT(o->write_inst->con_inst == o)
-    ASSERT(o->write_inst->length > 0)
+    ASSERT(o->write_inst->pos < o->write_inst->cstr.length)
     ASSERT(data_len > 0)
-    ASSERT(data_len <= o->write_inst->length)
+    ASSERT(data_len <= o->write_inst->cstr.length - o->write_inst->pos)
     
     struct write_instance *wr = o->write_inst;
     
     // update send state
-    wr->data += data_len;
-    wr->length -= data_len;
+    wr->pos += data_len;
     
     // if there's more to send, send again
-    if (wr->length > 0) {
-        size_t to_send = (wr->length > INT_MAX ? INT_MAX : wr->length);
-        StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&o->connection), (uint8_t *)wr->data, to_send);
+    if (wr->pos < wr->cstr.length) {
+        size_t chunk_len;
+        const char *chunk_data = b_cstring_get(wr->cstr, wr->pos, wr->cstr.length - wr->pos, &chunk_len);
+        size_t to_send = (chunk_len > INT_MAX ? INT_MAX : chunk_len);
+        StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&o->connection), (uint8_t *)chunk_data, to_send);
         return;
     }
     
@@ -832,11 +833,11 @@ static void write_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
     }
     
     // set send state
-    o->data = NCDVal_StringData(data_arg);
-    o->length = NCDVal_StringLength(data_arg);
+    o->cstr = NCDVal_StringCstring(data_arg);
+    o->pos = 0;
     
     // if there's nothing to send, go up immediately
-    if (o->length == 0) {
+    if (o->cstr.length == 0) {
         o->con_inst = NULL;
         NCDModuleInst_Backend_Up(i);
         return;
@@ -849,8 +850,10 @@ static void write_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
     con_inst->write_inst = o;
     
     // send
-    size_t to_send = (o->length > INT_MAX ? INT_MAX : o->length);
-    StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&con_inst->connection), (uint8_t *)o->data, to_send);
+    size_t chunk_len;
+    const char *chunk_data = b_cstring_get(o->cstr, o->pos, o->cstr.length - o->pos, &chunk_len);
+    size_t to_send = (chunk_len > INT_MAX ? INT_MAX : chunk_len);
+    StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&con_inst->connection), (uint8_t *)chunk_data, to_send);
     return;
     
 fail0:
@@ -1014,27 +1017,32 @@ static struct NCDModule modules[] = {
         .func_new2 = connect_func_new,
         .func_die = connect_func_die,
         .func_getvar2 = connect_func_getvar,
-        .alloc_size = sizeof(struct connection)
+        .alloc_size = sizeof(struct connection),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "sys.socket::read",
         .func_new2 = read_func_new,
         .func_die = read_func_die,
         .func_getvar2 = read_func_getvar,
-        .alloc_size = sizeof(struct read_instance)
+        .alloc_size = sizeof(struct read_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "sys.socket::write",
         .func_new2 = write_func_new,
         .func_die = write_func_die,
-        .alloc_size = sizeof(struct write_instance)
+        .alloc_size = sizeof(struct write_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "sys.socket::close",
-        .func_new2 = close_func_new
+        .func_new2 = close_func_new,
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "sys.listen",
         .func_new2 = listen_func_new,
         .func_die = listen_func_die,
         .func_getvar2 = listen_func_getvar,
-        .alloc_size = sizeof(struct listen_instance)
+        .alloc_size = sizeof(struct listen_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = NULL
     }
