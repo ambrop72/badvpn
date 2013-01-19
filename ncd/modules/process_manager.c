@@ -528,13 +528,16 @@ static struct NCDModule modules[] = {
         .type = "process_manager",
         .func_new2 = func_new,
         .func_die = func_die,
-        .alloc_size = sizeof(struct instance)
+        .alloc_size = sizeof(struct instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "process_manager::start",
-        .func_new2 = start_func_new
+        .func_new2 = start_func_new,
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "process_manager::stop",
-        .func_new2 = stop_func_new
+        .func_new2 = stop_func_new,
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = NULL
     }
