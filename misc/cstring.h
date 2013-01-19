@@ -125,7 +125,8 @@ static int b_cstring_equals_buffer (b_cstring cstr, size_t offset, size_t length
 /**
  * Determines if a range within a string contains the byte \a ch.
  * Returns 1 if it does, and 0 if it does not. If it does contain it, and \a out_pos is not
- * NULL, *\a out_pos is set to the index of the first matching byte in the range.
+ * NULL, *\a out_pos is set to the index of the first matching byte in the range, relative
+ * to the beginning of the range \a offset.
  */
 static int b_cstring_memchr (b_cstring cstr, size_t offset, size_t length, char ch, size_t *out_pos);
 
