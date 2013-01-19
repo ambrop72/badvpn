@@ -458,7 +458,7 @@ typedef struct {
     NCDVal_ComposedString_func_getptr func_getptr;
     void *user;
     NCDRefTarget *ref_target;
-} NCDValStringResource;
+} NCDValComposedStringResource;
 
 /**
  * Like {@link NCDVal_StringGetPtr}, but directly acceses a string resource backing a
@@ -467,7 +467,7 @@ typedef struct {
  * you should not access data outside of the range outside of the one defined by
  * {@link NCDVal_ComposedStringOffset} and {@link NCDVal_StringLength}.
  */
-void NCDValStringResource_GetPtr (NCDValStringResource resource, size_t offset, size_t max_length, const char **out_data, size_t *out_length);
+void NCDValComposedStringResource_GetPtr (NCDValComposedStringResource resource, size_t offset, size_t max_length, const char **out_data, size_t *out_length);
 
 /**
  * Builds a new ComposedString from a string resource.
@@ -477,7 +477,7 @@ void NCDValStringResource_GetPtr (NCDValStringResource resource, size_t offset, 
  * A ComposedString is a kind of String with an abstract representation exposed via the
  * {@link NCDVal_ComposedString_func_getptr} callback.
  */
-NCDValRef NCDVal_NewComposedString (NCDValMem *mem, NCDValStringResource resource, size_t offset, size_t length);
+NCDValRef NCDVal_NewComposedString (NCDValMem *mem, NCDValComposedStringResource resource, size_t offset, size_t length);
 
 /**
  * Returns a pointer to the data of a ContinuousString.
@@ -611,7 +611,7 @@ NCDRefTarget * NCDVal_ExternalStringTarget (NCDValRef externalstring);
 /**
  * Returns the underlying string resource of a ComposedString.
  */
-NCDValStringResource NCDVal_ComposedStringResource (NCDValRef composedstring);
+NCDValComposedStringResource NCDVal_ComposedStringResource (NCDValRef composedstring);
 
 /**
  * Returns the resource offset of a ComposedString.

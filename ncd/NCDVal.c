@@ -633,7 +633,7 @@ NCDValRef NCDVal_NewCopy (NCDValMem *mem, NCDValRef val)
         case COMPOSEDSTRING_TYPE: {
             struct NCDVal__composedstring *cms_e = ptr;
             
-            NCDValStringResource resource;
+            NCDValComposedStringResource resource;
             resource.func_getptr = cms_e->func_getptr;
             resource.user = cms_e->user;
             resource.ref_target = cms_e->ref.target;
@@ -989,7 +989,7 @@ fail:
     return NCDVal_NewInvalid();
 }
 
-NCDValRef NCDVal_NewComposedString (NCDValMem *mem, NCDValStringResource resource, size_t offset, size_t length)
+NCDValRef NCDVal_NewComposedString (NCDValMem *mem, NCDValComposedStringResource resource, size_t offset, size_t length)
 {
     NCDVal__AssertMem(mem);
     ASSERT(resource.func_getptr)
@@ -1087,7 +1087,7 @@ size_t NCDVal_StringLength (NCDValRef string)
     }
 }
 
-void NCDValStringResource_GetPtr (NCDValStringResource resource, size_t offset, size_t max_length, const char **out_data, size_t *out_length)
+void NCDValComposedStringResource_GetPtr (NCDValComposedStringResource resource, size_t offset, size_t max_length, const char **out_data, size_t *out_length)
 {
     ASSERT(max_length > 0)
     ASSERT(out_data)
@@ -1359,13 +1359,13 @@ NCDRefTarget * NCDVal_ExternalStringTarget (NCDValRef externalstring)
     return exs_e->ref.target;
 }
 
-NCDValStringResource NCDVal_ComposedStringResource (NCDValRef composedstring)
+NCDValComposedStringResource NCDVal_ComposedStringResource (NCDValRef composedstring)
 {
     ASSERT(NCDVal_IsComposedString(composedstring))
     
     struct NCDVal__composedstring *cms_e = NCDValMem__BufAt(composedstring.mem, composedstring.idx);
     
-    NCDValStringResource res;
+    NCDValComposedStringResource res;
     res.func_getptr = cms_e->func_getptr;
     res.user = cms_e->user;
     res.ref_target = cms_e->ref.target;
