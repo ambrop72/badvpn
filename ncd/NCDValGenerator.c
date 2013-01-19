@@ -45,19 +45,14 @@ static int generate_val (NCDValRef value, ExpString *out_str)
     
     switch (NCDVal_Type(value)) {
         case NCDVAL_STRING: {
-            size_t len = NCDVal_StringLength(value);
+            b_cstring cstr = NCDVal_StringCstring(value);
             
             if (!ExpString_AppendChar(out_str, '"')) {
                 BLog(BLOG_ERROR, "ExpString_AppendChar failed");
                 goto fail;
             }
             
-            size_t pos = 0;
-            while (pos < len) {
-                const char *chunk_data;
-                size_t chunk_len;
-                NCDVal_StringGetPtr(value, pos, len - pos, &chunk_data, &chunk_len);
-                
+            B_CSTRING_LOOP(cstr, pos, chunk_data, chunk_len, {
                 for (size_t i = 0; i < chunk_len; i++) {
                     if (chunk_data[i] == '\0') {
                         char buf[5];
@@ -83,9 +78,7 @@ static int generate_val (NCDValRef value, ExpString *out_str)
                         goto fail;
                     }
                 }
-                
-                pos += chunk_len;
-            }
+            })
             
             if (!ExpString_AppendChar(out_str, '"')) {
                 BLog(BLOG_ERROR, "ExpString_AppendChar failed");
