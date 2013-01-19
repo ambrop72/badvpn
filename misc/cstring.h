@@ -143,9 +143,14 @@ static char * b_cstring_strdup (b_cstring cstr, size_t offset, size_t length);
  * refer to a valid range for the string.
  * \a rel_pos_var, \a chunk_data_var and \a chunk_length_var specify names of variables
  * which will be available in \a body.
- * \a rel_pos_var will hold the offset of the current continuous region, relative to the beginning.
+ * \a rel_pos_var will hold the offset (size_t) of the current continuous region, relative
+ * to \a offset.
  * \a chunk_data_var will hold a pointer (const char *) to the beginning of the region, and
- * \a chunk_length_var will hold its length.
+ * \a chunk_length_var will hold its length (size_t).
+ * 
+ * Note: \a cstr, \a offset and \a length may be evaluated multiple times, or not at all.
+ * Note: do not use 'continue' or 'break' from inside the body, their behavior depends
+ *       on the internal implementation of this macro.
  * 
  * See the implementation of {@link b_cstring_copy_to_buf} for a usage example.
  */
@@ -165,6 +170,38 @@ static char * b_cstring_strdup (b_cstring cstr, size_t offset, size_t length);
  * i.e. offset==0 and length==cstr.length.
  */
 #define B_CSTRING_LOOP(cstr, rel_pos_var, chunk_data_var, chunk_length_var, body) B_CSTRING_LOOP_RANGE(cstr, 0, (cstr).length, rel_pos_var, chunk_data_var, chunk_length_var, body)
+
+/**
+ * Macro which iterates the characters of a range within a cstring.
+ * For each character, the statements in \a body are executed, in order.
+ * \a cstr is the string to be iterated.
+ * \a offset and \a length specify the range of the string to iterate; they must
+ * refer to a valid range for the string.
+ * \a char_rel_pos_var and \a char_var specify names of variables which will be
+ * available in \a body.
+ * \a char_rel_pos_var will hold the position (size_t) of the current character
+ * relative to \a offset.
+ * \a char_var will hold the current character (char).
+ * 
+ * Note: \a cstr, \a offset and \a length may be evaluated multiple times, or not at all.
+ * Note: do not use 'continue' or 'break' from inside the body, their behavior depends
+ *       on the internal implementation of this macro.
+ */
+#define B_CSTRING_LOOP_CHARS_RANGE(cstr, offset, length, char_rel_pos_var, char_var, body) \
+B_CSTRING_LOOP_RANGE(cstr, offset, length, b_cstring_loop_chars_pos, b_cstring_loop_chars_chunk_data, b_cstring_loop_chars_chunk_length, { \
+    for (size_t b_cstring_loop_chars_chunk_pos = 0; b_cstring_loop_chars_chunk_pos < b_cstring_loop_chars_chunk_length; b_cstring_loop_chars_chunk_pos++) { \
+        char char_rel_pos_var = b_cstring_loop_chars_pos + b_cstring_loop_chars_chunk_pos; \
+        B_USE(char_rel_pos_var) \
+        char char_var = b_cstring_loop_chars_chunk_data[b_cstring_loop_chars_chunk_pos]; \
+        { body } \
+    } \
+})
+
+/**
+ * Like {@link B_CSTRING_LOOP_CHARS_RANGE}, but iterates the entire string,
+ * i.e. offset==0 and length==cstr.length.
+ */
+#define B_CSTRING_LOOP_CHARS(cstr, char_rel_pos_var, char_var, body) B_CSTRING_LOOP_CHARS_RANGE(cstr, 0, (cstr).length, char_rel_pos_var, char_var, body)
 
 static const char * b_cstring__buf_func (const b_cstring *cstr, size_t offset, size_t *out_length)
 {
