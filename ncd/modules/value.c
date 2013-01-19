@@ -213,7 +213,7 @@ struct value {
         struct {
             char *string;
             size_t length;
-        } string;
+        } storedstring;
         struct {
             NCD_string_id_t id;
             NCDStringIndex *string_index;
@@ -308,7 +308,7 @@ static void value_cleanup (struct value *v)
     
     switch (v->type) {
         case STOREDSTRING_TYPE: {
-            BFree(v->string.string);
+            BFree(v->storedstring.string);
         } break;
         
         case IDSTRING_TYPE: {
@@ -371,7 +371,7 @@ static void value_delete (struct value *v)
     
     switch (v->type) {
         case STOREDSTRING_TYPE: {
-            BFree(v->string.string);
+            BFree(v->storedstring.string);
         } break;
         
         case IDSTRING_TYPE: {
@@ -421,16 +421,16 @@ static struct value * value_init_storedstring (NCDModuleInst *i, const char *str
     v->parent = NULL;
     v->type = STOREDSTRING_TYPE;
     
-    if (!(v->string.string = BAlloc(len))) {
+    if (!(v->storedstring.string = BAlloc(len))) {
         ModuleLog(i, BLOG_ERROR, "BAlloc failed");
         goto fail1;
     }
     
     if (str) {
-        memcpy(v->string.string, str, len);
+        memcpy(v->storedstring.string, str, len);
     }
     
-    v->string.length = len;
+    v->storedstring.length = len;
     
     return v;
     
@@ -544,7 +544,7 @@ static size_t value_string_length (struct value *v)
     
     switch (v->type) {
         case STOREDSTRING_TYPE:
-            return v->string.length;
+            return v->storedstring.length;
         case IDSTRING_TYPE:
             return NCDStringIndex_Length(v->idstring.string_index, v->idstring.id);
         case EXTERNALSTRING_TYPE:
@@ -563,7 +563,7 @@ static void value_string_copy_out (struct value *v, char *dest)
     
     switch (v->type) {
         case STOREDSTRING_TYPE:
-            memcpy(dest, v->string.string, v->string.length);
+            memcpy(dest, v->storedstring.string, v->storedstring.length);
             break;
         case IDSTRING_TYPE:
             memcpy(dest, NCDStringIndex_Value(v->idstring.string_index, v->idstring.id), NCDStringIndex_Length(v->idstring.string_index, v->idstring.id));
@@ -587,7 +587,7 @@ static void value_string_set_allocd (struct value *v, char *data, size_t length)
     
     switch (v->type) {
         case STOREDSTRING_TYPE: {
-            BFree(v->string.string);
+            BFree(v->storedstring.string);
         } break;
         
         case IDSTRING_TYPE: {
@@ -610,8 +610,8 @@ static void value_string_set_allocd (struct value *v, char *data, size_t length)
     }
     
     v->type = STOREDSTRING_TYPE;
-    v->string.string = data;
-    v->string.length = length;
+    v->storedstring.string = data;
+    v->storedstring.length = length;
 }
 
 static struct value * value_init_list (NCDModuleInst *i)
@@ -799,7 +799,7 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value)
             } else {
                 v = value_init_storedstring(i, NULL, NCDVal_StringLength(value));
                 if (v) {
-                    NCDVal_StringCopyOut(value, 0, NCDVal_StringLength(value), v->string.string);
+                    NCDVal_StringCopyOut(value, 0, NCDVal_StringLength(value), v->storedstring.string);
                 }
             }
             if (!v) {
@@ -879,7 +879,7 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
     
     switch (v->type) {
         case STOREDSTRING_TYPE: {
-            *out_value = NCDVal_NewStringBin(mem, (const uint8_t *)v->string.string, v->string.length);
+            *out_value = NCDVal_NewStringBin(mem, (const uint8_t *)v->storedstring.string, v->storedstring.length);
             if (NCDVal_IsInvalid(*out_value)) {
                 goto fail;
             }
@@ -1211,22 +1211,22 @@ static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
             
             size_t append_length = NCDVal_StringLength(data);
             
-            if (append_length > SIZE_MAX - v->string.length) {
+            if (append_length > SIZE_MAX - v->storedstring.length) {
                 ModuleLog(i, BLOG_ERROR, "too much data to append");
                 return 0;
             }
-            size_t new_length = v->string.length + append_length;
+            size_t new_length = v->storedstring.length + append_length;
             
-            char *new_string = BRealloc(v->string.string, new_length);
+            char *new_string = BRealloc(v->storedstring.string, new_length);
             if (!new_string) {
                 ModuleLog(i, BLOG_ERROR, "BRealloc failed");
                 return 0;
             }
             
-            NCDVal_StringCopyOut(data, 0, append_length, new_string + v->string.length);
+            NCDVal_StringCopyOut(data, 0, append_length, new_string + v->storedstring.length);
             
-            v->string.string = new_string;
-            v->string.length = new_length;
+            v->storedstring.string = new_string;
+            v->storedstring.length = new_length;
         } break;
         
         case IDSTRING_TYPE:
@@ -1361,7 +1361,7 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
                 len = value_map_len(v);
                 break;
             case STOREDSTRING_TYPE:
-                len = v->string.length;
+                len = v->storedstring.length;
                 break;
             case IDSTRING_TYPE:
                 len = NCDStringIndex_Length(v->idstring.string_index, v->idstring.id);
@@ -1841,7 +1841,7 @@ static void func_new_substr (void *vo, NCDModuleInst *i, const struct NCDModuleI
     struct value *v = NULL;
     switch (mov->type) {
         case STOREDSTRING_TYPE: {
-            v = value_init_storedstring(i, mov->string.string + start, amount);
+            v = value_init_storedstring(i, mov->storedstring.string + start, amount);
         } break;
         case IDSTRING_TYPE: {
             v = value_init_storedstring(i, NCDStringIndex_Value(mov->idstring.string_index, mov->idstring.id) + start, amount);
