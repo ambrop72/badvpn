@@ -52,32 +52,31 @@ static int generate_val (NCDValRef value, ExpString *out_str)
                 goto fail;
             }
             
-            B_CSTRING_LOOP(cstr, pos, chunk_data, chunk_len, {
-                for (size_t i = 0; i < chunk_len; i++) {
-                    if (chunk_data[i] == '\0') {
-                        char buf[5];
-                        snprintf(buf, sizeof(buf), "\\x%02"PRIx8, (uint8_t)chunk_data[i]);
-                        
-                        if (!ExpString_Append(out_str, buf)) {
-                            BLog(BLOG_ERROR, "ExpString_Append failed");
-                            goto fail;
-                        }
-                        
-                        continue;
+            B_CSTRING_LOOP_CHARS(cstr, char_pos, ch, {
+                if (ch == '\0') {
+                    char buf[5];
+                    snprintf(buf, sizeof(buf), "\\x%02"PRIx8, (uint8_t)ch);
+                    
+                    if (!ExpString_Append(out_str, buf)) {
+                        BLog(BLOG_ERROR, "ExpString_Append failed");
+                        goto fail;
                     }
                     
-                    if (chunk_data[i] == '"' || chunk_data[i] == '\\') {
-                        if (!ExpString_AppendChar(out_str, '\\')) {
-                            BLog(BLOG_ERROR, "ExpString_AppendChar failed");
-                            goto fail;
-                        }
-                    }
-                    
-                    if (!ExpString_AppendChar(out_str, chunk_data[i])) {
+                    goto next_char;
+                }
+                
+                if (ch == '"' || ch == '\\') {
+                    if (!ExpString_AppendChar(out_str, '\\')) {
                         BLog(BLOG_ERROR, "ExpString_AppendChar failed");
                         goto fail;
                     }
                 }
+                
+                if (!ExpString_AppendChar(out_str, ch)) {
+                    BLog(BLOG_ERROR, "ExpString_AppendChar failed");
+                    goto fail;
+                }
+            next_char:;
             })
             
             if (!ExpString_AppendChar(out_str, '"')) {
