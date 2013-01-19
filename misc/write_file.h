@@ -35,6 +35,7 @@
 #include <stdio.h>
 
 #include <misc/debug.h>
+#include <misc/cstring.h>
 
 static int write_file (const char *file, const uint8_t *data, size_t len)
 {
@@ -54,6 +55,39 @@ static int write_file (const char *file, const uint8_t *data, size_t len)
         data += res;
         len -= res;
     }
+    
+    if (fclose(f) != 0) {
+        return 0;
+    }
+    
+    return 1;
+    
+fail1:
+    fclose(f);
+fail0:
+    return 0;
+}
+
+static int write_file_cstring (const char *file, b_cstring cstr, size_t offset, size_t length)
+{
+    b_cstring_assert_range(cstr, offset, length);
+    
+    FILE *f = fopen(file, "w");
+    if (!f) {
+        goto fail0;
+    }
+    
+    B_CSTRING_LOOP_RANGE(cstr, offset, length, pos, chunk_data, chunk_length, {
+        size_t chunk_pos = 0;
+        while (chunk_pos < chunk_length) {
+            size_t res = fwrite(chunk_data + chunk_pos, 1, chunk_length - chunk_pos, f);
+            if (res == 0) {
+                goto fail1;
+            }
+            ASSERT(res <= chunk_length - chunk_pos)
+            chunk_pos += res;
+        }
+    })
     
     if (fclose(f) != 0) {
         return 0;
