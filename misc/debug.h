@@ -137,4 +137,6 @@
 
 #define B_USE(expr) (void)(sizeof((expr)));
 
+#define B_ASSERT_USE(expr) { ASSERT(expr) B_USE(expr) }
+
 #endif
