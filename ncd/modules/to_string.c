@@ -104,7 +104,8 @@ static struct NCDModule modules[] = {
         .func_new2 = func_new,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
+        .alloc_size = sizeof(struct instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = NULL
     }
