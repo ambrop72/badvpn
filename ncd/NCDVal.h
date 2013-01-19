@@ -438,8 +438,7 @@ NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len
                                     NCDRefTarget *ref_target);
 
 /**
- * Callback function which is called by {@link NCDVal_StringGetPtr} for ComposedString's to
- * access the underlying string resource.
+ * Callback function which is called for ComposedString's to access the underlying string resource.
  * \a user is whatever was passed to 'resource.user' in {@link NCDVal_NewComposedString}.
  * \a offset is the offset from the beginning of the string exposed by the resource; it will be
  * >= 'offset' and < 'offset' + 'length' as given to NCDVal_NewComposedString.

@@ -1400,18 +1400,8 @@ int NCDVal_StringHasNulls (NCDValRef string)
         } break;
         
         case COMPOSEDSTRING_TYPE: {
-            size_t pos = 0;
-            size_t length = NCDVal_StringLength(string);
-            while (pos < length) {
-                const char *chunk_data;
-                size_t chunk_len;
-                NCDVal_StringGetPtr(string, pos, length - pos, &chunk_data, &chunk_len);
-                if (memchr(chunk_data, '\0', chunk_len)) {
-                    return 1;
-                }
-                pos += chunk_len;
-            }
-            return 0;
+            b_cstring cstr = NCDVal_StringCstring(string);
+            return b_cstring_memchr(cstr, 0, cstr.length, '\0', NULL);
         } break;
         
         default:
@@ -1486,30 +1476,9 @@ int NCDVal_StringMemCmp (NCDValRef string1, NCDValRef string2, size_t start1, si
         return memcmp(NCDVal_StringData(string1) + start1, NCDVal_StringData(string2) + start2, length);
     }
     
-    size_t pos1 = 0;
-    while (pos1 < length) {
-        const char *chunk_data1;
-        size_t chunk_len1;
-        NCDVal_StringGetPtr(string1, start1 + pos1, length - pos1, &chunk_data1, &chunk_len1);
-        
-        size_t pos2 = 0;
-        while (pos2 < chunk_len1) {
-            const char *chunk_data2;
-            size_t chunk_len2;
-            NCDVal_StringGetPtr(string2, start2 + pos1 + pos2, chunk_len1 - pos2, &chunk_data2, &chunk_len2);
-            
-            int cmp = memcmp(chunk_data1 + pos2, chunk_data2, chunk_len2);
-            if (cmp) {
-                return cmp;
-            }
-            
-            pos2 += chunk_len2;
-        }
-        
-        pos1 += chunk_len1;
-    }
-    
-    return 0;
+    b_cstring cstr1 = NCDVal_StringCstring(string1);
+    b_cstring cstr2 = NCDVal_StringCstring(string2);
+    return b_cstring_memcmp(cstr1, cstr2, start1, start2, length);
 }
 
 void NCDVal_StringCopyOut (NCDValRef string, size_t start, size_t length, char *dst)
@@ -1523,14 +1492,8 @@ void NCDVal_StringCopyOut (NCDValRef string, size_t start, size_t length, char *
         return;
     }
     
-    size_t pos = 0;
-    while (pos < length) {
-        const char *chunk_data;
-        size_t chunk_len;
-        NCDVal_StringGetPtr(string, start + pos, length - pos, &chunk_data, &chunk_len);
-        memcpy(dst + pos, chunk_data, chunk_len);
-        pos += chunk_len;
-    }
+    b_cstring cstr = NCDVal_StringCstring(string);
+    b_cstring_copy_to_buf(cstr, start, length, dst);
 }
 
 int NCDVal_StringRegionEquals (NCDValRef string, size_t start, size_t length, const char *data)
@@ -1543,18 +1506,8 @@ int NCDVal_StringRegionEquals (NCDValRef string, size_t start, size_t length, co
         return !memcmp(NCDVal_StringData(string) + start, data, length);
     }
     
-    size_t pos = 0;
-    while (pos < length) {
-        const char *chunk_data;
-        size_t chunk_len;
-        NCDVal_StringGetPtr(string, start + pos, length - pos, &chunk_data, &chunk_len);
-        if (memcmp(chunk_data, data + pos, chunk_len)) {
-            return 0;
-        }
-        pos += chunk_len;
-    }
-    
-    return 1;
+    b_cstring cstr = NCDVal_StringCstring(string);
+    return b_cstring_equals_buffer(cstr, start, length, data);
 }
 
 int NCDVal_IsList (NCDValRef val)
