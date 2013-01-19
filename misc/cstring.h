@@ -51,8 +51,9 @@ struct b_cstring_s;
 typedef const char * (*b_cstring_func) (const struct b_cstring_s *cstr, size_t offset, size_t *out_length);
 
 /**
- * An abstract string which is not necessarily continuous. Its data can be read using
- * {@link b_cstring_get}, which internally invokes the {@link b_cstring_func} callback.
+ * An abstract string which is not necessarily continuous. Given a cstring, its length
+ * can be determined by reading the 'length' member, and its data can be read using
+ * {@link b_cstring_get} (which internally invokes the {@link b_cstring_func} callback).
  */
 typedef struct b_cstring_s {
     size_t length;
@@ -75,9 +76,15 @@ typedef struct b_cstring_s {
 } b_cstring;
 
 /**
- * Convenience function which makes a cstring pointing to a buffer.
+ * Makes a cstring pointing to a buffer.
+ * \a data may be NULL if \a length is 0.
  */
 static b_cstring b_cstring_make_buf (const char *data, size_t length);
+
+/**
+ * Makes a cstring which represents an empty string.
+ */
+static b_cstring b_cstring_make_empty (void);
 
 /**
  * Retrieves a pointer to a continuous region of the string.
@@ -176,11 +183,20 @@ static b_cstring b_cstring_make_buf (const char *data, size_t length)
     return cstr;
 }
 
+static b_cstring b_cstring_make_empty (void)
+{
+    b_cstring cstr;
+    cstr.length = 0;
+    cstr.func = NULL;
+    return cstr;
+}
+
 static const char * b_cstring_get (b_cstring cstr, size_t offset, size_t maxlen, size_t *out_chunk_len)
 {
     ASSERT(offset < cstr.length)
     ASSERT(maxlen > 0)
     ASSERT(out_chunk_len)
+    ASSERT(cstr.func)
     
     const char *data = cstr.func(&cstr, offset, out_chunk_len);
     ASSERT(data)
