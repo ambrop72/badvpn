@@ -1238,9 +1238,8 @@ static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
                 return 0;
             }
             
-            size_t append_length = NCDVal_StringLength(data);
-            
             size_t length = value_string_length(v);
+            size_t append_length = NCDVal_StringLength(data);
             
             if (append_length > SIZE_MAX - length) {
                 ModuleLog(i, BLOG_ERROR, "too much data to append");
