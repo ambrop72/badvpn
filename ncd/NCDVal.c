@@ -1106,19 +1106,6 @@ size_t NCDVal_StringLength (NCDValRef string)
     }
 }
 
-void NCDValComposedStringResource_GetPtr (NCDValComposedStringResource resource, size_t offset, size_t max_length, const char **out_data, size_t *out_length)
-{
-    ASSERT(max_length > 0)
-    ASSERT(out_data)
-    ASSERT(out_length)
-    
-    resource.func_getptr(resource.user, offset, out_data, out_length);
-    
-    if (*out_length > max_length) {
-        *out_length = max_length;
-    }
-}
-
 b_cstring NCDValComposedStringResource_Cstring (NCDValComposedStringResource resource, size_t offset, size_t length)
 {
     b_cstring cstr;
@@ -1128,53 +1115,6 @@ b_cstring NCDValComposedStringResource_Cstring (NCDValComposedStringResource res
     cstr.user2.fptr = (void (*) (void))resource.func_getptr;
     cstr.user3.ptr = resource.user;
     return cstr;
-}
-
-void NCDVal_StringGetPtr (NCDValRef string, size_t offset, size_t max_length, const char **out_data, size_t *out_length)
-{
-    ASSERT(NCDVal_IsString(string))
-    ASSERT(offset < NCDVal_StringLength(string))
-    ASSERT(max_length > 0)
-    ASSERT(out_data)
-    ASSERT(out_length)
-    
-    void *ptr = NCDValMem__BufAt(string.mem, string.idx);
-    
-    switch (get_internal_type(*(int *)ptr)) {
-        case STOREDSTRING_TYPE: {
-            struct NCDVal__string *str_e = ptr;
-            *out_data = str_e->data + offset;
-            *out_length = str_e->length - offset;
-        } break;
-        
-        case IDSTRING_TYPE: {
-            struct NCDVal__idstring *ids_e = ptr;
-            *out_data = NCDStringIndex_Value(ids_e->string_index, ids_e->string_id) + offset;
-            *out_length = NCDStringIndex_Length(ids_e->string_index, ids_e->string_id) - offset;
-        } break;
-        
-        case EXTERNALSTRING_TYPE: {
-            struct NCDVal__externalstring *exs_e = ptr;
-            *out_data = exs_e->data + offset;
-            *out_length = exs_e->length - offset;
-        } break;
-        
-        case COMPOSEDSTRING_TYPE: {
-            struct NCDVal__composedstring *cms_e = ptr;
-            cms_e->func_getptr(cms_e->user, cms_e->offset + offset, out_data, out_length);
-            ASSERT(*out_data)
-            ASSERT(*out_length > 0)
-        } break;
-        
-        default:
-            ASSERT(0);
-            *out_data = NULL;
-            *out_length = 0;
-    }
-    
-    if (*out_length > max_length) {
-        *out_length = max_length;
-    }
 }
 
 b_cstring NCDVal_StringCstring (NCDValRef string)

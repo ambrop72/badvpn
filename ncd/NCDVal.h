@@ -461,15 +461,6 @@ typedef struct {
 } NCDValComposedStringResource;
 
 /**
- * Like {@link NCDVal_StringGetPtr}, but directly acceses a string resource backing a
- * ComposedString. The \a offset here is from the beginning of the resource; assuming you have
- * obtained the resource from a ComposedString using {@link NCDVal_ComposedStringResource},
- * you should not access data outside of the range outside of the one defined by
- * {@link NCDVal_ComposedStringOffset} and {@link NCDVal_StringLength}.
- */
-void NCDValComposedStringResource_GetPtr (NCDValComposedStringResource resource, size_t offset, size_t max_length, const char **out_data, size_t *out_length);
-
-/**
  * Returns a cstring referencing a range within a {@link NCDValComposedStringResource}.
  * \a offset and \a length specify the range within the resource which the returned
  * cstring will reference. To reference the contents of a ComposedString, use:
@@ -507,39 +498,6 @@ const char * NCDVal_StringData (NCDValRef contstring);
  * The value reference must point to a String.
  */
 size_t NCDVal_StringLength (NCDValRef string);
-
-/**
- * Returns a pointer into a continuous chunk of data within a String.
- * The \a offset must be lesser than the length of the string, and \a max_length
- * must be greater than zero.
- * Both \a out_data and \a out_length must be non-NULL. *\a out_data will be set to point
- * into a continuous data chunk starting at \a offset from the beginning of the string, and
- * *\a out_length will be set to the number of bytes which are available from that pointer,
- * and to no more than \a max_length.
- * 
- * It is only guaranteed that:
- * - *out_length > 0,
- * - *out_length <= max_length.
- * 
- * This means that:
- * - *out_length may be smaller than the remainder of the string,
- * - *out_length may be larger than length_of_string - offset, i.e. you may be provided
- *   bytes that are outside of this string, unless limited by max_length.
- * 
- * For clarification, the following code is provided which prints any String to standard
- * output.
- * 
- * size_t pos = 0;
- * size_t length = NCDVal_StringLength(string);
- * while (pos < length) {
- *     const char *chunk_data;
- *     size_t chunk_len;
- *     NCDVal_StringGetPtr(string, pos, length - pos, &chunk_data, &chunk_len);
- *     fwrite(chunk_data, 1, chunk_len, stdout);
- *     pos += chunk_len;
- * }
- */
-void NCDVal_StringGetPtr (NCDValRef string, size_t offset, size_t max_length, const char **out_data, size_t *out_length);
 
 /**
  * Returns a {@link b_cstring} interface to the given string value.
