@@ -52,6 +52,7 @@ static int parse_unsigned_hex_integer_bin (const char *str, size_t str_len, uint
 static int parse_unsigned_hex_integer (const char *str, uintmax_t *out) WARN_UNUSED;
 static int parse_signmag_integer_bin (const char *str, size_t str_len, int *out_sign, uintmax_t *out_mag) WARN_UNUSED;
 static int parse_signmag_integer (const char *str, int *out_sign, uintmax_t *out_mag) WARN_UNUSED;
+static int parse_signmag_integer_cstr (b_cstring cstr, size_t offset, size_t length, int *out_sign, uintmax_t *out_mag) WARN_UNUSED;
 
 // public generation functions
 static int compute_decimal_repr_size (uintmax_t x);
@@ -243,6 +244,25 @@ int parse_signmag_integer_bin (const char *str, size_t str_len, int *out_sign, u
 int parse_signmag_integer (const char *str, int *out_sign, uintmax_t *out_mag)
 {
     return parse_signmag_integer_bin(str, strlen(str), out_sign, out_mag);
+}
+
+int parse_signmag_integer_cstr (b_cstring cstr, size_t offset, size_t length, int *out_sign, uintmax_t *out_mag)
+{
+    b_cstring_assert_range(cstr, offset, length);
+    
+    int sign = 1;
+    if (length > 0 && (b_cstring_at(cstr, offset) == '+' || b_cstring_at(cstr, offset) == '-')) {
+        sign = 1 - 2 * (b_cstring_at(cstr, offset) == '-');
+        offset++;
+        length--;
+    }
+    
+    if (!parse_unsigned_integer_cstr(cstr, offset, length, out_mag)) {
+        return 0;
+    }
+    
+    *out_sign = sign;
+    return 1;
 }
 
 int compute_decimal_repr_size (uintmax_t x)
