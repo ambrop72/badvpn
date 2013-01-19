@@ -106,6 +106,18 @@ static void b_cstring_copy_to_buf (b_cstring cstr, size_t offset, size_t length,
 static int b_cstring_memcmp (b_cstring cstr1, b_cstring cstr2, size_t offset1, size_t offset2, size_t length);
 
 /**
+ * Determines if a range within a string is equal to the bytes in an external buffer.
+ */
+static int b_cstring_equals_buffer (b_cstring cstr, size_t offset, size_t length, const char *data);
+
+/**
+ * Determines if a range within a string contains the byte \a ch.
+ * Returns 1 if it does, and 0 if it does not. If it does contain it, and \a out_pos is not
+ * NULL, *\a out_pos is set to the index of the first matching byte in the range.
+ */
+static int b_cstring_memchr (b_cstring cstr, size_t offset, size_t length, char ch, size_t *out_pos);
+
+/**
  * Allocates a buffer for a range and copies it. The buffer is allocated using {@link BAlloc}.
  * An extra null byte will be appended. On failure, returns NULL.
  */
@@ -209,6 +221,37 @@ static int b_cstring_memcmp (b_cstring cstr1, b_cstring cstr2, size_t offset1, s
                 return cmp;
             }
         })
+    })
+    
+    return 0;
+}
+
+static int b_cstring_equals_buffer (b_cstring cstr, size_t offset, size_t length, const char *data)
+{
+    b_cstring_assert_range(cstr, offset, length);
+    
+    B_CSTRING_LOOP_RANGE(cstr, offset, length, pos, chunk_data, chunk_len, {
+        if (memcmp(chunk_data, data + pos, chunk_len)) {
+            return 0;
+        }
+    })
+    
+    return 1;
+}
+
+static int b_cstring_memchr (b_cstring cstr, size_t offset, size_t length, char ch, size_t *out_pos)
+{
+    b_cstring_assert_range(cstr, offset, length);
+    
+    B_CSTRING_LOOP_RANGE(cstr, offset, length, pos, chunk_data, chunk_length, {
+        for (size_t i = 0; i < chunk_length; i++) {
+            if (chunk_data[i] == ch) {
+                if (out_pos) {
+                    *out_pos = pos + i;
+                }
+                return 1;
+            }
+        }
     })
     
     return 0;
