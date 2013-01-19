@@ -332,57 +332,68 @@ static struct NCDModule modules[] = {
         .type = "num_lesser",
         .func_new2 = func_new_lesser,
         .func_getvar2 = boolean_func_getvar2,
-        .alloc_size = sizeof(struct boolean_instance)
+        .alloc_size = sizeof(struct boolean_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "num_greater",
         .func_new2 = func_new_greater,
         .func_getvar2 = boolean_func_getvar2,
-        .alloc_size = sizeof(struct boolean_instance)
+        .alloc_size = sizeof(struct boolean_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "num_lesser_equal",
         .func_new2 = func_new_lesser_equal,
         .func_getvar2 = boolean_func_getvar2,
-        .alloc_size = sizeof(struct boolean_instance)
+        .alloc_size = sizeof(struct boolean_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "num_greater_equal",
         .func_new2 = func_new_greater_equal,
         .func_getvar2 = boolean_func_getvar2,
-        .alloc_size = sizeof(struct boolean_instance)
+        .alloc_size = sizeof(struct boolean_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "num_equal",
         .func_new2 = func_new_equal,
         .func_getvar2 = boolean_func_getvar2,
-        .alloc_size = sizeof(struct boolean_instance)
+        .alloc_size = sizeof(struct boolean_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "num_different",
         .func_new2 = func_new_different,
         .func_getvar2 = boolean_func_getvar2,
-        .alloc_size = sizeof(struct boolean_instance)
+        .alloc_size = sizeof(struct boolean_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "num_add",
         .func_new2 = func_new_add,
         .func_getvar2 = number_func_getvar2,
-        .alloc_size = sizeof(struct number_instance)
+        .alloc_size = sizeof(struct number_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "num_subtract",
         .func_new2 = func_new_subtract,
         .func_getvar2 = number_func_getvar2,
-        .alloc_size = sizeof(struct number_instance)
+        .alloc_size = sizeof(struct number_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "num_multiply",
         .func_new2 = func_new_multiply,
         .func_getvar2 = number_func_getvar2,
-        .alloc_size = sizeof(struct number_instance)
+        .alloc_size = sizeof(struct number_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "num_divide",
         .func_new2 = func_new_divide,
         .func_getvar2 = number_func_getvar2,
-        .alloc_size = sizeof(struct number_instance)
+        .alloc_size = sizeof(struct number_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "num_modulo",
         .func_new2 = func_new_modulo,
         .func_getvar2 = number_func_getvar2,
-        .alloc_size = sizeof(struct number_instance)
+        .alloc_size = sizeof(struct number_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = NULL
     }
