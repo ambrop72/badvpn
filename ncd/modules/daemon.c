@@ -122,8 +122,9 @@ static int build_cmdline (NCDModuleInst *i, NCDValRef cmd_arg, char **exec, CmdL
             goto fail2;
         }
         
-        if (!CmdLine_AppendNoNull(cl, NCDVal_StringData(arg), NCDVal_StringLength(arg))) {
-            ModuleLog(i, BLOG_ERROR, "CmdLine_AppendNoNull failed");
+        b_cstring cstr = NCDVal_StringCstring(arg);
+        if (!CmdLine_AppendCstring(cl, cstr, 0, cstr.length)) {
+            ModuleLog(i, BLOG_ERROR, "CmdLine_AppendCstring failed");
             goto fail2;
         }
     }
@@ -262,7 +263,8 @@ static struct NCDModule modules[] = {
         .type = "daemon",
         .func_new2 = func_new,
         .func_die = func_die,
-        .alloc_size = sizeof(struct instance)
+        .alloc_size = sizeof(struct instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = NULL
     }
