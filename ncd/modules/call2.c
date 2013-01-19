@@ -326,7 +326,15 @@ static void func_new_call_with_caller_target (void *vo, NCDModuleInst *i, const 
         goto fail0;
     }
     
-    if (!CallNames_InitNames(o_ct, i->params->iparams->string_index, NCDVal_StringData(caller_target_arg), NCDVal_StringLength(caller_target_arg))) {
+    NCDValContString cts;
+    if (!NCDVal_StringContinuize(caller_target_arg, &cts)) {
+        ModuleLog(i, BLOG_ERROR, "NCDVal_StringContinuize failed");
+        goto fail0;
+    }
+    
+    int res = CallNames_InitNames(o_ct, i->params->iparams->string_index, cts.data, NCDVal_StringLength(caller_target_arg));
+    NCDValContString_Free(&cts);
+    if (!res) {
         ModuleLog(i, BLOG_ERROR, "CallerNames_InitNames failed");
         goto fail0;
     }
@@ -462,7 +470,7 @@ static struct NCDModule modules[] = {
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN|NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "call_with_caller_target",
@@ -470,7 +478,7 @@ static struct NCDModule modules[] = {
         .func_die = func_die_with_caller_target,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN|NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS,
         .alloc_size = sizeof(struct instance_with_caller_target)
     }, {
         .type = "embcall2_multif",
@@ -478,7 +486,7 @@ static struct NCDModule modules[] = {
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN|NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
