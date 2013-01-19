@@ -105,9 +105,9 @@ static void new_concat_common (void *vo, NCDModuleInst *i, NCDValRef list)
     o->result->length = 0;
     for (size_t j = 0; j < count; j++) {
         NCDValRef arg = NCDVal_ListGet(list, j);
-        size_t this_len = NCDVal_StringLength(arg);
-        memcpy(o->result->data + o->result->length, NCDVal_StringData(arg), this_len);
-        o->result->length += this_len;
+        b_cstring cstr = NCDVal_StringCstring(arg);
+        b_cstring_copy_to_buf(cstr, 0, cstr.length, o->result->data + o->result->length);
+        o->result->length += cstr.length;
     }
     
     // signal up
@@ -170,13 +170,15 @@ static struct NCDModule modules[] = {
         .func_new2 = func_new_concat,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
+        .alloc_size = sizeof(struct instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "concatv",
         .func_new2 = func_new_concatv,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
+        .alloc_size = sizeof(struct instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = NULL
     }
