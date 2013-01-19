@@ -797,9 +797,10 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value)
             } else if (NCDVal_IsComposedString(value)) {
                 v = value_init_composedstring(i, NCDVal_ComposedStringResource(value), NCDVal_ComposedStringOffset(value), NCDVal_StringLength(value));
             } else {
-                v = value_init_storedstring(i, NULL, NCDVal_StringLength(value));
+                size_t length = NCDVal_StringLength(value);
+                v = value_init_storedstring(i, NULL, length);
                 if (v) {
-                    NCDVal_StringCopyOut(value, 0, NCDVal_StringLength(value), v->storedstring.data);
+                    NCDVal_StringCopyOut(value, 0, length, v->storedstring.data);
                 }
             }
             if (!v) {
