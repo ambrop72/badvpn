@@ -138,3 +138,4 @@
 {"NCDBuildProgram", 4},
 {"ncd_log", 4},
 {"ncd_log_msg", 4},
+{"ncd_buffer", 4},

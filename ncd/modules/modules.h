@@ -78,6 +78,7 @@ extern const struct NCDModuleGroup ncdmodule_backtrack;
 extern const struct NCDModuleGroup ncdmodule_depend_scope;
 extern const struct NCDModuleGroup ncdmodule_substr;
 extern const struct NCDModuleGroup ncdmodule_log;
+extern const struct NCDModuleGroup ncdmodule_buffer;
 #ifndef BADVPN_EMSCRIPTEN
 extern const struct NCDModuleGroup ncdmodule_regex_match;
 extern const struct NCDModuleGroup ncdmodule_run;
@@ -161,6 +162,7 @@ static const struct NCDModuleGroup *ncd_modules[] = {
     &ncdmodule_depend_scope,
     &ncdmodule_substr,
     &ncdmodule_log,
+    &ncdmodule_buffer,
 #ifndef BADVPN_EMSCRIPTEN
     &ncdmodule_regex_match,
     &ncdmodule_run,

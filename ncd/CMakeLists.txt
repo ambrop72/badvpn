@@ -179,6 +179,7 @@ add_library(ncdinterpreter
     modules/depend_scope.c
     modules/substr.c
     modules/log.c
+    modules/buffer.c
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(ncdinterpreter
