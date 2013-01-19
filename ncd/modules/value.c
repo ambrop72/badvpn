@@ -211,7 +211,7 @@ struct value {
     int type;
     union {
         struct {
-            char *string;
+            char *data;
             size_t length;
         } storedstring;
         struct {
@@ -308,7 +308,7 @@ static void value_cleanup (struct value *v)
     
     switch (v->type) {
         case STOREDSTRING_TYPE: {
-            BFree(v->storedstring.string);
+            BFree(v->storedstring.data);
         } break;
         
         case IDSTRING_TYPE: {
@@ -371,7 +371,7 @@ static void value_delete (struct value *v)
     
     switch (v->type) {
         case STOREDSTRING_TYPE: {
-            BFree(v->storedstring.string);
+            BFree(v->storedstring.data);
         } break;
         
         case IDSTRING_TYPE: {
@@ -421,13 +421,13 @@ static struct value * value_init_storedstring (NCDModuleInst *i, const char *str
     v->parent = NULL;
     v->type = STOREDSTRING_TYPE;
     
-    if (!(v->storedstring.string = BAlloc(len))) {
+    if (!(v->storedstring.data = BAlloc(len))) {
         ModuleLog(i, BLOG_ERROR, "BAlloc failed");
         goto fail1;
     }
     
     if (str) {
-        memcpy(v->storedstring.string, str, len);
+        memcpy(v->storedstring.data, str, len);
     }
     
     v->storedstring.length = len;
@@ -563,7 +563,7 @@ static void value_string_copy_out (struct value *v, char *dest)
     
     switch (v->type) {
         case STOREDSTRING_TYPE:
-            memcpy(dest, v->storedstring.string, v->storedstring.length);
+            memcpy(dest, v->storedstring.data, v->storedstring.length);
             break;
         case IDSTRING_TYPE:
             memcpy(dest, NCDStringIndex_Value(v->idstring.string_index, v->idstring.id), NCDStringIndex_Length(v->idstring.string_index, v->idstring.id));
@@ -587,7 +587,7 @@ static void value_string_set_allocd (struct value *v, char *data, size_t length)
     
     switch (v->type) {
         case STOREDSTRING_TYPE: {
-            BFree(v->storedstring.string);
+            BFree(v->storedstring.data);
         } break;
         
         case IDSTRING_TYPE: {
@@ -610,7 +610,7 @@ static void value_string_set_allocd (struct value *v, char *data, size_t length)
     }
     
     v->type = STOREDSTRING_TYPE;
-    v->storedstring.string = data;
+    v->storedstring.data = data;
     v->storedstring.length = length;
 }
 
@@ -799,7 +799,7 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value)
             } else {
                 v = value_init_storedstring(i, NULL, NCDVal_StringLength(value));
                 if (v) {
-                    NCDVal_StringCopyOut(value, 0, NCDVal_StringLength(value), v->storedstring.string);
+                    NCDVal_StringCopyOut(value, 0, NCDVal_StringLength(value), v->storedstring.data);
                 }
             }
             if (!v) {
@@ -879,7 +879,7 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
     
     switch (v->type) {
         case STOREDSTRING_TYPE: {
-            *out_value = NCDVal_NewStringBin(mem, (const uint8_t *)v->storedstring.string, v->storedstring.length);
+            *out_value = NCDVal_NewStringBin(mem, (const uint8_t *)v->storedstring.data, v->storedstring.length);
             if (NCDVal_IsInvalid(*out_value)) {
                 goto fail;
             }
@@ -1217,7 +1217,7 @@ static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
             }
             size_t new_length = v->storedstring.length + append_length;
             
-            char *new_string = BRealloc(v->storedstring.string, new_length);
+            char *new_string = BRealloc(v->storedstring.data, new_length);
             if (!new_string) {
                 ModuleLog(i, BLOG_ERROR, "BRealloc failed");
                 return 0;
@@ -1225,7 +1225,7 @@ static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
             
             NCDVal_StringCopyOut(data, 0, append_length, new_string + v->storedstring.length);
             
-            v->storedstring.string = new_string;
+            v->storedstring.data = new_string;
             v->storedstring.length = new_length;
         } break;
         
@@ -1841,7 +1841,7 @@ static void func_new_substr (void *vo, NCDModuleInst *i, const struct NCDModuleI
     struct value *v = NULL;
     switch (mov->type) {
         case STOREDSTRING_TYPE: {
-            v = value_init_storedstring(i, mov->storedstring.string + start, amount);
+            v = value_init_storedstring(i, mov->storedstring.data + start, amount);
         } break;
         case IDSTRING_TYPE: {
             v = value_init_storedstring(i, NCDStringIndex_Value(mov->idstring.string_index, mov->idstring.id) + start, amount);
