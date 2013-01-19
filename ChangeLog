@@ -1,3 +1,13 @@
+- NCD: modules: add buffer(), which exposes a buffer with efficient appending and removing from the beginning.
+
+- NCD: add a new internal string representation called ComposedString. This allows modules to expose the concatenation of multiple memroy buffers as a single string value, efficiently.
+
+- fix many, hopefully all, strict aliasing violations. In particular, this fixes a bug where the DHCP client integrated into NCD won't work correctly, subject to optimization flags.
+
+- NCD: modules: sleep: interpret empty string as no sleeping, add sleep(ms_start) with one argument
+
+- NCD: modules: add log(), log_r() and log_fr() commands for logging via the BLog system
+
 Version 1.999.126:
 
 - NCD: modules: sleep: interpret empty string time as no sleeping, add sleep(ms_start) with one argument
