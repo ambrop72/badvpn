@@ -98,6 +98,11 @@ static b_cstring b_cstring_make_empty (void);
 static const char * b_cstring_get (b_cstring cstr, size_t offset, size_t maxlen, size_t *out_chunk_len);
 
 /**
+ * Retrieves the byte in the string at position \a pos.
+ */
+static char b_cstring_at (b_cstring cstr, size_t pos);
+
+/**
  * Asserts that the range given by \a offset and \a length is valid for the string.
  */
 static void b_cstring_assert_range (b_cstring cstr, size_t offset, size_t length);
@@ -207,6 +212,19 @@ static const char * b_cstring_get (b_cstring cstr, size_t offset, size_t maxlen,
     }
     
     return data;
+}
+
+static char b_cstring_at (b_cstring cstr, size_t pos)
+{
+    ASSERT(pos < cstr.length)
+    ASSERT(cstr.func)
+    
+    size_t chunk_len;
+    const char *data = cstr.func(&cstr, pos, &chunk_len);
+    ASSERT(data)
+    ASSERT(chunk_len > 0)
+    
+    return *data;
 }
 
 static void b_cstring_assert_range (b_cstring cstr, size_t offset, size_t length)
