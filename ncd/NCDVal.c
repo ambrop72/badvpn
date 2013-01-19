@@ -1199,8 +1199,10 @@ b_cstring NCDVal_StringCstring (NCDValRef string)
             return cstr;
         } break;
         
-        default:
+        default: {
             ASSERT(0);
+            return b_cstring_make_empty();
+        } break;
     }
 }
 
