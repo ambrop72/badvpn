@@ -40,6 +40,7 @@
 #include <misc/debug.h>
 #include <misc/exparray.h>
 #include <misc/strdup.h>
+#include <misc/cstring.h>
 
 typedef struct {
     struct ExpArray arr;
@@ -50,6 +51,7 @@ static int CmdLine_Init (CmdLine *c);
 static void CmdLine_Free (CmdLine *c);
 static int CmdLine_Append (CmdLine *c, const char *str);
 static int CmdLine_AppendNoNull (CmdLine *c, const char *str, size_t str_len);
+static int CmdLine_AppendCstring (CmdLine *c, b_cstring cstr, size_t offset, size_t length);
 static int CmdLine_AppendMulti (CmdLine *c, int num, ...);
 static int CmdLine_Finish (CmdLine *c);
 static char ** CmdLine_Get (CmdLine *c);
@@ -108,6 +110,24 @@ int CmdLine_AppendNoNull (CmdLine *c, const char *str, size_t str_len)
     }
     
     if (!(((char **)c->arr.v)[c->n] = b_strdup_bin(str, str_len))) {
+        return 0;
+    }
+    
+    c->n++;
+    
+    return 1;
+}
+
+int CmdLine_AppendCstring (CmdLine *c, b_cstring cstr, size_t offset, size_t length)
+{
+    b_cstring_assert_range(cstr, offset, length);
+    ASSERT(!b_cstring_memchr(cstr, offset, length, '\0', NULL))
+    
+    if (!ExpArray_resize(&c->arr, c->n + 1)) {
+        return 0;
+    }
+    
+    if (!(((char **)c->arr.v)[c->n] = b_cstring_strdup(cstr, offset, length))) {
         return 0;
     }
     
