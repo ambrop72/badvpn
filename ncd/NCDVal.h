@@ -470,6 +470,21 @@ typedef struct {
 void NCDValComposedStringResource_GetPtr (NCDValComposedStringResource resource, size_t offset, size_t max_length, const char **out_data, size_t *out_length);
 
 /**
+ * Returns a cstring referencing a range within a {@link NCDValComposedStringResource}.
+ * \a offset and \a length specify the range within the resource which the returned
+ * cstring will reference. To reference the contents of a ComposedString, use:
+ *   - resource = NCDVal_ComposedStringResource(composedstring),
+ *   - offset = NCDVal_ComposedStringOffset(composedstring),
+ *   - length = NCDVal_StringLength(composedstring).
+ * 
+ * The returned cstring is valid as long as the resource is not released. Note that
+ * a reference to resource.ref_target may need to be taken to ensure the resource
+ * is not released while it is being referenced by the returned cstring (unless
+ * resource.ref_target is NULL).
+ */
+b_cstring NCDValComposedStringResource_Cstring (NCDValComposedStringResource resource, size_t offset, size_t length);
+
+/**
  * Builds a new ComposedString from a string resource.
  * A reference to the underlying string resource via the {@link NCDRefTarget} object
  * specified in 'resource.ref_target'.

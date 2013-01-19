@@ -353,6 +353,25 @@ static NCDValRef NCDVal__CopyComposedStringToStored (NCDValRef val)
     return copy;
 }
 
+static const char * NCDVal__composedstring_cstring_func (const b_cstring *cstr, size_t offset, size_t *out_length)
+{
+    ASSERT(offset < cstr->length)
+    ASSERT(out_length)
+    ASSERT(cstr->func == NCDVal__composedstring_cstring_func)
+    
+    size_t str_offset = cstr->user1.size;
+    NCDVal_ComposedString_func_getptr func_getptr = (NCDVal_ComposedString_func_getptr)cstr->user2.fptr;
+    void *user = cstr->user3.ptr;
+    
+    const char *data;
+    func_getptr(user, str_offset + offset, &data, out_length);
+    
+    ASSERT(data)
+    ASSERT(*out_length > 0)
+    
+    return data;
+}
+
 #include "NCDVal_maptree.h"
 #include <structure/CAvl_impl.h>
 
@@ -1100,6 +1119,17 @@ void NCDValComposedStringResource_GetPtr (NCDValComposedStringResource resource,
     }
 }
 
+b_cstring NCDValComposedStringResource_Cstring (NCDValComposedStringResource resource, size_t offset, size_t length)
+{
+    b_cstring cstr;
+    cstr.length = length;
+    cstr.func = NCDVal__composedstring_cstring_func;
+    cstr.user1.size = offset;
+    cstr.user2.fptr = (void (*) (void))resource.func_getptr;
+    cstr.user3.ptr = resource.user;
+    return cstr;
+}
+
 void NCDVal_StringGetPtr (NCDValRef string, size_t offset, size_t max_length, const char **out_data, size_t *out_length)
 {
     ASSERT(NCDVal_IsString(string))
@@ -1145,25 +1175,6 @@ void NCDVal_StringGetPtr (NCDValRef string, size_t offset, size_t max_length, co
     if (*out_length > max_length) {
         *out_length = max_length;
     }
-}
-
-static const char * NCDVal__composedstring_cstring_func (const b_cstring *cstr, size_t offset, size_t *out_length)
-{
-    ASSERT(offset < cstr->length)
-    ASSERT(out_length)
-    ASSERT(cstr->func == NCDVal__composedstring_cstring_func)
-    
-    size_t str_offset = cstr->user1.size;
-    NCDVal_ComposedString_func_getptr func_getptr = (NCDVal_ComposedString_func_getptr)cstr->user2.fptr;
-    void *user = cstr->user3.ptr;
-    
-    const char *data;
-    func_getptr(user, str_offset + offset, &data, out_length);
-    
-    ASSERT(data)
-    ASSERT(*out_length > 0)
-    
-    return data;
 }
 
 b_cstring NCDVal_StringCstring (NCDValRef string)
