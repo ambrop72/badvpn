@@ -198,8 +198,8 @@ struct write_pipe_instance {
 struct write_instance {
     NCDModuleInst *i;
     struct write_pipe_instance *write_pipe_inst;
-    const char *data;
-    size_t length;
+    b_cstring cstr;
+    size_t pos;
 };
 
 static int parse_mode (NCDModuleInst *i, NCDValRef mode_arg, int *out_read, int *out_write)
@@ -209,26 +209,23 @@ static int parse_mode (NCDModuleInst *i, NCDValRef mode_arg, int *out_read, int 
         return 0;
     }
     
-    const char *data = NCDVal_StringData(mode_arg);
-    size_t length = NCDVal_StringLength(mode_arg);
-    
     *out_read = 0;
     *out_write = 0;
     
-    while (length > 0) {
-        if (*data == 'r') {
+    b_cstring cstr = NCDVal_StringCstring(mode_arg);
+    
+    B_CSTRING_LOOP_CHARS(cstr, char_pos, ch, {
+        if (ch == 'r') {
             *out_read = 1;
         }
-        else if (*data == 'w') {
+        else if (ch == 'w') {
             *out_write = 1;
         }
         else {
             ModuleLog(i, BLOG_ERROR, "invalid character in mode argument");
             return 0;
         }
-        data++;
-        length--;
-    }
+    })
     
     return 1;
 }
@@ -886,22 +883,25 @@ static void write_pipe_send_handler_done (void *vo, int data_len)
     ASSERT(o->write_inst)
     ASSERT(o->write_inst->write_pipe_inst == o)
     ASSERT(data_len > 0)
-    ASSERT(data_len <= o->write_inst->length)
+    ASSERT(data_len <= o->write_inst->cstr.length - o->write_inst->pos)
+    
+    struct write_instance *wr = o->write_inst;
     
     // update write progress
-    o->write_inst->data += data_len;
-    o->write_inst->length -= data_len;
+    wr->pos += data_len;
     
     // if there is more data, start another write operation
-    if (o->write_inst->length > 0) {
-        size_t to_send = (o->write_inst->length > INT_MAX ? INT_MAX : o->write_inst->length);
-        StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&o->connection), (uint8_t *)o->write_inst->data, to_send);
+    if (wr->pos < wr->cstr.length) {
+        size_t chunk_length;
+        const char *chunk_data = b_cstring_get(wr->cstr, wr->pos, wr->cstr.length - wr->pos, &chunk_length);
+        size_t to_send = (chunk_length > INT_MAX ? INT_MAX : chunk_length);
+        StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&o->connection), (uint8_t *)chunk_data, to_send);
         return;
     }
     
     // finish write operation
-    o->write_inst->write_pipe_inst = NULL;
-    NCDModuleInst_Backend_Up(o->write_inst->i);
+    wr->write_pipe_inst = NULL;
+    NCDModuleInst_Backend_Up(wr->i);
     o->write_inst = NULL;
 }
 
@@ -1020,11 +1020,11 @@ static void write_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
     }
     
     // initialize write progress state
-    o->data = NCDVal_StringData(data_arg);
-    o->length = NCDVal_StringLength(data_arg);
+    o->cstr = NCDVal_StringCstring(data_arg);
+    o->pos = 0;
     
     // if there's nothing to send, go up immediately
-    if (o->length == 0) {
+    if (o->cstr.length == 0) {
         o->write_pipe_inst = NULL;
         NCDModuleInst_Backend_Up(i);
         return;
@@ -1037,8 +1037,10 @@ static void write_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
     write_pipe_inst->write_inst = o;
     
     // start send operation
-    size_t to_send = (o->length > INT_MAX ? INT_MAX : o->length);
-    StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&write_pipe_inst->connection), (uint8_t *)o->data, to_send);
+    size_t chunk_length;
+    const char *chunk_data = b_cstring_get(o->cstr, o->pos, o->cstr.length - o->pos, &chunk_length);
+    size_t to_send = (chunk_length > INT_MAX ? INT_MAX : chunk_length);
+    StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&write_pipe_inst->connection), (uint8_t *)chunk_data, to_send);
     return;
     
 fail0:
@@ -1103,45 +1105,54 @@ static struct NCDModule modules[] = {
         .func_new2 = process_func_new,
         .func_die = process_func_die,
         .func_getvar2 = process_func_getvar,
-        .alloc_size = sizeof(struct process_instance)
+        .alloc_size = sizeof(struct process_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "sys.start_process::wait",
         .func_new2 = wait_func_new,
         .func_die = wait_func_die,
         .func_getvar2 = wait_func_getvar,
-        .alloc_size = sizeof(struct wait_instance)
+        .alloc_size = sizeof(struct wait_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "sys.start_process::terminate",
         .func_new2 = terminate_func_new,
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "sys.start_process::kill",
         .func_new2 = kill_func_new,
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "sys.start_process::read_pipe",
         .func_new2 = read_pipe_func_new,
         .func_die = read_pipe_func_die,
         .func_getvar2 = read_pipe_func_getvar,
-        .alloc_size = sizeof(struct read_pipe_instance)
+        .alloc_size = sizeof(struct read_pipe_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "sys.start_process::read_pipe::read",
         .func_new2 = read_func_new,
         .func_die = read_func_die,
         .func_getvar2 = read_func_getvar,
-        .alloc_size = sizeof(struct read_instance)
+        .alloc_size = sizeof(struct read_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "sys.start_process::write_pipe",
         .func_new2 = write_pipe_func_new,
         .func_die = write_pipe_func_die,
         .func_getvar2 = write_pipe_func_getvar,
-        .alloc_size = sizeof(struct write_pipe_instance)
+        .alloc_size = sizeof(struct write_pipe_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "sys.start_process::write_pipe::write",
         .func_new2 = write_func_new,
         .func_die = write_func_die,
-        .alloc_size = sizeof(struct write_instance)
+        .alloc_size = sizeof(struct write_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "sys.start_process::write_pipe::close",
-        .func_new2 = close_func_new
+        .func_new2 = close_func_new,
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = NULL
     }
