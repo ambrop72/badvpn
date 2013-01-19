@@ -198,6 +198,9 @@ process main {
     value(buf) v;
     val_equal(v, "123") a;
     assert(a);
+    v->substr("2") sub_v;
+    val_equal(sub_v, "3") a;
+    assert(a);
     v->append("456789012345");
     val_equal(v, "123456789012345") a;
     assert(a);
@@ -206,6 +209,20 @@ process main {
     numbuf->append("2");
     v->substr(numbuf) sub_v;
     val_equal(sub_v, "345") a;
+    assert(a);
+    
+    concat("hello", "world") cnc;
+    value(cnc) v;
+    val_equal(v, "helloworld") a;
+    assert(a);
+    v->substr("2") sub_v;
+    val_equal(sub_v, "lloworld") a;
+    assert(a);
+    v->append("!!");
+    val_equal(v, "helloworld!!") a;
+    assert(a);
+    v->substr("1") sub_v;
+    val_equal(sub_v, "elloworld!!") a;
     assert(a);
     
     exit("0");
