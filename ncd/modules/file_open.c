@@ -129,35 +129,40 @@ struct read_instance {
     size_t length;
 };
 
-static int parse_mode (const char *data, size_t mode_len, char *out)
+static int parse_mode (b_cstring cstr, char *out)
 {
-    if (mode_len == 0) {
+    size_t pos = 0;
+    size_t left = cstr.length;
+    
+    if (left == 0) {
         return 0;
     }
-    switch (*data) {
+    switch (b_cstring_at(cstr, pos)) {
         case 'r':
         case 'w':
         case 'a':
-            *out++ = *data++;
-            mode_len--;
+            *out++ = b_cstring_at(cstr, pos);
+            pos++;
+            left--;
             break;
         default:
             return 0;
     }
     
-    if (mode_len == 0) {
+    if (left == 0) {
         goto finish;
     }
-    switch (*data) {
+    switch (b_cstring_at(cstr, pos)) {
         case '+':
-            *out++ = *data++;
-            mode_len--;
+            *out++ = b_cstring_at(cstr, pos);
+            pos++;
+            left--;
             break;
         default:
             return 0;
     }
     
-    if (mode_len == 0) {
+    if (left == 0) {
         goto finish;
     }
     
@@ -209,7 +214,7 @@ static void open_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
     
     // check mode
     char mode[5];
-    if (!parse_mode(NCDVal_StringData(mode_arg), NCDVal_StringLength(mode_arg), mode)) {
+    if (!parse_mode(NCDVal_StringCstring(mode_arg), mode)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong mode");
         goto fail0;
     }
@@ -402,24 +407,21 @@ static void write_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
         goto fail0;
     }
     
-    // get data pointer and length
-    const char *data = NCDVal_StringData(data_arg);
-    size_t length = NCDVal_StringLength(data_arg);
-    
-    while (length > 0) {
-        // write
-        size_t written = fwrite(data, 1, length, open_inst->fh);
-        if (written == 0) {
-            ModuleLog(i, BLOG_ERROR, "fwrite failed");
-            trigger_error(open_inst);
-            return;
+    // write all the data
+    b_cstring data_cstr = NCDVal_StringCstring(data_arg);
+    B_CSTRING_LOOP(data_cstr, pos, chunk_data, chunk_length, {
+        size_t chunk_pos = 0;
+        while (chunk_pos < chunk_length) {
+            size_t written = fwrite(chunk_data + chunk_pos, 1, chunk_length - chunk_pos, open_inst->fh);
+            if (written == 0) {
+                ModuleLog(i, BLOG_ERROR, "fwrite failed");
+                trigger_error(open_inst);
+                return;
+            }
+            ASSERT(written < chunk_length - chunk_pos)
+            chunk_pos += written;
         }
-        ASSERT(written <= length)
-        
-        // update writing state
-        data += written;
-        length -= written;
-    }
+    })
     
     // go up
     NCDModuleInst_Backend_Up(i);
@@ -446,7 +448,8 @@ static void seek_func_new (void *unused, NCDModuleInst *i, const struct NCDModul
     // parse position
     int position_sign;
     uintmax_t position_mag;
-    if (!parse_signmag_integer_bin(NCDVal_StringData(position_arg), NCDVal_StringLength(position_arg), &position_sign, &position_mag)) {
+    b_cstring position_cstr = NCDVal_StringCstring(position_arg);
+    if (!parse_signmag_integer_cstr(position_cstr, 0, position_cstr.length, &position_sign, &position_mag)) {
         ModuleLog(i, BLOG_ERROR, "wrong position");
         goto fail0;
     }
@@ -551,22 +554,27 @@ static struct NCDModule modules[] = {
         .func_new2 = open_func_new,
         .func_die = open_func_die,
         .func_getvar2 = open_func_getvar,
-        .alloc_size = sizeof(struct open_instance)
+        .alloc_size = sizeof(struct open_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "file_open::read",
         .func_new2 = read_func_new,
         .func_die = read_func_die,
         .func_getvar2 = read_func_getvar,
-        .alloc_size = sizeof(struct read_instance)
+        .alloc_size = sizeof(struct read_instance),
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "file_open::write",
         .func_new2 = write_func_new,
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "file_open::seek",
         .func_new2 = seek_func_new,
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = "file_open::close",
         .func_new2 = close_func_new,
+        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
     }, {
         .type = NULL
     }
