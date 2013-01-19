@@ -192,7 +192,22 @@ process main {
     v->insert_undo("4");
     val_equal(v, {"1", "2", "3", "4"})  a;
     assert(a);
-
+    
+    buffer() buf;
+    buf->append("123");
+    value(buf) v;
+    val_equal(v, "123") a;
+    assert(a);
+    v->append("456789012345");
+    val_equal(v, "123456789012345") a;
+    assert(a);
+    buffer() numbuf;
+    numbuf->append("1");
+    numbuf->append("2");
+    v->substr(numbuf) sub_v;
+    val_equal(sub_v, "345") a;
+    assert(a);
+    
     exit("0");
 }
 
