@@ -54,6 +54,7 @@
 #include <misc/loggers_string.h>
 #include <misc/open_standard_streams.h>
 #include <misc/compare.h>
+#include <misc/bsize.h>
 #include <predicate/BPredicate.h>
 #include <base/DebugObject.h>
 #include <base/BLog.h>
@@ -93,6 +94,7 @@ struct {
     char *comm_predicate;
     char *relay_predicate;
     int client_socket_sndbuf;
+    int max_clients;
 } options;
 
 // listen addresses
@@ -178,6 +180,8 @@ static void listener_handler (BListener *listener);
 
 // frees resources used by a client
 static void client_dealloc (struct client_data *client);
+
+static int client_compute_buffer_size (struct client_data *client);
 
 // initializes the I/O porition of the client
 static int client_init_io (struct client_data *client);
@@ -613,6 +617,7 @@ void print_help (const char *name)
         "        [--comm-predicate <string>]\n"
         "        [--relay-predicate <string>]\n"
         "        [--client-socket-sndbuf <bytes / 0>]\n"
+        "        [--max-clients <number>]\n"
         "Address format is a.b.c.d:port (IPv4) or [addr]:port (IPv6).\n",
         name
     );
@@ -643,6 +648,7 @@ int parse_arguments (int argc, char *argv[])
     options.comm_predicate = NULL;
     options.relay_predicate = NULL;
     options.client_socket_sndbuf = CLIENT_DEFAULT_SOCKET_SNDBUF;
+    options.max_clients = DEFAULT_MAX_CLIENTS;
     
     for (int i = 1; i < argc; i++) {
         char *arg = argv[i];
@@ -778,6 +784,17 @@ int parse_arguments (int argc, char *argv[])
             }
             i++;
         }
+        else if (!strcmp(arg, "--max-clients")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            if ((options.max_clients = atoi(argv[i + 1])) <= 0) {
+                fprintf(stderr, "%s: wrong argument\n", arg);
+                return 0;
+            }
+            i++;
+        }
         else {
             fprintf(stderr, "%s: unknown option\n", arg);
             return 0;
@@ -826,7 +843,7 @@ void signal_handler (void *unused)
 
 void listener_handler (BListener *listener)
 {
-    if (clients_num == MAX_CLIENTS) {
+    if (clients_num == options.max_clients) {
         BLog(BLOG_WARNING, "too many clients for new client");
         goto fail0;
     }
@@ -988,6 +1005,17 @@ void client_dealloc (struct client_data *client)
     free(client);
 }
 
+int client_compute_buffer_size (struct client_data *client)
+{
+    bsize_t s = bsize_add(bsize_fromsize(1), bsize_mul(bsize_fromsize(2), bsize_fromsize(options.max_clients - 1)));
+    
+    if (s.is_overflow || s.value > INT_MAX) {
+        return INT_MAX;
+    } else {
+        return s.value;
+    }
+}
+
 int client_init_io (struct client_data *client)
 {
     StreamPassInterface *send_if = (options.ssl ? BSSLConnection_GetSendIf(&client->sslcon) : BConnection_SendAsync_GetIf(&client->con));
@@ -1021,7 +1049,7 @@ int client_init_io (struct client_data *client)
     
     // init PacketProtoFlow
     if (!PacketProtoFlow_Init(
-        &client->output_control_oflow, SC_MAX_ENC, CLIENT_CONTROL_BUFFER_MIN_PACKETS,
+        &client->output_control_oflow, SC_MAX_ENC, client_compute_buffer_size(client),
         PacketPassPriorityQueueFlow_GetInput(&client->output_control_qflow), BReactor_PendingGroup(&ss)
     )) {
         client_log(client, BLOG_ERROR, "PacketProtoFlow_Init failed");
@@ -1993,9 +2021,9 @@ void peer_flow_reset_timer_handler (struct peer_flow *flow)
 
 peerid_t new_client_id (void)
 {
-    ASSERT(clients_num < MAX_CLIENTS)
+    ASSERT(clients_num < options.max_clients)
     
-    for (int i = 0; i < MAX_CLIENTS; i++) {
+    for (int i = 0; i < options.max_clients; i++) {
         peerid_t id = clients_nextid++;
         if (!find_client_by_id(id)) {
             return id;

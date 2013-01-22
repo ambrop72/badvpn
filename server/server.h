@@ -45,7 +45,7 @@
 #define PROGRAM_NAME "server"
 
 // maxiumum number of connected clients. Must be <=2^16.
-#define MAX_CLIENTS 30
+#define DEFAULT_MAX_CLIENTS 30
 // client output control flow buffer size in packets
 // it must hold: initdata, newclient's, endclient's (if other peers die when informing them)
 // make it big enough to hold the initial packet burst (initdata, newclient's),
