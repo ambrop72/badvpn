@@ -119,6 +119,7 @@ struct {
     int igmp_group_membership_interval;
     int igmp_last_member_query_time;
     int allow_peer_talk_without_ssl;
+    int max_peers;
 } options;
 
 // bind addresses
@@ -686,6 +687,7 @@ void print_help (const char *name)
         "        [--igmp-group-membership-interval <ms>]\n"
         "        [--igmp-last-member-query-time <ms>]\n"
         "        [--allow-peer-talk-without-ssl]\n"
+        "        [--max-peers <number>]\n"
         "Address format is a.b.c.d:port (IPv4) or [addr]:port (IPv6).\n",
         name
     );
@@ -736,6 +738,7 @@ int parse_arguments (int argc, char *argv[])
     options.igmp_group_membership_interval = DEFAULT_IGMP_GROUP_MEMBERSHIP_INTERVAL;
     options.igmp_last_member_query_time = DEFAULT_IGMP_LAST_MEMBER_QUERY_TIME;
     options.allow_peer_talk_without_ssl = 0;
+    options.max_peers = DEFAULT_MAX_PEERS;
     
     int have_fragmentation_latency = 0;
     
@@ -1109,6 +1112,17 @@ int parse_arguments (int argc, char *argv[])
             }
             i++;
         }
+        else if (!strcmp(arg, "--max-peers")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            if ((options.max_peers = atoi(argv[i + 1])) <= 0) {
+                fprintf(stderr, "%s: wrong argument\n", arg);
+                return 0;
+            }
+            i++;
+        }
         else if (!strcmp(arg, "--allow-peer-talk-without-ssl")) {
             options.allow_peer_talk_without_ssl = 1;
         }
@@ -1279,7 +1293,7 @@ void signal_handler (void *unused)
 void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
 {
     ASSERT(server_ready)
-    ASSERT(num_peers < MAX_PEERS)
+    ASSERT(num_peers < options.max_peers)
     ASSERT(!find_peer_by_id(id))
     ASSERT(id != my_id)
     ASSERT(cert_len >= 0)
@@ -2744,7 +2758,7 @@ void server_handler_newclient (void *user, peerid_t peer_id, int flags, const ui
     }
     
     // check if there is spece for the peer
-    if (num_peers >= MAX_PEERS) {
+    if (num_peers >= options.max_peers) {
         BLog(BLOG_WARNING, "server: newclient: no space for new peer (maximum number reached)");
         return;
     }

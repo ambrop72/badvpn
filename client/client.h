@@ -58,7 +58,7 @@
 #define TCP_MAX_PASSWORD_LISTENER_CLIENTS 50
 
 // maximum number of peers
-#define MAX_PEERS 256
+#define DEFAULT_MAX_PEERS 256
 // maximum number of peer's MAC addresses to remember
 #define PEER_DEFAULT_MAX_MACS 16
 // maximum number of multicast addresses per peer
