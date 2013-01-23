@@ -37,13 +37,15 @@
  *   cmd - Command to run on startup. The first element is the full path
  *     to the executable, other elements are command line arguments (excluding
  *     the zeroth argument).
- *   opts - List of options:
- *     "term_on_deinit" - If we get a deinit request while the process is running,
- *                        send it SIGTERM.
- *     "keep_stdout" - Start the program with the same stdout as the NCD process.
- *     "keep_stderr" - Start the program with the same stderr as the NCD process.
- *     "do_setsid" - Call setsid() in the child before exec. This is needed to
- *                   start the 'agetty' program.
+ *   opts - Map of options:
+ *     "term_on_deinit":"true" - If we get a deinit request while the process is
+ *       running, send it SIGTERM.
+ *     "keep_stdout":"true" - Start the program with the same stdout as the NCD process.
+ *     "keep_stderr":true" - Start the program with the same stderr as the NCD process.
+ *     "do_setsid":"true" - Call setsid() in the child before exec. This is needed to
+ *       start the 'agetty' program.
+ *     "username":username_string - Start the process under the permissions of the
+ *       specified user. 
  * Variables:
  *   string exit_status - if the program exited normally, the non-negative exit code, otherwise -1
  */
@@ -57,6 +59,7 @@
 #include <system/BProcess.h>
 #include <ncd/NCDModule.h>
 #include <ncd/extra/value_utils.h>
+#include <ncd/extra/NCDBProcessOpts.h>
 
 #include <generated/blog_channel_ncd_runonce.h>
 
@@ -169,6 +172,18 @@ static void process_handler (struct instance *o, int normally, uint8_t normally_
     NCDModuleInst_Backend_Up(o->i);
 }
 
+static int opts_func_unknown (void *user, NCDValRef key, NCDValRef val)
+{
+    struct instance *o = user;
+    
+    if (NCDVal_IsString(key) && NCDVal_StringEquals(key, "term_on_deinit")) {
+        o->term_on_deinit = ncd_read_boolean(val);
+        return 1;
+    }
+    
+    return 0;
+}
+
 static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
@@ -184,40 +199,47 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsInvalid(opts_arg) && !NCDVal_IsList(opts_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail0;
-    }
     
-    int keep_stdout = 0;
-    int keep_stderr = 0;
-    int do_setsid = 0;
+    NCDBProcessOpts opts;
     
-    // read options
-    size_t count = NCDVal_IsInvalid(opts_arg) ? 0 : NCDVal_ListCount(opts_arg);
-    for (size_t j = 0; j < count; j++) {
-        NCDValRef opt = NCDVal_ListGet(opts_arg, j);
+    // deprecated options format
+    if (!NCDVal_IsInvalid(opts_arg) && NCDVal_IsList(opts_arg)) {
+        int keep_stdout = 0;
+        int keep_stderr = 0;
+        int do_setsid = 0;
         
-        // read name
-        if (!NCDVal_IsString(opt)) {
-            ModuleLog(o->i, BLOG_ERROR, "wrong option name type");
-            goto fail0;
+        // read options
+        size_t count = NCDVal_IsInvalid(opts_arg) ? 0 : NCDVal_ListCount(opts_arg);
+        for (size_t j = 0; j < count; j++) {
+            NCDValRef opt = NCDVal_ListGet(opts_arg, j);
+            
+            // read name
+            if (!NCDVal_IsString(opt)) {
+                ModuleLog(o->i, BLOG_ERROR, "wrong option name type");
+                goto fail0;
+            }
+            
+            if (NCDVal_StringEquals(opt, "term_on_deinit")) {
+                o->term_on_deinit = 1;
+            }
+            else if (NCDVal_StringEquals(opt, "keep_stdout")) {
+                keep_stdout = 1;
+            }
+            else if (NCDVal_StringEquals(opt, "keep_stderr")) {
+                keep_stderr = 1;
+            }
+            else if (NCDVal_StringEquals(opt, "do_setsid")) {
+                do_setsid = 1;
+            }
+            else {
+                ModuleLog(o->i, BLOG_ERROR, "unknown option name");
+                goto fail0;
+            }
         }
         
-        if (NCDVal_StringEquals(opt, "term_on_deinit")) {
-            o->term_on_deinit = 1;
-        }
-        else if (NCDVal_StringEquals(opt, "keep_stdout")) {
-            keep_stdout = 1;
-        }
-        else if (NCDVal_StringEquals(opt, "keep_stderr")) {
-            keep_stderr = 1;
-        }
-        else if (NCDVal_StringEquals(opt, "do_setsid")) {
-            do_setsid = 1;
-        }
-        else {
-            ModuleLog(o->i, BLOG_ERROR, "unknown option name");
+        NCDBProcessOpts_InitOld(&opts, keep_stdout, keep_stderr, do_setsid);
+    } else {
+        if (!NCDBProcessOpts_Init(&opts, opts_arg, opts_func_unknown, o, i, BLOG_CURRENT_CHANNEL)) {
             goto fail0;
         }
     }
@@ -226,40 +248,23 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     char *exec;
     CmdLine cl;
     if (!build_cmdline(o->i, cmd_arg, &exec, &cl)) {
+        NCDBProcessOpts_Free(&opts);
         goto fail0;
     }
     
-    // build fd mapping
-    int fds[3];
-    int fds_map[2];
-    int nfds = 0;
-    if (keep_stdout) {
-        fds[nfds] = 1;
-        fds_map[nfds++] = 1;
-    }
-    if (keep_stderr) {
-        fds[nfds] = 2;
-        fds_map[nfds++] = 2;
-    }
-    fds[nfds] = -1;
-    
-    // build params
-    struct BProcess_params p_params;
-    p_params.username = NULL;
-    p_params.fds = fds;
-    p_params.fds_map = fds_map;
-    p_params.do_setsid = do_setsid;
-    
     // start process
+    struct BProcess_params p_params = NCDBProcessOpts_GetParams(&opts);
     if (!BProcess_Init2(&o->process, o->i->params->iparams->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), p_params)) {
         ModuleLog(i, BLOG_ERROR, "BProcess_Init failed");
         CmdLine_Free(&cl);
         free(exec);
+        NCDBProcessOpts_Free(&opts);
         goto fail0;
     }
     
     CmdLine_Free(&cl);
     free(exec);
+    NCDBProcessOpts_Free(&opts);
     
     // set state
     o->state = STATE_RUNNING;
