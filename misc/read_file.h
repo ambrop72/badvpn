@@ -49,7 +49,7 @@ static int read_file (const char *file, uint8_t **out_data, size_t *out_len)
     size_t buf_len = 0;
     size_t buf_size = 128;
     
-    uint8_t *buf = malloc(buf_size);
+    uint8_t *buf = (uint8_t *)malloc(buf_size);
     if (!buf) {
         goto fail1;
     }
@@ -61,7 +61,7 @@ static int read_file (const char *file, uint8_t **out_data, size_t *out_len)
             }
             size_t newsize = 2 * buf_size;
             
-            uint8_t *newbuf = realloc(buf, newsize);
+            uint8_t *newbuf = (uint8_t *)realloc(buf, newsize);
             if (!newbuf) {
                 goto fail;
             }

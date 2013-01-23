@@ -115,7 +115,7 @@ int reserve_buffer (BSocksClient *o, bsize_t size)
         return 0;
     }
     
-    char *buffer = BRealloc(o->buffer, size.value);
+    char *buffer = (char *)BRealloc(o->buffer, size.value);
     if (!buffer) {
         BLog(BLOG_ERROR, "BRealloc failed");
         return 0;

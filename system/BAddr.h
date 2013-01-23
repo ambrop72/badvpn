@@ -437,7 +437,7 @@ void BIPAddr_Print (BIPAddr *addr, char *out)
             );
             break;
         case BADDR_TYPE_IPV6: {
-            const char *ptr = (void *)addr->ipv6;
+            const char *ptr = (const char *)addr->ipv6;
             sprintf(out,
                 "%"PRIx16":%"PRIx16":%"PRIx16":%"PRIx16":"
                 "%"PRIx16":%"PRIx16":%"PRIx16":%"PRIx16,

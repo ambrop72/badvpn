@@ -335,7 +335,7 @@ static char * b_cstring_strdup (b_cstring cstr, size_t offset, size_t length)
         return NULL;
     }
     
-    char *buf = BAlloc(length + 1);
+    char *buf = (char *)BAlloc(length + 1);
     if (buf) {
         b_cstring_copy_to_buf(cstr, offset, length, buf);
         buf[length] = '\0';
