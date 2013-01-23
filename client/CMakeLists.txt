@@ -17,7 +17,7 @@ add_executable(badvpn-client
     SimpleStreamBuffer.c
     SinglePacketSource.c
 )
-target_link_libraries(badvpn-client system flow flowextra tuntap server_conection security ${NSPR_LIBRARIES} ${NSS_LIBRARIES})
+target_link_libraries(badvpn-client system flow flowextra tuntap server_conection security threadwork ${NSPR_LIBRARIES} ${NSS_LIBRARIES})
 
 install(
     TARGETS badvpn-client
