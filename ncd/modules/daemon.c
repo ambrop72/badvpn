@@ -33,12 +33,19 @@
  * (unless it's crashed at the time).
  * 
  * Synopsis:
- *   daemon(list(string) cmd)
+ *   daemon(list(string) cmd [, map options])
  * 
  * Arguments:
  *   cmd - Command for the daemon. The first element is the full path
  *     to the executable, other elements are command line arguments (excluding
  *     the zeroth argument).
+ *   options - Map of options:
+ *     "keep_stdout":"true" - Start the program with the same stdout as the NCD process.
+ *     "keep_stderr":true" - Start the program with the same stderr as the NCD process.
+ *     "do_setsid":"true" - Call setsid() in the child before exec. This is needed to
+ *       start the 'agetty' program.
+ *     "username":username_string - Start the process under the permissions of the
+ *       specified user. 
  */
 
 #include <stdlib.h>
@@ -50,6 +57,7 @@
 #include <system/BProcess.h>
 #include <ncd/NCDModule.h>
 #include <ncd/extra/value_utils.h>
+#include <ncd/extra/NCDBProcessOpts.h>
 
 #include <generated/blog_channel_ncd_daemon.h>
 
@@ -64,6 +72,7 @@
 struct instance {
     NCDModuleInst *i;
     NCDValRef cmd_arg;
+    NCDBProcessOpts opts;
     BTimer timer;
     BProcess process;
     int state;
@@ -155,12 +164,13 @@ static void start_process (struct instance *o)
     }
     
     // start process
-    int res = BProcess_Init(&o->process, o->i->params->iparams->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), NULL);
+    struct BProcess_params p_params = NCDBProcessOpts_GetParams(&o->opts);
+    int res = BProcess_Init2(&o->process, o->i->params->iparams->manager, (BProcess_handler)process_handler, o, exec, CmdLine_Get(&cl), p_params);
     CmdLine_Free(&cl);
     free(exec);
     
     if (!res) {
-        ModuleLog(o->i, BLOG_ERROR, "BProcess_Init failed");
+        ModuleLog(o->i, BLOG_ERROR, "BProcess_Init2 failed");
         goto fail;
     }
     
@@ -213,8 +223,16 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     o->i = i;
     
     // read arguments
-    if (!NCDVal_ListRead(params->args, 1, &o->cmd_arg)) {
+    NCDValRef opts_arg = NCDVal_NewInvalid();
+    if (!NCDVal_ListRead(params->args, 1, &o->cmd_arg) &&
+        !NCDVal_ListRead(params->args, 2, &o->cmd_arg, &opts_arg)
+    ) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    
+    // init options
+    if (!NCDBProcessOpts_Init(&o->opts, opts_arg, NULL, NULL, i, BLOG_CURRENT_CHANNEL)) {
         goto fail0;
     }
     
@@ -236,6 +254,9 @@ static void instance_free (struct instance *o)
 {
     // free timer
     BReactor_RemoveTimer(o->i->params->iparams->reactor, &o->timer);
+    
+    // free options
+    NCDBProcessOpts_Free(&o->opts);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
