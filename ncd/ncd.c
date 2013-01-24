@@ -69,6 +69,7 @@ static struct {
     int loglevel;
     int loglevels[BLOG_NUM_CHANNELS];
     char *config_file;
+    int syntax_only;
     int retry_time;
     int no_udev;
     char **extra_args;
@@ -220,11 +221,18 @@ int main (int argc, char **argv)
         goto fail5;
     }
     
+    // don't enter event loop if syntax check is requested
+    if (options.syntax_only) {
+        main_exit_code = 0;
+        goto fail6;
+    }
+    
     BLog(BLOG_NOTICE, "entering event loop");
     
     // enter event loop
     main_exit_code = BReactor_Exec(&reactor);
     
+fail6:
     // free interpreter
     NCDInterpreter_Free(&interpreter);
 fail5:
@@ -270,6 +278,7 @@ void print_help (const char *name)
         "        [--retry-time <ms>]\n"
         "        [--no-udev]\n"
         "        [--config-file <ncd_program_file>]\n"
+        "        [--syntax-only]\n"
         "        [-- program_args...]\n"
         "        [<ncd_program_file> program_args...]\n" ,
         name
@@ -299,6 +308,7 @@ int parse_arguments (int argc, char *argv[])
         options.loglevels[i] = -1;
     }
     options.config_file = NULL;
+    options.syntax_only = 0;
     options.retry_time = DEFAULT_RETRY_TIME;
     options.no_udev = 0;
     options.extra_args = NULL;
@@ -389,6 +399,9 @@ int parse_arguments (int argc, char *argv[])
             }
             options.config_file = argv[i + 1];
             i++;
+        }
+        else if (!strcmp(arg, "--syntax-only")) {
+            options.syntax_only = 1;
         }
         else if (!strcmp(arg, "--retry-time")) {
             if (1 >= argc - i) {
