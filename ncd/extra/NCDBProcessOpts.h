@@ -45,6 +45,8 @@ typedef struct {
 typedef int (*NCDBProcessOpts_func_unknown) (void *user, NCDValRef key, NCDValRef val);
 
 int NCDBProcessOpts_Init (NCDBProcessOpts *o, NCDValRef opts_arg, NCDBProcessOpts_func_unknown func_unknown, void *func_unknown_user, NCDModuleInst *i, int blog_channel) WARN_UNUSED;
+int NCDBProcessOpts_Init2 (NCDBProcessOpts *o, NCDValRef opts_arg, NCDBProcessOpts_func_unknown func_unknown, void *func_unknown_user, NCDModuleInst *i, int blog_channel,
+                           int *out_keep_stdout, int *out_keep_stderr) WARN_UNUSED;
 void NCDBProcessOpts_InitOld (NCDBProcessOpts *o, int keep_stdout, int keep_stderr, int do_setsid);
 void NCDBProcessOpts_Free (NCDBProcessOpts *o);
 struct BProcess_params NCDBProcessOpts_GetParams (NCDBProcessOpts *o);

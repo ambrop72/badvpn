@@ -37,6 +37,12 @@
 
 int NCDBProcessOpts_Init (NCDBProcessOpts *o, NCDValRef opts_arg, NCDBProcessOpts_func_unknown func_unknown, void *func_unknown_user, NCDModuleInst *i, int blog_channel)
 {
+    return NCDBProcessOpts_Init2(o, opts_arg, func_unknown, func_unknown_user, i, blog_channel, NULL, NULL);
+}
+
+int NCDBProcessOpts_Init2 (NCDBProcessOpts *o, NCDValRef opts_arg, NCDBProcessOpts_func_unknown func_unknown, void *func_unknown_user, NCDModuleInst *i, int blog_channel,
+                           int *out_keep_stdout, int *out_keep_stderr)
+{
     if (!NCDVal_IsInvalid(opts_arg) && !NCDVal_IsMap(opts_arg)) {
         NCDModuleInst_Backend_Log(i, blog_channel, BLOG_ERROR, "options must be a map");
         goto fail0;
@@ -93,6 +99,13 @@ int NCDBProcessOpts_Init (NCDBProcessOpts *o, NCDValRef opts_arg, NCDBProcessOpt
         o->fds_map[o->nfds++] = 2;
     }
     o->fds[o->nfds] = -1;
+    
+    if (out_keep_stdout) {
+        *out_keep_stdout = keep_stdout;
+    }
+    if (out_keep_stderr) {
+        *out_keep_stderr = keep_stderr;
+    }
     
     return 1;
     
