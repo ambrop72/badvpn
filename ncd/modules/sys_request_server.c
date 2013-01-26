@@ -51,7 +51,9 @@
  *   - {"tcp", {"ipv6", ipv6_address, port_number}},
  *   - {"unix", socket_path}.
  * 
- * Predefined variables in request_handler_template:
+ * Predefined objects and variables in request_handler_template:
+ *   _caller - provides access to objects as seen from the sys.request_server()
+ *     command
  *   _request.data - the request payload as sent by the client
  *   string _request.client_addr - the address of the client. The form is
  *     like the second part of the sys.request_server() address format, e.g.
@@ -485,6 +487,10 @@ static int request_process_func_getspecialobj (NCDModuleProcess *process, NCD_st
     if (name == ModuleString(r->con->inst->i, STRING_REQUEST)) {
         *out_object = NCDObject_Build(ModuleString(r->con->inst->i, STRING_SYS_REQUEST_SERVER_REQUEST), r, request_process_request_obj_func_getvar, NCDObject_no_getobj);
         return 1;
+    }
+    
+    if (name == NCD_STRING_CALLER) {
+        return NCDModuleInst_Backend_GetObj(r->con->inst->i, name, out_object);
     }
     
     return 0;
