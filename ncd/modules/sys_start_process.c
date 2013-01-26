@@ -41,6 +41,10 @@
  *     specified user. 
  *   "term_on_deinit":"false" - do not send SIGTERM to the process when this statement
  *     is requested to terminate
+ *   "deinit_kill_time":milliseconds - how long to wait for the process to terminate
+ *     after this statement is requested to terminate until we send SIGKILL. If this option
+ *     is not present or is "never", SIGKILL will not be sent. If this option is empty, the
+ *     process will be sent SIGKILL immediately when the statement is requested to terminate.
  * 
  * Variables:
  *   is_error - "true" if there was an error starting the process, "false" if the process
@@ -169,7 +173,9 @@
 struct process_instance {
     NCDModuleInst *i;
     BProcess process;
+    BSmallTimer kill_timer;
     LinkedList0 waits_list;
+    btime_t deinit_kill_time;
     int term_on_deinit;
     int read_fd;
     int write_fd;
@@ -269,6 +275,9 @@ static void process_handler (void *vo, int normally, uint8_t normally_exit_statu
     
     ModuleLog(o->i, BLOG_INFO, "process terminated");
     
+    // free kill timer
+    BReactor_RemoveSmallTimer(o->i->params->iparams->reactor, &o->kill_timer);
+    
     // free process
     BProcess_Free(&o->process);
     
@@ -296,12 +305,35 @@ static void process_handler (void *vo, int normally, uint8_t normally_exit_statu
     o->state = PROCESS_STATE_TERMINATED;
 }
 
+static void process_kill_timer_handler (BSmallTimer *kill_timer)
+{
+    struct process_instance *o = UPPER_OBJECT(kill_timer, struct process_instance, kill_timer);
+    ASSERT(o->state == PROCESS_STATE_DYING)
+    
+    ModuleLog(o->i, BLOG_INFO, "killing process after timeout");
+    BProcess_Kill(&o->process);
+}
+
 static int opts_func_unknown (void *user, NCDValRef key, NCDValRef val)
 {
     struct process_instance *o = user;
     
     if (NCDVal_IsString(key) && NCDVal_StringEquals(key, "term_on_deinit")) {
         o->term_on_deinit = ncd_read_boolean(val);
+        return 1;
+    }
+    
+    if (NCDVal_IsString(key) && NCDVal_StringEquals(key, "deinit_kill_time")) {
+        if (NCDVal_StringEquals(val, "never")) {
+            o->deinit_kill_time = -2;
+        }
+        else if (NCDVal_StringEqualsId(val, NCD_STRING_EMPTY, o->i->params->iparams->string_index)) {
+            o->deinit_kill_time = -1;
+        }
+        else if (!ncd_read_time(val, &o->deinit_kill_time)) {
+            ModuleLog(o->i, BLOG_ERROR, "wrong value for deinit_kill_time option");
+            return 0;
+        }
         return 1;
     }
     
@@ -336,6 +368,7 @@ static void process_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     NCDBProcessOpts opts;
     int keep_stdout;
     int keep_stderr;
+    o->deinit_kill_time = -2;
     o->term_on_deinit = 1;
     if (!NCDBProcessOpts_Init2(&opts, options_arg, opts_func_unknown, o, i, BLOG_CURRENT_CHANNEL, &keep_stdout, &keep_stderr)) {
         goto fail0;
@@ -406,6 +439,9 @@ static void process_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
         ModuleLog(i, BLOG_ERROR, "BProcess_Init failed");
         goto error1;
     }
+    
+    // init kill timer
+    BSmallTimer_Init(&o->kill_timer, process_kill_timer_handler);
     
     // close child fds
     while (num_fds-- > start_num_fds) {
@@ -479,6 +515,15 @@ static void process_func_die (void *vo)
         BProcess_Terminate(&o->process);
     } else {
         ModuleLog(o->i, BLOG_INFO, "not terminating process as requested");
+    }
+    
+    if (o->deinit_kill_time == -1) {
+        // user wants SIGKILL immediately
+        ModuleLog(o->i, BLOG_INFO, "killing process immediately");
+        BProcess_Kill(&o->process);
+    } else if (o->deinit_kill_time >= 0) {
+        // user wants SIGKILL after some time
+        BReactor_SetSmallTimer(o->i->params->iparams->reactor, &o->kill_timer, BTIMER_SET_RELATIVE, o->deinit_kill_time);
     }
     
     // set state
