@@ -139,4 +139,5 @@
 #define BLOG_CHANNEL_ncd_log 138
 #define BLOG_CHANNEL_ncd_log_msg 139
 #define BLOG_CHANNEL_ncd_buffer 140
-#define BLOG_NUM_CHANNELS 141
+#define BLOG_CHANNEL_ncd_getenv 141
+#define BLOG_NUM_CHANNELS 142

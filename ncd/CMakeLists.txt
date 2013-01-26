@@ -181,6 +181,7 @@ add_library(ncdinterpreter
     modules/substr.c
     modules/log.c
     modules/buffer.c
+    modules/getenv.c
     ${NCD_ADDITIONAL_SOURCES}
 )
 target_link_libraries(ncdinterpreter
