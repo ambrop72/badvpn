@@ -1,3 +1,5 @@
+- NCD: modules: add getenv()
+
 - NCD: modules: add buffer(), which exposes a buffer with efficient appending and removing from the beginning.
 
 - NCD: add a new internal string representation called ComposedString. This allows modules to expose the concatenation of multiple memroy buffers as a single string value, efficiently.
