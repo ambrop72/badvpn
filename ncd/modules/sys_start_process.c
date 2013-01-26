@@ -29,7 +29,16 @@
  * @section DESCRIPTION
  * 
  * Synopsis:
- *   sys.start_process(list command, string mode)
+ *   sys.start_process(list command, string mode [, map options])
+ * 
+ * Options:
+ *   "keep_stdout":"true" - Start the program with the same stdout as the NCD process.
+ *     Must not be present if the process is being opened for reading.
+ *   "keep_stderr":true" - Start the program with the same stderr as the NCD process.
+ *   "do_setsid":"true" - Call setsid() in the child before exec. This is needed to
+ *     start the 'agetty' program.
+ *   "username":username_string - Start the process under the permissions of the
+ *       specified user. 
  * 
  * Variables:
  *   is_error - "true" if there was an error starting the process, "false" if the process
@@ -132,6 +141,7 @@
 #include <ncd/extra/NCDBuf.h>
 #include <ncd/extra/value_utils.h>
 #include <ncd/extra/build_cmdline.h>
+#include <ncd/extra/NCDBProcessOpts.h>
 
 #include <generated/blog_channel_ncd_sys_start_process.h>
 
@@ -292,7 +302,10 @@ static void process_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     // check arguments
     NCDValRef command_arg;
     NCDValRef mode_arg;
-    if (!NCDVal_ListRead(params->args, 2, &command_arg, &mode_arg)) {
+    NCDValRef options_arg = NCDVal_NewInvalid();
+    if (!NCDVal_ListRead(params->args, 2, &command_arg, &mode_arg) &&
+        !NCDVal_ListRead(params->args, 3, &command_arg, &mode_arg, &options_arg)
+    ) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
@@ -304,10 +317,27 @@ static void process_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
         goto fail0;
     }
     
+    // parse options
+    NCDBProcessOpts opts;
+    int keep_stdout;
+    int keep_stderr;
+    if (!NCDBProcessOpts_Init2(&opts, options_arg, NULL, NULL, i, BLOG_CURRENT_CHANNEL, &keep_stdout, &keep_stderr)) {
+        goto fail0;
+    }
+    
+    // keep-stdout option and read mode are not compatible
+    if (keep_stdout && is_read) {
+        ModuleLog(i, BLOG_ERROR, "keep-stdout and read mode are not compatible");
+        goto fail1;
+    }
+    
     // prepare for creating pipes
-    int fds[3];
-    int fds_map[2];
-    int num_fds = 0;
+    int fds[4];
+    int fds_map[3];
+    int start_num_fds = opts.nfds;
+    int num_fds = start_num_fds;
+    memcpy(fds, opts.fds, num_fds * sizeof(int));
+    memcpy(fds_map, opts.fds_map, num_fds * sizeof(int));
     int read_fd = -1;
     int write_fd = -1;
     
@@ -342,6 +372,8 @@ static void process_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     struct BProcess_params p_params = {};
     p_params.fds = fds;
     p_params.fds_map = fds_map;
+    p_params.do_setsid = opts.do_setsid;
+    p_params.username = opts.username;
     
     // build command line
     char *exec;
@@ -360,11 +392,14 @@ static void process_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     }
     
     // close child fds
-    while (num_fds-- > 0) {
+    while (num_fds-- > start_num_fds) {
         if (close(fds[num_fds]) < 0) {
             ModuleLog(i, BLOG_ERROR, "close failed");
         }
     }
+    
+    // free opts
+    NCDBProcessOpts_Free(&opts);
     
     // init waits list
     LinkedList0_Init(&o->waits_list);
@@ -380,6 +415,8 @@ static void process_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     NCDModuleInst_Backend_Up(i);
     return;
     
+fail1:
+    NCDBProcessOpts_Free(&opts);
 fail0:
     NCDModuleInst_Backend_DeadError(i);
     return;
@@ -395,11 +432,12 @@ error1:
             ModuleLog(i, BLOG_ERROR, "close failed");
         }
     }
-    while (num_fds-- > 0) {
+    while (num_fds-- > start_num_fds) {
         if (close(fds[num_fds]) < 0) {
             ModuleLog(i, BLOG_ERROR, "close failed");
         }
     }
+    NCDBProcessOpts_Free(&opts);
     
     o->read_fd = -1;
     o->write_fd = -1;
