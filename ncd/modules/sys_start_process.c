@@ -38,7 +38,9 @@
  *   "do_setsid":"true" - Call setsid() in the child before exec. This is needed to
  *     start the 'agetty' program.
  *   "username":username_string - Start the process under the permissions of the
- *       specified user. 
+ *     specified user. 
+ *   "term_on_deinit":"false" - do not send SIGTERM to the process when this statement
+ *     is requested to terminate
  * 
  * Variables:
  *   is_error - "true" if there was an error starting the process, "false" if the process
@@ -168,6 +170,7 @@ struct process_instance {
     NCDModuleInst *i;
     BProcess process;
     LinkedList0 waits_list;
+    int term_on_deinit;
     int read_fd;
     int write_fd;
     int exit_status;
@@ -293,6 +296,18 @@ static void process_handler (void *vo, int normally, uint8_t normally_exit_statu
     o->state = PROCESS_STATE_TERMINATED;
 }
 
+static int opts_func_unknown (void *user, NCDValRef key, NCDValRef val)
+{
+    struct process_instance *o = user;
+    
+    if (NCDVal_IsString(key) && NCDVal_StringEquals(key, "term_on_deinit")) {
+        o->term_on_deinit = ncd_read_boolean(val);
+        return 1;
+    }
+    
+    return 0;
+}
+
 static void process_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct process_instance *o = vo;
@@ -321,7 +336,8 @@ static void process_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     NCDBProcessOpts opts;
     int keep_stdout;
     int keep_stderr;
-    if (!NCDBProcessOpts_Init2(&opts, options_arg, NULL, NULL, i, BLOG_CURRENT_CHANNEL, &keep_stdout, &keep_stderr)) {
+    o->term_on_deinit = 1;
+    if (!NCDBProcessOpts_Init2(&opts, options_arg, opts_func_unknown, o, i, BLOG_CURRENT_CHANNEL, &keep_stdout, &keep_stderr)) {
         goto fail0;
     }
     
@@ -456,10 +472,14 @@ static void process_func_die (void *vo)
         return;
     }
     
-    ModuleLog(o->i, BLOG_INFO, "terminating process");
-    
-    // send termination signal
-    BProcess_Terminate(&o->process);
+    if (o->term_on_deinit) {
+        ModuleLog(o->i, BLOG_INFO, "terminating process");
+        
+        // send termination signal
+        BProcess_Terminate(&o->process);
+    } else {
+        ModuleLog(o->i, BLOG_INFO, "not terminating process as requested");
+    }
     
     // set state
     o->state = PROCESS_STATE_DYING;
