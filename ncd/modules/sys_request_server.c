@@ -87,6 +87,7 @@
 #include <ncd/NCDValParser.h>
 #include <ncd/NCDValGenerator.h>
 #include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
 #include <ncd/extra/value_utils.h>
 #include <ncd/extra/address_utils.h>
 
@@ -161,6 +162,7 @@ static void request_free (struct request *r);
 static struct request * find_request (struct connection *c, uint32_t request_id);
 static void request_process_handler_event (NCDModuleProcess *process, int event);
 static int request_process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
+static int request_process_caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
 static int request_process_request_obj_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
 static void request_terminate (struct request *r);
 static struct reply * reply_init (struct connection *c, uint32_t request_id, NCDValRef reply_data);
@@ -484,16 +486,24 @@ static int request_process_func_getspecialobj (NCDModuleProcess *process, NCD_st
 {
     struct request *r = UPPER_OBJECT(process, struct request, process);
     
+    if (name == NCD_STRING_CALLER) {
+        *out_object = NCDObject_Build(-1, r, NCDObject_no_getvar, request_process_caller_obj_func_getobj);
+        return 1;
+    }
+    
     if (name == ModuleString(r->con->inst->i, STRING_REQUEST)) {
         *out_object = NCDObject_Build(ModuleString(r->con->inst->i, STRING_SYS_REQUEST_SERVER_REQUEST), r, request_process_request_obj_func_getvar, NCDObject_no_getobj);
         return 1;
     }
     
-    if (name == NCD_STRING_CALLER) {
-        return NCDModuleInst_Backend_GetObj(r->con->inst->i, name, out_object);
-    }
-    
     return 0;
+}
+
+static int request_process_caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object)
+{
+    struct request *r = NCDObject_DataPtr(obj);
+    
+    return NCDModuleInst_Backend_GetObj(r->con->inst->i, name, out_object);
 }
 
 static int request_process_request_obj_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
