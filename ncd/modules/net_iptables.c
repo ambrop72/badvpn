@@ -44,6 +44,12 @@
  *   deinit: iptables -t table -D chain arg1 ...
  * 
  * Synopsis:
+ *   net.iptables.insert(string table, string chain, string arg1  ...)
+ * Description:
+ *   init:   iptables -t table -I chain arg1 ...
+ *   deinit: iptables -t table -D chain arg1 ...
+ * 
+ * Synopsis:
  *   net.iptables.policy(string table, string chain, string target, string revert_target)
  * Description:
  *   init:   iptables -t table -P chain target
@@ -60,6 +66,12 @@
  *   net.ebtables.append(string table, string chain, string arg1 ...)
  * Description:
  *   init:   ebtables -t table -A chain arg1 ...
+ *   deinit: ebtables -t table -D chain arg1 ...
+ * 
+ * Synopsis:
+ *   net.ebtables.insert(string table, string chain, string arg1 ...)
+ * Description:
+ *   init:   ebtables -t table -I chain arg1 ...
  *   deinit: ebtables -t table -D chain arg1 ...
  * 
  * Synopsis:
@@ -140,7 +152,7 @@ struct unlock_instance {
 
 static void unlock_free (struct unlock_instance *o);
 
-static int build_append_cmdline (NCDModuleInst *i, NCDValRef args, const char *prog, int remove, char **exec, CmdLine *cl)
+static int build_append_or_insert_cmdline (NCDModuleInst *i, NCDValRef args, const char *prog, int remove, char **exec, CmdLine *cl, const char *type)
 {
     // read arguments
     NCDValRef table_arg;
@@ -171,7 +183,7 @@ static int build_append_cmdline (NCDModuleInst *i, NCDValRef args, const char *p
     }
     
     // add header
-    if (!CmdLine_Append(cl, *exec) || !CmdLine_Append(cl, "-t") || !CmdLine_AppendNoNull(cl, table, table_len) || !CmdLine_Append(cl, (remove ? "-D" : "-A")) || !CmdLine_AppendNoNull(cl, chain, chain_len)) {
+    if (!CmdLine_Append(cl, *exec) || !CmdLine_Append(cl, "-t") || !CmdLine_AppendNoNull(cl, table, table_len) || !CmdLine_Append(cl, (remove ? "-D" : type)) || !CmdLine_AppendNoNull(cl, chain, chain_len)) {
         ModuleLog(i, BLOG_ERROR, "CmdLine_Append failed");
         goto fail2;
     }
@@ -206,6 +218,16 @@ fail1:
     free(*exec);
 fail0:
     return 0;
+}
+
+static int build_append_cmdline (NCDModuleInst *i, NCDValRef args, const char *prog, int remove, char **exec, CmdLine *cl)
+{
+    return build_append_or_insert_cmdline(i, args, prog, remove, exec, cl, "-A");
+}
+
+static int build_insert_cmdline (NCDModuleInst *i, NCDValRef args, const char *prog, int remove, char **exec, CmdLine *cl)
+{
+    return build_append_or_insert_cmdline(i, args, prog, remove, exec, cl, "-I");
 }
 
 static int build_policy_cmdline (NCDModuleInst *i, NCDValRef args, const char *prog, int remove, char **exec, CmdLine *cl)
@@ -332,6 +354,11 @@ static int build_iptables_append_cmdline (NCDModuleInst *i, NCDValRef args, int 
     return build_append_cmdline(i, args, "iptables", remove, exec, cl);
 }
 
+static int build_iptables_insert_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
+{
+    return build_insert_cmdline(i, args, "iptables", remove, exec, cl);
+}
+
 static int build_iptables_policy_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
 {
     return build_policy_cmdline(i, args, "iptables", remove, exec, cl);
@@ -345,6 +372,11 @@ static int build_iptables_newchain_cmdline (NCDModuleInst *i, NCDValRef args, in
 static int build_ebtables_append_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
 {
     return build_append_cmdline(i, args, "ebtables", remove, exec, cl);
+}
+
+static int build_ebtables_insert_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
+{
+    return build_insert_cmdline(i, args, "ebtables", remove, exec, cl);
 }
 
 static int build_ebtables_policy_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
@@ -437,6 +469,11 @@ static void append_iptables_func_new (void *vo, NCDModuleInst *i, const struct N
     func_new(vo, i, params, build_iptables_append_cmdline);
 }
 
+static void insert_iptables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    func_new(vo, i, params, build_iptables_insert_cmdline);
+}
+
 static void policy_iptables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     func_new(vo, i, params, build_iptables_policy_cmdline);
@@ -450,6 +487,11 @@ static void newchain_iptables_func_new (void *vo, NCDModuleInst *i, const struct
 static void append_ebtables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     func_new(vo, i, params, build_ebtables_append_cmdline);
+}
+
+static void insert_ebtables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    func_new(vo, i, params, build_ebtables_insert_cmdline);
 }
 
 static void policy_ebtables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -583,6 +625,11 @@ static struct NCDModule modules[] = {
         .func_die = func_die,
         .alloc_size = sizeof(struct instance)
     }, {
+        .type = "net.iptables.insert",
+        .func_new2 = insert_iptables_func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
+    }, {
         .type = "net.iptables.policy",
         .func_new2 = policy_iptables_func_new,
         .func_die = func_die,
@@ -595,6 +642,11 @@ static struct NCDModule modules[] = {
     }, {
         .type = "net.ebtables.append",
         .func_new2 = append_ebtables_func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
+    }, {
+        .type = "net.ebtables.insert",
+        .func_new2 = insert_ebtables_func_new,
         .func_die = func_die,
         .alloc_size = sizeof(struct instance)
     }, {
