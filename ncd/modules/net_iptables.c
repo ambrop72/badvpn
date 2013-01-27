@@ -37,6 +37,9 @@
  * In case you wish to call iptables/ebtables directly, the lock is exposed via
  * net.iptables.lock().
  * 
+ * The append and insert commands, instead of using the variable-argument form below
+ * as documented below, may alternatively be called with a single list argument.
+ * 
  * Synopsis:
  *   net.iptables.append(string table, string chain, string arg1  ...)
  * Description:
@@ -154,6 +157,11 @@ static void unlock_free (struct unlock_instance *o);
 
 static int build_append_or_insert_cmdline (NCDModuleInst *i, NCDValRef args, const char *prog, int remove, char **exec, CmdLine *cl, const char *type)
 {
+    if (NCDVal_ListRead(args, 1, &args) && !NCDVal_IsList(args)) {
+        ModuleLog(i, BLOG_ERROR, "in one-argument form a list is expected");
+        goto fail0;
+    }
+    
     // read arguments
     NCDValRef table_arg;
     NCDValRef chain_arg;
