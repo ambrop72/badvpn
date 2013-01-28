@@ -177,11 +177,15 @@ process main {
     assert(a);
     
     value({}) v;
-    v->insert("1");
+    v->insert("1") ins_v;
     v->insert("2");
     v->insert("3");
     v->insert("4");
-    val_equal(v, {"1", "2", "3", "4"})  a;
+    v->append("5");
+    v->append("6");
+    val_equal(v, {"1", "2", "3", "4", "5", "6"})  a;
+    assert(a);
+    val_equal(ins_v, "1") a;
     assert(a);
     
     value({}) v;

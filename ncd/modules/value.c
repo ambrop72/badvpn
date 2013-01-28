@@ -140,11 +140,14 @@
  *   undo operation.
  * 
  * Synopsis:
- *   value::append(string data)
+ *   value::append(append_val)
  * 
  * Description:
- *   Appends the given data to a string value. The value this is called on must
- *   be a string value.
+ *   Only defined when the existing value object is a string or list. If it is a string,
+ *   appends the string 'append_val' to this string value; 'append_val' must be a string.
+ *   If is is a list, inserts 'append_val' to the end of this list value. Unlike insert(),
+ *   the resulting append() object is not itself a value object (which in case of insert()
+ *   serves as a reference to the new value).
  */
 
 #include <stdlib.h>
@@ -1259,8 +1262,20 @@ static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
             value_string_set_allocd(v, new_string, new_length);
         } break;
         
+        case NCDVAL_LIST: {
+            struct value *nv = value_init_fromvalue(i, data);
+            if (!nv) {
+                return 0;
+            }
+            
+            if (!value_list_insert(i, v, nv, value_list_len(v))) {
+                value_cleanup(nv);
+                return 0;
+            }
+        } break;
+        
         default:
-            ModuleLog(i, BLOG_ERROR, "cannot append to non-string");
+            ModuleLog(i, BLOG_ERROR, "append is only defined for strings and lists");
             return 0;
     }
     
