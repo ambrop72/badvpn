@@ -1,3 +1,5 @@
+Version 1.999.127:
+
 - client, server: implement experimental support for performing SSL operations in worker threads. Currently it's rather inefficient.
 
 - NCD: modules: value: implement value::append() for appending to a list

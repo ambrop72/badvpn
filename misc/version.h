@@ -35,7 +35,7 @@
 #define BADVPN_MISC_VERSION_H
 
 #define GLOBAL_PRODUCT_NAME "BadVPN"
-#define GLOBAL_VERSION "1.999.127rc1"
+#define GLOBAL_VERSION "1.999.127"
 #define GLOBAL_COPYRIGHT_NOTICE "Copyright (C) 2010 Ambroz Bizjak <ambrop7@gmail.com>"
 
 #endif
