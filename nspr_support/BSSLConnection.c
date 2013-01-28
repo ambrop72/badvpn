@@ -40,10 +40,20 @@
 
 #include <generated/blog_channel_BSSLConnection.h>
 
+#define THREADWORK_STATE_NONE 0
+#define THREADWORK_STATE_HANDSHAKE 1
+#define THREADWORK_STATE_READ 2
+#define THREADWORK_STATE_WRITE 3
+
+static void backend_threadwork_start (struct BSSLConnection_backend *b, int op);
+static int backend_threadwork_do_io (struct BSSLConnection_backend *b);
 static void connection_init_job_handler (BSSLConnection *o);
 static void connection_init_up (BSSLConnection *o);
 static void connection_try_io (BSSLConnection *o);
+static void connection_threadwork_func_work (void *user);
+static void connection_threadwork_handler_done (void *user);
 static void connection_recv_job_handler (BSSLConnection *o);
+static void connection_try_handshake (BSSLConnection *o);
 static void connection_try_send (BSSLConnection *o);
 static void connection_try_recv (BSSLConnection *o);
 static void connection_send_if_handler_send (BSSLConnection *o, uint8_t *data, int data_len);
@@ -65,6 +75,13 @@ static PRStatus method_close (PRFileDesc *fd)
 {
     struct BSSLConnection_backend *b = (struct BSSLConnection_backend *)fd->secret;
     ASSERT(!b->con)
+    ASSERT(b->threadwork_state == THREADWORK_STATE_NONE)
+    
+    // free mutexes
+    if ((b->flags & BSSLCONNECTION_FLAG_THREADWORK_HANDSHAKE) || (b->flags & BSSLCONNECTION_FLAG_THREADWORK_IO)) {
+        BMutex_Free(&b->recv_buf_mutex);
+        BMutex_Free(&b->send_buf_mutex);
+    }
     
     // free backend
     free(b);
@@ -80,17 +97,25 @@ static PRInt32 method_read (PRFileDesc *fd, void *buf, PRInt32 amount)
     struct BSSLConnection_backend *b = (struct BSSLConnection_backend *)fd->secret;
     ASSERT(amount > 0)
     
+    if (b->threadwork_state != THREADWORK_STATE_NONE) {
+        BMutex_Lock(&b->recv_buf_mutex);
+    }
+    
     // if we are receiving into buffer or buffer has no data left, refuse recv
     if (b->recv_busy || b->recv_pos == b->recv_len) {
-        // start receiving if not already
-        if (!b->recv_busy) {
-            // set recv busy
-            b->recv_busy = 1;
-            
-            // receive into buffer
-            StreamRecvInterface_Receiver_Recv(b->recv_if, b->recv_buf, BSSLCONNECTION_BUF_SIZE);
+        if (b->threadwork_state != THREADWORK_STATE_NONE) {
+            b->threadwork_want_recv = 1;
+            BMutex_Unlock(&b->recv_buf_mutex);
+        } else {
+            // start receiving if not already
+            if (!b->recv_busy) {
+                // set recv busy
+                b->recv_busy = 1;
+                
+                // receive into buffer
+                StreamRecvInterface_Receiver_Recv(b->recv_if, b->recv_buf, BSSLCONNECTION_BUF_SIZE);
+            }
         }
-        
         PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
         return -1;
     }
@@ -106,6 +131,10 @@ static PRInt32 method_read (PRFileDesc *fd, void *buf, PRInt32 amount)
     // update buffer
     b->recv_pos += amount;
     
+    if (b->threadwork_state != THREADWORK_STATE_NONE) {
+        BMutex_Unlock(&b->recv_buf_mutex);
+    }
+    
     return amount;
 }
 
@@ -114,8 +143,18 @@ static PRInt32 method_write (PRFileDesc *fd, const void *buf, PRInt32 amount)
     struct BSSLConnection_backend *b = (struct BSSLConnection_backend *)fd->secret;
     ASSERT(amount > 0)
     
+    if (b->threadwork_state != THREADWORK_STATE_NONE) {
+        BMutex_Lock(&b->send_buf_mutex);
+    }
+    
+    ASSERT(!b->send_busy || b->send_pos < b->send_len)
+    
     // if there is data in buffer, refuse send
     if (b->send_pos < b->send_len) {
+        if (b->threadwork_state != THREADWORK_STATE_NONE) {
+            b->threadwork_want_send = 1;
+            BMutex_Unlock(&b->send_buf_mutex);
+        }
         PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
         return -1;
     }
@@ -130,8 +169,13 @@ static PRInt32 method_write (PRFileDesc *fd, const void *buf, PRInt32 amount)
     b->send_pos = 0;
     b->send_len = amount;
     
-    // start sending
-    StreamPassInterface_Sender_Send(b->send_if, b->send_buf + b->send_pos, b->send_len - b->send_pos);
+    if (b->threadwork_state != THREADWORK_STATE_NONE) {
+        BMutex_Unlock(&b->send_buf_mutex);
+    } else {
+        // start sending
+        b->send_busy = 1;
+        StreamPassInterface_Sender_Send(b->send_if, b->send_buf + b->send_pos, b->send_len - b->send_pos);
+    }
     
     return amount;
 }
@@ -277,10 +321,15 @@ static PRIOMethods methods = {
 
 static void backend_send_if_handler_done (struct BSSLConnection_backend *b, int data_len)
 {
+    ASSERT(b->send_busy)
     ASSERT(b->send_len > 0)
     ASSERT(b->send_pos < b->send_len)
     ASSERT(data_len > 0)
     ASSERT(data_len <= b->send_len - b->send_pos)
+    
+    if (b->threadwork_state != THREADWORK_STATE_NONE) {
+        BMutex_Lock(&b->send_buf_mutex);
+    }
     
     // update buffer
     b->send_pos += data_len;
@@ -288,7 +337,17 @@ static void backend_send_if_handler_done (struct BSSLConnection_backend *b, int 
     // send more if needed
     if (b->send_pos < b->send_len) {
         StreamPassInterface_Sender_Send(b->send_if, b->send_buf + b->send_pos, b->send_len - b->send_pos);
+        if (b->threadwork_state != THREADWORK_STATE_NONE) {
+            BMutex_Unlock(&b->send_buf_mutex);
+        }
         return;
+    }
+    
+    // set send not busy
+    b->send_busy = 0;
+    
+    if (b->threadwork_state != THREADWORK_STATE_NONE) {
+        BMutex_Unlock(&b->send_buf_mutex);
     }
     
     // notify connection
@@ -304,16 +363,57 @@ static void backend_recv_if_handler_done (struct BSSLConnection_backend *b, int 
     ASSERT(data_len > 0)
     ASSERT(data_len <= BSSLCONNECTION_BUF_SIZE)
     
+    if (b->threadwork_state != THREADWORK_STATE_NONE) {
+        BMutex_Lock(&b->recv_buf_mutex);
+    }
+    
     // init buffer
     b->recv_busy = 0;
     b->recv_pos = 0;
     b->recv_len = data_len;
+    
+    if (b->threadwork_state != THREADWORK_STATE_NONE) {
+        BMutex_Unlock(&b->recv_buf_mutex);
+    }
     
     // notify connection
     if (b->con && !b->con->have_error) {
         connection_try_io(b->con);
         return;
     }
+}
+
+static void backend_threadwork_start (struct BSSLConnection_backend *b, int op)
+{
+    ASSERT(b->con)
+    ASSERT(b->threadwork_state == THREADWORK_STATE_NONE)
+    ASSERT(op == THREADWORK_STATE_HANDSHAKE || op == THREADWORK_STATE_READ || op == THREADWORK_STATE_WRITE)
+    
+    b->threadwork_state = op;
+    b->threadwork_want_recv = 0;
+    b->threadwork_want_send = 0;
+    BThreadWork_Init(&b->threadwork, b->twd, connection_threadwork_handler_done, b->con, connection_threadwork_func_work, b->con);
+}
+
+static int backend_threadwork_do_io (struct BSSLConnection_backend *b)
+{
+    ASSERT(b->con)
+    ASSERT(b->threadwork_state == THREADWORK_STATE_NONE)
+    
+    int io_ready = (b->threadwork_want_recv && !b->recv_busy && b->recv_pos < b->recv_len) ||
+                   (b->threadwork_want_send && b->send_pos == b->send_len);
+    
+    if (b->threadwork_want_recv && b->recv_pos == b->recv_len && !b->recv_busy) {
+        b->recv_busy = 1;
+        StreamRecvInterface_Receiver_Recv(b->recv_if, b->recv_buf, BSSLCONNECTION_BUF_SIZE);
+    }
+    
+    if (b->send_pos < b->send_len && !b->send_busy) {
+        b->send_busy = 1;
+        StreamPassInterface_Sender_Send(b->send_if, b->send_buf + b->send_pos, b->send_len - b->send_pos);
+    }
+    
+    return io_ready;
 }
 
 static void connection_report_error (BSSLConnection *o)
@@ -333,12 +433,15 @@ static void connection_init_job_handler (BSSLConnection *o)
     ASSERT(!o->have_error)
     ASSERT(!o->up)
     
-    connection_try_io(o);
-    return;
+    connection_try_handshake(o);
 }
 
 static void connection_init_up (BSSLConnection *o)
 {
+    // unset init job
+    // (just in the impossible case that handshake completed before the init job executed)
+    BPending_Unset(&o->init_job);
+    
     // init send interface
     StreamPassInterface_Init(&o->send_if, (StreamPassInterface_handler_send)connection_send_if_handler_send, o, o->pg);
     
@@ -364,28 +467,7 @@ static void connection_try_io (BSSLConnection *o)
     ASSERT(!o->have_error)
     
     if (!o->up) {
-        // unset init job (in case backend called us before it executed)
-        BPending_Unset(&o->init_job);
-        
-        // try handshake
-        SECStatus res = SSL_ForceHandshake(o->prfd);
-        if (res == SECFailure) {
-            PRErrorCode error = PR_GetError();
-            if (error == PR_WOULD_BLOCK_ERROR) {
-                return;
-            }
-            
-            BLog(BLOG_ERROR, "SSL_ForceHandshake failed (%"PRIi32")", error);
-            
-            connection_report_error(o);
-            return;
-        }
-        
-        // init up
-        connection_init_up(o);
-        
-        // report up
-        o->handler(o->user, BSSLCONNECTION_EVENT_UP);
+        connection_try_handshake(o);
         return;
     }
     
@@ -404,6 +486,163 @@ static void connection_try_io (BSSLConnection *o)
     }
 }
 
+static void connection_threadwork_func_work (void *user)
+{
+    BSSLConnection *o = user;
+    struct BSSLConnection_backend *b = o->backend;
+    ASSERT(b->threadwork_state != THREADWORK_STATE_NONE)
+    
+    switch (b->threadwork_state) {
+        case THREADWORK_STATE_HANDSHAKE:
+            b->threadwork_result_sec = SSL_ForceHandshake(o->prfd);
+            break;
+        case THREADWORK_STATE_WRITE:
+            b->threadwork_result_pr = PR_Write(o->prfd, o->send_data, o->send_len);
+            break;
+        case THREADWORK_STATE_READ:
+            b->threadwork_result_pr = PR_Read(o->prfd, o->recv_data, o->recv_avail);
+            break;
+        default:
+            ASSERT(0);
+    }
+    
+    b->threadwork_error = PR_GetError();
+}
+
+static void connection_threadwork_handler_done (void *user)
+{
+    BSSLConnection *o = user;
+    struct BSSLConnection_backend *b = o->backend;
+    ASSERT(b->threadwork_state != THREADWORK_STATE_NONE)
+    
+    // remember what operation the threadwork was performing
+    int op = b->threadwork_state;
+    
+    // free threadwork
+    BThreadWork_Free(&b->threadwork);
+    b->threadwork_state = THREADWORK_STATE_NONE;
+    
+    // start any necessary backend I/O operations, and determine if any of the requested
+    // backend I/O that was not available at the time is now available
+    int io_ready = backend_threadwork_do_io(b);
+    
+    switch (op) {
+        case THREADWORK_STATE_HANDSHAKE: {
+            ASSERT(!o->up)
+            ASSERT((b->flags & BSSLCONNECTION_FLAG_THREADWORK_HANDSHAKE))
+            
+            if (b->threadwork_result_sec == SECFailure) {
+                if (b->threadwork_error == PR_WOULD_BLOCK_ERROR) {
+                    if (io_ready) {
+                        // requested backend I/O got ready, try again
+                        backend_threadwork_start(o->backend, THREADWORK_STATE_HANDSHAKE);
+                    }
+                    return;
+                }
+                BLog(BLOG_ERROR, "SSL_ForceHandshake failed (%"PRIi32")", b->threadwork_error);
+                connection_report_error(o);
+                return;
+            }
+            
+            // init up
+            connection_init_up(o);
+            
+            // report up
+            o->handler(o->user, BSSLCONNECTION_EVENT_UP);
+            return;
+        } break;
+        
+        case THREADWORK_STATE_WRITE: {
+            ASSERT(o->up)
+            ASSERT((b->flags & BSSLCONNECTION_FLAG_THREADWORK_IO))
+            ASSERT(o->send_len > 0)
+            
+            PRInt32 result = b->threadwork_result_pr;
+            PRErrorCode error = b->threadwork_error;
+            
+            if (result < 0) {
+                if (error == PR_WOULD_BLOCK_ERROR) {
+                    if (io_ready) {
+                        // requested backend I/O got ready, try again
+                        backend_threadwork_start(o->backend, THREADWORK_STATE_WRITE);
+                    } else if (o->recv_avail > 0) {
+                        // don't forget about receiving
+                        backend_threadwork_start(o->backend, THREADWORK_STATE_READ);
+                    }
+                    return;
+                }
+                BLog(BLOG_ERROR, "PR_Write failed (%"PRIi32")", error);
+                connection_report_error(o);
+                return;
+            }
+            
+            ASSERT(result > 0)
+            ASSERT(result <= o->send_len)
+            
+            // set no send data
+            o->send_len = -1;
+            
+            // don't forget about receiving
+            if (o->recv_avail > 0) {
+                backend_threadwork_start(o->backend, THREADWORK_STATE_READ);
+            }
+            
+            // finish send operation
+            StreamPassInterface_Done(&o->send_if, result);
+        } break;
+        
+        case THREADWORK_STATE_READ: {
+            ASSERT(o->up)
+            ASSERT((b->flags & BSSLCONNECTION_FLAG_THREADWORK_IO))
+            ASSERT(o->recv_avail > 0)
+            
+            PRInt32 result = b->threadwork_result_pr;
+            PRErrorCode error = b->threadwork_error;
+            
+            if (result < 0) {
+                if (error == PR_WOULD_BLOCK_ERROR) {
+                    if (io_ready) {
+                        // requested backend I/O got ready, try again
+                        backend_threadwork_start(o->backend, THREADWORK_STATE_READ);
+                    } else if (o->send_len > 0) {
+                        // don't forget about sending
+                        backend_threadwork_start(o->backend, THREADWORK_STATE_WRITE);
+                    }
+                    return;
+                }
+                BLog(BLOG_ERROR, "PR_Read failed (%"PRIi32")", error);
+                connection_report_error(o);
+                return;
+            }
+            
+            if (result == 0) {
+                BLog(BLOG_ERROR, "PR_Read returned 0");
+                connection_report_error(o);
+                return;
+            }
+            
+            ASSERT(result > 0)
+            ASSERT(result <= o->recv_avail)
+            
+            // set no recv data
+            o->recv_avail = -1;
+            
+            // don't forget about sending
+            if (o->send_len > 0) {
+                backend_threadwork_start(o->backend, THREADWORK_STATE_WRITE);
+            }
+            
+            // finish receive operation
+            StreamRecvInterface_Done(&o->recv_if, result);
+        } break;
+        
+        default:
+            ASSERT(0);
+    }
+    
+    return;
+}
+
 static void connection_recv_job_handler (BSSLConnection *o)
 {
     DebugObject_Access(&o->d_obj);
@@ -415,11 +654,52 @@ static void connection_recv_job_handler (BSSLConnection *o)
     return;
 }
 
+static void connection_try_handshake (BSSLConnection *o)
+{
+    ASSERT(!o->have_error)
+    ASSERT(!o->up)
+    
+    // continue in threadwork if requested
+    if ((o->backend->flags & BSSLCONNECTION_FLAG_THREADWORK_HANDSHAKE)) {
+        if (o->backend->threadwork_state == THREADWORK_STATE_NONE) {
+            backend_threadwork_start(o->backend, THREADWORK_STATE_HANDSHAKE);
+        }
+        return;
+    }
+    
+    // try handshake
+    SECStatus res = SSL_ForceHandshake(o->prfd);
+    if (res == SECFailure) {
+        PRErrorCode error = PR_GetError();
+        if (error == PR_WOULD_BLOCK_ERROR) {
+            return;
+        }
+        BLog(BLOG_ERROR, "SSL_ForceHandshake failed (%"PRIi32")", error);
+        connection_report_error(o);
+        return;
+    }
+    
+    // init up
+    connection_init_up(o);
+    
+    // report up
+    o->handler(o->user, BSSLCONNECTION_EVENT_UP);
+    return;
+}
+
 static void connection_try_send (BSSLConnection *o)
 {
     ASSERT(!o->have_error)
     ASSERT(o->up)
     ASSERT(o->send_len > 0)
+    
+    // continue in threadwork if requested
+    if ((o->backend->flags & BSSLCONNECTION_FLAG_THREADWORK_IO)) {
+        if (o->backend->threadwork_state == THREADWORK_STATE_NONE) {
+            backend_threadwork_start(o->backend, THREADWORK_STATE_WRITE);
+        }
+        return;
+    }
     
     // send
     PRInt32 res = PR_Write(o->prfd, o->send_data, o->send_len);
@@ -428,9 +708,7 @@ static void connection_try_send (BSSLConnection *o)
         if (error == PR_WOULD_BLOCK_ERROR) {
             return;
         }
-        
         BLog(BLOG_ERROR, "PR_Write failed (%"PRIi32")", error);
-        
         connection_report_error(o);
         return;
     }
@@ -454,6 +732,14 @@ static void connection_try_recv (BSSLConnection *o)
     // unset recv job
     BPending_Unset(&o->recv_job);
     
+    // continue in threadwork if requested
+    if ((o->backend->flags & BSSLCONNECTION_FLAG_THREADWORK_IO)) {
+        if (o->backend->threadwork_state == THREADWORK_STATE_NONE) {
+            backend_threadwork_start(o->backend, THREADWORK_STATE_READ);
+        }
+        return;
+    }
+    
     // recv
     PRInt32 res = PR_Read(o->prfd, o->recv_data, o->recv_avail);
     if (res < 0) {
@@ -461,16 +747,13 @@ static void connection_try_recv (BSSLConnection *o)
         if (error == PR_WOULD_BLOCK_ERROR) {
             return;
         }
-        
         BLog(BLOG_ERROR, "PR_Read failed (%"PRIi32")", error);
-        
         connection_report_error(o);
         return;
     }
     
     if (res == 0) {
         BLog(BLOG_ERROR, "PR_Read returned 0");
-        
         connection_report_error(o);
         return;
     }
@@ -493,6 +776,11 @@ static void connection_send_if_handler_send (BSSLConnection *o, uint8_t *data, i
     ASSERT(o->send_len == -1)
     ASSERT(data_len > 0)
     
+#ifndef NDEBUG
+    ASSERT(!o->releasebuffers_called)
+    o->user_io_started = 1;
+#endif
+    
     // limit amount for PR_Write
     if (data_len > INT32_MAX) {
         data_len = INT32_MAX;
@@ -504,7 +792,6 @@ static void connection_send_if_handler_send (BSSLConnection *o, uint8_t *data, i
     
     // start sending
     connection_try_send(o);
-    return;
 }
 
 static void connection_recv_if_handler_recv (BSSLConnection *o, uint8_t *data, int data_len)
@@ -514,6 +801,11 @@ static void connection_recv_if_handler_recv (BSSLConnection *o, uint8_t *data, i
     ASSERT(o->up)
     ASSERT(o->recv_avail == -1)
     ASSERT(data_len > 0)
+    
+#ifndef NDEBUG
+    ASSERT(!o->releasebuffers_called)
+    o->user_io_started = 1;
+#endif
     
     // limit amount for PR_Read
     if (data_len > INT32_MAX) {
@@ -526,7 +818,6 @@ static void connection_recv_if_handler_recv (BSSLConnection *o, uint8_t *data, i
     
     // start receiving
     connection_try_recv(o);
-    return;
 }
 
 int BSSLConnection_GlobalInit (void)
@@ -543,20 +834,46 @@ int BSSLConnection_GlobalInit (void)
     return 1;
 }
 
-int BSSLConnection_MakeBackend (PRFileDesc *prfd, StreamPassInterface *send_if, StreamRecvInterface *recv_if)
+int BSSLConnection_MakeBackend (PRFileDesc *prfd, StreamPassInterface *send_if, StreamRecvInterface *recv_if, BThreadWorkDispatcher *twd, int flags)
 {
     ASSERT(bprconnection_initialized)
+    ASSERT(!(flags & ~(BSSLCONNECTION_FLAG_THREADWORK_HANDSHAKE | BSSLCONNECTION_FLAG_THREADWORK_IO)))
+    ASSERT(!(flags & BSSLCONNECTION_FLAG_THREADWORK_HANDSHAKE) || twd)
+    ASSERT(!(flags & BSSLCONNECTION_FLAG_THREADWORK_IO) || twd)
+    
+    // don't do stuff in threads if threads aren't available
+    if (((flags & BSSLCONNECTION_FLAG_THREADWORK_HANDSHAKE) || (flags & BSSLCONNECTION_FLAG_THREADWORK_IO)) &&
+        !BThreadWorkDispatcher_UsingThreads(twd)
+    ) {
+        BLog(BLOG_WARNING, "SSL operations in threads requested but threads are not available");
+        flags &= ~(BSSLCONNECTION_FLAG_THREADWORK_HANDSHAKE | BSSLCONNECTION_FLAG_THREADWORK_IO);
+    }
     
     // allocate backend
     struct BSSLConnection_backend *b = (struct BSSLConnection_backend *)malloc(sizeof(*b));
     if (!b) {
         BLog(BLOG_ERROR, "malloc failed");
-        return 0;
+        goto fail0;
+    }
+    
+    // init mutexes
+    if ((flags & BSSLCONNECTION_FLAG_THREADWORK_HANDSHAKE) || (flags & BSSLCONNECTION_FLAG_THREADWORK_IO)) {
+        if (!BMutex_Init(&b->send_buf_mutex)) {
+            BLog(BLOG_ERROR, "BMutex_Init failed");
+            goto fail1;
+        }
+        
+        if (!BMutex_Init(&b->recv_buf_mutex)) {
+            BLog(BLOG_ERROR, "BMutex_Init failed");
+            goto fail2;
+        }
     }
     
     // init arguments
     b->send_if = send_if;
     b->recv_if = recv_if;
+    b->twd = twd;
+    b->flags = flags;
     
     // init interfaces
     StreamPassInterface_Sender_Init(b->send_if, (StreamPassInterface_handler_done)backend_send_if_handler_done, b);
@@ -566,6 +883,7 @@ int BSSLConnection_MakeBackend (PRFileDesc *prfd, StreamPassInterface *send_if, 
     b->con = NULL;
     
     // init send buffer
+    b->send_busy = 0;
     b->send_len = 0;
     b->send_pos = 0;
     
@@ -574,6 +892,9 @@ int BSSLConnection_MakeBackend (PRFileDesc *prfd, StreamPassInterface *send_if, 
     b->recv_pos = 0;
     b->recv_len = 0;
     
+    // set threadwork state
+    b->threadwork_state = THREADWORK_STATE_NONE;
+    
     // init prfd
     memset(prfd, 0, sizeof(*prfd));
     prfd->methods = &methods;
@@ -581,6 +902,15 @@ int BSSLConnection_MakeBackend (PRFileDesc *prfd, StreamPassInterface *send_if, 
     prfd->identity = bprconnection_identity;
     
     return 1;
+    
+    if ((flags & BSSLCONNECTION_FLAG_THREADWORK_HANDSHAKE) || (flags & BSSLCONNECTION_FLAG_THREADWORK_IO)) {
+fail2:
+        BMutex_Free(&b->send_buf_mutex);
+    }
+fail1:
+    free(b);
+fail0:
+    return 0;
 }
 
 void BSSLConnection_Init (BSSLConnection *o, PRFileDesc *prfd, int force_handshake, BPendingGroup *pg, void *user,
@@ -600,6 +930,8 @@ void BSSLConnection_Init (BSSLConnection *o, PRFileDesc *prfd, int force_handsha
     
     // set backend
     o->backend = (struct BSSLConnection_backend *)(get_bottom(prfd)->secret);
+    ASSERT(!o->backend->con)
+    ASSERT(o->backend->threadwork_state == THREADWORK_STATE_NONE)
     
     // set have no error
     o->have_error = 0;
@@ -621,6 +953,11 @@ void BSSLConnection_Init (BSSLConnection *o, PRFileDesc *prfd, int force_handsha
     // set backend connection
     o->backend->con = o;
     
+#ifndef NDEBUG
+    o->user_io_started = 0;
+    o->releasebuffers_called = 0;
+#endif
+    
     DebugError_Init(&o->d_err, o->pg);
     DebugObject_Init(&o->d_obj);
 }
@@ -629,6 +966,10 @@ void BSSLConnection_Free (BSSLConnection *o)
 {
     DebugObject_Free(&o->d_obj);
     DebugError_Free(&o->d_err);
+#ifndef NDEBUG
+    ASSERT(o->releasebuffers_called || !o->user_io_started)
+#endif
+    ASSERT(o->backend->threadwork_state == THREADWORK_STATE_NONE)
     
     if (o->up) {
         // free recv job
@@ -646,6 +987,24 @@ void BSSLConnection_Free (BSSLConnection *o)
     
     // unset backend connection
     o->backend->con = NULL;
+}
+
+void BSSLConnection_ReleaseBuffers (BSSLConnection *o)
+{
+    DebugObject_Access(&o->d_obj);
+#ifndef NDEBUG
+    ASSERT(!o->releasebuffers_called)
+#endif
+    
+    // wait for threadwork to finish
+    if (o->backend->threadwork_state != THREADWORK_STATE_NONE) {
+        BThreadWork_Free(&o->backend->threadwork);
+        o->backend->threadwork_state = THREADWORK_STATE_NONE;
+    }
+    
+#ifndef NDEBUG
+    o->releasebuffers_called = 1;
+#endif
 }
 
 StreamPassInterface * BSSLConnection_GetSendIf (BSSLConnection *o)

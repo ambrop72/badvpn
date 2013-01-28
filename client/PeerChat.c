@@ -193,8 +193,8 @@ static void ssl_recv_decoder_handler_error (PeerChat *o)
     return;
 }
 
-int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate *ssl_cert, SECKEYPrivateKey *ssl_key,
-                   uint8_t *ssl_peer_cert, int ssl_peer_cert_len, BPendingGroup *pg, void *user,
+int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, int ssl_flags, CERTCertificate *ssl_cert, SECKEYPrivateKey *ssl_key,
+                   uint8_t *ssl_peer_cert, int ssl_peer_cert_len, BPendingGroup *pg, BThreadWorkDispatcher *twd, void *user,
                    BLog_logfunc logfunc,
                    PeerChat_handler_error handler_error,
                    PeerChat_handler_message handler_message)
@@ -244,7 +244,7 @@ int PeerChat_Init (PeerChat *o, peerid_t peer_id, int ssl_mode, CERTCertificate 
         StreamPacketSender_Init(&o->ssl_sp_sender, send_buf_output, pg);
         
         // init SSL bottom prfd
-        if (!BSSLConnection_MakeBackend(&o->ssl_bottom_prfd, StreamPacketSender_GetInput(&o->ssl_sp_sender), SimpleStreamBuffer_GetOutput(&o->ssl_recv_buf))) {
+        if (!BSSLConnection_MakeBackend(&o->ssl_bottom_prfd, StreamPacketSender_GetInput(&o->ssl_sp_sender), SimpleStreamBuffer_GetOutput(&o->ssl_recv_buf), twd, ssl_flags)) {
             PeerLog(o, BLOG_ERROR, "BSSLConnection_MakeBackend failed");
             goto fail2;
         }
@@ -365,6 +365,11 @@ void PeerChat_Free (PeerChat *o)
 {
     DebugObject_Free(&o->d_obj);
     DebugError_Free(&o->d_err);
+    
+    // stop using any buffers before they get freed
+    if (o->ssl_mode != PEERCHAT_SSL_NONE) {
+        BSSLConnection_ReleaseBuffers(&o->ssl_con);
+    }
     
     PacketBuffer_Free(&o->send_buf);
     BufferWriter_Free(&o->send_writer);

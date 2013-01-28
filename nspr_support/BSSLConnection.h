@@ -31,6 +31,7 @@
 #define BADVPN_BSSLCONNECTION_H
 
 #include <prio.h>
+#include <ssl.h>
 
 #include <misc/debug.h>
 #include <misc/debugerror.h>
@@ -38,11 +39,16 @@
 #include <base/BPending.h>
 #include <flow/StreamPassInterface.h>
 #include <flow/StreamRecvInterface.h>
+#include <threadwork/BThreadWork.h>
+#include <threadwork/BMutex.h>
 
 #define BSSLCONNECTION_EVENT_UP 1
 #define BSSLCONNECTION_EVENT_ERROR 2
 
 #define BSSLCONNECTION_BUF_SIZE 4096
+
+#define BSSLCONNECTION_FLAG_THREADWORK_HANDSHAKE (1 << 0)
+#define BSSLCONNECTION_FLAG_THREADWORK_IO (1 << 1)
 
 typedef void (*BSSLConnection_handler) (void *user, int event);
 
@@ -64,6 +70,10 @@ typedef struct {
     int send_len;
     uint8_t *recv_data;
     int recv_avail;
+#ifndef NDEBUG
+    int user_io_started;
+    int releasebuffers_called;
+#endif
     DebugError d_err;
     DebugObject d_obj;
 } BSSLConnection;
@@ -71,22 +81,35 @@ typedef struct {
 struct BSSLConnection_backend {
     StreamPassInterface *send_if;
     StreamRecvInterface *recv_if;
+    BThreadWorkDispatcher *twd;
+    int flags;
     BSSLConnection *con;
     uint8_t send_buf[BSSLCONNECTION_BUF_SIZE];
+    int send_busy;
     int send_pos;
     int send_len;
     uint8_t recv_buf[BSSLCONNECTION_BUF_SIZE];
     int recv_busy;
     int recv_pos;
     int recv_len;
+    int threadwork_state;
+    int threadwork_want_recv;
+    int threadwork_want_send;
+    BThreadWork threadwork;
+    SECStatus threadwork_result_sec;
+    PRInt32 threadwork_result_pr;
+    PRErrorCode threadwork_error;
+    BMutex send_buf_mutex;
+    BMutex recv_buf_mutex;
 };
 
 int BSSLConnection_GlobalInit (void) WARN_UNUSED;
-int BSSLConnection_MakeBackend (PRFileDesc *prfd, StreamPassInterface *send_if, StreamRecvInterface *recv_if) WARN_UNUSED;
+int BSSLConnection_MakeBackend (PRFileDesc *prfd, StreamPassInterface *send_if, StreamRecvInterface *recv_if, BThreadWorkDispatcher *twd, int flags) WARN_UNUSED;
 
 void BSSLConnection_Init (BSSLConnection *o, PRFileDesc *prfd, int force_handshake, BPendingGroup *pg, void *user,
                           BSSLConnection_handler handler);
 void BSSLConnection_Free (BSSLConnection *o);
+void BSSLConnection_ReleaseBuffers (BSSLConnection *o);
 StreamPassInterface * BSSLConnection_GetSendIf (BSSLConnection *o);
 StreamRecvInterface * BSSLConnection_GetRecvIf (BSSLConnection *o);
 

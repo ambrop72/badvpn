@@ -104,7 +104,7 @@ void connector_handler (StreamPeerIO *pio, int is_error)
         BConnection_RecvAsync_Init(&pio->connect.sock.con);
         
         // create bottom NSPR file descriptor
-        if (!BSSLConnection_MakeBackend(&pio->connect.sock.bottom_prfd, BConnection_SendAsync_GetIf(&pio->connect.sock.con), BConnection_RecvAsync_GetIf(&pio->connect.sock.con))) {
+        if (!BSSLConnection_MakeBackend(&pio->connect.sock.bottom_prfd, BConnection_SendAsync_GetIf(&pio->connect.sock.con), BConnection_RecvAsync_GetIf(&pio->connect.sock.con), pio->twd, pio->ssl_flags)) {
             PeerLog(pio, BLOG_ERROR, "BSSLConnection_MakeBackend failed");
             goto fail1;
         }
@@ -230,6 +230,11 @@ void pwsender_handler (StreamPeerIO *pio)
     ASSERT(pio->mode == MODE_CONNECT)
     ASSERT(pio->connect.state == CONNECT_STATE_SENDING)
     
+    // stop using any buffers before they get freed
+    if (pio->ssl) {
+        BSSLConnection_ReleaseBuffers(&pio->connect.sslcon);
+    }
+    
     // free password sender
     SingleStreamSender_Free(&pio->connect.pwsender);
     
@@ -344,6 +349,11 @@ int init_io (StreamPeerIO *pio, sslsocket *sock)
 void free_io (StreamPeerIO *pio)
 {
     ASSERT(pio->sock)
+    
+    // stop using any buffers before they get freed
+    if (pio->ssl) {
+        BSSLConnection_ReleaseBuffers(&pio->sslcon);
+    }
     
     // reset decoder
     PacketProtoDecoder_Reset(&pio->input_decoder);
@@ -496,6 +506,9 @@ void reset_state (StreamPeerIO *pio)
                 case CONNECT_STATE_SENT:
                 case CONNECT_STATE_SENDING:
                     if (pio->connect.state == CONNECT_STATE_SENDING) {
+                        if (pio->ssl) {
+                            BSSLConnection_ReleaseBuffers(&pio->connect.sslcon);
+                        }
                         SingleStreamSender_Free(&pio->connect.pwsender);
                         if (!pio->ssl) {
                             BConnection_SendAsync_Free(&pio->connect.sock.con);
@@ -539,7 +552,9 @@ void reset_and_report_error (StreamPeerIO *pio)
 int StreamPeerIO_Init (
     StreamPeerIO *pio,
     BReactor *reactor,
+    BThreadWorkDispatcher *twd,
     int ssl,
+    int ssl_flags,
     uint8_t *ssl_peer_cert,
     int ssl_peer_cert_len,
     int payload_mtu,
@@ -557,8 +572,10 @@ int StreamPeerIO_Init (
     
     // init arguments
     pio->reactor = reactor;
+    pio->twd = twd;
     pio->ssl = ssl;
     if (pio->ssl) {
+        pio->ssl_flags = ssl_flags;
         pio->ssl_peer_cert = ssl_peer_cert;
         pio->ssl_peer_cert_len = ssl_peer_cert_len;
     }

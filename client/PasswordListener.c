@@ -61,6 +61,11 @@ void remove_client (struct PasswordListenerClient *client)
 {
     PasswordListener *l = client->l;
     
+    // stop using any buffers before they get freed
+    if (l->ssl) {
+        BSSLConnection_ReleaseBuffers(&client->sslcon);
+    }
+    
     // free receiver
     SingleStreamReceiver_Free(&client->receiver);
     
@@ -121,7 +126,7 @@ void listener_handler (PasswordListener *l)
     
     if (l->ssl) {
         // create bottom NSPR file descriptor
-        if (!BSSLConnection_MakeBackend(&client->sock->bottom_prfd, send_if, recv_if)) {
+        if (!BSSLConnection_MakeBackend(&client->sock->bottom_prfd, send_if, recv_if, l->twd, l->ssl_flags)) {
             BLog(BLOG_ERROR, "BSSLConnection_MakeBackend failed");
             goto fail2;
         }
@@ -222,6 +227,11 @@ void client_receiver_handler (struct PasswordListenerClient *client)
     // remove password entry
     BAVL_Remove(&l->passwords, &pw_entry->tree_node);
     
+    // stop using any buffers before they get freed
+    if (l->ssl) {
+        BSSLConnection_ReleaseBuffers(&client->sslcon);
+    }
+    
     // free receiver
     SingleStreamReceiver_Free(&client->receiver);
     
@@ -246,7 +256,7 @@ void client_receiver_handler (struct PasswordListenerClient *client)
     return;
 }
 
-int PasswordListener_Init (PasswordListener *l, BReactor *bsys, BAddr listen_addr, int max_clients, int ssl, CERTCertificate *cert, SECKEYPrivateKey *key)
+int PasswordListener_Init (PasswordListener *l, BReactor *bsys, BThreadWorkDispatcher *twd, BAddr listen_addr, int max_clients, int ssl, int ssl_flags, CERTCertificate *cert, SECKEYPrivateKey *key)
 {
     ASSERT(BConnection_AddressSupported(listen_addr))
     ASSERT(max_clients > 0)
@@ -254,7 +264,9 @@ int PasswordListener_Init (PasswordListener *l, BReactor *bsys, BAddr listen_add
     
     // init arguments
     l->bsys = bsys;
+    l->twd = twd;
     l->ssl = ssl;
+    l->ssl_flags = ssl_flags;
     
     // allocate client entries
     if (!(l->clients_data = (struct PasswordListenerClient *)BAllocArray(max_clients, sizeof(struct PasswordListenerClient)))) {

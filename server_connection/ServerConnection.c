@@ -29,6 +29,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stddef.h>
 
 #include <misc/debug.h>
 #include <misc/strdup.h>
@@ -67,6 +68,7 @@ void connector_handler (ServerConnection *o, int is_error)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(o->state == STATE_CONNECTING)
+    ASSERT(!o->buffers_released)
     
     // check connection attempt result
     if (is_error) {
@@ -91,7 +93,7 @@ void connector_handler (ServerConnection *o, int is_error)
     
     if (o->have_ssl) {
         // create bottom NSPR file descriptor
-        if (!BSSLConnection_MakeBackend(&o->bottom_prfd, send_iface, recv_iface)) {
+        if (!BSSLConnection_MakeBackend(&o->bottom_prfd, send_iface, recv_iface, o->twd, o->ssl_flags)) {
             BLog(BLOG_ERROR, "BSSLConnection_MakeBackend failed");
             goto fail0a;
         }
@@ -211,6 +213,7 @@ fail0:
 void pending_handler (ServerConnection *o)
 {
     ASSERT(o->state == STATE_WAITINIT)
+    ASSERT(!o->buffers_released)
     DebugObject_Access(&o->d_obj);
     
     // send hello
@@ -251,6 +254,7 @@ void connection_handler (ServerConnection *o, int event)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(o->state >= STATE_WAITINIT)
+    ASSERT(!o->buffers_released)
     
     if (event == BCONNECTION_EVENT_RECVCLOSED) {
         BLog(BLOG_INFO, "connection closed");
@@ -267,6 +271,7 @@ void sslcon_handler (ServerConnection *o, int event)
     DebugObject_Access(&o->d_obj);
     ASSERT(o->have_ssl)
     ASSERT(o->state >= STATE_WAITINIT)
+    ASSERT(!o->buffers_released)
     ASSERT(event == BSSLCONNECTION_EVENT_ERROR)
     
     BLog(BLOG_ERROR, "SSL error");
@@ -279,6 +284,7 @@ void decoder_handler_error (ServerConnection *o)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(o->state >= STATE_WAITINIT)
+    ASSERT(!o->buffers_released)
     
     BLog(BLOG_ERROR, "decoder error");
     
@@ -289,6 +295,7 @@ void decoder_handler_error (ServerConnection *o)
 void input_handler_send (ServerConnection *o, uint8_t *data, int data_len)
 {
     ASSERT(o->state >= STATE_WAITINIT)
+    ASSERT(!o->buffers_released)
     ASSERT(data_len >= 0)
     ASSERT(data_len <= SC_MAX_ENC)
     DebugObject_Access(&o->d_obj);
@@ -487,10 +494,12 @@ void end_packet (ServerConnection *o, uint8_t type)
 int ServerConnection_Init (
     ServerConnection *o,
     BReactor *reactor,
+    BThreadWorkDispatcher *twd,
     BAddr addr,
     int keepalive_interval,
     int buffer_size,
     int have_ssl,
+    int ssl_flags,
     CERTCertificate *client_cert,
     SECKEYPrivateKey *client_key,
     const char *server_name,
@@ -509,10 +518,12 @@ int ServerConnection_Init (
     
     // init arguments
     o->reactor = reactor;
+    o->twd = twd;
     o->keepalive_interval = keepalive_interval;
     o->buffer_size = buffer_size;
     o->have_ssl = have_ssl;
     if (have_ssl) {
+        o->ssl_flags = ssl_flags;
         o->client_cert = client_cert;
         o->client_key = client_key;
     }
@@ -545,6 +556,7 @@ int ServerConnection_Init (
     
     // set state
     o->state = STATE_CONNECTING;
+    o->buffers_released = 0;
     
     DebugError_Init(&o->d_err, BReactor_PendingGroup(o->reactor));
     DebugObject_Init(&o->d_obj);
@@ -564,6 +576,11 @@ void ServerConnection_Free (ServerConnection *o)
     if (o->state > STATE_CONNECTING) {
         // allow freeing queue flows
         PacketPassPriorityQueue_PrepareFree(&o->output_queue);
+        
+        // stop using any buffers before they get freed
+        if (o->have_ssl && !o->buffers_released) {
+            BSSLConnection_ReleaseBuffers(&o->sslcon);
+        }
         
         // free output user flow
         PacketPassPriorityQueueFlow_Free(&o->output_user_qflow);
@@ -610,6 +627,18 @@ void ServerConnection_Free (ServerConnection *o)
     
     // free server name
     free(o->server_name);
+}
+
+void ServerConnection_ReleaseBuffers (ServerConnection *o)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(!o->buffers_released)
+    
+    if (o->state > STATE_CONNECTING && o->have_ssl) {
+        BSSLConnection_ReleaseBuffers(&o->sslcon);
+    }
+    
+    o->buffers_released = 1;
 }
 
 PacketPassInterface * ServerConnection_GetSendInterface (ServerConnection *o)

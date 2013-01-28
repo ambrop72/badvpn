@@ -73,7 +73,9 @@ struct PasswordListenerClient;
  */
 typedef struct {
     BReactor *bsys;
+    BThreadWorkDispatcher *twd;
     int ssl;
+    int ssl_flags;
     PRFileDesc model_dprfd;
     PRFileDesc *model_prfd;
     struct PasswordListenerClient *clients_data;
@@ -105,15 +107,19 @@ struct PasswordListenerClient {
  * 
  * @param l the object
  * @param bsys reactor we live in
+ * @param twd thread work dispatcher. May be NULL if ssl_flags does not request performing SSL
+ *            operations in threads.
  * @param listen_addr address to listen on. Must be supported according to {@link BConnection_AddressSupported}.
  * @param max_clients maximum number of client to hold until they are identified.
  *                    Must be >0.
  * @param ssl whether to use TLS. Must be 1 or 0.
+ * @param ssl_flags flags passed down to {@link BSSLConnection_MakeBackend}. May be used to
+ *                  request performing SSL operations in threads.
  * @param cert if using TLS, the server certificate
  * @param key if using TLS, the private key
  * @return 1 on success, 0 on failure
  */
-int PasswordListener_Init (PasswordListener *l, BReactor *bsys, BAddr listen_addr, int max_clients, int ssl, CERTCertificate *cert, SECKEYPrivateKey *key) WARN_UNUSED;
+int PasswordListener_Init (PasswordListener *l, BReactor *bsys, BThreadWorkDispatcher *twd, BAddr listen_addr, int max_clients, int ssl, int ssl_flags, CERTCertificate *cert, SECKEYPrivateKey *key) WARN_UNUSED;
 
 /**
  * Frees the object.

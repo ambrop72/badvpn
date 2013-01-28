@@ -117,8 +117,9 @@ typedef void (*ServerConnection_handler_message) (void *user, peerid_t peer_id, 
  * Object used to communicate with a VPN chat server.
  */
 typedef struct {
-    // reactor
+    // global resources
     BReactor *reactor;
+    BThreadWorkDispatcher *twd;
     
     // keepalive interval
     int keepalive_interval;
@@ -128,6 +129,9 @@ typedef struct {
     
     // whether we use SSL
     int have_ssl;
+    
+    // ssl flags
+    int ssl_flags;
     
     // client certificate if using SSL
     CERTCertificate *client_cert;
@@ -157,6 +161,7 @@ typedef struct {
     
     // state
     int state;
+    int buffers_released;
     
     // whether an error is being reported
     int error;
@@ -207,10 +212,14 @@ typedef struct {
  *
  * @param o the object
  * @param reactor {@link BReactor} we live in
+ * @param twd thread work dispatcher. May be NULL if ssl_flags does not request performing SSL
+ *            operations in threads.
  * @param addr address to connect to
  * @param keepalive_interval keep-alive sending interval. Must be >0.
  * @param buffer_size minimum size of send buffer in number of packets. Must be >0.
  * @param have_ssl whether to use SSL for connecting to the server. Must be 1 or 0.
+ * @param ssl_flags flags passed down to {@link BSSLConnection_MakeBackend}. May be used to
+ *                  request performing SSL operations in threads.
  * @param client_cert if using SSL, client certificate to use. Must remain valid as
  *                    long as this object is alive.
  * @param client_key if using SSL, prvate ket to use. Must remain valid as
@@ -229,10 +238,12 @@ typedef struct {
 int ServerConnection_Init (
     ServerConnection *o,
     BReactor *reactor,
+    BThreadWorkDispatcher *twd,
     BAddr addr,
     int keepalive_interval,
     int buffer_size,
     int have_ssl,
+    int ssl_flags,
     CERTCertificate *client_cert,
     SECKEYPrivateKey *client_key,
     const char *server_name,
@@ -246,10 +257,21 @@ int ServerConnection_Init (
 
 /**
  * Frees the object.
+ * {@link ServerConnection_ReleaseBuffers} must have been called if the
+ * send interface obtained from {@link ServerConnection_GetSendInterface}
+ * was used.
  *
  * @param o the object
  */
 void ServerConnection_Free (ServerConnection *o);
+
+/**
+ * Stops using any buffers passed to the send interface obtained from
+ * {@link ServerConnection_GetSendInterface}. If the send interface
+ * has been used, this must be called at appropriate time before this
+ * object is freed.
+ */
+void ServerConnection_ReleaseBuffers (ServerConnection *o);
 
 /**
  * Returns an interface for sending data to the server (just one).

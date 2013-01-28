@@ -56,6 +56,7 @@
 #include <nspr_support/BSSLConnection.h>
 #include <server_connection/ServerConnection.h>
 #include <tuntap/BTap.h>
+#include <threadwork/BThreadWork.h>
 
 #ifndef BADVPN_USE_WINAPI
 #include <base/BLog_syslog.h>
@@ -93,6 +94,8 @@ struct {
     int loglevel;
     int loglevels[BLOG_NUM_CHANNELS];
     int threads;
+    int use_threads_for_ssl_handshake;
+    int use_threads_for_ssl_data;
     int ssl;
     char *nssdb;
     char *client_cert_name;
@@ -216,6 +219,8 @@ static int parse_arguments (int argc, char *argv[]);
 
 // processes certain command line options
 static int process_arguments (void);
+
+static int ssl_flags (void);
 
 // handler for program termination request
 static void signal_handler (void *unused);
@@ -416,6 +421,45 @@ int main (int argc, char *argv[])
     
     BLog(BLOG_NOTICE, "initializing "GLOBAL_PRODUCT_NAME" "PROGRAM_NAME" "GLOBAL_VERSION);
     
+    if (options.ssl) {
+        // init NSPR
+        PR_Init(PR_USER_THREAD, PR_PRIORITY_NORMAL, 0);
+        
+        // register local NSPR file types
+        if (!DummyPRFileDesc_GlobalInit()) {
+            BLog(BLOG_ERROR, "DummyPRFileDesc_GlobalInit failed");
+            goto fail01;
+        }
+        if (!BSSLConnection_GlobalInit()) {
+            BLog(BLOG_ERROR, "BSSLConnection_GlobalInit failed");
+            goto fail01;
+        }
+        
+        // init NSS
+        if (NSS_Init(options.nssdb) != SECSuccess) {
+            BLog(BLOG_ERROR, "NSS_Init failed (%d)", (int)PR_GetError());
+            goto fail01;
+        }
+        
+        // set cipher policy
+        if (NSS_SetDomesticPolicy() != SECSuccess) {
+            BLog(BLOG_ERROR, "NSS_SetDomesticPolicy failed (%d)", (int)PR_GetError());
+            goto fail02;
+        }
+        
+        // init server cache
+        if (SSL_ConfigServerSessionIDCache(0, 0, 0, NULL) != SECSuccess) {
+            BLog(BLOG_ERROR, "SSL_ConfigServerSessionIDCache failed (%d)", (int)PR_GetError());
+            goto fail02;
+        }
+        
+        // open server certificate and private key
+        if (!open_nss_cert_and_key(options.client_cert_name, &client_cert, &client_key)) {
+            BLog(BLOG_ERROR, "Cannot open certificate and key");
+            goto fail03;
+        }
+    }
+    
     // initialize network
     if (!BNetwork_GlobalInit()) {
         BLog(BLOG_ERROR, "BNetwork_GlobalInit failed");
@@ -457,51 +501,12 @@ int main (int argc, char *argv[])
         }
     }
     
-    if (options.ssl) {
-        // init NSPR
-        PR_Init(PR_USER_THREAD, PR_PRIORITY_NORMAL, 0);
-        
-        // register local NSPR file types
-        if (!DummyPRFileDesc_GlobalInit()) {
-            BLog(BLOG_ERROR, "DummyPRFileDesc_GlobalInit failed");
-            goto fail5;
-        }
-        if (!BSSLConnection_GlobalInit()) {
-            BLog(BLOG_ERROR, "BSSLConnection_GlobalInit failed");
-            goto fail5;
-        }
-        
-        // init NSS
-        if (NSS_Init(options.nssdb) != SECSuccess) {
-            BLog(BLOG_ERROR, "NSS_Init failed (%d)", (int)PR_GetError());
-            goto fail5;
-        }
-        
-        // set cipher policy
-        if (NSS_SetDomesticPolicy() != SECSuccess) {
-            BLog(BLOG_ERROR, "NSS_SetDomesticPolicy failed (%d)", (int)PR_GetError());
-            goto fail6;
-        }
-        
-        // init server cache
-        if (SSL_ConfigServerSessionIDCache(0, 0, 0, NULL) != SECSuccess) {
-            BLog(BLOG_ERROR, "SSL_ConfigServerSessionIDCache failed (%d)", (int)PR_GetError());
-            goto fail6;
-        }
-        
-        // open server certificate and private key
-        if (!open_nss_cert_and_key(options.client_cert_name, &client_cert, &client_key)) {
-            BLog(BLOG_ERROR, "Cannot open certificate and key");
-            goto fail7;
-        }
-    }
-    
     // init listeners
     int num_listeners = 0;
     if (options.transport_mode == TRANSPORT_MODE_TCP) {
         while (num_listeners < num_bind_addrs) {
             struct bind_addr *addr = &bind_addrs[num_listeners];
-            if (!PasswordListener_Init(&listeners[num_listeners], &ss, addr->addr, TCP_MAX_PASSWORD_LISTENER_CLIENTS, options.peer_ssl, client_cert, client_key)) {
+            if (!PasswordListener_Init(&listeners[num_listeners], &ss, &twd, addr->addr, TCP_MAX_PASSWORD_LISTENER_CLIENTS, options.peer_ssl, ssl_flags(), client_cert, client_key)) {
                 BLog(BLOG_ERROR, "PasswordListener_Init failed");
                 goto fail8;
             }
@@ -553,7 +558,7 @@ int main (int argc, char *argv[])
     LinkedList1_Init(&waiting_relay_peers);
     
     // start connecting to server
-    if (!ServerConnection_Init(&server, &ss, server_addr, SC_KEEPALIVE_INTERVAL, SERVER_BUFFER_MIN_PACKETS, options.ssl, client_cert, client_key, server_name, NULL,
+    if (!ServerConnection_Init(&server, &ss, &twd, server_addr, SC_KEEPALIVE_INTERVAL, SERVER_BUFFER_MIN_PACKETS, options.ssl, ssl_flags(), client_cert, client_key, server_name, NULL,
                                server_handler_error, server_handler_ready, server_handler_newclient, server_handler_endclient, server_handler_message
     )) {
         BLog(BLOG_ERROR, "ServerConnection_Init failed");
@@ -570,9 +575,12 @@ int main (int argc, char *argv[])
     BLog(BLOG_NOTICE, "entering event loop");
     BReactor_Exec(&ss);
     
-    // allow freeing server queue flows
     if (server_ready) {
+        // allow freeing server queue flows
         PacketPassFairQueue_PrepareFree(&server_queue);
+        
+        // make ServerConnection stop using buffers from peers before they are freed
+        ServerConnection_ReleaseBuffers(&server);
     }
     
     // free peers
@@ -604,28 +612,29 @@ fail8:
             PasswordListener_Free(&listeners[num_listeners]);
         }
     }
-    if (options.ssl) {
-        CERT_DestroyCertificate(client_cert);
-        SECKEY_DestroyPrivateKey(client_key);
-fail7:
-        ASSERT_FORCE(SSL_ShutdownServerSessionIDCache() == SECSuccess)
-fail6:
-        SSL_ClearSessionCache();
-        ASSERT_FORCE(NSS_Shutdown() == SECSuccess)
-fail5:
-        ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
-        PL_ArenaFinish();
-    }
     if (BThreadWorkDispatcher_UsingThreads(&twd)) {
         BSecurity_GlobalFreeThreadSafe();
     }
 fail4:
+    // NOTE: BThreadWorkDispatcher must be freed before NSPR and stuff
     BThreadWorkDispatcher_Free(&twd);
 fail3:
     BSignal_Finish();
 fail2:
     BReactor_Free(&ss);
 fail1:
+    if (options.ssl) {
+        CERT_DestroyCertificate(client_cert);
+        SECKEY_DestroyPrivateKey(client_key);
+fail03:
+        ASSERT_FORCE(SSL_ShutdownServerSessionIDCache() == SECSuccess)
+fail02:
+        SSL_ClearSessionCache();
+        ASSERT_FORCE(NSS_Shutdown() == SECSuccess)
+fail01:
+        ASSERT_FORCE(PR_Cleanup() == PR_SUCCESS)
+        PL_ArenaFinish();
+    }
     BLog(BLOG_NOTICE, "exiting");
     BLog_Free();
 fail0:
@@ -659,6 +668,8 @@ void print_help (const char *name)
         "        [--loglevel <0-5/none/error/warning/notice/info/debug>]\n"
         "        [--channel-loglevel <channel-name> <0-5/none/error/warning/notice/info/debug>] ...\n"
         "        [--threads <integer>]\n"
+        "        [--use-threads-for-ssl-handshake]\n"
+        "        [--use-threads-for-ssl-data]\n"
         "        [--ssl --nssdb <string> --client-cert-name <string>]\n"
         "        [--server-name <string>]\n"
         "        --server-addr <addr>\n"
@@ -716,6 +727,8 @@ int parse_arguments (int argc, char *argv[])
         options.loglevels[i] = -1;
     }
     options.threads = 0;
+    options.use_threads_for_ssl_handshake = 0;
+    options.use_threads_for_ssl_data = 0;
     options.ssl = 0;
     options.nssdb = NULL;
     options.client_cert_name = NULL;
@@ -825,6 +838,12 @@ int parse_arguments (int argc, char *argv[])
             }
             options.threads = atoi(argv[i + 1]);
             i++;
+        }
+        else if (!strcmp(arg, "--use-threads-for-ssl-handshake")) {
+            options.use_threads_for_ssl_handshake = 1;
+        }
+        else if (!strcmp(arg, "--use-threads-for-ssl-data")) {
+            options.use_threads_for_ssl_data = 1;
         }
         else if (!strcmp(arg, "--ssl")) {
             options.ssl = 1;
@@ -1283,6 +1302,18 @@ int process_arguments (void)
     return 1;
 }
 
+int ssl_flags (void)
+{
+    int flags = 0;
+    if (options.use_threads_for_ssl_handshake) {
+        flags |= BSSLCONNECTION_FLAG_THREADWORK_HANDSHAKE;
+    }
+    if (options.use_threads_for_ssl_data) {
+        flags |= BSSLCONNECTION_FLAG_THREADWORK_IO;
+    }
+    return flags;
+}
+
 void signal_handler (void *unused)
 {
     BLog(BLOG_NOTICE, "termination requested");
@@ -1385,7 +1416,7 @@ void peer_add (peerid_t id, int flags, const uint8_t *cert, int cert_len)
     }
     
     // init chat
-    if (!PeerChat_Init(&peer->chat, peer->id, chat_ssl_mode, client_cert, client_key, peer->cert, peer->cert_len, BReactor_PendingGroup(&ss), peer,
+    if (!PeerChat_Init(&peer->chat, peer->id, chat_ssl_mode, ssl_flags(), client_cert, client_key, peer->cert, peer->cert_len, BReactor_PendingGroup(&ss), &twd, peer,
         (BLog_logfunc)peer_logfunc,
         (PeerChat_handler_error)peer_chat_handler_error,
         (PeerChat_handler_message)peer_chat_handler_message
@@ -1614,7 +1645,7 @@ int peer_init_link (struct peer_data *peer)
     } else {
         // init StreamPeerIO
         if (!StreamPeerIO_Init(
-            &peer->pio.tcp.pio, &ss, options.peer_ssl,
+            &peer->pio.tcp.pio, &ss, &twd, options.peer_ssl, ssl_flags(),
             (options.peer_ssl ? peer->cert : NULL),
             (options.peer_ssl ? peer->cert_len : -1),
             data_mtu,

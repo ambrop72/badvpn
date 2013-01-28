@@ -277,7 +277,7 @@ int main (int argc, char *argv[])
     
     // start connecting to server
     if (!ServerConnection_Init(
-        &server, &ss, server_addr, SC_KEEPALIVE_INTERVAL, SERVER_BUFFER_MIN_PACKETS, options.ssl, client_cert, client_key, server_name, NULL,
+        &server, &ss, NULL, server_addr, SC_KEEPALIVE_INTERVAL, SERVER_BUFFER_MIN_PACKETS, options.ssl, 0, client_cert, client_key, server_name, NULL,
         server_handler_error, server_handler_ready, server_handler_newclient, server_handler_endclient, server_handler_message
     )) {
         BLog(BLOG_ERROR, "ServerConnection_Init failed");
@@ -292,6 +292,7 @@ int main (int argc, char *argv[])
     BReactor_Exec(&ss);
     
     if (server_ready) {
+        ServerConnection_ReleaseBuffers(&server);
         SinglePacketBuffer_Free(&flood_buffer);
         PacketProtoEncoder_Free(&flood_encoder);
         PacketRecvInterface_Free(&flood_source);

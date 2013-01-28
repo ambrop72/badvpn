@@ -74,7 +74,9 @@ typedef void (*StreamPeerIO_handler_error) (void *user);
 typedef struct {
     // common arguments
     BReactor *reactor;
+    BThreadWorkDispatcher *twd;
     int ssl;
+    int ssl_flags;
     uint8_t *ssl_peer_cert;
     int ssl_peer_cert_len;
     int payload_mtu;
@@ -138,7 +140,11 @@ typedef struct {
  *
  * @param pio the object
  * @param reactor reactor we live in
+ * @param twd thread work dispatcher. May be NULL if ssl_flags does not request performing SSL
+ *            operations in threads.
  * @param ssl if nonzero, SSL will be used for peer connection
+ * @param ssl_flags flags passed down to {@link BSSLConnection_MakeBackend}. May be used to
+ *                  request performing SSL operations in threads.
  * @param ssl_peer_cert if using SSL, the certificate we expect the peer to have
  * @param ssl_peer_cert_len if using SSL, the length of the certificate
  * @param payload_mtu maximum packet size as seen from the user. Must be >=0.
@@ -153,7 +159,9 @@ typedef struct {
 int StreamPeerIO_Init (
     StreamPeerIO *pio,
     BReactor *reactor,
+    BThreadWorkDispatcher *twd,
     int ssl,
+    int ssl_flags,
     uint8_t *ssl_peer_cert,
     int ssl_peer_cert_len,
     int payload_mtu,
