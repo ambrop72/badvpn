@@ -1,4 +1,20 @@
+- client, server: implement experimental support for performing SSL operations in worker threads. Currently it's rather inefficient.
+
+- NCD: modules: value: implement value::append() for appending to a list
+
+- NCD: modules: net_iptables: add single-argument form of append and insert commands, allowing for generic use
+
+- NCD: modules: net_iptables: implement net.iptables.insert() and net.ebtables.insert()
+
+- NCD: modules: sys_start_process: implement options, including username, term_on_deinit and deinit_kill_time
+
+- NCD: modules: sys_request_server: implement _caller in request handler
+
 - NCD: modules: add getenv()
+
+- NCD: modules: daemon: implement options, including username option
+
+- NCD: modules: runonce: add new options format with a map, implement username option
 
 - NCD: modules: add buffer(), which exposes a buffer with efficient appending and removing from the beginning.
 
