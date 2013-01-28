@@ -81,15 +81,10 @@ add_library(ncdstringindex
     NCDStringIndex.c
 )
 
-add_library(ncdreftarget
-    NCDRefTarget.c
-)
-target_link_libraries(ncdreftarget base)
-
 add_library(ncdval
     NCDVal.c
 )
-target_link_libraries(ncdval base ncdstringindex ncdreftarget)
+target_link_libraries(ncdval base ncdstringindex)
 
 add_library(ncdvalgenerator
     NCDValGenerator.c
