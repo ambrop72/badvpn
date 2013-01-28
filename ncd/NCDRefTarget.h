@@ -30,6 +30,8 @@
 #ifndef BADVPN_NCD_REF_TARGET_H
 #define BADVPN_NCD_REF_TARGET_H
 
+#include <limits.h>
+
 #include <misc/debug.h>
 #include <base/DebugObject.h>
 
@@ -57,19 +59,56 @@ struct NCDRefTarget_s {
  * is 1. The \a func_release argument specifies the function to be called from
  * {@link NCDRefTarget_Deref} when the reference count reaches zero.
  */
-void NCDRefTarget_Init (NCDRefTarget *o, NCDRefTarget_func_release func_release);
+static void NCDRefTarget_Init (NCDRefTarget *o, NCDRefTarget_func_release func_release);
 
 /**
  * Decrements the reference count of a reference target object. If the reference
  * count has reached zero, the object's {@link NCDRefTarget_func_release} function
  * is called, and the object is considered destroyed.
  */
-void NCDRefTarget_Deref (NCDRefTarget *o);
+static void NCDRefTarget_Deref (NCDRefTarget *o);
 
 /**
  * Increments the reference count of a reference target object.
  * Returns 1 on success and 0 on failure.
  */
-int NCDRefTarget_Ref (NCDRefTarget *o) WARN_UNUSED;
+static int NCDRefTarget_Ref (NCDRefTarget *o) WARN_UNUSED;
+
+static void NCDRefTarget_Init (NCDRefTarget *o, NCDRefTarget_func_release func_release)
+{
+    ASSERT(func_release)
+    
+    o->func_release = func_release;
+    o->refcnt = 1;
+    
+    DebugObject_Init(&o->d_obj);
+}
+
+static void NCDRefTarget_Deref (NCDRefTarget *o)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->refcnt > 0)
+    
+    o->refcnt--;
+    
+    if (o->refcnt == 0) {
+        DebugObject_Free(&o->d_obj);
+        o->func_release(o);
+    }
+}
+
+static int NCDRefTarget_Ref (NCDRefTarget *o)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->refcnt > 0)
+    
+    if (o->refcnt == INT_MAX) {
+        return 0;
+    }
+    
+    o->refcnt++;
+    
+    return 1;
+}
 
 #endif
