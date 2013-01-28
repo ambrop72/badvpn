@@ -104,7 +104,7 @@ struct reference {
     struct chunk *first_chunk;
     size_t first_offset;
     size_t length;
-    NCDRefTarget ref_target;
+    BRefTarget ref_target;
 };
 
 struct instance {
@@ -128,7 +128,7 @@ static struct chunk * chunk_init (struct instance *inst, size_t length);
 static void chunk_unref (struct chunk *c);
 static void chunk_assert (struct chunk *c);
 static struct reference * reference_init (struct instance *inst, size_t offset, size_t length, NCDValComposedStringResource *out_resource);
-static void reference_ref_target_func_release (NCDRefTarget *ref_target);
+static void reference_ref_target_func_release (BRefTarget *ref_target);
 static void reference_assert (struct reference *ref);
 static void reference_resource_func_getptr (void *user, size_t offset, const char **out_data, size_t *out_length);
 
@@ -359,7 +359,7 @@ static struct reference * reference_init (struct instance *inst, size_t offset, 
     } while (c && c->offset < offset + length);
     
     // init reference target
-    NCDRefTarget_Init(&ref->ref_target, reference_ref_target_func_release);
+    BRefTarget_Init(&ref->ref_target, reference_ref_target_func_release);
     
     // write resource
     out_resource->func_getptr = reference_resource_func_getptr;
@@ -370,7 +370,7 @@ static struct reference * reference_init (struct instance *inst, size_t offset, 
     return ref;
 }
 
-static void reference_ref_target_func_release (NCDRefTarget *ref_target)
+static void reference_ref_target_func_release (BRefTarget *ref_target)
 {
     struct reference *ref = UPPER_OBJECT(ref_target, struct reference, ref_target);
     reference_assert(ref);
@@ -506,7 +506,7 @@ static int func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRe
                 goto fail;
             }
             *out = NCDVal_NewComposedString(mem, resource, 0, ref->length);
-            NCDRefTarget_Deref(resource.ref_target);
+            BRefTarget_Deref(resource.ref_target);
         }
         return 1;
     }

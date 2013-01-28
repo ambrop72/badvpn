@@ -55,10 +55,10 @@ struct substr_instance {
     const char *data;
     size_t length;
     int is_external;
-    NCDRefTarget *external_ref_target;
+    BRefTarget *external_ref_target;
 };
 
-static void substr_func_new_common (void *vo, NCDModuleInst *i, const char *data, size_t length, int is_external, NCDRefTarget *external_ref_target)
+static void substr_func_new_common (void *vo, NCDModuleInst *i, const char *data, size_t length, int is_external, BRefTarget *external_ref_target)
 {
     struct substr_instance *o = vo;
     o->i = i;
@@ -134,7 +134,7 @@ static void func_new_substr (void *vo, NCDModuleInst *i, const struct NCDModuleI
     }
     
     int is_external = 0;
-    NCDRefTarget *external_ref_target = NULL;
+    BRefTarget *external_ref_target = NULL;
     
     if (NCDVal_IsExternalString(str_arg)) {
         is_external = 1;

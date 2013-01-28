@@ -1,5 +1,5 @@
 /**
- * @file NCDRefTarget.h
+ * @file BRefTarget.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -27,8 +27,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef BADVPN_NCD_REF_TARGET_H
-#define BADVPN_NCD_REF_TARGET_H
+#ifndef BADVPN_B_REF_TARGET_H
+#define BADVPN_B_REF_TARGET_H
 
 #include <limits.h>
 
@@ -38,18 +38,18 @@
 /**
  * Represents a reference-counted object.
  */
-typedef struct NCDRefTarget_s NCDRefTarget;
+typedef struct BRefTarget_s BRefTarget;
 
 /**
- * Callback function called after the reference count of a {@link NCDRefTarget}
- * reaches has reached zero. At this point the NCDRefTarget object has already
- * been invalidated, i.e. {@link NCDRefTarget_Ref} must not be called on this
+ * Callback function called after the reference count of a {@link BRefTarget}
+ * reaches has reached zero. At this point the BRefTarget object has already
+ * been invalidated, i.e. {@link BRefTarget_Ref} must not be called on this
  * object after this handler is called.
  */
-typedef void (*NCDRefTarget_func_release) (NCDRefTarget *o);
+typedef void (*BRefTarget_func_release) (BRefTarget *o);
 
-struct NCDRefTarget_s {
-    NCDRefTarget_func_release func_release;
+struct BRefTarget_s {
+    BRefTarget_func_release func_release;
     int refcnt;
     DebugObject d_obj;
 };
@@ -57,24 +57,24 @@ struct NCDRefTarget_s {
 /**
  * Initializes a reference target object. The initial reference count of the object
  * is 1. The \a func_release argument specifies the function to be called from
- * {@link NCDRefTarget_Deref} when the reference count reaches zero.
+ * {@link BRefTarget_Deref} when the reference count reaches zero.
  */
-static void NCDRefTarget_Init (NCDRefTarget *o, NCDRefTarget_func_release func_release);
+static void BRefTarget_Init (BRefTarget *o, BRefTarget_func_release func_release);
 
 /**
  * Decrements the reference count of a reference target object. If the reference
- * count has reached zero, the object's {@link NCDRefTarget_func_release} function
+ * count has reached zero, the object's {@link BRefTarget_func_release} function
  * is called, and the object is considered destroyed.
  */
-static void NCDRefTarget_Deref (NCDRefTarget *o);
+static void BRefTarget_Deref (BRefTarget *o);
 
 /**
  * Increments the reference count of a reference target object.
  * Returns 1 on success and 0 on failure.
  */
-static int NCDRefTarget_Ref (NCDRefTarget *o) WARN_UNUSED;
+static int BRefTarget_Ref (BRefTarget *o) WARN_UNUSED;
 
-static void NCDRefTarget_Init (NCDRefTarget *o, NCDRefTarget_func_release func_release)
+static void BRefTarget_Init (BRefTarget *o, BRefTarget_func_release func_release)
 {
     ASSERT(func_release)
     
@@ -84,7 +84,7 @@ static void NCDRefTarget_Init (NCDRefTarget *o, NCDRefTarget_func_release func_r
     DebugObject_Init(&o->d_obj);
 }
 
-static void NCDRefTarget_Deref (NCDRefTarget *o)
+static void BRefTarget_Deref (BRefTarget *o)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(o->refcnt > 0)
@@ -97,7 +97,7 @@ static void NCDRefTarget_Deref (NCDRefTarget *o)
     }
 }
 
-static int NCDRefTarget_Ref (NCDRefTarget *o)
+static int BRefTarget_Ref (BRefTarget *o)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(o->refcnt > 0)

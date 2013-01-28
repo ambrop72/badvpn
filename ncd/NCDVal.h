@@ -35,7 +35,7 @@
 
 #include <misc/debug.h>
 #include <misc/cstring.h>
-#include <misc/NCDRefTarget.h>
+#include <misc/BRefTarget.h>
 #include <structure/CAvl.h>
 #include <ncd/NCDStringIndex.h>
 
@@ -52,7 +52,7 @@ typedef int NCDVal__idx;
 
 struct NCDVal__ref {
     NCDVal__idx next;
-    NCDRefTarget *target;
+    BRefTarget *target;
 };
 
 struct NCDVal__string {
@@ -426,7 +426,7 @@ NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id,
 
 /**
  * Builds a new ExternalString, pointing to the given external data. A reference to
- * the external data is taken using {@link NCDRefTarget}, unless 'ref_target' is
+ * the external data is taken using {@link BRefTarget}, unless 'ref_target' is
  * NULL. The data must not change while this value exists.
  * Returns a reference to the new value, or an invalid reference
  * on out of memory.
@@ -435,7 +435,7 @@ NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id,
  * stored outside of the value memory object.
  */
 NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len,
-                                    NCDRefTarget *ref_target);
+                                    BRefTarget *ref_target);
 
 /**
  * Callback function which is called for ComposedString's to access the underlying string resource.
@@ -457,7 +457,7 @@ typedef void (*NCDVal_ComposedString_func_getptr) (void *user, size_t offset, co
 typedef struct {
     NCDVal_ComposedString_func_getptr func_getptr;
     void *user;
-    NCDRefTarget *ref_target;
+    BRefTarget *ref_target;
 } NCDValComposedStringResource;
 
 /**
@@ -477,7 +477,7 @@ b_cstring NCDValComposedStringResource_Cstring (NCDValComposedStringResource res
 
 /**
  * Builds a new ComposedString from a string resource.
- * A reference to the underlying string resource via the {@link NCDRefTarget} object
+ * A reference to the underlying string resource via the {@link BRefTarget} object
  * specified in 'resource.ref_target'.
  * 
  * A ComposedString is a kind of String with an abstract representation exposed via the
@@ -579,7 +579,7 @@ NCDStringIndex * NCDVal_IdStringStringIndex (NCDValRef idstring);
  * Returns the reference target of an ExternalString. This may be NULL
  * if the external string is not associated with a reference target.
  */
-NCDRefTarget * NCDVal_ExternalStringTarget (NCDValRef externalstring);
+BRefTarget * NCDVal_ExternalStringTarget (NCDValRef externalstring);
 
 /**
  * Returns the underlying string resource of a ComposedString.

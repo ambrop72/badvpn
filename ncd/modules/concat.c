@@ -44,7 +44,7 @@
 
 #include <misc/balloc.h>
 #include <misc/offset.h>
-#include <misc/NCDRefTarget.h>
+#include <misc/BRefTarget.h>
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
 
@@ -53,7 +53,7 @@
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct result {
-    NCDRefTarget ref_target;
+    BRefTarget ref_target;
     size_t length;
     char data[];
 };
@@ -63,7 +63,7 @@ struct instance {
     struct result *result;
 };
 
-static void result_ref_target_func_release (NCDRefTarget *ref_target)
+static void result_ref_target_func_release (BRefTarget *ref_target)
 {
     struct result *result = UPPER_OBJECT(ref_target, struct result, ref_target);
     
@@ -99,7 +99,7 @@ static void new_concat_common (void *vo, NCDModuleInst *i, NCDValRef list)
     }
     
     // init ref target
-    NCDRefTarget_Init(&o->result->ref_target, result_ref_target_func_release);
+    BRefTarget_Init(&o->result->ref_target, result_ref_target_func_release);
     
     // copy data to result
     o->result->length = 0;
@@ -147,7 +147,7 @@ static void func_die (void *vo)
     struct instance *o = vo;
     
     // release result reference
-    NCDRefTarget_Deref(&o->result->ref_target);
+    BRefTarget_Deref(&o->result->ref_target);
     
     NCDModuleInst_Backend_Dead(o->i);
 }

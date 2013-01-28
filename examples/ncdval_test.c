@@ -40,13 +40,13 @@
 #define FORCE(cmd) if (!(cmd)) { fprintf(stderr, "failed\n"); exit(1); }
 
 struct composed_string {
-    NCDRefTarget ref_target;
+    BRefTarget ref_target;
     size_t length;
     size_t chunk_size;
     char **chunks;
 };
 
-static void composed_string_ref_target_func_release (NCDRefTarget *ref_target)
+static void composed_string_ref_target_func_release (BRefTarget *ref_target)
 {
     struct composed_string *cs = UPPER_OBJECT(ref_target, struct composed_string, ref_target);
     
@@ -111,7 +111,7 @@ static NCDValRef build_composed_string (NCDValMem *mem, const char *data, size_t
         length -= to_copy;
     }
     
-    NCDRefTarget_Init(&cs->ref_target, composed_string_ref_target_func_release);
+    BRefTarget_Init(&cs->ref_target, composed_string_ref_target_func_release);
     
     NCDValComposedStringResource resource;
     resource.func_getptr = composed_string_func_getptr;
@@ -119,7 +119,7 @@ static NCDValRef build_composed_string (NCDValMem *mem, const char *data, size_t
     resource.ref_target = &cs->ref_target;
     
     NCDValRef val = NCDVal_NewComposedString(mem, resource, 0, cs->length);
-    NCDRefTarget_Deref(&cs->ref_target);
+    BRefTarget_Deref(&cs->ref_target);
     return val;
     
 fail2:

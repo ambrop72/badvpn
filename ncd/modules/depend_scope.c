@@ -86,7 +86,7 @@
 #include <misc/offset.h>
 #include <misc/debug.h>
 #include <misc/balloc.h>
-#include <misc/NCDRefTarget.h>
+#include <misc/BRefTarget.h>
 #include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
 
@@ -95,7 +95,7 @@
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct scope {
-    NCDRefTarget ref_target;
+    BRefTarget ref_target;
     LinkedList1 provides_list;
     LinkedList1 depends_list;
 };
@@ -189,7 +189,7 @@ static void depend_update (struct depend *o)
     }
 }
 
-static void scope_ref_target_func_release (NCDRefTarget *ref_target)
+static void scope_ref_target_func_release (BRefTarget *ref_target)
 {
     struct scope *o = UPPER_OBJECT(ref_target, struct scope, ref_target);
     ASSERT(LinkedList1_IsEmpty(&o->provides_list))
@@ -220,7 +220,7 @@ static void scope_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
     }
     
     // init reference target
-    NCDRefTarget_Init(&o->scope->ref_target, scope_ref_target_func_release);
+    BRefTarget_Init(&o->scope->ref_target, scope_ref_target_func_release);
     
     // init provide and depend lists
     LinkedList1_Init(&o->scope->provides_list);
@@ -239,7 +239,7 @@ static void scope_func_die (void *vo)
     struct scope_instance *o = vo;
     
     // release scope reference
-    NCDRefTarget_Deref(&o->scope->ref_target);
+    BRefTarget_Deref(&o->scope->ref_target);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -267,8 +267,8 @@ static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     }
     
     // grab scope reference
-    if (!NCDRefTarget_Ref(&o->scope->ref_target)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDRefTarget_Ref failed");
+    if (!BRefTarget_Ref(&o->scope->ref_target)) {
+        ModuleLog(o->i, BLOG_ERROR, "BRefTarget_Ref failed");
         goto fail0;
     }
     
@@ -306,7 +306,7 @@ static void provide_free (struct provide *o)
     LinkedList1_Remove(&o->scope->provides_list, &o->provides_list_node);
     
     // release scope reference
-    NCDRefTarget_Deref(&o->scope->ref_target);
+    BRefTarget_Deref(&o->scope->ref_target);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -356,8 +356,8 @@ static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
     o->names = names_arg;
     
     // grab scope reference
-    if (!NCDRefTarget_Ref(&o->scope->ref_target)) {
-        ModuleLog(o->i, BLOG_ERROR, "NCDRefTarget_Ref failed");
+    if (!BRefTarget_Ref(&o->scope->ref_target)) {
+        ModuleLog(o->i, BLOG_ERROR, "BRefTarget_Ref failed");
         goto fail0;
     }
     
@@ -393,7 +393,7 @@ static void depend_func_die (void *vo)
     LinkedList1_Remove(&o->scope->depends_list, &o->depends_list_node);
     
     // release scope reference
-    NCDRefTarget_Deref(&o->scope->ref_target);
+    BRefTarget_Deref(&o->scope->ref_target);
     
     NCDModuleInst_Backend_Dead(o->i);
 }

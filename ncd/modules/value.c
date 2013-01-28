@@ -224,7 +224,7 @@ struct value {
         struct {
             const char *data;
             size_t length;
-            NCDRefTarget *ref_target;
+            BRefTarget *ref_target;
         } externalstring;
         struct {
             NCDValComposedStringResource resource;
@@ -245,7 +245,7 @@ static void value_cleanup (struct value *v);
 static void value_delete (struct value *v);
 static struct value * value_init_storedstring (NCDModuleInst *i, const char *str, size_t len);
 static struct value * value_init_idstring (NCDModuleInst *i, NCD_string_id_t id, NCDStringIndex *string_index);
-static struct value * value_init_externalstring (NCDModuleInst *i, const char *data, size_t length, NCDRefTarget *ref_target);
+static struct value * value_init_externalstring (NCDModuleInst *i, const char *data, size_t length, BRefTarget *ref_target);
 static struct value * value_init_composedstring (NCDModuleInst *i, NCDValComposedStringResource resource, size_t offset, size_t length);
 static int value_is_string (struct value *v);
 static size_t value_string_length (struct value *v);
@@ -319,13 +319,13 @@ static void value_cleanup (struct value *v)
         
         case EXTERNALSTRING_TYPE: {
             if (v->externalstring.ref_target) {
-                NCDRefTarget_Deref(v->externalstring.ref_target);
+                BRefTarget_Deref(v->externalstring.ref_target);
             }
         } break;
         
         case COMPOSEDSTRING_TYPE: {
             if (v->composedstring.resource.ref_target) {
-                NCDRefTarget_Deref(v->composedstring.resource.ref_target);
+                BRefTarget_Deref(v->composedstring.resource.ref_target);
             }
         } break;
         
@@ -382,13 +382,13 @@ static void value_delete (struct value *v)
         
         case EXTERNALSTRING_TYPE: {
             if (v->externalstring.ref_target) {
-                NCDRefTarget_Deref(v->externalstring.ref_target);
+                BRefTarget_Deref(v->externalstring.ref_target);
             }
         } break;
         
         case COMPOSEDSTRING_TYPE: {
             if (v->composedstring.resource.ref_target) {
-                NCDRefTarget_Deref(v->composedstring.resource.ref_target);
+                BRefTarget_Deref(v->composedstring.resource.ref_target);
             }
         } break;
         
@@ -466,7 +466,7 @@ fail0:
     return NULL;
 }
 
-static struct value * value_init_externalstring (NCDModuleInst *i, const char *data, size_t length, NCDRefTarget *ref_target)
+static struct value * value_init_externalstring (NCDModuleInst *i, const char *data, size_t length, BRefTarget *ref_target)
 {
     struct value *v = malloc(sizeof(*v));
     if (!v) {
@@ -475,8 +475,8 @@ static struct value * value_init_externalstring (NCDModuleInst *i, const char *d
     }
     
     if (ref_target) {
-        if (!NCDRefTarget_Ref(ref_target)) {
-            ModuleLog(i, BLOG_ERROR, "NCDRefTarget_Ref failed");
+        if (!BRefTarget_Ref(ref_target)) {
+            ModuleLog(i, BLOG_ERROR, "BRefTarget_Ref failed");
             goto fail1;
         }
     }
@@ -506,8 +506,8 @@ static struct value * value_init_composedstring (NCDModuleInst *i, NCDValCompose
     }
     
     if (resource.ref_target) {
-        if (!NCDRefTarget_Ref(resource.ref_target)) {
-            ModuleLog(i, BLOG_ERROR, "NCDRefTarget_Ref failed");
+        if (!BRefTarget_Ref(resource.ref_target)) {
+            ModuleLog(i, BLOG_ERROR, "BRefTarget_Ref failed");
             goto fail1;
         }
     }
@@ -598,13 +598,13 @@ static void value_string_set_allocd (struct value *v, char *data, size_t length)
         
         case EXTERNALSTRING_TYPE: {
             if (v->externalstring.ref_target) {
-                NCDRefTarget_Deref(v->externalstring.ref_target);
+                BRefTarget_Deref(v->externalstring.ref_target);
             }
         } break;
         
         case COMPOSEDSTRING_TYPE: {
             if (v->composedstring.resource.ref_target) {
-                NCDRefTarget_Deref(v->composedstring.resource.ref_target);
+                BRefTarget_Deref(v->composedstring.resource.ref_target);
             }
         } break;
         

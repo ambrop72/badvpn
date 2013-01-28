@@ -32,7 +32,7 @@
 
 #include <stddef.h>
 
-#include <misc/NCDRefTarget.h>
+#include <misc/BRefTarget.h>
 #include <structure/LinkedList0.h>
 #include <base/DebugObject.h>
 
@@ -46,7 +46,7 @@ typedef struct {
 typedef struct {
     NCDBufStore *store;
     LinkedList0Node list_node;
-    NCDRefTarget ref_target;
+    BRefTarget ref_target;
     char data[];
 } NCDBuf;
 
@@ -55,7 +55,7 @@ void NCDBufStore_Free (NCDBufStore *o);
 size_t NCDBufStore_BufSize (NCDBufStore *o);
 NCDBuf * NCDBufStore_GetBuf (NCDBufStore *o);
 
-NCDRefTarget * NCDBuf_RefTarget (NCDBuf *o);
+BRefTarget * NCDBuf_RefTarget (NCDBuf *o);
 char * NCDBuf_Data (NCDBuf *o);
 
 #endif

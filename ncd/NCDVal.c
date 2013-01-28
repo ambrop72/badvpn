@@ -392,7 +392,7 @@ void NCDValMem_Free (NCDValMem *o)
     while (refidx != -1) {
         struct NCDVal__ref *ref = NCDValMem__BufAt(o, refidx);
         ASSERT(ref->target)
-        NCDRefTarget_Deref(ref->target);
+        BRefTarget_Deref(ref->target);
         refidx = ref->next;
     }
     
@@ -425,7 +425,7 @@ int NCDValMem_InitCopy (NCDValMem *o, NCDValMem *other)
     while (refidx != -1) {
         struct NCDVal__ref *ref = NCDValMem__BufAt(o, refidx);
         ASSERT(ref->target)
-        if (!NCDRefTarget_Ref(ref->target)) {
+        if (!BRefTarget_Ref(ref->target)) {
             goto fail1;
         }
         refidx = ref->next;
@@ -437,7 +437,7 @@ fail1:;
     NCDVal__idx undo_refidx = o->first_ref;
     while (undo_refidx != refidx) {
         struct NCDVal__ref *ref = NCDValMem__BufAt(o, undo_refidx);
-        NCDRefTarget_Deref(ref->target);
+        BRefTarget_Deref(ref->target);
         undo_refidx = ref->next;
     }
     if (o->buf) {
@@ -973,7 +973,7 @@ fail:
 }
 
 NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len,
-                                    NCDRefTarget *ref_target)
+                                    BRefTarget *ref_target)
 {
     NCDVal__AssertMem(mem);
     ASSERT(data)
@@ -986,7 +986,7 @@ NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len
     }
     
     if (ref_target) {
-        if (!NCDRefTarget_Ref(ref_target)) {
+        if (!BRefTarget_Ref(ref_target)) {
             goto fail;
         }
     }
@@ -1020,7 +1020,7 @@ NCDValRef NCDVal_NewComposedString (NCDValMem *mem, NCDValComposedStringResource
     }
     
     if (resource.ref_target) {
-        if (!NCDRefTarget_Ref(resource.ref_target)) {
+        if (!BRefTarget_Ref(resource.ref_target)) {
             goto fail;
         }
     }
@@ -1302,7 +1302,7 @@ NCDStringIndex * NCDVal_IdStringStringIndex (NCDValRef idstring)
     return ids_e->string_index;
 }
 
-NCDRefTarget * NCDVal_ExternalStringTarget (NCDValRef externalstring)
+BRefTarget * NCDVal_ExternalStringTarget (NCDValRef externalstring)
 {
     ASSERT(NCDVal_IsExternalString(externalstring))
     

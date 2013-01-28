@@ -890,7 +890,7 @@ static void read_func_die (void *vo)
     
     // release buffer
     if (o->buf) {
-        NCDRefTarget_Deref(NCDBuf_RefTarget(o->buf));
+        BRefTarget_Deref(NCDBuf_RefTarget(o->buf));
     }
     
     NCDModuleInst_Backend_Dead(o->i);

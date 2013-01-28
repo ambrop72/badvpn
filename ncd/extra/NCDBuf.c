@@ -33,7 +33,7 @@
 #include <misc/offset.h>
 #include <misc/debug.h>
 
-static void ref_target_func_release (NCDRefTarget *ref_target)
+static void ref_target_func_release (BRefTarget *ref_target)
 {
     NCDBuf *o = UPPER_OBJECT(ref_target, NCDBuf, ref_target);
     NCDBufStore *store = o->store;
@@ -107,12 +107,12 @@ NCDBuf * NCDBufStore_GetBuf (NCDBufStore *o)
     }
     
     LinkedList0_Prepend(&o->used_bufs_list, &buf->list_node);
-    NCDRefTarget_Init(&buf->ref_target, ref_target_func_release);
+    BRefTarget_Init(&buf->ref_target, ref_target_func_release);
     
     return buf;
 }
 
-NCDRefTarget * NCDBuf_RefTarget (NCDBuf *o)
+BRefTarget * NCDBuf_RefTarget (NCDBuf *o)
 {
     return &o->ref_target;
 }

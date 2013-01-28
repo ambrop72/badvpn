@@ -363,7 +363,7 @@ static void read_func_die (void *vo)
     struct read_instance *o = vo;
     
     // release buffer
-    NCDRefTarget_Deref(NCDBuf_RefTarget(o->buf));
+    BRefTarget_Deref(NCDBuf_RefTarget(o->buf));
     
     NCDModuleInst_Backend_Dead(o->i);
 }
