@@ -86,9 +86,9 @@
 #include <misc/offset.h>
 #include <misc/debug.h>
 #include <misc/balloc.h>
+#include <misc/NCDRefTarget.h>
 #include <structure/LinkedList1.h>
 #include <ncd/NCDModule.h>
-#include <ncd/NCDRefTarget.h>
 
 #include <generated/blog_channel_ncd_depend_scope.h>
 

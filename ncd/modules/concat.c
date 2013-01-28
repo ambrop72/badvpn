@@ -44,8 +44,8 @@
 
 #include <misc/balloc.h>
 #include <misc/offset.h>
+#include <misc/NCDRefTarget.h>
 #include <ncd/NCDModule.h>
-#include <ncd/NCDRefTarget.h>
 #include <ncd/static_strings.h>
 
 #include <generated/blog_channel_ncd_concat.h>

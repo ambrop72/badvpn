@@ -35,9 +35,9 @@
 
 #include <misc/debug.h>
 #include <misc/cstring.h>
+#include <misc/NCDRefTarget.h>
 #include <structure/CAvl.h>
 #include <ncd/NCDStringIndex.h>
-#include <ncd/NCDRefTarget.h>
 
 // these are implementation details. The interface is defined below.
 

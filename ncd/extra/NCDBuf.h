@@ -32,9 +32,9 @@
 
 #include <stddef.h>
 
+#include <misc/NCDRefTarget.h>
 #include <structure/LinkedList0.h>
 #include <base/DebugObject.h>
-#include <ncd/NCDRefTarget.h>
 
 typedef struct {
     size_t buf_size;
