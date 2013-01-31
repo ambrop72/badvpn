@@ -1,4 +1,4 @@
-/* A Bison parser, made by GNU Bison 2.6.2.  */
+/* A Bison parser, made by GNU Bison 2.7.  */
 
 /* Bison interface for Yacc-like parsers in C
    
@@ -30,8 +30,8 @@
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
 
-#ifndef YY_GENERATED_BISON_BPREDICATE_H
-# define YY_GENERATED_BISON_BPREDICATE_H
+#ifndef YY_YY_GENERATED_BISON_BPREDICATE_H_INCLUDED
+# define YY_YY_GENERATED_BISON_BPREDICATE_H_INCLUDED
 /* Enabling traces.  */
 #ifndef YYDEBUG
 # define YYDEBUG 0
@@ -65,7 +65,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 typedef union YYSTYPE
 {
-/* Line 2049 of yacc.c  */
+/* Line 2058 of yacc.c  */
 #line 227 "predicate/BPredicate.y"
 
     char *text;
@@ -75,7 +75,7 @@ typedef union YYSTYPE
     struct arguments_arg arg_arg;
 
 
-/* Line 2049 of yacc.c  */
+/* Line 2058 of yacc.c  */
 #line 80 "generated//bison_BPredicate.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
@@ -111,4 +111,4 @@ int yyparse ();
 #endif
 #endif /* ! YYPARSE_PARAM */
 
-#endif /* !YY_GENERATED_BISON_BPREDICATE_H  */
+#endif /* !YY_YY_GENERATED_BISON_BPREDICATE_H_INCLUDED  */
