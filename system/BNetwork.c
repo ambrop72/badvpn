@@ -43,7 +43,7 @@
 
 #include <generated/blog_channel_BNetwork.h>
 
-static int bnetwork_initialized = 0;
+int bnetwork_initialized = 0;
 
 int BNetwork_GlobalInit (void)
 {
