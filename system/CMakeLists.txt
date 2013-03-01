@@ -22,6 +22,8 @@ if (NOT EMSCRIPTEN)
             BDatagram_unix.c
             BProcess.c
             BInputProcess.c
+            BThreadSignal.c
+            BLockReactor.c
         )
     endif ()
 endif ()

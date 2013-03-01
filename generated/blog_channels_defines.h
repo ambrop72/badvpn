@@ -140,4 +140,6 @@
 #define BLOG_CHANNEL_ncd_log_msg 139
 #define BLOG_CHANNEL_ncd_buffer 140
 #define BLOG_CHANNEL_ncd_getenv 141
-#define BLOG_NUM_CHANNELS 142
+#define BLOG_CHANNEL_BThreadSignal 142
+#define BLOG_CHANNEL_BLockReactor 143
+#define BLOG_NUM_CHANNELS 144

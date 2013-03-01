@@ -140,3 +140,5 @@
 {"ncd_log_msg", 4},
 {"ncd_buffer", 4},
 {"ncd_getenv", 4},
+{"BThreadSignal", 4},
+{"BLockReactor", 4},
