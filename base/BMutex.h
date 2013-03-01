@@ -69,7 +69,7 @@ static void BMutex_Free (BMutex *o)
 {
     DebugObject_Free(&o->d_obj);
     
-#if BADVPN_THREAD_SAFE    
+#if BADVPN_THREAD_SAFE
     int res = pthread_mutex_destroy(&o->pthread_mutex);
     B_USE(res)
     ASSERT(res == 0)
@@ -80,7 +80,7 @@ static void BMutex_Lock (BMutex *o)
 {
     DebugObject_Access(&o->d_obj);
     
-#if BADVPN_THREAD_SAFE    
+#if BADVPN_THREAD_SAFE
     int res = pthread_mutex_lock(&o->pthread_mutex);
     B_USE(res)
     ASSERT(res == 0)
@@ -91,7 +91,7 @@ static void BMutex_Unlock (BMutex *o)
 {
     DebugObject_Access(&o->d_obj);
     
-#if BADVPN_THREAD_SAFE    
+#if BADVPN_THREAD_SAFE
     int res = pthread_mutex_unlock(&o->pthread_mutex);
     B_USE(res)
     ASSERT(res == 0)
