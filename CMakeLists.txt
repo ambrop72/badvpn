@@ -144,6 +144,7 @@ endif ()
 # platform-specific stuff
 if (WIN32)
     add_definitions(-DBADVPN_USE_WINAPI -D_WIN32_WINNT=0x600 -DWIN32_LEAN_AND_MEAN)
+    add_definitions(-DBADVPN_THREAD_SAFE=0)
 
     set(CMAKE_REQUIRED_DEFINITIONS "-D_WIN32_WINNT=0x600")
     check_symbol_exists(WSAID_WSASENDMSG "winsock2.h;mswsock.h" HAVE_MSW_1)
@@ -162,6 +163,7 @@ if (WIN32)
 else ()
     set(BADVPN_THREADWORK_USE_PTHREAD 1)
     add_definitions(-DBADVPN_THREADWORK_USE_PTHREAD)
+    add_definitions(-DBADVPN_THREAD_SAFE=1)
 
     link_libraries(rt)
 

@@ -37,10 +37,10 @@
 #include <misc/debugerror.h>
 #include <base/DebugObject.h>
 #include <base/BPending.h>
+#include <base/BMutex.h>
 #include <flow/StreamPassInterface.h>
 #include <flow/StreamRecvInterface.h>
 #include <threadwork/BThreadWork.h>
-#include <threadwork/BMutex.h>
 
 #define BSSLCONNECTION_EVENT_UP 1
 #define BSSLCONNECTION_EVENT_ERROR 2
