@@ -278,10 +278,13 @@ static void connection_log (struct connection *o, int level, const char *fmt, ..
         
         case CONNECTION_TYPE_LISTEN: {
             if (BLog_WouldLog(BLOG_CURRENT_CHANNEL, level)) {
+                BLog_Begin();
+                o->listen.listen_inst->i->params->logfunc(o->listen.listen_inst->i);
                 char addr_str[BADDR_MAX_PRINT_LEN];
                 BAddr_Print(&o->listen.addr, addr_str);
                 BLog_Append("client %s: ", addr_str);
-                NCDModuleInst_Backend_LogVarArg(o->listen.listen_inst->i, BLOG_CURRENT_CHANNEL, level, fmt, vl);
+                BLog_AppendVarArg(fmt, vl);
+                BLog_Finish(BLOG_CURRENT_CHANNEL, level);
             }
         } break;
         
