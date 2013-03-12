@@ -1,8 +1,7 @@
-/**
- * @file SocksUdpGwClient.h
- * @author Ambroz Bizjak <ambrop7@gmail.com>
- * 
- * @section LICENSE
+/*
+ * Copyright (C) Ambroz Bizjak <ambrop7@gmail.com>
+ * Contributions:
+ * Transparent DNS: Copyright (C) Kerem Hadimli <kerem.hadimli@gmail.com>
  * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -60,6 +59,6 @@ int SocksUdpGwClient_Init (SocksUdpGwClient *o, int udp_mtu, int max_connections
                            BAddr remote_udpgw_addr, btime_t reconnect_time, BReactor *reactor, void *user,
                            SocksUdpGwClient_handler_received handler_received) WARN_UNUSED;
 void SocksUdpGwClient_Free (SocksUdpGwClient *o);
-void SocksUdpGwClient_SubmitPacket (SocksUdpGwClient *o, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len);
+void SocksUdpGwClient_SubmitPacket (SocksUdpGwClient *o, BAddr local_addr, BAddr remote_addr, int is_dns, const uint8_t *data, int data_len);
 
 #endif

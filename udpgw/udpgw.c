@@ -1,8 +1,7 @@
-/**
- * @file udpgw.c
- * @author Ambroz Bizjak <ambrop7@gmail.com>
- * 
- * @section LICENSE
+/*
+ * Copyright (C) Ambroz Bizjak <ambrop7@gmail.com>
+ * Contributions:
+ * Transparent DNS: Copyright (C) Kerem Hadimli <kerem.hadimli@gmail.com>
  * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -31,6 +30,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #include <protocol/udpgw_proto.h>
 #include <misc/debug.h>
@@ -60,6 +60,8 @@
 
 #ifndef BADVPN_USE_WINAPI
 #include <base/BLog_syslog.h>
+#include <arpa/nameser.h>
+#include <resolv.h>
 #endif
 
 #include <udpgw/udpgw.h>
@@ -68,6 +70,8 @@
 
 #define LOGGER_STDOUT 1
 #define LOGGER_SYSLOG 2
+
+#define DNS_UPDATE_TIME 2000
 
 struct client {
     BConnection con;
@@ -88,6 +92,7 @@ struct connection {
     struct client *client;
     uint16_t conid;
     BAddr addr;
+    BAddr orig_addr;
     const uint8_t *first_data;
     int first_data_len;
     btime_t last_use_time;
@@ -146,6 +151,10 @@ int num_listen_addrs;
 // local UDP port range, if options.local_udp_num_ports>=0
 BAddr local_udp_addr;
 
+// DNS forwarding
+BAddr dns_addr;
+btime_t last_dns_update_time;
+
 // reactor
 BReactor ss;
 
@@ -171,7 +180,7 @@ static void client_connection_handler (struct client *client, int event);
 static void client_decoder_handler_error (struct client *client);
 static void client_recv_if_handler_send (struct client *client, uint8_t *data, int data_len);
 static uint8_t * build_port_usage_array_and_find_least_used_connection (BAddr remote_addr, struct connection **out_con);
-static void connection_init (struct client *client, uint16_t conid, BAddr addr, const uint8_t *data, int data_len);
+static void connection_init (struct client *client, uint16_t conid, BAddr addr, BAddr orig_addr, const uint8_t *data, int data_len);
 static void connection_free (struct connection *con);
 static void connection_logfunc (struct connection *con);
 static void connection_log (struct connection *con, int level, const char *fmt, ...);
@@ -185,6 +194,7 @@ static void connection_dgram_handler_event (struct connection *con, int event);
 static void connection_udp_recv_if_handler_send (struct connection *con, uint8_t *data, int data_len);
 static struct connection * find_connection (struct client *client, uint16_t conid);
 static int uint16_comparator (void *unused, uint16_t *v1, uint16_t *v2);
+static void maybe_update_dns (void);
 
 int main (int argc, char **argv)
 {
@@ -265,6 +275,11 @@ int main (int argc, char **argv)
     
     // init time
     BTime_Init();
+    
+    // init DNS forwarding
+    BAddr_InitNone(&dns_addr);
+    last_dns_update_time = INT64_MIN;
+    maybe_update_dns();
     
     // init reactor
     if (!BReactor_Init(&ss)) {
@@ -799,9 +814,8 @@ void client_recv_if_handler_send (struct client *client, uint8_t *data, int data
     ASSERT(!con || !con->closing)
     
     // if connection exists, close it if needed
-    if (con && ((flags & UDPGW_CLIENT_FLAG_REBIND) || con->addr.ipv4.ip != header.addr_ip || con->addr.ipv4.port != header.addr_port)) {
+    if (con && ((flags & UDPGW_CLIENT_FLAG_REBIND) || con->orig_addr.ipv4.ip != header.addr_ip || con->orig_addr.ipv4.port != header.addr_port)) {
         connection_log(con, BLOG_DEBUG, "close old");
-        
         connection_close(con);
         con = NULL;
     }
@@ -816,11 +830,23 @@ void client_recv_if_handler_send (struct client *client, uint8_t *data, int data
         }
         
         // read address
-        BAddr addr;
-        BAddr_InitIPv4(&addr, header.addr_ip, header.addr_port);
+        BAddr orig_addr;
+        BAddr_InitIPv4(&orig_addr, header.addr_ip, header.addr_port);
+        BAddr addr = orig_addr;
+        
+        // if this is DNS, replace actual address, but keep header.addr_ip header.addr_port intact
+        if ((flags & UDPGW_CLIENT_FLAG_DNS)) {
+            maybe_update_dns();
+            if (dns_addr.type == BADDR_TYPE_NONE) {
+                client_log(client, BLOG_WARNING, "received DNS packet, but no DNS server available");
+            } else {
+                client_log(client, BLOG_DEBUG, "received DNS");
+                addr = dns_addr;
+            }
+        }
         
         // create new connection
-        connection_init(client, conid, addr, data, data_len);
+        connection_init(client, conid, addr, orig_addr, data, data_len);
     } else {
         // submit packet to existing connection
         connection_send_to_udp(con, data, data_len);
@@ -881,12 +907,13 @@ uint8_t * build_port_usage_array_and_find_least_used_connection (BAddr remote_ad
     return port_usage;
 }
 
-void connection_init (struct client *client, uint16_t conid, BAddr addr, const uint8_t *data, int data_len)
+void connection_init (struct client *client, uint16_t conid, BAddr addr, BAddr orig_addr, const uint8_t *data, int data_len)
 {
     ASSERT(client->num_connections < options.max_connections_for_client)
     ASSERT(!find_connection(client, conid))
     BAddr_Assert(&addr);
     ASSERT(addr.type == BADDR_TYPE_IPV4)
+    ASSERT(orig_addr.type == BADDR_TYPE_IPV4)
     ASSERT(data_len >= 0)
     ASSERT(data_len <= options.udp_mtu)
     
@@ -901,6 +928,7 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, const u
     con->client = client;
     con->conid = conid;
     con->addr = addr;
+    con->orig_addr = orig_addr;
     con->first_data = data;
     con->first_data_len = data_len;
     
@@ -1151,8 +1179,8 @@ int connection_send_to_client (struct connection *con, uint8_t flags, const uint
     struct udpgw_header header;
     header.flags = htol8(flags);
     header.conid = htol16(con->conid);
-    header.addr_ip = con->addr.ipv4.ip;
-    header.addr_port = con->addr.ipv4.port;
+    header.addr_ip = con->orig_addr.ipv4.ip;
+    header.addr_port = con->orig_addr.ipv4.port;
     memcpy(out, &header, sizeof(header));
     
     // write message
@@ -1294,4 +1322,41 @@ struct connection * find_connection (struct client *client, uint16_t conid)
 int uint16_comparator (void *unused, uint16_t *v1, uint16_t *v2)
 {
     return B_COMPARE(*v1, *v2);
+}
+
+void maybe_update_dns (void)
+{
+#ifndef BADVPN_USE_WINAPI
+    btime_t now = btime_gettime();
+    if (now < btime_add(last_dns_update_time, DNS_UPDATE_TIME)) {
+        return;
+    }
+    last_dns_update_time = now;
+    BLog(BLOG_DEBUG, "update dns");
+    
+    if (res_init() != 0) {
+        BLog(BLOG_ERROR, "res_init failed");
+        goto fail;
+    }
+    
+    if (_res.nscount == 0) {
+        BLog(BLOG_ERROR, "no name servers available");
+        goto fail;
+    }
+    
+    BAddr addr;
+    BAddr_InitIPv4(&addr, _res.nsaddr_list[0].sin_addr.s_addr, hton16(53));
+    
+    if (!BAddr_Compare(&addr, &dns_addr)) {
+        char str[BADDR_MAX_PRINT_LEN];
+        BAddr_Print(&addr, str);
+        BLog(BLOG_INFO, "using DNS server %s", str);
+    }
+    
+    dns_addr = addr;
+    return;
+    
+fail:
+    BAddr_InitNone(&dns_addr);
+#endif
 }

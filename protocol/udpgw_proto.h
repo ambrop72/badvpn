@@ -1,8 +1,7 @@
-/**
- * @file udpgw_proto.h
- * @author Ambroz Bizjak <ambrop7@gmail.com>
- * 
- * @section LICENSE
+/*
+ * Copyright (C) Ambroz Bizjak <ambrop7@gmail.com>
+ * Contributions:
+ * Transparent DNS: Copyright (C) Kerem Hadimli <kerem.hadimli@gmail.com>
  * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -25,10 +24,6 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
- * @section DESCRIPTION
- * 
- * Protocol for forwarding UDP over TCP. Messages should be carried with PacketProto.
  */
 
 #ifndef BADVPN_PROTOCOL_UDPGW_PROTO_H
@@ -41,6 +36,7 @@
 
 #define UDPGW_CLIENT_FLAG_KEEPALIVE (1 << 0)
 #define UDPGW_CLIENT_FLAG_REBIND (1 << 1)
+#define UDPGW_CLIENT_FLAG_DNS (1 << 2)
 
 B_START_PACKED
 struct udpgw_header {

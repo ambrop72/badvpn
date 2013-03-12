@@ -1,8 +1,7 @@
-/**
- * @file UdpGwClient.h
- * @author Ambroz Bizjak <ambrop7@gmail.com>
- * 
- * @section LICENSE
+/*
+ * Copyright (C) Ambroz Bizjak <ambrop7@gmail.com>
+ * Contributions:
+ * Transparent DNS: Copyright (C) Kerem Hadimli <kerem.hadimli@gmail.com>
  * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -95,6 +94,7 @@ struct UdpGwClient_conaddr {
 struct UdpGwClient_connection {
     UdpGwClient *client;
     struct UdpGwClient_conaddr conaddr;
+    uint8_t first_flags;
     const uint8_t *first_data;
     int first_data_len;
     uint16_t conid;
@@ -111,7 +111,7 @@ int UdpGwClient_Init (UdpGwClient *o, int udp_mtu, int max_connections, int send
                       UdpGwClient_handler_servererror handler_servererror,
                       UdpGwClient_handler_received handler_received) WARN_UNUSED;
 void UdpGwClient_Free (UdpGwClient *o);
-void UdpGwClient_SubmitPacket (UdpGwClient *o, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len);
+void UdpGwClient_SubmitPacket (UdpGwClient *o, BAddr local_addr, BAddr remote_addr, int is_dns, const uint8_t *data, int data_len);
 int UdpGwClient_ConnectServer (UdpGwClient *o, StreamPassInterface *send_if, StreamRecvInterface *recv_if) WARN_UNUSED;
 void UdpGwClient_DisconnectServer (UdpGwClient *o);
 

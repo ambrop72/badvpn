@@ -1,8 +1,7 @@
-/**
- * @file tun2socks.c
- * @author Ambroz Bizjak <ambrop7@gmail.com>
- * 
- * @section LICENSE
+/*
+ * Copyright (C) Ambroz Bizjak <ambrop7@gmail.com>
+ * Contributions:
+ * Transparent DNS: Copyright (C) Kerem Hadimli <kerem.hadimli@gmail.com>
  * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -105,6 +104,7 @@ struct {
     char *udpgw_remote_server_addr;
     int udpgw_max_connections;
     int udpgw_connection_buffer_size;
+    int udpgw_transparent_dns;
 } options;
 
 // TCP client
@@ -460,6 +460,7 @@ void print_help (const char *name)
         "        [--udpgw-remote-server-addr <addr>]\n"
         "        [--udpgw-max-connections <number>]\n"
         "        [--udpgw-connection-buffer-size <number>]\n"
+        "        [--udpgw-transparent-dns]\n"
         "Address format is a.b.c.d:port (IPv4) or [addr]:port (IPv6).\n",
         name
     );
@@ -497,6 +498,7 @@ int parse_arguments (int argc, char *argv[])
     options.udpgw_remote_server_addr = NULL;
     options.udpgw_max_connections = DEFAULT_UDPGW_MAX_CONNECTIONS;
     options.udpgw_connection_buffer_size = DEFAULT_UDPGW_CONNECTION_BUFFER_SIZE;
+    options.udpgw_transparent_dns = 0;
     
     int i;
     for (i = 1; i < argc; i++) {
@@ -659,6 +661,9 @@ int parse_arguments (int argc, char *argv[])
                 return 0;
             }
             i++;
+        }
+        else if (!strcmp(arg, "--udpgw-transparent-dns")) {
+            options.udpgw_transparent_dns = 1;
         }
         else {
             fprintf(stderr, "unknown option: %s\n", arg);
@@ -962,8 +967,14 @@ int process_device_udp_packet (uint8_t *data, int data_len)
     BAddr remote_addr;
     BAddr_InitIPv4(&remote_addr, ipv4_header.destination_address, udp_header.dest_port);
     
+    // if transparent DNS is enabled, any packet arriving at out netif
+    // address to port 53 is considered a DNS packet
+    int is_dns = (options.udpgw_transparent_dns &&
+                  ipv4_header.destination_address == netif_ipaddr.ipv4 &&
+                  udp_header.dest_port == hton16(53));
+    
     // submit packet to udpgw
-    SocksUdpGwClient_SubmitPacket(&udpgw_client, local_addr, remote_addr, data, data_len);
+    SocksUdpGwClient_SubmitPacket(&udpgw_client, local_addr, remote_addr, is_dns, data, data_len);
     
     return 1;
     

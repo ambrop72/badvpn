@@ -1,8 +1,7 @@
-/**
- * @file UdpGwClient.c
- * @author Ambroz Bizjak <ambrop7@gmail.com>
- * 
- * @section LICENSE
+/*
+ * Copyright (C) Ambroz Bizjak <ambrop7@gmail.com>
+ * Contributions:
+ * Transparent DNS: Copyright (C) Kerem Hadimli <kerem.hadimli@gmail.com>
  * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -50,7 +49,7 @@ static void keepalive_if_handler_done (UdpGwClient *o);
 static struct UdpGwClient_connection * find_connection_by_conaddr (UdpGwClient *o, struct UdpGwClient_conaddr conaddr);
 static struct UdpGwClient_connection * find_connection_by_conid (UdpGwClient *o, uint16_t conid);
 static uint16_t find_unused_conid (UdpGwClient *o);
-static void connection_init (UdpGwClient *o, struct UdpGwClient_conaddr conaddr, const uint8_t *data, int data_len);
+static void connection_init (UdpGwClient *o, struct UdpGwClient_conaddr conaddr, uint8_t flags, const uint8_t *data, int data_len);
 static void connection_free (struct UdpGwClient_connection *con);
 static void connection_first_job_handler (struct UdpGwClient_connection *con);
 static void connection_send (struct UdpGwClient_connection *con, uint8_t flags, const uint8_t *data, int data_len);
@@ -227,7 +226,7 @@ static uint16_t find_unused_conid (UdpGwClient *o)
     }
 }
 
-static void connection_init (UdpGwClient *o, struct UdpGwClient_conaddr conaddr, const uint8_t *data, int data_len)
+static void connection_init (UdpGwClient *o, struct UdpGwClient_conaddr conaddr, uint8_t flags, const uint8_t *data, int data_len)
 {
     ASSERT(o->num_connections < o->max_connections)
     ASSERT(!find_connection_by_conaddr(o, conaddr))
@@ -244,6 +243,7 @@ static void connection_init (UdpGwClient *o, struct UdpGwClient_conaddr conaddr,
     // init arguments
     con->client = o;
     con->conaddr = conaddr;
+    con->first_flags = flags;
     con->first_data = data;
     con->first_data_len = data_len;
     
@@ -318,7 +318,7 @@ static void connection_free (struct UdpGwClient_connection *con)
 
 static void connection_first_job_handler (struct UdpGwClient_connection *con)
 {
-    connection_send(con, UDPGW_CLIENT_FLAG_REBIND, con->first_data, con->first_data_len);
+    connection_send(con, UDPGW_CLIENT_FLAG_REBIND|con->first_flags, con->first_data, con->first_data_len);
 }
 
 static void connection_send (struct UdpGwClient_connection *con, uint8_t flags, const uint8_t *data, int data_len)
@@ -483,7 +483,7 @@ void UdpGwClient_Free (UdpGwClient *o)
     PacketPassConnector_Free(&o->send_connector);
 }
 
-void UdpGwClient_SubmitPacket (UdpGwClient *o, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len)
+void UdpGwClient_SubmitPacket (UdpGwClient *o, BAddr local_addr, BAddr remote_addr, int is_dns, const uint8_t *data, int data_len)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(local_addr.type == BADDR_TYPE_IPV4)
@@ -500,6 +500,11 @@ void UdpGwClient_SubmitPacket (UdpGwClient *o, BAddr local_addr, BAddr remote_ad
     struct UdpGwClient_connection *con = find_connection_by_conaddr(o, conaddr);
     
     uint8_t flags = 0;
+
+    if (is_dns) {
+        // route to remote DNS server instead of provided address
+        flags |= UDPGW_CLIENT_FLAG_DNS;
+    }
     
     // if no connection and can't create a new one, reuse the least recently used une
     if (!con && o->num_connections == o->max_connections) {
@@ -509,7 +514,7 @@ void UdpGwClient_SubmitPacket (UdpGwClient *o, BAddr local_addr, BAddr remote_ad
     
     if (!con) {
         // create new connection
-        connection_init(o, conaddr, data, data_len);
+        connection_init(o, conaddr, flags, data, data_len);
     } else {
         // move connection to front of the list
         LinkedList1_Remove(&o->connections_list, &con->connections_list_node);
