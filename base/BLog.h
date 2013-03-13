@@ -51,6 +51,7 @@
 #define BLOG_DEBUG 5
 
 #define BLog(...) BLog_LogToChannel(BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define BLOG_CCCC(context) BLog_MakeChannelContext((context), BLOG_CURRENT_CHANNEL)
 
 typedef void (*_BLog_log_func) (int channel, int level, const char *msg);
 typedef void (*_BLog_free_func) (void);
@@ -80,6 +81,16 @@ extern struct _BLog_global blog_global;
 
 typedef void (*BLog_logfunc) (void *);
 
+typedef struct {
+    BLog_logfunc logfunc;
+    void *logfunc_user;
+} BLogContext;
+
+typedef struct {
+    BLogContext context;
+    int channel;
+} BLogChannelContext;
+
 static int BLogGlobal_GetChannelByName (const char *channel_name);
 
 static void BLog_Init (_BLog_log_func log_func, _BLog_free_func free_func);
@@ -95,6 +106,13 @@ static void BLog_LogToChannelVarArg (int channel, int level, const char *fmt, va
 static void BLog_LogToChannel (int channel, int level, const char *fmt, ...);
 static void BLog_LogViaFuncVarArg (BLog_logfunc func, void *arg, int channel, int level, const char *fmt, va_list vl);
 static void BLog_LogViaFunc (BLog_logfunc func, void *arg, int channel, int level, const char *fmt, ...);
+static BLogContext BLog_RootContext (void);
+static BLogContext BLog_MakeContext (BLog_logfunc logfunc, void *logfunc_user);
+static void BLog_ContextLogVarArg (BLogContext context, int channel, int level, const char *fmt, va_list vl);
+static void BLog_ContextLog (BLogContext context, int channel, int level, const char *fmt, ...);
+static BLogChannelContext BLog_MakeChannelContext (BLogContext context, int channel);
+static void BLog_ChannelContextLogVarArg (BLogChannelContext ccontext, int level, const char *fmt, va_list vl);
+static void BLog_ChannelContextLog (BLogChannelContext ccontext, int level, const char *fmt, ...);
 
 void BLog_InitStdout (void);
 void BLog_InitStderr (void);
@@ -321,6 +339,59 @@ void BLog_LogViaFunc (BLog_logfunc func, void *arg, int channel, int level, cons
     BLog_AppendVarArg(fmt, vl);
     BLog_Finish(channel, level);
     
+    va_end(vl);
+}
+
+static void BLog__root_logfunc (void *unused)
+{
+}
+
+static BLogContext BLog_RootContext (void)
+{
+    return BLog_MakeContext(BLog__root_logfunc, NULL);
+}
+
+static BLogContext BLog_MakeContext (BLog_logfunc logfunc, void *logfunc_user)
+{
+    ASSERT(logfunc)
+    
+    BLogContext context;
+    context.logfunc = logfunc;
+    context.logfunc_user = logfunc_user;
+    return context;
+}
+
+static void BLog_ContextLogVarArg (BLogContext context, int channel, int level, const char *fmt, va_list vl)
+{
+    BLog_LogViaFuncVarArg(context.logfunc, context.logfunc_user, channel, level, fmt, vl);
+}
+
+static void BLog_ContextLog (BLogContext context, int channel, int level, const char *fmt, ...)
+{
+    va_list vl;
+    va_start(vl, fmt);
+    BLog_ContextLogVarArg(context, channel, level, fmt, vl);
+    va_end(vl);
+}
+
+static BLogChannelContext BLog_MakeChannelContext (BLogContext context, int channel)
+{
+    BLogChannelContext ccontext;
+    ccontext.context = context;
+    ccontext.channel = channel;
+    return ccontext;
+}
+
+static void BLog_ChannelContextLogVarArg (BLogChannelContext ccontext, int level, const char *fmt, va_list vl)
+{
+    BLog_ContextLogVarArg(ccontext.context, ccontext.channel, level, fmt, vl);
+}
+
+static void BLog_ChannelContextLog (BLogChannelContext ccontext, int level, const char *fmt, ...)
+{
+    va_list vl;
+    va_start(vl, fmt);
+    BLog_ChannelContextLogVarArg(ccontext, level, fmt, vl);
     va_end(vl);
 }
 
