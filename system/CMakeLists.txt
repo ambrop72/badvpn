@@ -37,8 +37,8 @@ elseif (BREACTOR_BACKEND STREQUAL "emscripten")
     list(APPEND BSYSTEM_ADDITIONAL_SOURCES BReactor_emscripten.c)
 endif ()
 
-add_library(system
+set(SYSTEM_SOURCES
     BTime.c
     ${BSYSTEM_ADDITIONAL_SOURCES}
 )
-target_link_libraries(system base flow ${BSYSTEM_ADDITIONAL_LIBS})
+badvpn_add_library(system "base;flow" "${BSYSTEM_ADDITIONAL_LIBS}" "${SYSTEM_SOURCES}")

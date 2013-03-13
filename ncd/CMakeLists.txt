@@ -23,16 +23,10 @@ if (NOT EMSCRIPTEN)
         )
     endif ()
 
-    add_library(ncdinterfacemonitor
-        extra/NCDInterfaceMonitor.c
-    )
-    target_link_libraries(ncdinterfacemonitor base system)
+    badvpn_add_library(ncdinterfacemonitor "base;system" "" extra/NCDInterfaceMonitor.c)
     
-    add_library(ncdrequest
-        extra/NCDRequestClient.c
-    )
-    target_link_libraries(ncdrequest base system ncdvalgenerator ncdvalparser)
-
+    badvpn_add_library(ncdrequest "base;system;ncdvalgenerator;ncdvalparser" "" extra/NCDRequestClient.c)
+    
     list(APPEND NCD_ADDITIONAL_SOURCES
         extra/NCDIfConfig.c
         extra/build_cmdline.c
@@ -73,59 +67,33 @@ if (NOT EMSCRIPTEN)
     )
 endif ()
 
-add_library(ncdtokenizer
-    NCDConfigTokenizer.c
-)
-target_link_libraries(ncdtokenizer base)
+badvpn_add_library(ncdtokenizer "base" "" NCDConfigTokenizer.c)
 
-add_library(ncdstringindex
-    NCDStringIndex.c
-)
+badvpn_add_library(ncdstringindex "base" "" NCDStringIndex.c)
 
-add_library(ncdval
-    NCDVal.c
-)
-target_link_libraries(ncdval base ncdstringindex)
+badvpn_add_library(ncdval "base;ncdstringindex" "" NCDVal.c)
 
-add_library(ncdvalgenerator
-    NCDValGenerator.c
-)
-target_link_libraries(ncdvalgenerator base ncdval)
+badvpn_add_library(ncdvalgenerator "base;ncdval" "" NCDValGenerator.c)
 
-add_library(ncdvalparser
-    NCDValParser.c
-)
-target_link_libraries(ncdvalparser base ncdval ncdtokenizer ncdvalcons)
+badvpn_add_library(ncdvalparser "base;ncdval;ncdtokenizer;ncdvalcons" "" NCDValParser.c)
 
-add_library(ncdast
-    NCDAst.c
-)
+badvpn_add_library(ncdast "" "" NCDAst.c)
 
-add_library(ncdconfigparser
-    NCDConfigParser.c
-)
-target_link_libraries(ncdconfigparser base ncdtokenizer ncdast)
+badvpn_add_library(ncdconfigparser "base;ncdtokenizer;ncdast" "" NCDConfigParser.c)
 
-add_library(ncdsugar
-    NCDSugar.c
-)
-target_link_libraries(ncdsugar ncdast)
+badvpn_add_library(ncdsugar "ncdast" "" NCDSugar.c)
 
-add_library(ncdvalcons
-    NCDValCons.c
-)
-target_link_libraries(ncdvalcons ncdval)
+badvpn_add_library(ncdvalcons "ncdval" "" NCDValCons.c)
 
-add_library(ncdbuildprogram
-    NCDBuildProgram.c
-)
-target_link_libraries(ncdbuildprogram base ncdast ncdconfigparser)
+badvpn_add_library(ncdbuildprogram "base;ncdast;ncdconfigparser" "" NCDBuildProgram.c)
 
-add_library(ncdinterpreter
+badvpn_add_library(ncdobject "" "" NCDObject.c)
+
+badvpn_add_library(ncdmodule "base;ncdobject;ncdstringindex;ncdval" "" NCDModule.c)
+
+set(NCDINTERPRETER_SOURCES
     NCDInterpreter.c
-    NCDModule.c
     NCDModuleIndex.c
-    NCDObject.c
     NCDInterpProcess.c
     NCDInterpProg.c
     NCDPlaceholderDb.c
@@ -180,10 +148,10 @@ add_library(ncdinterpreter
     modules/getenv.c
     ${NCD_ADDITIONAL_SOURCES}
 )
-target_link_libraries(ncdinterpreter
-    system flow flowextra ncdval ncdstringindex ncdvalgenerator ncdvalparser
-    ncdconfigparser ncdsugar ${NCD_ADDITIONAL_LIBS}
-)
+set(NCDINTERPRETER_LIBS
+    base system flow flowextra ncdval ncdstringindex ncdvalgenerator ncdvalparser
+    ncdconfigparser ncdsugar ncdobject ncdmodule ${NCD_ADDITIONAL_LIBS})
+badvpn_add_library(ncdinterpreter "${NCDINTERPRETER_LIBS}" "" "${NCDINTERPRETER_SOURCES}")
 
 if (BADVPN_USE_LINUX_INPUT)
     string(REPLACE " " ";" FLAGS_LIST "${CMAKE_C_FLAGS}")

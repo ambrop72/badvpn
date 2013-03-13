@@ -255,6 +255,23 @@ set(BUILDING_UDEVMONITOR 0)
 set(BUILDING_THREADWORK 0)
 set(BUILDING_RANDOM 0)
 
+function(badvpn_add_library LIB_NAME LINK_BADVPN_LIBS LINK_SYS_LIBS LIB_SOURCES)
+    set(BADVPN_LIBS_EXEC)
+    set(BADVPN_LIBS_PLUGIN)
+    foreach(LIB ${LINK_BADVPN_LIBS})
+        list(APPEND BADVPN_LIBS_EXEC "${LIB}")
+        list(APPEND BADVPN_LIBS_PLUGIN "${LIB}-plugin")
+    endforeach()
+
+    add_library("${LIB_NAME}" STATIC ${LIB_SOURCES})
+    target_link_libraries("${LIB_NAME}" ${BADVPN_LIBS_EXEC} ${LINK_SYS_LIBS})
+
+    add_library("${LIB_NAME}-plugin" STATIC ${LIB_SOURCES})
+    target_link_libraries("${LIB_NAME}-plugin" ${BADVPN_LIBS_PLUGIN} ${LINK_SYS_LIBS})
+    set_target_properties("${LIB_NAME}-plugin" PROPERTIES POSITION_INDEPENDENT_CODE YES)
+    set_target_properties("${LIB_NAME}-plugin" PROPERTIES COMPILE_FLAGS "-fvisibility=hidden")
+endfunction()
+
 # internal libraries
 add_subdirectory(base)
 add_subdirectory(system)

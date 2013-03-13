@@ -1,4 +1,4 @@
-add_library(flow
+set(FLOW_SOURCES
     PacketPassFairQueue.c
     PacketPassPriorityQueue.c
     PacketPassConnector.c
@@ -28,4 +28,4 @@ add_library(flow
     StreamPassConnector.c
     PacketPassFifoQueue.c
 )
-target_link_libraries(flow base)
+badvpn_add_library(flow "base" "" "${FLOW_SOURCES}")

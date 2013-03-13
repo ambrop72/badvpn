@@ -3,8 +3,8 @@ if (WIN32)
     list(APPEND TUNTAP_ADDITIONAL_SOURCES tapwin32-funcs.c)
 endif ()
 
-add_library(tuntap
+set(TUNTAP_SOURCES
     BTap.c
     ${TUNTAP_ADDITIONAL_SOURCES}
 )
-target_link_libraries(tuntap system flow)
+badvpn_add_library(tuntap "system;flow" "" "${TUNTAP_SOURCES}")
