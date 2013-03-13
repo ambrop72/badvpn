@@ -81,9 +81,11 @@ static void DebugObject_Access (const DebugObject *obj);
  */
 static void DebugObjectGlobal_Finish (void);
 
+#ifndef NDEBUG
 extern DebugCounter debugobject_counter;
 #ifdef BADVPN_THREADWORK_USE_PTHREAD
 extern pthread_mutex_t debugobject_mutex;
+#endif
 #endif
 
 void DebugObject_Init (DebugObject *obj)
