@@ -29,8 +29,10 @@
 
 #include <system/BTime.h>
 
+#ifndef BADVPN_PLUGIN
 struct _BTime_global btime_global = {
     #ifndef NDEBUG
     0
     #endif
 };
+#endif

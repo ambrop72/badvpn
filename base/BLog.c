@@ -32,6 +32,8 @@
 
 #include "BLog.h"
 
+#ifndef BADVPN_PLUGIN
+
 struct _BLog_channel blog_channel_list[] = {
 #include <generated/blog_channels_list.h>
 };
@@ -41,6 +43,8 @@ struct _BLog_global blog_global = {
     0
     #endif
 };
+
+#endif
 
 // keep in sync with level numbers in BLog.h!
 static char *level_names[] = { NULL, "ERROR", "WARNING", "NOTICE", "INFO", "DEBUG" };
