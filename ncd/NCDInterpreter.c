@@ -853,7 +853,7 @@ void process_advance (struct process *p)
     
     if (!objnames) {
         // not a method; module is already known by NCDInterpProcess
-        module = NCDInterpProcess_StatementGetSimpleModule(p->iprocess, p->ap);
+        module = NCDInterpProcess_StatementGetSimpleModule(p->iprocess, p->ap, &p->interp->string_index, &p->interp->mindex);
         
         if (!module) {
             const char *cmdname_str = NCDInterpProcess_StatementCmdName(p->iprocess, p->ap, &p->interp->string_index);
