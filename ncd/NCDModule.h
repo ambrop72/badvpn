@@ -572,6 +572,11 @@ void NCDModuleInst_Backend_Log (NCDModuleInst *n, int channel, int level, const 
 void NCDModuleInst_Backend_LogVarArg (NCDModuleInst *n, int channel, int level, const char *fmt, va_list vl);
 
 /**
+ * Returns a logging context. The context is valid until the backend dies.
+ */
+BLogContext NCDModuleInst_Backend_LogContext (NCDModuleInst *n);
+
+/**
  * Initiates interpreter termination.
  * 
  * @param n backend instance handle

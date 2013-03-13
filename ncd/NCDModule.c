@@ -326,6 +326,13 @@ void NCDModuleInst_Backend_LogVarArg (NCDModuleInst *n, int channel, int level, 
     BLog_LogViaFuncVarArg(n->params->logfunc, n, channel, level, fmt, vl);
 }
 
+BLogContext NCDModuleInst_Backend_LogContext (NCDModuleInst *n)
+{
+    DebugObject_Access(&n->d_obj);
+    
+    return BLog_MakeContext(n->params->logfunc, n);
+}
+
 void NCDModuleInst_Backend_InterpExit (NCDModuleInst *n, int exit_code)
 {
     DebugObject_Access(&n->d_obj);
