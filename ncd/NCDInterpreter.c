@@ -1309,7 +1309,14 @@ btime_t statement_instance_func_interp_getretrytime (void *vinterp)
 
 int statement_instance_func_interp_loadgroup (void *vinterp, const struct NCDModuleGroup *group)
 {
-    return 0;
+    NCDInterpreter *interp = vinterp;
+    
+    if (!NCDModuleIndex_AddGroup(&interp->mindex, group, &interp->module_iparams, &interp->string_index)) {
+        BLog(BLOG_ERROR, "NCDModuleIndex_AddGroup failed");
+        return 0;
+    }
+    
+    return 1;
 }
 
 void process_moduleprocess_func_event (struct process *p, int event)
