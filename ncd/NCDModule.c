@@ -356,6 +356,15 @@ btime_t NCDModuleInst_Backend_InterpGetRetryTime (NCDModuleInst *n)
     return n->params->iparams->func_interp_getretrytime(n->params->iparams->user);
 }
 
+int NCDModuleInst_Backend_InterpLoadGroup (NCDModuleInst *n, const struct NCDModuleGroup *group)
+{
+    DebugObject_Access(&n->d_obj);
+    inst_assert_backend(n);
+    ASSERT(group)
+    
+    return n->params->iparams->func_loadgroup(n->params->iparams->user, group);
+}
+
 int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_id_t template_name, NCDValRef args, NCDModuleProcess_handler_event handler_event)
 {
     DebugObject_Access(&n->d_obj);

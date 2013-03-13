@@ -56,6 +56,7 @@
 
 struct NCDModuleInst_s;
 struct NCDModuleProcess_s;
+struct NCDModuleGroup;
 struct NCDInterpModule;
 struct NCDInterpModuleGroup;
 
@@ -155,6 +156,16 @@ typedef int (*NCDModuleInst_func_interp_getargs) (void *user, NCDValMem *mem, NC
  * @return retry time in milliseconds
  */
 typedef btime_t (*NCDModuleInst_func_interp_getretrytime) (void *user);
+
+/**
+ * Function called when the module instance wants the interpreter to
+ * load a new module group.
+ * 
+ * @param user value of 'user' member of {@link NCDModuleInst_iparams}
+ * @param group module group to load
+ * @return 1 on success, 0 on failure
+ */
+typedef int (*NCDModuleInst_func_interp_loadgroup) (void *user, const struct NCDModuleGroup *group);
 
 #define NCDMODULEPROCESS_EVENT_UP 1
 #define NCDMODULEPROCESS_EVENT_DOWN 2
@@ -347,6 +358,10 @@ struct NCDModuleInst_iparams {
      * Callback to get retry time.
      */
     NCDModuleInst_func_interp_getretrytime func_interp_getretrytime;
+    /**
+     * Callback to load a module group.
+     */
+    NCDModuleInst_func_interp_loadgroup func_loadgroup;
 };
 
 /**
@@ -584,6 +599,15 @@ int NCDModuleInst_Backend_InterpGetArgs (NCDModuleInst *n, NCDValMem *mem, NCDVa
  * @return retry time in milliseconds
  */
 btime_t NCDModuleInst_Backend_InterpGetRetryTime (NCDModuleInst *n);
+
+/**
+ * Loads a module group into the interpreter.
+ * 
+ * @param n backend instance handle
+ * @param group module group to load
+ * @return 1 on success, 0 on failure
+ */
+int NCDModuleInst_Backend_InterpLoadGroup (NCDModuleInst *n, const struct NCDModuleGroup *group);
 
 /**
  * Initializes a process in the interpreter from a process template.
