@@ -142,3 +142,4 @@
 {"ncd_getenv", 4},
 {"BThreadSignal", 4},
 {"BLockReactor", 4},
+{"ncd_load_module", 4},

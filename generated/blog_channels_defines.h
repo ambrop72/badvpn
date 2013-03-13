@@ -142,4 +142,5 @@
 #define BLOG_CHANNEL_ncd_getenv 141
 #define BLOG_CHANNEL_BThreadSignal 142
 #define BLOG_CHANNEL_BLockReactor 143
-#define BLOG_NUM_CHANNELS 144
+#define BLOG_CHANNEL_ncd_load_module 144
+#define BLOG_NUM_CHANNELS 145

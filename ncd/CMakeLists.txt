@@ -65,10 +65,11 @@ if (NOT EMSCRIPTEN)
         modules/net_ipv6_route.c
         modules/socket.c
         modules/sys_start_process.c
+        modules/load_module.c
     )
     
     list(APPEND NCD_ADDITIONAL_LIBS
-        dhcpclient arpprobe ncdinterfacemonitor ncdrequest udevmonitor badvpn_random
+        dhcpclient arpprobe ncdinterfacemonitor ncdrequest udevmonitor badvpn_random dl
     )
 endif ()
 
