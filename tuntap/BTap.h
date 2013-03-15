@@ -120,7 +120,7 @@ struct BTap_init_data {
     enum BTap_dev_type dev_type;
     enum BTap_init_type init_type;
     union {
-        const char *string;
+        char *string;
         struct {
             int fd;
             int mtu;
