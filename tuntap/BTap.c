@@ -187,6 +187,18 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
 {
     ASSERT(tun == 0 || tun == 1)
     
+    struct BTap_init_data init_data;
+    init_data.dev_type = tun ? BTAP_DEV_TUN : BTAP_DEV_TAP;
+    init_data.init_type = BTAP_INIT_STRING;
+    init_data.init.string = devname;
+    
+    return BTap_Init2(o, reactor, init_data, handler_error, handler_error_user);
+}
+
+int BTap_Init2 (BTap *o, BReactor *reactor, struct BTap_init_data init_data, BTap_handler_error handler_error, void *handler_error_user)
+{
+    ASSERT(init_data.dev_type == BTAP_DEV_TUN || init_data.dev_type == BTAP_DEV_TAP)
+    
     // init arguments
     o->reactor = reactor;
     o->handler_error = handler_error;
@@ -194,9 +206,11 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     
     #ifdef BADVPN_USE_WINAPI
     
+    ASSERT(init_data.init_type == BTAP_INIT_STRING)
+    
     // parse device specification
     
-    if (!devname) {
+    if (!init_data.init.string) {
         BLog(BLOG_ERROR, "no device specification provided");
         goto fail0;
     }
@@ -205,13 +219,13 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     char *device_name;
     uint32_t tun_addrs[3];
     
-    if (tun) {
-        if (!tapwin32_parse_tun_spec(devname, &device_component_id, &device_name, tun_addrs)) {
+    if (init_data.dev_type == BTAP_DEV_TUN) {
+        if (!tapwin32_parse_tun_spec(init_data.init.string, &device_component_id, &device_name, tun_addrs)) {
             BLog(BLOG_ERROR, "failed to parse TUN device specification");
             goto fail0;
         }
     } else {
-        if (!tapwin32_parse_tap_spec(devname, &device_component_id, &device_name)) {
+        if (!tapwin32_parse_tap_spec(init_data.init.string, &device_component_id, &device_name)) {
             BLog(BLOG_ERROR, "failed to parse TAP device specification");
             goto fail0;
         }
@@ -242,7 +256,7 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
     
     DWORD len;
     
-    if (tun) {
+    if (init_data.dev_type == BTAP_DEV_TUN) {
         if (!DeviceIoControl(o->device, TAP_IOCTL_CONFIG_TUN, tun_addrs, sizeof(tun_addrs), tun_addrs, sizeof(tun_addrs), &len, NULL)) {
             BLog(BLOG_ERROR, "DeviceIoControl(TAP_IOCTL_CONFIG_TUN) failed");
             goto fail2;
@@ -258,7 +272,7 @@ int BTap_Init (BTap *o, BReactor *reactor, char *devname, BTap_handler_error han
         goto fail2;
     }
     
-    if (tun) {
+    if (init_data.dev_type == BTAP_DEV_TUN) {
         o->frame_mtu = umtu;
     } else {
         o->frame_mtu = umtu + BTAP_ETHERNET_HEADER_LENGTH;
@@ -304,101 +318,118 @@ fail0:
     
     #if defined(BADVPN_LINUX) || defined(BADVPN_FREEBSD)
     
-    char devname_real[IFNAMSIZ];
+    o->close_fd = (init_data.init_type != BTAP_INIT_FD);
     
-    #ifdef BADVPN_LINUX
-    
-    // open device
-    
-    if ((o->fd = open("/dev/net/tun", O_RDWR)) < 0) {
-        BLog(BLOG_ERROR, "error opening device");
-        goto fail0;
+    switch (init_data.init_type) {
+        case BTAP_INIT_FD: {
+            ASSERT(init_data.init.fd.fd >= 0)
+            ASSERT(init_data.init.fd.mtu >= 0)
+            ASSERT(init_data.dev_type != BTAP_DEV_TAP || init_data.init.fd.mtu >= BTAP_ETHERNET_HEADER_LENGTH)
+            
+            o->fd = init_data.init.fd.fd;
+            o->frame_mtu = init_data.init.fd.mtu;
+        } break;
+        
+        case BTAP_INIT_STRING: {
+            char devname_real[IFNAMSIZ];
+            
+            #ifdef BADVPN_LINUX
+            
+            // open device
+            
+            if ((o->fd = open("/dev/net/tun", O_RDWR)) < 0) {
+                BLog(BLOG_ERROR, "error opening device");
+                goto fail0;
+            }
+            
+            // configure device
+            
+            struct ifreq ifr;
+            memset(&ifr, 0, sizeof(ifr));
+            ifr.ifr_flags |= IFF_NO_PI;
+            if (init_data.dev_type == BTAP_DEV_TUN) {
+                ifr.ifr_flags |= IFF_TUN;
+            } else {
+                ifr.ifr_flags |= IFF_TAP;
+            }
+            if (init_data.init.string) {
+                snprintf(ifr.ifr_name, IFNAMSIZ, "%s", init_data.init.string);
+            }
+            
+            if (ioctl(o->fd, TUNSETIFF, (void *)&ifr) < 0) {
+                BLog(BLOG_ERROR, "error configuring device");
+                goto fail1;
+            }
+            
+            strcpy(devname_real, ifr.ifr_name);
+            
+            #endif
+            
+            #ifdef BADVPN_FREEBSD
+            
+            if (init_data.dev_type == BTAP_DEV_TUN) {
+                BLog(BLOG_ERROR, "TUN not supported on FreeBSD");
+                goto fail0;
+            }
+            
+            if (!init_data.init.string) {
+                BLog(BLOG_ERROR, "no device specified");
+                goto fail0;
+            }
+            
+            // open device
+            
+            char devnode[10 + IFNAMSIZ];
+            snprintf(devnode, sizeof(devnode), "/dev/%s", init_data.init.string);
+            
+            if ((o->fd = open(devnode, O_RDWR)) < 0) {
+                BLog(BLOG_ERROR, "error opening device");
+                goto fail0;
+            }
+            
+            // get name
+            
+            struct ifreq ifr;
+            memset(&ifr, 0, sizeof(ifr));
+            if (ioctl(o->fd, TAPGIFNAME, (void *)&ifr) < 0) {
+                BLog(BLOG_ERROR, "error configuring device");
+                goto fail1;
+            }
+            
+            strcpy(devname_real, ifr.ifr_name);
+            
+            #endif
+            
+            // get MTU
+            
+            // open dummy socket for ioctls
+            int sock = socket(AF_INET, SOCK_DGRAM, 0);
+            if (sock < 0) {
+                BLog(BLOG_ERROR, "socket failed");
+                goto fail1;
+            }
+            
+            memset(&ifr, 0, sizeof(ifr));
+            strcpy(ifr.ifr_name, devname_real);
+            
+            if (ioctl(sock, SIOCGIFMTU, (void *)&ifr) < 0) {
+                BLog(BLOG_ERROR, "error getting MTU");
+                close(sock);
+                goto fail1;
+            }
+            
+            if (init_data.dev_type == BTAP_DEV_TUN) {
+                o->frame_mtu = ifr.ifr_mtu;
+            } else {
+                o->frame_mtu = ifr.ifr_mtu + BTAP_ETHERNET_HEADER_LENGTH;
+            }
+            
+            close(sock);
+        } break;
+        
+        default: ASSERT(0);
     }
-    
-    // configure device
-    
-    struct ifreq ifr;
-    memset(&ifr, 0, sizeof(ifr));
-    ifr.ifr_flags |= IFF_NO_PI;
-    if (tun) {
-        ifr.ifr_flags |= IFF_TUN;
-    } else {
-        ifr.ifr_flags |= IFF_TAP;
-    }
-    if (devname) {
-        snprintf(ifr.ifr_name, IFNAMSIZ, "%s", devname);
-    }
-    
-    if (ioctl(o->fd, TUNSETIFF, (void *)&ifr) < 0) {
-        BLog(BLOG_ERROR, "error configuring device");
-        goto fail1;
-    }
-    
-    strcpy(devname_real, ifr.ifr_name);
-    
-    #endif
-    
-    #ifdef BADVPN_FREEBSD
-    
-    if (tun) {
-        BLog(BLOG_ERROR, "TUN not supported on FreeBSD");
-        goto fail0;
-    }
-    
-    if (!devname) {
-        BLog(BLOG_ERROR, "no device specified");
-        goto fail0;
-    }
-    
-    // open device
-    
-    char devnode[10 + IFNAMSIZ];
-    snprintf(devnode, sizeof(devnode), "/dev/%s", devname);
-    
-    if ((o->fd = open(devnode, O_RDWR)) < 0) {
-        BLog(BLOG_ERROR, "error opening device");
-        goto fail0;
-    }
-    
-    // get name
-    
-    struct ifreq ifr;
-    memset(&ifr, 0, sizeof(ifr));
-    if (ioctl(o->fd, TAPGIFNAME, (void *)&ifr) < 0) {
-        BLog(BLOG_ERROR, "error configuring device");
-        goto fail1;
-    }
-    
-    strcpy(devname_real, ifr.ifr_name);
-    
-    #endif
-    
-    // get MTU
-    
-    // open dummy socket for ioctls
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        BLog(BLOG_ERROR, "socket failed");
-        goto fail1;
-    }
-    
-    memset(&ifr, 0, sizeof(ifr));
-    strcpy(ifr.ifr_name, devname_real);
-    
-    if (ioctl(sock, SIOCGIFMTU, (void *)&ifr) < 0) {
-        BLog(BLOG_ERROR, "error getting MTU");
-        close(sock);
-        goto fail1;
-    }
-    
-    if (tun) {
-        o->frame_mtu = ifr.ifr_mtu;
-    } else {
-        o->frame_mtu = ifr.ifr_mtu + BTAP_ETHERNET_HEADER_LENGTH;
-    }
-    
-    close(sock);
-    
+        
     // set non-blocking
     if (fcntl(o->fd, F_SETFL, O_NONBLOCK) < 0) {
         BLog(BLOG_ERROR, "cannot set non-blocking");
@@ -416,7 +447,9 @@ fail0:
     goto success;
     
 fail1:
-    ASSERT_FORCE(close(o->fd) == 0)
+    if (o->close_fd) {
+        ASSERT_FORCE(close(o->fd) == 0)
+    }
 fail0:
     return 0;
     
@@ -467,8 +500,10 @@ void BTap_Free (BTap *o)
     // free BFileDescriptor
     BReactor_RemoveFileDescriptor(o->reactor, &o->bfd);
     
-    // close file descriptor
-    ASSERT_FORCE(close(o->fd) == 0)
+    if (o->close_fd) {
+        // close file descriptor
+        ASSERT_FORCE(close(o->fd) == 0)
+    }
     
 #endif
 }
