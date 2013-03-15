@@ -51,6 +51,7 @@
 #define BLOG_DEBUG 5
 
 #define BLog(...) BLog_LogToChannel(BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define BContextLog(context, ...) BLog_ContextLog((context), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 #define BLOG_CCCC(context) BLog_MakeChannelContext((context), BLOG_CURRENT_CHANNEL)
 
 typedef void (*_BLog_log_func) (int channel, int level, const char *msg);
