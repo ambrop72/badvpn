@@ -32,7 +32,7 @@
 #ifndef BADVPN_PLUGIN
 #ifndef NDEBUG
 DebugCounter debugobject_counter = DEBUGCOUNTER_STATIC;
-#ifdef BADVPN_THREAD_SAFE
+#if BADVPN_THREAD_SAFE
 pthread_mutex_t debugobject_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 #endif
