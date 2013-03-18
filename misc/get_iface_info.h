@@ -60,7 +60,7 @@ static int badvpn_get_iface_info (const char *ifname, uint8_t *out_mac, int *out
     struct ifreq ifr;
     
     int s = socket(AF_INET, SOCK_DGRAM, 0);
-    if (!s) {
+    if (s < 0) {
         goto fail0;
     }
     
