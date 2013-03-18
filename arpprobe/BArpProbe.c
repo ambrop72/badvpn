@@ -41,6 +41,7 @@
 #include <misc/ethernet_proto.h>
 #include <misc/ipv4_proto.h>
 #include <misc/udp_proto.h>
+#include <misc/get_iface_info.h>
 #include <base/BLog.h>
 
 #include "BArpProbe.h"
@@ -51,57 +52,6 @@
 #define STATE_NOEXIST 2
 #define STATE_EXIST 3
 #define STATE_EXIST_PANIC 4
-
-static int get_iface_info (const char *ifname, uint8_t *out_mac, int *out_mtu, int *out_ifindex)
-{
-    struct ifreq ifr;
-    
-    int s = socket(AF_INET, SOCK_DGRAM, 0);
-    if (!s) {
-        BLog(BLOG_ERROR, "socket failed");
-        goto fail0;
-    }
-    
-    // get MAC
-    memset(&ifr, 0, sizeof(ifr));
-    snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s", ifname);
-    if (ioctl(s, SIOCGIFHWADDR, &ifr)) {
-        BLog(BLOG_ERROR, "ioctl(SIOCGIFHWADDR) failed");
-        goto fail1;
-    }
-    if (ifr.ifr_hwaddr.sa_family != ARPHRD_ETHER) {
-        BLog(BLOG_ERROR, "hardware address not ethernet");
-        goto fail1;
-    }
-    memcpy(out_mac, ifr.ifr_hwaddr.sa_data, 6);
-    
-    // get MTU
-    memset(&ifr, 0, sizeof(ifr));
-    snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s", ifname);
-    if (ioctl(s, SIOCGIFMTU, &ifr)) {
-        BLog(BLOG_ERROR, "ioctl(SIOCGIFMTU) failed");
-        goto fail1;
-    }
-    *out_mtu = ifr.ifr_mtu;
-    
-    // get interface index
-    memset(&ifr, 0, sizeof(ifr));
-    snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s", ifname);
-    if (ioctl(s, SIOCGIFINDEX, &ifr)) {
-        BLog(BLOG_ERROR, "ioctl(SIOCGIFINDEX) failed");
-        goto fail1;
-    }
-    *out_ifindex = ifr.ifr_ifindex;
-    
-    close(s);
-    
-    return 1;
-    
-fail1:
-    close(s);
-fail0:
-    return 0;
-}
 
 static void dgram_handler (BArpProbe *o, int event)
 {
