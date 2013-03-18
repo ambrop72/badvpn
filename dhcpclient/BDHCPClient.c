@@ -135,7 +135,7 @@ int BDHCPClient_Init (BDHCPClient *o, const char *ifname, struct BDHCPClient_opt
     uint8_t if_mac[6];
     int if_mtu;
     int if_index;
-    if (!get_iface_info(ifname, if_mac, &if_mtu, &if_index)) {
+    if (!badvpn_get_iface_info(ifname, if_mac, &if_mtu, &if_index)) {
         BLog(BLOG_ERROR, "failed to get interface information");
         goto fail0;
     }

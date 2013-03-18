@@ -57,7 +57,7 @@ int main (int argc, char **argv)
     }
     
     int ifindex;
-    if (!get_iface_info(argv[1], NULL, NULL, &ifindex)) {
+    if (!badvpn_get_iface_info(argv[1], NULL, NULL, &ifindex)) {
         DEBUG("get_iface_info failed");
         goto fail0;
     }

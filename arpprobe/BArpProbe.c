@@ -262,7 +262,7 @@ int BArpProbe_Init (BArpProbe *o, const char *ifname, uint32_t addr, BReactor *r
     // get interface information
     int if_mtu;
     int if_index;
-    if (!get_iface_info(ifname, o->if_mac, &if_mtu, &if_index)) {
+    if (!badvpn_get_iface_info(ifname, o->if_mac, &if_mtu, &if_index)) {
         BLog(BLOG_ERROR, "failed to get interface information");
         goto fail0;
     }

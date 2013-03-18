@@ -50,10 +50,10 @@
  * @param out_ifindex the interface index will be returned here, unless NULL
  * @return 1 on success, 0 on failure
  */
-static int get_iface_info (const char *ifname, uint8_t *out_mac, int *out_mtu, int *out_ifindex) WARN_UNUSED;
+static int badvpn_get_iface_info (const char *ifname, uint8_t *out_mac, int *out_mtu, int *out_ifindex) WARN_UNUSED;
 
 
-static int get_iface_info (const char *ifname, uint8_t *out_mac, int *out_mtu, int *out_ifindex)
+static int badvpn_get_iface_info (const char *ifname, uint8_t *out_mac, int *out_mtu, int *out_ifindex)
 {
     ASSERT(ifname)
     

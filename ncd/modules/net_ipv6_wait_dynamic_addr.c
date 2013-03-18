@@ -116,7 +116,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     
     // get interface index
     int ifindex;
-    int res = get_iface_info(ifname_nts.data, NULL, NULL, &ifindex);
+    int res = badvpn_get_iface_info(ifname_nts.data, NULL, NULL, &ifindex);
     NCDValNullTermString_Free(&ifname_nts);
     if (!res) {
         ModuleLog(o->i, BLOG_ERROR, "failed to get interface index");
