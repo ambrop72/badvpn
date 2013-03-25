@@ -215,8 +215,6 @@ static void process_try (struct process *p)
     ASSERT(!o->dying)
     ASSERT(!BSmallTimer_IsRunning(&p->retry_timer))
     
-    ModuleLog(o->i, BLOG_INFO, "trying process");
-    
     // init module process
     if (!NCDModuleProcess_InitId(&p->module_process, o->i, p->template_name, NCDVal_FromSafe(&p->current_mem, p->current_args), process_module_process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
@@ -463,13 +461,9 @@ static void start_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
     // get method object
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
-    if (mo->dying) {
-        ModuleLog(i, BLOG_INFO, "manager is dying, not creating process");
-    } else {
+    if (!mo->dying) {
         struct process *p = (NCDVal_IsInvalid(name_arg) ? NULL : find_process(mo, name_arg));
-        if (p && p->state != PROCESS_STATE_STOPPING) {
-            ModuleLog(i, BLOG_INFO, "process already started");
-        } else {
+        if (!p || p->state == PROCESS_STATE_STOPPING) {
             if (p) {
                 if (!process_restart(p, args_arg.mem, NCDVal_ToSafe(name_arg), NCDVal_ToSafe(template_name_arg), NCDVal_ToSafe(args_arg))) {
                     ModuleLog(i, BLOG_ERROR, "failed to restart process");
@@ -506,13 +500,9 @@ static void stop_func_new (void *unused, NCDModuleInst *i, const struct NCDModul
     // get method object
     struct instance *mo = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
-    if (mo->dying) {
-        ModuleLog(i, BLOG_INFO, "manager is dying, not stopping process");
-    } else {
+    if (!mo->dying) {
         struct process *p = find_process(mo, name_arg);
-        if (!(p && p->state != PROCESS_STATE_STOPPING)) {
-            ModuleLog(i, BLOG_INFO, "process already stopped");
-        } else {
+        if (p && p->state != PROCESS_STATE_STOPPING) {
             process_stop(p);
         }
     }
