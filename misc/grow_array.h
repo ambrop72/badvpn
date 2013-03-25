@@ -57,14 +57,16 @@ static int GrowArray_DoubleUpLimit (GrowArrayObject *o, size_t limit) WARN_UNUSE
 
 static int GrowArray_Init (GrowArrayObject *o, size_t capacity)
 {
-    ASSERT(capacity > 0)
-    
     if (capacity > GROWARRAY_MAX_CAPACITY) {
         return 0;
     }
     
-    if (!(o->GROWARRAY_ARRAY_MEMBER = BAllocArray(capacity, sizeof(o->GROWARRAY_ARRAY_MEMBER[0])))) {
-        return 0;
+    if (capacity == 0) {
+        o->GROWARRAY_ARRAY_MEMBER = NULL;
+    } else {
+        if (!(o->GROWARRAY_ARRAY_MEMBER = BAllocArray(capacity, sizeof(o->GROWARRAY_ARRAY_MEMBER[0])))) {
+            return 0;
+        }
     }
     
     o->GROWARRAY_CAPACITY_MEMBER = capacity;
