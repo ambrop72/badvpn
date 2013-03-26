@@ -68,6 +68,22 @@ static int CAvl_compare_key_entry (CAvlArg arg, CAvlKey key1, CAvlRef node2)
 
 #endif
 
+#if CAVL_PARAM_FEATURE_ASSOC
+
+static CAvlAssoc CAvl_compute_node_assoc (CAvlArg arg, CAvlRef node)
+{
+    CAvlAssoc sum = CAVL_PARAM_FUN_ASSOC_VALUE(arg, node);
+    if (CAvl_link(node)[0] != CAvl_nulllink()) {
+        sum = CAVL_PARAM_FUN_ASSOC_OPER(arg, CAvl_assoc(CAvlDeref(arg, CAvl_link(node)[0])), sum);
+    }
+    if (CAvl_link(node)[1] != CAvl_nulllink()) {
+        sum = CAVL_PARAM_FUN_ASSOC_OPER(arg, sum, CAvl_assoc(CAvlDeref(arg, CAvl_link(node)[1])));
+    }
+    return sum;
+}
+
+#endif
+
 static int CAvl_check_parent (CAvlRef p, CAvlRef c)
 {
     return (p.link == CAvl_parent(c)) && (p.link == CAvl_nulllink() || c.link == CAvl_link(p)[0] || c.link == CAvl_link(p)[1]);
@@ -123,6 +139,11 @@ static int CAvl_verify_recurser (CAvlArg arg, CAvlRef n)
     ASSERT_FORCE(CAvl_count(n) == 1 + count_left + count_right)
 #endif
     
+#if CAVL_PARAM_FEATURE_ASSOC
+    // check assoc
+    ASSERT_FORCE(CAvl_assoc(n) == CAvl_compute_node_assoc(arg, n))
+#endif
+    
     return CAvl_MAX(height_left, height_right) + 1;
 }
 
@@ -164,6 +185,11 @@ static void CAvl_rotate (CAvl *o, CAvlArg arg, CAvlRef r, uint8_t dir, CAvlRef r
     CAvl_update_count_from_children(arg, r);
     CAvl_update_count_from_children(arg, nr);
 #endif
+    
+#if CAVL_PARAM_FEATURE_ASSOC
+    CAvl_assoc(r) = CAvl_compute_node_assoc(arg, r);
+    CAvl_assoc(nr) = CAvl_compute_node_assoc(arg, nr);
+#endif
 }
 
 static CAvlRef CAvl_subtree_min (CAvlArg arg, CAvlRef n)
@@ -188,7 +214,7 @@ static CAvlRef CAvl_subtree_max (CAvlArg arg, CAvlRef n)
     return n;
 }
 
-static void CAvl_replace_subtree_fix_counts (CAvl *o, CAvlArg arg, CAvlRef dest, CAvlRef n, CAvlRef dest_parent)
+static void CAvl_replace_subtree_fix_assoc (CAvl *o, CAvlArg arg, CAvlRef dest, CAvlRef n, CAvlRef dest_parent)
 {
     ASSERT(dest.link != CAvl_nulllink())
     ASSERT(CAvl_check_parent(dest_parent, dest))
@@ -202,105 +228,103 @@ static void CAvl_replace_subtree_fix_counts (CAvl *o, CAvlArg arg, CAvlRef dest,
         CAvl_parent(n) = CAvl_parent(dest);
     }
     
-#if CAVL_PARAM_FEATURE_COUNTS
+#if CAVL_PARAM_FEATURE_COUNTS || CAVL_PARAM_FEATURE_ASSOC
     for (CAvlRef c = dest_parent; c.link != CAvl_nulllink(); c = CAvlDeref(arg, CAvl_parent(c))) {
+#if CAVL_PARAM_FEATURE_COUNTS
         ASSERT(CAvl_count(c) >= CAvl_count(dest))
         CAvl_count(c) -= CAvl_count(dest);
         if (n.link != CAvl_nulllink()) {
             ASSERT(CAvl_count(n) <= CAVL_PARAM_VALUE_COUNT_MAX - CAvl_count(c))
             CAvl_count(c) += CAvl_count(n);
         }
+#endif
+#if CAVL_PARAM_FEATURE_ASSOC
+        CAvl_assoc(c) = CAvl_compute_node_assoc(arg, c);
+#endif
     }
 #endif
 }
 
-static void CAvl_swap_entries (CAvl *o, CAvlArg arg, CAvlRef n1, CAvlRef n2, CAvlRef n1_parent, CAvlRef n2_parent)
+static void CAvl_swap_for_remove (CAvl *o, CAvlArg arg, CAvlRef node, CAvlRef enode, CAvlRef node_parent, CAvlRef enode_parent)
 {
-    ASSERT(CAvl_check_parent(n1_parent, n1))
-    ASSERT(CAvl_check_parent(n2_parent, n2))
+    ASSERT(CAvl_check_parent(node_parent, node))
+    ASSERT(CAvl_check_parent(enode_parent, enode))
     
-    if (n2_parent.link == n1.link || n1_parent.link == n2.link) {
+    if (enode_parent.link == node.link) {
         // when the nodes are directly connected we need special handling
-        // make sure n1 is above n2
-        if (n1_parent.link == n2.link) {
-            CAvlRef t = n1;
-            n1 = n2;
-            n2 = t;
-            t = n1_parent;
-            n1_parent = n2_parent;
-            n2_parent = t;
+        
+        uint8_t side = (enode.link == CAvl_link(node)[1]);
+        CAvlRef c = CAvlDeref(arg, CAvl_link(node)[!side]);
+        
+        if ((CAvl_link(node)[0] = CAvl_link(enode)[0]) != CAvl_nulllink()) {
+            CAvl_parent(CAvlDeref(arg, CAvl_link(node)[0])) = node.link;
+        }
+        if ((CAvl_link(node)[1] = CAvl_link(enode)[1]) != CAvl_nulllink()) {
+            CAvl_parent(CAvlDeref(arg, CAvl_link(node)[1])) = node.link;
         }
         
-        uint8_t side = (n2.link == CAvl_link(n1)[1]);
-        CAvlRef c = CAvlDeref(arg, CAvl_link(n1)[!side]);
-        
-        if ((CAvl_link(n1)[0] = CAvl_link(n2)[0]) != CAvl_nulllink()) {
-            CAvl_parent(CAvlDeref(arg, CAvl_link(n1)[0])) = n1.link;
-        }
-        if ((CAvl_link(n1)[1] = CAvl_link(n2)[1]) != CAvl_nulllink()) {
-            CAvl_parent(CAvlDeref(arg, CAvl_link(n1)[1])) = n1.link;
-        }
-        
-        CAvl_parent(n2) = CAvl_parent(n1);
-        if (n1_parent.link != CAvl_nulllink()) {
-            CAvl_link(n1_parent)[n1.link == CAvl_link(n1_parent)[1]] = n2.link;
+        CAvl_parent(enode) = CAvl_parent(node);
+        if (node_parent.link != CAvl_nulllink()) {
+            CAvl_link(node_parent)[node.link == CAvl_link(node_parent)[1]] = enode.link;
         } else {
-            o->root = n2.link;
+            o->root = enode.link;
         }
         
-        CAvl_link(n2)[side] = n1.link;
-        CAvl_parent(n1) = n2.link;
-        if ((CAvl_link(n2)[!side] = c.link) != CAvl_nulllink()) {
-            CAvl_parent(c) = n2.link;
+        CAvl_link(enode)[side] = node.link;
+        CAvl_parent(node) = enode.link;
+        if ((CAvl_link(enode)[!side] = c.link) != CAvl_nulllink()) {
+            CAvl_parent(c) = enode.link;
         }
     } else {
         CAvlRef temp;
         
         // swap parents
-        temp = n1_parent;
-        CAvl_parent(n1) = CAvl_parent(n2);
-        if (n2_parent.link != CAvl_nulllink()) {
-            CAvl_link(n2_parent)[n2.link == CAvl_link(n2_parent)[1]] = n1.link;
+        temp = node_parent;
+        CAvl_parent(node) = CAvl_parent(enode);
+        if (enode_parent.link != CAvl_nulllink()) {
+            CAvl_link(enode_parent)[enode.link == CAvl_link(enode_parent)[1]] = node.link;
         } else {
-            o->root = n1.link;
+            o->root = node.link;
         }
-        CAvl_parent(n2) = temp.link;
+        CAvl_parent(enode) = temp.link;
         if (temp.link != CAvl_nulllink()) {
-            CAvl_link(temp)[n1.link == CAvl_link(temp)[1]] = n2.link;
+            CAvl_link(temp)[node.link == CAvl_link(temp)[1]] = enode.link;
         } else {
-            o->root = n2.link;
+            o->root = enode.link;
         }
         
         // swap left children
-        temp = CAvlDeref(arg, CAvl_link(n1)[0]);
-        if ((CAvl_link(n1)[0] = CAvl_link(n2)[0]) != CAvl_nulllink()) {
-            CAvl_parent(CAvlDeref(arg, CAvl_link(n1)[0])) = n1.link;
+        temp = CAvlDeref(arg, CAvl_link(node)[0]);
+        if ((CAvl_link(node)[0] = CAvl_link(enode)[0]) != CAvl_nulllink()) {
+            CAvl_parent(CAvlDeref(arg, CAvl_link(node)[0])) = node.link;
         }
-        if ((CAvl_link(n2)[0] = temp.link) != CAvl_nulllink()) {
-            CAvl_parent(CAvlDeref(arg, CAvl_link(n2)[0])) = n2.link;
+        if ((CAvl_link(enode)[0] = temp.link) != CAvl_nulllink()) {
+            CAvl_parent(CAvlDeref(arg, CAvl_link(enode)[0])) = enode.link;
         }
         
         // swap right children
-        temp = CAvlDeref(arg, CAvl_link(n1)[1]);
-        if ((CAvl_link(n1)[1] = CAvl_link(n2)[1]) != CAvl_nulllink()) {
-            CAvl_parent(CAvlDeref(arg, CAvl_link(n1)[1])) = n1.link;
+        temp = CAvlDeref(arg, CAvl_link(node)[1]);
+        if ((CAvl_link(node)[1] = CAvl_link(enode)[1]) != CAvl_nulllink()) {
+            CAvl_parent(CAvlDeref(arg, CAvl_link(node)[1])) = node.link;
         }
-        if ((CAvl_link(n2)[1] = temp.link) != CAvl_nulllink()) {
-            CAvl_parent(CAvlDeref(arg, CAvl_link(n2)[1])) = n2.link;
+        if ((CAvl_link(enode)[1] = temp.link) != CAvl_nulllink()) {
+            CAvl_parent(CAvlDeref(arg, CAvl_link(enode)[1])) = enode.link;
         }
     }
     
     // swap balance factors
-    int8_t b = CAvl_balance(n1);
-    CAvl_balance(n1) = CAvl_balance(n2);
-    CAvl_balance(n2) = b;
+    int8_t b = CAvl_balance(node);
+    CAvl_balance(node) = CAvl_balance(enode);
+    CAvl_balance(enode) = b;
     
 #if CAVL_PARAM_FEATURE_COUNTS
     // swap counts
-    CAvlCount c = CAvl_count(n1);
-    CAvl_count(n1) = CAvl_count(n2);
-    CAvl_count(n2) = c;
+    CAvlCount c = CAvl_count(node);
+    CAvl_count(node) = CAvl_count(enode);
+    CAvl_count(enode) = c;
 #endif
+    
+    // not fixing assoc values here because CAvl_replace_subtree_fix_assoc() will do it
 }
 
 static void CAvl_rebalance (CAvl *o, CAvlArg arg, CAvlRef node, uint8_t side, int8_t deltac)
@@ -442,6 +466,9 @@ static int CAvl_Insert (CAvl *o, CAvlArg arg, CAvlRef node, CAvlRef *out_ref)
 #if CAVL_PARAM_FEATURE_COUNTS
         CAvl_count(node) = 1;
 #endif
+#if CAVL_PARAM_FEATURE_ASSOC
+        CAvl_assoc(node) = CAVL_PARAM_FUN_ASSOC_VALUE(arg, node);
+#endif
         
         CAvl_assert_tree(o, arg);
         
@@ -480,10 +507,18 @@ static int CAvl_Insert (CAvl *o, CAvlArg arg, CAvlRef node, CAvlRef *out_ref)
 #if CAVL_PARAM_FEATURE_COUNTS
     CAvl_count(node) = 1;
 #endif
+#if CAVL_PARAM_FEATURE_ASSOC
+    CAvl_assoc(node) = CAVL_PARAM_FUN_ASSOC_VALUE(arg, node);
+#endif
     
-#if CAVL_PARAM_FEATURE_COUNTS
+#if CAVL_PARAM_FEATURE_COUNTS || CAVL_PARAM_FEATURE_ASSOC
     for (CAvlRef p = c; p.link != CAvl_nulllink(); p = CAvlDeref(arg, CAvl_parent(p))) {
+#if CAVL_PARAM_FEATURE_COUNTS
         CAvl_count(p)++;
+#endif
+#if CAVL_PARAM_FEATURE_ASSOC
+        CAvl_assoc(p) = CAvl_compute_node_assoc(arg, p);
+#endif
     }
 #endif
     
@@ -513,6 +548,9 @@ static void CAvl_InsertAt (CAvl *o, CAvlArg arg, CAvlRef node, CAvlCount index)
         CAvl_link(node)[1] = CAvl_nulllink();
         CAvl_balance(node) = 0;
         CAvl_count(node) = 1;
+#if CAVL_PARAM_FEATURE_ASSOC
+        CAvl_assoc(node) = CAVL_PARAM_FUN_ASSOC_VALUE(arg, node);
+#endif
         
         CAvl_assert_tree(o, arg);
         return;
@@ -543,9 +581,15 @@ static void CAvl_InsertAt (CAvl *o, CAvlArg arg, CAvlRef node, CAvlCount index)
     CAvl_link(node)[1] = CAvl_nulllink();
     CAvl_balance(node) = 0;
     CAvl_count(node) = 1;
+#if CAVL_PARAM_FEATURE_ASSOC
+    CAvl_assoc(node) = CAVL_PARAM_FUN_ASSOC_VALUE(arg, node);
+#endif
     
     for (CAvlRef p = c; p.link != CAvl_nulllink(); p = CAvlDeref(arg, CAvl_parent(p))) {
         CAvl_count(p)++;
+#if CAVL_PARAM_FEATURE_ASSOC
+        CAvl_assoc(p) = CAvl_compute_node_assoc(arg, p);
+#endif
     }
     
     CAvl_rebalance(o, arg, c, side, 1);
@@ -563,7 +607,7 @@ static void CAvl_Remove (CAvl *o, CAvlArg arg, CAvlRef node)
     
     if (CAvl_link(node)[0] != CAvl_nulllink() && CAvl_link(node)[1] != CAvl_nulllink()) {
         CAvlRef max = CAvl_subtree_max(arg, CAvlDeref(arg, CAvl_link(node)[0]));
-        CAvl_swap_entries(o, arg, node, max, CAvlDeref(arg, CAvl_parent(node)), CAvlDeref(arg, CAvl_parent(max)));
+        CAvl_swap_for_remove(o, arg, node, max, CAvlDeref(arg, CAvl_parent(node)), CAvlDeref(arg, CAvl_parent(max)));
     }
     
     ASSERT(CAvl_link(node)[0] == CAvl_nulllink() || CAvl_link(node)[1] == CAvl_nulllink())
@@ -573,10 +617,10 @@ static void CAvl_Remove (CAvl *o, CAvlArg arg, CAvlRef node)
     
     if (paren.link != CAvl_nulllink()) {
         int side = (node.link == CAvl_link(paren)[1]);
-        CAvl_replace_subtree_fix_counts(o, arg, node, child, paren);
+        CAvl_replace_subtree_fix_assoc(o, arg, node, child, paren);
         CAvl_rebalance(o, arg, paren, side, -1);
     } else {
-        CAvl_replace_subtree_fix_counts(o, arg, node, child, paren);
+        CAvl_replace_subtree_fix_assoc(o, arg, node, child, paren);
     }
     
     CAvl_assert_tree(o, arg);
@@ -840,6 +884,64 @@ static CAvlRef CAvl_GetAt (const CAvl *o, CAvlArg arg, CAvlCount index)
             index -= left_count + 1;
         }
     }
+}
+
+#endif
+
+#if CAVL_PARAM_FEATURE_ASSOC
+
+static CAvlAssoc CAvl_AssocSum (const CAvl *o, CAvlArg arg)
+{
+    if (o->root == CAvl_nulllink()) {
+        return CAVL_PARAM_VALUE_ASSOC_ZERO;
+    }
+    CAvlRef root = CAvlDeref(arg, o->root);
+    return CAvl_assoc(root);
+}
+
+static CAvlAssoc CAvl_ExclusiveAssocPrefixSum (const CAvl *o, CAvlArg arg, CAvlRef node)
+{
+    ASSERT(node.link != CAvl_nulllink())
+    ASSERT(o->root != CAvl_nulllink())
+    
+    CAvlAssoc sum = (CAvl_link(node)[0] != CAvl_nulllink() ? CAvl_assoc(CAvlDeref(arg, CAvl_link(node)[0])) : CAVL_PARAM_VALUE_ASSOC_ZERO);
+    
+    CAvlRef paren = CAvlDeref(arg, CAvl_parent(node));
+    
+    for (CAvlRef c = node; paren.link != CAvl_nulllink(); c = paren, paren = CAvlDeref(arg, CAvl_parent(c))) {
+        if (c.link == CAvl_link(paren)[1]) {
+            CAvlAssoc c_val = CAVL_PARAM_FUN_ASSOC_VALUE(arg, paren);
+            sum = CAVL_PARAM_FUN_ASSOC_OPER(arg, c_val, sum);
+            if (CAvl_link(paren)[0] != CAvl_nulllink()) {
+                sum = CAVL_PARAM_FUN_ASSOC_OPER(arg, CAvl_assoc(CAvlDeref(arg, CAvl_link(paren)[0])), sum);
+            }
+        }
+    }
+    
+    return sum;
+}
+
+static CAvlRef CAvl_FindLastExclusiveAssocPrefixSumLesserEqual (const CAvl *o, CAvlArg arg, CAvlAssoc sum, int (*sum_less) (void *, CAvlAssoc, CAvlAssoc), void *user)
+{
+    CAvlRef result = CAvl_nullref();
+    CAvlRef c = CAvlDeref(arg, o->root);
+    CAvlAssoc sum_offset = CAVL_PARAM_VALUE_ASSOC_ZERO;
+    
+    while (c.link != CAvl_nulllink()) {
+        CAvlAssoc left_sum = (CAvl_link(c)[0] != CAvl_nulllink() ? CAvl_assoc(CAvlDeref(arg, CAvl_link(c)[0])) : CAVL_PARAM_VALUE_ASSOC_ZERO);
+        CAvlAssoc c_prefixsum = CAVL_PARAM_FUN_ASSOC_OPER(arg, sum_offset, left_sum);
+        
+        if (sum_less(user, sum, c_prefixsum)) {
+            c = CAvlDeref(arg, CAvl_link(c)[0]);
+        } else {
+            result = c;
+            CAvlAssoc c_val = CAVL_PARAM_FUN_ASSOC_VALUE(arg, c);
+            sum_offset = CAVL_PARAM_FUN_ASSOC_OPER(arg, c_prefixsum, c_val);
+            c = CAvlDeref(arg, CAvl_link(c)[1]);
+        }
+    }
+    
+    return result;
 }
 
 #endif

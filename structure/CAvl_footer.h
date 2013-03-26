@@ -31,20 +31,26 @@
 #undef CAVL_PARAM_FEATURE_COUNTS
 #undef CAVL_PARAM_FEATURE_KEYS_ARE_INDICES
 #undef CAVL_PARAM_FEATURE_NOKEYS
+#undef CAVL_PARAM_FEATURE_ASSOC
 #undef CAVL_PARAM_TYPE_ENTRY
 #undef CAVL_PARAM_TYPE_LINK
 #undef CAVL_PARAM_TYPE_KEY
 #undef CAVL_PARAM_TYPE_ARG
 #undef CAVL_PARAM_TYPE_COUNT
+#undef CAVL_PARAM_TYPE_ASSOC
 #undef CAVL_PARAM_VALUE_COUNT_MAX
 #undef CAVL_PARAM_VALUE_NULL
+#undef CAVL_PARAM_VALUE_ASSOC_ZERO
 #undef CAVL_PARAM_FUN_DEREF
 #undef CAVL_PARAM_FUN_COMPARE_ENTRIES
 #undef CAVL_PARAM_FUN_COMPARE_KEY_ENTRY
+#undef CAVL_PARAM_FUN_ASSOC_VALUE
+#undef CAVL_PARAM_FUN_ASSOC_OPER
 #undef CAVL_PARAM_MEMBER_CHILD
 #undef CAVL_PARAM_MEMBER_BALANCE
 #undef CAVL_PARAM_MEMBER_PARENT
 #undef CAVL_PARAM_MEMBER_COUNT
+#undef CAVL_PARAM_MEMBER_ASSOC
 
 #undef CAvl
 #undef CAvlEntry
@@ -53,6 +59,7 @@
 #undef CAvlArg
 #undef CAvlKey
 #undef CAvlCount
+#undef CAvlAssoc
 
 #undef CAvlIsNullRef
 #undef CAvlIsValidRef
@@ -77,15 +84,20 @@
 #undef CAvl_Count
 #undef CAvl_IndexOf
 #undef CAvl_GetAt
+#undef CAvl_AssocSum
+#undef CAvl_ExclusiveAssocPrefixSum
+#undef CAvl_FindLastExclusiveAssocPrefixSumLesserEqual
 
 #undef CAvl_link
 #undef CAvl_balance
 #undef CAvl_parent
 #undef CAvl_count
+#undef CAvl_assoc
 #undef CAvl_nulllink
 #undef CAvl_nullref
 #undef CAvl_compare_entries
 #undef CAvl_compare_key_entry
+#undef CAvl_compute_node_assoc
 #undef CAvl_check_parent
 #undef CAvl_verify_recurser
 #undef CAvl_assert_tree
@@ -93,8 +105,8 @@
 #undef CAvl_rotate
 #undef CAvl_subtree_min
 #undef CAvl_subtree_max
-#undef CAvl_replace_subtree_fix_counts
-#undef CAvl_swap_entries
+#undef CAvl_replace_subtree_fix_assoc
+#undef CAvl_swap_for_remove
 #undef CAvl_rebalance
 #undef CAvl_child_count
 #undef CAvl_MAX

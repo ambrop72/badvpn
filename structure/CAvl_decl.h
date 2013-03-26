@@ -68,5 +68,10 @@ static CAvlCount CAvl_Count (const CAvl *o, CAvlArg arg);
 static CAvlCount CAvl_IndexOf (const CAvl *o, CAvlArg arg, CAvlRef node);
 static CAvlRef CAvl_GetAt (const CAvl *o, CAvlArg arg, CAvlCount index);
 #endif
+#if CAVL_PARAM_FEATURE_ASSOC
+static CAvlAssoc CAvl_AssocSum (const CAvl *o, CAvlArg arg);
+static CAvlAssoc CAvl_ExclusiveAssocPrefixSum (const CAvl *o, CAvlArg arg, CAvlRef node);
+static CAvlRef CAvl_FindLastExclusiveAssocPrefixSumLesserEqual (const CAvl *o, CAvlArg arg, CAvlAssoc sum, int (*sum_less) (void *, CAvlAssoc, CAvlAssoc), void *user);
+#endif
 
 #include "CAvl_footer.h"
