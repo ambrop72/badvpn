@@ -32,6 +32,7 @@
 #include <time.h>
 #include <stdint.h>
 #include <limits.h>
+#include <inttypes.h>
 
 #include <misc/balloc.h>
 #include <misc/compare.h>
@@ -40,11 +41,15 @@
 #include <structure/CAvl.h>
 
 #define USE_COUNTS 0
+#define USE_ASSOC 1
 
 typedef size_t entry_index;
 #define MAX_INDICES SIZE_MAX
 
 typedef uint32_t entry_key;
+
+typedef uint8_t assoc_value;
+typedef uint64_t assoc_sum;
 
 struct entry {
     entry_index tree_child[2];
@@ -52,6 +57,10 @@ struct entry {
     int8_t tree_balance;
 #if USE_COUNTS
     size_t tree_count;
+#endif
+#if USE_ASSOC
+    assoc_value assoc_value;
+    assoc_sum assoc_sum;
 #endif
     entry_key key;
 };
@@ -71,6 +80,43 @@ static void random_bytes (char *buf, size_t len)
         buf++;
         len--;
     }
+}
+
+static int uint64_less (void *user, uint64_t a, uint64_t b)
+{
+    return (a < b);
+}
+
+#if USE_ASSOC
+static MyTreeRef assoc_continue_last_lesser_equal (MyTree *tree, struct entry *arg, MyTreeRef ref, assoc_sum target_sum)
+{
+    assoc_sum cur_sum = MyTree_ExclusiveAssocPrefixSum(tree, arg, ref);
+    ASSERT(target_sum >= cur_sum)
+    while (cur_sum + ref.ptr->assoc_value <= target_sum) {
+        MyTreeRef next_ref = MyTree_GetNext(tree, arg, ref);
+        if (next_ref.link == -1) {
+            break;
+        }
+        cur_sum += ref.ptr->assoc_value;
+        ref = next_ref;
+    }
+    return ref;
+}
+#endif
+
+static void test_assoc (MyTree *tree, struct entry *arg)
+{
+#if USE_ASSOC
+    assoc_sum sum = 0;
+    for (MyTreeRef ref = MyTree_GetFirst(tree, arg); ref.link != -1; ref = MyTree_GetNext(tree, arg, ref)) {
+        assoc_sum tree_sum = MyTree_ExclusiveAssocPrefixSum(tree, arg, ref);
+        ASSERT_FORCE(tree_sum == sum);
+        ASSERT_FORCE(MyTree_FindLastExclusiveAssocPrefixSumLesserEqual(tree, arg, sum, uint64_less, NULL).link == assoc_continue_last_lesser_equal(tree, arg, ref, sum).link);
+        ASSERT_FORCE(MyTree_FindLastExclusiveAssocPrefixSumLesserEqual(tree, arg, sum + 1, uint64_less, NULL).link == assoc_continue_last_lesser_equal(tree, arg, ref, sum + 1).link);
+        sum += ref.ptr->assoc_value;
+    }
+    ASSERT_FORCE(sum == MyTree_AssocSum(tree, arg));
+#endif
 }
 
 int main (int argc, char *argv[])
@@ -111,6 +157,15 @@ int main (int argc, char *argv[])
     printf("Generating random remove indices...\n");
     random_bytes((char *)remove_indices, num_remove * sizeof(remove_indices[0]));
     
+#if USE_ASSOC
+    printf("Allocating assoc values...\n");
+    assoc_value *assoc_values = (assoc_value *)BAllocArray(num_keys, sizeof(assoc_values[0]));
+    ASSERT_FORCE(assoc_values);
+
+    printf("Generating random assoc values...\n");
+    random_bytes((char *)assoc_values, num_keys * sizeof(assoc_values[0]));
+#endif
+    
     printf("Allocating entries...\n");
     ASSERT_FORCE(num_keys <= MAX_INDICES);
     struct entry *entries = (struct entry *)BAllocArray(num_keys, sizeof(*entries));
@@ -126,6 +181,7 @@ int main (int argc, char *argv[])
 #if USE_COUNTS
     ASSERT_FORCE(MyTree_Count(&tree, arg) == 0);
 #endif
+    test_assoc(&tree, arg);
     
     size_t num;
 #if USE_COUNTS
@@ -136,6 +192,9 @@ int main (int argc, char *argv[])
     num = 0;
     for (size_t i = 0; i < num_keys; i++) {
         entries[num_used_entries].key = keys[i];
+#if USE_ASSOC
+        entries[num_used_entries].assoc_value = assoc_values[i];
+#endif
         MyTreeRef ref = {&entries[num_used_entries], num_used_entries};
         if (!MyTree_Insert(&tree, arg, ref, NULL)) {
             //printf("Insert collision!\n");
@@ -151,6 +210,7 @@ int main (int argc, char *argv[])
     if (do_verify) {
         printf("Verifying...\n");
         MyTree_Verify(&tree, arg);
+        test_assoc(&tree, arg);
     }
     
     printf("Looking up random inserted keys...\n");
@@ -183,6 +243,7 @@ int main (int argc, char *argv[])
     if (do_verify) {
         printf("Verifying...\n");
         MyTree_Verify(&tree, arg);
+        test_assoc(&tree, arg);
     }
     
     if (do_remove) {
@@ -216,6 +277,9 @@ int main (int argc, char *argv[])
     BFree(keys);
     BFree(lookup_indices);
     BFree(remove_indices);
+#if USE_ASSOC
+    BFree(assoc_values);
+#endif
     BFree(entries);
     
     return 0;
