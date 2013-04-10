@@ -104,6 +104,8 @@ static void do_log (int level, NCDValRef list, size_t start)
     
     size_t count = NCDVal_ListCount(list);
     
+    BLog_Begin();
+    
     for (size_t j = start; j < count; j++) {
         NCDValRef string = NCDVal_ListGet(list, j);
         ASSERT(NCDVal_IsString(string))
