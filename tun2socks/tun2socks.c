@@ -205,7 +205,7 @@ static void client_logfunc (struct tcp_client *client);
 static void client_log (struct tcp_client *client, int level, const char *fmt, ...);
 static err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err);
 static void client_handle_freed_client (struct tcp_client *client);
-static int client_free_client (struct tcp_client *client);
+static void client_free_client (struct tcp_client *client);
 static void client_abort_client (struct tcp_client *client);
 static void client_free_socks (struct tcp_client *client);
 static void client_murder (struct tcp_client *client);
@@ -1154,7 +1154,7 @@ void client_handle_freed_client (struct tcp_client *client)
     }
 }
 
-int client_free_client (struct tcp_client *client)
+void client_free_client (struct tcp_client *client)
 {
     ASSERT(!client->client_closed)
     
@@ -1171,8 +1171,6 @@ int client_free_client (struct tcp_client *client)
     }
     
     client_handle_freed_client(client);
-    
-    return 1;
 }
 
 void client_abort_client (struct tcp_client *client)
@@ -1291,10 +1289,8 @@ err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t e
     
     if (!p) {
         client_log(client, BLOG_INFO, "client closed");
-        
-        int ret = client_free_client(client);
-        
-        return (ret ? ERR_ABRT : ERR_OK);
+        client_free_client(client);
+        return ERR_ABRT;
     }
     
     ASSERT(p->tot_len > 0)
@@ -1573,10 +1569,8 @@ err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
     // have we sent everything after SOCKS was closed?
     if (client->socks_closed && client->socks_recv_tcp_pending == 0) {
         client_log(client, BLOG_INFO, "removing after SOCKS went down");
-        
-        int ret = client_free_client(client);
-        
-        return (ret ? ERR_ABRT : ERR_OK);
+        client_free_client(client);
+        return ERR_ABRT;
     }
     
     return ERR_OK;
