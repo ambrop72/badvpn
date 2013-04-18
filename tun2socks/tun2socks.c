@@ -1564,10 +1564,10 @@ err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
             SYNC_DECL
             SYNC_FROMHERE
             client_socks_recv_initiate(client);
-            DEAD_ENTER(client->dead)
+            DEAD_ENTER(client->dead_client)
             SYNC_COMMIT
-            DEAD_LEAVE2(client->dead)
-            if (DEAD_KILLED) {
+            DEAD_LEAVE2(client->dead_client)
+            if (DEAD_KILLED == -1) {
                 return ERR_ABRT;
             }
         }
