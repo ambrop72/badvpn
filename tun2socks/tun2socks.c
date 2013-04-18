@@ -204,7 +204,7 @@ static err_t netif_output_func (struct netif *netif, struct pbuf *p, ip_addr_t *
 static void client_logfunc (struct tcp_client *client);
 static void client_log (struct tcp_client *client, int level, const char *fmt, ...);
 static err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err);
-static void client_handle_freed_client (struct tcp_client *client, int was_abrt);
+static void client_handle_freed_client (struct tcp_client *client);
 static int client_free_client (struct tcp_client *client);
 static void client_abort_client (struct tcp_client *client);
 static void client_free_socks (struct tcp_client *client);
@@ -1130,15 +1130,14 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     return ERR_OK;
 }
 
-void client_handle_freed_client (struct tcp_client *client, int was_abrt)
+void client_handle_freed_client (struct tcp_client *client)
 {
     ASSERT(!client->client_closed)
-    ASSERT(was_abrt == 0 || was_abrt == 1)
     
     // pcb was taken care of by the caller
     
     // kill client dead var
-    DEAD_KILL_WITH(client->dead_client, (was_abrt ? -1 : 1));
+    DEAD_KILL_WITH(client->dead_client, -1);
     
     // set client closed
     client->client_closed = 1;
@@ -1171,7 +1170,7 @@ int client_free_client (struct tcp_client *client)
         tcp_abort(client->pcb);
     }
     
-    client_handle_freed_client(client, 1);
+    client_handle_freed_client(client);
     
     return 1;
 }
@@ -1188,7 +1187,7 @@ void client_abort_client (struct tcp_client *client)
     // free pcb
     tcp_abort(client->pcb);
     
-    client_handle_freed_client(client, 1);
+    client_handle_freed_client(client);
 }
 
 void client_free_socks (struct tcp_client *client)
@@ -1280,7 +1279,7 @@ void client_err_func (void *arg, err_t err)
     client_log(client, BLOG_INFO, "client error (%d)", (int)err);
     
     // the pcb was taken care of by the caller
-    client_handle_freed_client(client, 1);
+    client_handle_freed_client(client);
 }
 
 err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
