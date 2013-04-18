@@ -1280,7 +1280,7 @@ void client_err_func (void *arg, err_t err)
     client_log(client, BLOG_INFO, "client error (%d)", (int)err);
     
     // the pcb was taken care of by the caller
-    client_handle_freed_client(client, 0);
+    client_handle_freed_client(client, 1);
 }
 
 err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
