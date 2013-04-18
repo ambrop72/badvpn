@@ -1360,7 +1360,9 @@ void client_socks_handler (struct tcp_client *client, int event)
             StreamRecvInterface_Receiver_Init(client->socks_recv_if, (StreamRecvInterface_handler_done)client_socks_recv_handler_done, client);
             client->socks_recv_buf_used = -1;
             client->socks_recv_tcp_pending = 0;
-            tcp_sent(client->pcb, client_sent_func);
+            if (!client->client_closed) {
+                tcp_sent(client->pcb, client_sent_func);
+            }
             
             // set up
             client->socks_up = 1;
