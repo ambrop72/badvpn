@@ -1159,8 +1159,6 @@ int client_free_client (struct tcp_client *client)
 {
     ASSERT(!client->client_closed)
     
-    int was_abrt = 0;
-    
     // remove callbacks
     tcp_err(client->pcb, NULL);
     tcp_recv(client->pcb, NULL);
@@ -1170,14 +1168,12 @@ int client_free_client (struct tcp_client *client)
     err_t err = tcp_close(client->pcb);
     if (err != ERR_OK) {
         client_log(client, BLOG_ERROR, "tcp_close failed (%d)", err);
-        
         tcp_abort(client->pcb);
-        was_abrt = 1;
     }
     
-    client_handle_freed_client(client, was_abrt);
+    client_handle_freed_client(client, 1);
     
-    return was_abrt;
+    return 1;
 }
 
 void client_abort_client (struct tcp_client *client)
