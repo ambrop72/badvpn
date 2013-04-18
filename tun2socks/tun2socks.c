@@ -1123,7 +1123,7 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     DEAD_ENTER(client->dead_client)
     SYNC_COMMIT
     DEAD_LEAVE2(client->dead_client)
-    if (DEAD_KILLED == -1) {
+    if (DEAD_KILLED) {
         return ERR_ABRT;
     }
     
@@ -1137,7 +1137,7 @@ void client_handle_freed_client (struct tcp_client *client)
     // pcb was taken care of by the caller
     
     // kill client dead var
-    DEAD_KILL_WITH(client->dead_client, -1);
+    DEAD_KILL(client->dead_client);
     
     // set client closed
     client->client_closed = 1;
@@ -1231,7 +1231,7 @@ void client_murder (struct tcp_client *client)
         tcp_abort(client->pcb);
         
         // kill client dead var
-        DEAD_KILL_WITH(client->dead_client, -1);
+        DEAD_KILL(client->dead_client);
         
         // set client closed
         client->client_closed = 1;
@@ -1315,7 +1315,7 @@ err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t e
         DEAD_ENTER(client->dead_client)
         SYNC_COMMIT
         DEAD_LEAVE2(client->dead_client)
-        if (DEAD_KILLED == -1) {
+        if (DEAD_KILLED) {
             return ERR_ABRT;
         }
     }
@@ -1558,7 +1558,7 @@ err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
             DEAD_ENTER(client->dead_client)
             SYNC_COMMIT
             DEAD_LEAVE2(client->dead_client)
-            if (DEAD_KILLED == -1) {
+            if (DEAD_KILLED) {
                 return ERR_ABRT;
             }
         }
