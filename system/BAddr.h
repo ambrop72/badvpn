@@ -53,6 +53,7 @@
 #include <misc/debug.h>
 #include <misc/print_macros.h>
 #include <misc/read_write_int.h>
+#include <misc/compare.h>
 
 #define BADDR_TYPE_NONE 0
 #define BADDR_TYPE_IPV4 1
@@ -251,6 +252,8 @@ static int BAddr_Parse2 (BAddr *addr, char *str, char *name, int name_len, int n
 static int BAddr_Parse (BAddr *addr, char *str, char *name, int name_len) WARN_UNUSED;
 
 static int BAddr_Compare (BAddr *addr1, BAddr *addr2);
+
+static int BAddr_CompareOrder (BAddr *addr1, BAddr *addr2);
 
 void BIPAddr_InitInvalid (BIPAddr *addr)
 {
@@ -708,6 +711,46 @@ int BAddr_Compare (BAddr *addr1, BAddr *addr2)
             return (!memcmp(addr1->ipv6.ip, addr2->ipv6.ip, sizeof(addr1->ipv6.ip)) && addr1->ipv6.port == addr2->ipv6.port);
         default:
             return 0;
+    }
+}
+
+int BAddr_CompareOrder (BAddr *addr1, BAddr *addr2)
+{
+    BAddr_Assert(addr1);
+    BAddr_Assert(addr2);
+    
+    int cmp = B_COMPARE(addr1->type, addr2->type);
+    if (cmp) {
+        return cmp;
+    }
+    
+    switch (addr1->type) {
+        case BADDR_TYPE_NONE: {
+            return 0;
+        } break;
+        case BADDR_TYPE_IPV4: {
+            uint32_t ip1 = ntoh32(addr1->ipv4.ip);
+            uint32_t ip2 = ntoh32(addr2->ipv4.ip);
+            cmp = B_COMPARE(ip1, ip2);
+            if (cmp) {
+                return cmp;
+            }
+            uint16_t port1 = ntoh16(addr1->ipv4.port);
+            uint16_t port2 = ntoh16(addr2->ipv4.port);
+            return B_COMPARE(port1, port2);
+        } break;
+        case BADDR_TYPE_IPV6: {
+            cmp = memcmp(addr1->ipv6.ip, addr2->ipv6.ip, sizeof(addr1->ipv6.ip));
+            if (cmp) {
+                return B_COMPARE(cmp, 0);
+            }
+            uint16_t port1 = ntoh16(addr1->ipv6.port);
+            uint16_t port2 = ntoh16(addr2->ipv6.port);
+            return B_COMPARE(port1, port2);
+        } break;
+        default: {
+            return 0;
+        } break;
     }
 }
 
