@@ -98,4 +98,36 @@ static uint16_t udp_checksum (const struct udp_header *header, const uint8_t *pa
     return hton16(~t);
 }
 
+static int udp_check (const uint8_t *data, int data_len, struct udp_header *out_header, uint8_t **out_payload, int *out_payload_len)
+{
+    ASSERT(data_len >= 0)
+    ASSERT(out_header)
+    ASSERT(out_payload)
+    ASSERT(out_payload_len)
+    
+    // parse UDP header
+    if (data_len < sizeof(struct udp_header)) {
+        return 0;
+    }
+    memcpy(out_header, data, sizeof(*out_header));
+    data += sizeof(*out_header);
+    data_len -= sizeof(*out_header);
+    
+    // verify UDP payload
+    int udp_length = ntoh16(out_header->length);
+    if (udp_length < sizeof(*out_header)) {
+        return 0;
+    }
+    if (udp_length > sizeof(*out_header) + data_len) {
+        return 0;
+    }
+    
+    // ignore stray data
+    data_len = udp_length - sizeof(*out_header);
+    
+    *out_payload = (uint8_t *)data;
+    *out_payload_len = data_len;
+    return 1;
+}
+
 #endif
