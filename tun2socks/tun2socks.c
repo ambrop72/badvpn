@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
+#include <limits.h>
 
 #include <misc/version.h>
 #include <misc/loggers_string.h>
@@ -329,11 +330,16 @@ int main (int argc, char **argv)
     }
     
     if (options.udpgw_remote_server_addr) {
-        // compute UDP mtu
+        // compute maximum UDP payload size we need to pass through udpgw
         udp_mtu = BTap_GetMTU(&device) - (int)(sizeof(struct ipv4_header) + sizeof(struct udp_header));
+        if (udp_mtu < 0) {
+            udp_mtu = 0;
+        }
+        
+        // make sure our UDP payloads aren't too large for udpgw
         int udpgw_mtu = udpgw_compute_mtu(udp_mtu);
         if (udpgw_mtu < 0 || udpgw_mtu > PACKETPROTO_MAXPAYLOAD) {
-            BLog(BLOG_ERROR, "bad device MTU for UDP");
+            BLog(BLOG_ERROR, "device MTU is too large for UDP");
             goto fail4a;
         }
         
@@ -879,6 +885,7 @@ void device_error_handler (void *unused)
 void device_read_handler_send (void *unused, uint8_t *data, int data_len)
 {
     ASSERT(!quitting)
+    ASSERT(data_len >= 0)
     
     BLog(BLOG_DEBUG, "device: received packet");
     
@@ -891,6 +898,10 @@ void device_read_handler_send (void *unused, uint8_t *data, int data_len)
     }
     
     // obtain pbuf
+    if (data_len > UINT16_MAX) {
+        BLog(BLOG_WARNING, "device read: packet too large");
+        return;
+    }
     struct pbuf *p = pbuf_alloc(PBUF_RAW, data_len, PBUF_POOL);
     if (!p) {
         BLog(BLOG_WARNING, "device read: pbuf_alloc failed");
@@ -909,6 +920,8 @@ void device_read_handler_send (void *unused, uint8_t *data, int data_len)
 
 int process_device_udp_packet (uint8_t *data, int data_len)
 {
+    ASSERT(data_len >= 0)
+    
     // do nothing if we don't have udpgw
     if (!options.udpgw_remote_server_addr) {
         goto fail;
@@ -946,11 +959,6 @@ int process_device_udp_packet (uint8_t *data, int data_len)
     // ignore stray data
     data_len = udp_length - sizeof(udp_header);
     
-    // check payload length
-    if (data_len > udp_mtu) {
-        goto fail;
-    }
-    
     // verify UDP checksum
     uint16_t checksum_in_packet = udp_header.checksum;
     udp_header.checksum = 0;
@@ -972,6 +980,12 @@ int process_device_udp_packet (uint8_t *data, int data_len)
     int is_dns = (options.udpgw_transparent_dns &&
                   ipv4_header.destination_address == netif_ipaddr.ipv4 &&
                   udp_header.dest_port == hton16(53));
+    
+    // check payload length
+    if (data_len > udp_mtu) {
+        BLog(BLOG_ERROR, "packet is too large, cannot send to udpgw");
+        goto fail;
+    }
     
     // submit packet to udpgw
     SocksUdpGwClient_SubmitPacket(&udpgw_client, local_addr, remote_addr, is_dns, data, data_len);
@@ -1580,9 +1594,15 @@ void udpgw_client_handler_received (void *unused, BAddr local_addr, BAddr remote
 {
     ASSERT(options.udpgw_remote_server_addr)
     ASSERT(data_len >= 0)
-    ASSERT(data_len <= udp_mtu)
     
     BLog(BLOG_INFO, "UDP: from udpgw %d bytes", data_len);
+    
+    if (data_len > UINT16_MAX - (sizeof(struct ipv4_header) + sizeof(struct udp_header)) ||
+        data_len > BTap_GetMTU(&device) - (int)(sizeof(struct ipv4_header) + sizeof(struct udp_header))
+    ) {
+        BLog(BLOG_ERROR, "UDP: packet is too large");
+        return;
+    }
     
     // build IP header
     struct ipv4_header iph;
