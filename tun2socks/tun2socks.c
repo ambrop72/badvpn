@@ -938,26 +938,11 @@ int process_device_udp_packet (uint8_t *data, int data_len)
         goto fail;
     }
     
-    // parse UDP header
-    if (data_len < sizeof(struct udp_header)) {
-        goto fail;
-    }
+    // parse UDP
     struct udp_header udp_header;
-    memcpy(&udp_header, data, sizeof(udp_header));
-    data += sizeof(udp_header);
-    data_len -= sizeof(udp_header);
-    
-    // verify UDP payload
-    int udp_length = ntoh16(udp_header.length);
-    if (udp_length < sizeof(udp_header)) {
+    if (!udp_check(data, data_len, &udp_header, &data, &data_len)) {
         goto fail;
     }
-    if (udp_length > sizeof(udp_header) + data_len) {
-        goto fail;
-    }
-    
-    // ignore stray data
-    data_len = udp_length - sizeof(udp_header);
     
     // verify UDP checksum
     uint16_t checksum_in_packet = udp_header.checksum;
