@@ -915,7 +915,7 @@ int process_device_udp_packet (uint8_t *data, int data_len)
     }
     
     // ignore non-UDP packets
-    if (data_len < sizeof(struct ipv4_header) || ((struct ipv4_header *)data)->protocol != IPV4_PROTOCOL_UDP) {
+    if (data_len < sizeof(struct ipv4_header) || data[offsetof(struct ipv4_header, protocol)] != IPV4_PROTOCOL_UDP) {
         goto fail;
     }
     
