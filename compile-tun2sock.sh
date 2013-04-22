@@ -37,7 +37,7 @@ elif [[ $KERNEL != "2.6" ]] && [[ $KERNEL != "2.4" ]]; then
 fi
 
 CFLAGS="${CFLAGS} -std=gnu99"
-INCLUDES=( "-I${SRCDIR}" "-I${SRCDIR}/lwip/src/include/ipv4" "-I${SRCDIR}/lwip/src/include" "-I${SRCDIR}/lwip/custom" )
+INCLUDES=( "-I${SRCDIR}" "-I${SRCDIR}/lwip/src/include/ipv4" "-I${SRCDIR}/lwip/src/include/ipv6" "-I${SRCDIR}/lwip/src/include" "-I${SRCDIR}/lwip/custom" )
 DEFS=( -DBADVPN_THREAD_SAFE=0 -DBADVPN_LINUX -DBADVPN_BREACTOR_BADVPN -D_GNU_SOURCE )
 
 [[ $KERNEL = "2.4" ]] && DEFS=( "${DEFS[@]}" -DBADVPN_USE_SELFPIPE -DBADVPN_USE_POLL ) || DEFS=( "${DEFS[@]}" -DBADVPN_USE_SIGNALFD -DBADVPN_USE_EPOLL )
@@ -79,12 +79,16 @@ lwip/src/core/def.c
 lwip/src/core/mem.c
 lwip/src/core/tcp_in.c
 lwip/src/core/stats.c
+lwip/src/core/inet_chksum.c
 lwip/src/core/ipv4/icmp.c
-lwip/src/core/ipv4/ip_addr.c
+lwip/src/core/ipv4/ip4.c
+lwip/src/core/ipv4/ip4_addr.c
 lwip/src/core/ipv4/ip_frag.c
-lwip/src/core/ipv4/inet_chksum.c
-lwip/src/core/ipv4/ip.c
-lwip/src/core/ipv4/inet.c
+lwip/src/core/ipv6/ip6.c
+lwip/src/core/ipv6/nd6.c
+lwip/src/core/ipv6/icmp6.c
+lwip/src/core/ipv6/ip6_addr.c
+lwip/src/core/ipv6/ip6_frag.c
 lwip/custom/sys.c
 tun2socks/tun2socks.c
 base/DebugObject.c
