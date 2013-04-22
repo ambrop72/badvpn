@@ -377,6 +377,26 @@ static int build_iptables_newchain_cmdline (NCDModuleInst *i, NCDValRef args, in
     return build_newchain_cmdline(i, args, "iptables", remove, exec, cl);
 }
 
+static int build_ip6tables_append_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
+{
+    return build_append_cmdline(i, args, "ip6tables", remove, exec, cl);
+}
+
+static int build_ip6tables_insert_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
+{
+    return build_insert_cmdline(i, args, "ip6tables", remove, exec, cl);
+}
+
+static int build_ip6tables_policy_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
+{
+    return build_policy_cmdline(i, args, "ip6tables", remove, exec, cl);
+}
+
+static int build_ip6tables_newchain_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
+{
+    return build_newchain_cmdline(i, args, "ip6tables", remove, exec, cl);
+}
+
 static int build_ebtables_append_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **exec, CmdLine *cl)
 {
     return build_append_cmdline(i, args, "ebtables", remove, exec, cl);
@@ -490,6 +510,26 @@ static void policy_iptables_func_new (void *vo, NCDModuleInst *i, const struct N
 static void newchain_iptables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     func_new(vo, i, params, build_iptables_newchain_cmdline);
+}
+
+static void append_ip6tables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    func_new(vo, i, params, build_ip6tables_append_cmdline);
+}
+
+static void insert_ip6tables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    func_new(vo, i, params, build_ip6tables_insert_cmdline);
+}
+
+static void policy_ip6tables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    func_new(vo, i, params, build_ip6tables_policy_cmdline);
+}
+
+static void newchain_ip6tables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    func_new(vo, i, params, build_ip6tables_newchain_cmdline);
 }
 
 static void append_ebtables_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -645,6 +685,26 @@ static struct NCDModule modules[] = {
     }, {
         .type = "net.iptables.newchain",
         .func_new2 = newchain_iptables_func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
+    }, {
+        .type = "net.ip6tables.append",
+        .func_new2 = append_ip6tables_func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
+    }, {
+        .type = "net.ip6tables.insert",
+        .func_new2 = insert_ip6tables_func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
+    }, {
+        .type = "net.ip6tables.policy",
+        .func_new2 = policy_ip6tables_func_new,
+        .func_die = func_die,
+        .alloc_size = sizeof(struct instance)
+    }, {
+        .type = "net.ip6tables.newchain",
+        .func_new2 = newchain_ip6tables_func_new,
         .func_die = func_die,
         .alloc_size = sizeof(struct instance)
     }, {
