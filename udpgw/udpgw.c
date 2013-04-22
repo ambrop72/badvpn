@@ -137,6 +137,8 @@ struct {
     int client_socket_sndbuf;
     int local_udp_num_ports;
     char *local_udp_addr;
+    int local_udp_ip6_num_ports;
+    char *local_udp_ip6_addr;
     int unique_local_ports;
 } options;
 
@@ -150,6 +152,9 @@ int num_listen_addrs;
 
 // local UDP port range, if options.local_udp_num_ports>=0
 BAddr local_udp_addr;
+
+// local UDP/IPv6 port range, if options.local_udp_ip6_num_ports>=0
+BAddr local_udp_ip6_addr;
 
 // DNS forwarding
 BAddr dns_addr;
@@ -179,6 +184,8 @@ static void client_disconnect_timer_handler (struct client *client);
 static void client_connection_handler (struct client *client, int event);
 static void client_decoder_handler_error (struct client *client);
 static void client_recv_if_handler_send (struct client *client, uint8_t *data, int data_len);
+static int get_local_num_ports (int addr_type);
+static BAddr get_local_addr (int addr_type);
 static uint8_t * build_port_usage_array_and_find_least_used_connection (BAddr remote_addr, struct connection **out_con);
 static void connection_init (struct client *client, uint16_t conid, BAddr addr, BAddr orig_addr, const uint8_t *data, int data_len);
 static void connection_free (struct connection *con);
@@ -186,7 +193,7 @@ static void connection_logfunc (struct connection *con);
 static void connection_log (struct connection *con, int level, const char *fmt, ...);
 static void connection_free_udp (struct connection *con);
 static void connection_first_job_handler (struct connection *con);
-static int connection_send_to_client (struct connection *con, uint8_t flags, const uint8_t *data, int data_len);
+static void connection_send_to_client (struct connection *con, uint8_t flags, const uint8_t *data, int data_len);
 static int connection_send_to_udp (struct connection *con, const uint8_t *data, int data_len);
 static void connection_close (struct connection *con);
 static void connection_send_qflow_busy_handler (struct connection *con);
@@ -265,11 +272,9 @@ int main (int argc, char **argv)
     }
     
     // compute MTUs
-    if ((udpgw_mtu = udpgw_compute_mtu(options.udp_mtu)) < 0 ||
-        udpgw_mtu > PACKETPROTO_MAXPAYLOAD
-    ) {
-        BLog(BLOG_ERROR, "MTU is too big");
-        goto fail1;
+    udpgw_mtu = udpgw_compute_mtu(options.udp_mtu);
+    if (udpgw_mtu < 0 || udpgw_mtu > PACKETPROTO_MAXPAYLOAD) {
+        udpgw_mtu = PACKETPROTO_MAXPAYLOAD;
     }
     pp_mtu = udpgw_mtu + sizeof(struct packetproto_header);
     
@@ -360,6 +365,7 @@ void print_help (const char *name)
         "        [--max-connections-for-client <number>]\n"
         "        [--client-socket-sndbuf <bytes / 0>]\n"
         "        [--local-udp-addrs <addr> <num_ports>]\n"
+        "        [--local-udp-ip6-addrs <addr> <num_ports>]\n"
         "        [--unique-local-ports]\n"
         "Address format is a.b.c.d:port (IPv4) or [addr]:port (IPv6).\n",
         name
@@ -394,6 +400,7 @@ int parse_arguments (int argc, char *argv[])
     options.max_connections_for_client = DEFAULT_MAX_CONNECTIONS_FOR_CLIENT;
     options.client_socket_sndbuf = CLIENT_DEFAULT_SOCKET_SEND_BUFFER;
     options.local_udp_num_ports = -1;
+    options.local_udp_ip6_num_ports = -1;
     options.unique_local_ports = 0;
     
     int i;
@@ -541,6 +548,18 @@ int parse_arguments (int argc, char *argv[])
             }
             i += 2;
         }
+        else if (!strcmp(arg, "--local-udp-ip6-addrs")) {
+            if (2 >= argc - i) {
+                fprintf(stderr, "%s: requires two arguments\n", arg);
+                return 0;
+            }
+            options.local_udp_ip6_addr = argv[i + 1];
+            if ((options.local_udp_ip6_num_ports = atoi(argv[i + 2])) < 0) {
+                fprintf(stderr, "%s: wrong argument\n", arg);
+                return 0;
+            }
+            i += 2;
+        }
         else if (!strcmp(arg, "--unique-local-ports")) {
             options.unique_local_ports = 1;
         }
@@ -575,9 +594,20 @@ int process_arguments (void)
             BLog(BLOG_ERROR, "local udp addr: BAddr_Parse failed");
             return 0;
         }
-        
         if (local_udp_addr.type != BADDR_TYPE_IPV4) {
             BLog(BLOG_ERROR, "local udp addr: must be an IPv4 address");
+            return 0;
+        }
+    }
+    
+    // resolve local UDP/IPv6 address
+    if (options.local_udp_ip6_num_ports >= 0) {
+        if (!BAddr_Parse(&local_udp_ip6_addr, options.local_udp_ip6_addr, NULL, 0)) {
+            BLog(BLOG_ERROR, "local udp ip6 addr: BAddr_Parse failed");
+            return 0;
+        }
+        if (local_udp_ip6_addr.type != BADDR_TYPE_IPV6) {
+            BLog(BLOG_ERROR, "local udp ip6 addr: must be an IPv6 address");
             return 0;
         }
     }
@@ -803,6 +833,30 @@ void client_recv_if_handler_send (struct client *client, uint8_t *data, int data
         return;
     }
     
+    // parse address
+    BAddr orig_addr;
+    if ((flags & UDPGW_CLIENT_FLAG_IPV6)) {
+        if (data_len < sizeof(struct udpgw_addr_ipv6)) {
+            client_log(client, BLOG_ERROR, "missing ipv6 address");
+            return;
+        }
+        struct udpgw_addr_ipv6 addr_ipv6;
+        memcpy(&addr_ipv6, data, sizeof(addr_ipv6));
+        data += sizeof(addr_ipv6);
+        data_len -= sizeof(addr_ipv6);
+        BAddr_InitIPv6(&orig_addr, addr_ipv6.addr_ip, addr_ipv6.addr_port);
+    } else {
+        if (data_len < sizeof(struct udpgw_addr_ipv4)) {
+            client_log(client, BLOG_ERROR, "missing ipv4 address");
+            return;
+        }
+        struct udpgw_addr_ipv4 addr_ipv4;
+        memcpy(&addr_ipv4, data, sizeof(addr_ipv4));
+        data += sizeof(addr_ipv4);
+        data_len -= sizeof(addr_ipv4);
+        BAddr_InitIPv4(&orig_addr, addr_ipv4.addr_ip, addr_ipv4.addr_port);
+    }
+    
     // check payload length
     if (data_len > options.udp_mtu) {
         client_log(client, BLOG_ERROR, "too much data");
@@ -814,7 +868,7 @@ void client_recv_if_handler_send (struct client *client, uint8_t *data, int data
     ASSERT(!con || !con->closing)
     
     // if connection exists, close it if needed
-    if (con && ((flags & UDPGW_CLIENT_FLAG_REBIND) || con->orig_addr.ipv4.ip != header.addr_ip || con->orig_addr.ipv4.port != header.addr_port)) {
+    if (con && ((flags & UDPGW_CLIENT_FLAG_REBIND) || !BAddr_Compare(&con->orig_addr, &orig_addr))) {
         connection_log(con, BLOG_DEBUG, "close old");
         connection_close(con);
         con = NULL;
@@ -829,12 +883,8 @@ void client_recv_if_handler_send (struct client *client, uint8_t *data, int data
             connection_close(con);
         }
         
-        // read address
-        BAddr orig_addr;
-        BAddr_InitIPv4(&orig_addr, header.addr_ip, header.addr_port);
+        // if this is DNS, replace actual address, but keep still remember the orig_addr
         BAddr addr = orig_addr;
-        
-        // if this is DNS, replace actual address, but keep header.addr_ip header.addr_port intact
         if ((flags & UDPGW_CLIENT_FLAG_DNS)) {
             maybe_update_dns();
             if (dns_addr.type == BADDR_TYPE_NONE) {
@@ -853,19 +903,41 @@ void client_recv_if_handler_send (struct client *client, uint8_t *data, int data
     }
 }
 
+int get_local_num_ports (int addr_type)
+{
+    switch (addr_type) {
+        case BADDR_TYPE_IPV4: return options.local_udp_num_ports;
+        case BADDR_TYPE_IPV6: return options.local_udp_ip6_num_ports;
+        default: ASSERT(0); return 0;
+    }
+}
+
+BAddr get_local_addr (int addr_type)
+{
+    ASSERT(get_local_num_ports(addr_type) >= 0)
+    
+    switch (addr_type) {
+        case BADDR_TYPE_IPV4: return local_udp_addr;
+        case BADDR_TYPE_IPV6: return local_udp_ip6_addr;
+        default: ASSERT(0);
+    }
+}
+
 uint8_t * build_port_usage_array_and_find_least_used_connection (BAddr remote_addr, struct connection **out_con)
 {
-    ASSERT(options.local_udp_num_ports >= 0)
-    ASSERT(remote_addr.type == BADDR_TYPE_IPV4)
+    ASSERT(remote_addr.type == BADDR_TYPE_IPV4 || remote_addr.type == BADDR_TYPE_IPV6)
+    ASSERT(get_local_num_ports(remote_addr.type) >= 0)
+    
+    int local_num_ports = get_local_num_ports(remote_addr.type);
     
     // allocate port usage array
-    uint8_t *port_usage = (uint8_t *)BAllocSize(bsize_fromint(options.local_udp_num_ports));
+    uint8_t *port_usage = (uint8_t *)BAllocSize(bsize_fromint(local_num_ports));
     if (!port_usage) {
         return NULL;
     }
     
     // zero array
-    memset(port_usage, 0, options.local_udp_num_ports);
+    memset(port_usage, 0, local_num_ports);
     
     struct connection *least_con = NULL;
     
@@ -877,14 +949,18 @@ uint8_t * build_port_usage_array_and_find_least_used_connection (BAddr remote_ad
             struct connection *con = UPPER_OBJECT(ln2, struct connection, connections_list_node);
             ASSERT(con->client == client)
             ASSERT(!con->closing)
-            ASSERT(con->local_port_index < options.local_udp_num_ports)
             
-            if (con->local_port_index < 0) {
+            if (con->addr.type != remote_addr.type || con->local_port_index < 0) {
                 continue;
             }
+            ASSERT(con->local_port_index < local_num_ports)
             
             if (options.unique_local_ports) {
-                if (con->addr.ipv4.ip != remote_addr.ipv4.ip) {
+                BIPAddr ip1;
+                BIPAddr ip2;
+                BAddr_GetIPAddr(&con->addr, &ip1);
+                BAddr_GetIPAddr(&remote_addr, &ip2);
+                if (!BIPAddr_Compare(&ip1, &ip2)) {
                     continue;
                 }
             } else {
@@ -912,8 +988,8 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, BAddr o
     ASSERT(client->num_connections < options.max_connections_for_client)
     ASSERT(!find_connection(client, conid))
     BAddr_Assert(&addr);
-    ASSERT(addr.type == BADDR_TYPE_IPV4)
-    ASSERT(orig_addr.type == BADDR_TYPE_IPV4)
+    ASSERT(addr.type == BADDR_TYPE_IPV4 || addr.type == BADDR_TYPE_IPV6)
+    ASSERT(orig_addr.type == BADDR_TYPE_IPV4 || orig_addr.type == BADDR_TYPE_IPV6)
     ASSERT(data_len >= 0)
     ASSERT(data_len <= options.udp_mtu)
     
@@ -960,7 +1036,9 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, BAddr o
     
     con->local_port_index = -1;
     
-    if (options.local_udp_num_ports >= 0) {
+    int local_num_ports = get_local_num_ports(addr.type);
+    
+    if (local_num_ports >= 0) {
         // build port usage array, find least used connection
         struct connection *least_con;
         uint8_t *port_usage = build_port_usage_array_and_find_least_used_connection(addr, &least_con);
@@ -975,14 +1053,17 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, BAddr o
             goto failed;
         }
         
+        // get starting local address
+        BAddr local_addr = get_local_addr(addr.type);
+        
         // try different ports
-        for (int i = 0; i < options.local_udp_num_ports; i++) {
+        for (int i = 0; i < local_num_ports; i++) {
             // skip inappropriate ports
             if (port_usage[i]) {
                 continue;
             }
             
-            BAddr bind_addr = local_udp_addr;
+            BAddr bind_addr = local_addr;
             BAddr_SetPort(&bind_addr, hton16(ntoh16(BAddr_GetPort(&bind_addr)) + (uint16_t)i));
             if (BDatagram_Bind(&con->udp_dgram, bind_addr)) {
                 // remember which port we're using
@@ -996,8 +1077,9 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, BAddr o
             goto failed;
         }
         
+        ASSERT(least_con->addr.type == addr.type)
         ASSERT(least_con->local_port_index >= 0)
-        ASSERT(least_con->local_port_index < options.local_udp_num_ports)
+        ASSERT(least_con->local_port_index < local_num_ports)
         ASSERT(!PacketPassFairQueueFlow_IsBusy(&least_con->send_qflow))
         
         int i = least_con->local_port_index;
@@ -1008,7 +1090,7 @@ void connection_init (struct client *client, uint16_t conid, BAddr addr, BAddr o
         connection_close(least_con);
         
         // try binding to its port
-        BAddr bind_addr = local_udp_addr;
+        BAddr bind_addr = local_addr;
         BAddr_SetPort(&bind_addr, hton16(ntoh16(BAddr_GetPort(&bind_addr)) + (uint16_t)i));
         if (BDatagram_Bind(&con->udp_dgram, bind_addr)) {
             // remember which port we're using
@@ -1163,33 +1245,62 @@ void connection_first_job_handler (struct connection *con)
     connection_send_to_udp(con, con->first_data, con->first_data_len);
 }
 
-int connection_send_to_client (struct connection *con, uint8_t flags, const uint8_t *data, int data_len)
+void connection_send_to_client (struct connection *con, uint8_t flags, const uint8_t *data, int data_len)
 {
     ASSERT(data_len >= 0)
     ASSERT(data_len <= options.udp_mtu)
+    
+    size_t addr_len = (con->orig_addr.type == BADDR_TYPE_IPV6) ? sizeof(struct udpgw_addr_ipv6) :
+                      (con->orig_addr.type == BADDR_TYPE_IPV4) ? sizeof(struct udpgw_addr_ipv4) : 0;
+    if (data_len > udpgw_mtu - (int)(sizeof(struct udpgw_header) + addr_len)) {
+        connection_log(con, BLOG_WARNING, "packet is too large, cannot send to client");
+        return;
+    }
     
     // get buffer location
     uint8_t *out;
     if (!BufferWriter_StartPacket(con->send_if, &out)) {
         connection_log(con, BLOG_ERROR, "out of client buffer");
-        return 0;
+        return;
+    }
+    int out_pos = 0;
+    
+    if (con->orig_addr.type == BADDR_TYPE_IPV6) {
+        flags |= UDPGW_CLIENT_FLAG_IPV6;
     }
     
     // write header
     struct udpgw_header header;
     header.flags = htol8(flags);
     header.conid = htol16(con->conid);
-    header.addr_ip = con->orig_addr.ipv4.ip;
-    header.addr_port = con->orig_addr.ipv4.port;
-    memcpy(out, &header, sizeof(header));
+    memcpy(out + out_pos, &header, sizeof(header));
+    out_pos += sizeof(header);
+    
+    // write address
+    switch (con->orig_addr.type) {
+        case BADDR_TYPE_IPV4: {
+            struct udpgw_addr_ipv4 addr_ipv4;
+            addr_ipv4.addr_ip = con->orig_addr.ipv4.ip;
+            addr_ipv4.addr_port = con->orig_addr.ipv4.port;
+            memcpy(out + out_pos, &addr_ipv4, sizeof(addr_ipv4));
+            out_pos += sizeof(addr_ipv4);
+        } break;
+        case BADDR_TYPE_IPV6: {
+            struct udpgw_addr_ipv6 addr_ipv6;
+            memcpy(addr_ipv6.addr_ip, con->orig_addr.ipv6.ip, sizeof(addr_ipv6.addr_ip));
+            addr_ipv6.addr_port = con->orig_addr.ipv6.port;
+            memcpy(out + out_pos, &addr_ipv6, sizeof(addr_ipv6));
+            out_pos += sizeof(addr_ipv6);
+        } break;
+    }
     
     // write message
-    memcpy(out + sizeof(header), data, data_len);
+    memcpy(out + out_pos, data, data_len);
+    out_pos += data_len;
     
     // submit written message
-    BufferWriter_EndPacket(con->send_if, sizeof(header) + data_len);
-    
-    return 1;
+    ASSERT(out_pos <= udpgw_mtu)
+    BufferWriter_EndPacket(con->send_if, out_pos);
 }
 
 int connection_send_to_udp (struct connection *con, const uint8_t *data, int data_len)

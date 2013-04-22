@@ -72,15 +72,37 @@ extern "C" {
 
 u16_t inet_chksum(void *dataptr, u16_t len);
 u16_t inet_chksum_pbuf(struct pbuf *p);
-u16_t inet_chksum_pseudo(struct pbuf *p,
-       ip_addr_t *src, ip_addr_t *dest,
-       u8_t proto, u16_t proto_len);
-u16_t inet_chksum_pseudo_partial(struct pbuf *p,
-       ip_addr_t *src, ip_addr_t *dest,
-       u8_t proto, u16_t proto_len, u16_t chksum_len);
+u16_t inet_chksum_pseudo(struct pbuf *p, u8_t proto, u16_t proto_len,
+       ip_addr_t *src, ip_addr_t *dest);
+u16_t inet_chksum_pseudo_partial(struct pbuf *p, u8_t proto,
+       u16_t proto_len, u16_t chksum_len, ip_addr_t *src, ip_addr_t *dest);
 #if LWIP_CHKSUM_COPY_ALGORITHM
 u16_t lwip_chksum_copy(void *dst, const void *src, u16_t len);
 #endif /* LWIP_CHKSUM_COPY_ALGORITHM */
+
+#if LWIP_IPV6
+u16_t ip6_chksum_pseudo(struct pbuf *p, u8_t proto, u16_t proto_len,
+       ip6_addr_t *src, ip6_addr_t *dest);
+u16_t ip6_chksum_pseudo_partial(struct pbuf *p, u8_t proto, u16_t proto_len,
+       u16_t chksum_len, ip6_addr_t *src, ip6_addr_t *dest);
+
+#define ipX_chksum_pseudo(isipv6, p, proto, proto_len, src, dest) \
+  ((isipv6) ? \
+  ip6_chksum_pseudo(p, proto, proto_len, ipX_2_ip6(src), ipX_2_ip6(dest)) :\
+  inet_chksum_pseudo(p, proto, proto_len, ipX_2_ip(src), ipX_2_ip(dest)))
+#define ipX_chksum_pseudo_partial(isipv6, p, proto, proto_len, chksum_len, src, dest) \
+  ((isipv6) ? \
+  ip6_chksum_pseudo_partial(p, proto, proto_len, chksum_len, ipX_2_ip6(src), ipX_2_ip6(dest)) :\
+  inet_chksum_pseudo_partial(p, proto, proto_len, chksum_len, ipX_2_ip(src), ipX_2_ip(dest)))
+
+#else /* LWIP_IPV6 */
+
+#define ipX_chksum_pseudo(isipv6, p, proto, proto_len, src, dest) \
+  inet_chksum_pseudo(p, proto, proto_len, src, dest)
+#define ipX_chksum_pseudo_partial(isipv6, p, proto, proto_len, chksum_len, src, dest) \
+  inet_chksum_pseudo_partial(p, proto, proto_len, chksum_len, src, dest)
+
+#endif /* LWIP_IPV6 */
 
 #ifdef __cplusplus
 }

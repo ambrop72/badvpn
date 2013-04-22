@@ -7,7 +7,7 @@
 #error "This tests needs MEM-statistics enabled"
 #endif
 #if LWIP_DNS
-/*#error "This test needs DNS turned off (as it mallocs on init)"*/
+#error "This test needs DNS turned off (as it mallocs on init)"
 #endif
 
 /* Setups/teardown functions */
@@ -67,7 +67,7 @@ Suite *
 mem_suite(void)
 {
   TFun tests[] = {
-    test_mem_one,
+    test_mem_one
   };
   return create_suite("MEM", tests, sizeof(tests)/sizeof(TFun), mem_setup, mem_teardown);
 }

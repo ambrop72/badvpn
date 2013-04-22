@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2004 Swedish Institute of Computer Science.
+ * Copyright (c) 2001-2003 Swedish Institute of Computer Science.
  * All rights reserved. 
  * 
  * Redistribution and use in source and binary forms, with or without modification, 
@@ -26,75 +26,28 @@
  *
  * This file is part of the lwIP TCP/IP stack.
  * 
- * Author: Adam Dunkels <adam@sics.se>
+ * Author: Simon Goldschmidt
  *
  */
-#ifndef __LWIP_ICMP_H__
-#define __LWIP_ICMP_H__
+#ifndef __LWIPOPTS_H__
+#define __LWIPOPTS_H__
 
-#include "lwip/opt.h"
+/* Prevent having to link sys_arch.c (we don't test the API layers in unit tests) */
+#define NO_SYS                          1
+#define LWIP_NETCONN                    0
+#define LWIP_SOCKET                     0
 
-#if LWIP_ICMP /* don't build if not configured for use in lwipopts.h */
+/* Enable DHCP to test it, disable UDP checksum to easier inject packets */
+#define LWIP_DHCP                       1
 
-#include "lwip/pbuf.h"
-#include "lwip/netif.h"
+/* Minimal changes to opt.h required for tcp unit tests: */
+#define MEM_SIZE                        16000
+#define TCP_SND_QUEUELEN                40
+#define MEMP_NUM_TCP_SEG                TCP_SND_QUEUELEN
+#define TCP_SND_BUF                     (12 * TCP_MSS)
+#define TCP_WND                         (10 * TCP_MSS)
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* Minimal changes to opt.h required for etharp unit tests: */
+#define ETHARP_SUPPORT_STATIC_ENTRIES   1
 
-#define ICMP6_DUR  1
-#define ICMP6_TE   3
-#define ICMP6_ECHO 128    /* echo */
-#define ICMP6_ER   129      /* echo reply */
-
-
-enum icmp_dur_type {
-  ICMP_DUR_NET = 0,    /* net unreachable */
-  ICMP_DUR_HOST = 1,   /* host unreachable */
-  ICMP_DUR_PROTO = 2,  /* protocol unreachable */
-  ICMP_DUR_PORT = 3,   /* port unreachable */
-  ICMP_DUR_FRAG = 4,   /* fragmentation needed and DF set */
-  ICMP_DUR_SR = 5      /* source route failed */
-};
-
-enum icmp_te_type {
-  ICMP_TE_TTL = 0,     /* time to live exceeded in transit */
-  ICMP_TE_FRAG = 1     /* fragment reassembly time exceeded */
-};
-
-void icmp_input(struct pbuf *p, struct netif *inp);
-
-void icmp_dest_unreach(struct pbuf *p, enum icmp_dur_type t);
-void icmp_time_exceeded(struct pbuf *p, enum icmp_te_type t);
-
-struct icmp_echo_hdr {
-  u8_t type;
-  u8_t icode;
-  u16_t chksum;
-  u16_t id;
-  u16_t seqno;
-};
-
-struct icmp_dur_hdr {
-  u8_t type;
-  u8_t icode;
-  u16_t chksum;
-  u32_t unused;
-};
-
-struct icmp_te_hdr {
-  u8_t type;
-  u8_t icode;
-  u16_t chksum;
-  u32_t unused;
-};
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* LWIP_ICMP */
-
-#endif /* __LWIP_ICMP_H__ */
-
+#endif /* __LWIPOPTS_H__ */

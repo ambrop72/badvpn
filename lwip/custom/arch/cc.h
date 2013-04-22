@@ -69,6 +69,13 @@
 #define LWIP_PLATFORM_HTONS(x) hton16(x)
 #define LWIP_PLATFORM_HTONL(x) hton32(x)
 
+#define LWIP_RAND() ( \
+    (((uint32_t)(rand() & 0xFF)) << 24) | \
+    (((uint32_t)(rand() & 0xFF)) << 16) | \
+    (((uint32_t)(rand() & 0xFF)) << 8) | \
+    (((uint32_t)(rand() & 0xFF)) << 0) \
+)
+
 // for BYTE_ORDER
 #if defined(BADVPN_USE_WINAPI) && !defined(_MSC_VER)
     #include <sys/param.h>

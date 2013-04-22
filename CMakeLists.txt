@@ -106,6 +106,7 @@ include_directories(
     lwip/custom
     lwip/src/include
     lwip/src/include/ipv4
+    lwip/src/include/ipv6
 )
 
 link_directories(

@@ -573,9 +573,10 @@ dns_send(u8_t numdns, const char* name, u8_t id)
   LWIP_ASSERT("dns server has no IP address set", !ip_addr_isany(&dns_servers[numdns]));
 
   /* if here, we have either a new query or a retry on a previous query to process */
-  p = pbuf_alloc(PBUF_TRANSPORT, SIZEOF_DNS_HDR + DNS_MAX_NAME_LENGTH +
+  p = pbuf_alloc(PBUF_TRANSPORT, SIZEOF_DNS_HDR + DNS_MAX_NAME_LENGTH + 1 +
                  SIZEOF_DNS_QUERY, PBUF_RAM);
   if (p != NULL) {
+    u16_t realloc_size;
     LWIP_ASSERT("pbuf must be in one piece", p->next == NULL);
     /* fill dns header */
     hdr = (struct dns_hdr*)p->payload;
@@ -607,7 +608,9 @@ dns_send(u8_t numdns, const char* name, u8_t id)
     SMEMCPY(query, &qry, SIZEOF_DNS_QUERY);
 
     /* resize pbuf to the exact dns query */
-    pbuf_realloc(p, (u16_t)((query + SIZEOF_DNS_QUERY) - ((char*)(p->payload))));
+    realloc_size = (u16_t)((query + SIZEOF_DNS_QUERY) - ((char*)(p->payload)));
+    LWIP_ASSERT("p->tot_len >= realloc_size", p->tot_len >= realloc_size);
+    pbuf_realloc(p, realloc_size);
 
     /* connect to the server for faster receiving */
     udp_connect(dns_pcb, &dns_servers[numdns], DNS_SERVER_PORT);
@@ -694,7 +697,7 @@ dns_check_entry(u8_t i)
 
     case DNS_STATE_DONE: {
       /* if the time to live is nul */
-      if (--pEntry->ttl == 0) {
+      if ((pEntry->ttl == 0) || (--pEntry->ttl == 0)) {
         LWIP_DEBUGF(DNS_DEBUG, ("dns_check_entry: \"%s\": flush\n", pEntry->name));
         /* flush this entry */
         pEntry->state = DNS_STATE_UNUSED;
@@ -816,6 +819,13 @@ dns_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, ip_addr_t *addr, u16_t 
             if (pEntry->found) {
               (*pEntry->found)(pEntry->name, &pEntry->ipaddr, pEntry->arg);
             }
+            if (pEntry->ttl == 0) {
+              /* RFC 883, page 29: "Zero values are
+                 interpreted to mean that the RR can only be used for the
+                 transaction in progress, and should not be cached."
+                 -> flush this entry now */
+              goto flushentry;
+            }
             /* deallocate memory and return */
             goto memerr;
           } else {
@@ -838,6 +848,7 @@ responseerr:
   if (pEntry->found) {
     (*pEntry->found)(pEntry->name, NULL, pEntry->arg);
   }
+flushentry:
   /* flush this entry */
   pEntry->state = DNS_STATE_UNUSED;
   pEntry->found = NULL;
@@ -852,12 +863,14 @@ memerr:
  * Queues a new hostname to resolve and sends out a DNS query for that hostname
  *
  * @param name the hostname that is to be queried
+ * @param hostnamelen length of the hostname
  * @param found a callback founction to be called on success, failure or timeout
  * @param callback_arg argument to pass to the callback function
  * @return @return a err_t return code.
  */
 static err_t
-dns_enqueue(const char *name, dns_found_callback found, void *callback_arg)
+dns_enqueue(const char *name, size_t hostnamelen, dns_found_callback found,
+            void *callback_arg)
 {
   u8_t i;
   u8_t lseq, lseqi;
@@ -902,7 +915,7 @@ dns_enqueue(const char *name, dns_found_callback found, void *callback_arg)
   pEntry->seqno = dns_seqno++;
   pEntry->found = found;
   pEntry->arg   = callback_arg;
-  namelen = LWIP_MIN(strlen(name), DNS_MAX_NAME_LENGTH-1);
+  namelen = LWIP_MIN(hostnamelen, DNS_MAX_NAME_LENGTH-1);
   MEMCPY(pEntry->name, name, namelen);
   pEntry->name[namelen] = 0;
 
@@ -922,6 +935,7 @@ dns_enqueue(const char *name, dns_found_callback found, void *callback_arg)
  *   name is already in the local names table.
  * - ERR_INPROGRESS enqueue a request to be sent to the DNS server
  *   for resolution if no errors are present.
+ * - ERR_ARG: dns client not initialized or invalid hostname
  *
  * @param hostname the hostname that is to be queried
  * @param addr pointer to a ip_addr_t where to store the address if it is already
@@ -936,13 +950,18 @@ dns_gethostbyname(const char *hostname, ip_addr_t *addr, dns_found_callback foun
                   void *callback_arg)
 {
   u32_t ipaddr;
+  size_t hostnamelen;
   /* not initialized or no valid server yet, or invalid addr pointer
    * or invalid hostname or invalid hostname length */
   if ((dns_pcb == NULL) || (addr == NULL) ||
-      (!hostname) || (!hostname[0]) ||
-      (strlen(hostname) >= DNS_MAX_NAME_LENGTH)) {
-    return ERR_VAL;
+      (!hostname) || (!hostname[0])) {
+    return ERR_ARG;
   }
+  hostnamelen = strlen(hostname);
+  if (hostnamelen >= DNS_MAX_NAME_LENGTH) {
+    return ERR_ARG;
+  }
+  
 
 #if LWIP_HAVE_LOOPIF
   if (strcmp(hostname, "localhost")==0) {
@@ -963,7 +982,7 @@ dns_gethostbyname(const char *hostname, ip_addr_t *addr, dns_found_callback foun
   }
 
   /* queue query with specified callback */
-  return dns_enqueue(hostname, found, callback_arg);
+  return dns_enqueue(hostname, hostnamelen, found, callback_arg);
 }
 
 #endif /* LWIP_DNS */

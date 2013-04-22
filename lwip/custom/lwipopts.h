@@ -31,7 +31,7 @@
 #define LWIP_CUSTOM_LWIPOPTS_H
 
 #define NO_SYS 1
-#define MEM_ALIGNMENT 8
+#define MEM_ALIGNMENT 4
 
 #define LWIP_ARP 0
 #define ARP_QUEUEING 0
@@ -54,6 +54,9 @@
 #define LWIP_NETCONN 0
 #define LWIP_SOCKET 0
 #define PPP_SUPPORT 0
+#define LWIP_IPV6 1
+#define LWIP_IPV6_MLD 0
+#define LWIP_IPV6_AUTOCONFIG 0
 
 #define MEMP_NUM_TCP_PCB_LISTEN 16
 #define MEMP_NUM_TCP_PCB 1024

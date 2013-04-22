@@ -39,6 +39,7 @@
 #include <misc/debug.h>
 #include <misc/byteorder.h>
 #include <misc/ipv4_proto.h>
+#include <misc/ipv6_proto.h>
 #include <misc/read_write_int.h>
 
 B_START_PACKED
@@ -85,6 +86,42 @@ static uint16_t udp_checksum (const struct udp_header *header, const uint8_t *pa
         
         x = hton16(((uint16_t)payload[payload_len - 1]) << 8);
         t += udp_checksum_summer((char *)&x, sizeof(x));
+    }
+    
+    while (t >> 16) {
+        t = (t & 0xFFFF) + (t >> 16);
+    }
+    
+    if (t == 0) {
+        t = UINT16_MAX;
+    }
+    
+    return hton16(~t);
+}
+
+static uint16_t udp_ip6_checksum (const struct udp_header *header, const uint8_t *payload, uint16_t payload_len, const uint8_t *source_addr, const uint8_t *dest_addr)
+{
+    uint32_t t = 0;
+    
+    t += udp_checksum_summer((const char *)source_addr, 16);
+    t += udp_checksum_summer((const char *)dest_addr, 16);
+    
+    uint32_t x;
+    x = hton32(sizeof(*header) + payload_len);
+    t += udp_checksum_summer((char *)&x, sizeof(x));
+    x = hton32(IPV6_NEXT_UDP);
+    t += udp_checksum_summer((char *)&x, sizeof(x));
+    
+    t += udp_checksum_summer((const char *)header, sizeof(*header));
+    
+    if (payload_len % 2 == 0) {
+        t += udp_checksum_summer((const char *)payload, payload_len);
+    } else {
+        t += udp_checksum_summer((const char *)payload, payload_len - 1);
+        
+        uint16_t y;
+        y = hton16(((uint16_t)payload[payload_len - 1]) << 8);
+        t += udp_checksum_summer((char *)&y, sizeof(y));
     }
     
     while (t >> 16) {
