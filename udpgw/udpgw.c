@@ -919,7 +919,7 @@ BAddr get_local_addr (int addr_type)
     switch (addr_type) {
         case BADDR_TYPE_IPV4: return local_udp_addr;
         case BADDR_TYPE_IPV6: return local_udp_ip6_addr;
-        default: ASSERT(0);
+        default: ASSERT(0); return BAddr_MakeNone();
     }
 }
 
