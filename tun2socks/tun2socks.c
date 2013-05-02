@@ -46,6 +46,7 @@
 #include <misc/open_standard_streams.h>
 #include <misc/read_file.h>
 #include <misc/ipaddr6.h>
+#include <misc/concat_strings.h>
 #include <structure/LinkedList1.h>
 #include <base/BLog.h>
 #include <system/BReactor.h>
@@ -105,6 +106,7 @@ struct {
     char *username;
     char *password;
     char *password_file;
+    int append_source_to_username;
     char *udpgw_remote_server_addr;
     int udpgw_max_connections;
     int udpgw_connection_buffer_size;
@@ -122,6 +124,7 @@ struct tcp_client {
     int client_closed;
     uint8_t buf[TCP_WND];
     int buf_used;
+    char *socks_username;
     BSocksClient socks_client;
     int socks_up;
     int socks_closed;
@@ -487,6 +490,7 @@ void print_help (const char *name)
         "        [--username <username>]\n"
         "        [--password <password>]\n"
         "        [--password-file <file>]\n"
+        "        [--append-source-to-username]\n"
         "        [--udpgw-remote-server-addr <addr>]\n"
         "        [--udpgw-max-connections <number>]\n"
         "        [--udpgw-connection-buffer-size <number>]\n"
@@ -526,6 +530,7 @@ int parse_arguments (int argc, char *argv[])
     options.username = NULL;
     options.password = NULL;
     options.password_file = NULL;
+    options.append_source_to_username = 0;
     options.udpgw_remote_server_addr = NULL;
     options.udpgw_max_connections = DEFAULT_UDPGW_MAX_CONNECTIONS;
     options.udpgw_connection_buffer_size = DEFAULT_UDPGW_CONNECTION_BUFFER_SIZE;
@@ -670,6 +675,9 @@ int parse_arguments (int argc, char *argv[])
             }
             options.password_file = argv[i + 1];
             i++;
+        }
+        else if (!strcmp(arg, "--append-source-to-username")) {
+            options.append_source_to_username = 1;
         }
         else if (!strcmp(arg, "--udpgw-remote-server-addr")) {
             if (1 >= argc - i) {
@@ -1232,25 +1240,40 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     struct tcp_client *client = (struct tcp_client *)malloc(sizeof(*client));
     if (!client) {
         BLog(BLOG_ERROR, "listener accept: malloc failed");
-        return ERR_MEM;
+        goto fail0;
     }
+    client->socks_username = NULL;
     
     SYNC_DECL
     SYNC_FROMHERE
     
+    // read addresses
+    client->local_addr = baddr_from_lwip(PCB_ISIPV6(newpcb), &newpcb->local_ip, newpcb->local_port);
+    client->remote_addr = baddr_from_lwip(PCB_ISIPV6(newpcb), &newpcb->remote_ip, newpcb->remote_port);
+    
     // get destination address
-    BAddr addr = baddr_from_lwip(PCB_ISIPV6(newpcb), &newpcb->local_ip, newpcb->local_port);
+    BAddr addr = client->local_addr;
 #ifdef OVERRIDE_DEST_ADDR
     ASSERT_FORCE(BAddr_Parse2(&addr, OVERRIDE_DEST_ADDR, NULL, 0, 1))
 #endif
+    
+    // add source address to username if requested
+    if (options.username && options.append_source_to_username) {
+        char addr_str[BADDR_MAX_PRINT_LEN];
+        BAddr_Print(&client->remote_addr, addr_str);
+        client->socks_username = concat_strings(3, options.username, "@", addr_str);
+        if (!client->socks_username) {
+            goto fail1;
+        }
+        socks_auth_info[1].password.username = client->socks_username;
+        socks_auth_info[1].password.username_len = strlen(client->socks_username);
+    }
     
     // init SOCKS
     if (!BSocksClient_Init(&client->socks_client, socks_server_addr, socks_auth_info, socks_num_auth_info,
                            addr, (BSocksClient_handler)client_socks_handler, client, &ss)) {
         BLog(BLOG_ERROR, "listener accept: BSocksClient_Init failed");
-        SYNC_BREAK
-        free(client);
-        return ERR_MEM;
+        goto fail1;
     }
     
     // init dead vars
@@ -1269,10 +1292,6 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     
     // set client not closed
     client->client_closed = 0;
-    
-    // read addresses
-    client->local_addr = baddr_from_lwip(PCB_ISIPV6(newpcb), &newpcb->local_ip, newpcb->local_port);
-    client->remote_addr = baddr_from_lwip(PCB_ISIPV6(newpcb), &newpcb->remote_ip, newpcb->remote_port);
     
     // setup handler argument
     tcp_arg(client->pcb, client);
@@ -1298,6 +1317,13 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     }
     
     return ERR_OK;
+    
+fail1:
+    SYNC_BREAK
+    free(client->socks_username);
+    free(client);
+fail0:
+    return ERR_MEM;
 }
 
 void client_handle_freed_client (struct tcp_client *client)
@@ -1436,6 +1462,7 @@ void client_dealloc (struct tcp_client *client)
     DEAD_KILL(client->dead);
     
     // free memory
+    free(client->socks_username);
     free(client);
 }
 
