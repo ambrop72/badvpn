@@ -52,6 +52,10 @@ static void SLinkedList_Append (SLinkedList *o, SLinkedListEntry *entry);
 static void SLinkedList_InsertBefore (SLinkedList *o, SLinkedListEntry *entry, SLinkedListEntry *before_entry);
 static void SLinkedList_InsertAfter (SLinkedList *o, SLinkedListEntry *entry, SLinkedListEntry *after_entry);
 static void SLinkedList_Remove (SLinkedList *o, SLinkedListEntry *entry);
+static void SLinkedList_RemoveFirst (SLinkedList *o);
+#if SLINKEDLIST_PARAM_FEATURE_LAST
+static void SLinkedList_RemoveLast (SLinkedList *o);
+#endif
 static SLinkedListEntry * SLinkedList_First (const SLinkedList *o);
 #if SLINKEDLIST_PARAM_FEATURE_LAST
 static SLinkedListEntry * SLinkedList_Last (const SLinkedList *o);

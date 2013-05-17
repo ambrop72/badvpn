@@ -131,6 +131,34 @@ static void SLinkedList_Remove (SLinkedList *o, SLinkedListEntry *entry)
     }
 }
 
+static void SLinkedList_RemoveFirst (SLinkedList *o)
+{
+    ASSERT(o->first)
+    
+    o->first = SLinkedList_next(o->first);
+    if (o->first) {
+        SLinkedList_prev(o->first) = NULL;
+    } else {
+#if SLINKEDLIST_PARAM_FEATURE_LAST
+        o->last = NULL;
+#endif
+    }
+}
+
+#if SLINKEDLIST_PARAM_FEATURE_LAST
+static void SLinkedList_RemoveLast (SLinkedList *o)
+{
+    ASSERT(o->last)
+    
+    o->last = SLinkedList_prev(o->last);
+    if (o->last) {
+        SLinkedList_next(o->last) = NULL;
+    } else {
+        o->first = NULL;
+    }
+}
+#endif
+
 static SLinkedListEntry * SLinkedList_First (const SLinkedList *o)
 {
     return o->first;

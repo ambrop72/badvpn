@@ -45,6 +45,8 @@
 #undef SLinkedList_InsertBefore
 #undef SLinkedList_InsertAfter
 #undef SLinkedList_Remove
+#undef SLinkedList_RemoveFirst
+#undef SLinkedList_RemoveLast
 #undef SLinkedList_First
 #undef SLinkedList_Last
 #undef SLinkedList_IsEmpty
