@@ -74,7 +74,7 @@ void BPendingGroup_ExecuteJob (BPendingGroup *g)
     ASSERT(p->pending)
     
     // remove from jobs list
-    BPending__List_Remove(&g->jobs, p);
+    BPending__List_RemoveFirst(&g->jobs);
     
     // set not pending
     p->pending_node.next = p;
