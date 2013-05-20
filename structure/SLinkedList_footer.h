@@ -36,12 +36,12 @@
 #undef SLinkedListEntry
 #undef SLinkedListNode
 
-#undef SLinkedListNext
-#undef SLinkedListPrev
 #undef SLinkedListMarkRemoved
 #undef SLinkedListIsRemoved
 
 #undef SLinkedList_Init
+#undef SLinkedList_Next
+#undef SLinkedList_Prev
 #undef SLinkedList_Prepend
 #undef SLinkedList_Append
 #undef SLinkedList_InsertBefore

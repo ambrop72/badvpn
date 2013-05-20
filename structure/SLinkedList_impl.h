@@ -29,20 +29,6 @@
 
 #include "SLinkedList_header.h"
 
-static SLinkedListEntry * SLinkedListNext (SLinkedListEntry *entry)
-{
-    ASSERT(entry)
-    
-    return SLinkedList_next(entry);
-}
-
-static SLinkedListEntry * SLinkedListPrev (SLinkedListEntry *entry)
-{
-    ASSERT(entry)
-    
-    return SLinkedList_prev(entry);
-}
-
 static void SLinkedListMarkRemoved (SLinkedListEntry *entry)
 {
     ASSERT(entry)
@@ -63,6 +49,20 @@ static void SLinkedList_Init (SLinkedList *o)
 #if SLINKEDLIST_PARAM_FEATURE_LAST
     o->last = NULL;
 #endif
+}
+
+static SLinkedListEntry * SLinkedList_Next (SLinkedList *o, SLinkedListEntry *entry)
+{
+    ASSERT(entry)
+    
+    return SLinkedList_next(entry);
+}
+
+static SLinkedListEntry * SLinkedList_Prev (SLinkedList *o, SLinkedListEntry *entry)
+{
+    ASSERT(entry)
+    
+    return SLinkedList_prev(entry);
 }
 
 static void SLinkedList_Prepend (SLinkedList *o, SLinkedListEntry *entry)
