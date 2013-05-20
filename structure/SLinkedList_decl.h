@@ -43,6 +43,8 @@ typedef struct {
 
 static SLinkedListEntry * SLinkedListNext (SLinkedListEntry *entry);
 static SLinkedListEntry * SLinkedListPrev (SLinkedListEntry *entry);
+static void SLinkedListMarkRemoved (SLinkedListEntry *entry);
+static int SLinkedListIsRemoved (SLinkedListEntry *entry);
 
 static void SLinkedList_Init (SLinkedList *o);
 static void SLinkedList_Prepend (SLinkedList *o, SLinkedListEntry *entry);

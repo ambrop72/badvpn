@@ -43,6 +43,20 @@ static SLinkedListEntry * SLinkedListPrev (SLinkedListEntry *entry)
     return SLinkedList_prev(entry);
 }
 
+static void SLinkedListMarkRemoved (SLinkedListEntry *entry)
+{
+    ASSERT(entry)
+    
+    SLinkedList_next(entry) = entry;
+}
+
+static int SLinkedListIsRemoved (SLinkedListEntry *entry)
+{
+    ASSERT(entry)
+    
+    return (entry == SLinkedList_next(entry));
+}
+
 static void SLinkedList_Init (SLinkedList *o)
 {
     o->first = NULL;

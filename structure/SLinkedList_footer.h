@@ -38,6 +38,8 @@
 
 #undef SLinkedListNext
 #undef SLinkedListPrev
+#undef SLinkedListMarkRemoved
+#undef SLinkedListIsRemoved
 
 #undef SLinkedList_Init
 #undef SLinkedList_Prepend

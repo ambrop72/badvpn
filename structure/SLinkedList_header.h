@@ -41,6 +41,8 @@
 // non-object public functions
 #define SLinkedListNext MERGE(SLinkedList, Next)
 #define SLinkedListPrev MERGE(SLinkedList, Prev)
+#define SLinkedListMarkRemoved MERGE(SLinkedList, MarkRemoved)
+#define SLinkedListIsRemoved MERGE(SLinkedList, IsRemoved)
 
 // public functions
 #define SLinkedList_Init MERGE(SLinkedList, _Init)
