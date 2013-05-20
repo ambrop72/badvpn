@@ -70,14 +70,14 @@ void BPendingGroup_ExecuteJob (BPendingGroup *g)
     
     // get a job
     BSmallPending *p = BPending__List_First(&g->jobs);
-    ASSERT(p->pending_node.next != p)
+    ASSERT(!BPending__ListIsRemoved(p))
     ASSERT(p->pending)
     
     // remove from jobs list
     BPending__List_RemoveFirst(&g->jobs);
     
     // set not pending
-    p->pending_node.next = p;
+    BPending__ListMarkRemoved(p);
 #ifndef NDEBUG
     p->pending = 0;
 #endif
@@ -101,7 +101,7 @@ void BSmallPending_Init (BSmallPending *o, BPendingGroup *g, BSmallPending_handl
     o->user = user;
     
     // set not pending
-    o->pending_node.next = o;
+    BPending__ListMarkRemoved(o);
 #ifndef NDEBUG
     o->pending = 0;
 #endif
@@ -117,10 +117,10 @@ void BSmallPending_Free (BSmallPending *o, BPendingGroup *g)
 {
     DebugCounter_Decrement(&g->pending_ctr);
     DebugObject_Free(&o->d_obj);
-    ASSERT(o->pending == (o->pending_node.next != o))
+    ASSERT(o->pending == !BPending__ListIsRemoved(o))
     
     // remove from jobs list
-    if (o->pending_node.next != o) {
+    if (!BPending__ListIsRemoved(o)) {
         BPending__List_Remove(&g->jobs, o);
     }
 }
@@ -137,10 +137,10 @@ void BSmallPending_SetHandler (BSmallPending *o, BSmallPending_handler handler, 
 void BSmallPending_Set (BSmallPending *o, BPendingGroup *g)
 {
     DebugObject_Access(&o->d_obj);
-    ASSERT(o->pending == (o->pending_node.next != o))
+    ASSERT(o->pending == !BPending__ListIsRemoved(o))
     
     // remove from jobs list
-    if (o->pending_node.next != o) {
+    if (!BPending__ListIsRemoved(o)) {
         BPending__List_Remove(&g->jobs, o);
     }
     
@@ -156,14 +156,14 @@ void BSmallPending_Set (BSmallPending *o, BPendingGroup *g)
 void BSmallPending_Unset (BSmallPending *o, BPendingGroup *g)
 {
     DebugObject_Access(&o->d_obj);
-    ASSERT(o->pending == (o->pending_node.next != o))
+    ASSERT(o->pending == !BPending__ListIsRemoved(o))
     
-    if (o->pending_node.next != o) {
+    if (!BPending__ListIsRemoved(o)) {
         // remove from jobs list
         BPending__List_Remove(&g->jobs, o);
         
         // set not pending
-        o->pending_node.next = o;
+        BPending__ListMarkRemoved(o);
 #ifndef NDEBUG
         o->pending = 0;
 #endif
@@ -173,9 +173,9 @@ void BSmallPending_Unset (BSmallPending *o, BPendingGroup *g)
 int BSmallPending_IsSet (BSmallPending *o)
 {
     DebugObject_Access(&o->d_obj);
-    ASSERT(o->pending == (o->pending_node.next != o))
+    ASSERT(o->pending == !BPending__ListIsRemoved(o))
     
-    return (o->pending_node.next != o);
+    return !BPending__ListIsRemoved(o);
 }
 
 void BPending_Init (BPending *o, BPendingGroup *g, BPending_handler handler, void *user)
