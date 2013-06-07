@@ -46,9 +46,6 @@ static int SLinkedListIsRemoved (SLinkedListEntry *entry)
 static void SLinkedList_Init (SLinkedList *o)
 {
     o->first = NULL;
-#if SLINKEDLIST_PARAM_FEATURE_LAST
-    o->last = NULL;
-#endif
 }
 
 static SLinkedListEntry * SLinkedList_Next (SLinkedList *o, SLinkedListEntry *entry)
@@ -62,14 +59,13 @@ static SLinkedListEntry * SLinkedList_Prev (SLinkedList *o, SLinkedListEntry *en
 {
     ASSERT(entry)
     
-    return SLinkedList_prev(entry);
+    return (entry == o->first) ? NULL : SLinkedList_prev(entry);
 }
 
 static void SLinkedList_Prepend (SLinkedList *o, SLinkedListEntry *entry)
 {
     ASSERT(entry)
 
-    SLinkedList_prev(entry) = NULL;
     SLinkedList_next(entry) = o->first;
     if (o->first) {
         SLinkedList_prev(o->first) = entry;
@@ -87,8 +83,8 @@ static void SLinkedList_Append (SLinkedList *o, SLinkedListEntry *entry)
     ASSERT(entry)
 
     SLinkedList_next(entry) = NULL;
-    SLinkedList_prev(entry) = o->last;
-    if (o->last) {
+    if (o->first) {
+        SLinkedList_prev(entry) = o->last;
         SLinkedList_next(o->last) = entry;
     } else {
         o->first = entry;
@@ -102,9 +98,9 @@ static void SLinkedList_InsertBefore (SLinkedList *o, SLinkedListEntry *entry, S
     ASSERT(entry)
     ASSERT(before_entry)
     
-    SLinkedList_prev(entry) = SLinkedList_prev(before_entry);
     SLinkedList_next(entry) = before_entry;
-    if (SLinkedList_prev(before_entry)) {
+    if (before_entry != o->first) {
+        SLinkedList_prev(entry) = SLinkedList_prev(before_entry);
         SLinkedList_next(SLinkedList_prev(before_entry)) = entry;
     } else {
         o->first = entry;
@@ -131,17 +127,17 @@ static void SLinkedList_InsertAfter (SLinkedList *o, SLinkedListEntry *entry, SL
 
 static void SLinkedList_Remove (SLinkedList *o, SLinkedListEntry *entry)
 {
-    if (SLinkedList_prev(entry)) {
+    if (entry != o->first) {
         SLinkedList_next(SLinkedList_prev(entry)) = SLinkedList_next(entry);
+        if (SLinkedList_next(entry)) {
+            SLinkedList_prev(SLinkedList_next(entry)) = SLinkedList_prev(entry);
+        } else {
+#if SLINKEDLIST_PARAM_FEATURE_LAST
+            o->last = SLinkedList_prev(entry);
+#endif
+        }
     } else {
         o->first = SLinkedList_next(entry);
-    }
-    if (SLinkedList_next(entry)) {
-        SLinkedList_prev(SLinkedList_next(entry)) = SLinkedList_prev(entry);
-    } else {
-#if SLINKEDLIST_PARAM_FEATURE_LAST
-        o->last = SLinkedList_prev(entry);
-#endif
     }
 }
 
@@ -150,25 +146,18 @@ static void SLinkedList_RemoveFirst (SLinkedList *o)
     ASSERT(o->first)
     
     o->first = SLinkedList_next(o->first);
-    if (o->first) {
-        SLinkedList_prev(o->first) = NULL;
-    } else {
-#if SLINKEDLIST_PARAM_FEATURE_LAST
-        o->last = NULL;
-#endif
-    }
 }
 
 #if SLINKEDLIST_PARAM_FEATURE_LAST
 static void SLinkedList_RemoveLast (SLinkedList *o)
 {
-    ASSERT(o->last)
+    ASSERT(o->first)
     
-    o->last = SLinkedList_prev(o->last);
-    if (o->last) {
-        SLinkedList_next(o->last) = NULL;
-    } else {
+    if (o->last == o->first) {
         o->first = NULL;
+    } else {
+        SLinkedList_next(SLinkedList_prev(o->last)) = NULL;
+        o->last = SLinkedList_prev(o->last);
     }
 }
 #endif
@@ -181,7 +170,7 @@ static SLinkedListEntry * SLinkedList_First (const SLinkedList *o)
 #if SLINKEDLIST_PARAM_FEATURE_LAST
 static SLinkedListEntry * SLinkedList_Last (const SLinkedList *o)
 {
-    return o->last;
+    return (!o->first ? NULL : o->last);
 }
 #endif
 
