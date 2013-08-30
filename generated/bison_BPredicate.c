@@ -1,8 +1,8 @@
-/* A Bison parser, made by GNU Bison 2.7.  */
+/* A Bison parser, made by GNU Bison 2.7.12-4996.  */
 
 /* Bison implementation for Yacc-like parsers in C
    
-      Copyright (C) 1984, 1989-1990, 2000-2012 Free Software Foundation, Inc.
+      Copyright (C) 1984, 1989-1990, 2000-2013 Free Software Foundation, Inc.
    
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -44,7 +44,7 @@
 #define YYBISON 1
 
 /* Bison version.  */
-#define YYBISON_VERSION "2.7"
+#define YYBISON_VERSION "2.7.12-4996"
 
 /* Skeleton name.  */
 #define YYSKELETON_NAME "yacc.c"
@@ -419,12 +419,21 @@ typedef short int yytype_int16;
 # endif
 #endif
 
+#ifndef __attribute__
+/* This feature is available in gcc versions 2.5 and later.  */
+# if (! defined __GNUC__ || __GNUC__ < 2 \
+      || (__GNUC__ == 2 && __GNUC_MINOR__ < 5))
+#  define __attribute__(Spec) /* empty */
+# endif
+#endif
+
 /* Suppress unused-variable warnings by "using" E.  */
 #if ! defined lint || defined __GNUC__
 # define YYUSE(E) ((void) (E))
 #else
 # define YYUSE(E) /* empty */
 #endif
+
 
 /* Identity function, used to suppress warnings about constant conditions.  */
 #ifndef lint
@@ -965,11 +974,7 @@ yy_symbol_value_print (yyoutput, yytype, yyvaluep, yylocationp, scanner, result)
 # else
   YYUSE (yyoutput);
 # endif
-  switch (yytype)
-    {
-      default:
-        break;
-    }
+  YYUSE (yytype);
 }
 
 
@@ -1376,119 +1381,119 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, scanner, result)
   switch (yytype)
     {
       case 3: /* STRING */
-/* Line 1398 of yacc.c  */
+/* Line 1393 of yacc.c  */
 #line 240 "predicate/BPredicate.y"
         {
     free(((*yyvaluep).text));
 };
-/* Line 1398 of yacc.c  */
-#line 1386 "generated//bison_BPredicate.c"
+/* Line 1393 of yacc.c  */
+#line 1391 "generated//bison_BPredicate.c"
         break;
       case 4: /* NAME */
-/* Line 1398 of yacc.c  */
+/* Line 1393 of yacc.c  */
 #line 240 "predicate/BPredicate.y"
         {
     free(((*yyvaluep).text));
 };
-/* Line 1398 of yacc.c  */
-#line 1395 "generated//bison_BPredicate.c"
+/* Line 1393 of yacc.c  */
+#line 1400 "generated//bison_BPredicate.c"
         break;
       case 17: /* predicate */
-/* Line 1398 of yacc.c  */
+/* Line 1393 of yacc.c  */
 #line 250 "predicate/BPredicate.y"
         {
     if (((*yyvaluep).node)) {
         free_predicate_node(((*yyvaluep).node));
     }
 };
-/* Line 1398 of yacc.c  */
-#line 1406 "generated//bison_BPredicate.c"
+/* Line 1393 of yacc.c  */
+#line 1411 "generated//bison_BPredicate.c"
         break;
       case 18: /* constant */
-/* Line 1398 of yacc.c  */
+/* Line 1393 of yacc.c  */
 #line 250 "predicate/BPredicate.y"
         {
     if (((*yyvaluep).node)) {
         free_predicate_node(((*yyvaluep).node));
     }
 };
-/* Line 1398 of yacc.c  */
-#line 1417 "generated//bison_BPredicate.c"
+/* Line 1393 of yacc.c  */
+#line 1422 "generated//bison_BPredicate.c"
         break;
       case 19: /* parentheses */
-/* Line 1398 of yacc.c  */
+/* Line 1393 of yacc.c  */
 #line 250 "predicate/BPredicate.y"
         {
     if (((*yyvaluep).node)) {
         free_predicate_node(((*yyvaluep).node));
     }
 };
-/* Line 1398 of yacc.c  */
-#line 1428 "generated//bison_BPredicate.c"
+/* Line 1393 of yacc.c  */
+#line 1433 "generated//bison_BPredicate.c"
         break;
       case 20: /* neg */
-/* Line 1398 of yacc.c  */
+/* Line 1393 of yacc.c  */
 #line 250 "predicate/BPredicate.y"
         {
     if (((*yyvaluep).node)) {
         free_predicate_node(((*yyvaluep).node));
     }
 };
-/* Line 1398 of yacc.c  */
-#line 1439 "generated//bison_BPredicate.c"
+/* Line 1393 of yacc.c  */
+#line 1444 "generated//bison_BPredicate.c"
         break;
       case 21: /* conjunct */
-/* Line 1398 of yacc.c  */
+/* Line 1393 of yacc.c  */
 #line 250 "predicate/BPredicate.y"
         {
     if (((*yyvaluep).node)) {
         free_predicate_node(((*yyvaluep).node));
     }
 };
-/* Line 1398 of yacc.c  */
-#line 1450 "generated//bison_BPredicate.c"
+/* Line 1393 of yacc.c  */
+#line 1455 "generated//bison_BPredicate.c"
         break;
       case 22: /* disjunct */
-/* Line 1398 of yacc.c  */
+/* Line 1393 of yacc.c  */
 #line 250 "predicate/BPredicate.y"
         {
     if (((*yyvaluep).node)) {
         free_predicate_node(((*yyvaluep).node));
     }
 };
-/* Line 1398 of yacc.c  */
-#line 1461 "generated//bison_BPredicate.c"
+/* Line 1393 of yacc.c  */
+#line 1466 "generated//bison_BPredicate.c"
         break;
       case 23: /* function */
-/* Line 1398 of yacc.c  */
+/* Line 1393 of yacc.c  */
 #line 250 "predicate/BPredicate.y"
         {
     if (((*yyvaluep).node)) {
         free_predicate_node(((*yyvaluep).node));
     }
 };
-/* Line 1398 of yacc.c  */
-#line 1472 "generated//bison_BPredicate.c"
+/* Line 1393 of yacc.c  */
+#line 1477 "generated//bison_BPredicate.c"
         break;
       case 24: /* arguments */
-/* Line 1398 of yacc.c  */
+/* Line 1393 of yacc.c  */
 #line 257 "predicate/BPredicate.y"
         {
     if (((*yyvaluep).arg_node)) {
         free_arguments_node(((*yyvaluep).arg_node));
     }
 };
-/* Line 1398 of yacc.c  */
-#line 1483 "generated//bison_BPredicate.c"
+/* Line 1393 of yacc.c  */
+#line 1488 "generated//bison_BPredicate.c"
         break;
       case 25: /* argument */
-/* Line 1398 of yacc.c  */
+/* Line 1393 of yacc.c  */
 #line 264 "predicate/BPredicate.y"
         {
     free_argument(((*yyvaluep).arg_arg));
 };
-/* Line 1398 of yacc.c  */
-#line 1492 "generated//bison_BPredicate.c"
+/* Line 1393 of yacc.c  */
+#line 1497 "generated//bison_BPredicate.c"
         break;
 
       default:
@@ -1818,7 +1823,7 @@ yyreduce:
   switch (yyn)
     {
         case 2:
-/* Line 1792 of yacc.c  */
+/* Line 1787 of yacc.c  */
 #line 276 "predicate/BPredicate.y"
     {
         *result = (yyvsp[(1) - (1)].node);
@@ -1826,7 +1831,7 @@ yyreduce:
     break;
 
   case 9:
-/* Line 1792 of yacc.c  */
+/* Line 1787 of yacc.c  */
 #line 284 "predicate/BPredicate.y"
     {
         (yyval.node) = make_constant(1);
@@ -1834,7 +1839,7 @@ yyreduce:
     break;
 
   case 10:
-/* Line 1792 of yacc.c  */
+/* Line 1787 of yacc.c  */
 #line 288 "predicate/BPredicate.y"
     {
         (yyval.node) = make_constant(0);
@@ -1842,7 +1847,7 @@ yyreduce:
     break;
 
   case 11:
-/* Line 1792 of yacc.c  */
+/* Line 1787 of yacc.c  */
 #line 294 "predicate/BPredicate.y"
     {
         (yyval.node) = (yyvsp[(2) - (3)].node);
@@ -1850,7 +1855,7 @@ yyreduce:
     break;
 
   case 12:
-/* Line 1792 of yacc.c  */
+/* Line 1787 of yacc.c  */
 #line 300 "predicate/BPredicate.y"
     {
         (yyval.node) = make_negation((yyvsp[(2) - (2)].node));
@@ -1858,7 +1863,7 @@ yyreduce:
     break;
 
   case 13:
-/* Line 1792 of yacc.c  */
+/* Line 1787 of yacc.c  */
 #line 306 "predicate/BPredicate.y"
     {
         (yyval.node) = make_conjunction((yyvsp[(1) - (3)].node), (yyvsp[(3) - (3)].node));
@@ -1866,7 +1871,7 @@ yyreduce:
     break;
 
   case 14:
-/* Line 1792 of yacc.c  */
+/* Line 1787 of yacc.c  */
 #line 312 "predicate/BPredicate.y"
     {
         (yyval.node) = make_disjunction((yyvsp[(1) - (3)].node), (yyvsp[(3) - (3)].node));
@@ -1874,7 +1879,7 @@ yyreduce:
     break;
 
   case 15:
-/* Line 1792 of yacc.c  */
+/* Line 1787 of yacc.c  */
 #line 318 "predicate/BPredicate.y"
     {
         (yyval.node) = make_function((yyvsp[(1) - (3)].text), NULL, 0);
@@ -1882,7 +1887,7 @@ yyreduce:
     break;
 
   case 16:
-/* Line 1792 of yacc.c  */
+/* Line 1787 of yacc.c  */
 #line 322 "predicate/BPredicate.y"
     {
         (yyval.node) = make_function((yyvsp[(1) - (4)].text), (yyvsp[(3) - (4)].arg_node), 1);
@@ -1890,7 +1895,7 @@ yyreduce:
     break;
 
   case 17:
-/* Line 1792 of yacc.c  */
+/* Line 1787 of yacc.c  */
 #line 328 "predicate/BPredicate.y"
     {
         (yyval.arg_node) = make_arguments((yyvsp[(1) - (1)].arg_arg), NULL, 0);
@@ -1898,7 +1903,7 @@ yyreduce:
     break;
 
   case 18:
-/* Line 1792 of yacc.c  */
+/* Line 1787 of yacc.c  */
 #line 332 "predicate/BPredicate.y"
     {
         (yyval.arg_node) = make_arguments((yyvsp[(1) - (3)].arg_arg), (yyvsp[(3) - (3)].arg_node), 1);
@@ -1906,7 +1911,7 @@ yyreduce:
     break;
 
   case 19:
-/* Line 1792 of yacc.c  */
+/* Line 1787 of yacc.c  */
 #line 338 "predicate/BPredicate.y"
     {
         (yyval.arg_arg) = make_argument_predicate((yyvsp[(1) - (1)].node));
@@ -1914,7 +1919,7 @@ yyreduce:
     break;
 
   case 20:
-/* Line 1792 of yacc.c  */
+/* Line 1787 of yacc.c  */
 #line 342 "predicate/BPredicate.y"
     {
         (yyval.arg_arg) = make_argument_string((yyvsp[(1) - (1)].text));
@@ -1922,8 +1927,8 @@ yyreduce:
     break;
 
 
-/* Line 1792 of yacc.c  */
-#line 1927 "generated//bison_BPredicate.c"
+/* Line 1787 of yacc.c  */
+#line 1932 "generated//bison_BPredicate.c"
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
