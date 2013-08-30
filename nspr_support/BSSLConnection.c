@@ -488,7 +488,7 @@ static void connection_try_io (BSSLConnection *o)
 
 static void connection_threadwork_func_work (void *user)
 {
-    BSSLConnection *o = user;
+    BSSLConnection *o = (BSSLConnection *)user;
     struct BSSLConnection_backend *b = o->backend;
     ASSERT(b->threadwork_state != THREADWORK_STATE_NONE)
     
@@ -511,7 +511,7 @@ static void connection_threadwork_func_work (void *user)
 
 static void connection_threadwork_handler_done (void *user)
 {
-    BSSLConnection *o = user;
+    BSSLConnection *o = (BSSLConnection *)user;
     struct BSSLConnection_backend *b = o->backend;
     ASSERT(b->threadwork_state != THREADWORK_STATE_NONE)
     
