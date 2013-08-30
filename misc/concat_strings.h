@@ -60,7 +60,7 @@ static char * concat_strings (int num, ...)
     va_end(ap);
     
     // allocate memory
-    char *res_str = malloc(sum + 1);
+    char *res_str = (char *)malloc(sum + 1);
     if (!res_str) {
         return NULL;
     }

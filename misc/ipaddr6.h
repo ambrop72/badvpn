@@ -35,7 +35,6 @@
 #define BADVPN_MISC_IPADDR6_H
 
 #include <stdio.h>
-#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -44,6 +43,7 @@
 #include <misc/byteorder.h>
 #include <misc/parse_number.h>
 #include <misc/find_char.h>
+#include <misc/print_macros.h>
 
 struct ipv6_addr {
     uint8_t bytes[16];

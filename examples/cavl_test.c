@@ -32,7 +32,6 @@
 #include <time.h>
 #include <stdint.h>
 #include <limits.h>
-#include <inttypes.h>
 
 #include <misc/balloc.h>
 #include <misc/compare.h>
