@@ -1,3 +1,15 @@
+Version 1.999.128:
+
+- tun2socks: add option --append-source-to-username to give the SOCKS server the source IP of the connection
+
+- tun2socks: IPv6 support, and updated to newer version of lwIP
+
+- tun2socks: fix some bugs/crashes
+
+- tun2socks, udpgw: transparent DNS forwarding, though no Windows support on udpgw side (contributed by Kerem Hadimli)
+
+- NCD: preliminary support for dynamically loading commands
+
 Version 1.999.127:
 
 - client, server: implement experimental support for performing SSL operations in worker threads. Currently it's rather inefficient.
