@@ -6,7 +6,7 @@ These are the NCD scripts I run on my home router.
 Three network interfaces are being configured:
 
 1. The LAN interface.
-The DHCP server is started for this interface.
+The DHCP server is started for this interface, and also a DNS server (unbound).
 2. The Internet interface.
 This is a PPPoE interface with NAT.
 3. The ServerIf interface.
