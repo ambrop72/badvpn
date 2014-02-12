@@ -50,6 +50,7 @@
 #include <generated/blog_channel_NCDIfConfig.h>
 
 #define IP_CMD "ip"
+#define MODPROBE_CMD "modprobe"
 #define RESOLVCONF_FILE "/etc/resolv.conf"
 #define RESOLVCONF_TEMP_FILE "/etc/resolv.conf-ncd-temp"
 #define TUN_DEVNODE "/dev/net/tun"
@@ -403,7 +404,7 @@ int NCDIfConfig_make_tuntap (const char *ifname, const char *owner, int tun)
 {
     // load tun module if needed
     if (access(TUN_DEVNODE, F_OK) < 0) {
-        if (run_command("/sbin/modprobe tun") != 0) {
+        if (run_command(MODPROBE_CMD" tun") != 0) {
             BLog(BLOG_ERROR, "modprobe tun failed");
         }
     }
