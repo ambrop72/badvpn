@@ -54,6 +54,7 @@
 #include <misc/string_begins_with.h>
 #include <misc/stdbuf_cmdline.h>
 #include <misc/balloc.h>
+#include <misc/find_program.h>
 #include <flow/LineBuffer.h>
 #include <system/BInputProcess.h>
 #include <ncd/NCDModule.h>
@@ -213,8 +214,17 @@ int build_cmdline (struct instance *o, CmdLine *c)
         goto fail0;
     }
     
+    // find stdbuf executable
+    char *stdbuf_exec = badvpn_find_program("stdbuf");
+    if (!stdbuf_exec) {
+        ModuleLog(o->i, BLOG_ERROR, "cannot find stdbuf executable");
+        goto fail1;
+    }
+    
     // append stdbuf part
-    if (!build_stdbuf_cmdline(c, o->exec, o->exec_len)) {
+    int res = build_stdbuf_cmdline(c, stdbuf_exec, o->exec, o->exec_len);
+    free(stdbuf_exec);
+    if (!res) {
         goto fail1;
     }
     
