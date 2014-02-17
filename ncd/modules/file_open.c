@@ -418,7 +418,7 @@ static void write_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
                 trigger_error(open_inst);
                 return;
             }
-            ASSERT(written < chunk_length - chunk_pos)
+            ASSERT(written <= chunk_length - chunk_pos)
             chunk_pos += written;
         }
     })
