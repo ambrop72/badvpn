@@ -1,3 +1,15 @@
+Version 1.999.129:
+
+- ncd: modules: file_open: Fix typo in assertion.
+
+- server: Fix bug forgetting to call BSSLConnection_ReleaseBuffers(). Unless threads are enabled, this is an assert failure if NDEBUG is not defined an a non-issue otherwise.
+
+- ncd: Look for various programs in PATH instead of hardcoded paths.
+
+- Add compile-udpgw.sh.
+
+- ncd: modules: net_dns: Implement net.dns.resolvconf() forspecification of arbitrary resolv.conf lines
+
 Version 1.999.128:
 
 - tun2socks: add option --append-source-to-username to give the SOCKS server the source IP of the connection
