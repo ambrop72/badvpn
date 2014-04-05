@@ -141,6 +141,12 @@ static int generate_val (NCDValue *value, ExpString *out_str)
             }
         } break;
         
+        case NCDVALUE_VAR: {
+            if (!ExpString_Append(out_str, NCDValue_VarName(value))) {
+                goto fail;
+            }
+        } break;
+        
         default: ASSERT(0);
     }
     
