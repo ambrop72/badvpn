@@ -147,6 +147,24 @@ static int generate_val (NCDValue *value, ExpString *out_str)
             }
         } break;
         
+        case NCDVALUE_INVOC: {
+            if (!generate_val(NCDValue_InvocFunc(value), out_str)) {
+                goto fail;
+            }
+            
+            if (!ExpString_AppendChar(out_str, '(')) {
+                goto fail;
+            }
+            
+            if (!generate_val(NCDValue_InvocArg(value), out_str)) {
+                goto fail;
+            }
+            
+            if (!ExpString_AppendChar(out_str, ')')) {
+                goto fail;
+            }
+        } break;
+        
         default: ASSERT(0);
     }
     

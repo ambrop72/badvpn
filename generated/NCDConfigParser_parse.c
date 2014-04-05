@@ -109,19 +109,19 @@ static void free_value (struct value o) { if (o.have) NCDValue_Free(&o.v); }
 **                       defined, then do no error processing.
 */
 #define YYCODETYPE unsigned char
-#define YYNOCODE 41
+#define YYNOCODE 43
 #define YYACTIONTYPE unsigned char
 #define ParseTOKENTYPE  struct token 
 typedef union {
   int yyinit;
   ParseTOKENTYPE yy0;
-  int yy12;
-  char * yy33;
-  struct block yy37;
-  struct value yy51;
-  struct program yy54;
-  struct ifblock yy76;
-  struct statement yy79;
+  char * yy1;
+  int yy4;
+  struct block yy9;
+  struct program yy18;
+  struct value yy19;
+  struct ifblock yy32;
+  struct statement yy35;
 } YYMINORTYPE;
 #ifndef YYSTACKDEPTH
 #define YYSTACKDEPTH 0
@@ -130,8 +130,8 @@ typedef union {
 #define ParseARG_PDECL , struct parser_out *parser_out 
 #define ParseARG_FETCH  struct parser_out *parser_out  = yypParser->parser_out 
 #define ParseARG_STORE yypParser->parser_out  = parser_out 
-#define YYNSTATE 99
-#define YYNRULE 38
+#define YYNSTATE 105
+#define YYNRULE 42
 #define YY_NO_ACTION      (YYNSTATE+YYNRULE+2)
 #define YY_ACCEPT_ACTION  (YYNSTATE+YYNRULE+1)
 #define YY_ERROR_ACTION   (YYNSTATE+YYNRULE)
@@ -201,72 +201,87 @@ static const YYMINORTYPE yyzerominor = { 0 };
 **  yy_default[]       Default action for each state.
 */
 static const YYACTIONTYPE yy_action[] = {
- /*     0 */    86,   39,   80,   87,   68,   88,   42,   86,   48,   80,
- /*    10 */    87,    1,   88,   42,   24,   85,   78,   41,    3,   82,
- /*    20 */    86,   40,   43,   87,   41,   88,   42,   41,   85,   79,
- /*    30 */    41,    3,    4,   86,   50,   56,   87,   46,   88,   44,
- /*    40 */    47,   85,   49,   41,    3,    4,   89,   34,   86,   35,
- /*    50 */    81,   87,   72,   88,   42,   73,   54,   86,    4,   55,
- /*    60 */    87,   84,   88,   44,   26,   97,   36,   75,   76,   36,
- /*    70 */    86,   61,   66,   87,   86,   88,   45,   87,   86,   88,
- /*    80 */    51,   87,   86,   88,   57,   87,   33,   88,   69,   15,
- /*    90 */    59,   27,   98,   38,   31,   99,   62,   37,   18,   15,
- /*   100 */    36,  138,   15,   53,   31,   15,   67,   31,   15,   60,
- /*   110 */    31,   15,   94,   31,   15,   65,   31,   19,   71,   31,
- /*   120 */    20,   11,   77,   23,   74,   22,    5,   83,    6,   90,
- /*   130 */     2,   91,    7,   25,    8,   12,   52,   21,   36,   13,
- /*   140 */     9,   92,   58,   32,   28,   14,   93,   63,   29,   64,
- /*   150 */    16,  139,   96,   95,   10,   17,   70,   30,
+ /*     0 */    88,   47,   82,   89,   80,   90,   93,   94,   12,   88,
+ /*    10 */    53,   82,   89,   74,   90,   93,   94,   12,   88,    1,
+ /*    20 */    50,   89,   32,   90,   93,   94,   12,   88,   71,   44,
+ /*    30 */    89,   51,   90,   93,   94,   13,   88,   48,   83,   89,
+ /*    40 */    62,   90,   93,   94,   12,   88,   65,   49,   89,   86,
+ /*    50 */    90,   93,   94,   13,   87,   81,   49,    3,   84,    8,
+ /*    60 */    87,   88,   49,    3,   89,    8,   90,   93,   94,   14,
+ /*    70 */    87,    4,   49,    3,   52,    8,   88,    4,   95,   89,
+ /*    80 */    54,   90,   93,   94,   15,   88,    5,    4,   89,   59,
+ /*    90 */    90,   93,   94,   16,   88,   75,   58,   89,   35,   90,
+ /*   100 */    93,   94,   17,   87,   64,   49,    3,   88,    8,   92,
+ /*   110 */    89,   44,   90,   93,   94,   18,   87,   69,   49,    3,
+ /*   120 */     4,    8,   87,   49,   49,    3,   76,    8,    7,  105,
+ /*   130 */    55,   60,  104,    4,   26,   42,   19,   43,    6,    4,
+ /*   140 */    45,   87,   44,   49,    3,   41,    8,   56,   27,   87,
+ /*   150 */    28,   49,    3,   30,    8,   77,   78,   31,    4,   79,
+ /*   160 */    61,   44,  148,   23,   85,   33,    4,   46,   39,   87,
+ /*   170 */     2,   49,    3,   96,    8,   72,    9,   87,   88,   49,
+ /*   180 */     3,   89,    8,   90,   23,   91,    4,   23,   57,   39,
+ /*   190 */    97,   70,   39,   23,    4,   23,   20,   63,   39,  100,
+ /*   200 */    39,   23,   29,   23,   98,   68,   39,   73,   39,   34,
+ /*   210 */   103,   21,   10,   40,   36,   22,   99,   66,   37,   67,
+ /*   220 */    24,  149,  102,  101,   11,   25,  149,   38,
 };
 static const YYCODETYPE yy_lookahead[] = {
- /*     0 */    30,   31,   32,   33,   15,   35,   36,   30,   31,   32,
- /*    10 */    33,    7,   35,   36,   10,    2,    4,    4,    5,    6,
- /*    20 */    30,   37,   32,   33,    4,   35,   36,    4,    2,   30,
- /*    30 */     4,    5,   19,   30,   11,   12,   33,   34,   35,   36,
- /*    40 */    30,    2,   37,    4,    5,   19,   20,    1,   30,    3,
- /*    50 */    32,   33,   24,   35,   36,   24,   37,   30,   19,   16,
- /*    60 */    33,   34,   35,   36,   26,   27,   38,   21,   22,   38,
- /*    70 */    30,   37,   37,   33,   30,   35,   36,   33,   30,   35,
- /*    80 */    36,   33,   30,   35,   36,   33,   24,   35,   36,   25,
- /*    90 */     8,   28,   27,   29,   30,    0,   14,    4,    2,   25,
- /*   100 */    38,   39,   25,   29,   30,   25,   29,   30,   25,   29,
- /*   110 */    30,   25,   29,   30,   25,   29,   30,    2,   29,   30,
- /*   120 */     6,    5,    9,   17,   24,    8,   18,    6,   18,   20,
- /*   130 */     7,    9,   14,    8,    7,    5,    8,    6,   38,    5,
- /*   140 */     7,    9,   13,    4,    6,    5,    9,    4,    6,    8,
- /*   150 */     5,   40,    6,    9,    7,    5,    8,    6,
+ /*     0 */    30,   31,   32,   33,    4,   35,   36,   37,   38,   30,
+ /*    10 */    31,   32,   33,   24,   35,   36,   37,   38,   30,    7,
+ /*    20 */    32,   33,   10,   35,   36,   37,   38,   30,   15,   40,
+ /*    30 */    33,   34,   35,   36,   37,   38,   30,   39,   32,   33,
+ /*    40 */     8,   35,   36,   37,   38,   30,   14,    4,   33,   34,
+ /*    50 */    35,   36,   37,   38,    2,   30,    4,    5,    6,    7,
+ /*    60 */     2,   30,    4,    5,   33,    7,   35,   36,   37,   38,
+ /*    70 */     2,   19,    4,    5,   30,    7,   30,   19,   20,   33,
+ /*    80 */    39,   35,   36,   37,   38,   30,   18,   19,   33,   16,
+ /*    90 */    35,   36,   37,   38,   30,   24,   39,   33,   28,   35,
+ /*   100 */    36,   37,   38,    2,   39,    4,    5,   30,    7,    8,
+ /*   110 */    33,   40,   35,   36,   37,   38,    2,   39,    4,    5,
+ /*   120 */    19,    7,    2,    4,    4,    5,   24,    7,   14,    0,
+ /*   130 */    11,   12,   27,   19,    2,    1,    5,    3,   18,   19,
+ /*   140 */     4,    2,   40,    4,    5,   24,    7,    8,    2,    2,
+ /*   150 */     6,    4,    5,    8,    7,   21,   22,   17,   19,    9,
+ /*   160 */    13,   40,   41,   25,    6,    8,   19,   29,   30,    2,
+ /*   170 */     7,    4,    5,   20,    7,    8,    7,    2,   30,    4,
+ /*   180 */     5,   33,    7,   35,   25,   37,   19,   25,   29,   30,
+ /*   190 */     9,   29,   30,   25,   19,   25,    5,   29,   30,   29,
+ /*   200 */    30,   25,    6,   25,    9,   29,   30,   29,   30,   26,
+ /*   210 */    27,    5,    7,    4,    6,    5,    9,    4,    6,    8,
+ /*   220 */     5,   42,    6,    9,    7,    5,   42,    6,
 };
-#define YY_SHIFT_USE_DFLT (-12)
-#define YY_SHIFT_MAX 71
+#define YY_SHIFT_USE_DFLT (-1)
+#define YY_SHIFT_MAX 73
 static const short yy_shift_ofst[] = {
- /*     0 */    46,   39,   39,   13,   26,   39,   39,   39,   39,   39,
- /*    10 */    39,   23,   23,   23,   23,   23,   23,   23,   46,   46,
- /*    20 */    46,  -11,   12,   20,   20,   12,   43,   12,   12,   12,
- /*    30 */   -11,    4,   82,   95,   96,  115,   93,  116,  114,  117,
- /*    40 */   113,  106,  108,  121,  118,  110,  109,  123,  125,  122,
- /*    50 */   127,  128,  130,  131,  132,  134,  133,  129,  139,  140,
- /*    60 */   138,  137,  143,  141,  145,  142,  144,  146,  147,  148,
- /*    70 */   150,  151,
+ /*     0 */   134,  175,  175,   52,   58,  175,  175,  175,  175,  175,
+ /*    10 */   175,  175,   68,  114,  120,  101,  139,  147,  167,  119,
+ /*    20 */   119,  119,  119,  119,  119,  119,  134,  134,  134,   13,
+ /*    30 */     0,   43,   43,    0,   73,    0,    0,    0,   13,   12,
+ /*    40 */    32,  129,  132,  146,  136,  131,  144,  145,  150,  140,
+ /*    50 */   158,  153,  163,  157,  181,  169,  191,  196,  195,  206,
+ /*    60 */   205,  209,  210,  208,  207,  213,  211,  215,  212,  214,
+ /*    70 */   216,  217,  220,  221,
 };
 #define YY_REDUCE_USE_DFLT (-31)
-#define YY_REDUCE_MAX 30
-static const signed char yy_reduce_ofst[] = {
- /*     0 */    62,  -30,  -23,  -10,    3,   18,   27,   40,   44,   48,
- /*    10 */    52,   64,   74,   77,   80,   83,   86,   89,   28,   31,
- /*    20 */   100,   38,  -16,   -1,   10,    5,   63,   19,   34,   35,
- /*    30 */    65,
+#define YY_REDUCE_MAX 38
+static const short yy_reduce_ofst[] = {
+ /*     0 */   121,  -30,  -21,  -12,   -3,    6,   15,   31,   46,   55,
+ /*    10 */    64,   77,  148,  148,  148,  148,  148,  148,  148,  138,
+ /*    20 */   159,  162,  168,  170,  176,  178,  -11,   71,  102,  183,
+ /*    30 */    -2,   25,   44,   41,   70,   57,   65,   78,  105,
 };
 static const YYACTIONTYPE yy_default[] = {
- /*     0 */   100,  119,  119,  137,  137,  137,  137,  137,  137,  137,
- /*    10 */   137,  137,  137,  137,  137,  115,  137,  137,  100,  100,
- /*    20 */   100,  109,  133,  137,  137,  133,  113,  133,  133,  133,
- /*    30 */   111,  137,  137,  137,  137,  137,  137,  137,  137,  137,
- /*    40 */   137,  117,  121,  137,  137,  125,  137,  137,  137,  137,
- /*    50 */   137,  137,  137,  137,  137,  137,  137,  137,  137,  137,
- /*    60 */   137,  137,  137,  137,  137,  137,  137,  137,  137,  137,
- /*    70 */   137,  137,  101,  102,  103,  135,  136,  104,  134,  118,
- /*    80 */   120,  122,  123,  124,  126,  129,  130,  131,  132,  127,
- /*    90 */   128,  105,  106,  107,  116,  108,  114,  110,  112,
+ /*     0 */   106,  125,  125,  147,  147,  147,  147,  147,  147,  147,
+ /*    10 */   147,  147,  127,  147,  131,  147,  147,  147,  147,  147,
+ /*    20 */   147,  147,  147,  121,  147,  147,  106,  106,  106,  115,
+ /*    30 */   143,  147,  147,  143,  119,  143,  143,  143,  117,  147,
+ /*    40 */   147,  147,  147,  147,  147,  147,  147,  147,  147,  123,
+ /*    50 */   147,  147,  147,  147,  147,  147,  147,  147,  147,  147,
+ /*    60 */   147,  147,  147,  147,  147,  147,  147,  147,  147,  147,
+ /*    70 */   147,  147,  147,  147,  107,  108,  109,  145,  146,  110,
+ /*    80 */   144,  124,  126,  128,  129,  130,  132,  136,  137,  138,
+ /*    90 */   139,  135,  140,  141,  142,  133,  134,  111,  112,  113,
+ /*   100 */   122,  114,  120,  116,  118,
 };
 #define YY_SZ_ACTTAB (int)(sizeof(yy_action)/sizeof(yy_action[0]))
 
@@ -369,7 +384,8 @@ static const char *const yyTokenName[] = {
   "processes",     "statement",     "elif_maybe",    "elif",        
   "else_maybe",    "statements",    "dotted_name",   "statement_args_maybe",
   "list_contents",  "list",          "map_contents",  "map",         
-  "value",         "name_maybe",    "process_or_template",  "input",       
+  "invoc",         "noninvoc_value",  "value",         "name_maybe",  
+  "process_or_template",  "input",       
 };
 #endif /* NDEBUG */
 
@@ -407,14 +423,18 @@ static const char *const yyRuleName[] = {
  /*  27 */ "map_contents ::= value COLON value COMMA map_contents",
  /*  28 */ "map ::= BRACKET_OPEN BRACKET_CLOSE",
  /*  29 */ "map ::= BRACKET_OPEN map_contents BRACKET_CLOSE",
- /*  30 */ "value ::= STRING",
- /*  31 */ "value ::= dotted_name",
- /*  32 */ "value ::= list",
- /*  33 */ "value ::= map",
- /*  34 */ "name_maybe ::=",
- /*  35 */ "name_maybe ::= NAME",
- /*  36 */ "process_or_template ::= PROCESS",
- /*  37 */ "process_or_template ::= TEMPLATE",
+ /*  30 */ "invoc ::= value noninvoc_value",
+ /*  31 */ "noninvoc_value ::= STRING",
+ /*  32 */ "noninvoc_value ::= dotted_name",
+ /*  33 */ "noninvoc_value ::= list",
+ /*  34 */ "noninvoc_value ::= map",
+ /*  35 */ "noninvoc_value ::= ROUND_OPEN value ROUND_CLOSE",
+ /*  36 */ "value ::= invoc",
+ /*  37 */ "value ::= noninvoc_value",
+ /*  38 */ "name_maybe ::=",
+ /*  39 */ "name_maybe ::= NAME",
+ /*  40 */ "process_or_template ::= PROCESS",
+ /*  41 */ "process_or_template ::= TEMPLATE",
 };
 #endif /* NDEBUG */
 
@@ -519,45 +539,45 @@ static void yy_destructor(
 {
 #line 89 "NCDConfigParser_parse.y"
  free_token((yypminor->yy0)); 
-#line 523 "NCDConfigParser_parse.c"
+#line 543 "NCDConfigParser_parse.c"
 }
       break;
     case 24: /* processes */
 {
-#line 108 "NCDConfigParser_parse.y"
- (void)parser_out; free_program((yypminor->yy54)); 
-#line 530 "NCDConfigParser_parse.c"
+#line 110 "NCDConfigParser_parse.y"
+ (void)parser_out; free_program((yypminor->yy18)); 
+#line 550 "NCDConfigParser_parse.c"
 }
       break;
     case 25: /* statement */
 {
-#line 109 "NCDConfigParser_parse.y"
- free_statement((yypminor->yy79)); 
-#line 537 "NCDConfigParser_parse.c"
+#line 111 "NCDConfigParser_parse.y"
+ free_statement((yypminor->yy35)); 
+#line 557 "NCDConfigParser_parse.c"
 }
       break;
     case 26: /* elif_maybe */
     case 27: /* elif */
 {
-#line 110 "NCDConfigParser_parse.y"
- free_ifblock((yypminor->yy76)); 
-#line 545 "NCDConfigParser_parse.c"
+#line 112 "NCDConfigParser_parse.y"
+ free_ifblock((yypminor->yy32)); 
+#line 565 "NCDConfigParser_parse.c"
 }
       break;
     case 28: /* else_maybe */
     case 29: /* statements */
 {
-#line 112 "NCDConfigParser_parse.y"
- free_block((yypminor->yy37)); 
-#line 553 "NCDConfigParser_parse.c"
+#line 114 "NCDConfigParser_parse.y"
+ free_block((yypminor->yy9)); 
+#line 573 "NCDConfigParser_parse.c"
 }
       break;
     case 30: /* dotted_name */
-    case 37: /* name_maybe */
+    case 39: /* name_maybe */
 {
-#line 114 "NCDConfigParser_parse.y"
- free((yypminor->yy33)); 
-#line 561 "NCDConfigParser_parse.c"
+#line 116 "NCDConfigParser_parse.y"
+ free((yypminor->yy1)); 
+#line 581 "NCDConfigParser_parse.c"
 }
       break;
     case 31: /* statement_args_maybe */
@@ -565,11 +585,13 @@ static void yy_destructor(
     case 33: /* list */
     case 34: /* map_contents */
     case 35: /* map */
-    case 36: /* value */
+    case 36: /* invoc */
+    case 37: /* noninvoc_value */
+    case 38: /* value */
 {
-#line 115 "NCDConfigParser_parse.y"
- free_value((yypminor->yy51)); 
-#line 573 "NCDConfigParser_parse.c"
+#line 117 "NCDConfigParser_parse.y"
+ free_value((yypminor->yy19)); 
+#line 595 "NCDConfigParser_parse.c"
 }
       break;
     default:  break;   /* If no destructor action specified: do nothing */
@@ -742,12 +764,12 @@ static void yyStackOverflow(yyParser *yypParser, YYMINORTYPE *yypMinor){
    while( yypParser->yyidx>=0 ) yy_pop_parser_stack(yypParser);
    /* Here code is inserted which will execute if the parser
    ** stack every overflows */
-#line 130 "NCDConfigParser_parse.y"
+#line 134 "NCDConfigParser_parse.y"
 
     if (yypMinor) {
         free_token(yypMinor->yy0);
     }
-#line 751 "NCDConfigParser_parse.c"
+#line 773 "NCDConfigParser_parse.c"
    ParseARG_STORE; /* Suppress warning about unused %extra_argument var */
 }
 
@@ -804,7 +826,7 @@ static const struct {
   YYCODETYPE lhs;         /* Symbol on the left-hand side of the rule */
   unsigned char nrhs;     /* Number of right-hand side symbols in the rule */
 } yyRuleInfo[] = {
-  { 39, 1 },
+  { 41, 1 },
   { 24, 0 },
   { 24, 3 },
   { 24, 3 },
@@ -834,14 +856,18 @@ static const struct {
   { 34, 5 },
   { 35, 2 },
   { 35, 3 },
-  { 36, 1 },
-  { 36, 1 },
-  { 36, 1 },
-  { 36, 1 },
-  { 37, 0 },
+  { 36, 2 },
   { 37, 1 },
+  { 37, 1 },
+  { 37, 1 },
+  { 37, 1 },
+  { 37, 3 },
   { 38, 1 },
   { 38, 1 },
+  { 39, 0 },
+  { 39, 1 },
+  { 40, 1 },
+  { 40, 1 },
 };
 
 static void yy_accept(yyParser*);  /* Forward Declaration */
@@ -897,33 +923,33 @@ static void yy_reduce(
   **     break;
   */
       case 0: /* input ::= processes */
-#line 136 "NCDConfigParser_parse.y"
+#line 140 "NCDConfigParser_parse.y"
 {
     ASSERT(!parser_out->have_ast)
 
-    if (yymsp[0].minor.yy54.have) {
+    if (yymsp[0].minor.yy18.have) {
         parser_out->have_ast = 1;
-        parser_out->ast = yymsp[0].minor.yy54.v;
+        parser_out->ast = yymsp[0].minor.yy18.v;
     }
 }
-#line 910 "NCDConfigParser_parse.c"
+#line 936 "NCDConfigParser_parse.c"
         break;
       case 1: /* processes ::= */
-#line 145 "NCDConfigParser_parse.y"
+#line 149 "NCDConfigParser_parse.y"
 {
     NCDProgram prog;
     NCDProgram_Init(&prog);
     
-    yygotominor.yy54.have = 1;
-    yygotominor.yy54.v = prog;
+    yygotominor.yy18.have = 1;
+    yygotominor.yy18.v = prog;
 }
-#line 921 "NCDConfigParser_parse.c"
+#line 947 "NCDConfigParser_parse.c"
         break;
       case 2: /* processes ::= INCLUDE STRING processes */
-#line 153 "NCDConfigParser_parse.y"
+#line 157 "NCDConfigParser_parse.y"
 {
     ASSERT(yymsp[-1].minor.yy0.str)
-    if (!yymsp[0].minor.yy54.have) {
+    if (!yymsp[0].minor.yy18.have) {
         goto failA0;
     }
     
@@ -932,32 +958,32 @@ static void yy_reduce(
         goto failA0;
     }
     
-    if (!NCDProgram_PrependElem(&yymsp[0].minor.yy54.v, elem)) {
+    if (!NCDProgram_PrependElem(&yymsp[0].minor.yy18.v, elem)) {
         goto failA1;
     }
     
-    yygotominor.yy54.have = 1;
-    yygotominor.yy54.v = yymsp[0].minor.yy54.v;
-    yymsp[0].minor.yy54.have = 0;
+    yygotominor.yy18.have = 1;
+    yygotominor.yy18.v = yymsp[0].minor.yy18.v;
+    yymsp[0].minor.yy18.have = 0;
     goto doneA;
 
 failA1:
     NCDProgramElem_Free(&elem);
 failA0:
-    yygotominor.yy54.have = 0;
+    yygotominor.yy18.have = 0;
     parser_out->out_of_memory = 1;
 doneA:
     free_token(yymsp[-1].minor.yy0);
-    free_program(yymsp[0].minor.yy54);
+    free_program(yymsp[0].minor.yy18);
   yy_destructor(yypParser,1,&yymsp[-2].minor);
 }
-#line 955 "NCDConfigParser_parse.c"
+#line 981 "NCDConfigParser_parse.c"
         break;
       case 3: /* processes ::= INCLUDE_GUARD STRING processes */
-#line 183 "NCDConfigParser_parse.y"
+#line 187 "NCDConfigParser_parse.y"
 {
     ASSERT(yymsp[-1].minor.yy0.str)
-    if (!yymsp[0].minor.yy54.have) {
+    if (!yymsp[0].minor.yy18.have) {
         goto failZ0;
     }
     
@@ -966,164 +992,164 @@ doneA:
         goto failZ0;
     }
     
-    if (!NCDProgram_PrependElem(&yymsp[0].minor.yy54.v, elem)) {
+    if (!NCDProgram_PrependElem(&yymsp[0].minor.yy18.v, elem)) {
         goto failZ1;
     }
     
-    yygotominor.yy54.have = 1;
-    yygotominor.yy54.v = yymsp[0].minor.yy54.v;
-    yymsp[0].minor.yy54.have = 0;
+    yygotominor.yy18.have = 1;
+    yygotominor.yy18.v = yymsp[0].minor.yy18.v;
+    yymsp[0].minor.yy18.have = 0;
     goto doneZ;
 
 failZ1:
     NCDProgramElem_Free(&elem);
 failZ0:
-    yygotominor.yy54.have = 0;
+    yygotominor.yy18.have = 0;
     parser_out->out_of_memory = 1;
 doneZ:
     free_token(yymsp[-1].minor.yy0);
-    free_program(yymsp[0].minor.yy54);
+    free_program(yymsp[0].minor.yy18);
   yy_destructor(yypParser,3,&yymsp[-2].minor);
 }
-#line 989 "NCDConfigParser_parse.c"
+#line 1015 "NCDConfigParser_parse.c"
         break;
       case 4: /* processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes */
-#line 213 "NCDConfigParser_parse.y"
+#line 217 "NCDConfigParser_parse.y"
 {
     ASSERT(yymsp[-4].minor.yy0.str)
-    if (!yymsp[-2].minor.yy37.have || !yymsp[0].minor.yy54.have) {
+    if (!yymsp[-2].minor.yy9.have || !yymsp[0].minor.yy18.have) {
         goto failB0;
     }
 
     NCDProcess proc;
-    if (!NCDProcess_Init(&proc, yymsp[-5].minor.yy12, yymsp[-4].minor.yy0.str, yymsp[-2].minor.yy37.v)) {
+    if (!NCDProcess_Init(&proc, yymsp[-5].minor.yy4, yymsp[-4].minor.yy0.str, yymsp[-2].minor.yy9.v)) {
         goto failB0;
     }
-    yymsp[-2].minor.yy37.have = 0;
+    yymsp[-2].minor.yy9.have = 0;
     
     NCDProgramElem elem;
     NCDProgramElem_InitProcess(&elem, proc);
 
-    if (!NCDProgram_PrependElem(&yymsp[0].minor.yy54.v, elem)) {
+    if (!NCDProgram_PrependElem(&yymsp[0].minor.yy18.v, elem)) {
         goto failB1;
     }
 
-    yygotominor.yy54.have = 1;
-    yygotominor.yy54.v = yymsp[0].minor.yy54.v;
-    yymsp[0].minor.yy54.have = 0;
+    yygotominor.yy18.have = 1;
+    yygotominor.yy18.v = yymsp[0].minor.yy18.v;
+    yymsp[0].minor.yy18.have = 0;
     goto doneB;
 
 failB1:
     NCDProgramElem_Free(&elem);
 failB0:
-    yygotominor.yy54.have = 0;
+    yygotominor.yy18.have = 0;
     parser_out->out_of_memory = 1;
 doneB:
     free_token(yymsp[-4].minor.yy0);
-    free_block(yymsp[-2].minor.yy37);
-    free_program(yymsp[0].minor.yy54);
+    free_block(yymsp[-2].minor.yy9);
+    free_program(yymsp[0].minor.yy18);
   yy_destructor(yypParser,5,&yymsp[-3].minor);
   yy_destructor(yypParser,6,&yymsp[-1].minor);
 }
-#line 1029 "NCDConfigParser_parse.c"
+#line 1055 "NCDConfigParser_parse.c"
         break;
       case 5: /* statement ::= dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON */
-#line 248 "NCDConfigParser_parse.y"
+#line 252 "NCDConfigParser_parse.y"
 {
-    if (!yymsp[-5].minor.yy33 || !yymsp[-3].minor.yy51.have) {
+    if (!yymsp[-5].minor.yy1 || !yymsp[-3].minor.yy19.have) {
         goto failC0;
     }
 
-    if (!NCDStatement_InitReg(&yygotominor.yy79.v, yymsp[-1].minor.yy33, NULL, yymsp[-5].minor.yy33, yymsp[-3].minor.yy51.v)) {
+    if (!NCDStatement_InitReg(&yygotominor.yy35.v, yymsp[-1].minor.yy1, NULL, yymsp[-5].minor.yy1, yymsp[-3].minor.yy19.v)) {
         goto failC0;
     }
-    yymsp[-3].minor.yy51.have = 0;
+    yymsp[-3].minor.yy19.have = 0;
 
-    yygotominor.yy79.have = 1;
+    yygotominor.yy35.have = 1;
     goto doneC;
 
 failC0:
-    yygotominor.yy79.have = 0;
+    yygotominor.yy35.have = 0;
     parser_out->out_of_memory = 1;
 doneC:
-    free(yymsp[-5].minor.yy33);
-    free_value(yymsp[-3].minor.yy51);
-    free(yymsp[-1].minor.yy33);
+    free(yymsp[-5].minor.yy1);
+    free_value(yymsp[-3].minor.yy19);
+    free(yymsp[-1].minor.yy1);
   yy_destructor(yypParser,7,&yymsp[-4].minor);
   yy_destructor(yypParser,8,&yymsp[-2].minor);
   yy_destructor(yypParser,9,&yymsp[0].minor);
 }
-#line 1057 "NCDConfigParser_parse.c"
+#line 1083 "NCDConfigParser_parse.c"
         break;
       case 6: /* statement ::= dotted_name ARROW dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON */
-#line 270 "NCDConfigParser_parse.y"
+#line 274 "NCDConfigParser_parse.y"
 {
-    if (!yymsp[-7].minor.yy33 || !yymsp[-5].minor.yy33 || !yymsp[-3].minor.yy51.have) {
+    if (!yymsp[-7].minor.yy1 || !yymsp[-5].minor.yy1 || !yymsp[-3].minor.yy19.have) {
         goto failD0;
     }
 
-    if (!NCDStatement_InitReg(&yygotominor.yy79.v, yymsp[-1].minor.yy33, yymsp[-7].minor.yy33, yymsp[-5].minor.yy33, yymsp[-3].minor.yy51.v)) {
+    if (!NCDStatement_InitReg(&yygotominor.yy35.v, yymsp[-1].minor.yy1, yymsp[-7].minor.yy1, yymsp[-5].minor.yy1, yymsp[-3].minor.yy19.v)) {
         goto failD0;
     }
-    yymsp[-3].minor.yy51.have = 0;
+    yymsp[-3].minor.yy19.have = 0;
 
-    yygotominor.yy79.have = 1;
+    yygotominor.yy35.have = 1;
     goto doneD;
 
 failD0:
-    yygotominor.yy79.have = 0;
+    yygotominor.yy35.have = 0;
     parser_out->out_of_memory = 1;
 doneD:
-    free(yymsp[-7].minor.yy33);
-    free(yymsp[-5].minor.yy33);
-    free_value(yymsp[-3].minor.yy51);
-    free(yymsp[-1].minor.yy33);
+    free(yymsp[-7].minor.yy1);
+    free(yymsp[-5].minor.yy1);
+    free_value(yymsp[-3].minor.yy19);
+    free(yymsp[-1].minor.yy1);
   yy_destructor(yypParser,10,&yymsp[-6].minor);
   yy_destructor(yypParser,7,&yymsp[-4].minor);
   yy_destructor(yypParser,8,&yymsp[-2].minor);
   yy_destructor(yypParser,9,&yymsp[0].minor);
 }
-#line 1087 "NCDConfigParser_parse.c"
+#line 1113 "NCDConfigParser_parse.c"
         break;
       case 7: /* statement ::= IF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif_maybe else_maybe name_maybe SEMICOLON */
-#line 293 "NCDConfigParser_parse.y"
+#line 297 "NCDConfigParser_parse.y"
 {
-    if (!yymsp[-8].minor.yy51.have || !yymsp[-5].minor.yy37.have || !yymsp[-3].minor.yy76.have) {
+    if (!yymsp[-8].minor.yy19.have || !yymsp[-5].minor.yy9.have || !yymsp[-3].minor.yy32.have) {
         goto failE0;
     }
 
     NCDIf ifc;
-    NCDIf_Init(&ifc, yymsp[-8].minor.yy51.v, yymsp[-5].minor.yy37.v);
-    yymsp[-8].minor.yy51.have = 0;
-    yymsp[-5].minor.yy37.have = 0;
+    NCDIf_Init(&ifc, yymsp[-8].minor.yy19.v, yymsp[-5].minor.yy9.v);
+    yymsp[-8].minor.yy19.have = 0;
+    yymsp[-5].minor.yy9.have = 0;
 
-    if (!NCDIfBlock_PrependIf(&yymsp[-3].minor.yy76.v, ifc)) {
+    if (!NCDIfBlock_PrependIf(&yymsp[-3].minor.yy32.v, ifc)) {
         NCDIf_Free(&ifc);
         goto failE0;
     }
 
-    if (!NCDStatement_InitIf(&yygotominor.yy79.v, yymsp[-1].minor.yy33, yymsp[-3].minor.yy76.v)) {
+    if (!NCDStatement_InitIf(&yygotominor.yy35.v, yymsp[-1].minor.yy1, yymsp[-3].minor.yy32.v)) {
         goto failE0;
     }
-    yymsp[-3].minor.yy76.have = 0;
+    yymsp[-3].minor.yy32.have = 0;
 
-    if (yymsp[-2].minor.yy37.have) {
-        NCDStatement_IfAddElse(&yygotominor.yy79.v, yymsp[-2].minor.yy37.v);
-        yymsp[-2].minor.yy37.have = 0;
+    if (yymsp[-2].minor.yy9.have) {
+        NCDStatement_IfAddElse(&yygotominor.yy35.v, yymsp[-2].minor.yy9.v);
+        yymsp[-2].minor.yy9.have = 0;
     }
 
-    yygotominor.yy79.have = 1;
+    yygotominor.yy35.have = 1;
     goto doneE;
 
 failE0:
-    yygotominor.yy79.have = 0;
+    yygotominor.yy35.have = 0;
     parser_out->out_of_memory = 1;
 doneE:
-    free_value(yymsp[-8].minor.yy51);
-    free_block(yymsp[-5].minor.yy37);
-    free_ifblock(yymsp[-3].minor.yy76);
-    free_block(yymsp[-2].minor.yy37);
-    free(yymsp[-1].minor.yy33);
+    free_value(yymsp[-8].minor.yy19);
+    free_block(yymsp[-5].minor.yy9);
+    free_ifblock(yymsp[-3].minor.yy32);
+    free_block(yymsp[-2].minor.yy9);
+    free(yymsp[-1].minor.yy1);
   yy_destructor(yypParser,11,&yymsp[-10].minor);
   yy_destructor(yypParser,7,&yymsp[-9].minor);
   yy_destructor(yypParser,8,&yymsp[-7].minor);
@@ -1131,32 +1157,32 @@ doneE:
   yy_destructor(yypParser,6,&yymsp[-4].minor);
   yy_destructor(yypParser,9,&yymsp[0].minor);
 }
-#line 1135 "NCDConfigParser_parse.c"
+#line 1161 "NCDConfigParser_parse.c"
         break;
       case 8: /* statement ::= FOREACH ROUND_OPEN value AS NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON */
-#line 332 "NCDConfigParser_parse.y"
+#line 336 "NCDConfigParser_parse.y"
 {
-    if (!yymsp[-8].minor.yy51.have || !yymsp[-6].minor.yy0.str || !yymsp[-3].minor.yy37.have) {
+    if (!yymsp[-8].minor.yy19.have || !yymsp[-6].minor.yy0.str || !yymsp[-3].minor.yy9.have) {
         goto failEA0;
     }
     
-    if (!NCDStatement_InitForeach(&yygotominor.yy79.v, yymsp[-1].minor.yy33, yymsp[-8].minor.yy51.v, yymsp[-6].minor.yy0.str, NULL, yymsp[-3].minor.yy37.v)) {
+    if (!NCDStatement_InitForeach(&yygotominor.yy35.v, yymsp[-1].minor.yy1, yymsp[-8].minor.yy19.v, yymsp[-6].minor.yy0.str, NULL, yymsp[-3].minor.yy9.v)) {
         goto failEA0;
     }
-    yymsp[-8].minor.yy51.have = 0;
-    yymsp[-3].minor.yy37.have = 0;
+    yymsp[-8].minor.yy19.have = 0;
+    yymsp[-3].minor.yy9.have = 0;
     
-    yygotominor.yy79.have = 1;
+    yygotominor.yy35.have = 1;
     goto doneEA0;
     
 failEA0:
-    yygotominor.yy79.have = 0;
+    yygotominor.yy35.have = 0;
     parser_out->out_of_memory = 1;
 doneEA0:
-    free_value(yymsp[-8].minor.yy51);
+    free_value(yymsp[-8].minor.yy19);
     free_token(yymsp[-6].minor.yy0);
-    free_block(yymsp[-3].minor.yy37);
-    free(yymsp[-1].minor.yy33);
+    free_block(yymsp[-3].minor.yy9);
+    free(yymsp[-1].minor.yy1);
   yy_destructor(yypParser,12,&yymsp[-10].minor);
   yy_destructor(yypParser,7,&yymsp[-9].minor);
   yy_destructor(yypParser,13,&yymsp[-7].minor);
@@ -1165,33 +1191,33 @@ doneEA0:
   yy_destructor(yypParser,6,&yymsp[-2].minor);
   yy_destructor(yypParser,9,&yymsp[0].minor);
 }
-#line 1169 "NCDConfigParser_parse.c"
+#line 1195 "NCDConfigParser_parse.c"
         break;
       case 9: /* statement ::= FOREACH ROUND_OPEN value AS NAME COLON NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON */
-#line 356 "NCDConfigParser_parse.y"
+#line 360 "NCDConfigParser_parse.y"
 {
-    if (!yymsp[-10].minor.yy51.have || !yymsp[-8].minor.yy0.str || !yymsp[-6].minor.yy0.str || !yymsp[-3].minor.yy37.have) {
+    if (!yymsp[-10].minor.yy19.have || !yymsp[-8].minor.yy0.str || !yymsp[-6].minor.yy0.str || !yymsp[-3].minor.yy9.have) {
         goto failEB0;
     }
     
-    if (!NCDStatement_InitForeach(&yygotominor.yy79.v, yymsp[-1].minor.yy33, yymsp[-10].minor.yy51.v, yymsp[-8].minor.yy0.str, yymsp[-6].minor.yy0.str, yymsp[-3].minor.yy37.v)) {
+    if (!NCDStatement_InitForeach(&yygotominor.yy35.v, yymsp[-1].minor.yy1, yymsp[-10].minor.yy19.v, yymsp[-8].minor.yy0.str, yymsp[-6].minor.yy0.str, yymsp[-3].minor.yy9.v)) {
         goto failEB0;
     }
-    yymsp[-10].minor.yy51.have = 0;
-    yymsp[-3].minor.yy37.have = 0;
+    yymsp[-10].minor.yy19.have = 0;
+    yymsp[-3].minor.yy9.have = 0;
     
-    yygotominor.yy79.have = 1;
+    yygotominor.yy35.have = 1;
     goto doneEB0;
     
 failEB0:
-    yygotominor.yy79.have = 0;
+    yygotominor.yy35.have = 0;
     parser_out->out_of_memory = 1;
 doneEB0:
-    free_value(yymsp[-10].minor.yy51);
+    free_value(yymsp[-10].minor.yy19);
     free_token(yymsp[-8].minor.yy0);
     free_token(yymsp[-6].minor.yy0);
-    free_block(yymsp[-3].minor.yy37);
-    free(yymsp[-1].minor.yy33);
+    free_block(yymsp[-3].minor.yy9);
+    free(yymsp[-1].minor.yy1);
   yy_destructor(yypParser,12,&yymsp[-12].minor);
   yy_destructor(yypParser,7,&yymsp[-11].minor);
   yy_destructor(yypParser,13,&yymsp[-9].minor);
@@ -1201,438 +1227,473 @@ doneEB0:
   yy_destructor(yypParser,6,&yymsp[-2].minor);
   yy_destructor(yypParser,9,&yymsp[0].minor);
 }
-#line 1205 "NCDConfigParser_parse.c"
+#line 1231 "NCDConfigParser_parse.c"
         break;
       case 10: /* elif_maybe ::= */
-#line 381 "NCDConfigParser_parse.y"
+#line 385 "NCDConfigParser_parse.y"
 {
-    NCDIfBlock_Init(&yygotominor.yy76.v);
-    yygotominor.yy76.have = 1;
+    NCDIfBlock_Init(&yygotominor.yy32.v);
+    yygotominor.yy32.have = 1;
 }
-#line 1213 "NCDConfigParser_parse.c"
+#line 1239 "NCDConfigParser_parse.c"
         break;
       case 11: /* elif_maybe ::= elif */
-#line 386 "NCDConfigParser_parse.y"
-{
-    yygotominor.yy76 = yymsp[0].minor.yy76;
-}
-#line 1220 "NCDConfigParser_parse.c"
-        break;
-      case 12: /* elif ::= ELIF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE */
 #line 390 "NCDConfigParser_parse.y"
 {
-    if (!yymsp[-4].minor.yy51.have || !yymsp[-1].minor.yy37.have) {
+    yygotominor.yy32 = yymsp[0].minor.yy32;
+}
+#line 1246 "NCDConfigParser_parse.c"
+        break;
+      case 12: /* elif ::= ELIF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE */
+#line 394 "NCDConfigParser_parse.y"
+{
+    if (!yymsp[-4].minor.yy19.have || !yymsp[-1].minor.yy9.have) {
         goto failF0;
     }
 
-    NCDIfBlock_Init(&yygotominor.yy76.v);
+    NCDIfBlock_Init(&yygotominor.yy32.v);
 
     NCDIf ifc;
-    NCDIf_Init(&ifc, yymsp[-4].minor.yy51.v, yymsp[-1].minor.yy37.v);
-    yymsp[-4].minor.yy51.have = 0;
-    yymsp[-1].minor.yy37.have = 0;
+    NCDIf_Init(&ifc, yymsp[-4].minor.yy19.v, yymsp[-1].minor.yy9.v);
+    yymsp[-4].minor.yy19.have = 0;
+    yymsp[-1].minor.yy9.have = 0;
 
-    if (!NCDIfBlock_PrependIf(&yygotominor.yy76.v, ifc)) {
+    if (!NCDIfBlock_PrependIf(&yygotominor.yy32.v, ifc)) {
         goto failF1;
     }
 
-    yygotominor.yy76.have = 1;
+    yygotominor.yy32.have = 1;
     goto doneF0;
 
 failF1:
     NCDIf_Free(&ifc);
-    NCDIfBlock_Free(&yygotominor.yy76.v);
+    NCDIfBlock_Free(&yygotominor.yy32.v);
 failF0:
-    yygotominor.yy76.have = 0;
+    yygotominor.yy32.have = 0;
     parser_out->out_of_memory = 1;
 doneF0:
-    free_value(yymsp[-4].minor.yy51);
-    free_block(yymsp[-1].minor.yy37);
+    free_value(yymsp[-4].minor.yy19);
+    free_block(yymsp[-1].minor.yy9);
   yy_destructor(yypParser,15,&yymsp[-6].minor);
   yy_destructor(yypParser,7,&yymsp[-5].minor);
   yy_destructor(yypParser,8,&yymsp[-3].minor);
   yy_destructor(yypParser,5,&yymsp[-2].minor);
   yy_destructor(yypParser,6,&yymsp[0].minor);
 }
-#line 1258 "NCDConfigParser_parse.c"
+#line 1284 "NCDConfigParser_parse.c"
         break;
       case 13: /* elif ::= ELIF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif */
-#line 420 "NCDConfigParser_parse.y"
+#line 424 "NCDConfigParser_parse.y"
 {
-    if (!yymsp[-5].minor.yy51.have || !yymsp[-2].minor.yy37.have || !yymsp[0].minor.yy76.have) {
+    if (!yymsp[-5].minor.yy19.have || !yymsp[-2].minor.yy9.have || !yymsp[0].minor.yy32.have) {
         goto failG0;
     }
 
     NCDIf ifc;
-    NCDIf_Init(&ifc, yymsp[-5].minor.yy51.v, yymsp[-2].minor.yy37.v);
-    yymsp[-5].minor.yy51.have = 0;
-    yymsp[-2].minor.yy37.have = 0;
+    NCDIf_Init(&ifc, yymsp[-5].minor.yy19.v, yymsp[-2].minor.yy9.v);
+    yymsp[-5].minor.yy19.have = 0;
+    yymsp[-2].minor.yy9.have = 0;
 
-    if (!NCDIfBlock_PrependIf(&yymsp[0].minor.yy76.v, ifc)) {
+    if (!NCDIfBlock_PrependIf(&yymsp[0].minor.yy32.v, ifc)) {
         goto failG1;
     }
 
-    yygotominor.yy76.have = 1;
-    yygotominor.yy76.v = yymsp[0].minor.yy76.v;
-    yymsp[0].minor.yy76.have = 0;
+    yygotominor.yy32.have = 1;
+    yygotominor.yy32.v = yymsp[0].minor.yy32.v;
+    yymsp[0].minor.yy32.have = 0;
     goto doneG0;
 
 failG1:
     NCDIf_Free(&ifc);
 failG0:
-    yygotominor.yy76.have = 0;
+    yygotominor.yy32.have = 0;
     parser_out->out_of_memory = 1;
 doneG0:
-    free_value(yymsp[-5].minor.yy51);
-    free_block(yymsp[-2].minor.yy37);
-    free_ifblock(yymsp[0].minor.yy76);
+    free_value(yymsp[-5].minor.yy19);
+    free_block(yymsp[-2].minor.yy9);
+    free_ifblock(yymsp[0].minor.yy32);
   yy_destructor(yypParser,15,&yymsp[-7].minor);
   yy_destructor(yypParser,7,&yymsp[-6].minor);
   yy_destructor(yypParser,8,&yymsp[-4].minor);
   yy_destructor(yypParser,5,&yymsp[-3].minor);
   yy_destructor(yypParser,6,&yymsp[-1].minor);
 }
-#line 1296 "NCDConfigParser_parse.c"
+#line 1322 "NCDConfigParser_parse.c"
         break;
       case 14: /* else_maybe ::= */
-#line 450 "NCDConfigParser_parse.y"
-{
-    yygotominor.yy37.have = 0;
-}
-#line 1303 "NCDConfigParser_parse.c"
-        break;
-      case 15: /* else_maybe ::= ELSE CURLY_OPEN statements CURLY_CLOSE */
 #line 454 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy37 = yymsp[-1].minor.yy37;
+    yygotominor.yy9.have = 0;
+}
+#line 1329 "NCDConfigParser_parse.c"
+        break;
+      case 15: /* else_maybe ::= ELSE CURLY_OPEN statements CURLY_CLOSE */
+#line 458 "NCDConfigParser_parse.y"
+{
+    yygotominor.yy9 = yymsp[-1].minor.yy9;
   yy_destructor(yypParser,16,&yymsp[-3].minor);
   yy_destructor(yypParser,5,&yymsp[-2].minor);
   yy_destructor(yypParser,6,&yymsp[0].minor);
 }
-#line 1313 "NCDConfigParser_parse.c"
+#line 1339 "NCDConfigParser_parse.c"
         break;
       case 16: /* statements ::= statement */
-#line 458 "NCDConfigParser_parse.y"
+#line 462 "NCDConfigParser_parse.y"
 {
-    if (!yymsp[0].minor.yy79.have) {
+    if (!yymsp[0].minor.yy35.have) {
         goto failH0;
     }
 
-    NCDBlock_Init(&yygotominor.yy37.v);
+    NCDBlock_Init(&yygotominor.yy9.v);
 
-    if (!NCDBlock_PrependStatement(&yygotominor.yy37.v, yymsp[0].minor.yy79.v)) {
+    if (!NCDBlock_PrependStatement(&yygotominor.yy9.v, yymsp[0].minor.yy35.v)) {
         goto failH1;
     }
-    yymsp[0].minor.yy79.have = 0;
+    yymsp[0].minor.yy35.have = 0;
 
-    yygotominor.yy37.have = 1;
+    yygotominor.yy9.have = 1;
     goto doneH;
 
 failH1:
-    NCDBlock_Free(&yygotominor.yy37.v);
+    NCDBlock_Free(&yygotominor.yy9.v);
 failH0:
-    yygotominor.yy37.have = 0;
+    yygotominor.yy9.have = 0;
     parser_out->out_of_memory = 1;
 doneH:
-    free_statement(yymsp[0].minor.yy79);
+    free_statement(yymsp[0].minor.yy35);
 }
-#line 1340 "NCDConfigParser_parse.c"
+#line 1366 "NCDConfigParser_parse.c"
         break;
       case 17: /* statements ::= statement statements */
-#line 482 "NCDConfigParser_parse.y"
+#line 486 "NCDConfigParser_parse.y"
 {
-    if (!yymsp[-1].minor.yy79.have || !yymsp[0].minor.yy37.have) {
+    if (!yymsp[-1].minor.yy35.have || !yymsp[0].minor.yy9.have) {
         goto failI0;
     }
 
-    if (!NCDBlock_PrependStatement(&yymsp[0].minor.yy37.v, yymsp[-1].minor.yy79.v)) {
+    if (!NCDBlock_PrependStatement(&yymsp[0].minor.yy9.v, yymsp[-1].minor.yy35.v)) {
         goto failI1;
     }
-    yymsp[-1].minor.yy79.have = 0;
+    yymsp[-1].minor.yy35.have = 0;
 
-    yygotominor.yy37.have = 1;
-    yygotominor.yy37.v = yymsp[0].minor.yy37.v;
-    yymsp[0].minor.yy37.have = 0;
+    yygotominor.yy9.have = 1;
+    yygotominor.yy9.v = yymsp[0].minor.yy9.v;
+    yymsp[0].minor.yy9.have = 0;
     goto doneI;
 
 failI1:
-    NCDBlock_Free(&yygotominor.yy37.v);
+    NCDBlock_Free(&yygotominor.yy9.v);
 failI0:
-    yygotominor.yy37.have = 0;
+    yygotominor.yy9.have = 0;
     parser_out->out_of_memory = 1;
 doneI:
-    free_statement(yymsp[-1].minor.yy79);
-    free_block(yymsp[0].minor.yy37);
+    free_statement(yymsp[-1].minor.yy35);
+    free_block(yymsp[0].minor.yy9);
 }
-#line 1368 "NCDConfigParser_parse.c"
+#line 1394 "NCDConfigParser_parse.c"
         break;
       case 18: /* dotted_name ::= NAME */
-      case 35: /* name_maybe ::= NAME */ yytestcase(yyruleno==35);
-#line 507 "NCDConfigParser_parse.y"
+      case 39: /* name_maybe ::= NAME */ yytestcase(yyruleno==39);
+#line 511 "NCDConfigParser_parse.y"
 {
     ASSERT(yymsp[0].minor.yy0.str)
 
-    yygotominor.yy33 = yymsp[0].minor.yy0.str;
+    yygotominor.yy1 = yymsp[0].minor.yy0.str;
 }
-#line 1378 "NCDConfigParser_parse.c"
+#line 1404 "NCDConfigParser_parse.c"
         break;
       case 19: /* dotted_name ::= NAME DOT dotted_name */
-#line 513 "NCDConfigParser_parse.y"
+#line 517 "NCDConfigParser_parse.y"
 {
     ASSERT(yymsp[-2].minor.yy0.str)
-    if (!yymsp[0].minor.yy33) {
+    if (!yymsp[0].minor.yy1) {
         goto failJ0;
     }
 
-    if (!(yygotominor.yy33 = concat_strings(3, yymsp[-2].minor.yy0.str, ".", yymsp[0].minor.yy33))) {
+    if (!(yygotominor.yy1 = concat_strings(3, yymsp[-2].minor.yy0.str, ".", yymsp[0].minor.yy1))) {
         goto failJ0;
     }
 
     goto doneJ;
 
 failJ0:
-    yygotominor.yy33 = NULL;
+    yygotominor.yy1 = NULL;
     parser_out->out_of_memory = 1;
 doneJ:
     free_token(yymsp[-2].minor.yy0);
-    free(yymsp[0].minor.yy33);
+    free(yymsp[0].minor.yy1);
   yy_destructor(yypParser,17,&yymsp[-1].minor);
 }
-#line 1402 "NCDConfigParser_parse.c"
+#line 1428 "NCDConfigParser_parse.c"
         break;
       case 20: /* statement_args_maybe ::= */
-#line 533 "NCDConfigParser_parse.y"
+#line 537 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy51.have = 1;
-    NCDValue_InitList(&yygotominor.yy51.v);
+    yygotominor.yy19.have = 1;
+    NCDValue_InitList(&yygotominor.yy19.v);
 }
-#line 1410 "NCDConfigParser_parse.c"
+#line 1436 "NCDConfigParser_parse.c"
         break;
       case 21: /* statement_args_maybe ::= list_contents */
-      case 32: /* value ::= list */ yytestcase(yyruleno==32);
-      case 33: /* value ::= map */ yytestcase(yyruleno==33);
-#line 538 "NCDConfigParser_parse.y"
-{
-    yygotominor.yy51 = yymsp[0].minor.yy51;
-}
-#line 1419 "NCDConfigParser_parse.c"
-        break;
-      case 22: /* list_contents ::= value */
+      case 33: /* noninvoc_value ::= list */ yytestcase(yyruleno==33);
+      case 34: /* noninvoc_value ::= map */ yytestcase(yyruleno==34);
+      case 36: /* value ::= invoc */ yytestcase(yyruleno==36);
+      case 37: /* value ::= noninvoc_value */ yytestcase(yyruleno==37);
 #line 542 "NCDConfigParser_parse.y"
 {
-    if (!yymsp[0].minor.yy51.have) {
+    yygotominor.yy19 = yymsp[0].minor.yy19;
+}
+#line 1447 "NCDConfigParser_parse.c"
+        break;
+      case 22: /* list_contents ::= value */
+#line 546 "NCDConfigParser_parse.y"
+{
+    if (!yymsp[0].minor.yy19.have) {
         goto failL0;
     }
 
-    NCDValue_InitList(&yygotominor.yy51.v);
+    NCDValue_InitList(&yygotominor.yy19.v);
 
-    if (!NCDValue_ListPrepend(&yygotominor.yy51.v, yymsp[0].minor.yy51.v)) {
+    if (!NCDValue_ListPrepend(&yygotominor.yy19.v, yymsp[0].minor.yy19.v)) {
         goto failL1;
     }
-    yymsp[0].minor.yy51.have = 0;
+    yymsp[0].minor.yy19.have = 0;
 
-    yygotominor.yy51.have = 1;
+    yygotominor.yy19.have = 1;
     goto doneL;
 
 failL1:
-    NCDValue_Free(&yygotominor.yy51.v);
+    NCDValue_Free(&yygotominor.yy19.v);
 failL0:
-    yygotominor.yy51.have = 0;
+    yygotominor.yy19.have = 0;
     parser_out->out_of_memory = 1;
 doneL:
-    free_value(yymsp[0].minor.yy51);
+    free_value(yymsp[0].minor.yy19);
 }
-#line 1446 "NCDConfigParser_parse.c"
+#line 1474 "NCDConfigParser_parse.c"
         break;
       case 23: /* list_contents ::= value COMMA list_contents */
-#line 566 "NCDConfigParser_parse.y"
+#line 570 "NCDConfigParser_parse.y"
 {
-    if (!yymsp[-2].minor.yy51.have || !yymsp[0].minor.yy51.have) {
+    if (!yymsp[-2].minor.yy19.have || !yymsp[0].minor.yy19.have) {
         goto failM0;
     }
 
-    if (!NCDValue_ListPrepend(&yymsp[0].minor.yy51.v, yymsp[-2].minor.yy51.v)) {
+    if (!NCDValue_ListPrepend(&yymsp[0].minor.yy19.v, yymsp[-2].minor.yy19.v)) {
         goto failM0;
     }
-    yymsp[-2].minor.yy51.have = 0;
+    yymsp[-2].minor.yy19.have = 0;
 
-    yygotominor.yy51.have = 1;
-    yygotominor.yy51.v = yymsp[0].minor.yy51.v;
-    yymsp[0].minor.yy51.have = 0;
+    yygotominor.yy19.have = 1;
+    yygotominor.yy19.v = yymsp[0].minor.yy19.v;
+    yymsp[0].minor.yy19.have = 0;
     goto doneM;
 
 failM0:
-    yygotominor.yy51.have = 0;
+    yygotominor.yy19.have = 0;
     parser_out->out_of_memory = 1;
 doneM:
-    free_value(yymsp[-2].minor.yy51);
-    free_value(yymsp[0].minor.yy51);
+    free_value(yymsp[-2].minor.yy19);
+    free_value(yymsp[0].minor.yy19);
   yy_destructor(yypParser,18,&yymsp[-1].minor);
 }
-#line 1473 "NCDConfigParser_parse.c"
+#line 1501 "NCDConfigParser_parse.c"
         break;
       case 24: /* list ::= CURLY_OPEN CURLY_CLOSE */
-#line 589 "NCDConfigParser_parse.y"
+#line 593 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy51.have = 1;
-    NCDValue_InitList(&yygotominor.yy51.v);
+    yygotominor.yy19.have = 1;
+    NCDValue_InitList(&yygotominor.yy19.v);
   yy_destructor(yypParser,5,&yymsp[-1].minor);
   yy_destructor(yypParser,6,&yymsp[0].minor);
 }
-#line 1483 "NCDConfigParser_parse.c"
+#line 1511 "NCDConfigParser_parse.c"
         break;
       case 25: /* list ::= CURLY_OPEN list_contents CURLY_CLOSE */
-#line 594 "NCDConfigParser_parse.y"
+#line 598 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy51 = yymsp[-1].minor.yy51;
+    yygotominor.yy19 = yymsp[-1].minor.yy19;
   yy_destructor(yypParser,5,&yymsp[-2].minor);
   yy_destructor(yypParser,6,&yymsp[0].minor);
 }
-#line 1492 "NCDConfigParser_parse.c"
+#line 1520 "NCDConfigParser_parse.c"
         break;
       case 26: /* map_contents ::= value COLON value */
-#line 598 "NCDConfigParser_parse.y"
+#line 602 "NCDConfigParser_parse.y"
 {
-    if (!yymsp[-2].minor.yy51.have || !yymsp[0].minor.yy51.have) {
+    if (!yymsp[-2].minor.yy19.have || !yymsp[0].minor.yy19.have) {
         goto failS0;
     }
 
-    NCDValue_InitMap(&yygotominor.yy51.v);
+    NCDValue_InitMap(&yygotominor.yy19.v);
 
-    if (!NCDValue_MapPrepend(&yygotominor.yy51.v, yymsp[-2].minor.yy51.v, yymsp[0].minor.yy51.v)) {
+    if (!NCDValue_MapPrepend(&yygotominor.yy19.v, yymsp[-2].minor.yy19.v, yymsp[0].minor.yy19.v)) {
         goto failS1;
     }
-    yymsp[-2].minor.yy51.have = 0;
-    yymsp[0].minor.yy51.have = 0;
+    yymsp[-2].minor.yy19.have = 0;
+    yymsp[0].minor.yy19.have = 0;
 
-    yygotominor.yy51.have = 1;
+    yygotominor.yy19.have = 1;
     goto doneS;
 
 failS1:
-    NCDValue_Free(&yygotominor.yy51.v);
+    NCDValue_Free(&yygotominor.yy19.v);
 failS0:
-    yygotominor.yy51.have = 0;
+    yygotominor.yy19.have = 0;
     parser_out->out_of_memory = 1;
 doneS:
-    free_value(yymsp[-2].minor.yy51);
-    free_value(yymsp[0].minor.yy51);
+    free_value(yymsp[-2].minor.yy19);
+    free_value(yymsp[0].minor.yy19);
   yy_destructor(yypParser,14,&yymsp[-1].minor);
 }
-#line 1522 "NCDConfigParser_parse.c"
+#line 1550 "NCDConfigParser_parse.c"
         break;
       case 27: /* map_contents ::= value COLON value COMMA map_contents */
-#line 624 "NCDConfigParser_parse.y"
+#line 628 "NCDConfigParser_parse.y"
 {
-    if (!yymsp[-4].minor.yy51.have || !yymsp[-2].minor.yy51.have || !yymsp[0].minor.yy51.have) {
+    if (!yymsp[-4].minor.yy19.have || !yymsp[-2].minor.yy19.have || !yymsp[0].minor.yy19.have) {
         goto failT0;
     }
 
-    if (!NCDValue_MapPrepend(&yymsp[0].minor.yy51.v, yymsp[-4].minor.yy51.v, yymsp[-2].minor.yy51.v)) {
+    if (!NCDValue_MapPrepend(&yymsp[0].minor.yy19.v, yymsp[-4].minor.yy19.v, yymsp[-2].minor.yy19.v)) {
         goto failT0;
     }
-    yymsp[-4].minor.yy51.have = 0;
-    yymsp[-2].minor.yy51.have = 0;
+    yymsp[-4].minor.yy19.have = 0;
+    yymsp[-2].minor.yy19.have = 0;
 
-    yygotominor.yy51.have = 1;
-    yygotominor.yy51.v = yymsp[0].minor.yy51.v;
-    yymsp[0].minor.yy51.have = 0;
+    yygotominor.yy19.have = 1;
+    yygotominor.yy19.v = yymsp[0].minor.yy19.v;
+    yymsp[0].minor.yy19.have = 0;
     goto doneT;
 
 failT0:
-    yygotominor.yy51.have = 0;
+    yygotominor.yy19.have = 0;
     parser_out->out_of_memory = 1;
 doneT:
-    free_value(yymsp[-4].minor.yy51);
-    free_value(yymsp[-2].minor.yy51);
-    free_value(yymsp[0].minor.yy51);
+    free_value(yymsp[-4].minor.yy19);
+    free_value(yymsp[-2].minor.yy19);
+    free_value(yymsp[0].minor.yy19);
   yy_destructor(yypParser,14,&yymsp[-3].minor);
   yy_destructor(yypParser,18,&yymsp[-1].minor);
 }
-#line 1552 "NCDConfigParser_parse.c"
+#line 1580 "NCDConfigParser_parse.c"
         break;
       case 28: /* map ::= BRACKET_OPEN BRACKET_CLOSE */
-#line 649 "NCDConfigParser_parse.y"
+#line 653 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy51.have = 1;
-    NCDValue_InitMap(&yygotominor.yy51.v);
+    yygotominor.yy19.have = 1;
+    NCDValue_InitMap(&yygotominor.yy19.v);
   yy_destructor(yypParser,19,&yymsp[-1].minor);
   yy_destructor(yypParser,20,&yymsp[0].minor);
 }
-#line 1562 "NCDConfigParser_parse.c"
+#line 1590 "NCDConfigParser_parse.c"
         break;
       case 29: /* map ::= BRACKET_OPEN map_contents BRACKET_CLOSE */
-#line 654 "NCDConfigParser_parse.y"
+#line 658 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy51 = yymsp[-1].minor.yy51;
+    yygotominor.yy19 = yymsp[-1].minor.yy19;
   yy_destructor(yypParser,19,&yymsp[-2].minor);
   yy_destructor(yypParser,20,&yymsp[0].minor);
 }
-#line 1571 "NCDConfigParser_parse.c"
+#line 1599 "NCDConfigParser_parse.c"
         break;
-      case 30: /* value ::= STRING */
-#line 658 "NCDConfigParser_parse.y"
+      case 30: /* invoc ::= value noninvoc_value */
+#line 662 "NCDConfigParser_parse.y"
+{
+    if (!yymsp[-1].minor.yy19.have || !yymsp[0].minor.yy19.have) {
+        goto failQ0;
+    }
+    
+    if (!NCDValue_InitInvoc(&yygotominor.yy19.v, yymsp[-1].minor.yy19.v, yymsp[0].minor.yy19.v)) {
+        goto failQ0;
+    }
+    yymsp[-1].minor.yy19.have = 0;
+    yymsp[0].minor.yy19.have = 0;
+    yygotominor.yy19.have = 1;
+    goto doneQ;
+    
+failQ0:
+    yygotominor.yy19.have = 0;
+    parser_out->out_of_memory = 1;
+doneQ:
+    free_value(yymsp[-1].minor.yy19);
+    free_value(yymsp[0].minor.yy19);
+}
+#line 1623 "NCDConfigParser_parse.c"
+        break;
+      case 31: /* noninvoc_value ::= STRING */
+#line 683 "NCDConfigParser_parse.y"
 {
     ASSERT(yymsp[0].minor.yy0.str)
 
-    if (!NCDValue_InitStringBin(&yygotominor.yy51.v, (uint8_t *)yymsp[0].minor.yy0.str, yymsp[0].minor.yy0.len)) {
+    if (!NCDValue_InitStringBin(&yygotominor.yy19.v, (uint8_t *)yymsp[0].minor.yy0.str, yymsp[0].minor.yy0.len)) {
         goto failU0;
     }
 
-    yygotominor.yy51.have = 1;
+    yygotominor.yy19.have = 1;
     goto doneU;
 
 failU0:
-    yygotominor.yy51.have = 0;
+    yygotominor.yy19.have = 0;
     parser_out->out_of_memory = 1;
 doneU:
     free_token(yymsp[0].minor.yy0);
 }
-#line 1591 "NCDConfigParser_parse.c"
+#line 1643 "NCDConfigParser_parse.c"
         break;
-      case 31: /* value ::= dotted_name */
-#line 675 "NCDConfigParser_parse.y"
+      case 32: /* noninvoc_value ::= dotted_name */
+#line 700 "NCDConfigParser_parse.y"
 {
-    if (!yymsp[0].minor.yy33) {
+    if (!yymsp[0].minor.yy1) {
         goto failV0;
     }
 
-    if (!NCDValue_InitVar(&yygotominor.yy51.v, yymsp[0].minor.yy33)) {
+    if (!NCDValue_InitVar(&yygotominor.yy19.v, yymsp[0].minor.yy1)) {
         goto failV0;
     }
 
-    yygotominor.yy51.have = 1;
+    yygotominor.yy19.have = 1;
     goto doneV;
 
 failV0:
-    yygotominor.yy51.have = 0;
+    yygotominor.yy19.have = 0;
     parser_out->out_of_memory = 1;
 doneV:
-    free(yymsp[0].minor.yy33);
+    free(yymsp[0].minor.yy1);
 }
-#line 1613 "NCDConfigParser_parse.c"
+#line 1665 "NCDConfigParser_parse.c"
         break;
-      case 34: /* name_maybe ::= */
-#line 702 "NCDConfigParser_parse.y"
+      case 35: /* noninvoc_value ::= ROUND_OPEN value ROUND_CLOSE */
+#line 727 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy33 = NULL;
+    yygotominor.yy19 = yymsp[-1].minor.yy19;
+  yy_destructor(yypParser,7,&yymsp[-2].minor);
+  yy_destructor(yypParser,8,&yymsp[0].minor);
 }
-#line 1620 "NCDConfigParser_parse.c"
+#line 1674 "NCDConfigParser_parse.c"
         break;
-      case 36: /* process_or_template ::= PROCESS */
-#line 712 "NCDConfigParser_parse.y"
+      case 38: /* name_maybe ::= */
+#line 739 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy12 = 0;
+    yygotominor.yy1 = NULL;
+}
+#line 1681 "NCDConfigParser_parse.c"
+        break;
+      case 40: /* process_or_template ::= PROCESS */
+#line 749 "NCDConfigParser_parse.y"
+{
+    yygotominor.yy4 = 0;
   yy_destructor(yypParser,21,&yymsp[0].minor);
 }
-#line 1628 "NCDConfigParser_parse.c"
+#line 1689 "NCDConfigParser_parse.c"
         break;
-      case 37: /* process_or_template ::= TEMPLATE */
-#line 716 "NCDConfigParser_parse.y"
+      case 41: /* process_or_template ::= TEMPLATE */
+#line 753 "NCDConfigParser_parse.y"
 {
-    yygotominor.yy12 = 1;
+    yygotominor.yy4 = 1;
   yy_destructor(yypParser,22,&yymsp[0].minor);
 }
-#line 1636 "NCDConfigParser_parse.c"
+#line 1697 "NCDConfigParser_parse.c"
         break;
       default:
         break;
@@ -1694,10 +1755,10 @@ static void yy_syntax_error(
 ){
   ParseARG_FETCH;
 #define TOKEN (yyminor.yy0)
-#line 125 "NCDConfigParser_parse.y"
+#line 129 "NCDConfigParser_parse.y"
 
     parser_out->syntax_error = 1;
-#line 1701 "NCDConfigParser_parse.c"
+#line 1762 "NCDConfigParser_parse.c"
   ParseARG_STORE; /* Suppress warning about unused %extra_argument variable */
 }
 

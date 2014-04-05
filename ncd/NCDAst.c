@@ -69,6 +69,7 @@ static void value_assert (NCDValue *o)
         case NCDVALUE_LIST:
         case NCDVALUE_MAP:
         case NCDVALUE_VAR:
+        case NCDVALUE_INVOC:
             return;
         default:
             ASSERT(0);
@@ -107,6 +108,13 @@ void NCDValue_Free (NCDValue *o)
         
         case NCDVALUE_VAR: {
             free(o->var_name);
+        } break;
+        
+        case NCDVALUE_INVOC: {
+            NCDValue_Free(o->invoc_arg);
+            NCDValue_Free(o->invoc_func);
+            free(o->invoc_arg);
+            free(o->invoc_func);
         } break;
         
         default:
@@ -366,6 +374,47 @@ const char * NCDValue_VarName (NCDValue *o)
     ASSERT(o->type == NCDVALUE_VAR)
     
     return o->var_name;
+}
+
+int NCDValue_InitInvoc (NCDValue *o, NCDValue func, NCDValue arg)
+{
+    value_assert(&func);
+    value_assert(&arg);
+    
+    if (!(o->invoc_func = malloc(sizeof(*o->invoc_func)))) {
+        goto fail0;
+    }
+    if (!(o->invoc_arg = malloc(sizeof(*o->invoc_arg)))) {
+        goto fail1;
+    }
+    
+    *o->invoc_func = func;
+    *o->invoc_arg = arg;
+    
+    o->type = NCDVALUE_INVOC;
+    
+    return 1;
+    
+fail1:
+    free(o->invoc_func);
+fail0:
+    return 0;
+}
+
+NCDValue * NCDValue_InvocFunc (NCDValue *o)
+{
+    value_assert(o);
+    ASSERT(o->type == NCDVALUE_INVOC)
+    
+    return o->invoc_func;
+}
+
+NCDValue * NCDValue_InvocArg (NCDValue *o)
+{
+    value_assert(o);
+    ASSERT(o->type == NCDVALUE_INVOC)
+    
+    return o->invoc_arg;
 }
 
 void NCDProgram_Init (NCDProgram *o)

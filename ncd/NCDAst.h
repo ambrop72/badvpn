@@ -63,6 +63,10 @@ struct NCDValue_s {
         struct {
             char *var_name;
         };
+        struct {
+            NCDValue *invoc_func;
+            NCDValue *invoc_arg;
+        };
     };
 };
 
@@ -136,6 +140,7 @@ struct NCDIf_s {
 #define NCDVALUE_LIST 2
 #define NCDVALUE_MAP 3
 #define NCDVALUE_VAR 4
+#define NCDVALUE_INVOC 5
 
 #define NCDPROGRAMELEM_PROCESS 1
 #define NCDPROGRAMELEM_INCLUDE 2
@@ -165,6 +170,9 @@ NCDValue * NCDValue_MapNextKey (NCDValue *o, NCDValue *ekey);
 NCDValue * NCDValue_MapKeyValue (NCDValue *o, NCDValue *ekey);
 int NCDValue_InitVar (NCDValue *o, const char *var_name) WARN_UNUSED;
 const char * NCDValue_VarName (NCDValue *o);
+int NCDValue_InitInvoc (NCDValue *o, NCDValue func, NCDValue arg) WARN_UNUSED;
+NCDValue * NCDValue_InvocFunc (NCDValue *o);
+NCDValue * NCDValue_InvocArg (NCDValue *o);
 
 void NCDProgram_Init (NCDProgram *o);
 void NCDProgram_Free (NCDProgram *o);
