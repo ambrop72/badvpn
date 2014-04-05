@@ -37,72 +37,16 @@
 #include <misc/maxalign.h>
 #include <misc/cstring.h>
 #include <misc/BRefTarget.h>
-#include <structure/CAvl.h>
 #include <ncd/NCDStringIndex.h>
 
 // these are implementation details. The interface is defined below.
 
 #define NCDVAL_FASTBUF_SIZE 64
-#define NCDVAL_FIRST_SIZE 256
-#define NCDVAL_MAX_DEPTH 32
 
 #define NCDVAL_MAXIDX INT_MAX
 #define NCDVAL_MINIDX INT_MIN
 
 typedef int NCDVal__idx;
-
-struct NCDVal__ref {
-    NCDVal__idx next;
-    BRefTarget *target;
-};
-
-struct NCDVal__string {
-    int type;
-    NCDVal__idx length;
-    char data[];
-};
-
-struct NCDVal__list {
-    int type;
-    NCDVal__idx maxcount;
-    NCDVal__idx count;
-    NCDVal__idx elem_indices[];
-};
-
-struct NCDVal__mapelem {
-    NCDVal__idx key_idx;
-    NCDVal__idx val_idx;
-    NCDVal__idx tree_child[2];
-    NCDVal__idx tree_parent;
-    int8_t tree_balance;
-};
-
-struct NCDVal__idstring {
-    int type;
-    NCD_string_id_t string_id;
-    NCDStringIndex *string_index;
-};
-
-struct NCDVal__externalstring {
-    int type;
-    const char *data;
-    size_t length;
-    struct NCDVal__ref ref;
-};
-
-struct NCDVal__composedstring {
-    int type;
-    size_t offset;
-    size_t length;
-    void (*func_getptr) (void *, size_t, const char **, size_t *);
-    void *user;
-    struct NCDVal__ref ref;
-};
-
-struct NCDVal__cms_link {
-    NCDVal__idx link_idx;
-    NCDVal__idx next_cms_link;
-};
 
 typedef struct {
     char *buf;
@@ -125,45 +69,11 @@ typedef struct {
     NCDVal__idx idx;
 } NCDValSafeRef;
 
-typedef struct NCDVal__mapelem NCDVal__maptree_entry;
-typedef NCDValMem *NCDVal__maptree_arg;
-
-#include "NCDVal_maptree.h"
-#include <structure/CAvl_decl.h>
-
-struct NCDVal__map {
-    int type;
-    NCDVal__idx maxcount;
-    NCDVal__idx count;
-    NCDVal__MapTree tree;
-    struct NCDVal__mapelem elems[];
-};
-
 typedef struct {
     NCDVal__idx elemidx;
 } NCDValMapElem;
 
-#define NCDVAL_INSTR_PLACEHOLDER 0
-#define NCDVAL_INSTR_REINSERT 1
-#define NCDVAL_INSTR_BUMPDEPTH 2
-
-struct NCDVal__instr {
-    int type;
-    union {
-        struct {
-            NCDVal__idx plid;
-            NCDVal__idx plidx;
-        } placeholder;
-        struct {
-            NCDVal__idx mapidx;
-            NCDVal__idx elempos;
-        } reinsert;
-        struct {
-            NCDVal__idx parent_idx;
-            NCDVal__idx child_idx_idx;
-        } bumpdepth;
-    };
-};
+struct NCDVal__instr;
 
 typedef struct {
     struct NCDVal__instr *instrs;

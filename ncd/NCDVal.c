@@ -36,11 +36,15 @@
 #include <misc/balloc.h>
 #include <misc/strdup.h>
 #include <misc/offset.h>
+#include <structure/CAvl.h>
 #include <base/BLog.h>
 
 #include "NCDVal.h"
 
 #include <generated/blog_channel_NCDVal.h>
+
+#define NCDVAL_FIRST_SIZE 256
+#define NCDVAL_MAX_DEPTH 32
 
 #define TYPE_MASK_EXTERNAL_TYPE ((1 << 3) - 1)
 #define TYPE_MASK_INTERNAL_TYPE ((1 << 5) - 1)
@@ -50,6 +54,95 @@
 #define IDSTRING_TYPE (NCDVAL_STRING | (1 << 3))
 #define EXTERNALSTRING_TYPE (NCDVAL_STRING | (2 << 3))
 #define COMPOSEDSTRING_TYPE (NCDVAL_STRING | (3 << 3))
+
+#define NCDVAL_INSTR_PLACEHOLDER 0
+#define NCDVAL_INSTR_REINSERT 1
+#define NCDVAL_INSTR_BUMPDEPTH 2
+
+struct NCDVal__ref {
+    NCDVal__idx next;
+    BRefTarget *target;
+};
+
+struct NCDVal__string {
+    int type;
+    NCDVal__idx length;
+    char data[];
+};
+
+struct NCDVal__list {
+    int type;
+    NCDVal__idx maxcount;
+    NCDVal__idx count;
+    NCDVal__idx elem_indices[];
+};
+
+struct NCDVal__mapelem {
+    NCDVal__idx key_idx;
+    NCDVal__idx val_idx;
+    NCDVal__idx tree_child[2];
+    NCDVal__idx tree_parent;
+    int8_t tree_balance;
+};
+
+struct NCDVal__idstring {
+    int type;
+    NCD_string_id_t string_id;
+    NCDStringIndex *string_index;
+};
+
+struct NCDVal__externalstring {
+    int type;
+    const char *data;
+    size_t length;
+    struct NCDVal__ref ref;
+};
+
+struct NCDVal__composedstring {
+    int type;
+    size_t offset;
+    size_t length;
+    void (*func_getptr) (void *, size_t, const char **, size_t *);
+    void *user;
+    struct NCDVal__ref ref;
+};
+
+struct NCDVal__cms_link {
+    NCDVal__idx link_idx;
+    NCDVal__idx next_cms_link;
+};
+
+typedef struct NCDVal__mapelem NCDVal__maptree_entry;
+typedef NCDValMem *NCDVal__maptree_arg;
+
+#include "NCDVal_maptree.h"
+#include <structure/CAvl_decl.h>
+
+struct NCDVal__map {
+    int type;
+    NCDVal__idx maxcount;
+    NCDVal__idx count;
+    NCDVal__MapTree tree;
+    struct NCDVal__mapelem elems[];
+};
+
+struct NCDVal__instr {
+    int type;
+    union {
+        struct {
+            NCDVal__idx plid;
+            NCDVal__idx plidx;
+        } placeholder;
+        struct {
+            NCDVal__idx mapidx;
+            NCDVal__idx elempos;
+        } reinsert;
+        struct {
+            NCDVal__idx parent_idx;
+            NCDVal__idx child_idx_idx;
+        } bumpdepth;
+    };
+};
 
 static int make_type (int internal_type, int depth)
 {
