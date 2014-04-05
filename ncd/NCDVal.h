@@ -34,6 +34,7 @@
 #include <stdint.h>
 
 #include <misc/debug.h>
+#include <misc/maxalign.h>
 #include <misc/cstring.h>
 #include <misc/BRefTarget.h>
 #include <structure/CAvl.h>
@@ -111,14 +112,7 @@ typedef struct {
     NCDVal__idx first_cms_link;
     union {
         char fastbuf[NCDVAL_FASTBUF_SIZE];
-        struct NCDVal__ref align_ref;
-        struct NCDVal__string align_string;
-        struct NCDVal__list align_list;
-        struct NCDVal__mapelem align_mapelem;
-        struct NCDVal__idstring align_idstring;
-        struct NCDVal__externalstring align_externalstring;
-        struct NCDVal__composedstring align_composedstring;
-        struct NCDVal__cms_link align_cms_link;
+        bmax_align_t align_max;
     };
 } NCDValMem;
 
