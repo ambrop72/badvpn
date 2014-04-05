@@ -323,6 +323,15 @@ static void NCDValMem__PopLastRegisteredLink (NCDValMem *mem)
     mem->first_cms_link = cms_link->next_cms_link;
 }
 
+static void NCDValMem__RegisterRef (NCDValMem *o, NCDVal__idx refidx, struct NCDVal__ref *ref)
+{
+    ASSERT(ref == NCDValMem__BufAt(o, refidx))
+    ASSERT(ref->target)
+    
+    ref->next = o->first_ref;
+    o->first_ref = refidx;
+}
+
 static NCDValRef NCDVal__CopyComposedStringToStored (NCDValRef val)
 {
     ASSERT(NCDVal_IsComposedString(val))
@@ -998,8 +1007,7 @@ NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len
     exs_e->ref.target = ref_target;
     
     if (ref_target) {
-        exs_e->ref.next = mem->first_ref;
-        mem->first_ref = idx + offsetof(struct NCDVal__externalstring, ref);
+        NCDValMem__RegisterRef(mem, idx + offsetof(struct NCDVal__externalstring, ref), &exs_e->ref);
     }
     
     return NCDVal__Ref(mem, idx);
@@ -1034,8 +1042,7 @@ NCDValRef NCDVal_NewComposedString (NCDValMem *mem, NCDValComposedStringResource
     cms_e->ref.target = resource.ref_target;
     
     if (resource.ref_target) {
-        cms_e->ref.next = mem->first_ref;
-        mem->first_ref = idx + offsetof(struct NCDVal__composedstring, ref);
+        NCDValMem__RegisterRef(mem, idx + offsetof(struct NCDVal__composedstring, ref), &cms_e->ref);
     }
     
     return NCDVal__Ref(mem, idx);
