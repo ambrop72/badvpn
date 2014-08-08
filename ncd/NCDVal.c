@@ -2031,7 +2031,7 @@ int NCDValReplaceProg_Execute (NCDValReplaceProg prog, NCDValMem *mem, NCDVal_re
             case NCDVAL_INSTR_REINSERT: {
                 NCDVal__AssertValOnly(mem, instr.reinsert.mapidx);
                 struct NCDVal__map *map_e = NCDValMem__BufAt(mem, instr.reinsert.mapidx);
-                ASSERT(map_e->type == NCDVAL_MAP)
+                ASSERT(get_internal_type(map_e->type) == NCDVAL_MAP)
                 ASSERT(instr.reinsert.elempos >= 0)
                 ASSERT(instr.reinsert.elempos < map_e->count)
                 
