@@ -24,3 +24,4 @@ add_library(lwip
     src/core/ipv6/ip6_frag.c
     custom/sys.c
 )
+target_link_libraries(lwip system)
