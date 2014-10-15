@@ -256,6 +256,14 @@ set(BUILDING_UDEVMONITOR 0)
 set(BUILDING_THREADWORK 0)
 set(BUILDING_RANDOM 0)
 
+# Used to register an internal library.
+# This will also add a library with the -plugin suffix, which is useful
+# for use by dynamic libraries (e.g. NCD modules):
+# - If BUILD_SHARED_LIBS is off (default), the libraries ${LIB_NAME} and ${LIB_NAME}-plugin
+#   are built separately. Both are static libraries but the -plugin variant is build as position
+#   independent code, so it can be (statically) linked into dynamic libraries.
+# - If BUILD_SHARED_LIBS is on, only ${LIB_NAME} is built, as a shared library.
+#   The ${LIB_NAME}-plugin target is set up as an alias to ${LIB_NAME}.
 function(badvpn_add_library LIB_NAME LINK_BADVPN_LIBS LINK_SYS_LIBS LIB_SOURCES)
     set(BADVPN_LIBS_EXEC)
     set(BADVPN_LIBS_PLUGIN)
@@ -264,13 +272,17 @@ function(badvpn_add_library LIB_NAME LINK_BADVPN_LIBS LINK_SYS_LIBS LIB_SOURCES)
         list(APPEND BADVPN_LIBS_PLUGIN "${LIB}-plugin")
     endforeach()
 
-    add_library("${LIB_NAME}" STATIC ${LIB_SOURCES})
+    add_library("${LIB_NAME}" ${LIB_SOURCES})
     target_link_libraries("${LIB_NAME}" ${BADVPN_LIBS_EXEC} ${LINK_SYS_LIBS})
 
-    add_library("${LIB_NAME}-plugin" STATIC ${LIB_SOURCES})
-    target_link_libraries("${LIB_NAME}-plugin" ${BADVPN_LIBS_PLUGIN} ${LINK_SYS_LIBS})
-    set_target_properties("${LIB_NAME}-plugin" PROPERTIES POSITION_INDEPENDENT_CODE YES)
-    set_target_properties("${LIB_NAME}-plugin" PROPERTIES COMPILE_FLAGS "-fvisibility=hidden -DBADVPN_PLUGIN")
+    if (BUILD_SHARED_LIBS)
+        add_library("${LIB_NAME}-plugin" ALIAS "${LIB_NAME}")
+    else ()
+        add_library("${LIB_NAME}-plugin" STATIC ${LIB_SOURCES})
+        target_link_libraries("${LIB_NAME}-plugin" ${BADVPN_LIBS_PLUGIN} ${LINK_SYS_LIBS})
+        set_target_properties("${LIB_NAME}-plugin" PROPERTIES POSITION_INDEPENDENT_CODE YES)
+        set_target_properties("${LIB_NAME}-plugin" PROPERTIES COMPILE_FLAGS "-fvisibility=hidden -DBADVPN_PLUGIN")
+    endif()
 endfunction()
 
 # internal libraries
