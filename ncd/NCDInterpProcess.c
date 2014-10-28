@@ -152,6 +152,7 @@ static int convert_value_recurser (NCDPlaceholderDb *pdb, NCDStringIndex *string
         } break;
         
         default:
+            BLog(BLOG_ERROR, "expression type not supported");
             goto fail;
     }
     
