@@ -42,6 +42,23 @@
 
 #include <generated/blog_channel_ncd.h>
 
+struct NCDInterpProcess__stmt {
+    NCD_string_id_t name;
+    NCD_string_id_t cmdname;
+    NCD_string_id_t *objnames;
+    size_t num_objnames;
+    union {
+        const struct NCDInterpModule *simple_module;
+        int method_name_id;
+    } binding;
+    NCDValMem arg_mem;
+    NCDValSafeRef arg_ref;
+    NCDValReplaceProg arg_prog;
+    int alloc_size;
+    int prealloc_offset;
+    int hash_next;
+};
+
 static int compute_prealloc (NCDInterpProcess *o)
 {
     int size = 0;

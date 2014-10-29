@@ -41,22 +41,7 @@
 #include <ncd/NCDModuleIndex.h>
 #include <ncd/NCDStringIndex.h>
 
-struct NCDInterpProcess__stmt {
-    NCD_string_id_t name;
-    NCD_string_id_t cmdname;
-    NCD_string_id_t *objnames;
-    size_t num_objnames;
-    union {
-        const struct NCDInterpModule *simple_module;
-        int method_name_id;
-    } binding;
-    NCDValMem arg_mem;
-    NCDValSafeRef arg_ref;
-    NCDValReplaceProg arg_prog;
-    int alloc_size;
-    int prealloc_offset;
-    int hash_next;
-};
+struct NCDInterpProcess__stmt;
 
 /**
  * A data structure which contains information about a process or
