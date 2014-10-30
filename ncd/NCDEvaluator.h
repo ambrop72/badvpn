@@ -37,17 +37,27 @@
 #include <ncd/NCDStringIndex.h>
 #include <ncd/NCDVal.h>
 
-struct NCDEvaluator__var;
-struct NCDEvaluator__call;
+struct NCDEvaluator__Var {
+    NCD_string_id_t *varnames;
+    size_t num_names;
+};
+
+#define VECTOR_NAME NCDEvaluator__VarVec
+#define VECTOR_ELEM_TYPE struct NCDEvaluator__Var
+#include <structure/Vector.h>
+
+struct NCDEvaluator__Call {
+    int tbd;
+};
+
+#define VECTOR_NAME NCDEvaluator__CallVec
+#define VECTOR_ELEM_TYPE struct NCDEvaluator__Call
+#include <structure/Vector.h>
 
 typedef struct {
     NCDStringIndex *string_index;
-    struct NCDEvaluator__var *vars;
-    struct NCDEvaluator__call *calls;
-    int vars_capacity;
-    int calls_capacity;
-    int num_vars;
-    int num_calls;
+    NCDEvaluator__VarVec vars;
+    NCDEvaluator__CallVec calls;
 } NCDEvaluator;
 
 typedef struct {

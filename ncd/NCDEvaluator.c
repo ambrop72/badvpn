@@ -30,6 +30,8 @@
 #include <stddef.h>
 #include <limits.h>
 
+#include <misc/debug.h>
+#include <misc/balloc.h>
 #include <base/BLog.h>
 #include <ncd/make_name_indices.h>
 
@@ -37,33 +39,11 @@
 
 #include <generated/blog_channel_ncd.h>
 
-struct NCDEvaluator__var {
-    NCD_string_id_t *varnames;
-    size_t num_names;
-};
-
-struct NCDEvaluator__call {
-    int y;
-};
-
-#define GROWARRAY_NAME VarArray
-#define GROWARRAY_OBJECT_TYPE NCDEvaluator
-#define GROWARRAY_ARRAY_MEMBER vars
-#define GROWARRAY_CAPACITY_MEMBER vars_capacity
-#define GROWARRAY_MAX_CAPACITY INT_MAX
-#include <misc/grow_array.h>
-
-#define GROWARRAY_NAME CallArray
-#define GROWARRAY_OBJECT_TYPE NCDEvaluator
-#define GROWARRAY_ARRAY_MEMBER calls
-#define GROWARRAY_CAPACITY_MEMBER calls_capacity
-#define GROWARRAY_MAX_CAPACITY INT_MAX
-#include <misc/grow_array.h>
+#define NCDEVALUATOR_DEFAULT_VARARRAY_CAPACITY 16
+#define NCDEVALUATOR_DEFAULT_CALLARRAY_CAPACITY 16
 
 static int add_expr_recurser (NCDEvaluator *o, NCDValue *value, NCDValMem *mem, NCDValRef *out)
 {
-    ASSERT((NCDValue_Type(value), 1))
-    
     switch (NCDValue_Type(value)) {
         case NCDVALUE_STRING: {
             const char *str = NCDValue_StringValue(value);
@@ -130,14 +110,13 @@ static int add_expr_recurser (NCDEvaluator *o, NCDValue *value, NCDValMem *mem, 
         } break;
         
         case NCDVALUE_VAR: {
-            if (o->num_vars == o->vars_capacity && !VarArray_DoubleUp(o)) {
+            struct NCDEvaluator__Var *var;
+            if (!NCDEvaluator__VarVec_AllocAppend(&o->vars, 1, &var)) {
                 BLog(BLOG_ERROR, "failed to grow var array");
                 goto fail;
             }
             
-            struct NCDEvaluator__var *var = &o->vars[o->num_vars];
-            
-            int plid = o->num_vars;
+            int plid = o->vars.count;
             if (plid >= NCDVAL_TOPPLID) {
                 BLog(BLOG_ERROR, "too many placeholders");
                 goto fail;
@@ -148,7 +127,7 @@ static int add_expr_recurser (NCDEvaluator *o, NCDValue *value, NCDValMem *mem, 
                 goto fail;
             }
             
-            o->num_vars++;
+            NCDEvaluator__VarVec_DoAppend(&o->vars, 1);
             
             *out = NCDVal_NewPlaceholder(mem, plid);
         } break;
@@ -174,9 +153,9 @@ static int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, N
     struct eval_context const *context = arg;
     NCDEvaluator *o = context->eval;
     ASSERT(plid >= 0)
-    ASSERT(plid < o->num_vars)
+    ASSERT(plid < o->vars.count)
     
-    struct NCDEvaluator__var *var = &o->vars[plid];
+    struct NCDEvaluator__Var *var = &o->vars.elems[plid];
     
     return context->funcs->func_eval_var(context->funcs->user, var->varnames, var->num_names, mem, out);
 }
@@ -185,39 +164,38 @@ int NCDEvaluator_Init (NCDEvaluator *o, NCDStringIndex *string_index)
 {
     o->string_index = string_index;
     
-    if (!VarArray_Init(o, 16)) {
-        BLog(BLOG_ERROR, "NamesArray_Init failed");
+    if (!NCDEvaluator__VarVec_Init(&o->vars, NCDEVALUATOR_DEFAULT_VARARRAY_CAPACITY)) {
+        BLog(BLOG_ERROR, "NCDEvaluator__VarVec_Init failed");
         goto fail0;
     }
     
-    if (!CallArray_Init(o, 16)) {
-        BLog(BLOG_ERROR, "EntriesArray_Init failed");
+    if (!NCDEvaluator__CallVec_Init(&o->calls, NCDEVALUATOR_DEFAULT_CALLARRAY_CAPACITY)) {
+        BLog(BLOG_ERROR, "NCDEvaluator__CallVec_Init failed");
         goto fail1;
     }
-    
-    o->num_vars = 0;
-    o->num_calls = 0;
     
     return 1;
     
 fail1:
-    VarArray_Free(o);
+    NCDEvaluator__VarVec_Free(&o->vars);
 fail0:
     return 0;
 }
 
 void NCDEvaluator_Free (NCDEvaluator *o)
 {
-    for (int i = 0; i < o->num_vars; i++) {
-        BFree(o->vars[i].varnames);
+    for (size_t i = 0; i < o->vars.count; i++) {
+        BFree(o->vars.elems[i].varnames);
     }
     
-    CallArray_Free(o);
-    VarArray_Free(o);
+    NCDEvaluator__CallVec_Free(&o->calls);
+    NCDEvaluator__VarVec_Free(&o->vars);
 }
 
 int NCDEvaluatorExpr_Init (NCDEvaluatorExpr *o, NCDEvaluator *eval, NCDValue *value)
 {
+    ASSERT((NCDValue_Type(value), 1))
+    
     NCDValMem_Init(&o->mem);
     
     NCDValRef ref;
@@ -247,6 +225,10 @@ void NCDEvaluatorExpr_Free (NCDEvaluatorExpr *o)
 
 int NCDEvaluatorExpr_Eval (NCDEvaluatorExpr *o, NCDEvaluator *eval, NCDEvaluator_EvalFuncs const *funcs, NCDValMem *out_newmem, NCDValRef *out_val)
 {
+    ASSERT(funcs)
+    ASSERT(out_newmem)
+    ASSERT(out_val)
+    
     if (!NCDValMem_InitCopy(out_newmem, &o->mem)) {
         BLog(BLOG_ERROR, "NCDValMem_InitCopy failed");
         goto fail0;
