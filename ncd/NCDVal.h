@@ -45,6 +45,7 @@
 
 #define NCDVAL_MAXIDX INT_MAX
 #define NCDVAL_MINIDX INT_MIN
+#define NCDVAL_TOPPLID (-1 - NCDVAL_MINIDX)
 
 typedef int NCDVal__idx;
 
@@ -187,11 +188,11 @@ NCDValRef NCDVal_NewInvalid (void);
 /**
  * Returns a new placeholder value reference. A placeholder value is a valid value
  * containing an integer placeholder identifier.
- * This always succeeds; however, the caller must ensure the identifier is
- * non-negative and satisfies (NCDVAL_MINIDX + plid < -1).
+ * This always succeeds; however, the caller must ensure the identifier is in the
+ * range [0, NCDVAL_TOPPLID).
  * 
  * The placeholder type is only used internally in the interpreter for argument
- * resolution, and is never seen by modules. Also see {@link NCDPlaceholderDb}.
+ * resolution, and is never seen by modules.
  */
 NCDValRef NCDVal_NewPlaceholder (NCDValMem *mem, int plid);
 

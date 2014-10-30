@@ -98,7 +98,7 @@ static void process_work_job_handler_working (struct process *p);
 static void process_work_job_handler_up (struct process *p);
 static void process_work_job_handler_waiting (struct process *p);
 static void process_work_job_handler_terminating (struct process *p);
-static int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRef *out);
+static int eval_func_eval_var (void *user, NCD_string_id_t const *varnames, size_t num_names, NCDValMem *mem, NCDValRef *out);
 static void process_advance (struct process *p);
 static void process_wait_timer_handler (BSmallTimer *timer);
 static int process_find_object (struct process *p, int pos, NCD_string_id_t name, NCDObject *out_object);
@@ -190,14 +190,14 @@ int NCDInterpreter_Init (NCDInterpreter *o, NCDProgram program, struct NCDInterp
         goto fail3;
     }
     
-    // init placeholder database
-    if (!NCDPlaceholderDb_Init(&o->placeholder_db, &o->string_index)) {
-        BLog(BLOG_ERROR, "NCDPlaceholderDb_Init failed");
+    // init expression evaluator
+    if (!NCDEvaluator_Init(&o->evaluator, &o->string_index)) {
+        BLog(BLOG_ERROR, "NCDEvaluator_Init failed");
         goto fail3;
     }
     
     // init interp program
-    if (!NCDInterpProg_Init(&o->iprogram, &o->program, &o->string_index, &o->placeholder_db, &o->mindex)) {
+    if (!NCDInterpProg_Init(&o->iprogram, &o->program, &o->string_index, &o->evaluator, &o->mindex)) {
         BLog(BLOG_ERROR, "NCDInterpProg_Init failed");
         goto fail5;
     }
@@ -259,7 +259,7 @@ fail7:;
     NCDInterpProg_Free(&o->iprogram);
 fail5:
     // free placeholder database
-    NCDPlaceholderDb_Free(&o->placeholder_db);
+    NCDEvaluator_Free(&o->evaluator);
 fail3:
     // free module index
     NCDModuleIndex_Free(&o->mindex);
@@ -294,7 +294,7 @@ void NCDInterpreter_Free (NCDInterpreter *o)
     NCDInterpProg_Free(&o->iprogram);
     
     // free placeholder database
-    NCDPlaceholderDb_Free(&o->placeholder_db);
+    NCDEvaluator_Free(&o->evaluator);
     
     // free module index
     NCDModuleIndex_Free(&o->mindex);
@@ -812,16 +812,13 @@ again:
     return;
 }
 
-int replace_placeholders_callback (void *arg, int plid, NCDValMem *mem, NCDValRef *out)
+int eval_func_eval_var (void *user, NCD_string_id_t const *varnames, size_t num_names, NCDValMem *mem, NCDValRef *out)
 {
-    struct process *p = arg;
-    ASSERT(plid >= 0)
+    struct process *p = user;
+    ASSERT(varnames)
+    ASSERT(num_names > 0)
     ASSERT(mem)
     ASSERT(out)
-    
-    const NCD_string_id_t *varnames;
-    size_t num_names;
-    NCDPlaceholderDb_GetVariable(&p->interp->placeholder_db, plid, &varnames, &num_names);
     
     return process_resolve_variable_expr(p, p->ap, varnames, num_names, mem, out);
 }
@@ -888,18 +885,15 @@ void process_advance (struct process *p)
         }
     }
     
-    // copy arguments
-    NCDValRef args;
-    NCDValReplaceProg prog;
-    if (!NCDInterpProcess_CopyStatementArgs(p->iprocess, ps->i, &ps->args_mem, &args, &prog)) {
-        STATEMENT_LOG(ps, BLOG_ERROR, "NCDInterpProcess_CopyStatementArgs failed");
-        goto fail0;
-    }
+    // get evaluator expression for the arguments
+    NCDEvaluatorExpr *expr = NCDInterpProcess_GetStatementArgsExpr(p->iprocess, ps->i);
     
-    // replace placeholders with values of variables
-    if (!NCDValReplaceProg_Execute(prog, &ps->args_mem, replace_placeholders_callback, p)) {
-        STATEMENT_LOG(ps, BLOG_ERROR, "failed to replace variables in arguments with values");
-        goto fail1;
+    // evaluate arguments
+    NCDValRef args;
+    NCDEvaluator_EvalFuncs funcs = {p, eval_func_eval_var};
+    if (!NCDEvaluatorExpr_Eval(expr, &p->interp->evaluator, &funcs, &ps->args_mem, &args)) {
+        STATEMENT_LOG(ps, BLOG_ERROR, "failed to evaluate arguments");
+        goto fail0;
     }
     
     // convert non-continuous strings unless the module can handle them

@@ -1,5 +1,5 @@
 /**
- * @file NCDInterpProg.h
+ * @file NCDEvaluator.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -27,37 +27,44 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef BADVPN_NCDINTERPPROG_H
-#define BADVPN_NCDINTERPPROG_H
+#ifndef BADVPN_NCDEVALUATOR_H
+#define BADVPN_NCDEVALUATOR_H
+
+#include <stddef.h>
 
 #include <misc/debug.h>
-#include <base/DebugObject.h>
 #include <ncd/NCDAst.h>
-#include <ncd/NCDInterpProcess.h>
 #include <ncd/NCDStringIndex.h>
-#include <structure/CHash.h>
+#include <ncd/NCDVal.h>
 
-struct NCDInterpProg__process {
-    NCD_string_id_t name;
-    NCDInterpProcess iprocess;
-    int hash_next;
-};
-
-typedef struct NCDInterpProg__process NCDInterpProg__hashentry;
-typedef struct NCDInterpProg__process *NCDInterpProg__hasharg;
-
-#include "NCDInterpProg_hash.h"
-#include <structure/CHash_decl.h>
+struct NCDEvaluator__var;
+struct NCDEvaluator__call;
 
 typedef struct {
-    struct NCDInterpProg__process *procs;
-    int num_procs;
-    NCDInterpProg__Hash hash;
-    DebugObject d_obj;
-} NCDInterpProg;
+    NCDStringIndex *string_index;
+    struct NCDEvaluator__var *vars;
+    struct NCDEvaluator__call *calls;
+    int vars_capacity;
+    int calls_capacity;
+    int num_vars;
+    int num_calls;
+} NCDEvaluator;
 
-int NCDInterpProg_Init (NCDInterpProg *o, NCDProgram *prog, NCDStringIndex *string_index, NCDEvaluator *eval, NCDModuleIndex *module_index) WARN_UNUSED;
-void NCDInterpProg_Free (NCDInterpProg *o);
-NCDInterpProcess * NCDInterpProg_FindProcess (NCDInterpProg *o, NCD_string_id_t name);
+typedef struct {
+    NCDValMem mem;
+    NCDValSafeRef ref;
+    NCDValReplaceProg prog;
+} NCDEvaluatorExpr;
+
+typedef struct {
+    void *user;
+    int (*func_eval_var) (void *user, NCD_string_id_t const *varnames, size_t num_names, NCDValMem *mem, NCDValRef *out);
+} NCDEvaluator_EvalFuncs;
+
+int NCDEvaluator_Init (NCDEvaluator *o, NCDStringIndex *string_index) WARN_UNUSED;
+void NCDEvaluator_Free (NCDEvaluator *o);
+int NCDEvaluatorExpr_Init (NCDEvaluatorExpr *o, NCDEvaluator *eval, NCDValue *value) WARN_UNUSED;
+void NCDEvaluatorExpr_Free (NCDEvaluatorExpr *o);
+int NCDEvaluatorExpr_Eval (NCDEvaluatorExpr *o, NCDEvaluator *eval, NCDEvaluator_EvalFuncs const *funcs, NCDValMem *out_newmem, NCDValRef *out_val) WARN_UNUSED;
 
 #endif

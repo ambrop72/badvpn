@@ -96,7 +96,7 @@ set(NCDINTERPRETER_SOURCES
     NCDModuleIndex.c
     NCDInterpProcess.c
     NCDInterpProg.c
-    NCDPlaceholderDb.c
+    NCDEvaluator.c
     NCDMethodIndex.c
     extra/BEventLock.c
     extra/NCDBuf.c

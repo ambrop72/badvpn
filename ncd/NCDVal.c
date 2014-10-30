@@ -626,7 +626,7 @@ NCDValRef NCDVal_NewPlaceholder (NCDValMem *mem, int plid)
 {
     NCDVal__AssertMem(mem);
     ASSERT(plid >= 0)
-    ASSERT(NCDVAL_MINIDX + plid < -1)
+    ASSERT(plid < NCDVAL_TOPPLID)
     
     NCDValRef ref = {mem, NCDVAL_MINIDX + plid};
     return ref;
