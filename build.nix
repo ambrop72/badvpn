@@ -1,2 +1,7 @@
 with import <nixpkgs> {};
-pkgs.badvpn.overrideDerivation (attrs: { src = stdenv.lib.cleanSource ./. ; })
+let
+   badvpnLocal = pkgs.badvpn.overrideDerivation (attrs: { src = stdenv.lib.cleanSource ./. ; });
+in rec {
+   badvpn = badvpnLocal;
+   badvpnWithDebug = badvpnLocal.override { debug = true; };
+}
