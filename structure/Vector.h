@@ -46,6 +46,7 @@
 #define Vector_Get MERGE(VECTOR_NAME, _Get)
 #define Vector_AllocAppend MERGE(VECTOR_NAME, _AllocAppend)
 #define Vector_DoAppend MERGE(VECTOR_NAME, _DoAppend)
+#define Vector_AppendValue MERGE(VECTOR_NAME, _AppendValue)
 
 typedef struct {
     VectorElem *elems;
@@ -58,6 +59,7 @@ static void Vector_Free (Vector *o);
 static VectorElem * Vector_Get (Vector *o, size_t index);
 static int Vector_AllocAppend (Vector *o, size_t count, VectorElem **out_ptr) WARN_UNUSED;
 static void Vector_DoAppend (Vector *o, size_t count);
+static int Vector_AppendValue (Vector *o, VectorElem value, size_t *out_index) WARN_UNUSED;
 
 static int Vector_Init (Vector *o, size_t capacity)
 {
@@ -127,6 +129,20 @@ static void Vector_DoAppend (Vector *o, size_t count)
     o->count += count;
 }
 
+static int Vector_AppendValue (Vector *o, VectorElem value, size_t *out_index)
+{
+    VectorElem *ptr;
+    if (!Vector_AllocAppend(o, 1, &ptr)) {
+        return 0;
+    }
+    *ptr = value;
+    if (out_index) {
+        *out_index = o->count;
+    }
+    Vector_DoAppend(o, 1);
+    return 1;
+}
+
 #undef VECTOR_NAME
 #undef VECTOR_ELEM_TYPE
 
@@ -137,3 +153,4 @@ static void Vector_DoAppend (Vector *o, size_t count)
 #undef Vector_Get
 #undef Vector_AllocAppend
 #undef Vector_DoAppend
+#undef Vector_AppendValue
