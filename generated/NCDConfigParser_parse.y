@@ -101,7 +101,6 @@ static void free_value (struct value o) { if (o.have) NCDValue_Free(&o.v); }
 %type map_contents { struct value }
 %type map  { struct value }
 %type invoc { struct value }
-%type noninvoc_value  { struct value }
 %type value  { struct value }
 %type name_maybe { char * }
 %type process_or_template { int }
@@ -120,7 +119,6 @@ static void free_value (struct value o) { if (o.have) NCDValue_Free(&o.v); }
 %destructor map_contents { free_value($$); }
 %destructor map { free_value($$); }
 %destructor invoc { free_value($$); }
-%destructor noninvoc_value { free_value($$); }
 %destructor value { free_value($$); }
 %destructor name_maybe { free($$); }
 
@@ -659,7 +657,7 @@ map(R) ::= BRACKET_OPEN map_contents(A) BRACKET_CLOSE. {
     R = A;
 }
 
-invoc(R) ::= value(F) noninvoc_value(A). {
+invoc(R) ::= value(F) ROUND_OPEN list_contents(A) ROUND_CLOSE. {
     if (!F.have || !A.have) {
         goto failQ0;
     }
@@ -680,7 +678,7 @@ doneQ:
     free_value(A);
 }
 
-noninvoc_value(R) ::= STRING(A). {
+value(R) ::= STRING(A). {
     ASSERT(A.str)
 
     if (!NCDValue_InitStringBin(&R.v, (uint8_t *)A.str, A.len)) {
@@ -697,7 +695,7 @@ doneU:
     free_token(A);
 }
 
-noninvoc_value(R) ::= dotted_name(A). {
+value(R) ::= dotted_name(A). {
     if (!A) {
         goto failV0;
     }
@@ -716,23 +714,19 @@ doneV:
     free(A);
 }
 
-noninvoc_value(R) ::= list(A). {
+value(R) ::= list(A). {
     R = A;
 }
 
-noninvoc_value(R) ::= map(A). {
+value(R) ::= map(A). {
     R = A;
 }
 
-noninvoc_value(R) ::= ROUND_OPEN value(A) ROUND_CLOSE. {
+value(R) ::= ROUND_OPEN value(A) ROUND_CLOSE. {
     R = A;
 }
 
 value(R) ::= invoc(A). {
-    R = A;
-}
-
-value(R) ::= noninvoc_value(A). {
     R = A;
 }
 
