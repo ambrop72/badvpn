@@ -99,6 +99,7 @@ static void process_work_job_handler_up (struct process *p);
 static void process_work_job_handler_waiting (struct process *p);
 static void process_work_job_handler_terminating (struct process *p);
 static int eval_func_eval_var (void *user, NCD_string_id_t const *varnames, size_t num_names, NCDValMem *mem, NCDValRef *out);
+static int eval_func_eval_call (void *user, NCD_string_id_t func_name_id, NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out);
 static void process_advance (struct process *p);
 static void process_wait_timer_handler (BSmallTimer *timer);
 static int process_find_object (struct process *p, int pos, NCD_string_id_t name, NCDObject *out_object);
@@ -823,6 +824,15 @@ int eval_func_eval_var (void *user, NCD_string_id_t const *varnames, size_t num_
     return process_resolve_variable_expr(p, p->ap, varnames, num_names, mem, out);
 }
 
+static int eval_func_eval_call (void *user, NCD_string_id_t func_name_id, NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out)
+{
+    struct process *p = user;
+    struct statement *ps = &p->statements[p->ap];
+    
+    STATEMENT_LOG(ps, BLOG_ERROR, "unknown function");
+    return 0;
+}
+
 void process_advance (struct process *p)
 {
     process_assert_pointers(p);
@@ -890,7 +900,7 @@ void process_advance (struct process *p)
     
     // evaluate arguments
     NCDValRef args;
-    NCDEvaluator_EvalFuncs funcs = {p, eval_func_eval_var};
+    NCDEvaluator_EvalFuncs funcs = {p, eval_func_eval_var, eval_func_eval_call};
     if (!NCDEvaluatorExpr_Eval(expr, &p->interp->evaluator, &funcs, &ps->args_mem, &args)) {
         STATEMENT_LOG(ps, BLOG_ERROR, "failed to evaluate arguments");
         goto fail0;

@@ -37,6 +37,12 @@
 #include <ncd/NCDStringIndex.h>
 #include <ncd/NCDVal.h>
 
+struct NCDEvaluator__Expr {
+    NCDValMem mem;
+    NCDValSafeRef ref;
+    NCDValReplaceProg prog;
+};
+
 struct NCDEvaluator__Var {
     NCD_string_id_t *varnames;
     size_t num_names;
@@ -47,12 +53,16 @@ struct NCDEvaluator__Var {
 #include <structure/Vector.h>
 
 struct NCDEvaluator__Call {
-    int tbd;
+    NCD_string_id_t func_name_id;
+    struct NCDEvaluator__Expr *args;
+    size_t num_args;
 };
 
 #define VECTOR_NAME NCDEvaluator__CallVec
 #define VECTOR_ELEM_TYPE struct NCDEvaluator__Call
 #include <structure/Vector.h>
+
+struct NCDEvaluator__eval_context;
 
 typedef struct {
     NCDStringIndex *string_index;
@@ -61,14 +71,18 @@ typedef struct {
 } NCDEvaluator;
 
 typedef struct {
-    NCDValMem mem;
-    NCDValSafeRef ref;
-    NCDValReplaceProg prog;
+    struct NCDEvaluator__Expr expr;
 } NCDEvaluatorExpr;
+
+typedef struct {
+    struct NCDEvaluator__eval_context const *context;
+    int call_index;
+} NCDEvaluatorArgs;
 
 typedef struct {
     void *user;
     int (*func_eval_var) (void *user, NCD_string_id_t const *varnames, size_t num_names, NCDValMem *mem, NCDValRef *out);
+    int (*func_eval_call) (void *user, NCD_string_id_t func_name_id, NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out);
 } NCDEvaluator_EvalFuncs;
 
 int NCDEvaluator_Init (NCDEvaluator *o, NCDStringIndex *string_index) WARN_UNUSED;
@@ -76,5 +90,8 @@ void NCDEvaluator_Free (NCDEvaluator *o);
 int NCDEvaluatorExpr_Init (NCDEvaluatorExpr *o, NCDEvaluator *eval, NCDValue *value) WARN_UNUSED;
 void NCDEvaluatorExpr_Free (NCDEvaluatorExpr *o);
 int NCDEvaluatorExpr_Eval (NCDEvaluatorExpr *o, NCDEvaluator *eval, NCDEvaluator_EvalFuncs const *funcs, NCDValMem *out_newmem, NCDValRef *out_val) WARN_UNUSED;
+size_t NCDEvaluatorArgs_Count (NCDEvaluatorArgs *o);
+int NCDEvaluatorArgs_EvalArg (NCDEvaluatorArgs *o, size_t index, NCDValMem *mem, NCDValRef *out_ref) WARN_UNUSED;
+int NCDEvaluatorArgs_EvalArgNewMem (NCDEvaluatorArgs *o, size_t index, NCDValMem *out_newmem, NCDValRef *out_ref) WARN_UNUSED;
 
 #endif
