@@ -237,6 +237,16 @@ NCDValRef NCDVal_FromSafe (NCDValMem *mem, NCDValSafeRef sval);
 NCDValRef NCDVal_Moved (NCDValMem *mem, NCDValRef val);
 
 /**
+ * Determines whether a safe reference is a placeholder.
+ */
+int NCDVal_IsSafeRefPlaceholder (NCDValSafeRef sval);
+
+/**
+ * Gets the placeholder ID of a placeholder safe reference.
+ */
+int NCDVal_GetSafeRefPlaceholderId (NCDValSafeRef sval);
+
+/**
  * Determines if all strings within this value are ContinuousString's,
  * by recusively walking the entire value.
  * If all strings are ContinuousString's, returns 1; if there is at least

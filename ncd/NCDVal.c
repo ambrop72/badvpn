@@ -886,6 +886,18 @@ NCDValRef NCDVal_Moved (NCDValMem *mem, NCDValRef val)
     return val2;
 }
 
+int NCDVal_IsSafeRefPlaceholder (NCDValSafeRef sval)
+{
+    return (sval.idx < -1);
+}
+
+int NCDVal_GetSafeRefPlaceholderId (NCDValSafeRef sval)
+{
+    ASSERT(NCDVal_IsSafeRefPlaceholder(sval))
+    
+    return (sval.idx - NCDVAL_MINIDX);
+}
+
 int NCDVal_HasOnlyContinuousStrings (NCDValRef val)
 {
     NCDVal__AssertVal(val);
