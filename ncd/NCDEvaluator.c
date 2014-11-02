@@ -44,6 +44,12 @@
 
 #define MAX_LOCAL_IDS (NCDVAL_TOPPLID / 2)
 
+#include "NCDEvaluator_var_vec.h"
+#include <structure/Vector_impl.h>
+
+#include "NCDEvaluator_call_vec.h"
+#include <structure/Vector_impl.h>
+
 struct NCDEvaluator__eval_context {
     NCDEvaluator *eval;
     NCDEvaluator_EvalFuncs const *funcs;

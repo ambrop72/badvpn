@@ -33,6 +33,7 @@
 #include <stddef.h>
 
 #include <misc/debug.h>
+#include <structure/Vector.h>
 #include <ncd/NCDAst.h>
 #include <ncd/NCDStringIndex.h>
 #include <ncd/NCDVal.h>
@@ -48,9 +49,8 @@ struct NCDEvaluator__Var {
     size_t num_names;
 };
 
-#define VECTOR_NAME NCDEvaluator__VarVec
-#define VECTOR_ELEM_TYPE struct NCDEvaluator__Var
-#include <structure/Vector.h>
+#include "NCDEvaluator_var_vec.h"
+#include <structure/Vector_decl.h>
 
 struct NCDEvaluator__Call {
     NCD_string_id_t func_name_id;
@@ -58,9 +58,8 @@ struct NCDEvaluator__Call {
     size_t num_args;
 };
 
-#define VECTOR_NAME NCDEvaluator__CallVec
-#define VECTOR_ELEM_TYPE struct NCDEvaluator__Call
-#include <structure/Vector.h>
+#include "NCDEvaluator_call_vec.h"
+#include <structure/Vector_decl.h>
 
 struct NCDEvaluator__eval_context;
 

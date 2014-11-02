@@ -1,5 +1,5 @@
 /**
- * @file Vector.h
+ * @file Vector_footer.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -27,10 +27,16 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <limits.h>
-#include <string.h>
-#include <stddef.h>
+#undef VECTOR_NAME
+#undef VECTOR_ELEM_TYPE
 
-#include <misc/debug.h>
-#include <misc/balloc.h>
-#include <misc/merge.h>
+#undef Vector
+#undef VectorElem
+#undef Vector_Init
+#undef Vector_Free
+#undef Vector_Get
+#undef Vector_AllocAppend
+#undef Vector_DoAppend
+#undef Vector_AppendValue
+#undef Vector_Push
+#undef Vector_Pop

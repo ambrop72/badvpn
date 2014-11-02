@@ -1,5 +1,5 @@
 /**
- * @file Vector.h
+ * @file Vector_decl.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -27,10 +27,21 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <limits.h>
-#include <string.h>
-#include <stddef.h>
+#include "Vector_header.h"
 
-#include <misc/debug.h>
-#include <misc/balloc.h>
-#include <misc/merge.h>
+typedef struct {
+    VectorElem *elems;
+    size_t capacity;
+    size_t count;
+} Vector;
+
+static int Vector_Init (Vector *o, size_t capacity) WARN_UNUSED;
+static void Vector_Free (Vector *o);
+static VectorElem * Vector_Get (Vector *o, size_t index);
+static int Vector_AllocAppend (Vector *o, size_t count, VectorElem **out_ptr) WARN_UNUSED;
+static void Vector_DoAppend (Vector *o, size_t count);
+static int Vector_AppendValue (Vector *o, VectorElem value, size_t *out_index) WARN_UNUSED;
+static VectorElem * Vector_Push (Vector *o, size_t *out_index) WARN_UNUSED;
+static VectorElem * Vector_Pop (Vector *o, size_t *out_index);
+
+#include "Vector_footer.h"

@@ -1,5 +1,5 @@
 /**
- * @file Vector.h
+ * @file Vector_header.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -27,10 +27,17 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <limits.h>
-#include <string.h>
-#include <stddef.h>
+// Preprocessor inputs:
+// VECTOR_NAME - prefix of functions and types to be defined
+// VECTOR_ELEM_TYPE - type of vector elements
 
-#include <misc/debug.h>
-#include <misc/balloc.h>
-#include <misc/merge.h>
+#define Vector VECTOR_NAME
+#define VectorElem VECTOR_ELEM_TYPE
+#define Vector_Init MERGE(VECTOR_NAME, _Init)
+#define Vector_Free MERGE(VECTOR_NAME, _Free)
+#define Vector_Get MERGE(VECTOR_NAME, _Get)
+#define Vector_AllocAppend MERGE(VECTOR_NAME, _AllocAppend)
+#define Vector_DoAppend MERGE(VECTOR_NAME, _DoAppend)
+#define Vector_AppendValue MERGE(VECTOR_NAME, _AppendValue)
+#define Vector_Push MERGE(VECTOR_NAME, _Push)
+#define Vector_Pop MERGE(VECTOR_NAME, _Pop)
