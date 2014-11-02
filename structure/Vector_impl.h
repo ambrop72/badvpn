@@ -51,7 +51,7 @@ static void Vector_Free (Vector *o)
 
 static VectorElem * Vector_Get (Vector *o, size_t index)
 {
-    ASSERT(index < o->count)
+    ASSERT(index < o->capacity)
     
     return &o->elems[index];
 }
