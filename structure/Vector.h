@@ -47,6 +47,8 @@
 #define Vector_AllocAppend MERGE(VECTOR_NAME, _AllocAppend)
 #define Vector_DoAppend MERGE(VECTOR_NAME, _DoAppend)
 #define Vector_AppendValue MERGE(VECTOR_NAME, _AppendValue)
+#define Vector_Push MERGE(VECTOR_NAME, _Push)
+#define Vector_Pop MERGE(VECTOR_NAME, _Pop)
 
 typedef struct {
     VectorElem *elems;
@@ -60,6 +62,8 @@ static VectorElem * Vector_Get (Vector *o, size_t index);
 static int Vector_AllocAppend (Vector *o, size_t count, VectorElem **out_ptr) WARN_UNUSED;
 static void Vector_DoAppend (Vector *o, size_t count);
 static int Vector_AppendValue (Vector *o, VectorElem value, size_t *out_index) WARN_UNUSED;
+static VectorElem * Vector_Push (Vector *o, size_t *out_index) WARN_UNUSED;
+static VectorElem * Vector_Pop (Vector *o, size_t *out_index);
 
 static int Vector_Init (Vector *o, size_t capacity)
 {
@@ -143,6 +147,30 @@ static int Vector_AppendValue (Vector *o, VectorElem value, size_t *out_index)
     return 1;
 }
 
+static VectorElem * Vector_Push (Vector *o, size_t *out_index)
+{
+    VectorElem *ptr;
+    if (!Vector_AllocAppend(o, 1, &ptr)) {
+        return NULL;
+    }
+    if (out_index) {
+        *out_index = o->count;
+    }
+    Vector_DoAppend(o, 1);
+    return ptr;
+}
+
+static VectorElem * Vector_Pop (Vector *o, size_t *out_index)
+{
+    ASSERT(o->count > 0)
+    
+    o->count--;
+    if (out_index) {
+        *out_index = o->count;
+    }
+    return &o->elems[o->count];
+}
+
 #undef VECTOR_NAME
 #undef VECTOR_ELEM_TYPE
 
@@ -154,3 +182,5 @@ static int Vector_AppendValue (Vector *o, VectorElem value, size_t *out_index)
 #undef Vector_AllocAppend
 #undef Vector_DoAppend
 #undef Vector_AppendValue
+#undef Vector_Push
+#undef Vector_Pop
