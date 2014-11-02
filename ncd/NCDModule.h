@@ -37,6 +37,7 @@
 #include <base/BLog.h>
 #include <ncd/NCDObject.h>
 #include <ncd/NCDStringIndex.h>
+#include <ncd/NCDEvaluator.h>
 
 #ifndef BADVPN_NO_PROCESS
 #include <system/BProcess.h>
@@ -59,6 +60,7 @@ struct NCDModuleProcess_s;
 struct NCDModuleGroup;
 struct NCDInterpModule;
 struct NCDInterpModuleGroup;
+struct NCDInterpFunction;
 
 /**
  * Function called to inform the interpeter of state changes of the
@@ -958,6 +960,13 @@ struct NCDModuleGroup {
      * {@link NCDInterpModuleGroup}.
      */
     const char *const*strings;
+    
+    /**
+     * A pointer to an array of global functions implemented by this module
+     * group. The array must be terminated with a structure that has a NULL
+     * func_name member. May be NULL.
+     */
+    struct NCDModuleFunction const *functions;
 };
 
 /**
@@ -1006,6 +1015,83 @@ struct NCDInterpModuleGroup {
      * read or write it.
      */
     void *group_state;
+};
+
+/**
+ * Contains parameters to {@link NCDModuleFunction_func_eval} that are passed indirectly.
+ */
+struct NCDModuleFunction_eval_params {
+    /**
+     * A pointer to the {@link NCDInterpFunction} structure for the function being called.
+     */
+    struct NCDInterpFunction const *ifunc;
+};
+
+/**
+ * Callback for evaluating a function (defined by an {@link NCDModuleFunction} structure).
+ * 
+ * @param args arguments to evaluate the function with.
+ *             These arguments are provided in a lazy manner - an argument
+ *             must be evaluated to obtain its value.
+ * @param mem an existing value memory object to store the value into
+ * @param out on success, *out should be set to the value reference to
+ *            the evaluated value, residing in the specified memory
+ *            object. It is permitted to return success but store an
+ *            invalid value reference here, which is understood as an
+ *            error.
+ * @param params indirectly passed arguments
+ * @return 1 on success, 0 on error (but see the description of the out parameter).
+ */
+typedef int (*NCDModuleFunction_func_eval) (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params);
+
+struct NCDModuleFunction {
+    /**
+     * The name of the function.
+     * NULL to terminate the array of functions.
+     */
+    char const *func_name;
+    
+    /**
+     * Callback for evaluating the function.
+     * 
+     * @param group the group the function belongs to
+     * @param func pointer to this structure. It can be used to implement
+     *             different functions in the same callback, by reading the
+     *             func_name member.
+     * @param args used to access the arguments to the function, in a lazily
+     *             evaluated manner
+     * @param mem an existing value memory object to store the result to
+     * @param out on success, *out should be set to the value reference to
+     *            the evaluated value, residing in the specified memory
+     *            object. It is permitted to return success but store an
+     *            invalid value reference here, which is understood as an
+     *            error.
+     * @return 1 on success, 0 on error (but see above).
+     */
+    NCDModuleFunction_func_eval func_eval;
+};
+
+/**
+ * Represents an {@link NCDModuleFunction} within an interpreter.
+ * This structure is initialized by the interpreter when it loads a module group.
+ */
+struct NCDInterpFunction {
+    /**
+     * A copy of the original NCDModuleFunction structure.
+     */
+    struct NCDModuleFunction function;
+    
+    /**
+     * The string identifier of this functions's name. according to
+     * {@link NCDStringIndex}.
+     */
+    NCD_string_id_t func_name_id;
+    
+    /**
+     * A pointer to the {@link NCDInterpModuleGroup} representing the group
+     * this function belongs to.
+     */
+    struct NCDInterpModuleGroup *group;
 };
 
 #endif

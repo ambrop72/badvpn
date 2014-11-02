@@ -45,6 +45,12 @@
 #include "NCDModuleIndex_mhash.h"
 #include <structure/CHash_impl.h>
 
+#include "NCDModuleIndex_func_vec.h"
+#include <structure/Vector_impl.h>
+
+#include "NCDModuleIndex_fhash.h"
+#include <structure/CHash_impl.h>
+
 static int string_pointer_comparator (void *user, void *v1, void *v2)
 {
     const char **s1 = v1;
@@ -132,9 +138,25 @@ int NCDModuleIndex_Init (NCDModuleIndex *o, NCDStringIndex *string_index)
         goto fail1;
     }
     
+    // init functions vector
+    if (!NCDModuleIndex__FuncVec_Init(&o->func_vec, NCDMODULEINDEX_FUNCTIONS_VEC_INITIAL_SIZE)) {
+        BLog(BLOG_ERROR, "NCDModuleIndex__FuncVec_Init failed");
+        goto fail2;
+    }
+    
+    // init functions hash
+    if (!NCDModuleIndex__FuncHash_Init(&o->func_hash, NCDMODULEINDEX_FUNCTIONS_HASH_SIZE)) {
+        BLog(BLOG_ERROR, "NCDModuleIndex__FuncHash_Init failed");
+        goto fail3;
+    }
+    
     DebugObject_Init(&o->d_obj);
     return 1;
     
+fail3:
+    NCDModuleIndex__FuncVec_Free(&o->func_vec);
+fail2:
+    NCDMethodIndex_Free(&o->method_index);
 fail1:
     NCDModuleIndex__MHash_Free(&o->modules_hash);
 fail0:
@@ -166,6 +188,12 @@ void NCDModuleIndex_Free (NCDModuleIndex *o)
         BFree(bt);
     }
 #endif
+    
+    // free functions hash
+    NCDModuleIndex__FuncHash_Free(&o->func_hash);
+    
+    // free functions vector
+    NCDModuleIndex__FuncVec_Free(&o->func_vec);
     
     // free method index
     NCDMethodIndex_Free(&o->method_index);
@@ -310,8 +338,48 @@ int NCDModuleIndex_AddGroup (NCDModuleIndex *o, const struct NCDModuleGroup *gro
         goto fail3;
     }
     
+    size_t prev_func_count = NCDModuleIndex__FuncVec_Count(&o->func_vec);
+    
+    if (group->functions) {
+        for (struct NCDModuleFunction const *mfunc = group->functions; mfunc->func_name; mfunc++) {
+            NCD_string_id_t func_name_id = NCDStringIndex_Get(string_index, mfunc->func_name);
+            if (func_name_id < 0) {
+                BLog(BLOG_ERROR, "NCDStringIndex_Get failed");
+                goto fail4;
+            }
+            
+            NCDModuleIndex__FuncHashRef lookup_ref = NCDModuleIndex__FuncHash_Lookup(&o->func_hash, o, func_name_id);
+            if (lookup_ref.link >= 0) {
+                BLog(BLOG_ERROR, "Function already exists: %s", mfunc->func_name);
+                goto fail4;
+            }
+            
+            size_t func_index;
+            struct NCDModuleIndex__Func *func = NCDModuleIndex__FuncVec_Push(&o->func_vec, &func_index);
+            if (!func) {
+                BLog(BLOG_ERROR, "NCDModuleIndex__FuncVec_Push failed");
+                goto fail4;
+            }
+            
+            func->ifunc.function = *mfunc;
+            func->ifunc.func_name_id = func_name_id;
+            func->ifunc.group = &ig->igroup;
+            
+            NCDModuleIndex__FuncHashRef ref = {func, func_index};
+            int res = NCDModuleIndex__FuncHash_Insert(&o->func_hash, o, ref, NULL);
+            ASSERT_EXECUTE(res)
+        }
+    }
+    
     return 1;
     
+fail4:
+    while (NCDModuleIndex__FuncVec_Count(&o->func_vec) > prev_func_count) {
+        size_t func_index;
+        struct NCDModuleIndex__Func *func = NCDModuleIndex__FuncVec_Pop(&o->func_vec, &func_index);
+        NCDModuleIndex__FuncHashRef ref = {func, func_index};
+        NCDModuleIndex__FuncHash_Remove(&o->func_hash, o, ref);
+    }
 fail3:
     while (num_inited_modules-- > 0) {
         struct NCDModuleIndex_module *m = &ig->modules[num_inited_modules];
@@ -369,4 +437,16 @@ const struct NCDInterpModule * NCDModuleIndex_GetMethodModule (NCDModuleIndex *o
     DebugObject_Access(&o->d_obj);
     
     return NCDMethodIndex_GetMethodModule(&o->method_index, obj_type, method_name_id);
+}
+
+const struct NCDInterpFunction * NCDModuleIndex_FindFunction (NCDModuleIndex *o, NCD_string_id_t func_name_id)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    NCDModuleIndex__FuncHashRef lookup_ref = NCDModuleIndex__FuncHash_Lookup(&o->func_hash, o, func_name_id);
+    if (lookup_ref.link < 0) {
+        return NULL;
+    }
+    
+    return &lookup_ref.ptr->ifunc;
 }
