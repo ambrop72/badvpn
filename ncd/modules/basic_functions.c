@@ -31,14 +31,20 @@
 
 #include <ncd/NCDModule.h>
 
+#include <generated/blog_channel_ncd_basic_functions.h>
+
+#define FunctionLog(params, ...) BContextLog(NCDModuleFunction_LogContext(params), __VA_ARGS__)
+
 static int error_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
 {
+    FunctionLog(params, BLOG_ERROR, "error: failing");
     return 0;
 }
 
 static int identity_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
 {
     if (NCDEvaluatorArgs_Count(&args) != 1) {
+        FunctionLog(params, BLOG_ERROR, "identity: need one argument");
         return 0;
     }
     return NCDEvaluatorArgs_EvalArg(&args, 0, mem, out);

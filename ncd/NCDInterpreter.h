@@ -112,6 +112,7 @@ typedef struct {
     // common module parameters
     struct NCDModuleInst_params module_params;
     struct NCDModuleInst_iparams module_iparams;
+    struct NCDModuleFunction_params module_func_params;
     
     // processes
     LinkedList1 processes;

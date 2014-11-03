@@ -121,6 +121,7 @@ static btime_t statement_instance_func_interp_getretrytime (void *vinterp);
 static int statement_instance_func_interp_loadgroup (void *vinterp, const struct NCDModuleGroup *group);
 static void process_moduleprocess_func_event (struct process *p, int event);
 static int process_moduleprocess_func_getobj (struct process *p, NCD_string_id_t name, NCDObject *out_object);
+static void function_logfunc (void *vo);
 
 #define STATEMENT_LOG(ps, channel, ...) if (BLog_WouldLog(BLOG_CURRENT_CHANNEL, channel)) statement_log(ps, channel, __VA_ARGS__)
 
@@ -214,6 +215,7 @@ int NCDInterpreter_Init (NCDInterpreter *o, NCDProgram program, struct NCDInterp
     o->module_iparams.func_interp_getargs = statement_instance_func_interp_getargs;
     o->module_iparams.func_interp_getretrytime = statement_instance_func_interp_getretrytime;
     o->module_iparams.func_loadgroup = statement_instance_func_interp_loadgroup;
+    o->module_func_params.logfunc = function_logfunc;
     
     // init processes list
     LinkedList1_Init(&o->processes);
@@ -837,6 +839,8 @@ static int eval_func_eval_call (void *user, NCD_string_id_t func_name_id, NCDEva
     
     struct NCDModuleFunction_eval_params params;
     params.ifunc = ifunc;
+    params.params = &p->interp->module_func_params;
+    params.interp_user = ps;
     
     return ifunc->function.func_eval(args, mem, out, &params);
 }
@@ -1365,4 +1369,13 @@ int process_moduleprocess_func_getobj (struct process *p, NCD_string_id_t name, 
     ASSERT(p->module_process)
     
     return process_find_object(p, p->num_statements, name, out_object);
+}
+
+void function_logfunc (void *vo)
+{
+    struct statement *ps = vo;
+    ASSERT(ps->inst.istate == SSTATE_FORGOTTEN)
+    
+    statement_logfunc(ps);
+    BLog_Append("func_eval: ");
 }

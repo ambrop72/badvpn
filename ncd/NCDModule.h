@@ -1018,6 +1018,18 @@ struct NCDInterpModuleGroup {
 };
 
 /**
+ * Holds some things passed to function implementations which are presumed
+ * to stay the same within an interpreter (for optimization purposes).
+ */
+struct NCDModuleFunction_params {
+    /**
+     * Log function which appends a log prefix with {@link BLog_Append}.
+     * Its user argument will be the user member of {@link NCDModuleFunction_eval_params}.
+     */
+    BLog_logfunc logfunc;
+};
+
+/**
  * Contains parameters to {@link NCDModuleFunction_func_eval} that are passed indirectly.
  */
 struct NCDModuleFunction_eval_params {
@@ -1025,6 +1037,17 @@ struct NCDModuleFunction_eval_params {
      * A pointer to the {@link NCDInterpFunction} structure for the function being called.
      */
     struct NCDInterpFunction const *ifunc;
+    
+    /**
+     * Pointer to an additional structure needed for the call, containing callbacks to
+     * the interpreter.
+     */
+    struct NCDModuleFunction_params const *params;
+    
+    /**
+     * This is passed back to interpeter callbacks done as part of function evaluation.
+     */
+    void *interp_user;
 };
 
 /**
@@ -1043,6 +1066,12 @@ struct NCDModuleFunction_eval_params {
  * @return 1 on success, 0 on error (but see the description of the out parameter).
  */
 typedef int (*NCDModuleFunction_func_eval) (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params);
+
+/**
+ * Returns a logging context for use by the function implementation during
+ * function evaluation.
+ */
+BLogContext NCDModuleFunction_LogContext (struct NCDModuleFunction_eval_params const *params);
 
 struct NCDModuleFunction {
     /**

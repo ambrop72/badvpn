@@ -588,6 +588,11 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, NCD_string_id_t 
     return res;
 }
 
+BLogContext NCDModuleFunction_LogContext (struct NCDModuleFunction_eval_params const *params)
+{
+    return BLog_MakeContext(params->params->logfunc, params->interp_user);
+}
+
 static int process_args_object_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value)
 {
     NCDModuleProcess *o = NCDObject_DataPtr(obj);
