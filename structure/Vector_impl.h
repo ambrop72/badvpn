@@ -49,6 +49,11 @@ static void Vector_Free (Vector *o)
     BFree(o->elems);
 }
 
+static size_t Vector_Count (Vector *o)
+{
+    return o->count;
+}
+
 static VectorElem * Vector_Get (Vector *o, size_t index)
 {
     ASSERT(index < o->capacity)

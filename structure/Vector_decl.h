@@ -37,6 +37,7 @@ typedef struct {
 
 static int Vector_Init (Vector *o, size_t capacity) WARN_UNUSED;
 static void Vector_Free (Vector *o);
+static size_t Vector_Count (Vector *o);
 static VectorElem * Vector_Get (Vector *o, size_t index);
 static int Vector_AllocAppend (Vector *o, size_t count, VectorElem **out_ptr) WARN_UNUSED;
 static void Vector_DoAppend (Vector *o, size_t count);

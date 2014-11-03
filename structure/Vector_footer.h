@@ -34,6 +34,7 @@
 #undef VectorElem
 #undef Vector_Init
 #undef Vector_Free
+#undef Vector_Count
 #undef Vector_Get
 #undef Vector_AllocAppend
 #undef Vector_DoAppend

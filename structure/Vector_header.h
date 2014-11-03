@@ -35,6 +35,7 @@
 #define VectorElem VECTOR_ELEM_TYPE
 #define Vector_Init MERGE(VECTOR_NAME, _Init)
 #define Vector_Free MERGE(VECTOR_NAME, _Free)
+#define Vector_Count MERGE(VECTOR_NAME, _Count)
 #define Vector_Get MERGE(VECTOR_NAME, _Get)
 #define Vector_AllocAppend MERGE(VECTOR_NAME, _AllocAppend)
 #define Vector_DoAppend MERGE(VECTOR_NAME, _DoAppend)
