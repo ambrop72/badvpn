@@ -829,8 +829,16 @@ static int eval_func_eval_call (void *user, NCD_string_id_t func_name_id, NCDEva
     struct process *p = user;
     struct statement *ps = &p->statements[p->ap];
     
-    STATEMENT_LOG(ps, BLOG_ERROR, "unknown function");
-    return 0;
+    struct NCDInterpFunction const *ifunc = NCDModuleIndex_FindFunction(&p->interp->mindex, func_name_id);
+    if (!ifunc) {
+        STATEMENT_LOG(ps, BLOG_ERROR, "unknown function: %s", NCDStringIndex_Value(&p->interp->string_index, func_name_id));
+        return 0;
+    }
+    
+    struct NCDModuleFunction_eval_params params;
+    params.ifunc = ifunc;
+    
+    return ifunc->function.func_eval(args, mem, out, &params);
 }
 
 void process_advance (struct process *p)
