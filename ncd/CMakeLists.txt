@@ -146,6 +146,7 @@ set(NCDINTERPRETER_SOURCES
     modules/log.c
     modules/buffer.c
     modules/getenv.c
+    modules/basic_functions.c
     ${NCD_ADDITIONAL_SOURCES}
 )
 set(NCDINTERPRETER_LIBS
