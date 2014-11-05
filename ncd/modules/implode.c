@@ -40,12 +40,10 @@
 #include <string.h>
 
 #include <misc/expstring.h>
-#include <ncd/NCDModule.h>
-#include <ncd/static_strings.h>
+
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_implode.h>
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct instance {
     NCDModuleInst *i;

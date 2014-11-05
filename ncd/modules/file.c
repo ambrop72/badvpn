@@ -86,13 +86,10 @@
 #include <misc/read_file.h>
 #include <misc/write_file.h>
 #include <misc/parse_number.h>
-#include <ncd/NCDModule.h>
-#include <ncd/static_strings.h>
-#include <ncd/extra/value_utils.h>
+
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_file.h>
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct read_instance {
     NCDModuleInst *i;

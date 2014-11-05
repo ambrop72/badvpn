@@ -47,9 +47,9 @@
 #include <ncd/extra/value_utils.h>
 #include <ncd/modules/command_template.h>
 
-#include <generated/blog_channel_ncd_run.h>
+#include <ncd/module_common.h>
 
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#include <generated/blog_channel_ncd_run.h>
 
 static void template_free_func (void *vo, int is_error);
 

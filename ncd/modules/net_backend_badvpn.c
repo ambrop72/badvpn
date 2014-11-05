@@ -37,14 +37,13 @@
 #include <string.h>
 
 #include <misc/cmdline.h>
-#include <ncd/NCDModule.h>
 #include <ncd/extra/NCDIfConfig.h>
+
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_net_backend_badvpn.h>
 
 #define RETRY_TIME 5000
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct instance {
     NCDModuleInst *i;

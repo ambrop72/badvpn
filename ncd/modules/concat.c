@@ -39,18 +39,15 @@
  *   themselves.
  */
 
-#include <stddef.h>
 #include <string.h>
 
 #include <misc/balloc.h>
 #include <misc/offset.h>
 #include <misc/BRefTarget.h>
-#include <ncd/NCDModule.h>
-#include <ncd/static_strings.h>
+
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_concat.h>
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct result {
     BRefTarget ref_target;

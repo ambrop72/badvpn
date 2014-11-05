@@ -55,12 +55,11 @@
 #include <misc/parse_number.h>
 #include <structure/LinkedList1.h>
 #include <udevmonitor/NCDUdevManager.h>
-#include <ncd/NCDModule.h>
 #include <ncd/modules/event_template.h>
 
-#include <generated/blog_channel_ncd_sys_watch_usb.h>
+#include <ncd/module_common.h>
 
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#include <generated/blog_channel_ncd_sys_watch_usb.h>
 
 struct device {
     char *devname;

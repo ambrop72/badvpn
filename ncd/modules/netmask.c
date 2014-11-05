@@ -56,12 +56,10 @@
 
 #include <misc/ipaddr.h>
 #include <misc/parse_number.h>
-#include <ncd/NCDModule.h>
-#include <ncd/static_strings.h>
+
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_netmask.h>
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct addr_instance {
     NCDModuleInst *i;

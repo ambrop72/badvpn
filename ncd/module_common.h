@@ -1,5 +1,5 @@
 /**
- * @file getargs.c
+ * @file module_common.h
  * @author Ambroz Bizjak <ambrop7@gmail.com>
  * 
  * @section LICENSE
@@ -25,71 +25,16 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
- * @section DESCRIPTION
- * 
- * Synopsis:
- *   getargs()
- * 
- * Variables:
- *   (empty) - list of extra command line arguments that were passed to the intrepreter
  */
 
-#include <string.h>
+#include <stddef.h>
 
-#include <ncd/module_common.h>
+#include <base/BLog.h>
+#include <ncd/NCDModule.h>
+#include <ncd/static_strings.h>
+#include <ncd/extra/value_utils.h>
 
-#include <generated/blog_channel_ncd_getargs.h>
-
-struct instance {
-    NCDModuleInst *i;
-};
-
-static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
-{
-    struct instance *o = vo;
-    o->i = i;
-    
-    // check arguments
-    if (!NCDVal_ListRead(params->args, 0)) {
-        ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail0;
-    }
-    
-    // signal up
-    NCDModuleInst_Backend_Up(i);
-    return;
-    
-fail0:
-    NCDModuleInst_Backend_DeadError(i);
-}
-
-static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
-{
-    struct instance *o = vo;
-    
-    if (name == NCD_STRING_EMPTY) {
-        if (!NCDModuleInst_Backend_InterpGetArgs(o->i, mem, out)) {
-            ModuleLog(o->i, BLOG_ERROR, "NCDModuleInst_Backend_InterpGetArgs failed");
-            return 0;
-        }
-        return 1;
-    }
-    
-    return 0;
-}
-
-static struct NCDModule modules[] = {
-    {
-        .type = "getargs",
-        .func_new2 = func_new,
-        .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance)
-    }, {
-        .type = NULL
-    }
-};
-
-const struct NCDModuleGroup ncdmodule_getargs = {
-    .modules = modules
-};
+#define ModuleGlobal(i) ((i)->m->group->group_state)
+#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#define ModuleString(i, id) ((i)->m->group->strings[(id)])
+#define FunctionLog(params, ...) BContextLog(NCDModuleFunction_LogContext(params), __VA_ARGS__)

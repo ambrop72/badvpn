@@ -162,15 +162,11 @@
 #include <structure/LinkedList0.h>
 #include <structure/IndexedList.h>
 #include <structure/SAvl.h>
-#include <ncd/NCDModule.h>
 #include <ncd/NCDStringIndex.h>
-#include <ncd/static_strings.h>
-#include <ncd/extra/value_utils.h>
+
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_value.h>
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
-#define ModuleString(i, id) ((i)->m->group->strings[(id)])
 
 #define STOREDSTRING_TYPE (NCDVAL_STRING | (0 << 3))
 #define IDSTRING_TYPE (NCDVAL_STRING | (1 << 3))

@@ -95,12 +95,10 @@
 #include <misc/offset.h>
 #include <misc/parse_number.h>
 #include <structure/IndexedList.h>
-#include <ncd/NCDModule.h>
-#include <ncd/extra/value_utils.h>
+
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_list.h>
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct elem {
     IndexedListNode il_node;

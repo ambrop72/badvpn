@@ -48,12 +48,10 @@
 
 #include <misc/ipaddr.h>
 #include <arpprobe/BArpProbe.h>
-#include <ncd/NCDModule.h>
-#include <ncd/extra/value_utils.h>
+
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_net_ipv4_arp_probe.h>
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 #define STATE_UNKNOWN 1
 #define STATE_EXIST 2

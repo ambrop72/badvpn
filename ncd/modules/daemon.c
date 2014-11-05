@@ -55,13 +55,11 @@
 #include <misc/cmdline.h>
 #include <misc/strdup.h>
 #include <system/BProcess.h>
-#include <ncd/NCDModule.h>
-#include <ncd/extra/value_utils.h>
 #include <ncd/extra/NCDBProcessOpts.h>
 
-#include <generated/blog_channel_ncd_daemon.h>
+#include <ncd/module_common.h>
 
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#include <generated/blog_channel_ncd_daemon.h>
 
 #define RETRY_TIME 10000
 

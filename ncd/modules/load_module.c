@@ -32,7 +32,6 @@
  *   load_module(string name)
  */
 
-#include <stddef.h>
 #include <limits.h>
 #include <string.h>
 #include <errno.h>
@@ -45,12 +44,10 @@
 #include <misc/offset.h>
 #include <misc/debug.h>
 #include <structure/LinkedList0.h>
-#include <ncd/NCDModule.h>
+
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_load_module.h>
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
-#define ModuleGlobal(i) ((i)->m->group->group_state)
 
 struct global {
     LinkedList0 modules_list;

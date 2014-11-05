@@ -54,11 +54,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include <ncd/NCDModule.h>
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_print.h>
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct rprint_instance {
     NCDModuleInst *i;

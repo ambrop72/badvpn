@@ -114,14 +114,11 @@
 #include <misc/debug.h>
 #include <misc/find_program.h>
 #include <misc/balloc.h>
-#include <ncd/extra/BEventLock.h>
-
 #include <ncd/modules/command_template.h>
 
-#include <generated/blog_channel_ncd_net_iptables.h>
+#include <ncd/module_common.h>
 
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
-#define ModuleGlobal(i) ((i)->m->group->group_state)
+#include <generated/blog_channel_ncd_net_iptables.h>
 
 static void template_free_func (void *vo, int is_error);
 

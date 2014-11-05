@@ -27,13 +27,9 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stddef.h>
-
-#include <ncd/NCDModule.h>
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_basic_functions.h>
-
-#define FunctionLog(params, ...) BContextLog(NCDModuleFunction_LogContext(params), __VA_ARGS__)
 
 static int error_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
 {

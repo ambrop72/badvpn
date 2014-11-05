@@ -41,12 +41,9 @@
  *   or "false".
  */
 
-#include <ncd/NCDModule.h>
-#include <ncd/static_strings.h>
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_assert.h>
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 static void func_new_common (NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int is_false)
 {

@@ -142,16 +142,12 @@
 #include <structure/LinkedList0.h>
 #include <system/BConnection.h>
 #include <system/BConnectionGeneric.h>
-#include <ncd/NCDModule.h>
-#include <ncd/static_strings.h>
-#include <ncd/extra/value_utils.h>
 #include <ncd/extra/address_utils.h>
 #include <ncd/extra/NCDBuf.h>
 
-#include <generated/blog_channel_ncd_socket.h>
+#include <ncd/module_common.h>
 
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
-#define ModuleString(i, id) ((i)->m->group->strings[(id)])
+#include <generated/blog_channel_ncd_socket.h>
 
 #define CONNECTION_TYPE_CONNECT 1
 #define CONNECTION_TYPE_LISTEN 2

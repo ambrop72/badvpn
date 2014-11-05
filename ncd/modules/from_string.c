@@ -37,13 +37,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <ncd/NCDModule.h>
 #include <ncd/NCDValParser.h>
-#include <ncd/static_strings.h>
+
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_from_string.h>
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct instance {
     NCDModuleInst *i;

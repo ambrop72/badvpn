@@ -76,11 +76,10 @@
 #include <misc/debug.h>
 #include <structure/LinkedList1.h>
 #include <structure/LinkedList0.h>
-#include <ncd/NCDModule.h>
+
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_blocker.h>
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct instance {
     NCDModuleInst *i;

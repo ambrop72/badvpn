@@ -57,15 +57,14 @@
 #include <misc/find_program.h>
 #include <flow/LineBuffer.h>
 #include <system/BInputProcess.h>
-#include <ncd/NCDModule.h>
+
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_net_backend_wpa_supplicant.h>
 
 #define MAX_LINE_LEN 512
 #define EVENT_STRING_CONNECTED "CTRL-EVENT-CONNECTED"
 #define EVENT_STRING_DISCONNECTED "CTRL-EVENT-DISCONNECTED"
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 struct instance {
     NCDModuleInst *i;

@@ -87,16 +87,12 @@
 #include <misc/offset.h>
 #include <structure/LinkedList0.h>
 #include <structure/LinkedList1.h>
-#include <ncd/NCDModule.h>
-#include <ncd/static_strings.h>
 #include <ncd/extra/NCDRequestClient.h>
-#include <ncd/extra/value_utils.h>
 #include <ncd/extra/address_utils.h>
 
-#include <generated/blog_channel_ncd_sys_request_client.h>
+#include <ncd/module_common.h>
 
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
-#define ModuleString(i, id) ((i)->m->group->strings[(id)])
+#include <generated/blog_channel_ncd_sys_request_client.h>
 
 #define CSTATE_CONNECTING 1
 #define CSTATE_CONNECTED 2

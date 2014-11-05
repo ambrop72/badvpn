@@ -98,7 +98,6 @@
  *   the close() statement goes up .
  */
 
-#include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <limits.h>
@@ -106,14 +105,11 @@
 #include <misc/debug.h>
 #include <misc/balloc.h>
 #include <misc/parse_number.h>
-#include <ncd/NCDModule.h>
-#include <ncd/static_strings.h>
-#include <ncd/extra/value_utils.h>
 #include <ncd/extra/NCDBuf.h>
 
-#include <generated/blog_channel_ncd_file_open.h>
+#include <ncd/module_common.h>
 
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+#include <generated/blog_channel_ncd_file_open.h>
 
 #define READ_BUF_SIZE 8192
 

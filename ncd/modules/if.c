@@ -42,12 +42,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <ncd/NCDModule.h>
-#include <ncd/extra/value_utils.h>
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_if.h>
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
 static void new_templ (NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int is_not)
 {

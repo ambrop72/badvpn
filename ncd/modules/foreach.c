@@ -73,14 +73,10 @@
 #include <misc/debug.h>
 #include <misc/offset.h>
 #include <system/BReactor.h>
-#include <ncd/NCDModule.h>
-#include <ncd/static_strings.h>
-#include <ncd/extra/value_utils.h>
+
+#include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_foreach.h>
-
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
-#define ModuleString(i, id) ((i)->m->group->strings[(id)])
 
 #define ISTATE_WORKING 1
 #define ISTATE_UP 2
