@@ -695,6 +695,32 @@ doneU:
     free_token(A);
 }
 
+value(R) ::= AT_SIGN dotted_name(A). {
+    if (!A) {
+        goto failUA0;
+    }
+    
+    char *at_string = concat_strings(3, "__", A, "__");
+    if (!at_string) {
+        goto failUA0;
+    }
+    
+    int res = NCDValue_InitString(&R.v, at_string);
+    free(at_string);
+    if (!res) {
+        goto failUA0;
+    }
+    
+    R.have = 1;
+    goto doneUA0;
+    
+failUA0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneUA0:
+    free(A);
+}
+
 value(R) ::= dotted_name(A). {
     if (!A) {
         goto failV0;

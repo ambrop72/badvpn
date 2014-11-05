@@ -18,5 +18,6 @@
 #define COMMA                          18
 #define BRACKET_OPEN                   19
 #define BRACKET_CLOSE                  20
-#define PROCESS                        21
-#define TEMPLATE                       22
+#define AT_SIGN                        21
+#define PROCESS                        22
+#define TEMPLATE                       23
