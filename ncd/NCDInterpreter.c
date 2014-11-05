@@ -216,6 +216,7 @@ int NCDInterpreter_Init (NCDInterpreter *o, NCDProgram program, struct NCDInterp
     o->module_iparams.func_interp_getretrytime = statement_instance_func_interp_getretrytime;
     o->module_iparams.func_loadgroup = statement_instance_func_interp_loadgroup;
     o->module_func_params.logfunc = function_logfunc;
+    o->module_func_params.iparams = &o->module_iparams;
     
     // init processes list
     LinkedList1_Init(&o->processes);

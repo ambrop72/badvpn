@@ -1027,6 +1027,12 @@ struct NCDModuleFunction_params {
      * Its user argument will be the user member of {@link NCDModuleFunction_eval_params}.
      */
     BLog_logfunc logfunc;
+    
+    /**
+     * Pointer to an {@link NCDModuleInst_iparams} structure, which exposes
+     * services provided by the interpreter.
+     */
+    const struct NCDModuleInst_iparams *iparams;
 };
 
 /**
