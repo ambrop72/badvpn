@@ -46,6 +46,107 @@ static int identity_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out,
     return NCDEvaluatorArgs_EvalArg(&args, 0, mem, out);
 }
 
+static int if_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+{
+    if (NCDEvaluatorArgs_Count(&args) != 3) {
+        FunctionLog(params, BLOG_ERROR, "if: need three arguments");
+        return 0;
+    }
+    NCDValRef cond;
+    if (!NCDEvaluatorArgs_EvalArg(&args, 0, mem, &cond)) {
+        return 0;
+    }
+    int eval_arg = 2 - ncd_read_boolean(cond);
+    return NCDEvaluatorArgs_EvalArg(&args, eval_arg, mem, out);
+}
+
+static int bool_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+{
+    if (NCDEvaluatorArgs_Count(&args) != 1) {
+        FunctionLog(params, BLOG_ERROR, "bool: need one argument");
+        return 0;
+    }
+    NCDValRef cond;
+    if (!NCDEvaluatorArgs_EvalArg(&args, 0, mem, &cond)) {
+        return 0;
+    }
+    int res = ncd_read_boolean(cond);
+    *out = ncd_make_boolean(mem, res, params->params->iparams->string_index);
+    return 1;
+}
+
+static int not_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+{
+    if (NCDEvaluatorArgs_Count(&args) != 1) {
+        FunctionLog(params, BLOG_ERROR, "not: need one argument");
+        return 0;
+    }
+    NCDValRef cond;
+    if (!NCDEvaluatorArgs_EvalArg(&args, 0, mem, &cond)) {
+        return 0;
+    }
+    int res = !ncd_read_boolean(cond);
+    *out = ncd_make_boolean(mem, res, params->params->iparams->string_index);
+    return 1;
+}
+
+static int and_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+{
+    size_t count = NCDEvaluatorArgs_Count(&args);
+    int res = 1;
+    for (size_t i = 0; i < count; i++) {
+        NCDValRef cond;
+        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &cond)) {
+            return 0;
+        }
+        if (!ncd_read_boolean(cond)) {
+            res = 0;
+            break;
+        }
+    }
+    *out = ncd_make_boolean(mem, res, params->params->iparams->string_index);
+    return 1;
+}
+
+static int or_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+{
+    size_t count = NCDEvaluatorArgs_Count(&args);
+    int res = 0;
+    for (size_t i = 0; i < count; i++) {
+        NCDValRef cond;
+        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &cond)) {
+            return 0;
+        }
+        if (ncd_read_boolean(cond)) {
+            res = 1;
+            break;
+        }
+    }
+    *out = ncd_make_boolean(mem, res, params->params->iparams->string_index);
+    return 1;
+}
+
+static int imp_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+{
+    if (NCDEvaluatorArgs_Count(&args) != 2) {
+        FunctionLog(params, BLOG_ERROR, "imp: need two arguments");
+        return 0;
+    }
+    int res = 0;
+    for (size_t i = 0; i < 2; i++) {
+        NCDValRef cond;
+        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &cond)) {
+            return 0;
+        }
+        if (ncd_read_boolean(cond) == i) {
+            res = 1;
+            break;
+        }
+    }
+    *out = ncd_make_boolean(mem, res, params->params->iparams->string_index);
+    return 1;
+}
+
 static struct NCDModuleFunction const functions[] = {
     {
         .func_name = "__error__",
@@ -53,6 +154,24 @@ static struct NCDModuleFunction const functions[] = {
     }, {
         .func_name = "__identity__",
         .func_eval = identity_eval
+    }, {
+        .func_name = "__if__",
+        .func_eval = if_eval
+    }, {
+        .func_name = "__bool__",
+        .func_eval = bool_eval
+    }, {
+        .func_name = "__not__",
+        .func_eval = not_eval
+    }, {
+        .func_name = "__and__",
+        .func_eval = and_eval
+    }, {
+        .func_name = "__or__",
+        .func_eval = or_eval
+    }, {
+        .func_name = "__imp__",
+        .func_eval = imp_eval
     }, {
         .func_name = NULL
     }
