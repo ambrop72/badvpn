@@ -144,7 +144,7 @@ static int compute_subtract (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, uintm
 
 static int compute_multiply (NCDModuleInst *i, uintmax_t n1, uintmax_t n2, uintmax_t *out)
 {
-    if (n1 > UINTMAX_MAX / n2) {
+    if (n2 != 0 && n1 > UINTMAX_MAX / n2) {
         ModuleLog(i, BLOG_ERROR, "multiplication overflow");
         return 0;
     }
