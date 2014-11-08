@@ -181,6 +181,48 @@ static int imp_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, stru
 }
 
 
+// Value comparison functions.
+
+typedef int (*value_compare_func) (int cmp);
+
+static int value_compare_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params, value_compare_func func)
+{
+    int res = 0;
+    if (NCDEvaluatorArgs_Count(&args) != 2) {
+        FunctionLog(params, BLOG_ERROR, "value_compare: need two arguments");
+        goto fail0;
+    }
+    NCDValRef vals[2];
+    for (int i = 0; i < 2; i++) {
+        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &vals[i])) {
+            goto fail0;
+        }
+    }
+    int value = func(NCDVal_Compare(vals[0], vals[1]));
+    *out = ncd_make_boolean(mem, value, params->params->iparams->string_index);
+    res = 1;
+fail0:
+    return res;
+}
+
+#define DEFINE_VALUE_COMPARE(name, expr) \
+static int value_compare_##name##_func (int cmp) \
+{ \
+    return expr; \
+} \
+static int value_compare_##name##_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params) \
+{ \
+    return value_compare_eval(args, mem, out, params, value_compare_##name##_func); \
+}
+
+DEFINE_VALUE_COMPARE(lesser, (cmp < 0))
+DEFINE_VALUE_COMPARE(greater, (cmp > 0))
+DEFINE_VALUE_COMPARE(lesser_equal, (cmp <= 0))
+DEFINE_VALUE_COMPARE(greater_equal, (cmp >= 0))
+DEFINE_VALUE_COMPARE(equal, (cmp == 0))
+DEFINE_VALUE_COMPARE(different, (cmp != 0))
+
+
 // Concatenation functions.
 
 static int concat_recurser (ExpString *estr, NCDValRef arg, struct NCDModuleFunction_eval_params const *params)
@@ -403,6 +445,24 @@ static struct NCDModuleFunction const functions[] = {
     }, {
         .func_name = "__imp__",
         .func_eval = imp_eval
+    }, {
+        .func_name = "__val_lesser__",
+        .func_eval = value_compare_lesser_eval
+    }, {
+        .func_name = "__val_greater__",
+        .func_eval = value_compare_greater_eval
+    }, {
+        .func_name = "__val_lesser_equal__",
+        .func_eval = value_compare_lesser_equal_eval
+    }, {
+        .func_name = "__val_greater_equal__",
+        .func_eval = value_compare_greater_equal_eval
+    }, {
+        .func_name = "__val_equal__",
+        .func_eval = value_compare_equal_eval
+    }, {
+        .func_name = "__val_different__",
+        .func_eval = value_compare_different_eval
     }, {
         .func_name = "__concat__",
         .func_eval = concat_eval
