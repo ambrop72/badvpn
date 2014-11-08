@@ -207,28 +207,23 @@ static int concat_recurser (ExpString *estr, NCDValRef arg, struct NCDModuleFunc
 static int concat_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
 {
     int res = 0;
-    
     ExpString estr;
     if (!ExpString_Init(&estr)) {
         FunctionLog(params, BLOG_ERROR, "ExpString_Init failed");
         goto fail0;
     }
-    
     size_t count = NCDEvaluatorArgs_Count(&args);
     for (size_t i = 0; i < count; i++) {
         NCDValRef arg;
         if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
             goto fail1;
         }
-        
         if (!concat_recurser(&estr, arg, params)) {
             goto fail1;
         }
     }
-    
     *out = NCDVal_NewStringBin(mem, (uint8_t const *)ExpString_Get(&estr), ExpString_Length(&estr));
     res = 1;
-    
 fail1:
     ExpString_Free(&estr);
 fail0:
@@ -238,50 +233,38 @@ fail0:
 static int concatlist_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
 {
     int res = 0;
-    
     NCDValRef args_list;
     if (!ncd_eval_func_args(args, mem, &args_list)) {
         goto fail0;
     }
-    
-    size_t elem_count = 0;
     size_t arg_count = NCDVal_ListCount(args_list);
-    
+    size_t elem_count = 0;
     for (size_t i = 0; i < arg_count; i++) {
         NCDValRef arg = NCDVal_ListGet(args_list, i);
-        
         if (!NCDVal_IsList(arg)) {
             FunctionLog(params, BLOG_ERROR, "concatlist: argument is not a list");
             goto fail0;
         }
-        
         elem_count += NCDVal_ListCount(arg);
     }
-    
     *out = NCDVal_NewList(mem, elem_count);
     if (NCDVal_IsInvalid(*out)) {
         goto fail0;
     }
-    
     for (size_t i = 0; i < arg_count; i++) {
         NCDValRef arg = NCDVal_ListGet(args_list, i);
-        
-        size_t count2 = NCDVal_ListCount(arg);
-        
-        for (size_t j = 0; j < count2; j++) {
+        size_t arg_list_count = NCDVal_ListCount(arg);
+        for (size_t j = 0; j < arg_list_count; j++) {
             NCDValRef copy = NCDVal_NewCopy(mem, NCDVal_ListGet(arg, j));
             if (NCDVal_IsInvalid(copy)) {
                 goto fail0;
             }
-            
             if (!NCDVal_ListAppend(*out, copy)) {
                 goto fail0;
             }
         }
     }
-    
     res = 1;
-    
 fail0:
     return res;
 }
@@ -293,32 +276,31 @@ typedef int (*integer_compare_func) (uintmax_t n1, uintmax_t n2);
 
 static int integer_compare_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params, integer_compare_func func)
 {
+    int res = 0;
     if (NCDEvaluatorArgs_Count(&args) != 2) {
         FunctionLog(params, BLOG_ERROR, "integer_compare: need two arguments");
-        return 0;
+        goto fail0;
     }
-    
     uintmax_t ints[2];
-    
     for (int i = 0; i < 2; i++) {
         NCDValRef arg;
         if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
-            return 0;
+            goto fail0;
         }
         if (!NCDVal_IsString(arg)) {
             FunctionLog(params, BLOG_ERROR, "integer_compare: wrong type");
-            return 0;
+            goto fail0;
         }
         if (!ncd_read_uintmax(arg, &ints[i])) {
             FunctionLog(params, BLOG_ERROR, "integer_compare: wrong value");
-            return 0;
+            goto fail0;
         }
     }
-    
-    int res = func(ints[0], ints[1]);
-    
-    *out = ncd_make_boolean(mem, res, params->params->iparams->string_index);
-    return 1;
+    int value = func(ints[0], ints[1]);
+    *out = ncd_make_boolean(mem, value, params->params->iparams->string_index);
+    res = 1;
+fail0:
+    return res;
 }
 
 #define DEFINE_INT_COMPARE(name, expr) \
@@ -338,6 +320,63 @@ DEFINE_INT_COMPARE(greater_equal, (n1 >= n2))
 DEFINE_INT_COMPARE(equal, (n1 == n2))
 DEFINE_INT_COMPARE(different, (n1 != n2))
 
+
+// Integer operators.
+
+typedef int (*integer_operator_func) (uintmax_t n1, uintmax_t n2, uintmax_t *out, struct NCDModuleFunction_eval_params const *params);
+
+static int integer_operator_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params, integer_operator_func func)
+{
+    int res = 0;
+    if (NCDEvaluatorArgs_Count(&args) != 2) {
+        FunctionLog(params, BLOG_ERROR, "integer_operator: need two arguments");
+        goto fail0;
+    }
+    uintmax_t ints[2];
+    for (int i = 0; i < 2; i++) {
+        NCDValRef arg;
+        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
+            goto fail0;
+        }
+        if (!NCDVal_IsString(arg)) {
+            FunctionLog(params, BLOG_ERROR, "integer_operator: wrong type");
+            goto fail0;
+        }
+        if (!ncd_read_uintmax(arg, &ints[i])) {
+            FunctionLog(params, BLOG_ERROR, "integer_operator: wrong value");
+            goto fail0;
+        }
+    }
+    uintmax_t value;
+    if (!func(ints[0], ints[1], &value, params)) {
+        goto fail0;
+    }
+    *out = ncd_make_uintmax(mem, value);
+    res = 1;
+fail0:
+    return res;
+}
+
+#define DEFINE_INT_OPERATOR(name, expr, check_expr, check_err_str) \
+static int integer_operator_##name##_func (uintmax_t n1, uintmax_t n2, uintmax_t *out, struct NCDModuleFunction_eval_params const *params) \
+{ \
+    if (check_expr) { \
+        FunctionLog(params, BLOG_ERROR, check_err_str); \
+        return 0; \
+    } \
+    *out = expr; \
+    return 1; \
+} \
+static int integer_operator_##name##_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params) \
+{ \
+    return integer_operator_eval(args, mem, out, params, integer_operator_##name##_func); \
+}
+
+DEFINE_INT_OPERATOR(add, (n1 + n2), (n1 > UINTMAX_MAX - n2), "addition overflow")
+DEFINE_INT_OPERATOR(subtract, (n1 - n2), (n1 < n2), "subtraction underflow")
+DEFINE_INT_OPERATOR(multiply, (n1 * n2), (n2 != 0 && n1 > UINTMAX_MAX / n2), "multiplication overflow")
+DEFINE_INT_OPERATOR(divide, (n1 / n2), (n2 == 0), "division quotient is zero")
+DEFINE_INT_OPERATOR(modulo, (n1 % n2), (n2 == 0), "modulo modulus is zero")
 
 static struct NCDModuleFunction const functions[] = {
     {
@@ -388,6 +427,21 @@ static struct NCDModuleFunction const functions[] = {
     }, {
         .func_name = "__different__",
         .func_eval = integer_compare_different_eval
+    }, {
+        .func_name = "__add__",
+        .func_eval = integer_operator_add_eval
+    }, {
+        .func_name = "__subtract__",
+        .func_eval = integer_operator_subtract_eval
+    }, {
+        .func_name = "__multiply__",
+        .func_eval = integer_operator_multiply_eval
+    }, {
+        .func_name = "__divide__",
+        .func_eval = integer_operator_divide_eval
+    }, {
+        .func_name = "__modulo__",
+        .func_eval = integer_operator_modulo_eval
     }, {
         .func_name = NULL
     }
