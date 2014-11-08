@@ -27,9 +27,15 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <misc/expstring.h>
+#include <ncd/extra/func_utils.h>
+
 #include <ncd/module_common.h>
 
 #include <generated/blog_channel_ncd_basic_functions.h>
+
+
+// Trivial functions.
 
 static int error_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
 {
@@ -46,6 +52,9 @@ static int identity_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out,
     return NCDEvaluatorArgs_EvalArg(&args, 0, mem, out);
 }
 
+
+// Logical functions.
+
 static int if_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
 {
     if (NCDEvaluatorArgs_Count(&args) != 3) {
@@ -54,6 +63,10 @@ static int if_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struc
     }
     NCDValRef cond;
     if (!NCDEvaluatorArgs_EvalArg(&args, 0, mem, &cond)) {
+        return 0;
+    }
+    if (!NCDVal_IsString(cond)) {
+        FunctionLog(params, BLOG_ERROR, "if: wrong type");
         return 0;
     }
     int eval_arg = 2 - ncd_read_boolean(cond);
@@ -68,6 +81,10 @@ static int bool_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, str
     }
     NCDValRef cond;
     if (!NCDEvaluatorArgs_EvalArg(&args, 0, mem, &cond)) {
+        return 0;
+    }
+    if (!NCDVal_IsString(cond)) {
+        FunctionLog(params, BLOG_ERROR, "bool: wrong type");
         return 0;
     }
     int res = ncd_read_boolean(cond);
@@ -85,6 +102,10 @@ static int not_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, stru
     if (!NCDEvaluatorArgs_EvalArg(&args, 0, mem, &cond)) {
         return 0;
     }
+    if (!NCDVal_IsString(cond)) {
+        FunctionLog(params, BLOG_ERROR, "not: wrong type");
+        return 0;
+    }
     int res = !ncd_read_boolean(cond);
     *out = ncd_make_boolean(mem, res, params->params->iparams->string_index);
     return 1;
@@ -97,6 +118,10 @@ static int and_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, stru
     for (size_t i = 0; i < count; i++) {
         NCDValRef cond;
         if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &cond)) {
+            return 0;
+        }
+        if (!NCDVal_IsString(cond)) {
+            FunctionLog(params, BLOG_ERROR, "and: wrong type");
             return 0;
         }
         if (!ncd_read_boolean(cond)) {
@@ -115,6 +140,10 @@ static int or_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struc
     for (size_t i = 0; i < count; i++) {
         NCDValRef cond;
         if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &cond)) {
+            return 0;
+        }
+        if (!NCDVal_IsString(cond)) {
+            FunctionLog(params, BLOG_ERROR, "or: wrong type");
             return 0;
         }
         if (ncd_read_boolean(cond)) {
@@ -138,6 +167,10 @@ static int imp_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, stru
         if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &cond)) {
             return 0;
         }
+        if (!NCDVal_IsString(cond)) {
+            FunctionLog(params, BLOG_ERROR, "imp: wrong type");
+            return 0;
+        }
         if (ncd_read_boolean(cond) == i) {
             res = 1;
             break;
@@ -146,6 +179,165 @@ static int imp_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, stru
     *out = ncd_make_boolean(mem, res, params->params->iparams->string_index);
     return 1;
 }
+
+
+// Concatenation functions.
+
+static int concat_recurser (ExpString *estr, NCDValRef arg, struct NCDModuleFunction_eval_params const *params)
+{
+    if (NCDVal_IsString(arg)) {
+        if (!ExpString_AppendBinary(estr, (uint8_t const *)NCDVal_StringData(arg), NCDVal_StringLength(arg))) {
+            FunctionLog(params, BLOG_ERROR, "ExpString_AppendBinary failed");
+            return 0;
+        }
+    } else if (NCDVal_IsList(arg)) {
+        size_t count = NCDVal_ListCount(arg);
+        for (size_t i = 0; i < count; i++) {
+            if (!concat_recurser(estr, NCDVal_ListGet(arg, i), params)) {
+                return 0;
+            }
+        }
+    } else {
+        FunctionLog(params, BLOG_ERROR, "concat: value is not a string or list");
+        return 0;
+    }
+    return 1;
+}
+
+static int concat_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+{
+    int res = 0;
+    
+    ExpString estr;
+    if (!ExpString_Init(&estr)) {
+        FunctionLog(params, BLOG_ERROR, "ExpString_Init failed");
+        goto fail0;
+    }
+    
+    size_t count = NCDEvaluatorArgs_Count(&args);
+    for (size_t i = 0; i < count; i++) {
+        NCDValRef arg;
+        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
+            goto fail1;
+        }
+        
+        if (!concat_recurser(&estr, arg, params)) {
+            goto fail1;
+        }
+    }
+    
+    *out = NCDVal_NewStringBin(mem, (uint8_t const *)ExpString_Get(&estr), ExpString_Length(&estr));
+    res = 1;
+    
+fail1:
+    ExpString_Free(&estr);
+fail0:
+    return res;
+}
+
+static int concatlist_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+{
+    int res = 0;
+    
+    NCDValRef args_list;
+    if (!ncd_eval_func_args(args, mem, &args_list)) {
+        goto fail0;
+    }
+    
+    size_t elem_count = 0;
+    size_t arg_count = NCDVal_ListCount(args_list);
+    
+    for (size_t i = 0; i < arg_count; i++) {
+        NCDValRef arg = NCDVal_ListGet(args_list, i);
+        
+        if (!NCDVal_IsList(arg)) {
+            FunctionLog(params, BLOG_ERROR, "concatlist: argument is not a list");
+            goto fail0;
+        }
+        
+        elem_count += NCDVal_ListCount(arg);
+    }
+    
+    *out = NCDVal_NewList(mem, elem_count);
+    if (NCDVal_IsInvalid(*out)) {
+        goto fail0;
+    }
+    
+    for (size_t i = 0; i < arg_count; i++) {
+        NCDValRef arg = NCDVal_ListGet(args_list, i);
+        
+        size_t count2 = NCDVal_ListCount(arg);
+        
+        for (size_t j = 0; j < count2; j++) {
+            NCDValRef copy = NCDVal_NewCopy(mem, NCDVal_ListGet(arg, j));
+            if (NCDVal_IsInvalid(copy)) {
+                goto fail0;
+            }
+            
+            if (!NCDVal_ListAppend(*out, copy)) {
+                goto fail0;
+            }
+        }
+    }
+    
+    res = 1;
+    
+fail0:
+    return res;
+}
+
+
+// Integer comparison functions.
+
+typedef int (*integer_compare_func) (uintmax_t n1, uintmax_t n2);
+
+static int integer_compare_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params, integer_compare_func func)
+{
+    if (NCDEvaluatorArgs_Count(&args) != 2) {
+        FunctionLog(params, BLOG_ERROR, "integer_compare: need two arguments");
+        return 0;
+    }
+    
+    uintmax_t ints[2];
+    
+    for (int i = 0; i < 2; i++) {
+        NCDValRef arg;
+        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
+            return 0;
+        }
+        if (!NCDVal_IsString(arg)) {
+            FunctionLog(params, BLOG_ERROR, "integer_compare: wrong type");
+            return 0;
+        }
+        if (!ncd_read_uintmax(arg, &ints[i])) {
+            FunctionLog(params, BLOG_ERROR, "integer_compare: wrong value");
+            return 0;
+        }
+    }
+    
+    int res = func(ints[0], ints[1]);
+    
+    *out = ncd_make_boolean(mem, res, params->params->iparams->string_index);
+    return 1;
+}
+
+#define DEFINE_INT_COMPARE(name, expr) \
+static int integer_compare_##name##_func (uintmax_t n1, uintmax_t n2) \
+{ \
+    return expr; \
+} \
+static int integer_compare_##name##_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params) \
+{ \
+    return integer_compare_eval(args, mem, out, params, integer_compare_##name##_func); \
+}
+
+DEFINE_INT_COMPARE(lesser, (n1 < n2))
+DEFINE_INT_COMPARE(greater, (n1 > n2))
+DEFINE_INT_COMPARE(lesser_equal, (n1 <= n2))
+DEFINE_INT_COMPARE(greater_equal, (n1 >= n2))
+DEFINE_INT_COMPARE(equal, (n1 == n2))
+DEFINE_INT_COMPARE(different, (n1 != n2))
+
 
 static struct NCDModuleFunction const functions[] = {
     {
@@ -172,6 +364,30 @@ static struct NCDModuleFunction const functions[] = {
     }, {
         .func_name = "__imp__",
         .func_eval = imp_eval
+    }, {
+        .func_name = "__concat__",
+        .func_eval = concat_eval
+    }, {
+        .func_name = "__concatlist__",
+        .func_eval = concatlist_eval
+    }, {
+        .func_name = "__lesser__",
+        .func_eval = integer_compare_lesser_eval
+    }, {
+        .func_name = "__greater__",
+        .func_eval = integer_compare_greater_eval
+    }, {
+        .func_name = "__lesser_equal__",
+        .func_eval = integer_compare_lesser_equal_eval
+    }, {
+        .func_name = "__greater_equal__",
+        .func_eval = integer_compare_greater_equal_eval
+    }, {
+        .func_name = "__equal__",
+        .func_eval = integer_compare_equal_eval
+    }, {
+        .func_name = "__different__",
+        .func_eval = integer_compare_different_eval
     }, {
         .func_name = NULL
     }
