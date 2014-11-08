@@ -410,37 +410,37 @@ static struct NCDModuleFunction const functions[] = {
         .func_name = "__concatlist__",
         .func_eval = concatlist_eval
     }, {
-        .func_name = "__lesser__",
+        .func_name = "__num_lesser__",
         .func_eval = integer_compare_lesser_eval
     }, {
-        .func_name = "__greater__",
+        .func_name = "__num_greater__",
         .func_eval = integer_compare_greater_eval
     }, {
-        .func_name = "__lesser_equal__",
+        .func_name = "__num_lesser_equal__",
         .func_eval = integer_compare_lesser_equal_eval
     }, {
-        .func_name = "__greater_equal__",
+        .func_name = "__num_greater_equal__",
         .func_eval = integer_compare_greater_equal_eval
     }, {
-        .func_name = "__equal__",
+        .func_name = "__num_equal__",
         .func_eval = integer_compare_equal_eval
     }, {
-        .func_name = "__different__",
+        .func_name = "__num_different__",
         .func_eval = integer_compare_different_eval
     }, {
-        .func_name = "__add__",
+        .func_name = "__num_add__",
         .func_eval = integer_operator_add_eval
     }, {
-        .func_name = "__subtract__",
+        .func_name = "__num_subtract__",
         .func_eval = integer_operator_subtract_eval
     }, {
-        .func_name = "__multiply__",
+        .func_name = "__num_multiply__",
         .func_eval = integer_operator_multiply_eval
     }, {
-        .func_name = "__divide__",
+        .func_name = "__num_divide__",
         .func_eval = integer_operator_divide_eval
     }, {
-        .func_name = "__modulo__",
+        .func_name = "__num_modulo__",
         .func_eval = integer_operator_modulo_eval
     }, {
         .func_name = NULL
