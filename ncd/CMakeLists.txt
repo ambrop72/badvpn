@@ -100,6 +100,7 @@ set(NCDINTERPRETER_SOURCES
     NCDMethodIndex.c
     extra/BEventLock.c
     extra/NCDBuf.c
+    extra/value_utils.c
     modules/var.c
     modules/list.c
     modules/depend.c

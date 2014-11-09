@@ -28,7 +28,6 @@
  */
 
 #include <misc/expstring.h>
-#include <ncd/extra/func_utils.h>
 
 #include <ncd/module_common.h>
 
