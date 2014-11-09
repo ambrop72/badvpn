@@ -200,22 +200,32 @@ static int add_expr_recurser (NCDEvaluator *o, NCDValue *value, NCDValMem *mem, 
             
             if (!ncd_make_name_indices(o->string_index, NCDValue_VarName(value), &var.varnames, &var.num_names)) {
                 BLog(BLOG_ERROR, "ncd_make_name_indices failed");
-                goto fail;
+                goto fail_var0;
             }
             
             size_t index;
-            if (!NCDEvaluator__VarVec_AppendValue(&o->vars, var, &index)) {
-                BLog(BLOG_ERROR, "failed to grow var array");
-                BFree(var.varnames);
-                goto fail;
+            struct NCDEvaluator__Var *varptr = NCDEvaluator__VarVec_Push(&o->vars, &index);
+            if (!varptr) {
+                BLog(BLOG_ERROR, "NCDEvaluator__VarVec_Push failed");
+                goto fail_var1;
             }
             
             if (index >= MAX_LOCAL_IDS) {
                 BLog(BLOG_ERROR, "too many variables");
-                goto fail;
+                goto fail_var2;
             }
             
+            *varptr = var;
+            
             *out = NCDVal_NewPlaceholder(mem, ((int)index << 1) | 0);
+            break;
+            
+        fail_var2:
+            NCDEvaluator__VarVec_Pop(&o->vars, NULL);
+        fail_var1:
+            BFree(var.varnames);
+        fail_var0:
+            goto fail;
         } break;
         
         case NCDVALUE_INVOC: {
@@ -253,19 +263,24 @@ static int add_expr_recurser (NCDEvaluator *o, NCDValue *value, NCDValMem *mem, 
             }
             
             size_t index;
-            if (!NCDEvaluator__CallVec_AppendValue(&o->calls, call, &index)) {
-                BLog(BLOG_ERROR, "failed to grow call array");
+            struct NCDEvaluator__Call *callptr = NCDEvaluator__CallVec_Push(&o->calls, &index);
+            if (!callptr) {
+                BLog(BLOG_ERROR, "NCDEvaluator__CallVec_Push failed");
                 goto fail_invoc1;
             }
             
             if (index >= MAX_LOCAL_IDS) {
                 BLog(BLOG_ERROR, "too many variables");
-                goto fail;
+                goto fail_invoc2;
             }
+            
+            *callptr = call;
             
             *out = NCDVal_NewPlaceholder(mem, ((int)index << 1) | 1);
             break;
             
+        fail_invoc2:
+            NCDEvaluator__CallVec_Pop(&o->calls, NULL);
         fail_invoc1:
             while (call.num_args-- > 0) {
                 expr_free(&call.args[call.num_args]);

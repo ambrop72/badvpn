@@ -61,18 +61,16 @@ static VectorElem * Vector_Get (Vector *o, size_t index)
     return &o->elems[index];
 }
 
-static int Vector_AllocAppend (Vector *o, size_t count, VectorElem **out_ptr)
+static int Vector_Reserve (Vector *o, size_t capacity)
 {
-    ASSERT(count > 0)
-    
-    if (count > o->capacity - o->count) {
+    if (capacity > o->capacity) {
         size_t new_capacity = o->capacity;
         do {
             if (new_capacity > SIZE_MAX / 2) {
                 return 0;
             }
             new_capacity = (new_capacity == 0) ? 1 : (2 * new_capacity);
-        } while (count > new_capacity - o->count);
+        } while (capacity > new_capacity);
         
         VectorElem *new_elems = BAllocArray(new_capacity, sizeof(VectorElem));
         if (!new_elems) {
@@ -89,43 +87,19 @@ static int Vector_AllocAppend (Vector *o, size_t count, VectorElem **out_ptr)
         o->capacity = new_capacity;
     }
     
-    if (out_ptr) {
-        *out_ptr = &o->elems[o->count];
-    }
-    return 1;
-}
-
-static void Vector_DoAppend (Vector *o, size_t count)
-{
-    ASSERT(count <= o->capacity - o->count)
-    
-    o->count += count;
-}
-
-static int Vector_AppendValue (Vector *o, VectorElem value, size_t *out_index)
-{
-    VectorElem *ptr;
-    if (!Vector_AllocAppend(o, 1, &ptr)) {
-        return 0;
-    }
-    *ptr = value;
-    if (out_index) {
-        *out_index = o->count;
-    }
-    Vector_DoAppend(o, 1);
     return 1;
 }
 
 static VectorElem * Vector_Push (Vector *o, size_t *out_index)
 {
-    VectorElem *ptr;
-    if (!Vector_AllocAppend(o, 1, &ptr)) {
+    if (o->count == SIZE_MAX || !Vector_Reserve(o, o->count + 1)) {
         return NULL;
     }
     if (out_index) {
         *out_index = o->count;
     }
-    Vector_DoAppend(o, 1);
+    VectorElem *ptr = &o->elems[o->count];
+    o->count++;
     return ptr;
 }
 

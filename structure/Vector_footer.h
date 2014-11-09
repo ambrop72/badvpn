@@ -36,8 +36,6 @@
 #undef Vector_Free
 #undef Vector_Count
 #undef Vector_Get
-#undef Vector_AllocAppend
-#undef Vector_DoAppend
-#undef Vector_AppendValue
+#undef Vector_Reserve
 #undef Vector_Push
 #undef Vector_Pop
