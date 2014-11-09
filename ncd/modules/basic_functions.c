@@ -64,11 +64,12 @@ static int if_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struc
     if (!NCDEvaluatorArgs_EvalArg(&args, 0, mem, &cond)) {
         return 0;
     }
-    if (!NCDVal_IsString(cond)) {
-        FunctionLog(params, BLOG_ERROR, "if: wrong type");
+    int cond_val;
+    if (!ncd_read_boolean(cond, &cond_val)) {
+        FunctionLog(params, BLOG_ERROR, "if: bad condition");
         return 0;
     }
-    int eval_arg = 2 - ncd_read_boolean(cond);
+    int eval_arg = 2 - cond_val;
     return NCDEvaluatorArgs_EvalArg(&args, eval_arg, mem, out);
 }
 
@@ -78,16 +79,16 @@ static int bool_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, str
         FunctionLog(params, BLOG_ERROR, "bool: need one argument");
         return 0;
     }
-    NCDValRef cond;
-    if (!NCDEvaluatorArgs_EvalArg(&args, 0, mem, &cond)) {
+    NCDValRef arg;
+    if (!NCDEvaluatorArgs_EvalArg(&args, 0, mem, &arg)) {
         return 0;
     }
-    if (!NCDVal_IsString(cond)) {
-        FunctionLog(params, BLOG_ERROR, "bool: wrong type");
+    int arg_val;
+    if (!ncd_read_boolean(arg, &arg_val)) {
+        FunctionLog(params, BLOG_ERROR, "bool: bad argument");
         return 0;
     }
-    int res = ncd_read_boolean(cond);
-    *out = ncd_make_boolean(mem, res, params->params->iparams->string_index);
+    *out = ncd_make_boolean(mem, arg_val, params->params->iparams->string_index);
     return 1;
 }
 
@@ -97,16 +98,16 @@ static int not_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, stru
         FunctionLog(params, BLOG_ERROR, "not: need one argument");
         return 0;
     }
-    NCDValRef cond;
-    if (!NCDEvaluatorArgs_EvalArg(&args, 0, mem, &cond)) {
+    NCDValRef arg;
+    if (!NCDEvaluatorArgs_EvalArg(&args, 0, mem, &arg)) {
         return 0;
     }
-    if (!NCDVal_IsString(cond)) {
-        FunctionLog(params, BLOG_ERROR, "not: wrong type");
+    int arg_val;
+    if (!ncd_read_boolean(arg, &arg_val)) {
+        FunctionLog(params, BLOG_ERROR, "not: bad argument");
         return 0;
     }
-    int res = !ncd_read_boolean(cond);
-    *out = ncd_make_boolean(mem, res, params->params->iparams->string_index);
+    *out = ncd_make_boolean(mem, !arg_val, params->params->iparams->string_index);
     return 1;
 }
 
@@ -115,15 +116,16 @@ static int and_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, stru
     size_t count = NCDEvaluatorArgs_Count(&args);
     int res = 1;
     for (size_t i = 0; i < count; i++) {
-        NCDValRef cond;
-        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &cond)) {
+        NCDValRef arg;
+        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
             return 0;
         }
-        if (!NCDVal_IsString(cond)) {
-            FunctionLog(params, BLOG_ERROR, "and: wrong type");
+        int arg_val;
+        if (!ncd_read_boolean(arg, &arg_val)) {
+            FunctionLog(params, BLOG_ERROR, "and: bad argument");
             return 0;
         }
-        if (!ncd_read_boolean(cond)) {
+        if (!arg_val) {
             res = 0;
             break;
         }
@@ -137,15 +139,16 @@ static int or_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struc
     size_t count = NCDEvaluatorArgs_Count(&args);
     int res = 0;
     for (size_t i = 0; i < count; i++) {
-        NCDValRef cond;
-        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &cond)) {
+        NCDValRef arg;
+        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
             return 0;
         }
-        if (!NCDVal_IsString(cond)) {
-            FunctionLog(params, BLOG_ERROR, "or: wrong type");
+        int arg_val;
+        if (!ncd_read_boolean(arg, &arg_val)) {
+            FunctionLog(params, BLOG_ERROR, "or: bad argument");
             return 0;
         }
-        if (ncd_read_boolean(cond)) {
+        if (arg_val) {
             res = 1;
             break;
         }
@@ -162,15 +165,16 @@ static int imp_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, stru
     }
     int res = 0;
     for (size_t i = 0; i < 2; i++) {
-        NCDValRef cond;
-        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &cond)) {
+        NCDValRef arg;
+        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
             return 0;
         }
-        if (!NCDVal_IsString(cond)) {
-            FunctionLog(params, BLOG_ERROR, "imp: wrong type");
+        int arg_val;
+        if (!ncd_read_boolean(arg, &arg_val)) {
+            FunctionLog(params, BLOG_ERROR, "imp: bad argument");
             return 0;
         }
-        if (ncd_read_boolean(cond) == i) {
+        if (arg_val == i) {
             res = 1;
             break;
         }
@@ -328,10 +332,6 @@ static int integer_compare_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRe
         if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
             goto fail0;
         }
-        if (!NCDVal_IsString(arg)) {
-            FunctionLog(params, BLOG_ERROR, "integer_compare: wrong type");
-            goto fail0;
-        }
         if (!ncd_read_uintmax(arg, &ints[i])) {
             FunctionLog(params, BLOG_ERROR, "integer_compare: wrong value");
             goto fail0;
@@ -377,10 +377,6 @@ static int integer_operator_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValR
     for (int i = 0; i < 2; i++) {
         NCDValRef arg;
         if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
-            goto fail0;
-        }
-        if (!NCDVal_IsString(arg)) {
-            FunctionLog(params, BLOG_ERROR, "integer_operator: wrong type");
             goto fail0;
         }
         if (!ncd_read_uintmax(arg, &ints[i])) {

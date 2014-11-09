@@ -94,9 +94,7 @@ static void func_new_substr (void *vo, NCDModuleInst *i, const struct NCDModuleI
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(str_arg) || !NCDVal_IsString(start_arg) ||
-        (!NCDVal_IsInvalid(max_arg) && !NCDVal_IsString(max_arg))
-    ) {
+    if (!NCDVal_IsString(str_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }

@@ -224,7 +224,7 @@ static void open_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIns
         
         if (!NCDVal_IsInvalid(value = NCDVal_MapGetValue(options_arg, "read_size"))) {
             uintmax_t read_size;
-            if (!NCDVal_IsString(value) || !ncd_read_uintmax(value, &read_size) || read_size > SIZE_MAX || read_size == 0) {
+            if (!ncd_read_uintmax(value, &read_size) || read_size > SIZE_MAX || read_size == 0) {
                 ModuleLog(o->i, BLOG_ERROR, "wrong read_size");
                 goto fail0;
             }

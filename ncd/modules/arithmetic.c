@@ -180,10 +180,6 @@ static void new_boolean_templ (void *vo, NCDModuleInst *i, const struct NCDModul
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(n1_arg) || !NCDVal_IsString(n2_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail0;
-    }
     
     uintmax_t n1;
     if (!ncd_read_uintmax(n1_arg, &n1)) {
@@ -227,10 +223,6 @@ static void new_number_templ (void *vo, NCDModuleInst *i, const struct NCDModule
     NCDValRef n2_arg;
     if (!NCDVal_ListRead(params->args, 2, &n1_arg, &n2_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail0;
-    }
-    if (!NCDVal_IsString(n1_arg) || !NCDVal_IsString(n2_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     

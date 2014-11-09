@@ -80,7 +80,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(delimiter_arg) || !NCDVal_IsString(input_arg) || (!NCDVal_IsInvalid(limit_arg) && !NCDVal_IsString(limit_arg))) {
+    if (!NCDVal_IsString(delimiter_arg) || !NCDVal_IsString(input_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }

@@ -114,33 +114,37 @@ static void do_log (int level, NCDValRef list, size_t start)
 
 static int parse_level (NCDModuleInst *i, NCDValRef level_arg, int *out_level)
 {
-    if (!NCDVal_IsString(level_arg)) {
-        return 0;
+    int found = 0;
+    if (NCDVal_IsString(level_arg)) {
+        NCDStringIndex *string_index = i->params->iparams->string_index;
+        found = 1;
+        
+        if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_ERROR), string_index)) {
+            *out_level = BLOG_ERROR;
+        }
+        else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_WARNING), string_index)) {
+            *out_level = BLOG_WARNING;
+        }
+        else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_NOTICE), string_index)) {
+            *out_level = BLOG_NOTICE;
+        }
+        else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_INFO), string_index)) {
+            *out_level = BLOG_INFO;
+        }
+        else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_DEBUG), string_index)) {
+            *out_level = BLOG_DEBUG;
+        }
+        else {
+            found = 0;
+        }
     }
     
-    NCDStringIndex *string_index = i->params->iparams->string_index;
-    
-    uintmax_t level_numeric;
-    if (ncd_read_uintmax(level_arg, &level_numeric) && level_numeric >= BLOG_ERROR && level_numeric <= BLOG_DEBUG) {
+    if (!found) {
+        uintmax_t level_numeric;
+        if (!ncd_read_uintmax(level_arg, &level_numeric) || !(level_numeric >= BLOG_ERROR && level_numeric <= BLOG_DEBUG)) {
+            return 0;
+        }
         *out_level = level_numeric;
-    }
-    else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_ERROR), string_index)) {
-        *out_level = BLOG_ERROR;
-    }
-    else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_WARNING), string_index)) {
-        *out_level = BLOG_WARNING;
-    }
-    else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_NOTICE), string_index)) {
-        *out_level = BLOG_NOTICE;
-    }
-    else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_INFO), string_index)) {
-        *out_level = BLOG_INFO;
-    }
-    else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_DEBUG), string_index)) {
-        *out_level = BLOG_DEBUG;
-    }
-    else {
-        return 0;
     }
     
     return 1;

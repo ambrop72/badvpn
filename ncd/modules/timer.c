@@ -89,10 +89,6 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(down_time_arg) || !NCDVal_IsString(up_time_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail0;
-    }
     
     // read times
     if (!ncd_read_time(down_time_arg, &o->down_time)) {

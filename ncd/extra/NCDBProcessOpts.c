@@ -60,13 +60,22 @@ int NCDBProcessOpts_Init2 (NCDBProcessOpts *o, NCDValRef opts_arg, NCDBProcessOp
             NCDValRef val = NCDVal_MapElemVal(opts_arg, me);
             
             if (NCDVal_IsString(key) && NCDVal_StringEquals(key, "keep_stdout")) {
-                keep_stdout = ncd_read_boolean(val);
+                if (!ncd_read_boolean(val, &keep_stdout)) {
+                    NCDModuleInst_Backend_Log(i, blog_channel, BLOG_ERROR, "bad keep_stdout");
+                    goto fail1;
+                }
             }
             else if (NCDVal_IsString(key) && NCDVal_StringEquals(key, "keep_stderr")) {
-                keep_stderr = ncd_read_boolean(val);
+                if (!ncd_read_boolean(val, &keep_stderr)) {
+                    NCDModuleInst_Backend_Log(i, blog_channel, BLOG_ERROR, "bad keep_stderr");
+                    goto fail1;
+                }
             }
             else if (NCDVal_IsString(key) && NCDVal_StringEquals(key, "do_setsid")) {
-                o->do_setsid = ncd_read_boolean(val);
+                if (!ncd_read_boolean(val, &o->do_setsid)) {
+                    NCDModuleInst_Backend_Log(i, blog_channel, BLOG_ERROR, "bad do_setsid");
+                    goto fail1;
+                }
             }
             else if (NCDVal_IsString(key) && NCDVal_StringEquals(key, "username")) {
                 if (!NCDVal_IsStringNoNulls(val)) {

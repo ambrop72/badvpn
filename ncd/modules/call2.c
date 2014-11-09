@@ -388,12 +388,13 @@ static void func_new_embcall_multif (void *vo, NCDModuleInst *i, const struct NC
         
         NCDValRef arg2 = NCDVal_ListGet(args, j + 1);
         
-        if (!NCDVal_IsString(arg) || !NCDVal_IsString(arg2)) {
+        int arg_val;
+        if (!ncd_read_boolean(arg, &arg_val) || !NCDVal_IsString(arg2)) {
             ModuleLog(i, BLOG_ERROR, "bad arguments");
             goto fail0;
         }
         
-        if (ncd_read_boolean(arg)) {
+        if (arg_val) {
             template_value = arg2;
             break;
         }

@@ -63,40 +63,46 @@ NCDValRef ncd_make_boolean (NCDValMem *mem, int value, NCDStringIndex *string_in
     return NCDVal_NewIdString(mem, str_id, string_index);
 }
 
-int ncd_read_boolean (NCDValRef string)
+int ncd_read_boolean (NCDValRef val, int *out)
 {
-    ASSERT(NCDVal_IsString(string))
-    
-    if (NCDVal_IsIdString(string)) {
-        return NCDVal_IdStringId(string) == NCD_STRING_TRUE;
-    } else {
-        return NCDVal_StringEquals(string, "true");
-    }
-}
-
-int ncd_read_uintmax (NCDValRef string, uintmax_t *out)
-{
-    ASSERT(NCDVal_IsString(string))
     ASSERT(out)
     
-    size_t length = NCDVal_StringLength(string);
+    if (!NCDVal_IsString(val)) {
+        return 0;
+    }
+    if (NCDVal_IsIdString(val)) {
+        *out = NCDVal_IdStringId(val) == NCD_STRING_TRUE;
+    } else {
+        *out = NCDVal_StringEquals(val, "true");
+    }
+    return 1;
+}
+
+int ncd_read_uintmax (NCDValRef val, uintmax_t *out)
+{
+    ASSERT(out)
     
-    if (NCDVal_IsContinuousString(string)) {
-        return parse_unsigned_integer_bin(NCDVal_StringData(string), length, out);
+    if (!NCDVal_IsString(val)) {
+        return 0;
     }
     
-    b_cstring cstr = NCDVal_StringCstring(string);
+    size_t length = NCDVal_StringLength(val);
+    
+    if (NCDVal_IsContinuousString(val)) {
+        return parse_unsigned_integer_bin(NCDVal_StringData(val), length, out);
+    }
+    
+    b_cstring cstr = NCDVal_StringCstring(val);
     
     return parse_unsigned_integer_cstr(cstr, 0, cstr.length, out);
 }
 
-int ncd_read_time (NCDValRef string, btime_t *out)
+int ncd_read_time (NCDValRef val, btime_t *out)
 {
-    ASSERT(NCDVal_IsString(string))
     ASSERT(out)
     
     uintmax_t n;
-    if (!ncd_read_uintmax(string, &n)) {
+    if (!ncd_read_uintmax(val, &n)) {
         return 0;
     }
     

@@ -175,7 +175,10 @@ static int opts_func_unknown (void *user, NCDValRef key, NCDValRef val)
     struct instance *o = user;
     
     if (NCDVal_IsString(key) && NCDVal_StringEquals(key, "term_on_deinit")) {
-        o->term_on_deinit = ncd_read_boolean(val);
+        if (!ncd_read_boolean(val, &o->term_on_deinit)) {
+            ModuleLog(o->i, BLOG_ERROR, "term_on_deinit: bad value");
+            return 0;
+        }
         return 1;
     }
     

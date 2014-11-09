@@ -79,7 +79,7 @@ static int ncd_read_baddr (NCDValRef val, BAddr *out)
         if (!NCDVal_ListRead(val, 3, &type_val, &ipaddr_val, &port_val)) {
             goto fail;
         }
-        if (!NCDVal_IsString(ipaddr_val) || !NCDVal_IsString(port_val)) {
+        if (!NCDVal_IsString(ipaddr_val)) {
             goto fail;
         }
         
@@ -101,7 +101,7 @@ static int ncd_read_baddr (NCDValRef val, BAddr *out)
         if (!NCDVal_ListRead(val, 3, &type_val, &ipaddr_val, &port_val)) {
             goto fail;
         }
-        if (!NCDVal_IsString(ipaddr_val) || !NCDVal_IsString(port_val)) {
+        if (!NCDVal_IsString(ipaddr_val)) {
             goto fail;
         }
         

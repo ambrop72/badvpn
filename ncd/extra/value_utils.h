@@ -40,7 +40,7 @@
 
 int ncd_is_none (NCDValRef val);
 NCDValRef ncd_make_boolean (NCDValMem *mem, int value, NCDStringIndex *string_index);
-int ncd_read_boolean (NCDValRef val);
+int ncd_read_boolean (NCDValRef val, int *out) WARN_UNUSED;
 int ncd_read_uintmax (NCDValRef string, uintmax_t *out) WARN_UNUSED;
 int ncd_read_time (NCDValRef string, btime_t *out) WARN_UNUSED;
 NCD_string_id_t ncd_get_string_id (NCDValRef string, NCDStringIndex *string_index);

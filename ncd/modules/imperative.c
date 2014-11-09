@@ -244,8 +244,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         goto fail0;
     }
     if (!NCDVal_IsString(init_template_arg) || !NCDVal_IsList(init_args)  ||
-        !NCDVal_IsString(deinit_template_arg) || !NCDVal_IsList(o->deinit_args) ||
-        !NCDVal_IsString(deinit_timeout_arg)) {
+        !NCDVal_IsString(deinit_template_arg) || !NCDVal_IsList(o->deinit_args)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }

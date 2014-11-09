@@ -975,7 +975,7 @@ static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValRef wh
         
         case NCDVAL_LIST: {
             uintmax_t index;
-            if (!NCDVal_IsString(where) || !ncd_read_uintmax(where, &index)) {
+            if (!ncd_read_uintmax(where, &index)) {
                 if (!no_error) ModuleLog(i, BLOG_ERROR, "index is not a valid number (resolving into list)");
                 goto fail;
             }
@@ -1048,7 +1048,7 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef
         
         case NCDVAL_LIST: {
             uintmax_t index;
-            if (!NCDVal_IsString(where) || !ncd_read_uintmax(where, &index)) {
+            if (!ncd_read_uintmax(where, &index)) {
                 ModuleLog(i, BLOG_ERROR, "index is not a valid number (inserting into list)");
                 goto fail1;
             }
@@ -1161,7 +1161,7 @@ static int value_remove (NCDModuleInst *i, struct value *v, NCDValRef where)
         
         case NCDVAL_LIST: {
             uintmax_t index;
-            if (!NCDVal_IsString(where) || !ncd_read_uintmax(where, &index)) {
+            if (!ncd_read_uintmax(where, &index)) {
                 ModuleLog(i, BLOG_ERROR, "index is not a valid number (removing from list)");
                 goto fail;
             }
@@ -1797,10 +1797,6 @@ static void func_new_substr (void *vo, NCDModuleInst *i, const struct NCDModuleI
     if (!NCDVal_ListRead(params->args, 1, &start_arg) &&
         !NCDVal_ListRead(params->args, 2, &start_arg, &length_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail0;
-    }
-    if (!NCDVal_IsString(start_arg) || (!NCDVal_IsInvalid(length_arg) && !NCDVal_IsString(length_arg))) {
-        ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
     

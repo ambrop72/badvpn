@@ -84,7 +84,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         goto fail0;
     }
     if (!NCDVal_IsString(dest_arg) || !NCDVal_IsString(gateway_arg) ||
-        !NCDVal_IsString(metric_arg) || !NCDVal_IsStringNoNulls(ifname_arg) ||
+        !NCDVal_IsStringNoNulls(ifname_arg) ||
         (!NCDVal_IsInvalid(dest_prefix_arg) && !NCDVal_IsString(dest_prefix_arg))
     ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
