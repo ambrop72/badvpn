@@ -262,7 +262,7 @@ fail7:;
     // free interp program
     NCDInterpProg_Free(&o->iprogram);
 fail5:
-    // free placeholder database
+    // free evaluator
     NCDEvaluator_Free(&o->evaluator);
 fail3:
     // free module index
@@ -297,7 +297,7 @@ void NCDInterpreter_Free (NCDInterpreter *o)
     // free interp program
     NCDInterpProg_Free(&o->iprogram);
     
-    // free placeholder database
+    // free evaluator
     NCDEvaluator_Free(&o->evaluator);
     
     // free module index
