@@ -40,5 +40,5 @@
 #define ModuleLc(i) NCDModuleInst_Backend_LogContext((i))
 #define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 
-#define FunctionLc(params) NCDModuleFunction_LogContext((params))
-#define FunctionLog(params, ...) BContextLog(FunctionLc(params), __VA_ARGS__)
+#define FunctionLc(call) NCDCall_LogContext((call))
+#define FunctionLog(call, ...) BContextLog(FunctionLc(call), __VA_ARGS__)

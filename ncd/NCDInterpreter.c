@@ -80,6 +80,11 @@ struct process {
     struct statement statements[];
 };
 
+struct func_call_context {
+    struct statement *ps;
+    NCDEvaluatorArgs *args;
+};
+
 static void start_terminate (NCDInterpreter *interp, int exit_code);
 static char * implode_id_strings (NCDInterpreter *interp, const NCD_string_id_t *names, size_t num_names, char del);
 static void clear_process_cache (NCDInterpreter *interp);
@@ -121,7 +126,8 @@ static btime_t statement_instance_func_interp_getretrytime (void *vinterp);
 static int statement_instance_func_interp_loadgroup (void *vinterp, const struct NCDModuleGroup *group);
 static void process_moduleprocess_func_event (struct process *p, int event);
 static int process_moduleprocess_func_getobj (struct process *p, NCD_string_id_t name, NCDObject *out_object);
-static void function_logfunc (void *vo);
+static void function_logfunc (void *user);
+static int function_eval_arg (void *user, size_t index, NCDValMem *mem, NCDValRef *out);
 
 #define STATEMENT_LOG(ps, channel, ...) if (BLog_WouldLog(BLOG_CURRENT_CHANNEL, channel)) statement_log(ps, channel, __VA_ARGS__)
 
@@ -215,8 +221,9 @@ int NCDInterpreter_Init (NCDInterpreter *o, NCDProgram program, struct NCDInterp
     o->module_iparams.func_interp_getargs = statement_instance_func_interp_getargs;
     o->module_iparams.func_interp_getretrytime = statement_instance_func_interp_getretrytime;
     o->module_iparams.func_loadgroup = statement_instance_func_interp_loadgroup;
-    o->module_func_params.logfunc = function_logfunc;
-    o->module_func_params.iparams = &o->module_iparams;
+    o->module_call_shared.logfunc = function_logfunc;
+    o->module_call_shared.func_eval_arg = function_eval_arg;
+    o->module_call_shared.iparams = &o->module_iparams;
     
     // init processes list
     LinkedList1_Init(&o->processes);
@@ -838,12 +845,11 @@ static int eval_func_eval_call (void *user, NCD_string_id_t func_name_id, NCDEva
         return 0;
     }
     
-    struct NCDModuleFunction_eval_params params;
-    params.ifunc = ifunc;
-    params.params = &p->interp->module_func_params;
-    params.interp_user = ps;
+    struct func_call_context context;
+    context.ps = ps;
+    context.args = &args;
     
-    return ifunc->function.func_eval(args, mem, out, &params);
+    return NCDCall_DoIt(&p->interp->module_call_shared, &context, ifunc, NCDEvaluatorArgs_Count(&args), mem, out);
 }
 
 void process_advance (struct process *p)
@@ -1372,11 +1378,19 @@ int process_moduleprocess_func_getobj (struct process *p, NCD_string_id_t name, 
     return process_find_object(p, p->num_statements, name, out_object);
 }
 
-void function_logfunc (void *vo)
+void function_logfunc (void *user)
 {
-    struct statement *ps = vo;
-    ASSERT(ps->inst.istate == SSTATE_FORGOTTEN)
+    struct func_call_context const *context = user;
+    ASSERT(context->ps->inst.istate == SSTATE_FORGOTTEN)
     
-    statement_logfunc(ps);
+    statement_logfunc(context->ps);
     BLog_Append("func_eval: ");
+}
+
+int function_eval_arg (void *user, size_t index, NCDValMem *mem, NCDValRef *out)
+{
+    struct func_call_context const *context = user;
+    ASSERT(context->ps->inst.istate == SSTATE_FORGOTTEN)
+    
+    return NCDEvaluatorArgs_EvalArg(context->args, index, mem, out);
 }

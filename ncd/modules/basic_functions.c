@@ -36,151 +36,144 @@
 
 // Trivial functions.
 
-static int error_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+static void error_eval (NCDCall call)
 {
-    FunctionLog(params, BLOG_ERROR, "error: failing");
-    return 0;
+    FunctionLog(&call, BLOG_ERROR, "error: failing");
 }
 
-static int identity_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+static void identity_eval (NCDCall call)
 {
-    if (NCDEvaluatorArgs_Count(&args) != 1) {
-        FunctionLog(params, BLOG_ERROR, "identity: need one argument");
-        return 0;
+    if (NCDCall_ArgCount(&call) != 1) {
+        FunctionLog(&call, BLOG_ERROR, "identity: need one argument");
     }
-    return NCDEvaluatorArgs_EvalArg(&args, 0, mem, out);
+    NCDCall_SetResult(&call, NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call)));
 }
 
 
 // Logical functions.
 
-static int if_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+static void if_eval (NCDCall call)
 {
-    if (NCDEvaluatorArgs_Count(&args) != 3) {
-        FunctionLog(params, BLOG_ERROR, "if: need three arguments");
-        return 0;
+    if (NCDCall_ArgCount(&call) != 3) {
+        FunctionLog(&call, BLOG_ERROR, "if: need three arguments");
+        return;
     }
-    NCDValRef cond;
-    if (!NCDEvaluatorArgs_EvalArg(&args, 0, mem, &cond)) {
-        return 0;
+    NCDValRef cond = NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call));
+    if (NCDVal_IsInvalid(cond)) {
+        return;
     }
     int cond_val;
     if (!ncd_read_boolean(cond, &cond_val)) {
-        FunctionLog(params, BLOG_ERROR, "if: bad condition");
-        return 0;
+        FunctionLog(&call, BLOG_ERROR, "if: bad condition");
+        return;
     }
     int eval_arg = 2 - cond_val;
-    return NCDEvaluatorArgs_EvalArg(&args, eval_arg, mem, out);
+    NCDCall_SetResult(&call, NCDCall_EvalArg(&call, eval_arg, NCDCall_ResMem(&call)));
 }
 
-static int bool_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+static void bool_eval (NCDCall call)
 {
-    if (NCDEvaluatorArgs_Count(&args) != 1) {
-        FunctionLog(params, BLOG_ERROR, "bool: need one argument");
-        return 0;
+    if (NCDCall_ArgCount(&call) != 1) {
+        FunctionLog(&call, BLOG_ERROR, "bool: need one argument");
+        return;
     }
-    NCDValRef arg;
-    if (!NCDEvaluatorArgs_EvalArg(&args, 0, mem, &arg)) {
-        return 0;
+    NCDValRef arg = NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call));
+    if (NCDVal_IsInvalid(arg)) {
+        return;
     }
     int arg_val;
     if (!ncd_read_boolean(arg, &arg_val)) {
-        FunctionLog(params, BLOG_ERROR, "bool: bad argument");
-        return 0;
+        FunctionLog(&call, BLOG_ERROR, "bool: bad argument");
+        return;
     }
-    *out = ncd_make_boolean(mem, arg_val, params->params->iparams->string_index);
-    return 1;
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), arg_val, NCDCall_Iparams(&call)->string_index));
 }
 
-static int not_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+static void not_eval (NCDCall call)
 {
-    if (NCDEvaluatorArgs_Count(&args) != 1) {
-        FunctionLog(params, BLOG_ERROR, "not: need one argument");
-        return 0;
+    if (NCDCall_ArgCount(&call) != 1) {
+        FunctionLog(&call, BLOG_ERROR, "not: need one argument");
+        return;
     }
-    NCDValRef arg;
-    if (!NCDEvaluatorArgs_EvalArg(&args, 0, mem, &arg)) {
-        return 0;
+    NCDValRef arg = NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call));
+    if (NCDVal_IsInvalid(arg)) {
+        return;
     }
     int arg_val;
     if (!ncd_read_boolean(arg, &arg_val)) {
-        FunctionLog(params, BLOG_ERROR, "not: bad argument");
-        return 0;
+        FunctionLog(&call, BLOG_ERROR, "not: bad argument");
+        return;
     }
-    *out = ncd_make_boolean(mem, !arg_val, params->params->iparams->string_index);
-    return 1;
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), !arg_val, NCDCall_Iparams(&call)->string_index));
 }
 
-static int and_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+static void and_eval (NCDCall call)
 {
-    size_t count = NCDEvaluatorArgs_Count(&args);
+    size_t count = NCDCall_ArgCount(&call);
     int res = 1;
     for (size_t i = 0; i < count; i++) {
-        NCDValRef arg;
-        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
-            return 0;
+        NCDValRef arg = NCDCall_EvalArg(&call, i, NCDCall_ResMem(&call));
+        if (NCDVal_IsInvalid(arg)) {
+            return;
         }
         int arg_val;
         if (!ncd_read_boolean(arg, &arg_val)) {
-            FunctionLog(params, BLOG_ERROR, "and: bad argument");
-            return 0;
+            FunctionLog(&call, BLOG_ERROR, "and: bad argument");
+            return;
         }
         if (!arg_val) {
             res = 0;
             break;
         }
     }
-    *out = ncd_make_boolean(mem, res, params->params->iparams->string_index);
-    return 1;
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res, NCDCall_Iparams(&call)->string_index));
 }
 
-static int or_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+static void or_eval (NCDCall call)
 {
-    size_t count = NCDEvaluatorArgs_Count(&args);
+    size_t count = NCDCall_ArgCount(&call);
     int res = 0;
     for (size_t i = 0; i < count; i++) {
-        NCDValRef arg;
-        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
-            return 0;
+        NCDValRef arg = NCDCall_EvalArg(&call, i, NCDCall_ResMem(&call));
+        if (NCDVal_IsInvalid(arg)) {
+            return;
         }
         int arg_val;
         if (!ncd_read_boolean(arg, &arg_val)) {
-            FunctionLog(params, BLOG_ERROR, "or: bad argument");
-            return 0;
+            FunctionLog(&call, BLOG_ERROR, "or: bad argument");
+            return;
         }
         if (arg_val) {
             res = 1;
             break;
         }
     }
-    *out = ncd_make_boolean(mem, res, params->params->iparams->string_index);
-    return 1;
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res, NCDCall_Iparams(&call)->string_index));
 }
 
-static int imp_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+static void imp_eval (NCDCall call)
 {
-    if (NCDEvaluatorArgs_Count(&args) != 2) {
-        FunctionLog(params, BLOG_ERROR, "imp: need two arguments");
-        return 0;
+    if (NCDCall_ArgCount(&call) != 2) {
+        FunctionLog(&call, BLOG_ERROR, "imp: need two arguments");
+        return;
     }
     int res = 0;
     for (size_t i = 0; i < 2; i++) {
-        NCDValRef arg;
-        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
-            return 0;
+        NCDValRef arg = NCDCall_EvalArg(&call, i, NCDCall_ResMem(&call));
+        if (NCDVal_IsInvalid(arg)) {
+            return;
         }
         int arg_val;
         if (!ncd_read_boolean(arg, &arg_val)) {
-            FunctionLog(params, BLOG_ERROR, "imp: bad argument");
-            return 0;
+            FunctionLog(&call, BLOG_ERROR, "imp: bad argument");
+            return;
         }
         if (arg_val == i) {
             res = 1;
             break;
         }
     }
-    *out = ncd_make_boolean(mem, res, params->params->iparams->string_index);
-    return 1;
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res, NCDCall_Iparams(&call)->string_index));
 }
 
 
@@ -188,24 +181,21 @@ static int imp_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, stru
 
 typedef int (*value_compare_func) (int cmp);
 
-static int value_compare_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params, value_compare_func func)
+static void value_compare_eval (NCDCall call, value_compare_func func)
 {
-    int res = 0;
-    if (NCDEvaluatorArgs_Count(&args) != 2) {
-        FunctionLog(params, BLOG_ERROR, "value_compare: need two arguments");
-        goto fail0;
+    if (NCDCall_ArgCount(&call) != 2) {
+        FunctionLog(&call, BLOG_ERROR, "value_compare: need two arguments");
+        return;
     }
     NCDValRef vals[2];
     for (int i = 0; i < 2; i++) {
-        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &vals[i])) {
-            goto fail0;
+        vals[i] = NCDCall_EvalArg(&call, i, NCDCall_ResMem(&call));
+        if (NCDVal_IsInvalid(vals[i])) {
+            return;
         }
     }
     int value = func(NCDVal_Compare(vals[0], vals[1]));
-    *out = ncd_make_boolean(mem, value, params->params->iparams->string_index);
-    res = 1;
-fail0:
-    return res;
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), value, NCDCall_Iparams(&call)->string_index));
 }
 
 #define DEFINE_VALUE_COMPARE(name, expr) \
@@ -213,9 +203,9 @@ static int value_compare_##name##_func (int cmp) \
 { \
     return expr; \
 } \
-static int value_compare_##name##_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params) \
+static void value_compare_##name##_eval (NCDCall call) \
 { \
-    return value_compare_eval(args, mem, out, params, value_compare_##name##_func); \
+    return value_compare_eval(call, value_compare_##name##_func); \
 }
 
 DEFINE_VALUE_COMPARE(lesser, (cmp < 0))
@@ -228,58 +218,55 @@ DEFINE_VALUE_COMPARE(different, (cmp != 0))
 
 // Concatenation functions.
 
-static int concat_recurser (ExpString *estr, NCDValRef arg, struct NCDModuleFunction_eval_params const *params)
+static int concat_recurser (ExpString *estr, NCDValRef arg, NCDCall const *call)
 {
     if (NCDVal_IsString(arg)) {
         if (!ExpString_AppendBinary(estr, (uint8_t const *)NCDVal_StringData(arg), NCDVal_StringLength(arg))) {
-            FunctionLog(params, BLOG_ERROR, "ExpString_AppendBinary failed");
+            FunctionLog(call, BLOG_ERROR, "ExpString_AppendBinary failed");
             return 0;
         }
     } else if (NCDVal_IsList(arg)) {
         size_t count = NCDVal_ListCount(arg);
         for (size_t i = 0; i < count; i++) {
-            if (!concat_recurser(estr, NCDVal_ListGet(arg, i), params)) {
+            if (!concat_recurser(estr, NCDVal_ListGet(arg, i), call)) {
                 return 0;
             }
         }
     } else {
-        FunctionLog(params, BLOG_ERROR, "concat: value is not a string or list");
+        FunctionLog(call, BLOG_ERROR, "concat: value is not a string or list");
         return 0;
     }
     return 1;
 }
 
-static int concat_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+static void concat_eval (NCDCall call)
 {
-    int res = 0;
     ExpString estr;
     if (!ExpString_Init(&estr)) {
-        FunctionLog(params, BLOG_ERROR, "ExpString_Init failed");
+        FunctionLog(&call, BLOG_ERROR, "ExpString_Init failed");
         goto fail0;
     }
-    size_t count = NCDEvaluatorArgs_Count(&args);
+    size_t count = NCDCall_ArgCount(&call);
     for (size_t i = 0; i < count; i++) {
-        NCDValRef arg;
-        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
+        NCDValRef arg = NCDCall_EvalArg(&call, i, NCDCall_ResMem(&call));
+        if (NCDVal_IsInvalid(arg)) {
             goto fail1;
         }
-        if (!concat_recurser(&estr, arg, params)) {
+        if (!concat_recurser(&estr, arg, &call)) {
             goto fail1;
         }
     }
-    *out = NCDVal_NewStringBin(mem, (uint8_t const *)ExpString_Get(&estr), ExpString_Length(&estr));
-    res = 1;
+    NCDCall_SetResult(&call, NCDVal_NewStringBin(NCDCall_ResMem(&call), (uint8_t const *)ExpString_Get(&estr), ExpString_Length(&estr)));
 fail1:
     ExpString_Free(&estr);
 fail0:
-    return res;
+    return;
 }
 
-static int concatlist_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params)
+static void concatlist_eval (NCDCall call)
 {
-    int res = 0;
     NCDValRef args_list;
-    if (!ncd_eval_func_args(args, mem, &args_list)) {
+    if (!ncd_eval_func_args(&call, NCDCall_ResMem(&call), &args_list)) {
         goto fail0;
     }
     size_t arg_count = NCDVal_ListCount(args_list);
@@ -287,31 +274,31 @@ static int concatlist_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *ou
     for (size_t i = 0; i < arg_count; i++) {
         NCDValRef arg = NCDVal_ListGet(args_list, i);
         if (!NCDVal_IsList(arg)) {
-            FunctionLog(params, BLOG_ERROR, "concatlist: argument is not a list");
+            FunctionLog(&call, BLOG_ERROR, "concatlist: argument is not a list");
             goto fail0;
         }
         elem_count += NCDVal_ListCount(arg);
     }
-    *out = NCDVal_NewList(mem, elem_count);
-    if (NCDVal_IsInvalid(*out)) {
+    NCDValRef res = NCDVal_NewList(NCDCall_ResMem(&call), elem_count);
+    if (NCDVal_IsInvalid(res)) {
         goto fail0;
     }
     for (size_t i = 0; i < arg_count; i++) {
         NCDValRef arg = NCDVal_ListGet(args_list, i);
         size_t arg_list_count = NCDVal_ListCount(arg);
         for (size_t j = 0; j < arg_list_count; j++) {
-            NCDValRef copy = NCDVal_NewCopy(mem, NCDVal_ListGet(arg, j));
+            NCDValRef copy = NCDVal_NewCopy(NCDCall_ResMem(&call), NCDVal_ListGet(arg, j));
             if (NCDVal_IsInvalid(copy)) {
                 goto fail0;
             }
-            if (!NCDVal_ListAppend(*out, copy)) {
+            if (!NCDVal_ListAppend(res, copy)) {
                 goto fail0;
             }
         }
     }
-    res = 1;
+    NCDCall_SetResult(&call, res);
 fail0:
-    return res;
+    return;
 }
 
 
@@ -319,29 +306,27 @@ fail0:
 
 typedef int (*integer_compare_func) (uintmax_t n1, uintmax_t n2);
 
-static int integer_compare_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params, integer_compare_func func)
+static void integer_compare_eval (NCDCall call, integer_compare_func func)
 {
-    int res = 0;
-    if (NCDEvaluatorArgs_Count(&args) != 2) {
-        FunctionLog(params, BLOG_ERROR, "integer_compare: need two arguments");
+    if (NCDCall_ArgCount(&call) != 2) {
+        FunctionLog(&call, BLOG_ERROR, "integer_compare: need two arguments");
         goto fail0;
     }
     uintmax_t ints[2];
     for (int i = 0; i < 2; i++) {
-        NCDValRef arg;
-        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
+        NCDValRef arg = NCDCall_EvalArg(&call, i, NCDCall_ResMem(&call));
+        if (NCDVal_IsInvalid(arg)) {
             goto fail0;
         }
         if (!ncd_read_uintmax(arg, &ints[i])) {
-            FunctionLog(params, BLOG_ERROR, "integer_compare: wrong value");
+            FunctionLog(&call, BLOG_ERROR, "integer_compare: wrong value");
             goto fail0;
         }
     }
     int value = func(ints[0], ints[1]);
-    *out = ncd_make_boolean(mem, value, params->params->iparams->string_index);
-    res = 1;
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), value, NCDCall_Iparams(&call)->string_index));
 fail0:
-    return res;
+    return;
 }
 
 #define DEFINE_INT_COMPARE(name, expr) \
@@ -349,9 +334,9 @@ static int integer_compare_##name##_func (uintmax_t n1, uintmax_t n2) \
 { \
     return expr; \
 } \
-static int integer_compare_##name##_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params) \
+static void integer_compare_##name##_eval (NCDCall call) \
 { \
-    return integer_compare_eval(args, mem, out, params, integer_compare_##name##_func); \
+    return integer_compare_eval(call, integer_compare_##name##_func); \
 }
 
 DEFINE_INT_COMPARE(lesser, (n1 < n2))
@@ -364,49 +349,47 @@ DEFINE_INT_COMPARE(different, (n1 != n2))
 
 // Integer operators.
 
-typedef int (*integer_operator_func) (uintmax_t n1, uintmax_t n2, uintmax_t *out, struct NCDModuleFunction_eval_params const *params);
+typedef int (*integer_operator_func) (uintmax_t n1, uintmax_t n2, uintmax_t *out, NCDCall const *call);
 
-static int integer_operator_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params, integer_operator_func func)
+static void integer_operator_eval (NCDCall call, integer_operator_func func)
 {
-    int res = 0;
-    if (NCDEvaluatorArgs_Count(&args) != 2) {
-        FunctionLog(params, BLOG_ERROR, "integer_operator: need two arguments");
+    if (NCDCall_ArgCount(&call) != 2) {
+        FunctionLog(&call, BLOG_ERROR, "integer_operator: need two arguments");
         goto fail0;
     }
     uintmax_t ints[2];
     for (int i = 0; i < 2; i++) {
-        NCDValRef arg;
-        if (!NCDEvaluatorArgs_EvalArg(&args, i, mem, &arg)) {
+        NCDValRef arg = NCDCall_EvalArg(&call, i, NCDCall_ResMem(&call));
+        if (NCDVal_IsInvalid(arg)) {
             goto fail0;
         }
         if (!ncd_read_uintmax(arg, &ints[i])) {
-            FunctionLog(params, BLOG_ERROR, "integer_operator: wrong value");
+            FunctionLog(&call, BLOG_ERROR, "integer_operator: wrong value");
             goto fail0;
         }
     }
     uintmax_t value;
-    if (!func(ints[0], ints[1], &value, params)) {
+    if (!func(ints[0], ints[1], &value, &call)) {
         goto fail0;
     }
-    *out = ncd_make_uintmax(mem, value);
-    res = 1;
+    NCDCall_SetResult(&call, ncd_make_uintmax(NCDCall_ResMem(&call), value));
 fail0:
-    return res;
+    return;
 }
 
 #define DEFINE_INT_OPERATOR(name, expr, check_expr, check_err_str) \
-static int integer_operator_##name##_func (uintmax_t n1, uintmax_t n2, uintmax_t *out, struct NCDModuleFunction_eval_params const *params) \
+static int integer_operator_##name##_func (uintmax_t n1, uintmax_t n2, uintmax_t *out, NCDCall const *call) \
 { \
     if (check_expr) { \
-        FunctionLog(params, BLOG_ERROR, check_err_str); \
+        FunctionLog(call, BLOG_ERROR, check_err_str); \
         return 0; \
     } \
     *out = expr; \
     return 1; \
 } \
-static int integer_operator_##name##_eval (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params) \
+static void integer_operator_##name##_eval (NCDCall call) \
 { \
-    return integer_operator_eval(args, mem, out, params, integer_operator_##name##_func); \
+    return integer_operator_eval(call, integer_operator_##name##_func); \
 }
 
 DEFINE_INT_OPERATOR(add, (n1 + n2), (n1 > UINTMAX_MAX - n2), "addition overflow")
@@ -414,6 +397,7 @@ DEFINE_INT_OPERATOR(subtract, (n1 - n2), (n1 < n2), "subtraction underflow")
 DEFINE_INT_OPERATOR(multiply, (n1 * n2), (n2 != 0 && n1 > UINTMAX_MAX / n2), "multiplication overflow")
 DEFINE_INT_OPERATOR(divide, (n1 / n2), (n2 == 0), "division quotient is zero")
 DEFINE_INT_OPERATOR(modulo, (n1 % n2), (n2 == 0), "modulo modulus is zero")
+
 
 static struct NCDModuleFunction const functions[] = {
     {

@@ -588,9 +588,79 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, NCD_string_id_t 
     return res;
 }
 
-BLogContext NCDModuleFunction_LogContext (struct NCDModuleFunction_eval_params const *params)
+int NCDCall_DoIt (
+    struct NCDCall_interp_shared const *interp_shared, void *interp_user,
+    struct NCDInterpFunction const *interp_function,
+    size_t arg_count, NCDValMem *res_mem, NCDValRef *res_out
+)
 {
-    return BLog_MakeContext(params->params->logfunc, params->interp_user);
+    NCDValRef res = NCDVal_NewInvalid();
+    
+    NCDCall call;
+    call.interp_shared = interp_shared;
+    call.interp_user = interp_user;
+    call.interp_function = interp_function;
+    call.arg_count = arg_count;
+    call.res_mem = res_mem;
+    call.out_ref = &res;
+    
+    interp_function->function.func_eval(call);
+    
+    if (NCDVal_IsInvalid(res)) {
+        return 0;
+    }
+    
+    *res_out = res;
+    return 1;
+}
+
+struct NCDInterpFunction const * NCDCall_InterpFunction (NCDCall const *o)
+{
+    return o->interp_function;
+}
+
+struct NCDModuleInst_iparams const * NCDCall_Iparams (NCDCall const *o)
+{
+    return o->interp_shared->iparams;
+}
+
+size_t NCDCall_ArgCount (NCDCall const *o)
+{
+    return o->arg_count;
+}
+
+NCDValRef NCDCall_EvalArg (NCDCall const *o, size_t index, NCDValMem *mem)
+{
+    ASSERT(index < o->arg_count)
+    ASSERT(mem)
+    
+    NCDValRef res;
+    
+    int eval_res = o->interp_shared->func_eval_arg(o->interp_user, index, mem, &res);
+    
+    ASSERT(eval_res == 0 || eval_res == 1)
+    ASSERT(eval_res == 0 || (NCDVal_Assert(res), 1))
+    
+    if (!eval_res) {
+        res = NCDVal_NewInvalid();
+    }
+    
+    return res;
+}
+
+NCDValMem * NCDCall_ResMem (NCDCall const *o)
+{
+    return o->res_mem;
+}
+
+void NCDCall_SetResult (NCDCall const *o, NCDValRef ref)
+{
+    *o->out_ref = ref;
+}
+
+BLogContext NCDCall_LogContext (NCDCall const *o)
+{
+    return BLog_MakeContext(o->interp_shared->logfunc, o->interp_user);
 }
 
 static int process_args_object_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value)

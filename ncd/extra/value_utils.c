@@ -38,7 +38,7 @@
 #include <system/BTime.h>
 #include <ncd/NCDVal.h>
 #include <ncd/NCDStringIndex.h>
-#include <ncd/NCDEvaluator.h>
+#include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
 
 #include "value_utils.h"
@@ -169,10 +169,10 @@ char * ncd_strdup (NCDValRef stringnonulls)
     return b_cstring_strdup(cstr, 0, cstr.length);
 }
 
-int ncd_eval_func_args_ext (NCDEvaluatorArgs args, size_t start, size_t count, NCDValMem *mem, NCDValRef *out)
+int ncd_eval_func_args_ext (NCDCall const *call, size_t start, size_t count, NCDValMem *mem, NCDValRef *out)
 {
-    ASSERT(start <= NCDEvaluatorArgs_Count(&args))
-    ASSERT(count <= NCDEvaluatorArgs_Count(&args) - start)
+    ASSERT(start <= NCDCall_ArgCount(call))
+    ASSERT(count <= NCDCall_ArgCount(call) - start)
     
     *out = NCDVal_NewList(mem, count);
     if (NCDVal_IsInvalid(*out)) {
@@ -180,8 +180,8 @@ int ncd_eval_func_args_ext (NCDEvaluatorArgs args, size_t start, size_t count, N
     }
     
     for (size_t i = 0; i < count; i++) {
-        NCDValRef elem;
-        if (!NCDEvaluatorArgs_EvalArg(&args, start + i, mem, &elem)) {
+        NCDValRef elem = NCDCall_EvalArg(call, start + i, mem);
+        if (NCDVal_IsInvalid(elem)) {
             goto fail;
         }
         if (!NCDVal_ListAppend(*out, elem)) {
@@ -195,7 +195,7 @@ fail:
     return 0;
 }
 
-int ncd_eval_func_args (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out)
+int ncd_eval_func_args (NCDCall const *call, NCDValMem *mem, NCDValRef *out)
 {
-    return ncd_eval_func_args_ext(args, 0, NCDEvaluatorArgs_Count(&args), mem, out);
+    return ncd_eval_func_args_ext(call, 0, NCDCall_ArgCount(call), mem, out);
 }

@@ -37,7 +37,6 @@
 #include <base/BLog.h>
 #include <ncd/NCDObject.h>
 #include <ncd/NCDStringIndex.h>
-#include <ncd/NCDEvaluator.h>
 
 #ifndef BADVPN_NO_PROCESS
 #include <system/BProcess.h>
@@ -60,6 +59,7 @@ struct NCDModuleProcess_s;
 struct NCDModuleGroup;
 struct NCDInterpModule;
 struct NCDInterpModuleGroup;
+struct NCDCall_interp_shared;
 struct NCDInterpFunction;
 
 /**
@@ -1018,67 +1018,172 @@ struct NCDInterpModuleGroup {
 };
 
 /**
- * Holds some things passed to function implementations which are presumed
- * to stay the same within an interpreter (for optimization purposes).
+ * An abstraction of function call evaluations, mutually decoupling the
+ * interpreter and the function implementations.
+ * 
+ * The function implementation is given an instance of this structure
+ * in the evaluation callback (func_eval), and uses it to request
+ * information and submit results. The function implementation does these
+ * things by calling the various NCDCall functions with the NCDCall
+ * instance. Note that function arguments are evaluated on demand from
+ * the function implementation. This enables behavior such as
+ * short-circuit evaluation of logical operators.
+ * 
+ * The NCDCall struct has a value semantic - it can be copied
+ * around freely by the function implementation during the
+ * lifetime of the evaluation call.
  */
-struct NCDModuleFunction_params {
+typedef struct {
+    struct NCDCall_interp_shared const *interp_shared;
+    void *interp_user;
+    struct NCDInterpFunction const *interp_function;
+    size_t arg_count;
+    NCDValMem *res_mem;
+    NCDValRef *out_ref;
+} NCDCall;
+
+/**
+ * Used by the intepreter to call a function.
+ * 
+ * It calls the func_eval callback of the function implementation
+ * with an appropriately initialized NCDCall value. This is the only
+ * NCDCall related function used by the interpreter.
+ * 
+ * As part of the call, callbacks to the interpreter (given in interp_shared)
+ * may occur. All of these callbacks are passed interp_user as the first
+ * argument. The callbacks are:
+ * - logfunc (to log a message),
+ * - func_eval_arg (to evaluate a particular function argument).
+ * 
+ * @param interp_shared pointer to things expected to be the same for all
+ *   function calls by the interpreter. This includes interpreter callbacks.
+ * @param interp_user pointer to be passed through to interpreter callbacks
+ * @param interp_function the function to call. The evaluation function of
+ *   the function implementation that will be called is taken from here
+ *   (interp_function->function.func_eval), but this is also exposed to the
+ *   function implementation, so it should be initialized appropriately.
+ * @param arg_count number of arguments passed to the function.
+ *   The function implementation is only permitted to attempt evaluation
+ *   of arguments with indices lesser than arg_count.
+ * @param res_mem the (initialized) value memory object for the result to
+ *   be stored into. However this may also be used as storage for temporary
+ *   values computed as part of the call.
+ * @param res_out on success, *res_out will be set to the result of the call
+ * @return 1 on success, 0 on error
+ */
+int NCDCall_DoIt (
+    struct NCDCall_interp_shared const *interp_shared, void *interp_user,
+    struct NCDInterpFunction const *interp_function,
+    size_t arg_count, NCDValMem *res_mem, NCDValRef *res_out
+) WARN_UNUSED;
+
+/**
+ * Returns a pointer to the NCDInterpFunction object for the function,
+ * initialized by the interpreter. This alows, among other things,
+ * determining which function is being called, and getting the module
+ * group's private data pointer.
+ */
+struct NCDInterpFunction const * NCDCall_InterpFunction (NCDCall const *o);
+
+/**
+ * Returns a pointer to an NCDModuleInst_iparams structure, exposing
+ * services provided by the interpreter.
+ */
+struct NCDModuleInst_iparams const * NCDCall_Iparams (NCDCall const *o);
+
+/**
+ * Returns the number of arguments for the function call.
+ */
+size_t NCDCall_ArgCount (NCDCall const *o);
+
+/**
+ * Attempts to evaluate a function argument.
+ * 
+ * @param index the index of the argument to be evaluated. Must be
+ *   in the range [0, ArgCount).
+ * @param mem the value memory object for the value to be stored into.
+ *   However temporary value data may also be stored here.
+ * @return on success, the value reference to the argument value;
+ *   on failure, an invalid value reference
+ */
+NCDValRef NCDCall_EvalArg (NCDCall const *o, size_t index, NCDValMem *mem);
+
+/**
+ * Returns a pointer to the value memory object that the result
+ * of the call should be stored into. The memory object may also
+ * be used to store temporary value data.
+ */
+NCDValMem * NCDCall_ResMem (NCDCall const *o);
+
+/**
+ * Provides result value of the evaluation to the interpreter.
+ * Note that this only stores the result without any immediate
+ * action.
+ * 
+ * Passing an invalid value reference indicates failure of the
+ * call, though failure is also assumed if this function is
+ * not called at all during the call. When a non-invalid
+ * value reference is passed (indicating success), it must point
+ * to a value stored within the memory object returned by
+ * NCDCall_ResMem.
+ * 
+ * @param ref the result value for the call, or an invalid
+ *   value reference to indicate failure of the call
+ */
+void NCDCall_SetResult (NCDCall const *o, NCDValRef ref);
+
+/**
+ * Returns a log context that can be used to log messages
+ * associated with the call.
+ */
+BLogContext NCDCall_LogContext (NCDCall const *o);
+
+/**
+ * A structure initialized by the interpreter and passed
+ * to NCDCall_DoIt for function evaluations.
+ * It contains a pointer to things expected to be the same for all
+ * function calls by the interpreter, so it can be initialized once
+ * and not for every call.
+ */
+struct NCDCall_interp_shared {
     /**
-     * Log function which appends a log prefix with {@link BLog_Append}.
-     * Its user argument will be the user member of {@link NCDModuleFunction_eval_params}.
+     * A callack for log messages originating from the function call.
+     * The first argument is the interp_user argument to NCDCall_DoIt.
      */
     BLog_logfunc logfunc;
     
     /**
-     * Pointer to an {@link NCDModuleInst_iparams} structure, which exposes
+     * A callback for evaluating function arguments.
+     * 
+     * @param user interpreter private data (the interp_user argument
+     *   to NCDCall_DoIt)
+     * @param index the index of the argument to be evaluated.
+     *   This will be in the range [0, arg_count).
+     * @param mem the value memory object where the result of the
+     *   evaluation should be stored. Temporary value data may also
+     *   be stored here.
+     * @param out on success, *out should be set to the value reference
+     *   to the result of the evaluation. An invalid value reference is
+     *   permitted, in which case failure is assumed.
+     * @return 1 on success (but see above), 0 on failure
+     */
+    int (*func_eval_arg) (void *user, size_t index, NCDValMem *mem, NCDValRef *out);
+    
+    /**
+     * A pointer to an NCDModuleInst_iparams structure, exposing
      * services provided by the interpreter.
      */
-    const struct NCDModuleInst_iparams *iparams;
+    struct NCDModuleInst_iparams const *iparams;
 };
 
 /**
- * Contains parameters to {@link NCDModuleFunction_func_eval} that are passed indirectly.
- */
-struct NCDModuleFunction_eval_params {
-    /**
-     * A pointer to the {@link NCDInterpFunction} structure for the function being called.
-     */
-    struct NCDInterpFunction const *ifunc;
-    
-    /**
-     * Pointer to an additional structure needed for the call, containing callbacks to
-     * the interpreter.
-     */
-    struct NCDModuleFunction_params const *params;
-    
-    /**
-     * This is passed back to interpeter callbacks done as part of function evaluation.
-     */
-    void *interp_user;
-};
-
-/**
- * Callback for evaluating a function (defined by an {@link NCDModuleFunction} structure).
+ * This structure is initialized statically by a function
+ * implementation to describe the function and provide
+ * the resources required for its evaluation by the interpreter.
  * 
- * @param args arguments to evaluate the function with.
- *             These arguments are provided in a lazy manner - an argument
- *             must be evaluated to obtain its value.
- * @param mem an existing value memory object to store the value into
- * @param out on success, *out should be set to the value reference to
- *            the evaluated value, residing in the specified memory
- *            object. It is permitted to return success but store an
- *            invalid value reference here, which is understood as an
- *            error.
- * @param params indirectly passed arguments
- * @return 1 on success, 0 on error (but see the description of the out parameter).
+ * These structures always appear in arrays, pointed to by
+ * the functions pointer in the NCDModuleGroup structure.
  */
-typedef int (*NCDModuleFunction_func_eval) (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out, struct NCDModuleFunction_eval_params const *params);
-
-/**
- * Returns a logging context for use by the function implementation during
- * function evaluation.
- */
-BLogContext NCDModuleFunction_LogContext (struct NCDModuleFunction_eval_params const *params);
-
 struct NCDModuleFunction {
     /**
      * The name of the function.
@@ -1088,22 +1193,8 @@ struct NCDModuleFunction {
     
     /**
      * Callback for evaluating the function.
-     * 
-     * @param group the group the function belongs to
-     * @param func pointer to this structure. It can be used to implement
-     *             different functions in the same callback, by reading the
-     *             func_name member.
-     * @param args used to access the arguments to the function, in a lazily
-     *             evaluated manner
-     * @param mem an existing value memory object to store the result to
-     * @param out on success, *out should be set to the value reference to
-     *            the evaluated value, residing in the specified memory
-     *            object. It is permitted to return success but store an
-     *            invalid value reference here, which is understood as an
-     *            error.
-     * @return 1 on success, 0 on error (but see above).
      */
-    NCDModuleFunction_func_eval func_eval;
+    void (*func_eval) (NCDCall call);
 };
 
 /**
@@ -1113,6 +1204,8 @@ struct NCDModuleFunction {
 struct NCDInterpFunction {
     /**
      * A copy of the original NCDModuleFunction structure.
+     * We could just use a pointer to the original statically defined structure,
+     * but then we wouldn't be annoying the premature-optimization hipsters.
      */
     struct NCDModuleFunction function;
     
