@@ -44,7 +44,7 @@ static void error_eval (NCDCall call)
 static void identity_eval (NCDCall call)
 {
     if (NCDCall_ArgCount(&call) != 1) {
-        FunctionLog(&call, BLOG_ERROR, "identity: need one argument");
+        return FunctionLog(&call, BLOG_ERROR, "identity: need one argument");
     }
     NCDCall_SetResult(&call, NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call)));
 }
@@ -55,8 +55,7 @@ static void identity_eval (NCDCall call)
 static void if_eval (NCDCall call)
 {
     if (NCDCall_ArgCount(&call) != 3) {
-        FunctionLog(&call, BLOG_ERROR, "if: need three arguments");
-        return;
+        return FunctionLog(&call, BLOG_ERROR, "if: need three arguments");
     }
     NCDValRef cond = NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call));
     if (NCDVal_IsInvalid(cond)) {
@@ -64,8 +63,7 @@ static void if_eval (NCDCall call)
     }
     int cond_val;
     if (!ncd_read_boolean(cond, &cond_val)) {
-        FunctionLog(&call, BLOG_ERROR, "if: bad condition");
-        return;
+        return FunctionLog(&call, BLOG_ERROR, "if: bad condition");
     }
     int eval_arg = 2 - cond_val;
     NCDCall_SetResult(&call, NCDCall_EvalArg(&call, eval_arg, NCDCall_ResMem(&call)));
@@ -74,8 +72,7 @@ static void if_eval (NCDCall call)
 static void bool_eval (NCDCall call)
 {
     if (NCDCall_ArgCount(&call) != 1) {
-        FunctionLog(&call, BLOG_ERROR, "bool: need one argument");
-        return;
+        return FunctionLog(&call, BLOG_ERROR, "bool: need one argument");
     }
     NCDValRef arg = NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call));
     if (NCDVal_IsInvalid(arg)) {
@@ -83,8 +80,7 @@ static void bool_eval (NCDCall call)
     }
     int arg_val;
     if (!ncd_read_boolean(arg, &arg_val)) {
-        FunctionLog(&call, BLOG_ERROR, "bool: bad argument");
-        return;
+        return FunctionLog(&call, BLOG_ERROR, "bool: bad argument");
     }
     NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), arg_val, NCDCall_Iparams(&call)->string_index));
 }
@@ -92,8 +88,7 @@ static void bool_eval (NCDCall call)
 static void not_eval (NCDCall call)
 {
     if (NCDCall_ArgCount(&call) != 1) {
-        FunctionLog(&call, BLOG_ERROR, "not: need one argument");
-        return;
+        return FunctionLog(&call, BLOG_ERROR, "not: need one argument");
     }
     NCDValRef arg = NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call));
     if (NCDVal_IsInvalid(arg)) {
@@ -101,8 +96,7 @@ static void not_eval (NCDCall call)
     }
     int arg_val;
     if (!ncd_read_boolean(arg, &arg_val)) {
-        FunctionLog(&call, BLOG_ERROR, "not: bad argument");
-        return;
+        return FunctionLog(&call, BLOG_ERROR, "not: bad argument");
     }
     NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), !arg_val, NCDCall_Iparams(&call)->string_index));
 }
@@ -118,8 +112,7 @@ static void and_eval (NCDCall call)
         }
         int arg_val;
         if (!ncd_read_boolean(arg, &arg_val)) {
-            FunctionLog(&call, BLOG_ERROR, "and: bad argument");
-            return;
+            return FunctionLog(&call, BLOG_ERROR, "and: bad argument");
         }
         if (!arg_val) {
             res = 0;
@@ -140,8 +133,7 @@ static void or_eval (NCDCall call)
         }
         int arg_val;
         if (!ncd_read_boolean(arg, &arg_val)) {
-            FunctionLog(&call, BLOG_ERROR, "or: bad argument");
-            return;
+            return FunctionLog(&call, BLOG_ERROR, "or: bad argument");
         }
         if (arg_val) {
             res = 1;
@@ -154,8 +146,7 @@ static void or_eval (NCDCall call)
 static void imp_eval (NCDCall call)
 {
     if (NCDCall_ArgCount(&call) != 2) {
-        FunctionLog(&call, BLOG_ERROR, "imp: need two arguments");
-        return;
+        return FunctionLog(&call, BLOG_ERROR, "imp: need two arguments");
     }
     int res = 0;
     for (size_t i = 0; i < 2; i++) {
@@ -165,8 +156,7 @@ static void imp_eval (NCDCall call)
         }
         int arg_val;
         if (!ncd_read_boolean(arg, &arg_val)) {
-            FunctionLog(&call, BLOG_ERROR, "imp: bad argument");
-            return;
+            return FunctionLog(&call, BLOG_ERROR, "imp: bad argument");
         }
         if (arg_val == i) {
             res = 1;
@@ -184,8 +174,7 @@ typedef int (*value_compare_func) (int cmp);
 static void value_compare_eval (NCDCall call, value_compare_func func)
 {
     if (NCDCall_ArgCount(&call) != 2) {
-        FunctionLog(&call, BLOG_ERROR, "value_compare: need two arguments");
-        return;
+        return FunctionLog(&call, BLOG_ERROR, "value_compare: need two arguments");
     }
     NCDValRef vals[2];
     for (int i = 0; i < 2; i++) {
@@ -309,24 +298,20 @@ typedef int (*integer_compare_func) (uintmax_t n1, uintmax_t n2);
 static void integer_compare_eval (NCDCall call, integer_compare_func func)
 {
     if (NCDCall_ArgCount(&call) != 2) {
-        FunctionLog(&call, BLOG_ERROR, "integer_compare: need two arguments");
-        goto fail0;
+        return FunctionLog(&call, BLOG_ERROR, "integer_compare: need two arguments");
     }
     uintmax_t ints[2];
     for (int i = 0; i < 2; i++) {
         NCDValRef arg = NCDCall_EvalArg(&call, i, NCDCall_ResMem(&call));
         if (NCDVal_IsInvalid(arg)) {
-            goto fail0;
+            return;
         }
         if (!ncd_read_uintmax(arg, &ints[i])) {
-            FunctionLog(&call, BLOG_ERROR, "integer_compare: wrong value");
-            goto fail0;
+            return FunctionLog(&call, BLOG_ERROR, "integer_compare: wrong value");
         }
     }
     int value = func(ints[0], ints[1]);
     NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), value, NCDCall_Iparams(&call)->string_index));
-fail0:
-    return;
 }
 
 #define DEFINE_INT_COMPARE(name, expr) \
@@ -354,27 +339,23 @@ typedef int (*integer_operator_func) (uintmax_t n1, uintmax_t n2, uintmax_t *out
 static void integer_operator_eval (NCDCall call, integer_operator_func func)
 {
     if (NCDCall_ArgCount(&call) != 2) {
-        FunctionLog(&call, BLOG_ERROR, "integer_operator: need two arguments");
-        goto fail0;
+        return FunctionLog(&call, BLOG_ERROR, "integer_operator: need two arguments");
     }
     uintmax_t ints[2];
     for (int i = 0; i < 2; i++) {
         NCDValRef arg = NCDCall_EvalArg(&call, i, NCDCall_ResMem(&call));
         if (NCDVal_IsInvalid(arg)) {
-            goto fail0;
+            return;
         }
         if (!ncd_read_uintmax(arg, &ints[i])) {
-            FunctionLog(&call, BLOG_ERROR, "integer_operator: wrong value");
-            goto fail0;
+            return FunctionLog(&call, BLOG_ERROR, "integer_operator: wrong value");
         }
     }
     uintmax_t value;
     if (!func(ints[0], ints[1], &value, &call)) {
-        goto fail0;
+        return;
     }
     NCDCall_SetResult(&call, ncd_make_uintmax(NCDCall_ResMem(&call), value));
-fail0:
-    return;
 }
 
 #define DEFINE_INT_OPERATOR(name, expr, check_expr, check_err_str) \
