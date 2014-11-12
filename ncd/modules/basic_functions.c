@@ -179,10 +179,13 @@ DEFINE_VALUE_COMPARE(different, (cmp != 0))
 static int concat_recurser (ExpString *estr, NCDValRef arg, NCDCall const *call)
 {
     if (NCDVal_IsString(arg)) {
-        if (!ExpString_AppendBinary(estr, (uint8_t const *)NCDVal_StringData(arg), NCDVal_StringLength(arg))) {
-            FunctionLog(call, BLOG_ERROR, "ExpString_AppendBinary failed");
-            return 0;
-        }
+        b_cstring arg_cstr = NCDVal_StringCstring(arg);
+        B_CSTRING_LOOP(arg_cstr, pos, chunk_data, chunk_length, {
+            if (!ExpString_AppendBinary(estr, (uint8_t const *)chunk_data, chunk_length)) {
+                FunctionLog(call, BLOG_ERROR, "ExpString_AppendBinary failed");
+                return 0;
+            }
+        })
     } else if (NCDVal_IsList(arg)) {
         size_t count = NCDVal_ListCount(arg);
         for (size_t i = 0; i < count; i++) {
@@ -371,11 +374,17 @@ static void decode_value_eval (NCDCall call)
     if (!NCDVal_IsString(arg)) {
         return;
     }
-    NCDValRef res;
-    if (!NCDValParser_Parse(NCDVal_StringData(arg), NCDVal_StringLength(arg), NCDCall_ResMem(&call), &res)) {
+    NCDValContString cts;
+    if (!NCDVal_StringContinuize(arg, &cts)) {
+        return FunctionLog(&call, BLOG_ERROR, "decode_value: NCDVal_StringContinuize failed");
+    }
+    NCDValRef value;
+    int res = NCDValParser_Parse(cts.data, NCDVal_StringLength(arg), NCDCall_ResMem(&call), &value);
+    NCDValContString_Free(&cts);
+    if (!res) {
         return FunctionLog(&call, BLOG_ERROR, "decode_value: NCDValParser_Parse failed");
     }
-    NCDCall_SetResult(&call, res);
+    NCDCall_SetResult(&call, value);
 }
 
 static struct NCDModuleFunction const functions[] = {
