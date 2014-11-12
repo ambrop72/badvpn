@@ -28,6 +28,7 @@
  */
 
 #include <misc/expstring.h>
+#include <misc/bsize.h>
 
 #include <ncd/module_common.h>
 
@@ -69,10 +70,10 @@ static void if_eval (NCDCall call)
     NCDCall_SetResult(&call, NCDCall_EvalArg(&call, eval_arg, NCDCall_ResMem(&call)));
 }
 
-static void bool_eval (NCDCall call)
+static void bool_not_eval (NCDCall call, int negate, char const *name)
 {
     if (NCDCall_ArgCount(&call) != 1) {
-        return FunctionLog(&call, BLOG_ERROR, "bool: need one argument");
+        return FunctionLog(&call, BLOG_ERROR, "%s: need one argument", name);
     }
     NCDValRef arg = NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call));
     if (NCDVal_IsInvalid(arg)) {
@@ -80,31 +81,19 @@ static void bool_eval (NCDCall call)
     }
     int arg_val;
     if (!ncd_read_boolean(arg, &arg_val)) {
-        return FunctionLog(&call, BLOG_ERROR, "bool: bad argument");
+        return FunctionLog(&call, BLOG_ERROR, "%s: bad argument", name);
     }
-    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), arg_val, NCDCall_Iparams(&call)->string_index));
+    int res = (arg_val != negate);
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res, NCDCall_Iparams(&call)->string_index));
 }
 
-static void not_eval (NCDCall call)
-{
-    if (NCDCall_ArgCount(&call) != 1) {
-        return FunctionLog(&call, BLOG_ERROR, "not: need one argument");
-    }
-    NCDValRef arg = NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call));
-    if (NCDVal_IsInvalid(arg)) {
-        return;
-    }
-    int arg_val;
-    if (!ncd_read_boolean(arg, &arg_val)) {
-        return FunctionLog(&call, BLOG_ERROR, "not: bad argument");
-    }
-    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), !arg_val, NCDCall_Iparams(&call)->string_index));
-}
+static void bool_eval (NCDCall call) { return bool_not_eval(call, 0, "bool"); }
+static void not_eval (NCDCall call) { return bool_not_eval(call, 1, "not"); }
 
-static void and_eval (NCDCall call)
+static void and_or_eval (NCDCall call, int is_and, char const *name)
 {
     size_t count = NCDCall_ArgCount(&call);
-    int res = 1;
+    int res = is_and;
     for (size_t i = 0; i < count; i++) {
         NCDValRef arg = NCDCall_EvalArg(&call, i, NCDCall_ResMem(&call));
         if (NCDVal_IsInvalid(arg)) {
@@ -112,36 +101,18 @@ static void and_eval (NCDCall call)
         }
         int arg_val;
         if (!ncd_read_boolean(arg, &arg_val)) {
-            return FunctionLog(&call, BLOG_ERROR, "and: bad argument");
+            return FunctionLog(&call, BLOG_ERROR, "%s: bad argument", name);
         }
-        if (!arg_val) {
-            res = 0;
+        if (arg_val != is_and) {
+            res = !is_and;
             break;
         }
     }
     NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res, NCDCall_Iparams(&call)->string_index));
 }
 
-static void or_eval (NCDCall call)
-{
-    size_t count = NCDCall_ArgCount(&call);
-    int res = 0;
-    for (size_t i = 0; i < count; i++) {
-        NCDValRef arg = NCDCall_EvalArg(&call, i, NCDCall_ResMem(&call));
-        if (NCDVal_IsInvalid(arg)) {
-            return;
-        }
-        int arg_val;
-        if (!ncd_read_boolean(arg, &arg_val)) {
-            return FunctionLog(&call, BLOG_ERROR, "or: bad argument");
-        }
-        if (arg_val) {
-            res = 1;
-            break;
-        }
-    }
-    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res, NCDCall_Iparams(&call)->string_index));
-}
+static void and_eval (NCDCall call) { return and_or_eval(call, 1, "and"); }
+static void or_eval (NCDCall call) { return and_or_eval(call, 0, "or"); }
 
 static void imp_eval (NCDCall call)
 {
@@ -183,19 +154,13 @@ static void value_compare_eval (NCDCall call, value_compare_func func)
             return;
         }
     }
-    int value = func(NCDVal_Compare(vals[0], vals[1]));
-    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), value, NCDCall_Iparams(&call)->string_index));
+    int res = func(NCDVal_Compare(vals[0], vals[1]));
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res, NCDCall_Iparams(&call)->string_index));
 }
 
 #define DEFINE_VALUE_COMPARE(name, expr) \
-static int value_compare_##name##_func (int cmp) \
-{ \
-    return expr; \
-} \
-static void value_compare_##name##_eval (NCDCall call) \
-{ \
-    return value_compare_eval(call, value_compare_##name##_func); \
-}
+static int value_compare_##name##_func (int cmp) { return expr; } \
+static void value_compare_##name##_eval (NCDCall call) { return value_compare_eval(call, value_compare_##name##_func); }
 
 DEFINE_VALUE_COMPARE(lesser, (cmp < 0))
 DEFINE_VALUE_COMPARE(greater, (cmp > 0))
@@ -256,21 +221,23 @@ static void concatlist_eval (NCDCall call)
 {
     NCDValRef args_list;
     if (!ncd_eval_func_args(&call, NCDCall_ResMem(&call), &args_list)) {
-        goto fail0;
+        return;
     }
     size_t arg_count = NCDVal_ListCount(args_list);
-    size_t elem_count = 0;
+    bsize_t elem_count = bsize_fromsize(0);
     for (size_t i = 0; i < arg_count; i++) {
         NCDValRef arg = NCDVal_ListGet(args_list, i);
         if (!NCDVal_IsList(arg)) {
-            FunctionLog(&call, BLOG_ERROR, "concatlist: argument is not a list");
-            goto fail0;
+            return FunctionLog(&call, BLOG_ERROR, "concatlist: argument is not a list");
         }
-        elem_count += NCDVal_ListCount(arg);
+        elem_count = bsize_add(elem_count, bsize_fromsize(NCDVal_ListCount(arg)));
     }
-    NCDValRef res = NCDVal_NewList(NCDCall_ResMem(&call), elem_count);
+    if (elem_count.is_overflow) {
+        return FunctionLog(&call, BLOG_ERROR, "concatlist: count overflow");
+    }
+    NCDValRef res = NCDVal_NewList(NCDCall_ResMem(&call), elem_count.value);
     if (NCDVal_IsInvalid(res)) {
-        goto fail0;
+        return;
     }
     for (size_t i = 0; i < arg_count; i++) {
         NCDValRef arg = NCDVal_ListGet(args_list, i);
@@ -278,16 +245,14 @@ static void concatlist_eval (NCDCall call)
         for (size_t j = 0; j < arg_list_count; j++) {
             NCDValRef copy = NCDVal_NewCopy(NCDCall_ResMem(&call), NCDVal_ListGet(arg, j));
             if (NCDVal_IsInvalid(copy)) {
-                goto fail0;
+                return;
             }
             if (!NCDVal_ListAppend(res, copy)) {
-                goto fail0;
+                return;
             }
         }
     }
     NCDCall_SetResult(&call, res);
-fail0:
-    return;
 }
 
 
@@ -310,19 +275,13 @@ static void integer_compare_eval (NCDCall call, integer_compare_func func)
             return FunctionLog(&call, BLOG_ERROR, "integer_compare: wrong value");
         }
     }
-    int value = func(ints[0], ints[1]);
-    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), value, NCDCall_Iparams(&call)->string_index));
+    int res = func(ints[0], ints[1]);
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res, NCDCall_Iparams(&call)->string_index));
 }
 
 #define DEFINE_INT_COMPARE(name, expr) \
-static int integer_compare_##name##_func (uintmax_t n1, uintmax_t n2) \
-{ \
-    return expr; \
-} \
-static void integer_compare_##name##_eval (NCDCall call) \
-{ \
-    return integer_compare_eval(call, integer_compare_##name##_func); \
-}
+static int integer_compare_##name##_func (uintmax_t n1, uintmax_t n2) { return expr; } \
+static void integer_compare_##name##_eval (NCDCall call) { return integer_compare_eval(call, integer_compare_##name##_func); }
 
 DEFINE_INT_COMPARE(lesser, (n1 < n2))
 DEFINE_INT_COMPARE(greater, (n1 > n2))
@@ -351,11 +310,11 @@ static void integer_operator_eval (NCDCall call, integer_operator_func func)
             return FunctionLog(&call, BLOG_ERROR, "integer_operator: wrong value");
         }
     }
-    uintmax_t value;
-    if (!func(ints[0], ints[1], &value, &call)) {
+    uintmax_t res;
+    if (!func(ints[0], ints[1], &res, &call)) {
         return;
     }
-    NCDCall_SetResult(&call, ncd_make_uintmax(NCDCall_ResMem(&call), value));
+    NCDCall_SetResult(&call, ncd_make_uintmax(NCDCall_ResMem(&call), res));
 }
 
 #define DEFINE_INT_OPERATOR(name, expr, check_expr, check_err_str) \
@@ -368,10 +327,7 @@ static int integer_operator_##name##_func (uintmax_t n1, uintmax_t n2, uintmax_t
     *out = expr; \
     return 1; \
 } \
-static void integer_operator_##name##_eval (NCDCall call) \
-{ \
-    return integer_operator_eval(call, integer_operator_##name##_func); \
-}
+static void integer_operator_##name##_eval (NCDCall call) { return integer_operator_eval(call, integer_operator_##name##_func); }
 
 DEFINE_INT_OPERATOR(add, (n1 + n2), (n1 > UINTMAX_MAX - n2), "addition overflow")
 DEFINE_INT_OPERATOR(subtract, (n1 - n2), (n1 < n2), "subtraction underflow")
