@@ -27,8 +27,12 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <stdlib.h>
+
 #include <misc/expstring.h>
 #include <misc/bsize.h>
+#include <ncd/NCDValGenerator.h>
+#include <ncd/NCDValParser.h>
 
 #include <ncd/module_common.h>
 
@@ -336,6 +340,44 @@ DEFINE_INT_OPERATOR(divide, (n1 / n2), (n2 == 0), "division quotient is zero")
 DEFINE_INT_OPERATOR(modulo, (n1 % n2), (n2 == 0), "modulo modulus is zero")
 
 
+// Encode and decode value.
+
+static void encode_value_eval (NCDCall call)
+{
+    if (NCDCall_ArgCount(&call) != 1) {
+        return FunctionLog(&call, BLOG_ERROR, "encode_value: need one argument");
+    }
+    NCDValRef arg = NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call));
+    if (NCDVal_IsInvalid(arg)) {
+        return;
+    }
+    char *str = NCDValGenerator_Generate(arg);
+    if (!str) {
+        return FunctionLog(&call, BLOG_ERROR, "encode_value: NCDValGenerator_Generate failed");
+    }
+    NCDCall_SetResult(&call, NCDVal_NewString(NCDCall_ResMem(&call), str));
+    free(str);
+}
+
+static void decode_value_eval (NCDCall call)
+{
+    if (NCDCall_ArgCount(&call) != 1) {
+        return FunctionLog(&call, BLOG_ERROR, "decode_value: need one argument");
+    }
+    NCDValRef arg = NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call));
+    if (NCDVal_IsInvalid(arg)) {
+        return;
+    }
+    if (!NCDVal_IsString(arg)) {
+        return;
+    }
+    NCDValRef res;
+    if (!NCDValParser_Parse(NCDVal_StringData(arg), NCDVal_StringLength(arg), NCDCall_ResMem(&call), &res)) {
+        return FunctionLog(&call, BLOG_ERROR, "decode_value: NCDValParser_Parse failed");
+    }
+    NCDCall_SetResult(&call, res);
+}
+
 static struct NCDModuleFunction const functions[] = {
     {
         .func_name = "__error__",
@@ -418,6 +460,12 @@ static struct NCDModuleFunction const functions[] = {
     }, {
         .func_name = "__num_modulo__",
         .func_eval = integer_operator_modulo_eval
+    }, {
+        .func_name = "__encode_value__",
+        .func_eval = encode_value_eval
+    }, {
+        .func_name = "__decode_value__",
+        .func_eval = decode_value_eval
     }, {
         .func_name = NULL
     }
