@@ -234,5 +234,13 @@ process main {
     assert(a);
     
     
+    var(@encode_value("foo")) x;
+    val_equal(x, "\"foo\"") a;
+    assert(a);
+    
+    var(@decode_value("\"foo\"")) x;
+    val_equal(x, "foo") a;
+    assert(a);
+    
     exit("0");
 }
