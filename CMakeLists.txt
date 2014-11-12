@@ -130,7 +130,7 @@ endif ()
 if (MSVC)
     add_definitions(/TP -D_CRT_SECURE_NO_WARNINGS /wd4065 /wd4018 /wd4533 /wd4244 /wd4102)
 else ()
-    add_definitions(-std=gnu99 -Wall -Wno-unused-value -Wno-parentheses -Wno-switch -Wredundant-decls)
+    add_definitions(-std=gnu99 -Wall -Wno-unused-value -Wno-parentheses -Wno-switch -Wredundant-decls -Wshadow)
 
     if (NOT CMAKE_C_COMPILER_ID STREQUAL "PathScale")
         add_definitions(-Werror=implicit-function-declaration -Wno-switch-enum -Wno-unused-function
