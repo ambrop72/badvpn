@@ -242,5 +242,16 @@ process main {
     val_equal(x, "foo") a;
     assert(a);
     
+    
+    var(@tolower("09@AZ[`az{")) x;
+    val_equal(x, "09@az[`az{") a;
+    assert(a);
+    
+    
+    var(@toupper("09@AZ[`az{")) x;
+    val_equal(x, "09@AZ[`AZ{") a;
+    assert(a);
+    
+    
     exit("0");
 }

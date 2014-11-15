@@ -31,6 +31,7 @@
 
 #include <misc/expstring.h>
 #include <misc/bsize.h>
+#include <misc/ascii_utils.h>
 #include <ncd/NCDValGenerator.h>
 #include <ncd/NCDValParser.h>
 
@@ -387,6 +388,43 @@ static void decode_value_eval (NCDCall call)
     NCDCall_SetResult(&call, value);
 }
 
+
+// ASCII case conversion
+
+typedef char (*perchar_func) (char ch);
+
+static void perchar_eval (NCDCall call, perchar_func func)
+{
+    if (NCDCall_ArgCount(&call) != 1) {
+        return FunctionLog(&call, BLOG_ERROR, "tolower: need one argument");
+    }
+    NCDValRef arg = NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call));
+    if (NCDVal_IsInvalid(arg)) {
+        return;
+    }
+    if (!NCDVal_IsString(arg)) {
+        return FunctionLog(&call, BLOG_ERROR, "tolower: argument not a string");
+    }
+    NCDValRef value = NCDVal_NewStringUninitialized(NCDCall_ResMem(&call), NCDVal_StringLength(arg));
+    if (NCDVal_IsInvalid(value)) {
+        return;
+    }
+    char *out_data = (char *)NCDVal_StringData(value);
+    b_cstring arg_cstr = NCDVal_StringCstring(arg);
+    B_CSTRING_LOOP_CHARS(arg_cstr, i, ch, {
+        out_data[i] = func(ch);
+    })
+    NCDCall_SetResult(&call, value);
+}
+
+#define DEFINE_PERCHAR(name, expr) \
+static char perchar_##name##_func (char ch) { return expr; } \
+static void perchar_##name##_eval (NCDCall call) { return perchar_eval(call, perchar_##name##_func); }
+
+DEFINE_PERCHAR(tolower, b_ascii_tolower(ch))
+DEFINE_PERCHAR(toupper, b_ascii_toupper(ch))
+
+
 static struct NCDModuleFunction const functions[] = {
     {
         .func_name = "__error__",
@@ -475,6 +513,12 @@ static struct NCDModuleFunction const functions[] = {
     }, {
         .func_name = "__decode_value__",
         .func_eval = decode_value_eval
+    }, {
+        .func_name = "__tolower__",
+        .func_eval = perchar_tolower_eval
+    }, {
+        .func_name = "__toupper__",
+        .func_eval = perchar_toupper_eval
     }, {
         .func_name = NULL
     }
