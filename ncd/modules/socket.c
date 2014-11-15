@@ -906,11 +906,11 @@ static void close_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
         goto fail0;
     }
     
-    // abort
-    connection_abort(con_inst);
-    
     // go up
     NCDModuleInst_Backend_Up(i);
+    
+    // abort
+    connection_abort(con_inst);
     return;
     
 fail0:
