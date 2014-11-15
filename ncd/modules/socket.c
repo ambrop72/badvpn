@@ -226,6 +226,7 @@ static void connection_recv_handler_done (void *user, int data_len);
 static void connection_process_handler (struct NCDModuleProcess_s *process, int event);
 static int connection_process_func_getspecialobj (struct NCDModuleProcess_s *process, NCD_string_id_t name, NCDObject *out_object);
 static int connection_process_socket_obj_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out_value);
+static int connection_process_caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
 static void listen_listener_handler (void *user);
 
 static int parse_options (NCDModuleInst *i, NCDValRef options, size_t *out_read_size)
@@ -539,6 +540,11 @@ static int connection_process_func_getspecialobj (struct NCDModuleProcess_s *pro
         return 1;
     }
     
+    if (name == NCD_STRING_CALLER) {
+        *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, connection_process_caller_obj_func_getobj);
+        return 1;
+    }
+    
     return 0;
 }
 
@@ -556,6 +562,14 @@ static int connection_process_socket_obj_func_getvar (const NCDObject *obj, NCD_
     }
     
     return 0;
+}
+
+static int connection_process_caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object)
+{
+    struct connection *o = NCDObject_DataPtr(obj);
+    ASSERT(o->type == CONNECTION_TYPE_LISTEN)
+    
+    return NCDModuleInst_Backend_GetObj(o->listen.listen_inst->i, name, out_object);
 }
 
 static void listen_listener_handler (void *user)
