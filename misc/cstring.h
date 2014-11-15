@@ -191,7 +191,7 @@ static char * b_cstring_strdup (b_cstring cstr, size_t offset, size_t length);
 #define B_CSTRING_LOOP_CHARS_RANGE(cstr, offset, length, char_rel_pos_var, char_var, body) \
 B_CSTRING_LOOP_RANGE(cstr, offset, length, b_cstring_loop_chars_pos, b_cstring_loop_chars_chunk_data, b_cstring_loop_chars_chunk_length, { \
     for (size_t b_cstring_loop_chars_chunk_pos = 0; b_cstring_loop_chars_chunk_pos < b_cstring_loop_chars_chunk_length; b_cstring_loop_chars_chunk_pos++) { \
-        char char_rel_pos_var = b_cstring_loop_chars_pos + b_cstring_loop_chars_chunk_pos; \
+        size_t char_rel_pos_var = b_cstring_loop_chars_pos + b_cstring_loop_chars_chunk_pos; \
         B_USE(char_rel_pos_var) \
         char char_var = b_cstring_loop_chars_chunk_data[b_cstring_loop_chars_chunk_pos]; \
         { body } \
