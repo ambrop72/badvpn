@@ -65,7 +65,9 @@
  * 
  * Variables:
  *   string (empty) - some data received from the socket, or empty on EOF
- *   string not_eof - "true" if EOF was not encountered, "false" if it was
+ *   string eof - "true" if EOF was encountered, "false" if not
+ *   string not_eof - (deprecated) "true" if EOF was not encountered,
+ *     "false" if it was
  * 
  * Description:
  *   Receives data from the connection. If EOF was encountered (remote host
@@ -806,8 +808,8 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
         return 1;
     }
     
-    if (name == NCD_STRING_NOT_EOF) {
-        *out = ncd_make_boolean(mem, (o->read_size != 0), o->i->params->iparams->string_index);
+    if (name == NCD_STRING_EOF || name == NCD_STRING_NOT_EOF) {
+        *out = ncd_make_boolean(mem, (o->read_size == 0) == (name == NCD_STRING_EOF), o->i->params->iparams->string_index);
         return 1;
     }
     

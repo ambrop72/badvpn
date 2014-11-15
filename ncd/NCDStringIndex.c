@@ -83,7 +83,8 @@ static const char *static_strings[] = {
     "length",
     "type",
     "exit_status",
-    "size"
+    "size",
+    "eof",
 };
 
 static NCD_string_id_t do_get (NCDStringIndex *o, const char *str, size_t str_len)
