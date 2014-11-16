@@ -171,7 +171,7 @@ static int process_func_getspecialobj_noembed (NCDModuleProcess *process, NCD_st
 static int process_func_getspecialobj_with_caller_target (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
 static int caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
 static int caller_obj_func_getobj_with_caller_target (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
-static int func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name, NCDValRef args, NCDModuleProcess_func_getspecialobj func_getspecialobj, call_extra_free_cb extra_free_cb);
+static void func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name, NCDValRef args, NCDModuleProcess_func_getspecialobj func_getspecialobj, call_extra_free_cb extra_free_cb);
 static void instance_free (struct instance *o);
 static void call_with_caller_target_extra_free (struct instance *bo);
 static void inline_code_extra_free (struct instance *bo);
@@ -278,7 +278,7 @@ static int caller_obj_func_getobj_with_caller_target (const NCDObject *obj, NCD_
     return NCDObject_GetObj(&obj2, name, out_object);
 }
 
-static int func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name, NCDValRef args, NCDModuleProcess_func_getspecialobj func_getspecialobj, call_extra_free_cb extra_free_cb)
+static void func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name, NCDValRef args, NCDModuleProcess_func_getspecialobj func_getspecialobj, call_extra_free_cb extra_free_cb)
 {
     ASSERT(NCDVal_IsInvalid(template_name) || NCDVal_IsString(template_name))
     ASSERT(NCDVal_IsInvalid(args) || NCDVal_IsList(args))
@@ -298,7 +298,7 @@ static int func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name, 
         // create process
         if (!NCDModuleProcess_InitValue(&o->process, o->i, template_name, args, process_handler_event)) {
             ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
-            goto fail0;
+            goto fail1;
         }
         
         // set special functions
@@ -308,11 +308,13 @@ static int func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name, 
         o->state = STATE_WORKING;
     }
     
-    return 1;
+    return;
     
-fail0:
+fail1:
+    if (o->extra_free_cb) {
+        o->extra_free_cb(o);
+    }
     NCDModuleInst_Backend_DeadError(i);
-    return 0;
 }
 
 static void instance_free (struct instance *o)
@@ -351,11 +353,6 @@ fail0:
 
 static void func_new_call_with_caller_target (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    struct instance *o = vo;
-    struct instance_with_caller_target *o_ct = vo;
-    o->i = i;
-    o->extra_free_cb = call_with_caller_target_extra_free;
-    
     NCDValRef template_arg;
     NCDValRef args_arg;
     NCDValRef caller_target_arg;
@@ -374,37 +371,18 @@ static void func_new_call_with_caller_target (void *vo, NCDModuleInst *i, const 
         goto fail0;
     }
     
-    int res = CallNames_InitNames(o_ct, i->params->iparams->string_index, cts.data, NCDVal_StringLength(caller_target_arg));
+    struct instance_with_caller_target *o = vo;
+    
+    int res = CallNames_InitNames(o, i->params->iparams->string_index, cts.data, NCDVal_StringLength(caller_target_arg));
     NCDValContString_Free(&cts);
     if (!res) {
         ModuleLog(i, BLOG_ERROR, "CallerNames_InitNames failed");
         goto fail0;
     }
     
-    if (ncd_is_none(template_arg)) {
-        // signal up
-        NCDModuleInst_Backend_Up(i);
-        
-        // set state none
-        o->state = STATE_NONE;
-    } else {
-        // create process
-        if (!NCDModuleProcess_InitValue(&o->process, i, template_arg, args_arg, process_handler_event)) {
-            ModuleLog(i, BLOG_ERROR, "NCDModuleProcess_Init failed");
-            goto fail1;
-        }
-        
-        // set special functions
-        NCDModuleProcess_SetSpecialFuncs(&o->process, process_func_getspecialobj_with_caller_target);
-        
-        // set state working
-        o->state = STATE_WORKING;
-    }
-    
+    func_new_templ(vo, i, template_arg, args_arg, process_func_getspecialobj_with_caller_target, call_with_caller_target_extra_free);
     return;
     
-fail1:
-    CallNames_FreeNames(o_ct);
 fail0:
     NCDModuleInst_Backend_DeadError(i);
 }
@@ -554,13 +532,11 @@ static void inline_code_call_new (void *vo, NCDModuleInst *i, const struct NCDMo
     }
     
     struct inline_code_call *o = vo;
-    struct inline_code *ic = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     
-    if (func_new_templ(vo, i, ic->template_name, args_arg, inline_code_call_process_getspecialobj, inline_code_extra_free)) {
-        o->ic = ic;
-        LinkedList0_Prepend(&ic->calls_list, &o->ic_node);
-    }
+    o->ic = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
+    LinkedList0_Prepend(&o->ic->calls_list, &o->ic_node);
     
+    func_new_templ(vo, i, o->ic->template_name, args_arg, inline_code_call_process_getspecialobj, inline_code_extra_free);
     return;
     
 fail0:
