@@ -173,6 +173,7 @@ static int caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, N
 static int caller_obj_func_getobj_with_caller_target (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
 static int func_new_templ (void *vo, NCDModuleInst *i, NCDValRef template_name, NCDValRef args, NCDModuleProcess_func_getspecialobj func_getspecialobj, call_extra_free_cb extra_free_cb);
 static void instance_free (struct instance *o);
+static void call_with_caller_target_extra_free (struct instance *bo);
 static void inline_code_extra_free (struct instance *bo);
 static int inline_code_call_process_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
 static int inline_code_scope_obj_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
@@ -353,7 +354,7 @@ static void func_new_call_with_caller_target (void *vo, NCDModuleInst *i, const 
     struct instance *o = vo;
     struct instance_with_caller_target *o_ct = vo;
     o->i = i;
-    o->extra_free_cb = NULL;
+    o->extra_free_cb = call_with_caller_target_extra_free;
     
     NCDValRef template_arg;
     NCDValRef args_arg;
@@ -406,6 +407,13 @@ fail1:
     CallNames_FreeNames(o_ct);
 fail0:
     NCDModuleInst_Backend_DeadError(i);
+}
+
+static void call_with_caller_target_extra_free (struct instance *bo)
+{
+    struct instance_with_caller_target *o = (void *)bo;
+    
+    CallNames_FreeNames(o);
 }
 
 static void func_new_embcall_multif (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -469,15 +477,6 @@ static void func_die (void *vo)
     
     // set state terminating
     o->state = STATE_TERMINATING;
-}
-
-static void func_die_with_caller_target (void *vo)
-{
-    struct instance_with_caller_target *o_ct = vo;
-    
-    CallNames_FreeNames(o_ct);
-    
-    func_die(vo);
 }
 
 static void func_clean (void *vo)
@@ -618,7 +617,7 @@ static struct NCDModule modules[] = {
     }, {
         .type = "call_with_caller_target",
         .func_new2 = func_new_call_with_caller_target,
-        .func_die = func_die_with_caller_target,
+        .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
         .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN|NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS,
