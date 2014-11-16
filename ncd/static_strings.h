@@ -66,6 +66,7 @@ enum {
     NCD_STRING_EXIT_STATUS,
     NCD_STRING_SIZE,
     NCD_STRING_EOF,
+    NCD_STRING_SCOPE,
 };
 
 #endif
