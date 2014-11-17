@@ -120,6 +120,9 @@ static int tokenizer_output (void *user, int token, char *value, size_t value_le
         case NCD_TOKEN_AT:
             printf("at\n");
             break;
+        case NCD_TOKEN_BLOCK:
+            printf("block\n");
+            break;
         default:
             printf("UNKNOWN_TOKEN\n");
             break;

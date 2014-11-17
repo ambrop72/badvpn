@@ -831,6 +831,21 @@ fail:
     return 0;
 }
 
+int NCDStatement_InitBlock (NCDStatement *o, const char *name, NCDBlock block)
+{
+    o->name = NULL;
+    
+    if (name && !(o->name = strdup(name))) {
+        return 0;
+    }
+    
+    o->type = NCDSTATEMENT_BLOCK;
+    o->block.block = block;
+    o->block.is_grabbed = 0;
+    
+    return 1;
+}
+
 void NCDStatement_Free (NCDStatement *o)
 {
     switch (o->type) {
@@ -855,6 +870,12 @@ void NCDStatement_Free (NCDStatement *o)
             }
             free(o->foreach.name2);
             free(o->foreach.name1);
+        } break;
+        
+        case NCDSTATEMENT_BLOCK: {
+            if (!o->block.is_grabbed) {
+                NCDBlock_Free(&o->block.block);
+            }
         } break;
         
         default: ASSERT(0);
@@ -969,6 +990,23 @@ void NCDStatement_ForeachGrab (NCDStatement *o, NCDValue *out_collection, NCDBlo
     *out_collection = o->foreach.collection;
     *out_block = o->foreach.block;
     o->foreach.is_grabbed = 1;
+}
+
+NCDBlock * NCDStatement_BlockBlock (NCDStatement *o)
+{
+    ASSERT(o->type == NCDSTATEMENT_BLOCK)
+    ASSERT(!o->block.is_grabbed)
+    
+    return &o->block.block;
+}
+
+NCDBlock NCDStatement_BlockGrabBlock (NCDStatement *o)
+{
+    ASSERT(o->type == NCDSTATEMENT_BLOCK)
+    ASSERT(!o->block.is_grabbed)
+    
+    o->block.is_grabbed = 1;
+    return o->block.block;
 }
 
 void NCDIfBlock_Init (NCDIfBlock *o)

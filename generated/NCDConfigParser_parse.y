@@ -457,6 +457,27 @@ else_maybe(R) ::= ELSE CURLY_OPEN statements(B) CURLY_CLOSE. {
     R = B;
 }
 
+statement(R) ::= BLOCK CURLY_OPEN statements(S) CURLY_CLOSE name_maybe(N) SEMICOLON. {
+    if (!S.have) {
+        goto failGA0;
+    }
+    
+    if (!NCDStatement_InitBlock(&R.v, N, S.v)) {
+        goto failGA0;
+    }
+    S.have = 0;
+    
+    R.have = 1;
+    goto doneGA0;
+    
+failGA0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneGA0:
+    free_block(S);
+    free(N);
+}
+
 statements(R) ::= statement(A). {
     if (!A.have) {
         goto failH0;

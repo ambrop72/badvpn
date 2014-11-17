@@ -253,7 +253,17 @@ static void print_block (NCDBlock *block, unsigned int indent)
                 print_block(NCDStatement_ForeachBlock(st), indent + 2);
             } break;
             
-            default: ASSERT(0);
+            case NCDSTATEMENT_BLOCK: {
+                print_indent(indent);
+                printf("block name=%s\n", name);
+                
+                print_block(NCDStatement_BlockBlock(st), indent + 2);
+            } break;
+            
+            default: {
+                print_indent(indent);
+                printf("unknown_statement_type name=%s\n", name);
+            } break;
         }
     }
 }
