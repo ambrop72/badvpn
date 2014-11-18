@@ -145,7 +145,6 @@ set(NCDINTERPRETER_SOURCES
     modules/depend_scope.c
     modules/substr.c
     modules/log.c
-    modules/buffer.c
     modules/getenv.c
     modules/basic_functions.c
     ${NCD_ADDITIONAL_SOURCES}

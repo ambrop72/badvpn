@@ -550,27 +550,22 @@ static struct NCDModule modules[] = {
         .func_new2 = open_func_new,
         .func_die = open_func_die,
         .func_getvar2 = open_func_getvar,
-        .alloc_size = sizeof(struct open_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct open_instance)
     }, {
         .type = "file_open::read",
         .func_new2 = read_func_new,
         .func_die = read_func_die,
         .func_getvar2 = read_func_getvar,
-        .alloc_size = sizeof(struct read_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct read_instance)
     }, {
         .type = "file_open::write",
-        .func_new2 = write_func_new,
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .func_new2 = write_func_new
     }, {
         .type = "file_open::seek",
-        .func_new2 = seek_func_new,
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .func_new2 = seek_func_new
     }, {
         .type = "file_open::close",
-        .func_new2 = close_func_new,
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .func_new2 = close_func_new
     }, {
         .type = NULL
     }

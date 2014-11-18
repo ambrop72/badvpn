@@ -177,24 +177,20 @@ static void rprintln_func_new (void *vo, NCDModuleInst *i, const struct NCDModul
 static struct NCDModule modules[] = {
     {
         .type = "print",
-        .func_new2 = print_func_new,
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .func_new2 = print_func_new
     }, {
         .type = "println",
-        .func_new2 = println_func_new,
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .func_new2 = println_func_new
     }, {
         .type = "rprint",
         .func_new2 = rprint_func_new,
         .func_die = rprint_func_die,
-        .alloc_size = sizeof(struct rprint_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct rprint_instance)
      }, {
         .type = "rprintln",
         .func_new2 = rprintln_func_new,
         .func_die = rprint_func_die,
-        .alloc_size = sizeof(struct rprint_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct rprint_instance)
     }, {
         .type = NULL
     }

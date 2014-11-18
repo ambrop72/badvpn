@@ -925,14 +925,6 @@ void process_advance (struct process *p)
         goto fail0;
     }
     
-    // convert non-continuous strings unless the module can handle them
-    if (!(module->module.flags & NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS)) {
-        if (!NCDValMem_ConvertNonContinuousStrings(&ps->args_mem, &args)) {
-            STATEMENT_LOG(ps, BLOG_ERROR, "NCDValMem_ConvertNonContinuousStrings failed");
-            goto fail1;
-        }
-    }
-    
     // allocate memory
     if (!statement_allocate_memory(ps, module->module.alloc_size)) {
         STATEMENT_LOG(ps, BLOG_ERROR, "failed to allocate memory");

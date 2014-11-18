@@ -365,16 +365,9 @@ static void func_new_call_with_caller_target (void *vo, NCDModuleInst *i, const 
         goto fail0;
     }
     
-    NCDValContString cts;
-    if (!NCDVal_StringContinuize(caller_target_arg, &cts)) {
-        ModuleLog(i, BLOG_ERROR, "NCDVal_StringContinuize failed");
-        goto fail0;
-    }
-    
     struct instance_with_caller_target *o = vo;
     
-    int res = CallNames_InitNames(o, i->params->iparams->string_index, cts.data, NCDVal_StringLength(caller_target_arg));
-    NCDValContString_Free(&cts);
+    int res = CallNames_InitNames(o, i->params->iparams->string_index, NCDVal_StringData(caller_target_arg), NCDVal_StringLength(caller_target_arg));
     if (!res) {
         ModuleLog(i, BLOG_ERROR, "CallerNames_InitNames failed");
         goto fail0;
@@ -588,7 +581,7 @@ static struct NCDModule modules[] = {
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN|NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS,
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "call_with_caller_target",
@@ -596,7 +589,7 @@ static struct NCDModule modules[] = {
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN|NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS,
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
         .alloc_size = sizeof(struct instance_with_caller_target)
     }, {
         .type = "embcall2_multif",
@@ -604,7 +597,7 @@ static struct NCDModule modules[] = {
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN|NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS,
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "inline_code",
@@ -617,7 +610,7 @@ static struct NCDModule modules[] = {
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,
-        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN|NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS,
+        .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
         .alloc_size = sizeof(struct inline_code_call)
     }, {
         .type = NULL

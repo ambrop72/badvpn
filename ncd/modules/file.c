@@ -319,24 +319,20 @@ static struct NCDModule modules[] = {
         .func_new2 = read_func_new,
         .func_die = read_func_die,
         .func_getvar2 = read_func_getvar2,
-        .alloc_size = sizeof(struct read_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct read_instance)
     }, {
         .type = "file_write",
-        .func_new2 = write_func_new,
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .func_new2 = write_func_new
     }, {
         .type = "file_stat",
         .func_new2 = stat_func_new,
         .func_getvar2 = stat_func_getvar2,
-        .alloc_size = sizeof(struct stat_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct stat_instance)
     }, {
         .type = "file_lstat",
         .func_new2 = lstat_func_new,
         .func_getvar2 = stat_func_getvar2,
-        .alloc_size = sizeof(struct stat_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct stat_instance)
     }, {
         .type = NULL
     }

@@ -282,8 +282,7 @@ static struct NCDModule modules[] = {
         .type = "daemon",
         .func_new2 = func_new,
         .func_die = func_die,
-        .alloc_size = sizeof(struct instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

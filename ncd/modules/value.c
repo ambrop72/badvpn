@@ -171,7 +171,6 @@
 #define STOREDSTRING_TYPE (NCDVAL_STRING | (0 << 3))
 #define IDSTRING_TYPE (NCDVAL_STRING | (1 << 3))
 #define EXTERNALSTRING_TYPE (NCDVAL_STRING | (2 << 3))
-#define COMPOSEDSTRING_TYPE (NCDVAL_STRING | (3 << 3))
 
 struct value;
 
@@ -223,11 +222,6 @@ struct value {
             BRefTarget *ref_target;
         } externalstring;
         struct {
-            NCDValComposedStringResource resource;
-            size_t offset;
-            size_t length;
-        } composedstring;
-        struct {
             IndexedList list_contents_il;
         } list;
         struct {
@@ -242,7 +236,6 @@ static void value_delete (struct value *v);
 static struct value * value_init_storedstring (NCDModuleInst *i, const char *str, size_t len);
 static struct value * value_init_idstring (NCDModuleInst *i, NCD_string_id_t id, NCDStringIndex *string_index);
 static struct value * value_init_externalstring (NCDModuleInst *i, const char *data, size_t length, BRefTarget *ref_target);
-static struct value * value_init_composedstring (NCDModuleInst *i, NCDValComposedStringResource resource, size_t offset, size_t length);
 static int value_is_string (struct value *v);
 static size_t value_string_length (struct value *v);
 static void value_string_copy_out (struct value *v, char *dest);
@@ -288,7 +281,6 @@ static const char * get_type_str (int type)
         case STOREDSTRING_TYPE:
         case IDSTRING_TYPE:
         case EXTERNALSTRING_TYPE:
-        case COMPOSEDSTRING_TYPE:
             return "string";
         case NCDVAL_LIST:
             return "list";
@@ -316,12 +308,6 @@ static void value_cleanup (struct value *v)
         case EXTERNALSTRING_TYPE: {
             if (v->externalstring.ref_target) {
                 BRefTarget_Deref(v->externalstring.ref_target);
-            }
-        } break;
-        
-        case COMPOSEDSTRING_TYPE: {
-            if (v->composedstring.resource.ref_target) {
-                BRefTarget_Deref(v->composedstring.resource.ref_target);
             }
         } break;
         
@@ -379,12 +365,6 @@ static void value_delete (struct value *v)
         case EXTERNALSTRING_TYPE: {
             if (v->externalstring.ref_target) {
                 BRefTarget_Deref(v->externalstring.ref_target);
-            }
-        } break;
-        
-        case COMPOSEDSTRING_TYPE: {
-            if (v->composedstring.resource.ref_target) {
-                BRefTarget_Deref(v->composedstring.resource.ref_target);
             }
         } break;
         
@@ -493,44 +473,12 @@ fail0:
     return NULL;
 }
 
-static struct value * value_init_composedstring (NCDModuleInst *i, NCDValComposedStringResource resource, size_t offset, size_t length)
-{
-    struct value *v = malloc(sizeof(*v));
-    if (!v) {
-        ModuleLog(i, BLOG_ERROR, "malloc failed");
-        goto fail0;
-    }
-    
-    if (resource.ref_target) {
-        if (!BRefTarget_Ref(resource.ref_target)) {
-            ModuleLog(i, BLOG_ERROR, "BRefTarget_Ref failed");
-            goto fail1;
-        }
-    }
-    
-    LinkedList0_Init(&v->refs_list);
-    v->parent = NULL;
-    v->type = COMPOSEDSTRING_TYPE;
-    
-    v->composedstring.resource = resource;
-    v->composedstring.offset = offset;
-    v->composedstring.length = length;
-    
-    return v;
-    
-fail1:
-    free(v);
-fail0:
-    return NULL;
-}
-
 static int value_is_string (struct value *v)
 {
     switch (v->type) {
         case STOREDSTRING_TYPE:
         case IDSTRING_TYPE:
         case EXTERNALSTRING_TYPE:
-        case COMPOSEDSTRING_TYPE:
             return 1;
         default:
             return 0;
@@ -548,8 +496,6 @@ static size_t value_string_length (struct value *v)
             return NCDStringIndex_Length(v->idstring.string_index, v->idstring.id);
         case EXTERNALSTRING_TYPE:
             return v->externalstring.length;
-        case COMPOSEDSTRING_TYPE:
-            return v->composedstring.length;
         default:
             ASSERT(0);
             return 0;
@@ -570,10 +516,6 @@ static void value_string_copy_out (struct value *v, char *dest)
         case EXTERNALSTRING_TYPE:
             memcpy(dest, v->externalstring.data, v->externalstring.length);
             break;
-        case COMPOSEDSTRING_TYPE: {
-            b_cstring cstr = NCDValComposedStringResource_Cstring(v->composedstring.resource, v->composedstring.offset, v->composedstring.length);
-            b_cstring_copy_to_buf(cstr, 0, cstr.length, dest);
-        } break;
         default:
             ASSERT(0);
     }
@@ -595,12 +537,6 @@ static void value_string_set_allocd (struct value *v, char *data, size_t length)
         case EXTERNALSTRING_TYPE: {
             if (v->externalstring.ref_target) {
                 BRefTarget_Deref(v->externalstring.ref_target);
-            }
-        } break;
-        
-        case COMPOSEDSTRING_TYPE: {
-            if (v->composedstring.resource.ref_target) {
-                BRefTarget_Deref(v->composedstring.resource.ref_target);
             }
         } break;
         
@@ -793,8 +729,6 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value)
                 v = value_init_idstring(i, NCDVal_IdStringId(value), NCDVal_IdStringStringIndex(value));
             } else if (NCDVal_IsExternalString(value)) {
                 v = value_init_externalstring(i, NCDVal_StringData(value), NCDVal_StringLength(value), NCDVal_ExternalStringTarget(value));
-            } else if (NCDVal_IsComposedString(value)) {
-                v = value_init_composedstring(i, NCDVal_ComposedStringResource(value), NCDVal_ComposedStringOffset(value), NCDVal_StringLength(value));
             } else {
                 size_t length = NCDVal_StringLength(value);
                 v = value_init_storedstring(i, NULL, length);
@@ -899,13 +833,6 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
             }
         } break;
         
-        case COMPOSEDSTRING_TYPE: {
-            *out_value = NCDVal_NewComposedString(mem, v->composedstring.resource, v->composedstring.offset, v->composedstring.length);
-            if (NCDVal_IsInvalid(*out_value)) {
-                goto fail;
-            }
-        } break;
-        
         case NCDVAL_LIST: {
             *out_value = NCDVal_NewList(mem, value_list_len(v));
             if (NCDVal_IsInvalid(*out_value)) {
@@ -967,8 +894,7 @@ static struct value * value_get (NCDModuleInst *i, struct value *v, NCDValRef wh
     switch (v->type) {
         case STOREDSTRING_TYPE:
         case IDSTRING_TYPE:
-        case EXTERNALSTRING_TYPE:
-        case COMPOSEDSTRING_TYPE: {
+        case EXTERNALSTRING_TYPE: {
             if (!no_error) ModuleLog(i, BLOG_ERROR, "cannot resolve into a string");
             goto fail;
         } break;
@@ -1040,8 +966,7 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef
     switch (v->type) {
         case STOREDSTRING_TYPE:
         case IDSTRING_TYPE:
-        case EXTERNALSTRING_TYPE:
-        case COMPOSEDSTRING_TYPE: {
+        case EXTERNALSTRING_TYPE: {
             ModuleLog(i, BLOG_ERROR, "cannot insert into a string");
             goto fail1;
         } break;
@@ -1153,8 +1078,7 @@ static int value_remove (NCDModuleInst *i, struct value *v, NCDValRef where)
     switch (v->type) {
         case STOREDSTRING_TYPE:
         case IDSTRING_TYPE:
-        case EXTERNALSTRING_TYPE:
-        case COMPOSEDSTRING_TYPE: {
+        case EXTERNALSTRING_TYPE: {
             ModuleLog(i, BLOG_ERROR, "cannot remove from a string");
             goto fail;
         } break;
@@ -1230,8 +1154,7 @@ static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
         } break;
         
         case IDSTRING_TYPE:
-        case EXTERNALSTRING_TYPE:
-        case COMPOSEDSTRING_TYPE: {
+        case EXTERNALSTRING_TYPE: {
             if (!NCDVal_IsString(data)) {
                 ModuleLog(i, BLOG_ERROR, "cannot append non-string to string");
                 return 0;
@@ -1846,9 +1769,6 @@ static void func_new_substr (void *vo, NCDModuleInst *i, const struct NCDModuleI
         case EXTERNALSTRING_TYPE: {
             v = value_init_externalstring(i, mov->externalstring.data + start, amount, mov->externalstring.ref_target);
         } break;
-        case COMPOSEDSTRING_TYPE: {
-            v = value_init_composedstring(i, mov->composedstring.resource, mov->composedstring.offset + start, amount);
-        } break;
         default:
             ASSERT(0);
     }
@@ -1985,104 +1905,89 @@ static struct NCDModule modules[] = {
         .func_new2 = func_new_value,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::get",
         .base_type = "value",
         .func_new2 = func_new_get,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::try_get",
         .base_type = "value",
         .func_new2 = func_new_try_get,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::getpath",
         .base_type = "value",
         .func_new2 = func_new_getpath,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::insert",
         .base_type = "value",
         .func_new2 = func_new_insert,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::replace",
         .base_type = "value",
         .func_new2 = func_new_replace,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::replace_this",
         .base_type = "value",
         .func_new2 = func_new_replace_this,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::insert_undo",
         .base_type = "value",
         .func_new2 = func_new_insert_undo,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::replace_undo",
         .base_type = "value",
         .func_new2 = func_new_replace_undo,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::replace_this_undo",
         .base_type = "value",
         .func_new2 = func_new_replace_this_undo,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::remove",
-        .func_new2 = remove_func_new,
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .func_new2 = remove_func_new
     }, {
         .type = "value::delete",
-        .func_new2 = delete_func_new,
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .func_new2 = delete_func_new
     }, {
         .type = "value::reset",
-        .func_new2 = reset_func_new,
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .func_new2 = reset_func_new
     }, {
         .type = "value::substr",
         .base_type = "value",
         .func_new2 = func_new_substr,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
-        .alloc_size = sizeof(struct instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = "value::append",
-        .func_new2 = append_func_new,
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .func_new2 = append_func_new
     }, {
         .type = NULL
     }

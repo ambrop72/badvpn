@@ -375,13 +375,8 @@ static void decode_value_eval (NCDCall call)
     if (!NCDVal_IsString(arg)) {
         return;
     }
-    NCDValContString cts;
-    if (!NCDVal_StringContinuize(arg, &cts)) {
-        return FunctionLog(&call, BLOG_ERROR, "decode_value: NCDVal_StringContinuize failed");
-    }
     NCDValRef value;
-    int res = NCDValParser_Parse(cts.data, NCDVal_StringLength(arg), NCDCall_ResMem(&call), &value);
-    NCDValContString_Free(&cts);
+    int res = NCDValParser_Parse(NCDVal_StringData(arg), NCDVal_StringLength(arg), NCDCall_ResMem(&call), &value);
     if (!res) {
         return FunctionLog(&call, BLOG_ERROR, "decode_value: NCDValParser_Parse failed");
     }

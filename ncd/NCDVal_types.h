@@ -46,7 +46,6 @@ typedef struct {
     NCDVal__idx size;
     NCDVal__idx used;
     NCDVal__idx first_ref;
-    NCDVal__idx first_cms_link;
     union {
         char fastbuf[NCDVAL_FASTBUF_SIZE];
         bmax_align_t align_max;
@@ -77,10 +76,5 @@ typedef struct {
     char *data;
     int is_allocated;
 } NCDValNullTermString;
-
-typedef struct {
-    char *data;
-    int is_allocated;
-} NCDValContString;
 
 #endif

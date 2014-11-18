@@ -1032,32 +1032,27 @@ static struct NCDModule modules[] = {
         .func_new2 = connect_func_new,
         .func_die = connect_func_die,
         .func_getvar2 = connect_func_getvar,
-        .alloc_size = sizeof(struct connection),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct connection)
     }, {
         .type = "sys.socket::read",
         .func_new2 = read_func_new,
         .func_die = read_func_die,
         .func_getvar2 = read_func_getvar,
-        .alloc_size = sizeof(struct read_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct read_instance)
     }, {
         .type = "sys.socket::write",
         .func_new2 = write_func_new,
         .func_die = write_func_die,
-        .alloc_size = sizeof(struct write_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct write_instance)
     }, {
         .type = "sys.socket::close",
-        .func_new2 = close_func_new,
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .func_new2 = close_func_new
     }, {
         .type = "sys.listen",
         .func_new2 = listen_func_new,
         .func_die = listen_func_die,
         .func_getvar2 = listen_func_getvar,
-        .alloc_size = sizeof(struct listen_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct listen_instance)
     }, {
         .type = NULL
     }

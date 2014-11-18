@@ -1208,54 +1208,45 @@ static struct NCDModule modules[] = {
         .func_new2 = process_func_new,
         .func_die = process_func_die,
         .func_getvar2 = process_func_getvar,
-        .alloc_size = sizeof(struct process_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct process_instance)
     }, {
         .type = "sys.start_process::wait",
         .func_new2 = wait_func_new,
         .func_die = wait_func_die,
         .func_getvar2 = wait_func_getvar,
-        .alloc_size = sizeof(struct wait_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct wait_instance)
     }, {
         .type = "sys.start_process::terminate",
-        .func_new2 = terminate_func_new,
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .func_new2 = terminate_func_new
     }, {
         .type = "sys.start_process::kill",
-        .func_new2 = kill_func_new,
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .func_new2 = kill_func_new
     }, {
         .type = "sys.start_process::read_pipe",
         .func_new2 = read_pipe_func_new,
         .func_die = read_pipe_func_die,
         .func_getvar2 = read_pipe_func_getvar,
-        .alloc_size = sizeof(struct read_pipe_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct read_pipe_instance)
     }, {
         .type = "sys.start_process::read_pipe::read",
         .func_new2 = read_func_new,
         .func_die = read_func_die,
         .func_getvar2 = read_func_getvar,
-        .alloc_size = sizeof(struct read_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct read_instance)
     }, {
         .type = "sys.start_process::write_pipe",
         .func_new2 = write_pipe_func_new,
         .func_die = write_pipe_func_die,
         .func_getvar2 = write_pipe_func_getvar,
-        .alloc_size = sizeof(struct write_pipe_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct write_pipe_instance)
     }, {
         .type = "sys.start_process::write_pipe::write",
         .func_new2 = write_func_new,
         .func_die = write_func_die,
-        .alloc_size = sizeof(struct write_instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct write_instance)
     }, {
         .type = "sys.start_process::write_pipe::close",
-        .func_new2 = close_func_new,
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .func_new2 = close_func_new
     }, {
         .type = NULL
     }

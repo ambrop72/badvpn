@@ -49,7 +49,6 @@ static int ncd_read_bconnection_addr (NCDValRef val, struct BConnection_addr *ou
 static int ncd_read_baddr (NCDValRef val, BAddr *out)
 {
     ASSERT(!NCDVal_IsInvalid(val))
-    ASSERT(NCDVal_HasOnlyContinuousStrings(val))
     ASSERT(out)
     
     if (!NCDVal_IsList(val)) {
@@ -236,7 +235,6 @@ fail:
 static int ncd_read_bconnection_addr (NCDValRef val, struct BConnection_addr *out_addr)
 {
     ASSERT(!NCDVal_IsInvalid(val))
-    ASSERT(NCDVal_HasOnlyContinuousStrings(val))
     
     if (!NCDVal_IsList(val)) {
         goto fail;

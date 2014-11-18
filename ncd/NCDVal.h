@@ -84,19 +84,6 @@ void NCDValMem_Free (NCDValMem *o);
 int NCDValMem_InitCopy (NCDValMem *o, NCDValMem *other) WARN_UNUSED;
 
 /**
- * For each internal link (e.g. list element) to a ComposedString in the memory
- * object, copies the ComposedString to some kind ContinuousString, and updates
- * the link to point to the new ContinuousString.
- * Additionally, if *\a root_val points to a ComposedString, copies it to a new
- * ContinuousString and updates *\a root_val to point to it.
- * \a root_val must be non-NULL and *\a root_val must not be an invalid value
- * reference.
- * Returns 1 on success and 0 on failure. On failure, some strings may have
- * been converted, but the memory object is left in a consistent state.
- */
-int NCDValMem_ConvertNonContinuousStrings (NCDValMem *o, NCDValRef *root_val) WARN_UNUSED;
-
-/**
  * Does nothing.
  * The value reference object must either point to a valid value within a valid
  * memory object, or must be an invalid reference (most functions operating on
@@ -193,30 +180,14 @@ int NCDVal_IsSafeRefPlaceholder (NCDValSafeRef sval);
 int NCDVal_GetSafeRefPlaceholderId (NCDValSafeRef sval);
 
 /**
- * Determines if all strings within this value are ContinuousString's,
- * by recusively walking the entire value.
- * If all strings are ContinuousString's, returns 1; if there is at least
- * one string which is not a ContinuousString, returns 0.
- * The value reference must not be an invalid reference.
- */
-int NCDVal_HasOnlyContinuousStrings (NCDValRef val);
-
-/**
  * Determines if the value implements the String interface.
  * The value reference must not be an invalid reference.
  */
 int NCDVal_IsString (NCDValRef val);
 
 /**
- * Determines if the value implements the ContinuousString interface.
- * A ContinuousString also implements the String interface.
- * The value reference must not be an invalid reference.
- */
-int NCDVal_IsContinuousString (NCDValRef val);
-
-/**
  * Determines if the value is a StoredString.
- * A StoredString implements the ContinuousString interface.
+ * A StoredString implements the String interface.
  * The value reference must not be an invalid reference.
  */
 int NCDVal_IsStoredString (NCDValRef val);
@@ -224,7 +195,7 @@ int NCDVal_IsStoredString (NCDValRef val);
 /**
  * Determines if the value is an IdString. See {@link NCDVal_NewIdString}
  * for details.
- * An IdString implements the ContinuousString interface.
+ * An IdString implements the String interface.
  * The value reference must not be an invalid reference.
  */
 int NCDVal_IsIdString (NCDValRef val);
@@ -232,16 +203,10 @@ int NCDVal_IsIdString (NCDValRef val);
 /**
  * Determines if a value is an ExternalString.
  * See {@link NCDVal_NewExternalString} for details.
- * An ExternalString implements the ContinuousString interface.
+ * An ExternalString implements the String interface.
  * The value reference must not be an invalid reference.
  */
 int NCDVal_IsExternalString (NCDValRef val);
-
-/**
- * Determines if a value is a ComposedString.
- * A ComposedString implements the String interface.
- */
-int NCDVal_IsComposedString (NCDValRef val);
 
 /**
  * Determines if a value is a String which contains no null bytes.
@@ -262,7 +227,7 @@ NCDValRef NCDVal_NewString (NCDValMem *mem, const char *data);
  * memory object specified. In particular, you may NOT use this
  * function to copy a string that resides in the same memory object.
  * 
- * A StoredString is a kind of ContinuousString which is represented directly in the
+ * A StoredString is a kind of String which is represented directly in the
  * value memory object.
  */
 NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len);
@@ -279,7 +244,7 @@ NCDValRef NCDVal_NewStringUninitialized (NCDValMem *mem, size_t len);
  * Returns a reference to the new value, or an invalid reference
  * on out of memory.
  * 
- * An IdString is a kind of ContinuousString which is represented efficiently as a string
+ * An IdString is a kind of String which is represented efficiently as a string
  * identifier via {@link NCDStringIndex}.
  */
 NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id,
@@ -292,67 +257,19 @@ NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id,
  * Returns a reference to the new value, or an invalid reference
  * on out of memory.
  * 
- * An ExternalString is a kind of ContinuousString where the actual string contents are
+ * An ExternalString is a kind of String where the actual string contents are
  * stored outside of the value memory object.
  */
 NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len,
                                     BRefTarget *ref_target);
 
 /**
- * Callback function which is called for ComposedString's to access the underlying string resource.
- * \a user is whatever was passed to 'resource.user' in {@link NCDVal_NewComposedString}.
- * \a offset is the offset from the beginning of the string exposed by the resource; it will be
- * >= 'offset' and < 'offset' + 'length' as given to NCDVal_NewComposedString.
- * This callback must set *\a out_data and *\a out_length to represent a continuous (sub-)region
- * of the string that starts at the byte at index \a offset. The pointed-to data must remain
- * valid and unchanged until all references to the string resource are released.
- * \a *out_data must be set to non-NULL and *\a out_length must be set to greater than zero,
- * since the conditions above imply that there is at least one byte available from \a offset.
- */
-typedef void (*NCDVal_ComposedString_func_getptr) (void *user, size_t offset, const char **out_data, size_t *out_length);
-
-/**
- * Structure representing a string resource used by ComposedString's,
- * to simplify {@link NCDVal_NewComposedString} and {@link NCDVal_ComposedStringResource}.
- */
-typedef struct {
-    NCDVal_ComposedString_func_getptr func_getptr;
-    void *user;
-    BRefTarget *ref_target;
-} NCDValComposedStringResource;
-
-/**
- * Returns a cstring referencing a range within a {@link NCDValComposedStringResource}.
- * \a offset and \a length specify the range within the resource which the returned
- * cstring will reference. To reference the contents of a ComposedString, use:
- *   - resource = NCDVal_ComposedStringResource(composedstring),
- *   - offset = NCDVal_ComposedStringOffset(composedstring),
- *   - length = NCDVal_StringLength(composedstring).
- * 
- * The returned cstring is valid as long as the resource is not released. Note that
- * a reference to resource.ref_target may need to be taken to ensure the resource
- * is not released while it is being referenced by the returned cstring (unless
- * resource.ref_target is NULL).
- */
-b_cstring NCDValComposedStringResource_Cstring (NCDValComposedStringResource resource, size_t offset, size_t length);
-
-/**
- * Builds a new ComposedString from a string resource.
- * A reference to the underlying string resource via the {@link BRefTarget} object
- * specified in 'resource.ref_target'.
- * 
- * A ComposedString is a kind of String with an abstract representation exposed via the
- * {@link NCDVal_ComposedString_func_getptr} callback.
- */
-NCDValRef NCDVal_NewComposedString (NCDValMem *mem, NCDValComposedStringResource resource, size_t offset, size_t length);
-
-/**
- * Returns a pointer to the data of a ContinuousString.
+ * Returns a pointer to the data of a String.
  * WARNING: the string data may not be null-terminated. To get a null-terminated
  * version, use {@link NCDVal_StringNullTerminate}.
- * The value reference must point to a ContinuousString.
+ * The value reference must point to a String.
  */
-const char * NCDVal_StringData (NCDValRef contstring);
+const char * NCDVal_StringData (NCDValRef string);
 
 /**
  * Returns the length of a String.
@@ -369,10 +286,10 @@ size_t NCDVal_StringLength (NCDValRef string);
 b_cstring NCDVal_StringCstring (NCDValRef string);
 
 /**
- * Produces a null-terminated continuous version of a String. On success, the result is
+ * Produces a null-terminated version of a String. On success, the result is
  * stored into an {@link NCDValNullTermString} structure, and the null-terminated
  * string is available via its 'data' member. This function may either simply pass
- * through the data pointer (if the string is known to be continuous and null-terminated) or
+ * through the data pointer (if the string is known to be null-terminated) or
  * produce a null-terminated dynamically allocated copy.
  * On success, {@link NCDValNullTermString_Free} should be called to release any allocated
  * memory when the null-terminated string is no longer needed. This must be called before
@@ -393,31 +310,6 @@ NCDValNullTermString NCDValNullTermString_NewDummy (void);
  * to null-terminate a string.
  */
 void NCDValNullTermString_Free (NCDValNullTermString *o);
-
-/**
- * Produces a continuous version of a String. On success, the result is stored into an
- * {@link NCDValContString} structure, and the continuous string is available via its
- * 'data' member. This function may either simply pass through the data pointer (if the
- * string is known to be continuous) or produce a continuous dynamically allocated copy.
- * On success, {@link NCDValContString_Free} should be called to release any allocated
- * memory when the continuous string is no longer needed. This must be called before
- * the memory object is freed, because it may point to data inside the memory object.
- * It is guaranteed that *out is not modified on failure.
- * Returns 1 on success and 0 on failure.
- */
-int NCDVal_StringContinuize (NCDValRef string, NCDValContString *out) WARN_UNUSED;
-
-/**
- * Returns a dummy {@link NCDValContString} which can be freed using
- * {@link NCDValContString_Free}, but need not be.
- */
-NCDValContString NCDValContString_NewDummy (void);
-
-/**
- * Releases any memory which was dynamically allocated by {@link NCDVal_StringContinuize}
- * to continuize a string.
- */
-void NCDValContString_Free (NCDValContString *o);
 
 /**
  * Returns the string ID and the string index of an IdString.
@@ -441,16 +333,6 @@ NCDStringIndex * NCDVal_IdStringStringIndex (NCDValRef idstring);
  * if the external string is not associated with a reference target.
  */
 BRefTarget * NCDVal_ExternalStringTarget (NCDValRef externalstring);
-
-/**
- * Returns the underlying string resource of a ComposedString.
- */
-NCDValComposedStringResource NCDVal_ComposedStringResource (NCDValRef composedstring);
-
-/**
- * Returns the resource offset of a ComposedString.
- */
-size_t NCDVal_ComposedStringOffset (NCDValRef composedstring);
 
 /**
  * Determines if the String has any null bytes in its contents.
