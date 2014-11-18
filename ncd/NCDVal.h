@@ -34,64 +34,10 @@
 #include <stdint.h>
 
 #include <misc/debug.h>
-#include <misc/maxalign.h>
 #include <misc/cstring.h>
 #include <misc/BRefTarget.h>
 #include <ncd/NCDStringIndex.h>
-
-// these are implementation details. The interface is defined below.
-
-#define NCDVAL_FASTBUF_SIZE 64
-
-#define NCDVAL_MAXIDX INT_MAX
-#define NCDVAL_MINIDX INT_MIN
-#define NCDVAL_TOPPLID (-1 - NCDVAL_MINIDX)
-
-typedef int NCDVal__idx;
-
-typedef struct {
-    char *buf;
-    NCDVal__idx size;
-    NCDVal__idx used;
-    NCDVal__idx first_ref;
-    NCDVal__idx first_cms_link;
-    union {
-        char fastbuf[NCDVAL_FASTBUF_SIZE];
-        bmax_align_t align_max;
-    };
-} NCDValMem;
-
-typedef struct {
-    NCDValMem *mem;
-    NCDVal__idx idx;
-} NCDValRef;
-
-typedef struct {
-    NCDVal__idx idx;
-} NCDValSafeRef;
-
-typedef struct {
-    NCDVal__idx elemidx;
-} NCDValMapElem;
-
-struct NCDVal__instr;
-
-typedef struct {
-    struct NCDVal__instr *instrs;
-    size_t num_instrs;
-} NCDValReplaceProg;
-
-typedef struct {
-    char *data;
-    int is_allocated;
-} NCDValNullTermString;
-
-typedef struct {
-    char *data;
-    int is_allocated;
-} NCDValContString;
-
-//
+#include <ncd/NCDVal_types.h>
 
 #define NCDVAL_STRING 1
 #define NCDVAL_LIST 2

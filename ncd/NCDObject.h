@@ -33,7 +33,7 @@
 #include <stddef.h>
 
 #include <misc/debug.h>
-#include <ncd/NCDVal.h>
+#include <ncd/NCDVal_types.h>
 #include <ncd/NCDStringIndex.h>
 #include <ncd/static_strings.h>
 

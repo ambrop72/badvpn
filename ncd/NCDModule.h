@@ -35,6 +35,7 @@
 #include <misc/debug.h>
 #include <system/BReactor.h>
 #include <base/BLog.h>
+#include <ncd/NCDVal.h>
 #include <ncd/NCDObject.h>
 #include <ncd/NCDStringIndex.h>
 
