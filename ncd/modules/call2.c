@@ -114,6 +114,7 @@
 #include <misc/debug.h>
 #include <misc/offset.h>
 #include <structure/LinkedList0.h>
+#include <ncd/extra/NCDFastNames.h>
 
 #include <ncd/module_common.h>
 
@@ -124,8 +125,6 @@
 #define STATE_WAITING 3
 #define STATE_TERMINATING 4
 #define STATE_NONE 5
-
-#define NUM_STATIC_NAMES 4
 
 struct instance;
 
@@ -140,9 +139,7 @@ struct instance {
 
 struct instance_with_caller_target {
     struct instance base;
-    NCD_string_id_t *dynamic_names;
-    size_t num_names;
-    NCD_string_id_t static_names[NUM_STATIC_NAMES];
+    NCDFastNames names;
 };
 
 struct inline_code {
@@ -156,14 +153,6 @@ struct inline_code_call {
     struct inline_code *ic;
     LinkedList0Node ic_node;
 };
-
-#define NAMES_PARAM_NAME CallNames
-#define NAMES_PARAM_TYPE struct instance_with_caller_target
-#define NAMES_PARAM_MEMBER_DYNAMIC_NAMES dynamic_names
-#define NAMES_PARAM_MEMBER_STATIC_NAMES static_names
-#define NAMES_PARAM_MEMBER_NUM_NAMES num_names
-#define NAMES_PARAM_NUM_STATIC_NAMES NUM_STATIC_NAMES
-#include <ncd/extra/make_fast_names.h>
 
 static void process_handler_event (NCDModuleProcess *process, int event);
 static int process_func_getspecialobj_embed (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
@@ -256,9 +245,8 @@ static int caller_obj_func_getobj (const NCDObject *obj, NCD_string_id_t name, N
 static int caller_obj_func_getobj_with_caller_target (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object)
 {
     struct instance_with_caller_target *o_ch = NCDObject_DataPtr(obj);
-    ASSERT(o_ch->num_names > 0)
     
-    NCD_string_id_t *names = CallNames_GetNames(o_ch);
+    NCD_string_id_t *names = NCDFastNames_GetNames(&o_ch->names);
     
     NCDObject object;
     if (!NCDModuleInst_Backend_GetObj(o_ch->base.i, names[0], &object)) {
@@ -266,7 +254,7 @@ static int caller_obj_func_getobj_with_caller_target (const NCDObject *obj, NCD_
     }
     
     NCDObject obj2;
-    if (!NCDObject_ResolveObjExprCompact(&object, names + 1, o_ch->num_names - 1, &obj2)) {
+    if (!NCDObject_ResolveObjExprCompact(&object, names + 1, NCDFastNames_GetNumNames(&o_ch->names) - 1, &obj2)) {
         return 0;
     }
     
@@ -367,9 +355,9 @@ static void func_new_call_with_caller_target (void *vo, NCDModuleInst *i, const 
     
     struct instance_with_caller_target *o = vo;
     
-    int res = CallNames_InitNames(o, i->params->iparams->string_index, NCDVal_StringData(caller_target_arg), NCDVal_StringLength(caller_target_arg));
+    int res = NCDFastNames_Init(&o->names, i->params->iparams->string_index, NCDVal_StringData(caller_target_arg), NCDVal_StringLength(caller_target_arg));
     if (!res) {
-        ModuleLog(i, BLOG_ERROR, "CallerNames_InitNames failed");
+        ModuleLog(i, BLOG_ERROR, "NCDFastNames_Init failed");
         goto fail0;
     }
     
@@ -384,7 +372,7 @@ static void call_with_caller_target_extra_free (struct instance *bo)
 {
     struct instance_with_caller_target *o = (void *)bo;
     
-    CallNames_FreeNames(o);
+    NCDFastNames_Free(&o->names);
 }
 
 static void func_new_embcall_multif (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
