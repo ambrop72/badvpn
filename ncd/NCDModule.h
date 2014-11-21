@@ -378,6 +378,7 @@ typedef struct NCDModuleInst_s {
     unsigned int state:3;
     unsigned int pass_mem_to_methods:1;
     unsigned int istate:3; // untouched by NCDModuleInst
+    NCDPersistentObj pobj;
     DebugObject d_obj;
 } NCDModuleInst;
 

@@ -27,6 +27,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <misc/offset.h>
+#include <misc/debug.h>
 #include <ncd/NCDVal.h>
 
 #include "NCDObject.h"
@@ -54,11 +56,12 @@ NCDObject NCDObject_Build (NCD_string_id_t type, void *data_ptr, NCDObject_func_
     obj.method_user = data_ptr;
     obj.func_getvar = func_getvar;
     obj.func_getobj = func_getobj;
+    obj.pobj = NULL;
     
     return obj;
 }
 
-NCDObject NCDObject_BuildFull (NCD_string_id_t type, void *data_ptr, int data_int, void *method_user, NCDObject_func_getvar func_getvar, NCDObject_func_getobj func_getobj)
+NCDObject NCDObject_BuildFull (NCD_string_id_t type, void *data_ptr, int data_int, void *method_user, NCDObject_func_getvar func_getvar, NCDObject_func_getobj func_getobj, NCDPersistentObj *pobj)
 {
     ASSERT(type >= -1)
     ASSERT(func_getvar)
@@ -71,6 +74,7 @@ NCDObject NCDObject_BuildFull (NCD_string_id_t type, void *data_ptr, int data_in
     obj.method_user = method_user;
     obj.func_getvar = func_getvar;
     obj.func_getobj = func_getobj;
+    obj.pobj = pobj;
     
     return obj;
 }
@@ -119,6 +123,11 @@ int NCDObject_GetObj (const NCDObject *o, NCD_string_id_t name, NCDObject *out_o
     ASSERT(res == 0 || res == 1)
     
     return res;
+}
+
+NCDPersistentObj * NCDObject_Pobj (const NCDObject *o)
+{
+    return o->pobj;
 }
 
 static NCDObject NCDObject__dig_into_object (NCDObject object)
@@ -178,5 +187,48 @@ int NCDObject_ResolveObjExprCompact (const NCDObject *o, const NCD_string_id_t *
     }
     
     *out_object = object;
+    return 1;
+}
+
+void NCDPersistentObj_Init (NCDPersistentObj *o, NCDPersistentObj_func_retobj func_retobj)
+{
+    ASSERT(func_retobj)
+    
+    o->func_retobj = func_retobj;
+    LinkedList0_Init(&o->refs_list);
+}
+
+void NCDPersistentObj_Free (NCDPersistentObj *o)
+{
+    for (LinkedList0Node *ln = LinkedList0_GetFirst(&o->refs_list); ln; ln = LinkedList0Node_Next(ln)) {
+        NCDObjRef *ref = UPPER_OBJECT(ln, NCDObjRef, refs_list_node);
+        ASSERT(ref->pobj == o)
+        ref->pobj = NULL;
+    }
+}
+
+void NCDObjRef_Init (NCDObjRef *o, NCDPersistentObj *pobj)
+{
+    o->pobj = pobj;
+    if (o->pobj) {
+        LinkedList0_Prepend(&o->pobj->refs_list, &o->refs_list_node);
+    }
+}
+
+void NCDObjRef_Free (NCDObjRef *o)
+{
+    if (o->pobj) {
+        LinkedList0_Remove(&o->pobj->refs_list, &o->refs_list_node);
+    }
+}
+
+int NCDObjRef_Deref (NCDObjRef *o, NCDObject *res)
+{
+    ASSERT(res)
+    
+    if (!o->pobj) {
+        return 0;
+    }
+    *res = o->pobj->func_retobj(o->pobj);
     return 1;
 }

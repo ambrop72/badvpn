@@ -33,6 +33,7 @@
 #include <inttypes.h>
 #include <limits.h>
 
+#include <misc/offset.h>
 #include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
 
@@ -73,6 +74,13 @@ static void set_process_state (NCDModuleProcess *p, int state)
 #endif
 }
 
+static NCDObject persistent_obj_retobj (NCDPersistentObj const *pobj)
+{
+    NCDModuleInst *n = UPPER_OBJECT(pobj, NCDModuleInst, pobj);
+    
+    return NCDModuleInst_Object(n);
+}
+
 void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDInterpModule *m, void *method_context, NCDValRef args, const struct NCDModuleInst_params *params)
 {
     ASSERT(m)
@@ -102,6 +110,9 @@ void NCDModuleInst_Init (NCDModuleInst *n, const struct NCDInterpModule *m, void
     // give NCDModuleInst to methods, not mem
     n->pass_mem_to_methods = 0;
     
+    // init persistent object interface
+    NCDPersistentObj_Init(&n->pobj, persistent_obj_retobj);
+    
     DebugObject_Init(&n->d_obj);
     
     struct NCDModuleInst_new_params new_params;
@@ -115,6 +126,9 @@ void NCDModuleInst_Free (NCDModuleInst *n)
 {
     DebugObject_Free(&n->d_obj);
     ASSERT(n->state == STATE_DEAD)
+    
+    // free persistent object interface
+    NCDPersistentObj_Free(&n->pobj);
 }
 
 void NCDModuleInst_Die (NCDModuleInst *n)
@@ -144,6 +158,9 @@ int NCDModuleInst_TryFree (NCDModuleInst *n)
     
     DebugObject_Free(&n->d_obj);
     
+    // free persistent object interface
+    NCDPersistentObj_Free(&n->pobj);
+    
     return 1;
 }
 
@@ -169,7 +186,7 @@ NCDObject NCDModuleInst_Object (NCDModuleInst *n)
     
     void *method_user = (n->pass_mem_to_methods ? n->mem : n);
     
-    return NCDObject_BuildFull(n->m->base_type_id, n, 0, method_user, object_func_getvar, object_func_getobj);
+    return NCDObject_BuildFull(n->m->base_type_id, n, 0, method_user, object_func_getvar, object_func_getobj, &n->pobj);
 }
 
 void NCDModuleInst_Backend_PassMemToMethods (NCDModuleInst *n)
@@ -565,7 +582,7 @@ int NCDModuleProcess_Interp_GetSpecialObj (NCDModuleProcess *o, NCD_string_id_t 
         if (name >= NCD_STRING_ARG0 && name <= NCD_STRING_ARG19) {
             int num = name - NCD_STRING_ARG0;
             if (num < NCDVal_ListCount(o->args)) {
-                *out_object = NCDObject_BuildFull(-1, o, num, NULL, process_arg_object_func_getvar, NCDObject_no_getobj);
+                *out_object = NCDObject_BuildFull(-1, o, num, NULL, process_arg_object_func_getvar, NCDObject_no_getobj, NULL);
                 return 1;
             }
         }
