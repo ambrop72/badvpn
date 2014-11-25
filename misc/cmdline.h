@@ -40,6 +40,7 @@
 #include <misc/debug.h>
 #include <misc/exparray.h>
 #include <misc/strdup.h>
+#include <misc/memref.h>
 
 typedef struct {
     struct ExpArray arr;
@@ -50,6 +51,7 @@ static int CmdLine_Init (CmdLine *c);
 static void CmdLine_Free (CmdLine *c);
 static int CmdLine_Append (CmdLine *c, const char *str);
 static int CmdLine_AppendNoNull (CmdLine *c, const char *str, size_t str_len);
+static int CmdLine_AppendNoNullMr (CmdLine *c, MemRef mr);
 static int CmdLine_AppendMulti (CmdLine *c, int num, ...);
 static int CmdLine_Finish (CmdLine *c);
 static char ** CmdLine_Get (CmdLine *c);
@@ -114,6 +116,11 @@ int CmdLine_AppendNoNull (CmdLine *c, const char *str, size_t str_len)
     c->n++;
     
     return 1;
+}
+
+int CmdLine_AppendNoNullMr (CmdLine *c, MemRef mr)
+{
+    return CmdLine_AppendNoNull(c, mr.ptr, mr.len);
 }
 
 int CmdLine_AppendMulti (CmdLine *c, int num, ...)

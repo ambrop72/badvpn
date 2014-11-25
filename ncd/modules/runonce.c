@@ -124,8 +124,7 @@ static int build_cmdline (NCDModuleInst *i, NCDValRef cmd_arg, char **exec, CmdL
             goto fail2;
         }
         
-        MemRef arg_mr = NCDVal_StringMemRef(arg);
-        if (!CmdLine_AppendNoNull(cl, arg_mr.ptr, arg_mr.len)) {
+        if (!CmdLine_AppendNoNullMr(cl, NCDVal_StringMemRef(arg))) {
             ModuleLog(i, BLOG_ERROR, "CmdLine_AppendNoNull failed");
             goto fail2;
         }

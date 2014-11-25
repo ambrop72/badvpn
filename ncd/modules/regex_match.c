@@ -83,8 +83,7 @@
 
 struct instance {
     NCDModuleInst *i;
-    const char *input;
-    size_t input_len;
+    MemRef input;
     int succeeded;
     int num_matches;
     regmatch_t matches[MAX_MATCHES];
@@ -92,8 +91,7 @@ struct instance {
 
 struct replace_instance {
     NCDModuleInst *i;
-    char *output;
-    size_t output_len;
+    MemRef output;
 };
 
 static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -112,11 +110,10 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    o->input = NCDVal_StringData(input_arg);
-    o->input_len = NCDVal_StringLength(input_arg);
+    o->input = NCDVal_StringMemRef(input_arg);
     
     // make sure we don't overflow regoff_t
-    if (o->input_len > INT_MAX) {
+    if (o->input.len > INT_MAX) {
         ModuleLog(o->i, BLOG_ERROR, "input string too long");
         goto fail0;
     }
@@ -139,8 +136,8 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     
     // execute match
     o->matches[0].rm_so = 0;
-    o->matches[0].rm_eo = o->input_len;
-    o->succeeded = (regexec(&preg, o->input, MAX_MATCHES, o->matches, REG_STARTEND) == 0);
+    o->matches[0].rm_eo = o->input.len;
+    o->succeeded = (regexec(&preg, o->input.ptr, MAX_MATCHES, o->matches, REG_STARTEND) == 0);
     
     // free regex
     regfree(&preg);
@@ -168,13 +165,13 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
         if (o->succeeded && n < MAX_MATCHES && o->matches[n].rm_so >= 0) {
             regmatch_t *m = &o->matches[n];
             
-            ASSERT(m->rm_so <= o->input_len)
+            ASSERT(m->rm_so <= o->input.len)
             ASSERT(m->rm_eo >= m->rm_so)
-            ASSERT(m->rm_eo <= o->input_len)
+            ASSERT(m->rm_eo <= o->input.len)
             
             size_t len = m->rm_eo - m->rm_so;
             
-            *out = NCDVal_NewStringBin(mem, (uint8_t *)o->input + m->rm_so, len);
+            *out = NCDVal_NewStringBinMr(mem, MemRef_Sub(o->input, m->rm_so, len));
             return 1;
         }
     }
@@ -297,8 +294,7 @@ static void replace_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     }
     
     // set output
-    o->output = ExpString_Get(&out);
-    o->output_len = ExpString_Length(&out);
+    o->output = MemRef_Make(ExpString_Get(&out), ExpString_Length(&out));
     
     // free compiled regex's
     while (num_done_regex-- > 0) {
@@ -328,7 +324,7 @@ static void replace_func_die (void *vo)
     struct replace_instance *o = vo;
     
     // free output
-    BFree(o->output);
+    BFree((char *)o->output.ptr);
     
     NCDModuleInst_Backend_Dead(o->i);
 }
@@ -338,7 +334,7 @@ static int replace_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDV
     struct replace_instance *o = vo;
     
     if (!strcmp(name, "")) {
-        *out = NCDVal_NewStringBin(mem, (uint8_t *)o->output, o->output_len);
+        *out = NCDVal_NewStringBinMr(mem, o->output);
         return 1;
     }
     

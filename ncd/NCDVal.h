@@ -233,6 +233,11 @@ NCDValRef NCDVal_NewString (NCDValMem *mem, const char *data);
 NCDValRef NCDVal_NewStringBin (NCDValMem *mem, const uint8_t *data, size_t len);
 
 /**
+ * See NCDVal_NewStringBin.
+ */
+NCDValRef NCDVal_NewStringBinMr (NCDValMem *mem, MemRef data);
+
+/**
  * Builds a new StoredString of the given length with undefined contents.
  * You can define the contents of the string later by copying to the address
  * returned by {@link NCDVal_StringData}.

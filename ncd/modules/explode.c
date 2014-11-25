@@ -96,21 +96,20 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         limit = (n <= SIZE_MAX ? n : SIZE_MAX);
     }
     
-    const char *del_data = NCDVal_StringData(delimiter_arg);
-    size_t del_len = NCDVal_StringLength(delimiter_arg);
+    MemRef del = NCDVal_StringMemRef(delimiter_arg);
     
-    if (del_len == 0) {
+    if (del.len == 0) {
         ModuleLog(i, BLOG_ERROR, "delimiter must be nonempty");
         goto fail0;
     }
     
-    size_t *table = BAllocArray(del_len, sizeof(table[0]));
+    size_t *table = BAllocArray(del.len, sizeof(table[0]));
     if (!table) {
         ModuleLog(i, BLOG_ERROR, "ExpArray_init failed");
         goto fail0;
     }
     
-    build_substring_backtrack_table(del_data, del_len, table);
+    build_substring_backtrack_table(del.ptr, del.len, table);
     
     if (!ExpArray_init(&o->arr, sizeof(struct substring), 8)) {
         ModuleLog(i, BLOG_ERROR, "ExpArray_init failed");
@@ -124,7 +123,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     while (1) {
         size_t start;
         int is_end = 0;
-        if (limit == 0 || !find_substring(data, len, del_data, del_len, table, &start)) {
+        if (limit == 0 || !find_substring(data, len, del.ptr, del.len, table, &start)) {
             start = len;
             is_end = 1;
         }
@@ -149,8 +148,8 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
             break;
         }
         
-        data += start + del_len;
-        len -= start + del_len;
+        data += start + del.len;
+        len -= start + del.len;
         limit--;
     }
     

@@ -48,10 +48,8 @@
 struct instance {
     NCDModuleInst *i;
     NCDValNullTermString ifname_nts;
-    const char *user;
-    size_t user_len;
-    const char *exec;
-    size_t exec_len;
+    MemRef user;
+    MemRef exec;
     NCDValRef args;
     int dying;
     int started;
@@ -72,7 +70,7 @@ void try_process (struct instance *o)
     }
     
     // append exec
-    if (!CmdLine_AppendNoNull(&c, o->exec, o->exec_len)) {
+    if (!CmdLine_AppendNoNullMr(&c, o->exec)) {
         goto fail1;
     }
     
@@ -85,7 +83,7 @@ void try_process (struct instance *o)
     size_t count = NCDVal_ListCount(o->args);
     for (size_t j = 0; j < count; j++) {
         NCDValRef arg = NCDVal_ListGet(o->args, j);
-        if (!CmdLine_AppendNoNull(&c, NCDVal_StringData(arg), NCDVal_StringLength(arg))) {
+        if (!CmdLine_AppendNoNullMr(&c, NCDVal_StringMemRef(arg))) {
             goto fail1;
         }
     }
@@ -96,7 +94,7 @@ void try_process (struct instance *o)
     }
     
     // start process
-    if (!BProcess_Init(&o->process, o->i->params->iparams->manager, (BProcess_handler)process_handler, o, ((char **)c.arr.v)[0], (char **)c.arr.v, o->user)) {
+    if (!BProcess_Init(&o->process, o->i->params->iparams->manager, (BProcess_handler)process_handler, o, ((char **)c.arr.v)[0], (char **)c.arr.v, o->user.ptr)) {
         ModuleLog(o->i, BLOG_ERROR, "BProcess_Init failed");
         goto fail1;
     }
@@ -167,10 +165,8 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         goto fail0;
     }
     
-    o->user = NCDVal_StringData(user_arg);
-    o->user_len = NCDVal_StringLength(user_arg);
-    o->exec = NCDVal_StringData(exec_arg);
-    o->exec_len = NCDVal_StringLength(exec_arg);
+    o->user = NCDVal_StringMemRef(user_arg);
+    o->exec = NCDVal_StringMemRef(exec_arg);
     o->args = args_arg;
     
     // check arguments
@@ -190,7 +186,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     
     // create TAP device
-    if (!NCDIfConfig_make_tuntap(o->ifname_nts.data, o->user, 0)) {
+    if (!NCDIfConfig_make_tuntap(o->ifname_nts.data, o->user.ptr, 0)) {
         ModuleLog(o->i, BLOG_ERROR, "failed to create TAP device");
         goto fail1;
     }

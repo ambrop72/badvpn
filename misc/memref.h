@@ -44,6 +44,7 @@ typedef struct {
 } MemRef;
 
 static MemRef MemRef_Make (char const *ptr, size_t len);
+static MemRef MemRef_MakeCstr (char const *ptr);
 static char MemRef_At (MemRef o, size_t pos);
 static void MemRef_AssertRange (MemRef o, size_t offset, size_t length);
 static MemRef MemRef_SubFrom (MemRef o, size_t offset);
@@ -51,6 +52,7 @@ static MemRef MemRef_SubTo (MemRef o, size_t length);
 static MemRef MemRef_Sub (MemRef o, size_t offset, size_t length);
 static char * MemRef_StrDup (MemRef o);
 static void MemRef_CopyOut (MemRef o, char *out);
+static int MemRef_Equal (MemRef o, MemRef other);
 
 #define MEMREF_LOOP_CHARS__BODY(char_rel_pos_var, char_var, body) \
 { \
@@ -84,6 +86,13 @@ static MemRef MemRef_Make (char const *ptr, size_t len)
     res.ptr = ptr;
     res.len = len;
     return res;
+}
+
+static MemRef MemRef_MakeCstr (char const *ptr)
+{
+    ASSERT(ptr)
+    
+    return MemRef_Make(ptr, strlen(ptr));
 }
 
 static char MemRef_At (MemRef o, size_t pos)
@@ -137,6 +146,14 @@ static void MemRef_CopyOut (MemRef o, char *out)
     ASSERT(out)
     
     memcpy(out, o.ptr, o.len);
+}
+
+static int MemRef_Equal (MemRef o, MemRef other)
+{
+    ASSERT(o.ptr)
+    ASSERT(other.ptr)
+    
+    return (o.len == other.len) && !memcmp(o.ptr, other.ptr, o.len);
 }
 
 #endif

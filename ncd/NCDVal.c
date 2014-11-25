@@ -813,6 +813,11 @@ fail:
     return NCDVal_NewInvalid();
 }
 
+NCDValRef NCDVal_NewStringBinMr (NCDValMem *mem, MemRef data)
+{
+    return NCDVal_NewStringBin(mem, (uint8_t const *)data.ptr, data.len);
+}
+
 NCDValRef NCDVal_NewStringUninitialized (NCDValMem *mem, size_t len)
 {
     NCDVal__AssertMem(mem);

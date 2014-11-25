@@ -327,12 +327,11 @@ static void provide_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *name_str = NCDVal_StringData(name_arg);
-    size_t name_len = NCDVal_StringLength(name_arg);
+    MemRef name = NCDVal_StringMemRef(name_arg);
     
     // find name, create new if needed
-    struct name *n = find_name(g, name_str, name_len);
-    if (!n && !(n = name_init(i, g, name_str, name_len))) {
+    struct name *n = find_name(g, name.ptr, name.len);
+    if (!n && !(n = name_init(i, g, name.ptr, name.len))) {
         goto fail0;
     }
     
@@ -423,12 +422,11 @@ static void depend_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail0;
     }
-    const char *name_str = NCDVal_StringData(name_arg);
-    size_t name_len = NCDVal_StringLength(name_arg);
+    MemRef name = NCDVal_StringMemRef(name_arg);
     
     // find name, create new if needed
-    struct name *n = find_name(g, name_str, name_len);
-    if (!n && !(n = name_init(i, g, name_str, name_len))) {
+    struct name *n = find_name(g, name.ptr, name.len);
+    if (!n && !(n = name_init(i, g, name.ptr, name.len))) {
         goto fail0;
     }
     
