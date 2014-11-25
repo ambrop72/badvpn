@@ -214,8 +214,7 @@ struct write_pipe_instance {
 struct write_instance {
     NCDModuleInst *i;
     struct write_pipe_instance *write_pipe_inst;
-    b_cstring cstr;
-    size_t pos;
+    MemRef data;
 };
 
 static int parse_mode (NCDModuleInst *i, NCDValRef mode_arg, int *out_read, int *out_write)
@@ -228,9 +227,7 @@ static int parse_mode (NCDModuleInst *i, NCDValRef mode_arg, int *out_read, int 
     *out_read = 0;
     *out_write = 0;
     
-    b_cstring cstr = NCDVal_StringCstring(mode_arg);
-    
-    B_CSTRING_LOOP_CHARS(cstr, char_pos, ch, {
+    MEMREF_LOOP_CHARS(NCDVal_StringMemRef(mode_arg), char_pos, ch, {
         if (ch == 'r') {
             *out_read = 1;
         }
@@ -986,19 +983,17 @@ static void write_pipe_send_handler_done (void *vo, int data_len)
     ASSERT(o->write_inst)
     ASSERT(o->write_inst->write_pipe_inst == o)
     ASSERT(data_len > 0)
-    ASSERT(data_len <= o->write_inst->cstr.length - o->write_inst->pos)
+    ASSERT(data_len <= o->write_inst->data.len)
     
     struct write_instance *wr = o->write_inst;
     
     // update write progress
-    wr->pos += data_len;
+    wr->data = MemRef_SubFrom(wr->data, data_len);
     
     // if there is more data, start another write operation
-    if (wr->pos < wr->cstr.length) {
-        size_t chunk_length;
-        const char *chunk_data = b_cstring_get(wr->cstr, wr->pos, wr->cstr.length - wr->pos, &chunk_length);
-        size_t to_send = (chunk_length > INT_MAX ? INT_MAX : chunk_length);
-        StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&o->connection), (uint8_t *)chunk_data, to_send);
+    if (wr->data.len > 0) {
+        size_t to_send = (wr->data.len > INT_MAX) ? INT_MAX : wr->data.len;
+        StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&o->connection), (uint8_t *)wr->data.ptr, to_send);
         return;
     }
     
@@ -1123,11 +1118,10 @@ static void write_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
     }
     
     // initialize write progress state
-    o->cstr = NCDVal_StringCstring(data_arg);
-    o->pos = 0;
+    o->data = NCDVal_StringMemRef(data_arg);
     
     // if there's nothing to send, go up immediately
-    if (o->cstr.length == 0) {
+    if (o->data.len == 0) {
         o->write_pipe_inst = NULL;
         NCDModuleInst_Backend_Up(i);
         return;
@@ -1140,10 +1134,8 @@ static void write_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
     write_pipe_inst->write_inst = o;
     
     // start send operation
-    size_t chunk_length;
-    const char *chunk_data = b_cstring_get(o->cstr, o->pos, o->cstr.length - o->pos, &chunk_length);
-    size_t to_send = (chunk_length > INT_MAX ? INT_MAX : chunk_length);
-    StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&write_pipe_inst->connection), (uint8_t *)chunk_data, to_send);
+    size_t to_send = (o->data.len > INT_MAX) ? INT_MAX : o->data.len;
+    StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&write_pipe_inst->connection), (uint8_t *)o->data.ptr, to_send);
     return;
     
 fail0:

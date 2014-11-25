@@ -102,9 +102,9 @@ static void new_concat_common (void *vo, NCDModuleInst *i, NCDValRef list)
     o->result->length = 0;
     for (size_t j = 0; j < count; j++) {
         NCDValRef arg = NCDVal_ListGet(list, j);
-        b_cstring cstr = NCDVal_StringCstring(arg);
-        b_cstring_copy_to_buf(cstr, 0, cstr.length, o->result->data + o->result->length);
-        o->result->length += cstr.length;
+        MemRef mr = NCDVal_StringMemRef(arg);
+        MemRef_CopyOut(mr, o->result->data + o->result->length);
+        o->result->length += mr.len;
     }
     
     // signal up

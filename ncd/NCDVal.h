@@ -34,8 +34,8 @@
 #include <stdint.h>
 
 #include <misc/debug.h>
-#include <misc/cstring.h>
 #include <misc/BRefTarget.h>
+#include <misc/memref.h>
 #include <ncd/NCDStringIndex.h>
 #include <ncd/NCDVal_types.h>
 
@@ -278,12 +278,12 @@ const char * NCDVal_StringData (NCDValRef string);
 size_t NCDVal_StringLength (NCDValRef string);
 
 /**
- * Returns a {@link b_cstring} interface to the given string value.
- * The returned cstring is valid as long as the memory object exists.
- * However, if the memory object is moved or copied, the cstring is
+ * Returns a MemRef interface to the given string value.
+ * The returned MemRef is valid as long as the memory object exists.
+ * However, if the memory object is moved or copied, the MemRef is
  * invalid in the new or moved (respectively) memory object.
  */
-b_cstring NCDVal_StringCstring (NCDValRef string);
+MemRef NCDVal_StringMemRef (NCDValRef string);
 
 /**
  * Produces a null-terminated version of a String. On success, the result is

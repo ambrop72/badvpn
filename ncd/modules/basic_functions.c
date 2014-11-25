@@ -180,13 +180,11 @@ DEFINE_VALUE_COMPARE(different, (cmp != 0))
 static int concat_recurser (ExpString *estr, NCDValRef arg, NCDCall const *call)
 {
     if (NCDVal_IsString(arg)) {
-        b_cstring arg_cstr = NCDVal_StringCstring(arg);
-        B_CSTRING_LOOP(arg_cstr, pos, chunk_data, chunk_length, {
-            if (!ExpString_AppendBinary(estr, (uint8_t const *)chunk_data, chunk_length)) {
-                FunctionLog(call, BLOG_ERROR, "ExpString_AppendBinary failed");
-                return 0;
-            }
-        })
+        MemRef mr = NCDVal_StringMemRef(arg);
+        if (!ExpString_AppendBinary(estr, (uint8_t const *)mr.ptr, mr.len)) {
+            FunctionLog(call, BLOG_ERROR, "ExpString_AppendBinary failed");
+            return 0;
+        }
     } else if (NCDVal_IsList(arg)) {
         size_t count = NCDVal_ListCount(arg);
         for (size_t i = 0; i < count; i++) {
@@ -405,8 +403,7 @@ static void perchar_eval (NCDCall call, perchar_func func)
         return;
     }
     char *out_data = (char *)NCDVal_StringData(value);
-    b_cstring arg_cstr = NCDVal_StringCstring(arg);
-    B_CSTRING_LOOP_CHARS(arg_cstr, i, ch, {
+    MEMREF_LOOP_CHARS(NCDVal_StringMemRef(arg), i, ch, {
         out_data[i] = func(ch);
     })
     NCDCall_SetResult(&call, value);

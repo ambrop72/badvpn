@@ -87,18 +87,16 @@ static void do_print (NCDModuleInst *i, NCDValRef args, int ln)
         NCDValRef arg = NCDVal_ListGet(args, j);
         ASSERT(NCDVal_IsString(arg))
         
-        b_cstring arg_cstr = NCDVal_StringCstring(arg);
+        MemRef arg_mr = NCDVal_StringMemRef(arg);
         
-        B_CSTRING_LOOP_RANGE(arg_cstr, 0, arg_cstr.length, pos, chunk_data, chunk_length, {
-            size_t chunk_pos = 0;
-            while (chunk_pos < chunk_length) {
-                ssize_t res = fwrite(chunk_data + chunk_pos, 1, chunk_length - chunk_pos, stdout);
-                if (res <= 0) {
-                    goto out;
-                }
-                chunk_pos += res;
+        size_t pos = 0;
+        while (pos < arg_mr.len) {
+            ssize_t res = fwrite(arg_mr.ptr + pos, 1, arg_mr.len - pos, stdout);
+            if (res <= 0) {
+                goto out;
             }
-        })
+            pos += res;
+        }
     }
     
 out:

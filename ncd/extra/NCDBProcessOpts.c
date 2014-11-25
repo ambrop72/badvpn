@@ -82,10 +82,9 @@ int NCDBProcessOpts_Init2 (NCDBProcessOpts *o, NCDValRef opts_arg, NCDBProcessOp
                     NCDModuleInst_Backend_Log(i, blog_channel, BLOG_ERROR, "username must be a string without nulls");
                     goto fail1;
                 }
-                b_cstring cstr = NCDVal_StringCstring(val);
-                o->username = b_cstring_strdup(cstr, 0, cstr.length);
+                o->username = MemRef_StrDup(NCDVal_StringMemRef(val));
                 if (!o->username) {
-                    NCDModuleInst_Backend_Log(i, blog_channel, BLOG_ERROR, "b_cstring_strdup failed");
+                    NCDModuleInst_Backend_Log(i, blog_channel, BLOG_ERROR, "MemRef_StrDup failed");
                     goto fail1;
                 }
             }

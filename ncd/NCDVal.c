@@ -953,7 +953,7 @@ size_t NCDVal_StringLength (NCDValRef string)
     }
 }
 
-b_cstring NCDVal_StringCstring (NCDValRef string)
+MemRef NCDVal_StringMemRef (NCDValRef string)
 {
     ASSERT(NCDVal_IsString(string))
     
@@ -962,22 +962,22 @@ b_cstring NCDVal_StringCstring (NCDValRef string)
     switch (get_internal_type(*(int *)ptr)) {
         case STOREDSTRING_TYPE: {
             struct NCDVal__string *str_e = ptr;
-            return b_cstring_make_buf(str_e->data, str_e->length);
+            return MemRef_Make(str_e->data, str_e->length);
         } break;
         
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
-            return b_cstring_make_buf(NCDStringIndex_Value(ids_e->string_index, ids_e->string_id), NCDStringIndex_Length(ids_e->string_index, ids_e->string_id));
+            return MemRef_Make(NCDStringIndex_Value(ids_e->string_index, ids_e->string_id), NCDStringIndex_Length(ids_e->string_index, ids_e->string_id));
         } break;
         
         case EXTERNALSTRING_TYPE: {
             struct NCDVal__externalstring *exs_e = ptr;
-            return b_cstring_make_buf(exs_e->data, exs_e->length);
+            return MemRef_Make(exs_e->data, exs_e->length);
         } break;
         
         default: {
             ASSERT(0);
-            return b_cstring_make_empty();
+            return MemRef_Make(NULL, 0);
         } break;
     }
 }

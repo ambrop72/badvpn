@@ -85,9 +85,9 @@ int ncd_build_cmdline (NCDModuleInst *i, int log_channel, NCDValRef cmd_arg, cha
             goto fail2;
         }
         
-        b_cstring cstr = NCDVal_StringCstring(arg);
-        if (!CmdLine_AppendCstring(&cl, cstr, 0, cstr.length)) {
-            NCDModuleInst_Backend_Log(i, log_channel, BLOG_ERROR, "CmdLine_AppendCstring failed");
+        MemRef mr = NCDVal_StringMemRef(arg);
+        if (!CmdLine_AppendNoNull(&cl, mr.ptr, mr.len)) {
+            NCDModuleInst_Backend_Log(i, log_channel, BLOG_ERROR, "CmdLine_AppendNoNull failed");
             goto fail2;
         }
     }

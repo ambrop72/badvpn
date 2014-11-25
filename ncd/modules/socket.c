@@ -195,8 +195,7 @@ struct read_instance {
 struct write_instance {
     NCDModuleInst *i;
     struct connection *con_inst;
-    b_cstring cstr;
-    size_t pos;
+    MemRef data;
 };
 
 struct listen_instance {
@@ -449,21 +448,18 @@ static void connection_send_handler_done (void *user, int data_len)
     ASSERT(o->state == CONNECTION_STATE_ESTABLISHED)
     ASSERT(o->write_inst)
     ASSERT(o->write_inst->con_inst == o)
-    ASSERT(o->write_inst->pos < o->write_inst->cstr.length)
     ASSERT(data_len > 0)
-    ASSERT(data_len <= o->write_inst->cstr.length - o->write_inst->pos)
+    ASSERT(data_len <= o->write_inst->data.len)
     
     struct write_instance *wr = o->write_inst;
     
     // update send state
-    wr->pos += data_len;
+    wr->data = MemRef_SubFrom(wr->data, data_len);
     
     // if there's more to send, send again
-    if (wr->pos < wr->cstr.length) {
-        size_t chunk_len;
-        const char *chunk_data = b_cstring_get(wr->cstr, wr->pos, wr->cstr.length - wr->pos, &chunk_len);
-        size_t to_send = (chunk_len > INT_MAX ? INT_MAX : chunk_len);
-        StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&o->connection), (uint8_t *)chunk_data, to_send);
+    if (wr->data.len > 0) {
+        size_t to_send = (wr->data.len > INT_MAX) ? INT_MAX : wr->data.len;
+        StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&o->connection), (uint8_t *)wr->data.ptr, to_send);
         return;
     }
     
@@ -848,11 +844,10 @@ static void write_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
     }
     
     // set send state
-    o->cstr = NCDVal_StringCstring(data_arg);
-    o->pos = 0;
+    o->data = NCDVal_StringMemRef(data_arg);
     
     // if there's nothing to send, go up immediately
-    if (o->cstr.length == 0) {
+    if (o->data.len == 0) {
         o->con_inst = NULL;
         NCDModuleInst_Backend_Up(i);
         return;
@@ -865,10 +860,8 @@ static void write_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleIn
     con_inst->write_inst = o;
     
     // send
-    size_t chunk_len;
-    const char *chunk_data = b_cstring_get(o->cstr, o->pos, o->cstr.length - o->pos, &chunk_len);
-    size_t to_send = (chunk_len > INT_MAX ? INT_MAX : chunk_len);
-    StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&con_inst->connection), (uint8_t *)chunk_data, to_send);
+    size_t to_send = (o->data.len > INT_MAX) ? INT_MAX : o->data.len;
+    StreamPassInterface_Sender_Send(BConnection_SendAsync_GetIf(&con_inst->connection), (uint8_t *)o->data.ptr, to_send);
     return;
     
 fail0:

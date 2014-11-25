@@ -48,19 +48,11 @@ static void test_string (NCDValRef str, const char *data, size_t length)
     FORCE( NCDVal_IsStringNoNulls(str) == !memchr(data, '\0', length) )
     FORCE( NCDVal_StringRegionEquals(str, 0, length, data) )
     
-    b_cstring cstr = NCDVal_StringCstring(str);
-    
-    for (size_t i = 0; i < length; i++) {
-        size_t chunk_length;
-        const char *chunk_data = b_cstring_get(cstr, i, length - i, &chunk_length);
-        
-        FORCE( chunk_length > 0 )
-        FORCE( chunk_length <= length - i )
-        FORCE( !memcmp(chunk_data, data + i, chunk_length) )
-        FORCE( NCDVal_StringRegionEquals(str, i, chunk_length, data + i) )
-        FORCE( b_cstring_memcmp(cstr, b_cstring_make_buf(data, length), i, i, chunk_length) == 0 )
-        FORCE( b_cstring_memcmp(cstr, b_cstring_make_buf(data + i, length - i), i, 0, chunk_length) == 0 )
-    }
+    MemRef mr = NCDVal_StringMemRef(str);
+    FORCE( mr.ptr == NCDVal_StringData(str) )
+    FORCE( mr.len == NCDVal_StringLength(str) )
+    FORCE( mr.len == length )
+    FORCE( !memcmp(mr.ptr, data, length) )
 }
 
 static void print_indent (int indent)
