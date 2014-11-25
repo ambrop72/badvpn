@@ -285,8 +285,8 @@ static void replace_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
         
         // append replacement data
         NCDValRef replace = NCDVal_ListGet(replace_arg, match_regex);
-        if (!ExpString_AppendBinary(&out, (const uint8_t *)NCDVal_StringData(replace), NCDVal_StringLength(replace))) {
-            ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
+        if (!ExpString_AppendBinaryMr(&out, NCDVal_StringMemRef(replace))) {
+            ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinaryMr failed");
             goto fail3;
         }
         
@@ -294,7 +294,7 @@ static void replace_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     }
     
     // set output
-    o->output = MemRef_Make(ExpString_Get(&out), ExpString_Length(&out));
+    o->output = ExpString_GetMr(&out);
     
     // free compiled regex's
     while (num_done_regex-- > 0) {

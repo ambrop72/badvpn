@@ -448,7 +448,7 @@ int NCDModuleProcess_InitValue (NCDModuleProcess *o, NCDModuleInst *n, NCDValRef
     if (NCDVal_IsIdString(template_name)) {
         template_name_id = NCDVal_IdStringId(template_name);
     } else {
-        template_name_id = NCDStringIndex_GetBin(n->params->iparams->string_index, NCDVal_StringData(template_name), NCDVal_StringLength(template_name));
+        template_name_id = NCDStringIndex_GetBinMr(n->params->iparams->string_index, NCDVal_StringMemRef(template_name));
         if (template_name_id < 0) {
             BLog(BLOG_ERROR, "NCDStringIndex_GetBin failed");
             return 0;

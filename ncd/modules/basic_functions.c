@@ -180,9 +180,8 @@ DEFINE_VALUE_COMPARE(different, (cmp != 0))
 static int concat_recurser (ExpString *estr, NCDValRef arg, NCDCall const *call)
 {
     if (NCDVal_IsString(arg)) {
-        MemRef mr = NCDVal_StringMemRef(arg);
-        if (!ExpString_AppendBinary(estr, (uint8_t const *)mr.ptr, mr.len)) {
-            FunctionLog(call, BLOG_ERROR, "ExpString_AppendBinary failed");
+        if (!ExpString_AppendBinaryMr(estr, NCDVal_StringMemRef(arg))) {
+            FunctionLog(call, BLOG_ERROR, "ExpString_AppendBinaryMr failed");
             return 0;
         }
     } else if (NCDVal_IsList(arg)) {
@@ -216,7 +215,7 @@ static void concat_eval (NCDCall call)
             goto fail1;
         }
     }
-    NCDCall_SetResult(&call, NCDVal_NewStringBin(NCDCall_ResMem(&call), (uint8_t const *)ExpString_Get(&estr), ExpString_Length(&estr)));
+    NCDCall_SetResult(&call, NCDVal_NewStringBinMr(NCDCall_ResMem(&call), ExpString_GetMr(&estr)));
 fail1:
     ExpString_Free(&estr);
 fail0:

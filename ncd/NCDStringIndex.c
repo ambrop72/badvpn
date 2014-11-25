@@ -216,6 +216,11 @@ NCD_string_id_t NCDStringIndex_GetBin (NCDStringIndex *o, const char *str, size_
     return do_get(o, str, str_len);
 }
 
+NCD_string_id_t NCDStringIndex_GetBinMr (NCDStringIndex *o, MemRef str)
+{
+    return NCDStringIndex_GetBin(o, str.ptr, str.len);
+}
+
 const char * NCDStringIndex_Value (NCDStringIndex *o, NCD_string_id_t id)
 {
     DebugObject_Access(&o->d_obj);

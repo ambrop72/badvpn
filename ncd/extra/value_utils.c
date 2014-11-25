@@ -86,9 +86,7 @@ int ncd_read_uintmax (NCDValRef val, uintmax_t *out)
         return 0;
     }
     
-    size_t length = NCDVal_StringLength(val);
-    
-    return parse_unsigned_integer_bin(NCDVal_StringData(val), length, out);
+    return parse_unsigned_integer_bin(NCDVal_StringData(val), NCDVal_StringLength(val), out);
 }
 
 int ncd_read_time (NCDValRef val, btime_t *out)
@@ -117,7 +115,7 @@ NCD_string_id_t ncd_get_string_id (NCDValRef string, NCDStringIndex *string_inde
         return NCDVal_IdStringId(string);
     }
     
-    return NCDStringIndex_GetBin(string_index, NCDVal_StringData(string), NCDVal_StringLength(string));
+    return NCDStringIndex_GetBinMr(string_index, NCDVal_StringMemRef(string));
 }
 
 NCDValRef ncd_make_uintmax (NCDValMem *mem, uintmax_t value)
@@ -140,9 +138,7 @@ char * ncd_strdup (NCDValRef stringnonulls)
 {
     ASSERT(NCDVal_IsStringNoNulls(stringnonulls))
     
-    size_t length = NCDVal_StringLength(stringnonulls);
-    
-    return b_strdup_bin(NCDVal_StringData(stringnonulls), length);
+    return MemRef_StrDup(NCDVal_StringMemRef(stringnonulls));
 }
 
 int ncd_eval_func_args_ext (NCDCall const *call, size_t start, size_t count, NCDValMem *mem, NCDValRef *out)
