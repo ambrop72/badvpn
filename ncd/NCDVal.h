@@ -273,6 +273,8 @@ NCDValRef NCDVal_NewExternalString (NCDValMem *mem, const char *data, size_t len
  * WARNING: the string data may not be null-terminated. To get a null-terminated
  * version, use {@link NCDVal_StringNullTerminate}.
  * The value reference must point to a String.
+ * WARNING: the returned pointer may become invalid when any new value is inserted
+ * into the residing memory object (due to a realloc of the value memory).
  */
 const char * NCDVal_StringData (NCDValRef string);
 
@@ -284,9 +286,8 @@ size_t NCDVal_StringLength (NCDValRef string);
 
 /**
  * Returns a MemRef interface to the given string value.
- * The returned MemRef is valid as long as the memory object exists.
- * However, if the memory object is moved or copied, the MemRef is
- * invalid in the new or moved (respectively) memory object.
+ * WARNING: the returned pointer may become invalid when any new value is inserted
+ * into the residing memory object (due to a realloc of the value memory).
  */
 MemRef NCDVal_StringMemRef (NCDValRef string);
 
