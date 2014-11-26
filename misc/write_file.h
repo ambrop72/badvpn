@@ -35,24 +35,24 @@
 #include <stdio.h>
 
 #include <misc/debug.h>
+#include <misc/memref.h>
 
-static int write_file (const char *file, const uint8_t *data, size_t len)
+static int write_file (const char *file, MemRef data)
 {
     FILE *f = fopen(file, "w");
     if (!f) {
         goto fail0;
     }
     
-    while (len > 0) {
-        size_t res = fwrite(data, 1, len, f);
+    while (data.len > 0) {
+        size_t res = fwrite(data.ptr, 1, data.len, f);
         if (res == 0) {
             goto fail1;
         }
         
-        ASSERT(res <= len)
+        ASSERT(res <= data.len)
         
-        data += res;
-        len -= res;
+        data = MemRef_SubFrom(data, res);
     }
     
     if (fclose(f) != 0) {

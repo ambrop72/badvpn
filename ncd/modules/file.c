@@ -186,8 +186,7 @@ static void write_func_new (void *unused, NCDModuleInst *i, const struct NCDModu
     }
     
     // write file
-    MemRef contents_mr = NCDVal_StringMemRef(contents_arg);
-    int res = write_file(filename_nts.data, (uint8_t const *)contents_mr.ptr, contents_mr.len);
+    int res = write_file(filename_nts.data, NCDVal_StringMemRef(contents_arg));
     NCDValNullTermString_Free(&filename_nts);
     if (!res) {
         ModuleLog(i, BLOG_ERROR, "failed to write file");
