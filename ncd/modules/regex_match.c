@@ -247,12 +247,11 @@ static void replace_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     }
     
     // input state
-    const char *in = NCDVal_StringData(input_arg);
+    MemRef in = NCDVal_StringMemRef(input_arg);
     size_t in_pos = 0;
-    size_t in_len = NCDVal_StringLength(input_arg);
     
     // process input
-    while (in_pos < in_len) {
+    while (in_pos < in.len) {
         // find first match
         int have_match = 0;
         size_t match_regex = 0; // to remove warning
@@ -260,8 +259,8 @@ static void replace_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
         for (size_t j = 0; j < num_regex; j++) {
             regmatch_t this_match;
             this_match.rm_so = 0;
-            this_match.rm_eo = in_len - in_pos;
-            if (regexec(&regs[j], in + in_pos, 1, &this_match, REG_STARTEND) == 0 && (!have_match || this_match.rm_so < match.rm_so)) {
+            this_match.rm_eo = in.len - in_pos;
+            if (regexec(&regs[j], in.ptr + in_pos, 1, &this_match, REG_STARTEND) == 0 && (!have_match || this_match.rm_so < match.rm_so)) {
                 have_match = 1;
                 match_regex = j;
                 match = this_match;
@@ -270,16 +269,16 @@ static void replace_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
         
         // if no match, append remaining data and finish
         if (!have_match) {
-            if (!ExpString_AppendBinary(&out, (const uint8_t *)in + in_pos, in_len - in_pos)) {
-                ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
+            if (!ExpString_AppendBinaryMr(&out, MemRef_SubFrom(in, in_pos))) {
+                ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinaryMr failed");
                 goto fail3;
             }
             break;
         }
         
         // append data before match
-        if (!ExpString_AppendBinary(&out, (const uint8_t *)in + in_pos, match.rm_so)) {
-            ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinary failed");
+        if (!ExpString_AppendBinaryMr(&out, MemRef_Sub(in, in_pos, match.rm_so))) {
+            ModuleLog(i, BLOG_ERROR, "ExpString_AppendBinaryMr failed");
             goto fail3;
         }
         

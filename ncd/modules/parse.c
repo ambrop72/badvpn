@@ -87,12 +87,12 @@ static const char *strings[] = {
     "addr", "prefix", NULL
 };
 
-typedef int (*parse_func) (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out);
+typedef int (*parse_func) (NCDModuleInst *i, MemRef str, NCDValMem *mem, NCDValRef *out);
 
-static int parse_number (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out)
+static int parse_number (NCDModuleInst *i, MemRef str, NCDValMem *mem, NCDValRef *out)
 {
     uintmax_t n;
-    if (!parse_unsigned_integer(MemRef_Make(str, str_len), &n)) {
+    if (!parse_unsigned_integer(str, &n)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse number");
         return 0;
     }
@@ -105,9 +105,9 @@ static int parse_number (NCDModuleInst *i, const char *str, size_t str_len, NCDV
     return 1;
 }
 
-static int parse_value (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out)
+static int parse_value (NCDModuleInst *i, MemRef str, NCDValMem *mem, NCDValRef *out)
 {
-    if (!NCDValParser_Parse(str, str_len, mem, out)) {
+    if (!NCDValParser_Parse(str.ptr, str.len, mem, out)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse value");
         return 0;
     }
@@ -115,10 +115,10 @@ static int parse_value (NCDModuleInst *i, const char *str, size_t str_len, NCDVa
     return 1;
 }
 
-static int parse_ipv4_addr (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out)
+static int parse_ipv4_addr (NCDModuleInst *i, MemRef str, NCDValMem *mem, NCDValRef *out)
 {
     uint32_t addr;
-    if (!ipaddr_parse_ipv4_addr(MemRef_Make(str, str_len), &addr)) {
+    if (!ipaddr_parse_ipv4_addr(str, &addr)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse ipv4 addresss");
         return 0;
     }
@@ -134,10 +134,10 @@ static int parse_ipv4_addr (NCDModuleInst *i, const char *str, size_t str_len, N
     return 1;
 }
 
-static int parse_ipv6_addr (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out)
+static int parse_ipv6_addr (NCDModuleInst *i, MemRef str, NCDValMem *mem, NCDValRef *out)
 {
     struct ipv6_addr addr;
-    if (!ipaddr6_parse_ipv6_addr(MemRef_Make(str, str_len), &addr)) {
+    if (!ipaddr6_parse_ipv6_addr(str, &addr)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse ipv6 addresss");
         return 0;
     }
@@ -173,7 +173,7 @@ static void new_templ (void *vo, NCDModuleInst *i, const struct NCDModuleInst_ne
     NCDValMem_Init(&o->mem);
     
     // parse
-    o->succeeded = pfunc(i, NCDVal_StringData(str_arg), NCDVal_StringLength(str_arg), &o->mem, &o->value);
+    o->succeeded = pfunc(i, NCDVal_StringMemRef(str_arg), &o->mem, &o->value);
     
     // signal up
     NCDModuleInst_Backend_Up(i);

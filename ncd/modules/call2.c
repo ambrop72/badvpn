@@ -355,7 +355,7 @@ static void func_new_call_with_caller_target (void *vo, NCDModuleInst *i, const 
     
     struct instance_with_caller_target *o = vo;
     
-    int res = NCDFastNames_Init(&o->names, i->params->iparams->string_index, NCDVal_StringData(caller_target_arg), NCDVal_StringLength(caller_target_arg));
+    int res = NCDFastNames_Init(&o->names, i->params->iparams->string_index, NCDVal_StringMemRef(caller_target_arg));
     if (!res) {
         ModuleLog(i, BLOG_ERROR, "NCDFastNames_Init failed");
         goto fail0;

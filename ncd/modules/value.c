@@ -233,9 +233,9 @@ struct value {
 static const char * get_type_str (int type);
 static void value_cleanup (struct value *v);
 static void value_delete (struct value *v);
-static struct value * value_init_storedstring (NCDModuleInst *i, const char *str, size_t len);
+static struct value * value_init_storedstring (NCDModuleInst *i, MemRef str);
 static struct value * value_init_idstring (NCDModuleInst *i, NCD_string_id_t id, NCDStringIndex *string_index);
-static struct value * value_init_externalstring (NCDModuleInst *i, const char *data, size_t length, BRefTarget *ref_target);
+static struct value * value_init_externalstring (NCDModuleInst *i, MemRef data, BRefTarget *ref_target);
 static int value_is_string (struct value *v);
 static size_t value_string_length (struct value *v);
 static void value_string_copy_out (struct value *v, char *dest);
@@ -388,7 +388,7 @@ static void value_delete (struct value *v)
     free(v);
 }
 
-static struct value * value_init_storedstring (NCDModuleInst *i, const char *str, size_t len)
+static struct value * value_init_storedstring (NCDModuleInst *i, MemRef str)
 {
     struct value *v = malloc(sizeof(*v));
     if (!v) {
@@ -400,16 +400,16 @@ static struct value * value_init_storedstring (NCDModuleInst *i, const char *str
     v->parent = NULL;
     v->type = STOREDSTRING_TYPE;
     
-    if (!(v->storedstring.data = BAlloc(len))) {
+    if (!(v->storedstring.data = BAlloc(str.len))) {
         ModuleLog(i, BLOG_ERROR, "BAlloc failed");
         goto fail1;
     }
     
-    if (str) {
-        memcpy(v->storedstring.data, str, len);
+    if (str.ptr) {
+        memcpy(v->storedstring.data, str.ptr, str.len);
     }
     
-    v->storedstring.length = len;
+    v->storedstring.length = str.len;
     
     return v;
     
@@ -442,7 +442,7 @@ fail0:
     return NULL;
 }
 
-static struct value * value_init_externalstring (NCDModuleInst *i, const char *data, size_t length, BRefTarget *ref_target)
+static struct value * value_init_externalstring (NCDModuleInst *i, MemRef data, BRefTarget *ref_target)
 {
     struct value *v = malloc(sizeof(*v));
     if (!v) {
@@ -461,8 +461,8 @@ static struct value * value_init_externalstring (NCDModuleInst *i, const char *d
     v->parent = NULL;
     v->type = EXTERNALSTRING_TYPE;
     
-    v->externalstring.data = data;
-    v->externalstring.length = length;
+    v->externalstring.data = data.ptr;
+    v->externalstring.length = data.len;
     v->externalstring.ref_target = ref_target;
     
     return v;
@@ -724,14 +724,14 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value)
     switch (NCDVal_Type(value)) {
         case NCDVAL_STRING: {
             if (NCDVal_IsStoredString(value)) {
-                v = value_init_storedstring(i, NCDVal_StringData(value), NCDVal_StringLength(value));
+                v = value_init_storedstring(i, NCDVal_StringMemRef(value));
             } else if (NCDVal_IsIdString(value)) {
                 v = value_init_idstring(i, NCDVal_IdStringId(value), NCDVal_IdStringStringIndex(value));
             } else if (NCDVal_IsExternalString(value)) {
-                v = value_init_externalstring(i, NCDVal_StringData(value), NCDVal_StringLength(value), NCDVal_ExternalStringTarget(value));
+                v = value_init_externalstring(i, NCDVal_StringMemRef(value), NCDVal_ExternalStringTarget(value));
             } else {
                 size_t length = NCDVal_StringLength(value);
-                v = value_init_storedstring(i, NULL, length);
+                v = value_init_storedstring(i, MemRef_Make(NULL, length));
                 if (v) {
                     NCDVal_StringCopyOut(value, 0, length, v->storedstring.data);
                 }
@@ -1761,13 +1761,13 @@ static void func_new_substr (void *vo, NCDModuleInst *i, const struct NCDModuleI
     struct value *v = NULL;
     switch (mov->type) {
         case STOREDSTRING_TYPE: {
-            v = value_init_storedstring(i, mov->storedstring.data + start, amount);
+            v = value_init_storedstring(i, MemRef_Make(mov->storedstring.data + start, amount));
         } break;
         case IDSTRING_TYPE: {
-            v = value_init_storedstring(i, NCDStringIndex_Value(mov->idstring.string_index, mov->idstring.id) + start, amount);
+            v = value_init_storedstring(i, MemRef_Make(NCDStringIndex_Value(mov->idstring.string_index, mov->idstring.id) + start, amount));
         } break;
         case EXTERNALSTRING_TYPE: {
-            v = value_init_externalstring(i, mov->externalstring.data + start, amount, mov->externalstring.ref_target);
+            v = value_init_externalstring(i, MemRef_Make(mov->externalstring.data + start, amount), mov->externalstring.ref_target);
         } break;
         default:
             ASSERT(0);

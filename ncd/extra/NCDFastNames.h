@@ -33,6 +33,7 @@
 #include <stddef.h>
 
 #include <misc/debug.h>
+#include <misc/memref.h>
 #include <ncd/NCDStringIndex.h>
 
 #define NCD_NUM_FAST_NAMES 4
@@ -43,7 +44,7 @@ typedef struct {
     NCD_string_id_t static_names[NCD_NUM_FAST_NAMES];
 } NCDFastNames;
 
-int NCDFastNames_Init (NCDFastNames *o, NCDStringIndex *string_index, const char *str, size_t str_len) WARN_UNUSED;
+int NCDFastNames_Init (NCDFastNames *o, NCDStringIndex *string_index, MemRef str) WARN_UNUSED;
 void NCDFastNames_Free (NCDFastNames *o);
 size_t NCDFastNames_GetNumNames (NCDFastNames *o);
 NCD_string_id_t * NCDFastNames_GetNames (NCDFastNames *o);

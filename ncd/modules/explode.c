@@ -117,14 +117,13 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     o->num = 0;
     
-    const char *data = NCDVal_StringData(input_arg);
-    size_t len = NCDVal_StringLength(input_arg);
+    MemRef data = NCDVal_StringMemRef(input_arg);
     
     while (1) {
         size_t start;
         int is_end = 0;
-        if (limit == 0 || !find_substring(data, len, del.ptr, del.len, table, &start)) {
-            start = len;
+        if (limit == 0 || !find_substring(data.ptr, data.len, del.ptr, del.len, table, &start)) {
+            start = data.len;
             is_end = 1;
         }
         
@@ -140,7 +139,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
             goto fail2;
         }
         
-        memcpy(elem->data, data, start);
+        memcpy(elem->data, data.ptr, start);
         elem->len = start;
         o->num++;
         
@@ -148,8 +147,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
             break;
         }
         
-        data += start + del.len;
-        len -= start + del.len;
+        data = MemRef_SubFrom(data, start + del.len);
         limit--;
     }
     

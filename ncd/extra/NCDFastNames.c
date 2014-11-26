@@ -79,28 +79,27 @@ static int add_name (NCDFastNames *o, NCDStringIndex *string_index, const char *
     return 1;
 }
 
-int NCDFastNames_Init (NCDFastNames *o, NCDStringIndex *string_index, const char *str, size_t str_len)
+int NCDFastNames_Init (NCDFastNames *o, NCDStringIndex *string_index, MemRef str)
 {
-    ASSERT(str)
+    ASSERT(str.ptr)
     
     o->num_names = 0;
     o->dynamic_names = NULL;
     
     size_t i = 0;
-    while (i < str_len) {
-        if (str[i] == '.') {
-            if (!add_name(o, string_index, str, i, str + (i + 1), str_len - (i + 1))) {
+    while (i < str.len) {
+        if (str.ptr[i] == '.') {
+            if (!add_name(o, string_index, str.ptr, i, str.ptr + (i + 1), str.len - (i + 1))) {
                 goto fail;
             }
-            str += i + 1;
-            str_len -= i + 1;
+            str = MemRef_SubFrom(str, i + 1);
             i = 0;
             continue;
         }
         i++;
     }
     
-    if (!add_name(o, string_index, str, i, NULL, 0)) {
+    if (!add_name(o, string_index, str.ptr, i, NULL, 0)) {
         goto fail;
     }
     

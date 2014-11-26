@@ -71,7 +71,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     
     // parse name string
-    if (!NCDFastNames_Init(&o->names, i->params->iparams->string_index, NCDVal_StringData(target_arg), NCDVal_StringLength(target_arg))) {
+    if (!NCDFastNames_Init(&o->names, i->params->iparams->string_index, NCDVal_StringMemRef(target_arg))) {
         ModuleLog(i, BLOG_ERROR, "NCDFastNames_Init failed");
         goto fail0;
     }
