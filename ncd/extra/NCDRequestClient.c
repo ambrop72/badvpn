@@ -221,7 +221,7 @@ static void recv_if_handler_send (NCDRequestClient *o, uint8_t *data, int data_l
                     
                     // parse payload
                     NCDValRef payload_value;
-                    if (!NCDValParser_Parse((char *)payload, payload_len, &mem, &payload_value)) {
+                    if (!NCDValParser_Parse(MemRef_Make((char *)payload, payload_len), &mem, &payload_value)) {
                         BLog(BLOG_ERROR, "failed to parse reply payload");
                         NCDValMem_Free(&mem);
                         goto fail;

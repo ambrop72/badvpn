@@ -204,7 +204,7 @@ int NCDConfigParser_Parse (char *config, size_t config_len, NCDProgram *out_ast)
     }
     
     // tokenize and parse
-    NCDConfigTokenizer_Tokenize(config, config_len, tokenizer_output, &state);
+    NCDConfigTokenizer_Tokenize(MemRef_Make(config, config_len), tokenizer_output, &state);
     
     ParseFree(state.parser, free);
     

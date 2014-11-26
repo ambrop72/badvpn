@@ -146,7 +146,7 @@ int main (int argc, char **argv)
     
     error = 0;
     
-    NCDConfigTokenizer_Tokenize(argv[1], strlen(argv[1]), tokenizer_output, NULL);
+    NCDConfigTokenizer_Tokenize(MemRef_MakeCstr(argv[1]), tokenizer_output, NULL);
     
     if (error) {
         return 1;

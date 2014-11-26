@@ -107,7 +107,7 @@ static int parse_number (NCDModuleInst *i, MemRef str, NCDValMem *mem, NCDValRef
 
 static int parse_value (NCDModuleInst *i, MemRef str, NCDValMem *mem, NCDValRef *out)
 {
-    if (!NCDValParser_Parse(str.ptr, str.len, mem, out)) {
+    if (!NCDValParser_Parse(str, mem, out)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse value");
         return 0;
     }

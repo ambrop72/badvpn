@@ -52,7 +52,7 @@ int main (int argc, char *argv[])
     
     // parse
     NCDValRef val;
-    if (!NCDValParser_Parse(argv[1], strlen(argv[1]), &mem, &val)) {
+    if (!NCDValParser_Parse(MemRef_MakeCstr(argv[1]), &mem, &val)) {
         DEBUG("NCDValParser_Parse failed");
         goto fail1;
     }

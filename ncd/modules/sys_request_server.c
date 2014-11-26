@@ -382,7 +382,7 @@ static int request_init (struct connection *c, uint32_t request_id, const uint8_
     
     NCDValMem_Init(&r->request_data_mem);
     
-    if (!NCDValParser_Parse((const char *)data, data_len, &r->request_data_mem, &r->request_data)) {
+    if (!NCDValParser_Parse(MemRef_Make((const char *)data, data_len), &r->request_data_mem, &r->request_data)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDValParser_Parse failed");
         goto fail1;
     }

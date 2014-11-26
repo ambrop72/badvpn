@@ -106,7 +106,7 @@ static void do_log (int level, NCDValRef list, size_t start)
     for (size_t j = start; j < count; j++) {
         NCDValRef string = NCDVal_ListGet(list, j);
         ASSERT(NCDVal_IsString(string))
-        BLog_AppendBytes(NCDVal_StringData(string), NCDVal_StringLength(string));
+        BLog_AppendBytes(NCDVal_StringMemRef(string));
     }
     
     BLog_Finish(BLOG_CHANNEL_ncd_log_msg, level);

@@ -62,8 +62,11 @@ static int string_equals (char *str, int str_len, char *needle)
     return (str_len == strlen(needle) && !memcmp(str, needle, str_len));
 }
 
-void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_output output, void *user)
+void NCDConfigTokenizer_Tokenize (MemRef the_str, NCDConfigTokenizer_output output, void *user)
 {
+    char const *str = the_str.ptr;
+    size_t left = the_str.len;
+    
     size_t line = 1;
     size_t line_char = 1;
     

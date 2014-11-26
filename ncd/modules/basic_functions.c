@@ -379,7 +379,7 @@ static void decode_value_eval (NCDCall call)
         goto fail1;
     }
     NCDValRef value;
-    int res = NCDValParser_Parse(NCDVal_StringData(arg), NCDVal_StringLength(arg), NCDCall_ResMem(&call), &value);
+    int res = NCDValParser_Parse(NCDVal_StringMemRef(arg), NCDCall_ResMem(&call), &value);
     if (!res) {
         FunctionLog(&call, BLOG_ERROR, "decode_value: NCDValParser_Parse failed");
         goto fail1;

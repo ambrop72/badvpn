@@ -77,7 +77,7 @@ int main (int argc, char *argv[])
     
     NCDValMem_Init(&request_mem);
     
-    if (!NCDValParser_Parse(request_payload_string, strlen(request_payload_string), &request_mem, &request_value)) {
+    if (!NCDValParser_Parse(MemRef_MakeCstr(request_payload_string), &request_mem, &request_value)) {
         BLog(BLOG_ERROR, "BReactor_Init failed");
         goto fail1;
     }
@@ -125,7 +125,7 @@ static int make_connect_addr (const char *str, struct BConnection_addr *out_addr
     size_t i;
     
     if (i = string_begins_with(str, "unix:")) {
-        *out_addr = BConnection_addr_unix(str + i, strlen(str + i));
+        *out_addr = BConnection_addr_unix(MemRef_MakeCstr(str + i));
     }
     else if (i = string_begins_with(str, "tcp:")) {
         BAddr baddr;
