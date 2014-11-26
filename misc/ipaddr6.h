@@ -207,7 +207,7 @@ ipv4_ending:
 int ipaddr6_parse_ipv6_prefix (MemRef str, int *out_num)
 {
     uintmax_t d;
-    if (!parse_unsigned_integer_bin(str.ptr, str.len, &d)) {
+    if (!parse_unsigned_integer(str, &d)) {
         return 0;
     }
     if (d > 128) {

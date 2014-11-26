@@ -77,7 +77,7 @@ int ipaddr_parse_ipv4_addr (MemRef name, uint32_t *out_addr)
         }
         
         uintmax_t d;
-        if (!parse_unsigned_integer_bin(name.ptr, j, &d)) {
+        if (!parse_unsigned_integer(MemRef_SubTo(name, j), &d)) {
             return 0;
         }
         
@@ -99,7 +99,7 @@ int ipaddr_parse_ipv4_addr (MemRef name, uint32_t *out_addr)
 int ipaddr_parse_ipv4_prefix (MemRef str, int *num)
 {
     uintmax_t d;
-    if (!parse_unsigned_integer_bin(str.ptr, str.len, &d)) {
+    if (!parse_unsigned_integer(str, &d)) {
         return 0;
     }
     if (d > 32) {

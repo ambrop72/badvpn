@@ -161,7 +161,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     
     size_t pos;
     uintmax_t n;
-    if ((pos = string_begins_with(name, "match")) && parse_unsigned_integer(name + pos, &n)) {
+    if ((pos = string_begins_with(name, "match")) && parse_unsigned_integer(MemRef_MakeCstr(name + pos), &n)) {
         if (o->succeeded && n < MAX_MATCHES && o->matches[n].rm_so >= 0) {
             regmatch_t *m = &o->matches[n];
             

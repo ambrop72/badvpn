@@ -442,8 +442,7 @@ static void seek_func_new (void *unused, NCDModuleInst *i, const struct NCDModul
     // parse position
     int position_sign;
     uintmax_t position_mag;
-    MemRef position_mr = NCDVal_StringMemRef(position_arg);
-    if (!parse_signmag_integer_bin(position_mr.ptr, position_mr.len, &position_sign, &position_mag)) {
+    if (!parse_signmag_integer(NCDVal_StringMemRef(position_arg), &position_sign, &position_mag)) {
         ModuleLog(i, BLOG_ERROR, "wrong position");
         goto fail0;
     }

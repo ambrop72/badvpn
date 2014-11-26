@@ -236,7 +236,7 @@ void NCDConfigTokenizer_Tokenize (char *str, size_t left, NCDConfigTokenizer_out
                             }
                             
                             uintmax_t hex_val;
-                            if (!parse_unsigned_hex_integer_bin(&str[l + 2], 2, &hex_val)) {
+                            if (!parse_unsigned_hex_integer(MemRef_Make(&str[l + 2], 2), &hex_val)) {
                                 BLog(BLOG_ERROR, "hexadecimal escape found in string but two hex characters don't follow");
                                 goto string_fail1;
                             }

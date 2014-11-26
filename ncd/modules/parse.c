@@ -92,7 +92,7 @@ typedef int (*parse_func) (NCDModuleInst *i, const char *str, size_t str_len, NC
 static int parse_number (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out)
 {
     uintmax_t n;
-    if (!parse_unsigned_integer_bin(str, str_len, &n)) {
+    if (!parse_unsigned_integer(MemRef_Make(str, str_len), &n)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse number");
         return 0;
     }

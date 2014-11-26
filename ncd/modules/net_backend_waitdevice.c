@@ -79,7 +79,7 @@ static void client_handler (struct instance *o, char *devpath, int have_map, BSt
         const char *ifindex_str = BStringMap_Get(cache_map, "IFINDEX");
         
         uintmax_t ifindex;
-        if (!(!match_res && interface && strlen(interface) == o->ifname.len && !memcmp(interface, o->ifname.ptr, o->ifname.len) && ifindex_str && parse_unsigned_integer(ifindex_str, &ifindex))) {
+        if (!(!match_res && interface && strlen(interface) == o->ifname.len && !memcmp(interface, o->ifname.ptr, o->ifname.len) && ifindex_str && parse_unsigned_integer(MemRef_MakeCstr(ifindex_str), &ifindex))) {
             goto out;
         }
         

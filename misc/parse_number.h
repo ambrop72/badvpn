@@ -39,17 +39,15 @@
 #include <stddef.h>
 #include <limits.h>
 
+#include <misc/memref.h>
 #include <misc/debug.h>
 
 // public parsing functions
 static int decode_decimal_digit (char c);
 static int decode_hex_digit (char c);
-static int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out) WARN_UNUSED;
-static int parse_unsigned_integer (const char *str, uintmax_t *out) WARN_UNUSED;
-static int parse_unsigned_hex_integer_bin (const char *str, size_t str_len, uintmax_t *out) WARN_UNUSED;
-static int parse_unsigned_hex_integer (const char *str, uintmax_t *out) WARN_UNUSED;
-static int parse_signmag_integer_bin (const char *str, size_t str_len, int *out_sign, uintmax_t *out_mag) WARN_UNUSED;
-static int parse_signmag_integer (const char *str, int *out_sign, uintmax_t *out_mag) WARN_UNUSED;
+static int parse_unsigned_integer (MemRef str, uintmax_t *out) WARN_UNUSED;
+static int parse_unsigned_hex_integer (MemRef str, uintmax_t *out) WARN_UNUSED;
+static int parse_signmag_integer (MemRef str, int *out_sign, uintmax_t *out_mag) WARN_UNUSED;
 
 // public generation functions
 static int compute_decimal_repr_size (uintmax_t x);
@@ -125,44 +123,39 @@ static int parse__no_overflow (const char *str, size_t str_len, uintmax_t *out)
     return 1;
 }
 
-int parse_unsigned_integer_bin (const char *str, size_t str_len, uintmax_t *out)
+int parse_unsigned_integer (MemRef str, uintmax_t *out)
 {
     // we do not allow empty strings
-    if (str_len == 0) {
+    if (str.len == 0) {
         return 0;
     }
     
     // remove leading zeros
-    while (str_len > 0 && *str == '0') {
-        str++;
-        str_len--;
+    while (str.len > 0 && *str.ptr == '0') {
+        str.ptr++;
+        str.len--;
     }
     
     // detect overflow
-    if (str_len > sizeof(parse_number__uintmax_max_str) - 1 ||
-        (str_len == sizeof(parse_number__uintmax_max_str) - 1 && memcmp(str, parse_number__uintmax_max_str, sizeof(parse_number__uintmax_max_str) - 1) > 0)) {
+    if (str.len > sizeof(parse_number__uintmax_max_str) - 1 ||
+        (str.len == sizeof(parse_number__uintmax_max_str) - 1 && memcmp(str.ptr, parse_number__uintmax_max_str, sizeof(parse_number__uintmax_max_str) - 1) > 0)) {
         return 0;
     }
     
     // will not overflow (but can still have invalid characters)
-    return parse__no_overflow(str, str_len, out);
+    return parse__no_overflow(str.ptr, str.len, out);
 }
 
-int parse_unsigned_integer (const char *str, uintmax_t *out)
-{
-    return parse_unsigned_integer_bin(str, strlen(str), out);
-}
-
-int parse_unsigned_hex_integer_bin (const char *str, size_t str_len, uintmax_t *out)
+int parse_unsigned_hex_integer (MemRef str, uintmax_t *out)
 {
     uintmax_t n = 0;
     
-    if (str_len == 0) {
+    if (str.len == 0) {
         return 0;
     }
     
-    while (str_len > 0) {
-        int digit = decode_hex_digit(*str);
+    while (str.len > 0) {
+        int digit = decode_hex_digit(*str.ptr);
         if (digit < 0) {
             return 0;
         }
@@ -177,39 +170,29 @@ int parse_unsigned_hex_integer_bin (const char *str, size_t str_len, uintmax_t *
         }
         n += digit;
         
-        str++;
-        str_len--;
+        str.ptr++;
+        str.len--;
     }
     
     *out = n;
     return 1;
 }
 
-int parse_unsigned_hex_integer (const char *str, uintmax_t *out)
-{
-    return parse_unsigned_hex_integer_bin(str, strlen(str), out);
-}
-
-int parse_signmag_integer_bin (const char *str, size_t str_len, int *out_sign, uintmax_t *out_mag)
+int parse_signmag_integer (MemRef str, int *out_sign, uintmax_t *out_mag)
 {
     int sign = 1;
-    if (str_len > 0 && (str[0] == '+' || str[0] == '-')) {
-        sign = 1 - 2 * (str[0] == '-');
-        str++;
-        str_len--;
+    if (str.len > 0 && (str.ptr[0] == '+' || str.ptr[0] == '-')) {
+        sign = 1 - 2 * (str.ptr[0] == '-');
+        str.ptr++;
+        str.len--;
     }
     
-    if (!parse_unsigned_integer_bin(str, str_len, out_mag)) {
+    if (!parse_unsigned_integer(str, out_mag)) {
         return 0;
     }
     
     *out_sign = sign;
     return 1;
-}
-
-int parse_signmag_integer (const char *str, int *out_sign, uintmax_t *out_mag)
-{
-    return parse_signmag_integer_bin(str, strlen(str), out_sign, out_mag);
 }
 
 int compute_decimal_repr_size (uintmax_t x)

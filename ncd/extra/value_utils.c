@@ -86,7 +86,7 @@ int ncd_read_uintmax (NCDValRef val, uintmax_t *out)
         return 0;
     }
     
-    return parse_unsigned_integer_bin(NCDVal_StringData(val), NCDVal_StringLength(val), out);
+    return parse_unsigned_integer(NCDVal_StringMemRef(val), out);
 }
 
 int ncd_read_time (NCDValRef val, btime_t *out)

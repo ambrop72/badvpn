@@ -283,8 +283,8 @@ static void client_handler (struct instance *o, char *devpath, int have_map, BSt
     if (!(subsystem && !strcmp(subsystem, "usb") &&
           devname &&
           devtype && !strcmp(devtype, "usb_device") &&
-          vendor_id_str && parse_unsigned_hex_integer(vendor_id_str, &vendor_id) &&
-          model_id_str && parse_unsigned_hex_integer(model_id_str, &model_id)
+          vendor_id_str && parse_unsigned_hex_integer(MemRef_MakeCstr(vendor_id_str), &vendor_id) &&
+          model_id_str && parse_unsigned_hex_integer(MemRef_MakeCstr(model_id_str), &model_id)
     )) {
         if (ex_device) {
             remove_device(o, ex_device);
