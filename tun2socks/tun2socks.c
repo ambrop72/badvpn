@@ -778,7 +778,7 @@ int process_arguments (void)
     
     // parse IP6 address
     if (options.netif_ip6addr) {
-        if (!ipaddr6_parse_ipv6_addr(options.netif_ip6addr, &netif_ip6addr)) {
+        if (!ipaddr6_parse_ipv6_addr(MemRef_MakeCstr(options.netif_ip6addr), &netif_ip6addr)) {
             BLog(BLOG_ERROR, "netif ip6addr: incorrect");
             return 0;
         }

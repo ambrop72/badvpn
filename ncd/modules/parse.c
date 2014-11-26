@@ -137,7 +137,7 @@ static int parse_ipv4_addr (NCDModuleInst *i, const char *str, size_t str_len, N
 static int parse_ipv6_addr (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out)
 {
     struct ipv6_addr addr;
-    if (!ipaddr6_parse_ipv6_addr_bin(str, str_len, &addr)) {
+    if (!ipaddr6_parse_ipv6_addr(MemRef_Make(str, str_len), &addr)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse ipv6 addresss");
         return 0;
     }
@@ -301,7 +301,7 @@ static void ipv6_cidr_addr_func_new (void *vo, NCDModuleInst *i, const struct NC
         goto fail0;
     }
     
-    o->succeeded = ipaddr6_parse_ipv6_ifaddr_bin(NCDVal_StringData(str_arg), NCDVal_StringLength(str_arg), &o->ifaddr);
+    o->succeeded = ipaddr6_parse_ipv6_ifaddr(NCDVal_StringMemRef(str_arg), &o->ifaddr);
     
     NCDModuleInst_Backend_Up(i);
     return;

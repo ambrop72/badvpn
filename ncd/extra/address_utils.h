@@ -107,7 +107,7 @@ static int ncd_read_baddr (NCDValRef val, BAddr *out)
         addr.type = BADDR_TYPE_IPV6;
         
         struct ipv6_addr i6addr;
-        if (!ipaddr6_parse_ipv6_addr_bin(NCDVal_StringData(ipaddr_val), NCDVal_StringLength(ipaddr_val), &i6addr)) {
+        if (!ipaddr6_parse_ipv6_addr(NCDVal_StringMemRef(ipaddr_val), &i6addr)) {
             goto fail;
         }
         memcpy(addr.ipv6.ip, i6addr.bytes, 16);
