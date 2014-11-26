@@ -365,19 +365,28 @@ static void decode_value_eval (NCDCall call)
     if (NCDCall_ArgCount(&call) != 1) {
         return FunctionLog(&call, BLOG_ERROR, "decode_value: need one argument");
     }
-    NCDValRef arg = NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call));
+    // Evaluate the string to a temporary mem, not ResMem.
+    // Otherwise the ResMem could get resized while we're
+    // parsing a string within it, and boom.
+    NCDValMem temp_mem;
+    NCDValMem_Init(&temp_mem);
+    NCDValRef arg = NCDCall_EvalArg(&call, 0, &temp_mem);
     if (NCDVal_IsInvalid(arg)) {
-        return;
+        goto fail1;
     }
     if (!NCDVal_IsString(arg)) {
-        return;
+        FunctionLog(&call, BLOG_ERROR, "decode_value: argument not a string");
+        goto fail1;
     }
     NCDValRef value;
     int res = NCDValParser_Parse(NCDVal_StringData(arg), NCDVal_StringLength(arg), NCDCall_ResMem(&call), &value);
     if (!res) {
-        return FunctionLog(&call, BLOG_ERROR, "decode_value: NCDValParser_Parse failed");
+        FunctionLog(&call, BLOG_ERROR, "decode_value: NCDValParser_Parse failed");
+        goto fail1;
     }
     NCDCall_SetResult(&call, value);
+fail1:
+    NCDValMem_Free(&temp_mem);
 }
 
 
