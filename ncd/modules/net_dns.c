@@ -264,7 +264,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         }
         
         uint32_t addr;
-        if (!ipaddr_parse_ipv4_addr_bin((char *)NCDVal_StringData(server_arg), NCDVal_StringLength(server_arg), &addr)) {
+        if (!ipaddr_parse_ipv4_addr(NCDVal_StringMemRef(server_arg), &addr)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong addr");
             goto fail1;
         }

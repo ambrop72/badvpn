@@ -118,7 +118,7 @@ static int parse_value (NCDModuleInst *i, const char *str, size_t str_len, NCDVa
 static int parse_ipv4_addr (NCDModuleInst *i, const char *str, size_t str_len, NCDValMem *mem, NCDValRef *out)
 {
     uint32_t addr;
-    if (!ipaddr_parse_ipv4_addr_bin(str, str_len, &addr)) {
+    if (!ipaddr_parse_ipv4_addr(MemRef_Make(str, str_len), &addr)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse ipv4 addresss");
         return 0;
     }
@@ -245,7 +245,7 @@ static void ipv4_cidr_addr_func_new (void *vo, NCDModuleInst *i, const struct NC
         goto fail0;
     }
     
-    o->succeeded = ipaddr_parse_ipv4_ifaddr_bin(NCDVal_StringData(str_arg), NCDVal_StringLength(str_arg), &o->ifaddr);
+    o->succeeded = ipaddr_parse_ipv4_ifaddr(NCDVal_StringMemRef(str_arg), &o->ifaddr);
     
     NCDModuleInst_Backend_Up(i);
     return;

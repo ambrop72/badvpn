@@ -53,6 +53,7 @@ static MemRef MemRef_Sub (MemRef o, size_t offset, size_t length);
 static char * MemRef_StrDup (MemRef o);
 static void MemRef_CopyOut (MemRef o, char *out);
 static int MemRef_Equal (MemRef o, MemRef other);
+static int MemRef_FindChar (MemRef o, char ch, size_t *out_index);
 
 #define MEMREF_LOOP_CHARS__BODY(char_rel_pos_var, char_var, body) \
 { \
@@ -154,6 +155,21 @@ static int MemRef_Equal (MemRef o, MemRef other)
     ASSERT(other.ptr)
     
     return (o.len == other.len) && !memcmp(o.ptr, other.ptr, o.len);
+}
+
+static int MemRef_FindChar (MemRef o, char ch, size_t *out_index)
+{
+    ASSERT(o.ptr)
+    
+    for (size_t i = 0; i < o.len; i++) {
+        if (o.ptr[i] == ch) {
+            if (out_index) {
+                *out_index = i;
+            }
+            return 1;
+        }
+    }
+    return 0;
 }
 
 #endif

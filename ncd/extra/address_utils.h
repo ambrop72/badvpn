@@ -84,7 +84,7 @@ static int ncd_read_baddr (NCDValRef val, BAddr *out)
         
         addr.type = BADDR_TYPE_IPV4;
         
-        if (!ipaddr_parse_ipv4_addr_bin(NCDVal_StringData(ipaddr_val), NCDVal_StringLength(ipaddr_val), &addr.ipv4.ip)) {
+        if (!ipaddr_parse_ipv4_addr(NCDVal_StringMemRef(ipaddr_val), &addr.ipv4.ip)) {
             goto fail;
         }
         

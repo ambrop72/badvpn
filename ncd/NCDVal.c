@@ -1093,9 +1093,7 @@ int NCDVal_StringHasNulls (NCDValRef string)
         
         case STOREDSTRING_TYPE:
         case EXTERNALSTRING_TYPE: {
-            const char *data = NCDVal_StringData(string);
-            size_t length = NCDVal_StringLength(string);
-            return !!memchr(data, '\0', length);
+            return MemRef_FindChar(NCDVal_StringMemRef(string), '\0', NULL);
         } break;
         
         default:
