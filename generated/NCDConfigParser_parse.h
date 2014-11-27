@@ -20,5 +20,6 @@
 #define BRACKET_OPEN                   20
 #define BRACKET_CLOSE                  21
 #define AT_SIGN                        22
-#define PROCESS                        23
-#define TEMPLATE                       24
+#define CARET                          23
+#define PROCESS                        24
+#define TEMPLATE                       25

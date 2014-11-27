@@ -117,6 +117,9 @@ void NCDConfigTokenizer_Tokenize (MemRef the_str, NCDConfigTokenizer_output outp
         else if (l = data_begins_with(str, left, "@")) {
             token = NCD_TOKEN_AT;
         }
+        else if (l = data_begins_with(str, left, "^")) {
+            token = NCD_TOKEN_CARET;
+        }
         else if (l = data_begins_with(str, left, "->")) {
             token = NCD_TOKEN_ARROW;
         }

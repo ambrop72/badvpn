@@ -104,8 +104,9 @@ static void free_value (struct value o) { if (o.have) NCDValue_Free(&o.v); }
 %type value  { struct value }
 %type name_maybe { char * }
 %type process_or_template { int }
+%type name_list { struct value }
 
-// mention parser_out in some destructor to a void unused variable warning
+// mention parser_out in some destructor to avoid an unused-variable warning
 %destructor processes { (void)parser_out; free_program($$); }
 %destructor statement { free_statement($$); }
 %destructor elif_maybe { free_ifblock($$); }
@@ -121,6 +122,7 @@ static void free_value (struct value o) { if (o.have) NCDValue_Free(&o.v); }
 %destructor invoc { free_value($$); }
 %destructor value { free_value($$); }
 %destructor name_maybe { free($$); }
+%destructor name_list { free_value($$); }
 
 %stack_size 0
 
@@ -553,6 +555,65 @@ doneJ:
     free(N);
 }
 
+name_list(R) ::= NAME(A). {
+    if (!A.str) {
+        goto failK0;
+    }
+
+    NCDValue_InitList(&R.v);
+    
+    NCDValue this_string;
+    if (!NCDValue_InitString(&this_string, A.str)) {
+        goto failK1;
+    }
+    
+    if (!NCDValue_ListPrepend(&R.v, this_string)) {
+        goto failK2;
+    }
+
+    R.have = 1;
+    goto doneK;
+
+failK2:
+    NCDValue_Free(&this_string);
+failK1:
+    NCDValue_Free(&R.v);
+failK0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneK:
+    free_token(A);
+}
+
+name_list(R) ::= NAME(A) DOT name_list(N). {
+    if (!A.str || !N.have) {
+        goto failKA0;
+    }
+    
+    NCDValue this_string;
+    if (!NCDValue_InitString(&this_string, A.str)) {
+        goto failKA0;
+    }
+
+    if (!NCDValue_ListPrepend(&N.v, this_string)) {
+        goto failKA1;
+    }
+
+    R.have = 1;
+    R.v = N.v;
+    N.have = 0;
+    goto doneKA;
+
+failKA1:
+    NCDValue_Free(&this_string);
+failKA0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneKA:
+    free_token(A);
+    free_value(N);
+}
+
 statement_args_maybe(R) ::= . {
     R.have = 1;
     NCDValue_InitList(&R.v);
@@ -740,6 +801,10 @@ failUA0:
     parser_out->out_of_memory = 1;
 doneUA0:
     free(A);
+}
+
+value(R) ::= CARET name_list(A). {
+    R = A;
 }
 
 value(R) ::= dotted_name(A). {
