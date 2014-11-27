@@ -782,14 +782,7 @@ value(R) ::= AT_SIGN dotted_name(A). {
         goto failUA0;
     }
     
-    char *at_string = concat_strings(3, "__", A, "__");
-    if (!at_string) {
-        goto failUA0;
-    }
-    
-    int res = NCDValue_InitString(&R.v, at_string);
-    free(at_string);
-    if (!res) {
+    if (!NCDValue_InitString(&R.v, A)) {
         goto failUA0;
     }
     

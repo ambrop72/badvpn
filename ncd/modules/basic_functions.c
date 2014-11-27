@@ -427,97 +427,97 @@ DEFINE_PERCHAR(toupper, b_ascii_toupper(ch))
 
 static struct NCDModuleFunction const functions[] = {
     {
-        .func_name = "__error__",
+        .func_name = "error",
         .func_eval = error_eval
     }, {
-        .func_name = "__identity__",
+        .func_name = "identity",
         .func_eval = identity_eval
     }, {
-        .func_name = "__if__",
+        .func_name = "if",
         .func_eval = if_eval
     }, {
-        .func_name = "__bool__",
+        .func_name = "bool",
         .func_eval = bool_eval
     }, {
-        .func_name = "__not__",
+        .func_name = "not",
         .func_eval = not_eval
     }, {
-        .func_name = "__and__",
+        .func_name = "and",
         .func_eval = and_eval
     }, {
-        .func_name = "__or__",
+        .func_name = "or",
         .func_eval = or_eval
     }, {
-        .func_name = "__imp__",
+        .func_name = "imp",
         .func_eval = imp_eval
     }, {
-        .func_name = "__val_lesser__",
+        .func_name = "val_lesser",
         .func_eval = value_compare_lesser_eval
     }, {
-        .func_name = "__val_greater__",
+        .func_name = "val_greater",
         .func_eval = value_compare_greater_eval
     }, {
-        .func_name = "__val_lesser_equal__",
+        .func_name = "val_lesser_equal",
         .func_eval = value_compare_lesser_equal_eval
     }, {
-        .func_name = "__val_greater_equal__",
+        .func_name = "val_greater_equal",
         .func_eval = value_compare_greater_equal_eval
     }, {
-        .func_name = "__val_equal__",
+        .func_name = "val_equal",
         .func_eval = value_compare_equal_eval
     }, {
-        .func_name = "__val_different__",
+        .func_name = "val_different",
         .func_eval = value_compare_different_eval
     }, {
-        .func_name = "__concat__",
+        .func_name = "concat",
         .func_eval = concat_eval
     }, {
-        .func_name = "__concatlist__",
+        .func_name = "concatlist",
         .func_eval = concatlist_eval
     }, {
-        .func_name = "__num_lesser__",
+        .func_name = "num_lesser",
         .func_eval = integer_compare_lesser_eval
     }, {
-        .func_name = "__num_greater__",
+        .func_name = "num_greater",
         .func_eval = integer_compare_greater_eval
     }, {
-        .func_name = "__num_lesser_equal__",
+        .func_name = "num_lesser_equal",
         .func_eval = integer_compare_lesser_equal_eval
     }, {
-        .func_name = "__num_greater_equal__",
+        .func_name = "num_greater_equal",
         .func_eval = integer_compare_greater_equal_eval
     }, {
-        .func_name = "__num_equal__",
+        .func_name = "num_equal",
         .func_eval = integer_compare_equal_eval
     }, {
-        .func_name = "__num_different__",
+        .func_name = "num_different",
         .func_eval = integer_compare_different_eval
     }, {
-        .func_name = "__num_add__",
+        .func_name = "num_add",
         .func_eval = integer_operator_add_eval
     }, {
-        .func_name = "__num_subtract__",
+        .func_name = "num_subtract",
         .func_eval = integer_operator_subtract_eval
     }, {
-        .func_name = "__num_multiply__",
+        .func_name = "num_multiply",
         .func_eval = integer_operator_multiply_eval
     }, {
-        .func_name = "__num_divide__",
+        .func_name = "num_divide",
         .func_eval = integer_operator_divide_eval
     }, {
-        .func_name = "__num_modulo__",
+        .func_name = "num_modulo",
         .func_eval = integer_operator_modulo_eval
     }, {
-        .func_name = "__encode_value__",
+        .func_name = "encode_value",
         .func_eval = encode_value_eval
     }, {
-        .func_name = "__decode_value__",
+        .func_name = "decode_value",
         .func_eval = decode_value_eval
     }, {
-        .func_name = "__tolower__",
+        .func_name = "tolower",
         .func_eval = perchar_tolower_eval
     }, {
-        .func_name = "__toupper__",
+        .func_name = "toupper",
         .func_eval = perchar_toupper_eval
     }, {
         .func_name = NULL
