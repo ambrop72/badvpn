@@ -28,8 +28,18 @@
  * 
  * @section DESCRIPTION
  * 
+ * 
+ * Synopsis:
+ *   compile_search(string str)
+ * 
+ * Description:
+ *   Performs calculations to enable efficient string searches for the
+ *   given string (builds the KMP table). The string must be non-empty.
+ * 
+ * 
  * Synopsis:
  *   explode(string delimiter, string input [, string limit])
+ *   compile_search::explode(string input [, string limit])
  * 
  * Description:
  *   Splits the string 'input' into a list of components. The first component
@@ -38,6 +48,8 @@
  *   via the same procedure, starting with the part of 'input' after the first
  *   substring.
  *   'delimiter' must be nonempty.
+ *   The compile_search variant uses an precompiled delimiter string for better
+ *   performance.
  * 
  * Variables:
  *   list (empty) - the components of 'input', determined based on 'delimiter'
@@ -56,6 +68,12 @@
 
 #include <generated/blog_channel_ncd_explode.h>
 
+struct compile_search_instance {
+    NCDModuleInst *i;
+    MemRef str;
+    size_t *table;
+};
+
 struct instance {
     NCDModuleInst *i;
     struct ExpArray arr;
@@ -67,22 +85,101 @@ struct substring {
     size_t len;
 };
 
-static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+static void compile_search_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    struct compile_search_instance *o = vo;
+    o->i = i;
+    
+    NCDValRef str_arg;
+    if (!NCDVal_ListRead(params->args, 1, &str_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (!NCDVal_IsString(str_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
+    }
+    
+    o->str = NCDVal_StringMemRef(str_arg);
+    if (o->str.len == 0) {
+        ModuleLog(i, BLOG_ERROR, "string must be nonempty");
+        goto fail0;
+    }
+    
+    o->table = BAllocArray(o->str.len, sizeof(o->table[0]));
+    if (!o->table) {
+        ModuleLog(i, BLOG_ERROR, "BAllocArray failed");
+        goto fail0;
+    }
+    
+    build_substring_backtrack_table(o->str.ptr, o->str.len, o->table);
+    
+    NCDModuleInst_Backend_Up(i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_DeadError(i);
+}
+
+static void compile_search_die (void *vo)
+{
+    struct compile_search_instance *o = vo;
+    
+    BFree(o->table);
+    
+    NCDModuleInst_Backend_Dead(o->i);
+}
+
+static void func_new_common (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, struct compile_search_instance *compiled)
 {
     struct instance *o = vo;
     o->i = i;
     
+    int arg_start;
+    MemRef del;
+    size_t const *table;
+    
+    if (compiled) {
+        arg_start = 0;
+        del = compiled->str;
+        table = compiled->table;
+    } else {
+        NCDValRef delimiter_arg;
+        if (!NCDVal_ListReadHead(params->args, 1, &delimiter_arg)) {
+            ModuleLog(i, BLOG_ERROR, "missing delimiter argument");
+            goto fail0;
+        }
+        if (!NCDVal_IsString(delimiter_arg)) {
+            ModuleLog(i, BLOG_ERROR, "wrong delimiter type");
+            goto fail0;
+        }
+        arg_start = 1;
+        
+        del = NCDVal_StringMemRef(delimiter_arg);
+        if (del.len == 0) {
+            ModuleLog(i, BLOG_ERROR, "delimiter must be nonempty");
+            goto fail0;
+        }
+        
+        table = BAllocArray(del.len, sizeof(table[0]));
+        if (!table) {
+            ModuleLog(i, BLOG_ERROR, "ExpArray_init failed");
+            goto fail0;
+        }
+        
+        build_substring_backtrack_table(del.ptr, del.len, (size_t *)table);
+    }
+    
     // read arguments
-    NCDValRef delimiter_arg;
     NCDValRef input_arg;
     NCDValRef limit_arg = NCDVal_NewInvalid();
-    if (!NCDVal_ListRead(params->args, 2, &delimiter_arg, &input_arg) && !NCDVal_ListRead(params->args, 3, &delimiter_arg, &input_arg, &limit_arg)) {
+    if (!NCDVal_ListReadStart(params->args, arg_start, 1, &input_arg) && !NCDVal_ListReadStart(params->args, arg_start, 2, &input_arg, &limit_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail0;
+        goto fail1;
     }
-    if (!NCDVal_IsString(delimiter_arg) || !NCDVal_IsString(input_arg)) {
+    if (!NCDVal_IsString(input_arg)) {
         ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail0;
+        goto fail1;
     }
     
     size_t limit = SIZE_MAX;
@@ -90,26 +187,11 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         uintmax_t n;
         if (!ncd_read_uintmax(limit_arg, &n) || n == 0) {
             ModuleLog(i, BLOG_ERROR, "bad limit argument");
-            goto fail0;
+            goto fail1;
         }
         n--;
         limit = (n <= SIZE_MAX ? n : SIZE_MAX);
     }
-    
-    MemRef del = NCDVal_StringMemRef(delimiter_arg);
-    
-    if (del.len == 0) {
-        ModuleLog(i, BLOG_ERROR, "delimiter must be nonempty");
-        goto fail0;
-    }
-    
-    size_t *table = BAllocArray(del.len, sizeof(table[0]));
-    if (!table) {
-        ModuleLog(i, BLOG_ERROR, "ExpArray_init failed");
-        goto fail0;
-    }
-    
-    build_substring_backtrack_table(del.ptr, del.len, table);
     
     if (!ExpArray_init(&o->arr, sizeof(struct substring), 8)) {
         ModuleLog(i, BLOG_ERROR, "ExpArray_init failed");
@@ -151,7 +233,9 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         limit--;
     }
     
-    BFree(table);
+    if (!compiled) {
+        BFree((size_t *)table);
+    }
     
     // signal up
     NCDModuleInst_Backend_Up(i);
@@ -163,9 +247,23 @@ fail2:
     }
     free(o->arr.v);
 fail1:
-    BFree(table);
+    if (!compiled) {
+        BFree((size_t *)table);
+    }
 fail0:
     NCDModuleInst_Backend_DeadError(i);
+}
+
+static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    return func_new_common(vo, i, params, NULL);
+}
+
+static void func_new_compiled (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    struct compile_search_instance *compiled = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
+    
+    return func_new_common(vo, i, params, compiled);
 }
 
 static void func_die (void *vo)
@@ -211,8 +309,19 @@ fail:
 
 static struct NCDModule modules[] = {
     {
+        .type = "compile_search",
+        .func_new2 = compile_search_new,
+        .func_die = compile_search_die,
+        .alloc_size = sizeof(struct compile_search_instance)
+    }, {
         .type = "explode",
         .func_new2 = func_new,
+        .func_die = func_die,
+        .func_getvar2 = func_getvar2,
+        .alloc_size = sizeof(struct instance)
+    }, {
+        .type = "compile_search::explode",
+        .func_new2 = func_new_compiled,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)

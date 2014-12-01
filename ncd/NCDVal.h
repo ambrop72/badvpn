@@ -444,6 +444,13 @@ NCDValRef NCDVal_ListGet (NCDValRef list, size_t pos);
 int NCDVal_ListRead (NCDValRef list, int num, ...);
 
 /**
+ * Like NCDVal_ListRead but ignores the initial 'start' arguments,
+ * that is, reads 'num' arguments after 'start'.
+ * The 'start' must be <= the length of the list.
+ */
+int NCDVal_ListReadStart (NCDValRef list, int start, int num, ...);
+
+/**
  * Like {@link NCDVal_ListRead}, but the list can contain more than 'num'
  * elements.
  */

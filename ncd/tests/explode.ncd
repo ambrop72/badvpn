@@ -2,6 +2,11 @@ process main {
     explode("FOO", "aaaFOObbbFOOcccFOOddd") l;
     val_equal(l, {"aaa", "bbb", "ccc", "ddd"}) a;
     assert(a);
+    
+    compile_search("FOO") comp;
+    comp->explode("aaaFOObbbFOOcccFOOddd") l;
+    val_equal(l, {"aaa", "bbb", "ccc", "ddd"}) a;
+    assert(a);
 
     explode("FOO", "FOObbbFOOFOO") l;
     val_equal(l, {"", "bbb", "", ""}) a;

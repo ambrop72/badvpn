@@ -1285,6 +1285,31 @@ int NCDVal_ListRead (NCDValRef list, int num, ...)
     return 1;
 }
 
+int NCDVal_ListReadStart (NCDValRef list, int start, int num, ...)
+{
+    ASSERT(NCDVal_IsList(list))
+    ASSERT(start <= NCDVal_ListCount(list))
+    ASSERT(num >= 0)
+    
+    struct NCDVal__list *list_e = NCDValMem__BufAt(list.mem, list.idx);
+    
+    if (num != list_e->count - start) {
+        return 0;
+    }
+    
+    va_list ap;
+    va_start(ap, num);
+    
+    for (int i = 0; i < num; i++) {
+        NCDValRef *dest = va_arg(ap, NCDValRef *);
+        *dest = NCDVal__Ref(list.mem, list_e->elem_indices[start + i]);
+    }
+    
+    va_end(ap);
+    
+    return 1;
+}
+
 int NCDVal_ListReadHead (NCDValRef list, int num, ...)
 {
     ASSERT(NCDVal_IsList(list))
