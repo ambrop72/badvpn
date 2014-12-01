@@ -30,6 +30,7 @@
  * 
  * Synopsis:
  *   parse_number(string str)
+ *   parse_hex_number(string str)
  *   parse_value(string str)
  *   parse_ipv4_addr(string str)
  *   parse_ipv6_addr(string str)
@@ -94,6 +95,22 @@ static int parse_number (NCDModuleInst *i, MemRef str, NCDValMem *mem, NCDValRef
     uintmax_t n;
     if (!parse_unsigned_integer(str, &n)) {
         ModuleLog(i, BLOG_ERROR, "failed to parse number");
+        return 0;
+    }
+    
+    *out = ncd_make_uintmax(mem, n);
+    if (NCDVal_IsInvalid(*out)) {
+        return 0;
+    }
+    
+    return 1;
+}
+
+static int parse_hex_number (NCDModuleInst *i, MemRef str, NCDValMem *mem, NCDValRef *out)
+{
+    uintmax_t n;
+    if (!parse_unsigned_hex_integer(str, &n)) {
+        ModuleLog(i, BLOG_ERROR, "failed to parse hex number");
         return 0;
     }
     
@@ -213,6 +230,11 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
 static void func_new_parse_number (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     new_templ(vo, i, params, parse_number);
+}
+
+static void func_new_parse_hex_number (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    new_templ(vo, i, params, parse_hex_number);
 }
 
 static void func_new_parse_value (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -346,6 +368,12 @@ static struct NCDModule modules[] = {
     {
         .type = "parse_number",
         .func_new2 = func_new_parse_number,
+        .func_die = func_die,
+        .func_getvar2 = func_getvar2,
+        .alloc_size = sizeof(struct instance)
+    }, {
+        .type = "parse_hex_number",
+        .func_new2 = func_new_parse_hex_number,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
