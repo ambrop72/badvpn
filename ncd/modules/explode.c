@@ -112,7 +112,7 @@ static void compile_search_new (void *vo, NCDModuleInst *i, const struct NCDModu
         goto fail0;
     }
     
-    build_substring_backtrack_table(o->str.ptr, o->str.len, o->table);
+    build_substring_backtrack_table(o->str, o->table);
     
     NCDModuleInst_Backend_Up(i);
     return;
@@ -167,7 +167,7 @@ static void func_new_common (void *vo, NCDModuleInst *i, const struct NCDModuleI
             goto fail0;
         }
         
-        build_substring_backtrack_table(del.ptr, del.len, (size_t *)table);
+        build_substring_backtrack_table(del, (size_t *)table);
     }
     
     // read arguments
@@ -204,7 +204,7 @@ static void func_new_common (void *vo, NCDModuleInst *i, const struct NCDModuleI
     while (1) {
         size_t start;
         int is_end = 0;
-        if (limit == 0 || !find_substring(data.ptr, data.len, del.ptr, del.len, table, &start)) {
+        if (limit == 0 || !find_substring(data, del, table, &start)) {
             start = data.len;
             is_end = 1;
         }
