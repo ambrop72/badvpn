@@ -76,6 +76,7 @@ struct compile_search_instance {
 
 struct instance {
     NCDModuleInst *i;
+    NCDValRef input;
     struct ExpArray arr;
     size_t num;
 };
@@ -176,6 +177,7 @@ static void func_new_common (void *vo, NCDModuleInst *i, const struct NCDModuleI
         ModuleLog(i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
+    o->input = input_arg;
     
     size_t limit = SIZE_MAX;
     if (!NCDVal_IsInvalid(limit_arg)) {
@@ -268,9 +270,15 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
         if (NCDVal_IsInvalid(*out)) {
             goto fail;
         }
+        int is_external = NCDVal_IsExternalString(o->input);
         for (size_t j = 0; j < o->num; j++) {
             MemRef elem = ((MemRef *)o->arr.v)[j];
-            NCDValRef str = NCDVal_NewStringBinMr(mem, elem);
+            NCDValRef str;
+            if (is_external) {
+                str = NCDVal_NewExternalString(mem, elem.ptr, elem.len, NCDVal_ExternalStringTarget(o->input));
+            } else {
+                str = NCDVal_NewStringBinMr(mem, elem);
+            }
             if (NCDVal_IsInvalid(str)) {
                 goto fail;
             }
