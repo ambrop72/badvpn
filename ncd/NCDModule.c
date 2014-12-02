@@ -228,7 +228,7 @@ static int object_func_getvar (const NCDObject *obj, NCD_string_id_t name, NCDVa
         if (NCDStringIndex_HasNulls(n->params->iparams->string_index, name)) {
             return 0;
         }
-        const char *name_str = NCDStringIndex_Value(n->params->iparams->string_index, name);
+        const char *name_str = NCDStringIndex_Value(n->params->iparams->string_index, name).ptr;
         res = n->m->module.func_getvar(n->mem, name_str, mem, out_value);
     }
     ASSERT(res == 0 || res == 1)

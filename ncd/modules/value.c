@@ -492,7 +492,7 @@ static MemRef value_string_memref (struct value *v)
         case STOREDSTRING_TYPE:
             return MemRef_Make(NCDRefString_GetBuf(v->storedstring.rstr), v->storedstring.length);
         case IDSTRING_TYPE:
-            return MemRef_Make(NCDStringIndex_Value(v->idstring.string_index, v->idstring.id), NCDStringIndex_Length(v->idstring.string_index, v->idstring.id));
+            return NCDStringIndex_Value(v->idstring.string_index, v->idstring.id);
             break;
         case EXTERNALSTRING_TYPE:
             return MemRef_Make(v->externalstring.data, v->externalstring.length);

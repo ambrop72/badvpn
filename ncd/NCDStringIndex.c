@@ -221,24 +221,14 @@ NCD_string_id_t NCDStringIndex_GetBinMr (NCDStringIndex *o, MemRef str)
     return NCDStringIndex_GetBin(o, str.ptr, str.len);
 }
 
-const char * NCDStringIndex_Value (NCDStringIndex *o, NCD_string_id_t id)
+MemRef NCDStringIndex_Value (NCDStringIndex *o, NCD_string_id_t id)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(id >= 0)
     ASSERT(id < o->entries_size)
     ASSERT(o->entries[id].str)
     
-    return o->entries[id].str;
-}
-
-size_t NCDStringIndex_Length (NCDStringIndex *o, NCD_string_id_t id)
-{
-    DebugObject_Access(&o->d_obj);
-    ASSERT(id >= 0)
-    ASSERT(id < o->entries_size)
-    ASSERT(o->entries[id].str)
-    
-    return o->entries[id].str_len;
+    return MemRef_Make(o->entries[id].str, o->entries[id].str_len);
 }
 
 int NCDStringIndex_HasNulls (NCDStringIndex *o, NCD_string_id_t id)

@@ -366,7 +366,7 @@ char * implode_id_strings (NCDInterpreter *interp, const NCD_string_id_t *names,
         if (!is_first && !ExpString_AppendChar(&str, del)) {
             goto fail1;
         }
-        const char *name_str = NCDStringIndex_Value(&interp->string_index, *names);
+        const char *name_str = NCDStringIndex_Value(&interp->string_index, *names).ptr;
         if (!ExpString_Append(&str, name_str)) {
             goto fail1;
         }
@@ -841,7 +841,7 @@ static int eval_func_eval_call (void *user, NCD_string_id_t func_name_id, NCDEva
     
     struct NCDInterpFunction const *ifunc = NCDModuleIndex_FindFunction(&p->interp->mindex, func_name_id);
     if (!ifunc) {
-        STATEMENT_LOG(ps, BLOG_ERROR, "unknown function: %s", NCDStringIndex_Value(&p->interp->string_index, func_name_id));
+        STATEMENT_LOG(ps, BLOG_ERROR, "unknown function: %s", NCDStringIndex_Value(&p->interp->string_index, func_name_id).ptr);
         return 0;
     }
     
@@ -907,7 +907,7 @@ void process_advance (struct process *p)
         module = NCDInterpProcess_StatementGetMethodModule(p->iprocess, p->ap, object_type, &p->interp->mindex);
         
         if (!module) {
-            const char *type_str = NCDStringIndex_Value(&p->interp->string_index, object_type);
+            const char *type_str = NCDStringIndex_Value(&p->interp->string_index, object_type).ptr;
             const char *cmdname_str = NCDInterpProcess_StatementCmdName(p->iprocess, p->ap, &p->interp->string_index);
             STATEMENT_LOG(ps, BLOG_ERROR, "unknown method statement: %s::%s", type_str, cmdname_str);
             goto fail0;
@@ -1242,27 +1242,27 @@ int statement_instance_func_initprocess (void *vinterp, NCDModuleProcess* mp, NC
     // find process
     NCDInterpProcess *iprocess = NCDInterpProg_FindProcess(&interp->iprogram, template_name);
     if (!iprocess) {
-        const char *str = NCDStringIndex_Value(&interp->string_index, template_name);
+        const char *str = NCDStringIndex_Value(&interp->string_index, template_name).ptr;
         BLog(BLOG_ERROR, "no template named %s", str);
         return 0;
     }
     
     // make sure it's a template
     if (!NCDInterpProcess_IsTemplate(iprocess)) {
-        const char *str = NCDStringIndex_Value(&interp->string_index, template_name);
+        const char *str = NCDStringIndex_Value(&interp->string_index, template_name).ptr;
         BLog(BLOG_ERROR, "need template to create a process, but %s is a process", str);
         return 0;
     }
     
     // create process
     if (!process_new(interp, iprocess, mp)) {
-        const char *str = NCDStringIndex_Value(&interp->string_index, template_name);
+        const char *str = NCDStringIndex_Value(&interp->string_index, template_name).ptr;
         BLog(BLOG_ERROR, "failed to create process from template %s", str);
         return 0;
     }
     
     if (BLog_WouldLog(BLOG_INFO, BLOG_CURRENT_CHANNEL)) {
-        const char *str = NCDStringIndex_Value(&interp->string_index, template_name);
+        const char *str = NCDStringIndex_Value(&interp->string_index, template_name).ptr;
         BLog(BLOG_INFO, "created process from template %s", str);
     }
     
