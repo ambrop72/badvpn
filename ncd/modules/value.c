@@ -163,6 +163,7 @@
 #include <structure/IndexedList.h>
 #include <structure/SAvl.h>
 #include <ncd/NCDStringIndex.h>
+#include <ncd/extra/NCDRefString.h>
 
 #include <ncd/module_common.h>
 
@@ -209,7 +210,7 @@ struct value {
     int type;
     union {
         struct {
-            char *data;
+            NCDRefString *rstr;
             size_t length;
         } storedstring;
         struct {
@@ -239,7 +240,7 @@ static struct value * value_init_externalstring (NCDModuleInst *i, MemRef data, 
 static int value_is_string (struct value *v);
 static size_t value_string_length (struct value *v);
 static void value_string_copy_out (struct value *v, char *dest);
-static void value_string_set_allocd (struct value *v, char *data, size_t length);
+static void value_string_set_rstr (struct value *v, NCDRefString *rstr, size_t length);
 static struct value * value_init_list (NCDModuleInst *i);
 static size_t value_list_len (struct value *v);
 static struct value * value_list_at (struct value *v, size_t index);
@@ -299,7 +300,7 @@ static void value_cleanup (struct value *v)
     
     switch (v->type) {
         case STOREDSTRING_TYPE: {
-            BFree(v->storedstring.data);
+            BRefTarget_Deref(NCDRefString_RefTarget(v->storedstring.rstr));
         } break;
         
         case IDSTRING_TYPE: {
@@ -356,7 +357,7 @@ static void value_delete (struct value *v)
     
     switch (v->type) {
         case STOREDSTRING_TYPE: {
-            BFree(v->storedstring.data);
+            BRefTarget_Deref(NCDRefString_RefTarget(v->storedstring.rstr));
         } break;
         
         case IDSTRING_TYPE: {
@@ -400,14 +401,13 @@ static struct value * value_init_storedstring (NCDModuleInst *i, MemRef str)
     v->parent = NULL;
     v->type = STOREDSTRING_TYPE;
     
-    if (!(v->storedstring.data = BAlloc(str.len))) {
-        ModuleLog(i, BLOG_ERROR, "BAlloc failed");
+    char *buf;
+    if (!(v->storedstring.rstr = NCDRefString_New(str.len, &buf))) {
+        ModuleLog(i, BLOG_ERROR, "NCDRefString_New failed");
         goto fail1;
     }
     
-    if (str.ptr) {
-        memcpy(v->storedstring.data, str.ptr, str.len);
-    }
+    memcpy(buf, str.ptr, str.len);
     
     v->storedstring.length = str.len;
     
@@ -508,7 +508,7 @@ static void value_string_copy_out (struct value *v, char *dest)
     
     switch (v->type) {
         case STOREDSTRING_TYPE:
-            memcpy(dest, v->storedstring.data, v->storedstring.length);
+            memcpy(dest, NCDRefString_GetBuf(v->storedstring.rstr), v->storedstring.length);
             break;
         case IDSTRING_TYPE:
             memcpy(dest, NCDStringIndex_Value(v->idstring.string_index, v->idstring.id), NCDStringIndex_Length(v->idstring.string_index, v->idstring.id));
@@ -521,14 +521,14 @@ static void value_string_copy_out (struct value *v, char *dest)
     }
 }
 
-static void value_string_set_allocd (struct value *v, char *data, size_t length)
+static void value_string_set_rstr (struct value *v, NCDRefString *rstr, size_t length)
 {
     ASSERT(value_is_string(v))
-    ASSERT(data)
+    ASSERT(rstr)
     
     switch (v->type) {
         case STOREDSTRING_TYPE: {
-            BFree(v->storedstring.data);
+            BRefTarget_Deref(NCDRefString_RefTarget(v->storedstring.rstr));
         } break;
         
         case IDSTRING_TYPE: {
@@ -545,7 +545,7 @@ static void value_string_set_allocd (struct value *v, char *data, size_t length)
     }
     
     v->type = STOREDSTRING_TYPE;
-    v->storedstring.data = data;
+    v->storedstring.rstr = rstr;
     v->storedstring.length = length;
 }
 
@@ -723,18 +723,12 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value)
     
     switch (NCDVal_Type(value)) {
         case NCDVAL_STRING: {
-            if (NCDVal_IsStoredString(value)) {
-                v = value_init_storedstring(i, NCDVal_StringMemRef(value));
-            } else if (NCDVal_IsIdString(value)) {
+            if (NCDVal_IsIdString(value)) {
                 v = value_init_idstring(i, NCDVal_IdStringId(value), NCDVal_IdStringStringIndex(value));
             } else if (NCDVal_IsExternalString(value)) {
                 v = value_init_externalstring(i, NCDVal_StringMemRef(value), NCDVal_ExternalStringTarget(value));
             } else {
-                size_t length = NCDVal_StringLength(value);
-                v = value_init_storedstring(i, MemRef_Make(NULL, length));
-                if (v) {
-                    NCDVal_StringCopyOut(value, 0, length, v->storedstring.data);
-                }
+                v = value_init_storedstring(i, NCDVal_StringMemRef(value));
             }
             if (!v) {
                 goto fail0;
@@ -813,7 +807,7 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
     
     switch (v->type) {
         case STOREDSTRING_TYPE: {
-            *out_value = NCDVal_NewStringBin(mem, (const uint8_t *)v->storedstring.data, v->storedstring.length);
+            *out_value = NCDVal_NewExternalString(mem, NCDRefString_GetBuf(v->storedstring.rstr), v->storedstring.length, NCDRefString_RefTarget(v->storedstring.rstr));
             if (NCDVal_IsInvalid(*out_value)) {
                 goto fail;
             }
@@ -1127,32 +1121,7 @@ static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
     ASSERT((NCDVal_Type(data), 1))
     
     switch (v->type) {
-        case STOREDSTRING_TYPE: {
-            if (!NCDVal_IsString(data)) {
-                ModuleLog(i, BLOG_ERROR, "cannot append non-string to string");
-                return 0;
-            }
-            
-            size_t append_length = NCDVal_StringLength(data);
-            
-            if (append_length > SIZE_MAX - v->storedstring.length) {
-                ModuleLog(i, BLOG_ERROR, "too much data to append");
-                return 0;
-            }
-            size_t new_length = v->storedstring.length + append_length;
-            
-            char *new_string = BRealloc(v->storedstring.data, new_length);
-            if (!new_string) {
-                ModuleLog(i, BLOG_ERROR, "BRealloc failed");
-                return 0;
-            }
-            
-            NCDVal_StringCopyOut(data, 0, append_length, new_string + v->storedstring.length);
-            
-            v->storedstring.data = new_string;
-            v->storedstring.length = new_length;
-        } break;
-        
+        case STOREDSTRING_TYPE:
         case IDSTRING_TYPE:
         case EXTERNALSTRING_TYPE: {
             if (!NCDVal_IsString(data)) {
@@ -1169,16 +1138,17 @@ static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
             }
             size_t new_length = length + append_length;
             
-            char *new_string = BAlloc(new_length);
-            if (!new_string) {
-                ModuleLog(i, BLOG_ERROR, "BAlloc failed");
+            char *new_buf;
+            NCDRefString *new_rstr = NCDRefString_New(new_length, &new_buf);
+            if (!new_rstr) {
+                ModuleLog(i, BLOG_ERROR, "NCDRefString_New failed");
                 return 0;
             }
             
-            value_string_copy_out(v, new_string);
-            NCDVal_StringCopyOut(data, 0, append_length, new_string + length);
+            value_string_copy_out(v, new_buf);
+            NCDVal_StringCopyOut(data, 0, append_length, new_buf + length);
             
-            value_string_set_allocd(v, new_string, new_length);
+            value_string_set_rstr(v, new_rstr, new_length);
         } break;
         
         case NCDVAL_LIST: {
@@ -1761,7 +1731,7 @@ static void func_new_substr (void *vo, NCDModuleInst *i, const struct NCDModuleI
     struct value *v = NULL;
     switch (mov->type) {
         case STOREDSTRING_TYPE: {
-            v = value_init_storedstring(i, MemRef_Make(mov->storedstring.data + start, amount));
+            v = value_init_externalstring(i, MemRef_Make(NCDRefString_GetBuf(mov->storedstring.rstr) + start, amount), NCDRefString_RefTarget(mov->storedstring.rstr));
         } break;
         case IDSTRING_TYPE: {
             v = value_init_storedstring(i, MemRef_Make(NCDStringIndex_Value(mov->idstring.string_index, mov->idstring.id) + start, amount));
