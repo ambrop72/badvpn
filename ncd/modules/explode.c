@@ -80,11 +80,6 @@ struct instance {
     size_t num;
 };
 
-struct substring {
-    char *data;
-    size_t len;
-};
-
 static void compile_search_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct compile_search_instance *o = vo;
@@ -193,7 +188,7 @@ static void func_new_common (void *vo, NCDModuleInst *i, const struct NCDModuleI
         limit = (n <= SIZE_MAX ? n : SIZE_MAX);
     }
     
-    if (!ExpArray_init(&o->arr, sizeof(struct substring), 8)) {
+    if (!ExpArray_init(&o->arr, sizeof(MemRef), 8)) {
         ModuleLog(i, BLOG_ERROR, "ExpArray_init failed");
         goto fail1;
     }
@@ -214,15 +209,7 @@ static void func_new_common (void *vo, NCDModuleInst *i, const struct NCDModuleI
             goto fail2;
         }
         
-        struct substring *elem = &((struct substring *)o->arr.v)[o->num];
-        
-        if (!(elem->data = BAlloc(start))) {
-            ModuleLog(i, BLOG_ERROR, "BAlloc failed");
-            goto fail2;
-        }
-        
-        memcpy(elem->data, data.ptr, start);
-        elem->len = start;
+        ((MemRef *)o->arr.v)[o->num] = MemRef_SubTo(data, start);
         o->num++;
         
         if (is_end) {
@@ -242,9 +229,6 @@ static void func_new_common (void *vo, NCDModuleInst *i, const struct NCDModuleI
     return;
 
 fail2:
-    while (o->num-- > 0) {
-        BFree(((struct substring *)o->arr.v)[o->num].data);
-    }
     free(o->arr.v);
 fail1:
     if (!compiled) {
@@ -270,9 +254,6 @@ static void func_die (void *vo)
 {
     struct instance *o = vo;
     
-    while (o->num-- > 0) {
-        BFree(((struct substring *)o->arr.v)[o->num].data);
-    }
     free(o->arr.v);
     
     NCDModuleInst_Backend_Dead(o->i);
@@ -288,8 +269,8 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
             goto fail;
         }
         for (size_t j = 0; j < o->num; j++) {
-            struct substring *elem = &((struct substring *)o->arr.v)[j];
-            NCDValRef str = NCDVal_NewStringBin(mem, (uint8_t *)elem->data, elem->len);
+            MemRef elem = ((MemRef *)o->arr.v)[j];
+            NCDValRef str = NCDVal_NewStringBinMr(mem, elem);
             if (NCDVal_IsInvalid(str)) {
                 goto fail;
             }
