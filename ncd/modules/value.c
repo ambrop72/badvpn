@@ -238,8 +238,7 @@ static struct value * value_init_storedstring (NCDModuleInst *i, MemRef str);
 static struct value * value_init_idstring (NCDModuleInst *i, NCD_string_id_t id, NCDStringIndex *string_index);
 static struct value * value_init_externalstring (NCDModuleInst *i, MemRef data, BRefTarget *ref_target);
 static int value_is_string (struct value *v);
-static size_t value_string_length (struct value *v);
-static void value_string_copy_out (struct value *v, char *dest);
+static MemRef value_string_memref (struct value *v);
 static void value_string_set_rstr (struct value *v, NCDRefString *rstr, size_t length);
 static struct value * value_init_list (NCDModuleInst *i);
 static size_t value_list_len (struct value *v);
@@ -485,39 +484,21 @@ static int value_is_string (struct value *v)
     }
 }
 
-static size_t value_string_length (struct value *v)
+static MemRef value_string_memref (struct value *v)
 {
     ASSERT(value_is_string(v))
     
     switch (v->type) {
         case STOREDSTRING_TYPE:
-            return v->storedstring.length;
+            return MemRef_Make(NCDRefString_GetBuf(v->storedstring.rstr), v->storedstring.length);
         case IDSTRING_TYPE:
-            return NCDStringIndex_Length(v->idstring.string_index, v->idstring.id);
-        case EXTERNALSTRING_TYPE:
-            return v->externalstring.length;
-        default:
-            ASSERT(0);
-            return 0;
-    }
-}
-
-static void value_string_copy_out (struct value *v, char *dest)
-{
-    ASSERT(value_is_string(v))
-    
-    switch (v->type) {
-        case STOREDSTRING_TYPE:
-            memcpy(dest, NCDRefString_GetBuf(v->storedstring.rstr), v->storedstring.length);
-            break;
-        case IDSTRING_TYPE:
-            memcpy(dest, NCDStringIndex_Value(v->idstring.string_index, v->idstring.id), NCDStringIndex_Length(v->idstring.string_index, v->idstring.id));
+            return MemRef_Make(NCDStringIndex_Value(v->idstring.string_index, v->idstring.id), NCDStringIndex_Length(v->idstring.string_index, v->idstring.id));
             break;
         case EXTERNALSTRING_TYPE:
-            memcpy(dest, v->externalstring.data, v->externalstring.length);
-            break;
+            return MemRef_Make(v->externalstring.data, v->externalstring.length);
         default:
             ASSERT(0);
+            return MemRef_Make(NULL, 0);
     }
 }
 
@@ -1129,14 +1110,14 @@ static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
                 return 0;
             }
             
-            size_t length = value_string_length(v);
+            MemRef v_str = value_string_memref(v);
             size_t append_length = NCDVal_StringLength(data);
             
-            if (append_length > SIZE_MAX - length) {
+            if (append_length > SIZE_MAX - v_str.len) {
                 ModuleLog(i, BLOG_ERROR, "too much data to append");
                 return 0;
             }
-            size_t new_length = length + append_length;
+            size_t new_length = v_str.len + append_length;
             
             char *new_buf;
             NCDRefString *new_rstr = NCDRefString_New(new_length, &new_buf);
@@ -1145,8 +1126,8 @@ static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
                 return 0;
             }
             
-            value_string_copy_out(v, new_buf);
-            NCDVal_StringCopyOut(data, 0, append_length, new_buf + length);
+            MemRef_CopyOut(v_str, new_buf);
+            NCDVal_StringCopyOut(data, 0, append_length, new_buf + v_str.len);
             
             value_string_set_rstr(v, new_rstr, new_length);
         } break;
@@ -1266,7 +1247,7 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
                 break;
             default:
                 ASSERT(value_is_string(v))
-                len = value_string_length(v);
+                len = value_string_memref(v).len;
                 break;
         }
         
@@ -1718,26 +1699,28 @@ static void func_new_substr (void *vo, NCDModuleInst *i, const struct NCDModuleI
         goto fail0;
     }
     
-    size_t string_len = value_string_length(mov);
+    MemRef string = value_string_memref(mov);
     
-    if (start > string_len) {
+    if (start > string.len) {
         ModuleLog(i, BLOG_ERROR, "start is out of range");
         goto fail0;
     }
     
-    size_t remain = string_len - start;
+    size_t remain = string.len - start;
     size_t amount = length < remain ? length : remain;
+    
+    MemRef sub_string = MemRef_Sub(string, start, amount);
     
     struct value *v = NULL;
     switch (mov->type) {
         case STOREDSTRING_TYPE: {
-            v = value_init_externalstring(i, MemRef_Make(NCDRefString_GetBuf(mov->storedstring.rstr) + start, amount), NCDRefString_RefTarget(mov->storedstring.rstr));
+            v = value_init_externalstring(i, sub_string, NCDRefString_RefTarget(mov->storedstring.rstr));
         } break;
         case IDSTRING_TYPE: {
-            v = value_init_storedstring(i, MemRef_Make(NCDStringIndex_Value(mov->idstring.string_index, mov->idstring.id) + start, amount));
+            v = value_init_storedstring(i, sub_string);
         } break;
         case EXTERNALSTRING_TYPE: {
-            v = value_init_externalstring(i, MemRef_Make(mov->externalstring.data + start, amount), mov->externalstring.ref_target);
+            v = value_init_externalstring(i, sub_string, mov->externalstring.ref_target);
         } break;
         default:
             ASSERT(0);
