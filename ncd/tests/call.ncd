@@ -11,7 +11,7 @@ process main {
         concat(foo, _scope.foo, _caller.bar, _arg0) x;
     } block;
     var("bar") bar;
-    block->call({"arg"}) c;
+    block->call("arg") c;
     val_equal(c.x, "foofoobararg") a;
     assert(a);
     

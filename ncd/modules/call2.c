@@ -502,26 +502,12 @@ static void inline_code_die (void *vo)
 
 static void inline_code_call_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    NCDValRef args_arg;
-    if (!NCDVal_ListRead(params->args, 1, &args_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong arity");
-        goto fail0;
-    }
-    if (!NCDVal_IsList(args_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail0;
-    }
-    
     struct inline_code_call *o = vo;
     
     o->ic = NCDModuleInst_Backend_GetUser((NCDModuleInst *)params->method_user);
     LinkedList0_Prepend(&o->ic->calls_list, &o->ic_node);
     
-    func_new_templ(vo, i, o->ic->template_name, args_arg, inline_code_call_process_getspecialobj, inline_code_extra_free);
-    return;
-    
-fail0:
-    NCDModuleInst_Backend_DeadError(i);
+    func_new_templ(vo, i, o->ic->template_name, params->args, inline_code_call_process_getspecialobj, inline_code_extra_free);
 }
 
 static void inline_code_extra_free (struct instance *bo)
