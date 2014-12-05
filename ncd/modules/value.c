@@ -212,6 +212,7 @@ struct value {
         struct {
             NCDRefString *rstr;
             size_t length;
+            size_t size;
         } storedstring;
         struct {
             NCD_string_id_t id;
@@ -239,7 +240,7 @@ static struct value * value_init_idstring (NCDModuleInst *i, NCD_string_id_t id,
 static struct value * value_init_externalstring (NCDModuleInst *i, MemRef data, BRefTarget *ref_target);
 static int value_is_string (struct value *v);
 static MemRef value_string_memref (struct value *v);
-static void value_string_set_rstr (struct value *v, NCDRefString *rstr, size_t length);
+static void value_string_set_rstr (struct value *v, NCDRefString *rstr, size_t length, size_t size);
 static struct value * value_init_list (NCDModuleInst *i);
 static size_t value_list_len (struct value *v);
 static struct value * value_list_at (struct value *v, size_t index);
@@ -409,6 +410,7 @@ static struct value * value_init_storedstring (NCDModuleInst *i, MemRef str)
     memcpy(buf, str.ptr, str.len);
     
     v->storedstring.length = str.len;
+    v->storedstring.size = str.len;
     
     return v;
     
@@ -502,10 +504,11 @@ static MemRef value_string_memref (struct value *v)
     }
 }
 
-static void value_string_set_rstr (struct value *v, NCDRefString *rstr, size_t length)
+static void value_string_set_rstr (struct value *v, NCDRefString *rstr, size_t length, size_t size)
 {
     ASSERT(value_is_string(v))
     ASSERT(rstr)
+    ASSERT(size >= length)
     
     switch (v->type) {
         case STOREDSTRING_TYPE: {
@@ -528,6 +531,7 @@ static void value_string_set_rstr (struct value *v, NCDRefString *rstr, size_t l
     v->type = STOREDSTRING_TYPE;
     v->storedstring.rstr = rstr;
     v->storedstring.length = length;
+    v->storedstring.size = size;
 }
 
 static struct value * value_init_list (NCDModuleInst *i)
@@ -1119,17 +1123,33 @@ static int value_append (NCDModuleInst *i, struct value *v, NCDValRef data)
             }
             size_t new_length = v_str.len + append_length;
             
-            char *new_buf;
-            NCDRefString *new_rstr = NCDRefString_New(new_length, &new_buf);
-            if (!new_rstr) {
-                ModuleLog(i, BLOG_ERROR, "NCDRefString_New failed");
-                return 0;
+            if (v->type == STOREDSTRING_TYPE && new_length <= v->storedstring.size) {
+                char *existing_buf = (char *)NCDRefString_GetBuf(v->storedstring.rstr);
+                NCDVal_StringCopyOut(data, 0, append_length, existing_buf + v_str.len);
+                v->storedstring.length = new_length;
+            } else {
+                // only allocate power-of-two sizez
+                size_t new_size = 16;
+                while (new_size < new_length) {
+                    if (new_size > SIZE_MAX / 2) {
+                        ModuleLog(i, BLOG_ERROR, "too much data to append");
+                        return 0;
+                    }
+                    new_size *= 2;
+                }
+                
+                char *new_buf;
+                NCDRefString *new_rstr = NCDRefString_New(new_size, &new_buf);
+                if (!new_rstr) {
+                    ModuleLog(i, BLOG_ERROR, "NCDRefString_New failed");
+                    return 0;
+                }
+                
+                MemRef_CopyOut(v_str, new_buf);
+                NCDVal_StringCopyOut(data, 0, append_length, new_buf + v_str.len);
+                
+                value_string_set_rstr(v, new_rstr, new_length, new_size);
             }
-            
-            MemRef_CopyOut(v_str, new_buf);
-            NCDVal_StringCopyOut(data, 0, append_length, new_buf + v_str.len);
-            
-            value_string_set_rstr(v, new_rstr, new_length);
         } break;
         
         case NCDVAL_LIST: {
