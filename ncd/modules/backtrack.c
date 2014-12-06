@@ -40,8 +40,8 @@
  *   itself goes up immedietely, but side effects of triggering backtracking have
  *   priority.
  *   The rgo() method triggers backtracking when it deinitializes. In this case,
- *   the immediate effects of rgo() deinitialization happen before the immediate
- *   effects of triggering backtracking in the backtrack_point().
+ *   the immediate effects of triggering backtracking in the backtrack_point() have
+ *   priority over the immediate effects of rgo() deinitialization completion.
  */
 
 #include <ncd/module_common.h>
@@ -121,11 +121,11 @@ static void rgo_func_die (void *vo)
 {
     struct rgo_instance *o = vo;
     
-    // toggle backtrack point
+    // deref backtrack_point
+    NCDModuleInst *backtrack_point_inst = NULL;
     NCDObject rgo_obj;
     if (NCDObjRef_Deref(&o->bp_ref, &rgo_obj)) {
-        NCDModuleInst *backtrack_point_inst = NCDObject_MethodUser(&rgo_obj);
-        NCDModuleInst_Backend_DownUp(backtrack_point_inst);
+        backtrack_point_inst = NCDObject_MethodUser(&rgo_obj);
     }
     
     // free object reference
@@ -133,6 +133,11 @@ static void rgo_func_die (void *vo)
     
     // die
     NCDModuleInst_Backend_Dead(o->i);
+    
+    // toggle backtrack_point
+    if (backtrack_point_inst) {
+        NCDModuleInst_Backend_DownUp(backtrack_point_inst);
+    }
 }
 
 static struct NCDModule modules[] = {

@@ -52,10 +52,12 @@ template helper1 {
 }
 
 template helper2 {
-    _caller._caller.flag->set("true");
+    val_equal(_caller._caller.flag, "true") a;
+    assert(a);
 }
 
 template helper3 {
-    val_equal(_caller.flag, "true") a;
+    val_equal(_caller.flag, "false") a;
     assert(a);
+    _caller.flag->set("true");
 }
