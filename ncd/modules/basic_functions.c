@@ -75,6 +75,40 @@ static void if_eval (NCDCall call)
     NCDCall_SetResult(&call, NCDCall_EvalArg(&call, eval_arg, NCDCall_ResMem(&call)));
 }
 
+static void ifel_eval (NCDCall call)
+{
+    size_t count = NCDCall_ArgCount(&call);
+    if (count % 2 == 0) {
+        return FunctionLog(&call, BLOG_ERROR, "ifel: need an odd number of arguments");
+    }
+    NCDValRef value;
+    size_t j = 0;
+    while (1) {
+        NCDValRef arg = NCDCall_EvalArg(&call, j, NCDCall_ResMem(&call));
+        if (NCDVal_IsInvalid(arg)) {
+            return;
+        }
+        if (j == count - 1) {
+            value = arg;
+            break;
+        }
+        NCDValRef arg2 = NCDCall_EvalArg(&call, j + 1, NCDCall_ResMem(&call));
+        if (NCDVal_IsInvalid(arg2)) {
+            return;
+        }
+        int arg_val;
+        if (!ncd_read_boolean(arg, &arg_val)) {
+            return FunctionLog(&call, BLOG_ERROR, "ifel: bad condition");
+        }
+        if (arg_val) {
+            value = arg2;
+            break;
+        }
+        j += 2;
+    }
+    NCDCall_SetResult(&call, value);
+}
+
 static void bool_not_eval (NCDCall call, int negate, char const *name)
 {
     if (NCDCall_ArgCount(&call) != 1) {
@@ -437,6 +471,9 @@ static struct NCDModuleFunction const functions[] = {
     }, {
         .func_name = "if",
         .func_eval = if_eval
+    }, {
+        .func_name = "ifel",
+        .func_eval = ifel_eval
     }, {
         .func_name = "bool",
         .func_eval = bool_eval
