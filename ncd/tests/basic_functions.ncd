@@ -234,6 +234,16 @@ process main {
     assert(a);
     
     
+    var(@num_min("3", "5")) x;
+    val_equal(x, "3") a;
+    assert(a);
+    
+    
+    var(@num_max("3", "5")) x;
+    val_equal(x, "5") a;
+    assert(a);
+    
+    
     var(@encode_value("foo")) x;
     val_equal(x, "\"foo\"") a;
     assert(a);

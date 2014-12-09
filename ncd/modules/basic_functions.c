@@ -339,6 +339,8 @@ DEFINE_INT_OPERATOR(subtract, (n1 - n2), (n1 < n2), "subtraction underflow")
 DEFINE_INT_OPERATOR(multiply, (n1 * n2), (n2 != 0 && n1 > UINTMAX_MAX / n2), "multiplication overflow")
 DEFINE_INT_OPERATOR(divide, (n1 / n2), (n2 == 0), "division quotient is zero")
 DEFINE_INT_OPERATOR(modulo, (n1 % n2), (n2 == 0), "modulo modulus is zero")
+DEFINE_INT_OPERATOR(min, (n1 < n2 ? n1 : n2), (0), "")
+DEFINE_INT_OPERATOR(max, (n1 > n2 ? n1 : n2), (0), "")
 
 
 // Encode and decode value.
@@ -507,6 +509,12 @@ static struct NCDModuleFunction const functions[] = {
     }, {
         .func_name = "num_modulo",
         .func_eval = integer_operator_modulo_eval
+    }, {
+        .func_name = "num_min",
+        .func_eval = integer_operator_min_eval
+    }, {
+        .func_name = "num_max",
+        .func_eval = integer_operator_max_eval
     }, {
         .func_name = "encode_value",
         .func_eval = encode_value_eval
