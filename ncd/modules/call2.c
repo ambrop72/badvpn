@@ -80,15 +80,12 @@
  * 
  * 
  * Synopsis:
- *   embcall2_multif(string cond1, string template1, ..., [string else_template])
+ *   embcall(string template)
  * 
  * Description:
- *   This is an internal command used to implement the 'If' clause. The arguments
- *   are pairs of (cond, template), where 'cond' is a condition in form of a string,
- *   and 'template' is the name of the process template for this condition. The
- *   template corresponding to the first condition equal to "true" is called; if
- *   there is no true condition, either the template 'else_template' is called,
- *   if it is provided, or nothing is performed, if 'else_template' is not provided.
+ *   Like call, but makes its own scope directly available in the called
+ *   template process, instead of via _caller. Also, doesn not provide any
+ *   arguments to the template process.
  * 
  * 
  * Synopsis:
@@ -375,45 +372,19 @@ static void call_with_caller_target_extra_free (struct instance *bo)
     NCDFastNames_Free(&o->names);
 }
 
-static void func_new_embcall_multif (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+static void func_new_embcall (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
-    NCDValRef args = params->args;
-    
-    NCDValRef template_value = NCDVal_NewInvalid();
-    
-    size_t count = NCDVal_ListCount(args);
-    size_t j = 0;
-    
-    while (j < count) {
-        NCDValRef arg = NCDVal_ListGet(args, j);
-        
-        if (j == count - 1) {
-            if (!NCDVal_IsString(arg)) {
-                ModuleLog(i, BLOG_ERROR, "bad arguments");
-                goto fail0;
-            }
-            
-            template_value = arg;
-            break;
-        }
-        
-        NCDValRef arg2 = NCDVal_ListGet(args, j + 1);
-        
-        int arg_val;
-        if (!ncd_read_boolean(arg, &arg_val) || !NCDVal_IsString(arg2)) {
-            ModuleLog(i, BLOG_ERROR, "bad arguments");
-            goto fail0;
-        }
-        
-        if (arg_val) {
-            template_value = arg2;
-            break;
-        }
-        
-        j += 2;
+    NCDValRef template_arg;
+    if (!NCDVal_ListRead(params->args, 1, &template_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    if (!NCDVal_IsString(template_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail0;
     }
     
-    func_new_templ(vo, i, template_value, NCDVal_NewInvalid(), process_func_getspecialobj_embed, NULL);
+    func_new_templ(vo, i, template_arg, NCDVal_NewInvalid(), process_func_getspecialobj_embed, NULL);
     return;
     
 fail0:
@@ -566,8 +537,8 @@ static struct NCDModule modules[] = {
         .flags = NCDMODULE_FLAG_CAN_RESOLVE_WHEN_DOWN,
         .alloc_size = sizeof(struct instance_with_caller_target)
     }, {
-        .type = "embcall2_multif",
-        .func_new2 = func_new_embcall_multif,
+        .type = "embcall",
+        .func_new2 = func_new_embcall,
         .func_die = func_die,
         .func_clean = func_clean,
         .func_getobj = func_getobj,

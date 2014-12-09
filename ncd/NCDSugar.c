@@ -132,37 +132,63 @@ static int desugar_if (struct desugar_state *state, NCDBlock *block, NCDStatemen
         if (!NCDValue_ListAppend(&args, if_cond)) {
             NCDValue_Free(&if_cond);
             NCDBlock_Free(&if_block);
-            goto fail;
+            goto fail_args;
         }
         
         NCDValue action_arg;
         if (!add_template(state, if_block, &action_arg)) {
-            goto fail;
+            goto fail_args;
         }
         
         if (!NCDValue_ListAppend(&args, action_arg)) {
             NCDValue_Free(&action_arg);
-            goto fail;
+            goto fail_args;
         }
     }
+    
+    NCDValue action_arg;
     
     if (NCDStatement_IfElse(stmt)) {
         NCDBlock else_block = NCDStatement_IfGrabElse(stmt);
         
-        NCDValue action_arg;
         if (!add_template(state, else_block, &action_arg)) {
-            goto fail;
+            goto fail_args;
         }
-        
-        if (!NCDValue_ListAppend(&args, action_arg)) {
-            NCDValue_Free(&action_arg);
-            goto fail;
+    } else {
+        if (!NCDValue_InitString(&action_arg, "<none>")) {
+            goto fail_args;
         }
     }
     
+    if (!NCDValue_ListAppend(&args, action_arg)) {
+        NCDValue_Free(&action_arg);
+        goto fail_args;
+    }
+    
+    NCDValue func;
+    if (!NCDValue_InitString(&func, "ifel")) {
+        goto fail_args;
+    }
+    
+    NCDValue invoc;
+    if (!NCDValue_InitInvoc(&invoc, func, args)) {
+        NCDValue_Free(&func);
+        goto fail_args;
+    }
+    
+    NCDValue stmt_args;
+    NCDValue_InitList(&stmt_args);
+    
+    if (!NCDValue_ListAppend(&stmt_args, invoc)) {
+        NCDValue_Free(&stmt_args);
+        NCDValue_Free(&invoc);
+        goto fail0;
+    }
+    
     NCDStatement new_stmt;
-    if (!NCDStatement_InitReg(&new_stmt, NCDStatement_Name(stmt), NULL, "embcall2_multif", args)) {
-        goto fail;
+    if (!NCDStatement_InitReg(&new_stmt, NCDStatement_Name(stmt), NULL, "embcall", stmt_args)) {
+        NCDValue_Free(&stmt_args);
+        goto fail0;
     }
     
     stmt = NCDBlock_ReplaceStatement(block, stmt, new_stmt);
@@ -170,8 +196,9 @@ static int desugar_if (struct desugar_state *state, NCDBlock *block, NCDStatemen
     *out_next = NCDBlock_NextStatement(block, stmt);
     return 1;
     
-fail:
+fail_args:
     NCDValue_Free(&args);
+fail0:
     return 0;
 }
 
