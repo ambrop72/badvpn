@@ -35,6 +35,7 @@
  * Description: provides blocking operations. Initially the blocking state is down (but this statement
  *              does not block). On deinitialization, waits for all corresponding use() statements
  *              to die before dying itself.
+ * Variables: string (empty) - the up-state (false or true).
  * 
  * Synopsis: blocker::up()
  * Description: sets the blocking state to up.
@@ -161,6 +162,18 @@ static void func_die (void *vo)
     
     // set dying
     o->dying = 1;
+}
+
+static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRef *out)
+{
+    struct instance *o = vo;
+    
+    if (name == NCD_STRING_EMPTY) {
+        *out = ncd_make_boolean(mem, o->up, o->i->params->iparams->string_index);
+        return 1;
+    }
+    
+    return 0;
 }
 
 static void updown_func_new_templ (NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int up, int first_down)
@@ -322,6 +335,7 @@ static struct NCDModule modules[] = {
         .type = "blocker",
         .func_new2 = func_new,
         .func_die = func_die,
+        .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "blocker::up",
