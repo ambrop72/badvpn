@@ -250,8 +250,10 @@ NCDIf * NCDIfBlock_NextIf (NCDIfBlock *o, NCDIf *ei);
 NCDIf NCDIfBlock_GrabIf (NCDIfBlock *o, NCDIf *ei);
 
 void NCDIf_Init (NCDIf *o, NCDValue cond, NCDBlock block);
+void NCDIf_InitBlock (NCDIf *o, NCDBlock block);
 void NCDIf_Free (NCDIf *o);
 void NCDIf_FreeGrab (NCDIf *o, NCDValue *out_cond, NCDBlock *out_block);
+NCDBlock NCDIf_FreeGrabBlock (NCDIf *o);
 NCDValue * NCDIf_Cond (NCDIf *o);
 NCDBlock * NCDIf_Block (NCDIf *o);
 

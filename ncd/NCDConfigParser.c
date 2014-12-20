@@ -174,6 +174,10 @@ static int tokenizer_output (void *user, int token, char *value, size_t value_le
             Parse(state->parser, TOKEN_DO, minor, &state->out);
         } break;
         
+        case NCD_TOKEN_INTERRUPT: {
+            Parse(state->parser, TOKEN_INTERRUPT, minor, &state->out);
+        } break;
+        
         default:
             BLog(BLOG_ERROR, "line %zu, character %zu: invalid token", line, line_char);
             free(minor.str);

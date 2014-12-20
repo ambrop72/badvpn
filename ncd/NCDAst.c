@@ -1094,6 +1094,12 @@ void NCDIf_Init (NCDIf *o, NCDValue cond, NCDBlock block)
     o->block = block;
 }
 
+void NCDIf_InitBlock (NCDIf *o, NCDBlock block)
+{
+    NCDValue_InitList(&o->cond);
+    o->block = block;
+}
+
 void NCDIf_Free (NCDIf *o)
 {
     NCDValue_Free(&o->cond);
@@ -1104,6 +1110,12 @@ void NCDIf_FreeGrab (NCDIf *o, NCDValue *out_cond, NCDBlock *out_block)
 {
     *out_cond = o->cond;
     *out_block = o->block;
+}
+
+NCDBlock NCDIf_FreeGrabBlock (NCDIf *o)
+{
+    NCDValue_Free(&o->cond);
+    return o->block;
 }
 
 NCDValue * NCDIf_Cond (NCDIf *o)

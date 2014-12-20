@@ -105,6 +105,7 @@ static void free_value (struct value o) { if (o.have) NCDValue_Free(&o.v); }
 %type name_maybe { char * }
 %type process_or_template { int }
 %type name_list { struct value }
+%type interrupt_maybe { struct block }
 
 // mention parser_out in some destructor to avoid an unused-variable warning
 %destructor processes { (void)parser_out; free_program($$); }
@@ -123,6 +124,7 @@ static void free_value (struct value o) { if (o.have) NCDValue_Free(&o.v); }
 %destructor value { free_value($$); }
 %destructor name_maybe { free($$); }
 %destructor name_list { free_value($$); }
+%destructor interrupt_maybe { free_block($$); }
 
 %stack_size 0
 
@@ -480,40 +482,57 @@ doneGA0:
     free(N);
 }
 
-statement(R) ::= TOKEN_DO CURLY_OPEN statements(S) CURLY_CLOSE name_maybe(N) SEMICOLON. {
+interrupt_maybe(R) ::= . {
+    R.have = 0;
+}
+
+interrupt_maybe(R) ::= TOKEN_INTERRUPT CURLY_OPEN statements(S) CURLY_CLOSE. {
+    R = S;
+}
+
+statement(R) ::= TOKEN_DO CURLY_OPEN statements(S) CURLY_CLOSE interrupt_maybe(I) name_maybe(N) SEMICOLON. {
     if (!S.have) {
         goto failGB0;
     }
     
-    NCDValue dummy_val;
-    NCDValue_InitList(&dummy_val);
-    
-    NCDIf the_if;
-    NCDIf_Init(&the_if, dummy_val, S.v);
-    S.have = 0;
-    
     NCDIfBlock if_block;
     NCDIfBlock_Init(&if_block);
     
+    if (I.have) {
+        NCDIf int_if;
+        NCDIf_InitBlock(&int_if, I.v);
+        I.have = 0;
+        
+        if (!NCDIfBlock_PrependIf(&if_block, int_if)) {
+            NCDIf_Free(&int_if);
+            goto failGB1;
+        }
+    }
+    
+    NCDIf the_if;
+    NCDIf_InitBlock(&the_if, S.v);
+    S.have = 0;
+    
     if (!NCDIfBlock_PrependIf(&if_block, the_if)) {
-        NCDIfBlock_Free(&if_block);
         NCDIf_Free(&the_if);
-        goto failGB0;
+        goto failGB1;
     }
     
     if (!NCDStatement_InitIf(&R.v, N, if_block, NCDIFTYPE_DO)) {
-        NCDIfBlock_Free(&if_block);
-        goto failGB0;
+        goto failGB1;
     }
     
     R.have = 1;
     goto doneGB0;
     
+failGB1:
+    NCDIfBlock_Free(&if_block);
 failGB0:
     R.have = 0;
     parser_out->out_of_memory = 1;
 doneGB0:
     free_block(S);
+    free_block(I);
     free(N);
 }
 
