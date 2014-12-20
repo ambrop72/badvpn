@@ -147,6 +147,9 @@ void NCDConfigTokenizer_Tokenize (MemRef the_str, NCDConfigTokenizer_output outp
         else if (l = data_begins_with(str, left, "Block")) {
             token = NCD_TOKEN_BLOCK;
         }
+        else if (l = data_begins_with(str, left, "Do")) {
+            token = NCD_TOKEN_DO;
+        }
         else if (l = data_begins_with(str, left, "include_guard")) {
             token = NCD_TOKEN_INCLUDE_GUARD;
         }

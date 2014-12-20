@@ -782,7 +782,7 @@ fail:
     return 0;
 }
 
-int NCDStatement_InitIf (NCDStatement *o, const char *name, NCDIfBlock ifblock)
+int NCDStatement_InitIf (NCDStatement *o, const char *name, NCDIfBlock ifblock, int iftype)
 {
     o->name = NULL;
     
@@ -793,6 +793,7 @@ int NCDStatement_InitIf (NCDStatement *o, const char *name, NCDIfBlock ifblock)
     o->type = NCDSTATEMENT_IF;
     o->ifc.ifblock = ifblock;
     o->ifc.have_else = 0;
+    o->ifc.iftype = iftype;
     
     return 1;
 }
@@ -913,6 +914,13 @@ NCDValue * NCDStatement_RegArgs (NCDStatement *o)
     ASSERT(o->type == NCDSTATEMENT_REG)
     
     return &o->reg.args;
+}
+
+int NCDStatement_IfType (NCDStatement *o)
+{
+    ASSERT(o->type == NCDSTATEMENT_IF)
+    
+    return o->ifc.iftype;
 }
 
 NCDIfBlock * NCDStatement_IfBlock (NCDStatement *o)

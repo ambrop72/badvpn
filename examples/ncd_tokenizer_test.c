@@ -126,6 +126,9 @@ static int tokenizer_output (void *user, int token, char *value, size_t value_le
         case NCD_TOKEN_CARET:
             printf("caret\n");
             break;
+        case NCD_TOKEN_DO:
+            printf("do\n");
+            break;
         default:
             printf("UNKNOWN_TOKEN\n");
             break;

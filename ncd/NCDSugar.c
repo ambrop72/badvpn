@@ -41,6 +41,7 @@ struct desugar_state {
 static int add_template (struct desugar_state *state, NCDBlock block, NCDValue *out_name_val);
 static int desugar_block (struct desugar_state *state, NCDBlock *block);
 static int desugar_if (struct desugar_state *state, NCDBlock *block, NCDStatement *stmt, NCDStatement **out_next);
+static int desugar_do (struct desugar_state *state, NCDBlock *block, NCDStatement *stmt, NCDStatement **out_next);
 static int desugar_foreach (struct desugar_state *state, NCDBlock *block, NCDStatement *stmt, NCDStatement **out_next);
 static int desugar_blockstmt (struct desugar_state *state, NCDBlock *block, NCDStatement *stmt, NCDStatement **out_next);
 
@@ -87,7 +88,16 @@ static int desugar_block (struct desugar_state *state, NCDBlock *block)
             } break;
             
             case NCDSTATEMENT_IF: {
-                if (!desugar_if(state, block, stmt, &stmt)) {
+                int iftype = NCDStatement_IfType(stmt);
+                
+                int res = 0;
+                if (iftype == NCDIFTYPE_IF) {
+                    res = desugar_if(state, block, stmt, &stmt);
+                } else if (iftype == NCDIFTYPE_DO) {
+                    res = desugar_do(state, block, stmt, &stmt);
+                }
+                
+                if (!res) {
                     return 0;
                 }
             } break;
@@ -116,6 +126,7 @@ static int desugar_block (struct desugar_state *state, NCDBlock *block)
 static int desugar_if (struct desugar_state *state, NCDBlock *block, NCDStatement *stmt, NCDStatement **out_next)
 {
     ASSERT(NCDStatement_Type(stmt) == NCDSTATEMENT_IF)
+    ASSERT(NCDStatement_IfType(stmt) == NCDIFTYPE_IF)
     
     NCDValue args;
     NCDValue_InitList(&args);
@@ -199,6 +210,52 @@ static int desugar_if (struct desugar_state *state, NCDBlock *block, NCDStatemen
 fail_args:
     NCDValue_Free(&args);
 fail0:
+    return 0;
+}
+
+
+static int desugar_do (struct desugar_state *state, NCDBlock *block, NCDStatement *stmt, NCDStatement **out_next)
+{
+    ASSERT(NCDStatement_Type(stmt) == NCDSTATEMENT_IF)
+    ASSERT(NCDStatement_IfType(stmt) == NCDIFTYPE_DO)
+    
+    NCDIfBlock *ifblock = NCDStatement_IfBlock(stmt);
+    ASSERT(NCDIfBlock_FirstIf(ifblock))
+    
+    NCDIf the_if = NCDIfBlock_GrabIf(ifblock, NCDIfBlock_FirstIf(ifblock));
+    
+    NCDValue if_cond;
+    NCDBlock if_block;
+    NCDIf_FreeGrab(&the_if, &if_cond, &if_block);
+    
+    NCDValue_Free(&if_cond);
+    
+    NCDValue action_arg;
+    if (!add_template(state, if_block, &action_arg)) {
+        goto fail;
+    }
+    
+    NCDValue stmt_args;
+    NCDValue_InitList(&stmt_args);
+    
+    if (!NCDValue_ListAppend(&stmt_args, action_arg)) {
+        NCDValue_Free(&stmt_args);
+        NCDValue_Free(&action_arg);
+        goto fail;
+    }
+    
+    NCDStatement new_stmt;
+    if (!NCDStatement_InitReg(&new_stmt, NCDStatement_Name(stmt), NULL, "do", stmt_args)) {
+        NCDValue_Free(&stmt_args);
+        goto fail;
+    }
+    
+    stmt = NCDBlock_ReplaceStatement(block, stmt, new_stmt);
+    
+    *out_next = NCDBlock_NextStatement(block, stmt);
+    return 1;
+    
+fail:
     return 0;
 }
 

@@ -28,32 +28,45 @@
  * 
  * @section DESCRIPTION
  * 
+ * 
  * Synopsis:
  *   try(string template_name, list args)
+ *   do(string template_name)
  * 
  * Description:
  *   Does the following:
  *   1. Starts a template process from the specified template and arguments.
  *   2. Waits for the process to initialize completely, or for a _try->assert()
- *      assertion to fail.
+ *      assertion to fail or a _do->break() call.
  *   3. Initiates termination of the process and waits for it to terminate.
  *   4. Goes to up state. The "succeeded" variable reflects whether the process
  *      managed to initialize, or an assertion failed.
  *   If at any point during these steps termination of the try statement is
  *   requested, requests the process to terminate (if not already), and dies
- *   when it terminates.
+ *   when it terminates. The differences between try() and do() are that do()
+ *   directly exposes the caller scope (try() does via _caller), and the
+ *   availability of assert/break.
  * 
  * Variables:
  *   string succeeded - "true" if the template process finished, "false" if assert
- *     was called.
+ *     or break was called.
+ * 
  * 
  * Synopsis:
  *   try.try::assert(string cond)
  * 
  * Description:
- *   Call as _try->assert() from the template process. If cond is "true",
- *   does nothing. Else, initiates termination of the process (if not already),
- *   and marks the try operation as not succeeded.
+ *   Call as _try->assert() from the template process of try(). If cond is
+ *   "true", does nothing. Else, initiates termination of the process (if not
+ *   already), and marks the try operation as not succeeded.
+ * 
+ * 
+ * Synopsis:
+ *   do.do::break()
+ * 
+ * Description:
+ *   Call as _do->break() from the template process of do() to initiate
+ *   premature termination, marking the do operation as not succeeded.
  */
 
 #include <stdlib.h>
@@ -67,27 +80,25 @@
 
 struct instance {
     NCDModuleInst *i;
+    int is_do;
     NCDModuleProcess process;
     int state;
     int dying;
     int succeeded;
 };
 
-#define STATE_INIT 1
-#define STATE_DEINIT 2
-#define STATE_FINISHED 3
+enum {STATE_INIT, STATE_DEINIT, STATE_FINISHED};
 
 static void process_handler_event (NCDModuleProcess *process, int event);
 static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_t name, NCDObject *out_object);
 static int process_caller_object_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object);
 static void start_terminating (struct instance *o);
 static void instance_free (struct instance *o);
+static void instance_break (struct instance *o);
 
-enum {STRING_TRY, STRING_TRY_TRY};
+enum {STRING_TRY, STRING_TRY_TRY, STRING_DO, STRING_DO_DO};
 
-static const char *strings[] = {
-    "_try", "try.try", NULL
-};
+static const char *strings[] = {"_try", "try.try", "_do", "do.do"};
 
 static void process_handler_event (NCDModuleProcess *process, int event)
 {
@@ -102,10 +113,8 @@ static void process_handler_event (NCDModuleProcess *process, int event)
         } break;
         
         case NCDMODULEPROCESS_EVENT_DOWN: {
-            ASSERT(o->state == STATE_INIT)
-            
-            // continue
-            NCDModuleProcess_Continue(&o->process);
+            // Can't happen since we start terminating with it comes up.
+            ASSERT(0)
         } break;
         
         case NCDMODULEPROCESS_EVENT_TERMINATED: {
@@ -134,17 +143,26 @@ static int process_func_getspecialobj (NCDModuleProcess *process, NCD_string_id_
     struct instance *o = UPPER_OBJECT(process, struct instance, process);
     ASSERT(o->state == STATE_INIT || o->state == STATE_DEINIT)
     
-    if (name == NCD_STRING_CALLER) {
-        *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, process_caller_object_func_getobj);
-        return 1;
+    if (o->is_do) {
+        if (name == ModuleString(o->i, STRING_DO)) {
+            *out_object = NCDObject_Build(ModuleString(o->i, STRING_DO_DO), o, NCDObject_no_getvar, NCDObject_no_getobj);
+            return 1;
+        }
+        
+        return NCDModuleInst_Backend_GetObj(o->i, name, out_object);
+    } else {
+        if (name == NCD_STRING_CALLER) {
+            *out_object = NCDObject_Build(-1, o, NCDObject_no_getvar, process_caller_object_func_getobj);
+            return 1;
+        }
+        
+        if (name == ModuleString(o->i, STRING_TRY)) {
+            *out_object = NCDObject_Build(ModuleString(o->i, STRING_TRY_TRY), o, NCDObject_no_getvar, NCDObject_no_getobj);
+            return 1;
+        }
+        
+        return 0;
     }
-    
-    if (name == ModuleString(o->i, STRING_TRY)) {
-        *out_object = NCDObject_Build(ModuleString(o->i, STRING_TRY_TRY), o, NCDObject_no_getvar, NCDObject_no_getobj);
-        return 1;
-    }
-    
-    return 0;
 }
 
 static int process_caller_object_func_getobj (const NCDObject *obj, NCD_string_id_t name, NCDObject *out_object)
@@ -166,25 +184,14 @@ static void start_terminating (struct instance *o)
     o->state = STATE_DEINIT;
 }
 
-static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+static void func_new_common (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params, int is_do, NCDValRef template_name, NCDValRef args)
 {
     struct instance *o = vo;
     o->i = i;
-    
-    // check arguments
-    NCDValRef template_name_arg;
-    NCDValRef args_arg;
-    if (!NCDVal_ListRead(params->args, 2, &template_name_arg, &args_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong arity");
-        goto fail0;
-    }
-    if (!NCDVal_IsString(template_name_arg) || !NCDVal_IsList(args_arg)) {
-        ModuleLog(o->i, BLOG_ERROR, "wrong type");
-        goto fail0;
-    }
+    o->is_do = is_do;
     
     // start process
-    if (!NCDModuleProcess_InitValue(&o->process, i, template_name_arg, args_arg, process_handler_event)) {
+    if (!NCDModuleProcess_InitValue(&o->process, i, template_name, args, process_handler_event)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDModuleProcess_Init failed");
         goto fail0;
     }
@@ -202,9 +209,61 @@ fail0:
     NCDModuleInst_Backend_DeadError(i);
 }
 
+static void func_new_try (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    // check arguments
+    NCDValRef template_name_arg;
+    NCDValRef args_arg;
+    if (!NCDVal_ListRead(params->args, 2, &template_name_arg, &args_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail;
+    }
+    if (!NCDVal_IsString(template_name_arg) || !NCDVal_IsList(args_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail;
+    }
+    
+    return func_new_common(vo, i, params, 0, template_name_arg, args_arg);
+    
+fail:
+    NCDModuleInst_Backend_DeadError(i);
+}
+
+static void func_new_do (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    // check arguments
+    NCDValRef template_name_arg;
+    if (!NCDVal_ListRead(params->args, 1, &template_name_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail;
+    }
+    if (!NCDVal_IsString(template_name_arg)) {
+        ModuleLog(i, BLOG_ERROR, "wrong type");
+        goto fail;
+    }
+    
+    return func_new_common(vo, i, params, 1, template_name_arg, NCDVal_NewInvalid());
+    
+fail:
+    NCDModuleInst_Backend_DeadError(i);
+}
+
 static void instance_free (struct instance *o)
 {   
     NCDModuleInst_Backend_Dead(o->i);
+}
+
+static void instance_break (struct instance *o)
+{
+    ASSERT(o->state == STATE_INIT || o->state == STATE_DEINIT)
+    
+    // mark not succeeded
+    o->succeeded = 0;
+    
+    // start terminating if not already
+    if (o->state == STATE_INIT) {
+        start_terminating(o);
+    }
 }
 
 static void func_die (void *vo)
@@ -254,22 +313,33 @@ static void assert_func_new (void *unused, NCDModuleInst *i, const struct NCDMod
         goto fail1;
     }
     
-    // get instance
-    struct instance *mo = params->method_user;
-    ASSERT(mo->state == STATE_INIT || mo->state == STATE_DEINIT)
+    // signal up
+    NCDModuleInst_Backend_Up(i);
+    
+    // break if needed
+    if (!NCDVal_StringEquals(cond_arg, "true")) {
+        instance_break((struct instance *)params->method_user);
+    }
+    
+    return;
+    
+fail1:
+    NCDModuleInst_Backend_DeadError(i);
+}
+
+static void break_func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    // check arguments
+    if (!NCDVal_ListRead(params->args, 0)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail1;
+    }
     
     // signal up
     NCDModuleInst_Backend_Up(i);
     
-    if (!NCDVal_StringEquals(cond_arg, "true")) {
-        // mark not succeeded
-        mo->succeeded = 0;
-        
-        // start terminating if not already
-        if (mo->state == STATE_INIT) {
-            start_terminating(mo);
-        }
-    }
+    // break
+    instance_break((struct instance *)params->method_user);
     
     return;
     
@@ -280,13 +350,22 @@ fail1:
 static struct NCDModule modules[] = {
     {
         .type = "try",
-        .func_new2 = func_new,
+        .func_new2 = func_new_try,
+        .func_die = func_die,
+        .func_getvar2 = func_getvar2,
+        .alloc_size = sizeof(struct instance)
+    }, {
+        .type = "do",
+        .func_new2 = func_new_do,
         .func_die = func_die,
         .func_getvar2 = func_getvar2,
         .alloc_size = sizeof(struct instance)
     }, {
         .type = "try.try::assert",
         .func_new2 = assert_func_new
+    }, {
+        .type = "do.do::break",
+        .func_new2 = break_func_new
     }, {
         .type = NULL
     }

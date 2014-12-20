@@ -309,7 +309,7 @@ statement(R) ::= IF ROUND_OPEN value(A) ROUND_CLOSE CURLY_OPEN statements(B) CUR
         goto failE0;
     }
 
-    if (!NCDStatement_InitIf(&R.v, C, I.v)) {
+    if (!NCDStatement_InitIf(&R.v, C, I.v, NCDIFTYPE_IF)) {
         goto failE0;
     }
     I.have = 0;
@@ -476,6 +476,43 @@ failGA0:
     R.have = 0;
     parser_out->out_of_memory = 1;
 doneGA0:
+    free_block(S);
+    free(N);
+}
+
+statement(R) ::= TOKEN_DO CURLY_OPEN statements(S) CURLY_CLOSE name_maybe(N) SEMICOLON. {
+    if (!S.have) {
+        goto failGB0;
+    }
+    
+    NCDValue dummy_val;
+    NCDValue_InitList(&dummy_val);
+    
+    NCDIf the_if;
+    NCDIf_Init(&the_if, dummy_val, S.v);
+    S.have = 0;
+    
+    NCDIfBlock if_block;
+    NCDIfBlock_Init(&if_block);
+    
+    if (!NCDIfBlock_PrependIf(&if_block, the_if)) {
+        NCDIfBlock_Free(&if_block);
+        NCDIf_Free(&the_if);
+        goto failGB0;
+    }
+    
+    if (!NCDStatement_InitIf(&R.v, N, if_block, NCDIFTYPE_DO)) {
+        NCDIfBlock_Free(&if_block);
+        goto failGB0;
+    }
+    
+    R.have = 1;
+    goto doneGB0;
+    
+failGB0:
+    R.have = 0;
+    parser_out->out_of_memory = 1;
+doneGB0:
     free_block(S);
     free(N);
 }

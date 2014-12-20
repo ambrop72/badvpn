@@ -118,6 +118,7 @@ struct NCDStatement_s {
             NCDIfBlock ifblock;
             int have_else;
             NCDBlock else_block;
+            int iftype;
         } ifc;
         struct {
             NCDValue collection;
@@ -154,6 +155,9 @@ struct NCDIf_s {
 #define NCDSTATEMENT_IF 2
 #define NCDSTATEMENT_FOREACH 3
 #define NCDSTATEMENT_BLOCK 4
+
+#define NCDIFTYPE_IF 1
+#define NCDIFTYPE_DO 2
 
 void NCDValue_Free (NCDValue *o);
 int NCDValue_Type (NCDValue *o);
@@ -216,7 +220,7 @@ NCDStatement * NCDBlock_NextStatement (NCDBlock *o, NCDStatement *es);
 size_t NCDBlock_NumStatements (NCDBlock *o);
 
 int NCDStatement_InitReg (NCDStatement *o, const char *name, const char *objname, const char *cmdname, NCDValue args) WARN_UNUSED;
-int NCDStatement_InitIf (NCDStatement *o, const char *name, NCDIfBlock ifblock) WARN_UNUSED;
+int NCDStatement_InitIf (NCDStatement *o, const char *name, NCDIfBlock ifblock, int iftype) WARN_UNUSED;
 int NCDStatement_InitForeach (NCDStatement *o, const char *name, NCDValue collection, const char *name1, const char *name2, NCDBlock block) WARN_UNUSED;
 int NCDStatement_InitBlock (NCDStatement *o, const char *name, NCDBlock block) WARN_UNUSED;
 void NCDStatement_Free (NCDStatement *o);
@@ -225,6 +229,7 @@ const char * NCDStatement_Name (NCDStatement *o);
 const char * NCDStatement_RegObjName (NCDStatement *o);
 const char * NCDStatement_RegCmdName (NCDStatement *o);
 NCDValue * NCDStatement_RegArgs (NCDStatement *o);
+int NCDStatement_IfType (NCDStatement *o);
 NCDIfBlock * NCDStatement_IfBlock (NCDStatement *o);
 void NCDStatement_IfAddElse (NCDStatement *o, NCDBlock else_block);
 NCDBlock * NCDStatement_IfElse (NCDStatement *o);
