@@ -31,10 +31,11 @@
  * Blocker module. Provides a statement that blocks when initialized, and which can be blocked
  * and unblocked from outside.
  * 
- * Synopsis: blocker()
- * Description: provides blocking operations. Initially the blocking state is down (but this statement
- *              does not block). On deinitialization, waits for all corresponding use() statements
- *              to die before dying itself.
+ * Synopsis: blocker([string initial_state])
+ * Description: provides blocking operations. On deinitialization, waits for all corresponding
+ *              use() statements to die before dying itself.
+ *              The optional boolean argument initial_state specifies the initial up-state
+ *              of the blocker. If not given, the default is false (not up).
  * Variables: string (empty) - the up-state (false or true).
  * 
  * Synopsis: blocker::up()
@@ -107,10 +108,22 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     struct instance *o = vo;
     o->i = i;
     
-    // check arguments
-    if (!NCDVal_ListRead(params->args, 0)) {
+    // read arguments
+    NCDValRef initial_state = NCDVal_NewInvalid();
+    if (!NCDVal_ListRead(params->args, 0) &&
+        !NCDVal_ListRead(params->args, 1, &initial_state)
+    ) {
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail0;
+    }
+    
+    // get the initial state
+    o->up = 0;
+    if (!NCDVal_IsInvalid(initial_state)) {
+        if (!ncd_read_boolean(initial_state, &o->up)) {
+            ModuleLog(o->i, BLOG_ERROR, "bad initial_state argument");
+            goto fail0;
+        }
     }
     
     // init users list
@@ -118,9 +131,6 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     
     // init rdownups list
     LinkedList0_Init(&o->rdownups_list);
-    
-    // set not up
-    o->up = 0;
     
     // set not dying
     o->dying = 0;
