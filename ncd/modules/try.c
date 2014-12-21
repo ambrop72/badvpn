@@ -75,10 +75,12 @@
  * 
  * Synopsis:
  *   do.do::break()
+ *   do.do::rbreak()
  * 
  * Description:
  *   Call as _do->break() from the template process of do() to initiate
  *   premature termination, marking the do operation as not succeeded.
+ *   The rbreak() does so on deinitialization.
  */
 
 #include <stdlib.h>
@@ -100,6 +102,11 @@ struct instance {
     int intstate;
     int dying;
     int succeeded;
+};
+
+struct rbreak_instance {
+    NCDModuleInst *i;
+    NCDObjRef objref;
 };
 
 enum {STATE_INIT, STATE_DEINIT, STATE_FINISHED, STATE_WAITINT};
@@ -437,6 +444,52 @@ fail1:
     NCDModuleInst_Backend_DeadError(i);
 }
 
+static void rbreak_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
+{
+    struct rbreak_instance *o = vo;
+    o->i = i;
+    
+    // check arguments
+    if (!NCDVal_ListRead(params->args, 0)) {
+        ModuleLog(i, BLOG_ERROR, "wrong arity");
+        goto fail0;
+    }
+    
+    // init object reference
+    NCDObject obj = NCDModuleInst_Object(((struct instance *)params->method_user)->i);
+    NCDObjRef_Init(&o->objref, NCDObject_Pobj(&obj));
+    
+    // go up
+    NCDModuleInst_Backend_Up(i);
+    return;
+    
+fail0:
+    NCDModuleInst_Backend_DeadError(i);
+}
+
+static void rbreak_func_die (void *vo)
+{
+    struct rbreak_instance *o = vo;
+    
+    // deref backtrack_point
+    NCDModuleInst *inst = NULL;
+    NCDObject obj;
+    if (NCDObjRef_Deref(&o->objref, &obj)) {
+        inst = NCDObject_MethodUser(&obj);
+    }
+    
+    // free object reference
+    NCDObjRef_Free(&o->objref);
+    
+    // die
+    NCDModuleInst_Backend_Dead(o->i);
+    
+    // break
+    if (inst) {
+        instance_break((struct instance *)NCDModuleInst_Backend_GetUser(inst));
+    }
+}
+
 static struct NCDModule modules[] = {
     {
         .type = "try",
@@ -456,6 +509,11 @@ static struct NCDModule modules[] = {
     }, {
         .type = "do.do::break",
         .func_new2 = break_func_new
+    }, {
+        .type = "do.do::rbreak",
+        .func_new2 = rbreak_func_new,
+        .func_die = rbreak_func_die,
+        .alloc_size = sizeof(struct rbreak_instance)
     }, {
         .type = NULL
     }

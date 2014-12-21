@@ -58,6 +58,21 @@ process main {
     If (@true) {
         blocker() blk1;
         blocker() blk2;
+        Do {
+            backtrack_point() point;
+            _do->rbreak();
+            blk1->up();
+            point->go();
+            blk2->up();
+        } do;
+        assert_false(do.succeeded);
+        assert(blk1);
+        assert_false(blk2);
+    };
+    
+    If (@true) {
+        blocker() blk1;
+        blocker() blk2;
         blocker() blk3;
         Do {
             blk1->up();
