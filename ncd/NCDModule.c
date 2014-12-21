@@ -389,6 +389,35 @@ int NCDModuleInst_Backend_InterpLoadGroup (NCDModuleInst *n, const struct NCDMod
     return n->params->iparams->func_loadgroup(n->params->iparams->user, group);
 }
 
+void NCDModuleRef_Init (NCDModuleRef *o, NCDModuleInst *inst)
+{
+    ASSERT(!inst->pass_mem_to_methods)
+    
+    NCDObject obj = NCDModuleInst_Object(inst);
+    NCDObjRef_Init(&o->objref, NCDObject_Pobj(&obj));
+    
+    DebugObject_Init(&o->d_obj);
+}
+
+void NCDModuleRef_Free (NCDModuleRef *o)
+{
+    DebugObject_Free(&o->d_obj);
+    
+    NCDObjRef_Free(&o->objref);
+}
+
+NCDModuleInst * NCDModuleRef_Deref (NCDModuleRef *o)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    NCDModuleInst *res = NULL;
+    NCDObject obj;
+    if (NCDObjRef_Deref(&o->objref, &obj)) {
+        res = NCDObject_MethodUser(&obj);
+    }
+    return res;
+}
+
 int NCDModuleProcess_InitId (NCDModuleProcess *o, NCDModuleInst *n, NCD_string_id_t template_name, NCDValRef args, NCDModuleProcess_handler_event handler_event)
 {
     DebugObject_Access(&n->d_obj);

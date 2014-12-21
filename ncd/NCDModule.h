@@ -383,6 +383,14 @@ typedef struct NCDModuleInst_s {
 } NCDModuleInst;
 
 /**
+ * Weak NCDModuleInst reference.
+ */
+typedef struct {
+    NCDObjRef objref;
+    DebugObject d_obj;
+} NCDModuleRef;
+
+/**
  * Process created from a process template on behalf of a module backend
  * instance, implemented by the interpreter.
  */
@@ -612,6 +620,24 @@ btime_t NCDModuleInst_Backend_InterpGetRetryTime (NCDModuleInst *n);
  * @return 1 on success, 0 on failure
  */
 int NCDModuleInst_Backend_InterpLoadGroup (NCDModuleInst *n, const struct NCDModuleGroup *group);
+
+/**
+ * Initializes a weak reference to a module instance.
+ * The instane must no have had NCDModuleInst_Backend_PassMemToMethods
+ * called.
+ */
+void NCDModuleRef_Init (NCDModuleRef *o, NCDModuleInst *inst);
+
+/**
+ * Frees the reference.
+ */
+void NCDModuleRef_Free (NCDModuleRef *o);
+
+/**
+ * Dereferences the reference.
+ * If the reference was broken, returns NULL.
+ */
+NCDModuleInst * NCDModuleRef_Deref (NCDModuleRef *o);
 
 /**
  * Initializes a process in the interpreter from a process template.

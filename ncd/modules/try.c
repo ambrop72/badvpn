@@ -106,7 +106,7 @@ struct instance {
 
 struct rbreak_instance {
     NCDModuleInst *i;
-    NCDObjRef objref;
+    NCDModuleRef ref;
 };
 
 enum {STATE_INIT, STATE_DEINIT, STATE_FINISHED, STATE_WAITINT};
@@ -456,8 +456,7 @@ static void rbreak_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleI
     }
     
     // init object reference
-    NCDObject obj = NCDModuleInst_Object(((struct instance *)params->method_user)->i);
-    NCDObjRef_Init(&o->objref, NCDObject_Pobj(&obj));
+    NCDModuleRef_Init(&o->ref, ((struct instance *)params->method_user)->i);
     
     // go up
     NCDModuleInst_Backend_Up(i);
@@ -472,14 +471,10 @@ static void rbreak_func_die (void *vo)
     struct rbreak_instance *o = vo;
     
     // deref backtrack_point
-    NCDModuleInst *inst = NULL;
-    NCDObject obj;
-    if (NCDObjRef_Deref(&o->objref, &obj)) {
-        inst = NCDObject_MethodUser(&obj);
-    }
+    NCDModuleInst *inst = NCDModuleRef_Deref(&o->ref);
     
     // free object reference
-    NCDObjRef_Free(&o->objref);
+    NCDModuleRef_Free(&o->ref);
     
     // die
     NCDModuleInst_Backend_Dead(o->i);

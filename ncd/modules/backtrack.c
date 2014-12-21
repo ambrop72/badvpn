@@ -50,7 +50,7 @@
 
 struct rgo_instance {
     NCDModuleInst *i;
-    NCDObjRef bp_ref;
+    NCDModuleRef bp_ref;
 };
 
 static void func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
@@ -106,8 +106,7 @@ static void rgo_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst
     NCDModuleInst *backtrack_point_inst = params->method_user;
     
     // init object reference to the backtrack_point
-    NCDObject obj = NCDModuleInst_Object(backtrack_point_inst);
-    NCDObjRef_Init(&o->bp_ref, NCDObject_Pobj(&obj));
+    NCDModuleRef_Init(&o->bp_ref, backtrack_point_inst);
     
     // go up
     NCDModuleInst_Backend_Up(i);
@@ -122,14 +121,10 @@ static void rgo_func_die (void *vo)
     struct rgo_instance *o = vo;
     
     // deref backtrack_point
-    NCDModuleInst *backtrack_point_inst = NULL;
-    NCDObject rgo_obj;
-    if (NCDObjRef_Deref(&o->bp_ref, &rgo_obj)) {
-        backtrack_point_inst = NCDObject_MethodUser(&rgo_obj);
-    }
+    NCDModuleInst *backtrack_point_inst = NCDModuleRef_Deref(&o->bp_ref);
     
     // free object reference
-    NCDObjRef_Free(&o->bp_ref);
+    NCDModuleRef_Free(&o->bp_ref);
     
     // die
     NCDModuleInst_Backend_Dead(o->i);
