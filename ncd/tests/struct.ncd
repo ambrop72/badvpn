@@ -1,0 +1,49 @@
+process main {
+    var(@struct_encode({{@u8, "0"}})) x;
+    assert(@val_equal(x, "\x00"));
+    var(@struct_encode({{@u8, "254"}})) x;
+    assert(@val_equal(x, "\xFE"));
+    var(@struct_encode({{@u8, "255"}})) x;
+    assert(@val_equal(x, "\xFF"));
+
+    var(@struct_encode({{@u16b, "0"}})) x;
+    assert(@val_equal(x, "\x00\x00"));
+    var(@struct_encode({{@u16l, "0"}})) x;
+    assert(@val_equal(x, "\x00\x00"));
+    var(@struct_encode({{@u16b, "65534"}})) x;
+    assert(@val_equal(x, "\xFF\xFE"));
+    var(@struct_encode({{@u16l, "65534"}})) x;
+    assert(@val_equal(x, "\xFE\xFF"));
+    var(@struct_encode({{@u16b, "65535"}})) x;
+    assert(@val_equal(x, "\xFF\xFF"));
+    var(@struct_encode({{@u16l, "65535"}})) x;
+    assert(@val_equal(x, "\xFF\xFF"));
+
+    var(@struct_encode({{@u32b, "0"}})) x;
+    assert(@val_equal(x, "\x00\x00\x00\x00"));
+    var(@struct_encode({{@u32l, "0"}})) x;
+    assert(@val_equal(x, "\x00\x00\x00\x00"));
+    var(@struct_encode({{@u32b, "4294967294"}})) x;
+    assert(@val_equal(x, "\xFF\xFF\xFF\xFE"));
+    var(@struct_encode({{@u32l, "4294967294"}})) x;
+    assert(@val_equal(x, "\xFE\xFF\xFF\xFF"));
+    var(@struct_encode({{@u32b, "4294967295"}})) x;
+    assert(@val_equal(x, "\xFF\xFF\xFF\xFF"));
+    var(@struct_encode({{@u32l, "4294967295"}})) x;
+    assert(@val_equal(x, "\xFF\xFF\xFF\xFF"));
+
+    var(@struct_encode({{@u64b, "0"}})) x;
+    assert(@val_equal(x, "\x00\x00\x00\x00\x00\x00\x00\x00"));
+    var(@struct_encode({{@u64l, "0"}})) x;
+    assert(@val_equal(x, "\x00\x00\x00\x00\x00\x00\x00\x00"));
+    var(@struct_encode({{@u64b, "18446744073709551614"}})) x;
+    assert(@val_equal(x, "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE"));
+    var(@struct_encode({{@u64l, "18446744073709551614"}})) x;
+    assert(@val_equal(x, "\xFE\xFF\xFF\xFF\xFF\xFF\xFF\xFF"));
+    var(@struct_encode({{@u64b, "18446744073709551615"}})) x;
+    assert(@val_equal(x, "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"));
+    var(@struct_encode({{@u64l, "18446744073709551615"}})) x;
+    assert(@val_equal(x, "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"));
+
+    exit("0");
+}
