@@ -461,7 +461,31 @@ DEFINE_PERCHAR(tolower, b_ascii_tolower(ch))
 DEFINE_PERCHAR(toupper, b_ascii_toupper(ch))
 
 
-// struct_encode
+// struct_encode, struct_decode
+
+static int read_integer_encoding (NCDValRef encoding, int *out_big, int *out_size)
+{
+    if (!NCDVal_IsString(encoding)) {
+        return 0;
+    }
+    int big;
+    int size;
+    if (NCDVal_StringEquals(encoding, "u8")) {
+        big = 0;
+        size = 1;
+    } else if ((big = NCDVal_StringEquals(encoding, "u16b")) || NCDVal_StringEquals(encoding, "u16l")) {
+        size = 2;
+    } else if ((big = NCDVal_StringEquals(encoding, "u32b")) || NCDVal_StringEquals(encoding, "u32l")) {
+        size = 4;
+    } else if ((big = NCDVal_StringEquals(encoding, "u64b")) || NCDVal_StringEquals(encoding, "u64l")) {
+        size = 8;
+    } else {
+        return 0;
+    }
+    *out_big = big;
+    *out_size = size;
+    return 1;
+}
 
 static int struct_encode_single (NCDCall call, ExpString *estr, NCDValRef encoding, NCDValRef value)
 {
@@ -472,15 +496,7 @@ static int struct_encode_single (NCDCall call, ExpString *estr, NCDValRef encodi
     }
     int big;
     int size;
-    if ((big = NCDVal_StringEquals(encoding, "u8"))) {
-        size = 1;
-    } else if ((big = NCDVal_StringEquals(encoding, "u16b")) || NCDVal_StringEquals(encoding, "u16l")) {
-        size = 2;
-    } else if ((big = NCDVal_StringEquals(encoding, "u32b")) || NCDVal_StringEquals(encoding, "u32l")) {
-        size = 4;
-    } else if ((big = NCDVal_StringEquals(encoding, "u64b")) || NCDVal_StringEquals(encoding, "u64l")) {
-        size = 8;
-    } else {
+    if (!read_integer_encoding(encoding, &big, &size)) {
         FunctionLog(&call, BLOG_ERROR, "struct_encode: invalid encoding specified");
         return 0;
     }
@@ -532,10 +548,6 @@ static void struct_encode_eval (NCDCall call)
             FunctionLog(&call, BLOG_ERROR, "struct_encode: element list must have two elements");
             goto fail1;
         }
-        if (!NCDVal_IsString(encoding)) {
-            FunctionLog(&call, BLOG_ERROR, "struct_encode: encoding must be a string");
-            goto fail1;
-        }
         if (!struct_encode_single(call, &estr, encoding, value)) {
             goto fail1;
         }
@@ -543,6 +555,82 @@ static void struct_encode_eval (NCDCall call)
     NCDCall_SetResult(&call, NCDVal_NewStringBinMr(NCDCall_ResMem(&call), ExpString_GetMr(&estr)));
 fail1:
     ExpString_Free(&estr);
+fail0:
+    return;
+}
+
+static int struct_decode_single (NCDCall call, MemRef *data, NCDValRef encoding, NCDValRef result_list)
+{
+    int big;
+    int size;
+    if (!read_integer_encoding(encoding, &big, &size)) {
+        FunctionLog(&call, BLOG_ERROR, "struct_decode: invalid encoding specified");
+        return 0;
+    }
+    if (data->len < size) {
+        FunctionLog(&call, BLOG_ERROR, "struct_decode: insufficient data available");
+        return 0;
+    }
+    uintmax_t val_int = 0;
+    for (int i = 0; i < size; i++) {
+        val_int <<= 8;
+        val_int |= *(uint8_t const *)(data->ptr + (big ? i : (size - 1 - i)));
+    }
+    *data = MemRef_SubFrom(*data, size);
+    NCDValRef value = ncd_make_uintmax(NCDCall_ResMem(&call), val_int);
+    if (NCDVal_IsInvalid(value)) {
+        return 0;
+    }
+    if (!NCDVal_ListAppend(result_list, value)) {
+        return 0;
+    }
+    return 1;
+}
+
+static void struct_decode_eval (NCDCall call)
+{
+    if (NCDCall_ArgCount(&call) != 2) {
+        FunctionLog(&call, BLOG_ERROR, "struct_decode: need two arguments");
+        goto fail0;
+    }
+    NCDValRef format_arg = NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call));
+    if (NCDVal_IsInvalid(format_arg)) {
+        goto fail0;
+    }
+    if (!NCDVal_IsList(format_arg)) {
+        FunctionLog(&call, BLOG_ERROR, "struct_decode: format argument must be a list");
+        goto fail0;
+    }
+    // Evaluate the data string to temp mem, so the pointer doesn't change.
+    NCDValMem temp_mem;
+    NCDValMem_Init(&temp_mem);
+    NCDValRef data_arg = NCDCall_EvalArg(&call, 1, &temp_mem);
+    if (NCDVal_IsInvalid(data_arg)) {
+        goto fail1;
+    }
+    if (!NCDVal_IsString(data_arg)) {
+        FunctionLog(&call, BLOG_ERROR, "struct_decode: data argument must be a string");
+        goto fail1;
+    }
+    size_t count = NCDVal_ListCount(format_arg);
+    NCDValRef result_list = NCDVal_NewList(NCDCall_ResMem(&call), count);
+    if (NCDVal_IsInvalid(result_list)) {
+        goto fail1;
+    }
+    MemRef data = NCDVal_StringMemRef(data_arg);
+    for (size_t i = 0; i < count; i++) {
+        NCDValRef encoding = NCDVal_ListGet(format_arg, i);
+        if (!struct_decode_single(call, &data, encoding, result_list)) {
+            goto fail1;
+        }
+    }
+    if (data.len > 0) {
+        FunctionLog(&call, BLOG_ERROR, "struct_decode: not all data was consumed");
+        goto fail1;
+    }
+    NCDCall_SetResult(&call, result_list);
+fail1:
+    NCDValMem_Free(&temp_mem);
 fail0:
     return;
 }
@@ -654,6 +742,9 @@ static struct NCDModuleFunction const functions[] = {
     }, {
         .func_name = "struct_encode",
         .func_eval = struct_encode_eval
+    }, {
+        .func_name = "struct_decode",
+        .func_eval = struct_decode_eval
     }, {
         .func_name = NULL
     }
