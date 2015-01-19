@@ -238,6 +238,7 @@ struct BConnection_source {
 #ifndef BADVPN_USE_WINAPI
         struct {
             int pipefd;
+            int close_it;
         } pipe;
 #endif
     } u;
@@ -261,11 +262,12 @@ static struct BConnection_source BConnection_source_connector (BConnector *conne
 }
 
 #ifndef BADVPN_USE_WINAPI
-static struct BConnection_source BConnection_source_pipe (int pipefd)
+static struct BConnection_source BConnection_source_pipe (int pipefd, int close_it)
 {
     struct BConnection_source s;
     s.type = BCONNECTION_SOURCE_TYPE_PIPE;
     s.u.pipe.pipefd = pipefd;
+    s.u.pipe.close_it = close_it;
     return s;
 }
 #endif
@@ -313,9 +315,10 @@ typedef void (*BConnection_handler) (void *user, int event);
  *                 Uses a connection establised with {@link BConnector}. Must be called from the job
  *                 closure of the connector's {@link BConnector_handler}, the handler must be reporting
  *                 successful connection, and must be the first attempt for this handler invocation.
- *               - BCONNECTION_SOURCE_PIPE(int)
+ *               - BCONNECTION_SOURCE_PIPE(int pipefd, int close_it)
  *                 On Unix-like systems, uses the provided file descriptor. The file descriptor number must
- *                 be >=0.
+ *                 be >=0. If close_it is true, the connector will take responsibility of closing the
+ *                 pipefd. Note that it will be closed even when this Init fails.
  * @param reactor reactor we live in
  * @param user argument to handler
  * @param handler handler called when an error occurs or the receive end of the connection was closed

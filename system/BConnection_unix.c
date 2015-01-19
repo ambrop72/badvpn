@@ -786,7 +786,7 @@ int BConnection_Init (BConnection *o, struct BConnection_source source, BReactor
         case BCONNECTION_SOURCE_TYPE_PIPE: {
             // use user-provided fd
             o->fd = source.u.pipe.pipefd;
-            o->close_fd = 0;
+            o->close_fd = !!source.u.pipe.close_it;
             
             // set non-blocking
             if (!badvpn_set_nonblocking(o->fd)) {

@@ -754,7 +754,7 @@ static void read_pipe_func_new (void *vo, NCDModuleInst *i, const struct NCDModu
     }
     
     // init connection
-    if (!BConnection_Init(&o->connection, BConnection_source_pipe(pinst->read_fd), i->params->iparams->reactor, o, read_pipe_connection_handler)) {
+    if (!BConnection_Init(&o->connection, BConnection_source_pipe(pinst->read_fd, 0), i->params->iparams->reactor, o, read_pipe_connection_handler)) {
         ModuleLog(i, BLOG_ERROR, "BConnection_Init failed");
         goto fail0;
     }
@@ -1022,7 +1022,7 @@ static void write_pipe_func_new (void *vo, NCDModuleInst *i, const struct NCDMod
     }
     
     // init connection
-    if (!BConnection_Init(&o->connection, BConnection_source_pipe(pinst->write_fd), i->params->iparams->reactor, o, write_pipe_connection_handler)) {
+    if (!BConnection_Init(&o->connection, BConnection_source_pipe(pinst->write_fd, 0), i->params->iparams->reactor, o, write_pipe_connection_handler)) {
         ModuleLog(i, BLOG_ERROR, "BConnection_Init failed");
         goto fail0;
     }
