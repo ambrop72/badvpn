@@ -49,6 +49,41 @@
 int BConnection_AddressSupported (BAddr addr);
 
 
+#define BLISCON_FROM_ADDR 1
+#define BLISCON_FROM_UNIX 2
+
+struct BLisCon_from {
+    int type;
+    union {
+        struct {
+            BAddr addr;
+        } from_addr;
+#ifndef BADVPN_USE_WINAPI
+        struct {
+            char const *socket_path;
+        } from_unix;
+#endif
+    } u;
+};
+
+static struct BLisCon_from BLisCon_from_addr (BAddr addr)
+{
+    struct BLisCon_from res;
+    res.type = BLISCON_FROM_ADDR;
+    res.u.from_addr.addr = addr;
+    return res;
+}
+
+#ifndef BADVPN_USE_WINAPI
+static struct BLisCon_from BLisCon_from_unix (char const *socket_path)
+{
+    struct BLisCon_from res;
+    res.type = BLISCON_FROM_UNIX;
+    res.u.from_unix.socket_path = socket_path;
+    return res;
+}
+#endif
+
 
 struct BListener_s;
 
@@ -71,7 +106,16 @@ typedef struct BListener_s BListener;
 typedef void (*BListener_handler) (void *user);
 
 /**
- * Initializes the object.
+ * Common listener initialization function.
+ * 
+ * The other type-specific init functions are wrappers around this one.
+ */
+int BListener_InitFrom (BListener *o, struct BLisCon_from from,
+                        BReactor *reactor, void *user,
+                        BListener_handler handler) WARN_UNUSED;
+
+/**
+ * Initializes the object for listening on an address.
  * {@link BNetwork_GlobalInit} must have been done.
  * 
  * @param o the object
@@ -131,7 +175,15 @@ typedef struct BConnector_s BConnector;
 typedef void (*BConnector_handler) (void *user, int is_error);
 
 /**
- * Initializes the object.
+ * Common connector initialization function.
+ * 
+ * The other type-specific init functions are wrappers around this one.
+ */
+int BConnector_InitFrom (BConnector *o, struct BLisCon_from from, BReactor *reactor, void *user,
+                         BConnector_handler handler) WARN_UNUSED;
+
+/**
+ * Initializes the object for connecting to an address.
  * {@link BNetwork_GlobalInit} must have been done.
  * 
  * @param o the object
