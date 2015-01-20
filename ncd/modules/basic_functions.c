@@ -636,6 +636,46 @@ fail0:
 }
 
 
+// checksum
+
+static void checksum_eval (NCDCall call)
+{
+    if (NCDCall_ArgCount(&call) != 2) {
+        FunctionLog(&call, BLOG_ERROR, "checksum: need two arguments");
+        return;
+    }
+    NCDValRef algorithm_arg = NCDCall_EvalArg(&call, 0, NCDCall_ResMem(&call));
+    if (NCDVal_IsInvalid(algorithm_arg)) {
+        return;
+    }
+    if (!NCDVal_IsString(algorithm_arg)) {
+        FunctionLog(&call, BLOG_ERROR, "checksum: algorithm argument must be a string");
+        return;
+    }
+    NCDValRef data_arg = NCDCall_EvalArg(&call, 1, NCDCall_ResMem(&call));
+    if (NCDVal_IsInvalid(data_arg)) {
+        return;
+    }
+    if (!NCDVal_IsString(data_arg)) {
+        FunctionLog(&call, BLOG_ERROR, "checksum: data argument must be a string");
+        return;
+    }
+    MemRef data = NCDVal_StringMemRef(data_arg);
+    uintmax_t result;
+    if (NCDVal_StringEquals(algorithm_arg, "inverted_sum_bytes")) {
+        uint8_t s = 0;
+        for (size_t i = 0; i < data.len; i++) {
+            s += *(uint8_t const *)(data.ptr + i);
+        }
+        result = (uint8_t)~s;
+    } else {
+        FunctionLog(&call, BLOG_ERROR, "checksum: unknown algorithm");
+        return;
+    }
+    NCDCall_SetResult(&call, ncd_make_uintmax(NCDCall_ResMem(&call), result));
+}
+
+
 static struct NCDModuleFunction const functions[] = {
     {
         .func_name = "error",
@@ -745,6 +785,9 @@ static struct NCDModuleFunction const functions[] = {
     }, {
         .func_name = "struct_decode",
         .func_eval = struct_decode_eval
+    }, {
+        .func_name = "checksum",
+        .func_eval = checksum_eval
     }, {
         .func_name = NULL
     }
