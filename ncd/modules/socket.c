@@ -45,7 +45,8 @@
  *   in one of the following forms:
  *   - {"tcp", {"ipv4", ipv4_address, port_number}},
  *   - {"tcp", {"ipv6", ipv6_address, port_number}},
- *   - {"unix", socket_path}.
+ *   - {"unix", socket_path},
+ *   - {"device", device_path}.
  *   When the connection attempt is finished, the sys.connect() statement goes
  *   up, and the 'is_error' variable should be used to check for connection
  *   failure. If there was no error, the read(), write() and close() methods
@@ -56,6 +57,8 @@
  *   errors with the connection can be handled at the place of sys.connect(),
  *   and no special care is normally needed to handle error in read() and
  *   write().
+ *   The special "device" address type may be used to connect to a serial
+ *   port. But you need to configure the port yourself first (stty).
  *   WARNING: when you're not trying to either send or receive data, the
  *   connection may be unable to detect any events with the connection.
  *   You should never be neither sending nor receiving for an indefinite time.
@@ -124,7 +127,9 @@
  *     {"ipv4", "1.2.3.4", "4000"}.
  * 
  * Description:
- *   Starts listening on the specified address. The 'is_error' variable
+ *   Starts listening on the specified address. The format of the device is
+ *   as described for sys.connect, but without the "device" address type.
+ *   The 'is_error' variable
  *   reflects the success of listening initiation. If listening succeeds,
  *   then for every client that connects, a process is automatically created
  *   from the template specified by 'client_template', and the 'args' list
@@ -138,6 +143,9 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <stdarg.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include <misc/offset.h>
 #include <misc/debug.h>
@@ -221,6 +229,7 @@ static void connection_free_connection (struct connection *o);
 static void connection_error (struct connection *o);
 static void connection_abort (struct connection *o);
 static void connection_connector_handler (void *user, int is_error);
+static void connection_complete_establish (struct connection *o);
 static void connection_connection_handler (void *user, int event);
 static void connection_send_handler_done (void *user, int data_len);
 static void connection_recv_handler_done (void *user, int data_len);
@@ -384,6 +393,17 @@ static void connection_connector_handler (void *user, int is_error)
         goto fail;
     }
     
+    // free connector
+    BConnector_Free(&o->connect.connector);
+    
+    return connection_complete_establish(o);
+    
+fail:
+    connection_error(o);
+}
+
+static void connection_complete_establish (struct connection *o)
+{
     // init connection interfaces
     BConnection_SendAsync_Init(&o->connection);
     BConnection_RecvAsync_Init(&o->connection);
@@ -400,18 +420,11 @@ static void connection_connector_handler (void *user, int is_error)
     o->write_inst = NULL;
     o->recv_closed = 0;
     
-    // free connector
-    BConnector_Free(&o->connect.connector);
-    
     // set state
     o->state = CONNECTION_STATE_ESTABLISHED;
     
     // go up
     NCDModuleInst_Backend_Up(o->connect.i);
-    return;
-    
-fail:
-    connection_error(o);
 }
 
 static void connection_connection_handler (void *user, int event)
@@ -635,6 +648,19 @@ fail0:
     return;
 }
 
+static int connect_custom_addr_handler (void *user, NCDValRef protocol, NCDValRef data)
+{
+    NCDValRef *device_path = user;
+    if (NCDVal_StringEquals(protocol, "device")) {
+        if (!NCDVal_IsStringNoNulls(data)) {
+            return 0;
+        }
+        *device_path = data;
+        return 1;
+    }
+    return 0;
+}
+
 static void connect_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct connection *o = vo;
@@ -662,19 +688,47 @@ static void connect_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
     
     // read address
     struct BConnection_addr address;
-    if (!ncd_read_bconnection_addr(address_arg, &address)) {
+    NCDValRef device_path;
+    if (!ncd_read_bconnection_addr_ext(address_arg, connect_custom_addr_handler, &device_path, &address)) {
         ModuleLog(i, BLOG_ERROR, "wrong address");
         goto error;
     }
     
-    // init connector
-    if (!BConnector_InitGeneric(&o->connect.connector, address, i->params->iparams->reactor, o, connection_connector_handler)) {
-        ModuleLog(i, BLOG_ERROR, "BConnector_InitGeneric failed");
-        goto error;
+    // Did the custom handler handle the address as a device?
+    if (address.type == -1) {
+        // get null terminated device path
+        NCDValNullTermString device_path_nts;
+        if (!NCDVal_StringNullTerminate(device_path, &device_path_nts)) {
+            ModuleLog(i, BLOG_ERROR, "NCDVal_StringNullTerminate failed");
+            goto error;
+        }
+        
+        // open the device
+        int devfd = open(device_path_nts.data, O_RDWR);
+        NCDValNullTermString_Free(&device_path_nts);
+        if (devfd < 0) {
+            ModuleLog(i, BLOG_ERROR, "open failed");
+            goto error;
+        }
+        
+        // init connection
+        if (!BConnection_Init(&o->connection, BConnection_source_pipe(devfd, 1), i->params->iparams->reactor, o, connection_connection_handler)) {
+            ModuleLog(i, BLOG_ERROR, "BConnection_Init failed");
+            goto error;
+        }
+        
+        connection_complete_establish(o);
+    } else {
+        // init connector
+        if (!BConnector_InitGeneric(&o->connect.connector, address, i->params->iparams->reactor, o, connection_connector_handler)) {
+            ModuleLog(i, BLOG_ERROR, "BConnector_InitGeneric failed");
+            goto error;
+        }
+        
+        // set state
+        o->state = CONNECTION_STATE_CONNECTING;
     }
     
-    // set state
-    o->state = CONNECTION_STATE_CONNECTING;
     return;
     
 error:

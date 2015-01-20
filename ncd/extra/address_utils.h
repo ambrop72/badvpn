@@ -42,9 +42,12 @@
 #include <ncd/NCDVal.h>
 #include <ncd/extra/value_utils.h>
 
+typedef int (*ncd_read_bconnection_addr_CustomHandler) (void *user, NCDValRef protocol, NCDValRef data);
+
 static int ncd_read_baddr (NCDValRef val, BAddr *out) WARN_UNUSED;
 static NCDValRef ncd_make_baddr (BAddr addr, NCDValMem *mem);
 static int ncd_read_bconnection_addr (NCDValRef val, struct BConnection_addr *out_addr) WARN_UNUSED;
+static int ncd_read_bconnection_addr_ext (NCDValRef val, ncd_read_bconnection_addr_CustomHandler custom_handler, void *user, struct BConnection_addr *out_addr) WARN_UNUSED;
 
 static int ncd_read_baddr (NCDValRef val, BAddr *out)
 {
@@ -234,6 +237,11 @@ fail:
 
 static int ncd_read_bconnection_addr (NCDValRef val, struct BConnection_addr *out_addr)
 {
+    return ncd_read_bconnection_addr_ext(val, NULL, NULL, out_addr);
+}
+
+static int ncd_read_bconnection_addr_ext (NCDValRef val, ncd_read_bconnection_addr_CustomHandler custom_handler, void *user, struct BConnection_addr *out_addr)
+{
     ASSERT(!NCDVal_IsInvalid(val))
     
     if (!NCDVal_IsList(val)) {
@@ -266,7 +274,11 @@ static int ncd_read_bconnection_addr (NCDValRef val, struct BConnection_addr *ou
         *out_addr = BConnection_addr_baddr(baddr);
     }
     else {
-        goto fail;
+        if (!custom_handler || !custom_handler(user, protocol_arg, data_arg)) {
+            goto fail;
+        }
+        
+        out_addr->type = -1;
     }
     
     return 1;
