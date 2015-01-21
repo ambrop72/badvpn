@@ -1,0 +1,294 @@
+process main {
+    # CONFIG
+    var("/dev/input/by-id/usb-Logitech_Logitech_Extreme_3D-event-joystick") joy_dev;
+    value(["X": "1023", "Y": "1023", "RZ": "255"]) joy_axis_ranges;
+    var("/dev/rfcomm0") sphero_dev;
+    var("5") max_sendq_len;
+    var("20") max_roll_interval;
+    var("/run/current-system/sw/bin/stty") stty;
+    var("/run/current-system/sw/bin/python2.7") python;
+    
+    value([]) joy_positions;
+    Foreach (joy_axis_ranges As axis_name: range) {
+        joy_positions->insert(axis_name, @num_divide(range, "2"));
+    };
+    
+    blocker(@true) joy_event_signal;
+    
+    compile_search(" ") search_space;
+    
+    refhere() global;
+    
+    process_manager() mgr;
+    mgr->start(@_spheroncd_joystick_events, {});
+    mgr->start(@_spheroncd_sphero, {});
+}
+
+template _spheroncd_joystick_events {
+    objref(^_caller.global) global;
+    
+    log(@notice, "Listening on joystick ", global.joy_dev);
+    
+    sys.evdev(global.joy_dev) joy_event;
+    
+    value(joy_event.code) code;
+    code->substr("0", "4") code_check;
+    If (@val_different(code_check, "ABS_")) {
+        joy_event->nextevent();
+    };
+    code->substr("4") axis_name;
+    
+    global.joy_positions->try_get(axis_name) positions_entry;
+    If (@not(positions_entry.exists)) {
+        joy_event->nextevent();
+    };
+    
+    global.joy_positions->replace(axis_name, joy_event.value);
+    
+    global.joy_event_signal->up();
+    
+    joy_event->nextevent();
+}
+
+template _spheroncd_sphero {
+    objref(^_caller.global) global;
+    
+    log(@notice, "Using Sphero device ", global.sphero_dev);
+    
+    var(@true) first_time;
+    backtrack_point() retry_connect;
+    If (@not(first_time)) {
+        sleep("5000");
+    };
+    first_time->set(@false);
+    
+    runonce({global.stty, "-F", global.sphero_dev, "115200", "raw", "-echo"}, ["term_on_deinit":@true, "keep_stderr":@true]) stty_exec;
+    If (@num_different(stty_exec.exit_status, "0")) {
+        log(@error, "Failed to stty the Sphero device");
+        retry_connect->go();
+    };
+    
+    sys.connect({@device, global.sphero_dev}) connection;
+    If (connection.is_error) {
+        log(@error, "Sphero device error");
+        retry_connect->go();
+    };
+    
+    log(@notice, "Opened Sphero device");
+    
+    value({}) send_queue;
+    blocker(@true) send_event;
+    
+    depend_scope() depsc;
+    
+    refhere() dev;
+    
+    process_manager() mgr;
+    mgr->start(@_spheroncd_read_task, {});
+    mgr->start(@_spheroncd_send_task, {});
+    mgr->start(@_spheroncd_ping_task, {});
+    mgr->start(@_spheroncd_roll_task, {});
+    mgr->start(@_spheroncd_calculator_task, {});
+}
+
+template _spheroncd_read_task {
+    objref(^_caller.dev) dev;
+    
+    backtrack_point() read_again;
+    
+    dev.connection->read() recvd_data;
+    If (recvd_data.eof) {
+        log(@error, "Read EOF on Sphero device");
+        dev.retry_connect->go();
+    };
+    
+    read_again->go();
+}
+
+template _spheroncd_send_task {
+    objref(^_caller.dev) dev;
+    
+    backtrack_point() next_message;
+    
+    Do {
+        dev.send_event->use();
+        If (@val_equal(dev.send_queue.length, "0")) {
+            if(@false);
+        };
+    };
+    
+    dev.send_queue->get("0") message;
+    dev.send_queue->remove("0");
+    
+    dev.connection->write(message);
+    
+    next_message->go();
+}
+
+template _spheroncd_ping_task {
+    objref(^_caller.dev) dev;
+    
+    backtrack_point() again;
+    call(@_spheroncd_enqueue_packet, {^dev, @true, @true, "0", "1", "0", ""});
+    sleep("2000");
+    again->go();
+}
+
+template _spheroncd_roll_task {
+    objref(^_caller.dev) dev;
+    objref(^dev.global) global;
+    
+    backtrack_point() again;
+    
+    global.joy_event_signal->down();
+    value(global.joy_positions) joy_positions;
+    
+    joy_positions->get("X") pos_x;
+    joy_positions->get("Y") pos_y;
+    global.joy_axis_ranges->get("X") max_x;
+    global.joy_axis_ranges->get("Y") max_y;
+    
+    var(@concat(pos_x, " ", "0", " ", max_x, " ", pos_y, " ", "0", " ", max_y, "\n")) calc_request;
+    call(@_spheroncd_calc_operation, {^dev, calc_request}) calc_op;
+    global.search_space->explode(calc_op.response) resp_fields;
+    value(resp_fields) resp_fields;
+    
+    resp_fields->get("0") heading;
+    resp_fields->get("1") speed;
+    call(@_spheroncd_roll, {^dev, speed, heading, "1"});
+    
+    sleep(global.max_roll_interval);
+    
+    global.joy_event_signal->use();
+    again->go();
+}
+
+template _spheroncd_calculator_task {
+    objref(^_caller.dev) dev;
+    objref(^dev.global) global;
+
+    var(@true) first_time;
+    backtrack_point() try_again;
+    If (@not(first_time)) {
+        sleep("1000");
+    };
+    first_time->set(@false);
+    
+    var({global.python, "-B", "calculator.py"}) cmd;
+    
+    sys.start_process(cmd, "rw", ["keep_stderr": @true]) proc;
+    If (proc.is_error) {
+        log(@error, "Process error");
+        try_again->go();
+    };
+    
+    proc->read_pipe() read_pipe;
+    If (read_pipe.is_error) {
+        log(@error, "Read pipe error");
+        try_again->go();
+    };
+    
+    proc->write_pipe() write_pipe;
+    If (write_pipe.is_error) {
+        log(@error, "Write pipe error");
+        try_again->go();
+    };
+    
+    dev.depsc->provide(@calculator);
+}
+
+template _spheroncd_enqueue_packet {
+    objref_arg(_arg0) dev;
+    alias(@_arg1) reset_timeout;
+    alias(@_arg2) want_answer;
+    alias(@_arg3) device_id;
+    alias(@_arg4) command_id;
+    alias(@_arg5) seq_num;
+    value(_arg6) data;
+    
+    Do {
+        If (@num_greater_equal(dev.send_queue.length, dev.global.max_sendq_len)) {
+            log(@warning, "send queue exhausted");
+            _do->break();
+        };
+        
+        value("") message;
+        
+        message->append(@struct_encode({
+            {@u8, "255"},
+            {@u8, @num_add("252", @num_add(@if(reset_timeout, "2", "0"), @if(want_answer, "1", "0")))},
+            {@u8, device_id},
+            {@u8, command_id},
+            {@u8, seq_num},
+            {@u8, @num_add(data.length, "1")}
+        }));
+        
+        message->append(data);
+        
+        message->substr("2") checksumed_data;
+        message->append(@struct_encode({
+            {@u8, @checksum(@inverted_sum_bytes, checksumed_data)}
+        }));
+        
+        dev.send_queue->append(message);
+        dev.send_event->downup();
+    };
+}
+
+template _spheroncd_roll {
+    objref_arg(_arg0) dev;
+    alias(@_arg1) speed;
+    alias(@_arg2) heading;
+    alias(@_arg3) state;
+    
+    call(@_spheroncd_enqueue_packet, {^dev, @true, @false, "2", "48", "0", @struct_encode({
+        {@u8, speed},
+        {@u16b, heading},
+        {@u8, state}
+    })});
+}
+
+template _spheroncd_set_led_output {
+    objref_arg(_arg0) dev;
+    alias(@_arg1) red;
+    alias(@_arg2) green;
+    alias(@_arg3) blue;
+    alias(@_arg4) persist;
+    
+    call(@_spheroncd_enqueue_packet, {^dev, @true, @false, "2", "32", "0", @struct_encode({
+        {@u8, red},
+        {@u8, green},
+        {@u8, blue},
+        {@u8, @if(persist, "1", "0")}
+    })});
+}
+
+template _spheroncd_calc_operation {
+    objref_arg(_arg0) dev;
+    alias(@_arg1) request;
+    
+    value("") response;
+    
+    Do {
+        dev.depsc->depend({@calculator}) calc;
+        value("") buffer;
+        
+        calc.write_pipe->write(request);
+        
+        backtrack_point() read_again;
+        calc.read_pipe->read() read_data;
+        If (@not(read_data.not_eof)) {
+            log(@error, "Got EOF from calculator");
+            calc.try_again->go();
+        };
+        buffer->append(read_data);
+        var(@num_subtract(buffer.length, "1")) len_minus_one;
+        buffer->substr(len_minus_one) last_char;
+        If (@val_different(last_char, "\n")) {
+            read_again->go();
+        };
+        
+        buffer->substr("0", len_minus_one) without_newline;
+        response->reset(without_newline);
+    };
+}
