@@ -94,6 +94,8 @@ template _spheroncd_sphero {
     mgr->start(@_spheroncd_ping_task, {});
     mgr->start(@_spheroncd_roll_task, {});
     mgr->start(@_spheroncd_calculator_task, {});
+    
+    call(@_spheroncd_set_back_led, {^dev, "255"});
 }
 
 template _spheroncd_read_task {
@@ -128,6 +130,44 @@ template _spheroncd_send_task {
     dev.connection->write(message);
     
     next_message->go();
+}
+
+template _spheroncd_enqueue_packet {
+    objref_arg(_arg0) dev;
+    alias(@_arg1) reset_timeout;
+    alias(@_arg2) want_answer;
+    alias(@_arg3) device_id;
+    alias(@_arg4) command_id;
+    alias(@_arg5) seq_num;
+    value(_arg6) data;
+    
+    Do {
+        If (@num_greater_equal(dev.send_queue.length, dev.global.max_sendq_len)) {
+            log(@warning, "send queue exhausted");
+            _do->break();
+        };
+        
+        value("") message;
+        
+        message->append(@struct_encode({
+            {@u8, "255"},
+            {@u8, @num_add("252", @num_add(@if(reset_timeout, "2", "0"), @if(want_answer, "1", "0")))},
+            {@u8, device_id},
+            {@u8, command_id},
+            {@u8, seq_num},
+            {@u8, @num_add(data.length, "1")}
+        }));
+        
+        message->append(data);
+        
+        message->substr("2") checksumed_data;
+        message->append(@struct_encode({
+            {@u8, @checksum(@inverted_sum_bytes, checksumed_data)}
+        }));
+        
+        dev.send_queue->append(message);
+        dev.send_event->downup();
+    };
 }
 
 template _spheroncd_ping_task {
@@ -205,41 +245,33 @@ template _spheroncd_calculator_task {
     dev.depsc->provide(@calculator);
 }
 
-template _spheroncd_enqueue_packet {
+template _spheroncd_calc_operation {
     objref_arg(_arg0) dev;
-    alias(@_arg1) reset_timeout;
-    alias(@_arg2) want_answer;
-    alias(@_arg3) device_id;
-    alias(@_arg4) command_id;
-    alias(@_arg5) seq_num;
-    value(_arg6) data;
+    alias(@_arg1) request;
+    
+    value("") response;
     
     Do {
-        If (@num_greater_equal(dev.send_queue.length, dev.global.max_sendq_len)) {
-            log(@warning, "send queue exhausted");
-            _do->break();
+        dev.depsc->depend({@calculator}) calc;
+        value("") buffer;
+        
+        calc.write_pipe->write(request);
+        
+        backtrack_point() read_again;
+        calc.read_pipe->read() read_data;
+        If (@not(read_data.not_eof)) {
+            log(@error, "Got EOF from calculator");
+            calc.try_again->go();
+        };
+        buffer->append(read_data);
+        var(@num_subtract(buffer.length, "1")) len_minus_one;
+        buffer->substr(len_minus_one) last_char;
+        If (@val_different(last_char, "\n")) {
+            read_again->go();
         };
         
-        value("") message;
-        
-        message->append(@struct_encode({
-            {@u8, "255"},
-            {@u8, @num_add("252", @num_add(@if(reset_timeout, "2", "0"), @if(want_answer, "1", "0")))},
-            {@u8, device_id},
-            {@u8, command_id},
-            {@u8, seq_num},
-            {@u8, @num_add(data.length, "1")}
-        }));
-        
-        message->append(data);
-        
-        message->substr("2") checksumed_data;
-        message->append(@struct_encode({
-            {@u8, @checksum(@inverted_sum_bytes, checksumed_data)}
-        }));
-        
-        dev.send_queue->append(message);
-        dev.send_event->downup();
+        buffer->substr("0", len_minus_one) without_newline;
+        response->reset(without_newline);
     };
 }
 
@@ -271,32 +303,11 @@ template _spheroncd_set_led_output {
     })});
 }
 
-template _spheroncd_calc_operation {
+template _spheroncd_set_back_led {
     objref_arg(_arg0) dev;
-    alias(@_arg1) request;
+    alias(@_arg1) bright;
     
-    value("") response;
-    
-    Do {
-        dev.depsc->depend({@calculator}) calc;
-        value("") buffer;
-        
-        calc.write_pipe->write(request);
-        
-        backtrack_point() read_again;
-        calc.read_pipe->read() read_data;
-        If (@not(read_data.not_eof)) {
-            log(@error, "Got EOF from calculator");
-            calc.try_again->go();
-        };
-        buffer->append(read_data);
-        var(@num_subtract(buffer.length, "1")) len_minus_one;
-        buffer->substr(len_minus_one) last_char;
-        If (@val_different(last_char, "\n")) {
-            read_again->go();
-        };
-        
-        buffer->substr("0", len_minus_one) without_newline;
-        response->reset(without_newline);
-    };
+    call(@_spheroncd_enqueue_packet, {^dev, @true, @false, "2", "33", "0", @struct_encode({
+        {@u8, bright}
+    })});
 }
