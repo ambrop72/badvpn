@@ -95,7 +95,7 @@ static void free_value (struct value o) { if (o.have) NCDValue_Free(&o.v); }
 %type else_maybe { struct block }
 %type statements { struct block }
 %type dotted_name { char * }
-%type statement_args_maybe { struct value }
+%type list_contents_maybe { struct value }
 %type list_contents { struct value }
 %type list { struct value }
 %type map_contents { struct value }
@@ -115,7 +115,7 @@ static void free_value (struct value o) { if (o.have) NCDValue_Free(&o.v); }
 %destructor else_maybe { free_block($$); }
 %destructor statements { free_block($$); }
 %destructor dotted_name { free($$); }
-%destructor statement_args_maybe { free_value($$); }
+%destructor list_contents_maybe { free_value($$); }
 %destructor list_contents { free_value($$); }
 %destructor list { free_value($$); }
 %destructor map_contents { free_value($$); }
@@ -251,7 +251,7 @@ doneB:
     free_program(N);
 }
 
-statement(R) ::= dotted_name(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
+statement(R) ::= dotted_name(A) ROUND_OPEN list_contents_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
     if (!A || !B.have) {
         goto failC0;
     }
@@ -273,7 +273,7 @@ doneC:
     free(C);
 }
 
-statement(R) ::= dotted_name(M) ARROW dotted_name(A) ROUND_OPEN statement_args_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
+statement(R) ::= dotted_name(M) ARROW dotted_name(A) ROUND_OPEN list_contents_maybe(B) ROUND_CLOSE name_maybe(C) SEMICOLON. {
     if (!M || !A || !B.have) {
         goto failD0;
     }
@@ -670,12 +670,12 @@ doneKA:
     free_value(N);
 }
 
-statement_args_maybe(R) ::= . {
+list_contents_maybe(R) ::= . {
     R.have = 1;
     NCDValue_InitList(&R.v);
 }
 
-statement_args_maybe(R) ::= list_contents(A). {
+list_contents_maybe(R) ::= list_contents(A). {
     R = A;
 }
 
@@ -795,7 +795,7 @@ map(R) ::= BRACKET_OPEN map_contents(A) BRACKET_CLOSE. {
     R = A;
 }
 
-invoc(R) ::= value(F) ROUND_OPEN list_contents(A) ROUND_CLOSE. {
+invoc(R) ::= value(F) ROUND_OPEN list_contents_maybe(A) ROUND_CLOSE. {
     if (!F.have || !A.have) {
         goto failQ0;
     }

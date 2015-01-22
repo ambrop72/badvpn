@@ -201,29 +201,29 @@ static const YYMINORTYPE yyzerominor = { 0 };
 **  yy_default[]       Default action for each state.
 */
 static const YYACTIONTYPE yy_action[] = {
- /*     0 */   107,   51,   59,    3,  104,    9,  107,    7,   59,    3,
- /*    10 */    94,    9,  107,   58,   59,    3,   54,    9,   95,  180,
- /*    20 */     4,    5,   29,   30,  100,   54,    4,  117,   29,   30,
- /*    30 */    34,  128,    4,   54,   29,   30,  111,   57,  102,  112,
- /*    40 */    59,  113,  115,   43,  111,   65,  102,  112,   96,  113,
- /*    50 */   115,   43,   91,  111,    1,   60,  112,   32,  113,  115,
- /*    60 */    43,  101,  111,   54,    7,  112,   63,  113,  115,   44,
- /*    70 */   111,    8,  103,  112,  108,  113,  115,   43,  111,    7,
- /*    80 */   116,  112,  106,  113,  115,   44,  111,  110,   62,  112,
- /*    90 */     7,  113,  115,   43,  111,   61,   64,  112,  109,  113,
- /*   100 */   115,   45,  111,   66,    6,  112,   74,  113,  115,   46,
- /*   110 */    71,  111,   85,   52,  112,   53,  113,  115,   47,  111,
- /*   120 */     7,   92,  112,   35,  113,  115,   48,  111,   70,   59,
- /*   130 */   112,   76,  113,  115,   50,    7,   67,   72,   97,   98,
- /*   140 */    79,   73,   77,   23,   80,   20,   39,   20,   82,   56,
- /*   150 */    42,   69,   42,   20,   84,  130,   20,   90,   42,   89,
- /*   160 */    75,   42,   24,   20,  129,   20,   55,   78,   42,   81,
- /*   170 */    42,    7,   68,   20,   13,   20,   25,   83,   42,  124,
- /*   180 */    42,   20,   27,   20,   99,   88,   42,   93,   42,  105,
- /*   190 */   114,   28,   31,    2,  119,   33,  118,   10,   14,   49,
- /*   200 */    26,  120,   15,   11,   16,   86,   36,  121,   17,  181,
- /*   210 */    37,  122,   18,   87,   38,  123,   19,  181,   21,  181,
- /*   220 */    40,  125,  127,   41,  126,  181,   12,   22,
+ /*     0 */   107,   51,   59,    4,  104,    9,  107,    2,   59,    4,
+ /*    10 */    94,    9,  107,   58,   59,    4,   54,    9,   95,  180,
+ /*    20 */     5,    6,   29,   30,  100,   54,    5,  117,   29,   30,
+ /*    30 */    34,  128,    5,   54,   29,   30,  111,   57,  102,  112,
+ /*    40 */    59,  113,  115,   43,  111,   62,  102,  112,   96,  113,
+ /*    50 */   115,   43,    2,  111,   65,  102,  112,   91,  113,  115,
+ /*    60 */    43,  101,  111,   54,   60,  112,    7,  113,  115,   43,
+ /*    70 */   111,   61,    2,  112,   63,  113,  115,   44,  111,    8,
+ /*    80 */   103,  112,  108,  113,  115,   43,  111,    2,  116,  112,
+ /*    90 */   106,  113,  115,   44,  111,    2,   68,  112,    2,  113,
+ /*   100 */   115,   45,    1,  111,   73,   32,  112,  110,  113,  115,
+ /*   110 */    46,  111,   64,   52,  112,   53,  113,  115,   47,  111,
+ /*   120 */   109,   66,  112,   71,  113,  115,   48,  111,   70,   59,
+ /*   130 */   112,   35,  113,  115,   50,   39,   67,   72,   97,   98,
+ /*   140 */    76,   20,   77,   79,   80,   56,   42,   20,   82,   20,
+ /*   150 */   129,   69,   42,   90,   42,  130,   20,   84,   20,   89,
+ /*   160 */    75,   42,   78,   42,   20,   23,   24,   20,   81,   42,
+ /*   170 */    20,   83,   42,   20,  124,   42,   20,   88,   42,   74,
+ /*   180 */    93,   42,    2,   92,   55,   85,   13,   27,   25,   28,
+ /*   190 */   105,  118,   99,   31,  114,    3,  119,   33,   10,   14,
+ /*   200 */    49,   26,  120,   15,   11,   16,   86,   36,  121,   17,
+ /*   210 */   181,   37,  122,   18,   87,   38,  123,   19,  181,   21,
+ /*   220 */   181,   40,  125,  127,   41,  126,  181,   12,   22,
 };
 static const YYCODETYPE yy_lookahead[] = {
  /*     0 */     2,   29,    4,    5,    6,    7,    2,    7,    4,    5,
@@ -231,50 +231,50 @@ static const YYCODETYPE yy_lookahead[] = {
  /*    20 */    22,   21,   24,   25,    4,   44,   22,   23,   24,   25,
  /*    30 */    31,   32,   22,   44,   24,   25,   35,   36,   37,   38,
  /*    40 */     4,   40,   41,   42,   35,   36,   37,   38,   29,   40,
- /*    50 */    41,   42,   15,   35,    7,   37,   38,   10,   40,   41,
- /*    60 */    42,   35,   35,   44,    7,   38,   39,   40,   41,   42,
- /*    70 */    35,   14,   37,   38,   35,   40,   41,   42,   35,    7,
- /*    80 */     8,   38,   39,   40,   41,   42,   35,   45,   37,   38,
- /*    90 */     7,   40,   41,   42,   35,    4,   35,   38,   45,   40,
- /*   100 */    41,   42,   35,   43,   21,   38,    8,   40,   41,   42,
- /*   110 */    16,   35,   14,    1,   38,    3,   40,   41,   42,   35,
- /*   120 */     7,    8,   38,   33,   40,   41,   42,   35,   43,    4,
- /*   130 */    38,   43,   40,   41,   42,    7,   11,   12,   26,   27,
- /*   140 */    43,   13,   17,    2,   19,   30,   46,   30,   18,   34,
- /*   150 */    35,   34,   35,   30,   43,    0,   30,   34,   35,   43,
- /*   160 */    34,   35,    2,   30,   32,   30,    4,   34,   35,   34,
- /*   170 */    35,    7,    8,   30,    5,   30,    6,   34,   35,   34,
- /*   180 */    35,   30,    8,   30,    9,   34,   35,   34,   35,    6,
- /*   190 */     8,   20,   20,    7,    9,    8,   23,    7,    5,    4,
- /*   200 */     6,    9,    5,    7,    5,    4,    6,    9,    5,   48,
- /*   210 */     6,    9,    5,    8,    6,    6,    5,   48,    5,   48,
- /*   220 */     6,    9,    6,    6,    9,   48,    7,    5,
+ /*    50 */    41,   42,    7,   35,   36,   37,   38,   15,   40,   41,
+ /*    60 */    42,   35,   35,   44,   37,   38,   21,   40,   41,   42,
+ /*    70 */    35,    4,    7,   38,   39,   40,   41,   42,   35,   14,
+ /*    80 */    37,   38,   35,   40,   41,   42,   35,    7,    8,   38,
+ /*    90 */    39,   40,   41,   42,   35,    7,    8,   38,    7,   40,
+ /*   100 */    41,   42,    7,   35,   13,   10,   38,   45,   40,   41,
+ /*   110 */    42,   35,   35,    1,   38,    3,   40,   41,   42,   35,
+ /*   120 */    45,   43,   38,   16,   40,   41,   42,   35,   43,    4,
+ /*   130 */    38,   33,   40,   41,   42,   46,   11,   12,   26,   27,
+ /*   140 */    43,   30,   17,   43,   19,   34,   35,   30,   18,   30,
+ /*   150 */    32,   34,   35,   34,   35,    0,   30,   43,   30,   43,
+ /*   160 */    34,   35,   34,   35,   30,    2,    2,   30,   34,   35,
+ /*   170 */    30,   34,   35,   30,   34,   35,   30,   34,   35,    8,
+ /*   180 */    34,   35,    7,    8,    4,   14,    5,    8,    6,   20,
+ /*   190 */     6,   23,    9,   20,    8,    7,    9,    8,    7,    5,
+ /*   200 */     4,    6,    9,    5,    7,    5,    4,    6,    9,    5,
+ /*   210 */    48,    6,    9,    5,    8,    6,    6,    5,   48,    5,
+ /*   220 */    48,    6,    9,    6,    6,    9,   48,    7,    5,
 };
 #define YY_SHIFT_USE_DFLT (-3)
 #define YY_SHIFT_MAX 93
 static const short yy_shift_ofst[] = {
- /*     0 */   112,   10,   10,   -2,    4,   10,   10,   10,   10,   10,
+ /*     0 */   112,   10,   10,   10,   -2,    4,   10,   10,   10,   10,
  /*    10 */    10,   10,   10,  125,  125,  125,  125,  125,  125,  125,
- /*    20 */   125,  125,  125,  112,  112,  112,   37,   20,   36,   36,
- /*    30 */    91,   91,   36,   20,   94,   20,   20,   20,  130,   20,
- /*    40 */    20,   37,   47,    0,   57,   83,   72,  164,  128,   98,
- /*    50 */   113,  155,  141,  160,  162,  169,  170,  174,  175,  171,
- /*    60 */   183,  172,  182,  173,  186,  187,  185,  190,  193,  194,
- /*    70 */   192,  197,  196,  195,  199,  200,  198,  203,  204,  202,
- /*    80 */   207,  208,  211,  209,  212,  201,  205,  213,  214,  215,
- /*    90 */   216,  219,  222,  217,
+ /*    20 */   125,  125,  125,  112,  112,  112,   42,   20,   36,   36,
+ /*    30 */    67,   67,   36,   20,  107,   20,   20,   20,  130,   20,
+ /*    40 */    20,   42,   95,    0,   65,   45,   80,   88,   91,  171,
+ /*    50 */   175,  155,  163,  164,  180,  181,  182,  179,  183,  169,
+ /*    60 */   184,  173,  186,  168,  188,  189,  187,  191,  194,  195,
+ /*    70 */   193,  198,  197,  196,  200,  201,  199,  204,  205,  203,
+ /*    80 */   208,  209,  212,  210,  213,  202,  206,  214,  215,  216,
+ /*    90 */   217,  220,  223,  218,
 };
 #define YY_REDUCE_USE_DFLT (-31)
 #define YY_REDUCE_MAX 41
 static const short yy_reduce_ofst[] = {
- /*     0 */   -28,    1,    9,   18,   27,   35,   43,   51,   59,   67,
- /*    10 */    76,   84,   92,  115,  117,  123,  126,  133,  135,  143,
- /*    20 */   145,  151,  153,  -19,  -11,   19,   -1,  -30,   26,   39,
- /*    30 */    42,   53,   61,   60,   90,   85,   88,   97,  100,  111,
- /*    40 */   116,  132,
+ /*     0 */   -28,    1,    9,   18,   27,   35,   43,   51,   59,   68,
+ /*    10 */    76,   84,   92,  111,  117,  119,  126,  128,  134,  137,
+ /*    20 */   140,  143,  146,  -19,  -11,   19,   -1,  -30,   26,   47,
+ /*    30 */    62,   75,   77,   78,   98,   85,   97,  100,   89,  114,
+ /*    40 */   116,  118,
 };
 static const YYACTIONTYPE yy_default[] = {
- /*     0 */   131,  156,  156,  179,  179,  179,  179,  179,  179,  179,
+ /*     0 */   131,  156,  156,  156,  179,  179,  179,  179,  179,  179,
  /*    10 */   179,  179,  179,  179,  179,  179,  179,  179,  179,  179,
  /*    20 */   150,  179,  179,  131,  131,  131,  140,  175,  179,  179,
  /*    30 */   179,  179,  179,  175,  144,  175,  175,  175,  147,  175,
@@ -389,7 +389,7 @@ static const char *const yyTokenName[] = {
   "AT_SIGN",       "CARET",         "PROCESS",       "TEMPLATE",    
   "error",         "processes",     "statement",     "elif_maybe",  
   "elif",          "else_maybe",    "statements",    "dotted_name", 
-  "statement_args_maybe",  "list_contents",  "list",          "map_contents",
+  "list_contents_maybe",  "list_contents",  "list",          "map_contents",
   "map",           "invoc",         "value",         "name_maybe",  
   "process_or_template",  "name_list",     "interrupt_maybe",  "input",       
 };
@@ -404,8 +404,8 @@ static const char *const yyRuleName[] = {
  /*   2 */ "processes ::= INCLUDE STRING processes",
  /*   3 */ "processes ::= INCLUDE_GUARD STRING processes",
  /*   4 */ "processes ::= process_or_template NAME CURLY_OPEN statements CURLY_CLOSE processes",
- /*   5 */ "statement ::= dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON",
- /*   6 */ "statement ::= dotted_name ARROW dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON",
+ /*   5 */ "statement ::= dotted_name ROUND_OPEN list_contents_maybe ROUND_CLOSE name_maybe SEMICOLON",
+ /*   6 */ "statement ::= dotted_name ARROW dotted_name ROUND_OPEN list_contents_maybe ROUND_CLOSE name_maybe SEMICOLON",
  /*   7 */ "statement ::= IF ROUND_OPEN value ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE elif_maybe else_maybe name_maybe SEMICOLON",
  /*   8 */ "statement ::= FOREACH ROUND_OPEN value AS NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON",
  /*   9 */ "statement ::= FOREACH ROUND_OPEN value AS NAME COLON NAME ROUND_CLOSE CURLY_OPEN statements CURLY_CLOSE name_maybe SEMICOLON",
@@ -425,8 +425,8 @@ static const char *const yyRuleName[] = {
  /*  23 */ "dotted_name ::= NAME DOT dotted_name",
  /*  24 */ "name_list ::= NAME",
  /*  25 */ "name_list ::= NAME DOT name_list",
- /*  26 */ "statement_args_maybe ::=",
- /*  27 */ "statement_args_maybe ::= list_contents",
+ /*  26 */ "list_contents_maybe ::=",
+ /*  27 */ "list_contents_maybe ::= list_contents",
  /*  28 */ "list_contents ::= value",
  /*  29 */ "list_contents ::= value COMMA list_contents",
  /*  30 */ "list ::= CURLY_OPEN CURLY_CLOSE",
@@ -435,7 +435,7 @@ static const char *const yyRuleName[] = {
  /*  33 */ "map_contents ::= value COLON value COMMA map_contents",
  /*  34 */ "map ::= BRACKET_OPEN BRACKET_CLOSE",
  /*  35 */ "map ::= BRACKET_OPEN map_contents BRACKET_CLOSE",
- /*  36 */ "invoc ::= value ROUND_OPEN list_contents ROUND_CLOSE",
+ /*  36 */ "invoc ::= value ROUND_OPEN list_contents_maybe ROUND_CLOSE",
  /*  37 */ "value ::= STRING",
  /*  38 */ "value ::= AT_SIGN dotted_name",
  /*  39 */ "value ::= CARET name_list",
@@ -599,7 +599,7 @@ static void yy_destructor(
 #line 600 "NCDConfigParser_parse.c"
 }
       break;
-    case 36: /* statement_args_maybe */
+    case 36: /* list_contents_maybe */
     case 37: /* list_contents */
     case 38: /* list */
     case 39: /* map_contents */
@@ -1079,7 +1079,7 @@ doneB:
 }
 #line 1081 "NCDConfigParser_parse.c"
         break;
-      case 5: /* statement ::= dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON */
+      case 5: /* statement ::= dotted_name ROUND_OPEN list_contents_maybe ROUND_CLOSE name_maybe SEMICOLON */
 #line 254 "NCDConfigParser_parse.y"
 {
     if (!yymsp[-5].minor.yy49 || !yymsp[-3].minor.yy19.have) {
@@ -1107,7 +1107,7 @@ doneC:
 }
 #line 1109 "NCDConfigParser_parse.c"
         break;
-      case 6: /* statement ::= dotted_name ARROW dotted_name ROUND_OPEN statement_args_maybe ROUND_CLOSE name_maybe SEMICOLON */
+      case 6: /* statement ::= dotted_name ARROW dotted_name ROUND_OPEN list_contents_maybe ROUND_CLOSE name_maybe SEMICOLON */
 #line 276 "NCDConfigParser_parse.y"
 {
     if (!yymsp[-7].minor.yy49 || !yymsp[-5].minor.yy49 || !yymsp[-3].minor.yy19.have) {
@@ -1610,7 +1610,7 @@ doneKA:
 }
 #line 1612 "NCDConfigParser_parse.c"
         break;
-      case 26: /* statement_args_maybe ::= */
+      case 26: /* list_contents_maybe ::= */
 #line 673 "NCDConfigParser_parse.y"
 {
     yygotominor.yy19.have = 1;
@@ -1618,7 +1618,7 @@ doneKA:
 }
 #line 1620 "NCDConfigParser_parse.c"
         break;
-      case 27: /* statement_args_maybe ::= list_contents */
+      case 27: /* list_contents_maybe ::= list_contents */
       case 41: /* value ::= list */ yytestcase(yyruleno==41);
       case 42: /* value ::= map */ yytestcase(yyruleno==42);
       case 44: /* value ::= invoc */ yytestcase(yyruleno==44);
@@ -1780,7 +1780,7 @@ doneT:
 }
 #line 1782 "NCDConfigParser_parse.c"
         break;
-      case 36: /* invoc ::= value ROUND_OPEN list_contents ROUND_CLOSE */
+      case 36: /* invoc ::= value ROUND_OPEN list_contents_maybe ROUND_CLOSE */
 #line 798 "NCDConfigParser_parse.y"
 {
     if (!yymsp[-3].minor.yy19.have || !yymsp[-1].minor.yy19.have) {
