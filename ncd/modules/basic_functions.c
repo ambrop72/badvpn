@@ -34,6 +34,7 @@
 #include <misc/ascii_utils.h>
 #include <ncd/NCDValGenerator.h>
 #include <ncd/NCDValParser.h>
+#include <system/BTime.h>
 
 #include <ncd/module_common.h>
 
@@ -676,6 +677,20 @@ static void checksum_eval (NCDCall call)
 }
 
 
+// clock_get_ms
+
+static void clock_get_ms_eval (NCDCall call)
+{
+    if (NCDCall_ArgCount(&call) != 0) {
+        FunctionLog(&call, BLOG_ERROR, "clock_get_ms: need zero arguments");
+        return;
+    }
+    // Convert to unsigned. The time should be non-negative so this is OK.
+    uintmax_t the_time = btime_gettime();
+    NCDCall_SetResult(&call, ncd_make_uintmax(NCDCall_ResMem(&call), the_time));
+}
+
+
 static struct NCDModuleFunction const functions[] = {
     {
         .func_name = "error",
@@ -788,6 +803,9 @@ static struct NCDModuleFunction const functions[] = {
     }, {
         .func_name = "checksum",
         .func_eval = checksum_eval
+    }, {
+        .func_name = "clock_get_ms",
+        .func_eval = clock_get_ms_eval
     }, {
         .func_name = NULL
     }
