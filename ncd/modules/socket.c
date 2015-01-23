@@ -704,7 +704,7 @@ static void connect_func_new (void *vo, NCDModuleInst *i, const struct NCDModule
         }
         
         // open the device
-        int devfd = open(device_path_nts.data, O_RDWR);
+        int devfd = open(device_path_nts.data, O_RDWR|O_NONBLOCK);
         NCDValNullTermString_Free(&device_path_nts);
         if (devfd < 0) {
             ModuleLog(i, BLOG_ERROR, "open failed");
