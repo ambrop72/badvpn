@@ -10,13 +10,16 @@ process main {
     
     value([]) joy_positions;
     joy_positions->insert("BTN_TRIGGER", "0");
+    joy_positions->insert("BTN_THUMB", "0");
     Foreach (joy_axis_ranges As axis_name: range) {
         joy_positions->insert(@concat("ABS_", axis_name), @num_divide(range, "2"));
     };
     
-    value(["BTN_THUMB": @false]) joy_latch_buttons;
+    value([]) joy_latch_buttons;
     
     blocker(@true) joy_event_signal;
+    
+    var("0") last_adjust;
     
     compile_search(" ") search_space;
     
@@ -92,7 +95,7 @@ template _spheroncd_sphero {
     mgr->start(@_spheroncd_read_task, {});
     mgr->start(@_spheroncd_send_task, {});
     mgr->start(@_spheroncd_ping_task, {});
-    mgr->start(@_spheroncd_roll_task, {});
+    mgr->start(@_spheroncd_control_task, {});
     mgr->start(@_spheroncd_calculator_task, {});
     
     call(@_spheroncd_set_back_led, {^dev, "255"});
@@ -179,7 +182,7 @@ template _spheroncd_ping_task {
     again->go();
 }
 
-template _spheroncd_roll_task {
+template _spheroncd_control_task {
     objref(^_caller.dev) dev;
     objref(^dev.global) global;
     
@@ -189,11 +192,18 @@ template _spheroncd_roll_task {
     
     global.joy_positions->get("ABS_X") pos_x;
     global.joy_positions->get("ABS_Y") pos_y;
+    global.joy_positions->get("ABS_RZ") pos_rz;
     global.joy_positions->get("BTN_TRIGGER") turbo;
+    global.joy_positions->get("BTN_THUMB") adjust;
     global.joy_axis_ranges->get("X") max_x;
     global.joy_axis_ranges->get("Y") max_y;
+    global.joy_axis_ranges->get("RZ") max_rz;
     
-    var(@concat(pos_x, " ", "0", " ", max_x, " ", pos_y, " ", "0", " ", max_y, "\n")) calc_request;
+    var(global.last_adjust) old_adjust;
+    global.last_adjust->set(adjust);
+    
+    var(@concat(pos_x, " ", "0", " ", max_x, " ", pos_y, " ", "0", " ", max_y, " ", pos_rz, " ", "0", " ", max_rz, " ", turbo, " ", adjust, "\n")) calc_request;
+    
     call(@_spheroncd_calc_operation, {^dev, calc_request}) calc_op;
     global.search_space->explode(calc_op.response) resp_fields;
     value(resp_fields) resp_fields;
@@ -201,9 +211,11 @@ template _spheroncd_roll_task {
     resp_fields->get("0") calc_heading;
     resp_fields->get("1") calc_speed;
     
-    var(@if(@num_greater(turbo, "0"), "255", calc_speed)) speed;
+    If (@and(@num_different(old_adjust, "0"), @num_equal(adjust, "0"))) {
+        call(@_spheroncd_set_heading, {^dev, "0"});
+    };
     
-    call(@_spheroncd_roll, {^dev, speed, calc_heading, "1"});
+    call(@_spheroncd_roll, {^dev, calc_speed, calc_heading, "1"});
     
     sleep(global.max_roll_interval);
     
@@ -273,6 +285,15 @@ template _spheroncd_calc_operation {
         buffer->substr("0", len_minus_one) without_newline;
         response->reset(without_newline);
     };
+}
+
+template _spheroncd_set_heading {
+    objref_arg(_arg0) dev;
+    alias(@_arg1) heading;
+    
+    call(@_spheroncd_enqueue_packet, {^dev, @true, @false, "2", "1", "0", @struct_encode({
+        {@u16b, heading}
+    })});
 }
 
 template _spheroncd_roll {
