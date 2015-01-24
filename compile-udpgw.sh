@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Compiles udpgw for Linux.
 # Intended as a convenience if you don't want to deal with CMake.
