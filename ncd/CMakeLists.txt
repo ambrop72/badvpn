@@ -174,7 +174,7 @@ if (BADVPN_USE_LINUX_INPUT)
 
     message(STATUS "Generating linux_input_names.h from ${LINUX_INPUT_H_PATH}")
 
-    execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/parse_linux_input.sh 
+    execute_process(COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/parse_linux_input.sh 
                             ${LINUX_INPUT_H_PATH}
                             ${CMAKE_CURRENT_BINARY_DIR}/linux_input_names.h
                     RESULT_VARIABLE LINUX_INPUT_PARSE_RESULT)
