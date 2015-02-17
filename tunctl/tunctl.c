@@ -30,6 +30,11 @@ struct {
 #define OP_RMTUN 3
 #define OP_RMTAP 4
 
+/* TUNSETGROUP appeared in 2.6.23 */
+#ifndef TUNSETGROUP
+#define TUNSETGROUP   _IOW('T', 206, int)
+#endif
+
 static void print_help (const char *name);
 static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
