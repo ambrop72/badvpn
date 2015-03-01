@@ -46,6 +46,8 @@
  *       start the 'agetty' program.
  *     "username":username_string - Start the process under the permissions of the
  *       specified user. 
+ *     "retry_time":milliseconds - Wait for this long after the daemon exits
+ *       unexpectedtly before starting it again.
  */
 
 #include <stdlib.h>
@@ -61,7 +63,7 @@
 
 #include <generated/blog_channel_ncd_daemon.h>
 
-#define RETRY_TIME 10000
+#define DEFAULT_RETRY_TIME 10000
 
 #define STATE_RETRYING 1
 #define STATE_RUNNING 2
@@ -70,6 +72,7 @@
 struct instance {
     NCDModuleInst *i;
     NCDValRef cmd_arg;
+    btime_t retry_time;
     NCDBProcessOpts opts;
     BTimer timer;
     BProcess process;
@@ -214,6 +217,21 @@ static void process_handler (struct instance *o, int normally, uint8_t normally_
     o->state = STATE_RETRYING;
 }
 
+static int opts_func_unknown (void *user, NCDValRef key, NCDValRef val)
+{
+    struct instance *o = user;
+    
+    if (NCDVal_IsString(key) && NCDVal_StringEquals(key, "retry_time")) {
+        if (!ncd_read_time(val, &o->retry_time)) {
+            ModuleLog(o->i, BLOG_ERROR, "retry_time: bad value");
+            return 0;
+        }
+        return 1;
+    }
+    
+    return 0;
+}
+
 static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new_params *params)
 {
     struct instance *o = vo;
@@ -229,12 +247,13 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     
     // init options
-    if (!NCDBProcessOpts_Init(&o->opts, opts_arg, NULL, NULL, i, BLOG_CURRENT_CHANNEL)) {
+    o->retry_time = DEFAULT_RETRY_TIME;
+    if (!NCDBProcessOpts_Init(&o->opts, opts_arg, opts_func_unknown, o, i, BLOG_CURRENT_CHANNEL)) {
         goto fail0;
     }
     
     // init timer
-    BTimer_Init(&o->timer, RETRY_TIME, (BTimer_handler)timer_handler, o);
+    BTimer_Init(&o->timer, o->retry_time, (BTimer_handler)timer_handler, o);
     
     // signal up
     NCDModuleInst_Backend_Up(i);
