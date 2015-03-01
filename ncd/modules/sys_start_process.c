@@ -34,7 +34,7 @@
  * Options:
  *   "keep_stdout":"true" - Start the program with the same stdout as the NCD process.
  *     Must not be present if the process is being opened for reading.
- *   "keep_stderr":true" - Start the program with the same stderr as the NCD process.
+ *   "keep_stderr":"true" - Start the program with the same stderr as the NCD process.
  *   "do_setsid":"true" - Call setsid() in the child before exec. This is needed to
  *     start the 'agetty' program.
  *   "username":username_string - Start the process under the permissions of the

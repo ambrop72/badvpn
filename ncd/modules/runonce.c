@@ -41,7 +41,7 @@
  *     "term_on_deinit":"true" - If we get a deinit request while the process is
  *       running, send it SIGTERM.
  *     "keep_stdout":"true" - Start the program with the same stdout as the NCD process.
- *     "keep_stderr":true" - Start the program with the same stderr as the NCD process.
+ *     "keep_stderr":"true" - Start the program with the same stderr as the NCD process.
  *     "do_setsid":"true" - Call setsid() in the child before exec. This is needed to
  *       start the 'agetty' program.
  *     "username":username_string - Start the process under the permissions of the

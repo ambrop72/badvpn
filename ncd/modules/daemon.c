@@ -41,7 +41,7 @@
  *     the zeroth argument).
  *   options - Map of options:
  *     "keep_stdout":"true" - Start the program with the same stdout as the NCD process.
- *     "keep_stderr":true" - Start the program with the same stderr as the NCD process.
+ *     "keep_stderr":"true" - Start the program with the same stderr as the NCD process.
  *     "do_setsid":"true" - Call setsid() in the child before exec. This is needed to
  *       start the 'agetty' program.
  *     "username":username_string - Start the process under the permissions of the
@@ -205,7 +205,7 @@ static void process_handler (struct instance *o, int normally, uint8_t normally_
         return;
     }
     
-    BLog(BLOG_ERROR, "daemon crashed");
+    ModuleLog(o->i, BLOG_ERROR, "daemon crashed");
     
     // start timer
     BReactor_SetTimer(o->i->params->iparams->reactor, &o->timer);
