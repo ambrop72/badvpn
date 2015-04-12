@@ -23,10 +23,11 @@ In this project I host some of my open-source networking software. All of the so
 
 ## Documentation is available on the wiki:
 
-badvpn - General description of BadVPN and its features.
-Examples - Quick guide to setting up a working VPN.
-badvpn_server, badvpn_client - Documentation of individual programs.
-Requirements
+-   badvpn - General description of BadVPN and its features.
+-   Examples - Quick guide to setting up a working VPN.
+-   badvpn_server, badvpn_client - Documentation of individual programs.
+
+## Requirements
 NCD only works on Linux. Tun2socks works on Linux and Windows. The P2P VPN works on Linux, Windows and FreeBSD (not tested often).
 
 ## Installation
