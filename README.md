@@ -21,7 +21,7 @@ Relaying as a fallback (needs configuration)
 # Notes
 In this project I host some of my open-source networking software. All of the software is written in C and utilizes a custom-developed framework for event-driven programming. The extensive code sharing is the reason all the software is packaged together. However, it is possible to compile only the required components to avoid extra dependencies.
 
-## Documentation is available on the wiki:
+## Documentation is available on the [https://github.com/ambrop72/badvpn/wiki wiki]:
 
 -   badvpn - General description of BadVPN and its features.
 -   Examples - Quick guide to setting up a working VPN.
