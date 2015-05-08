@@ -487,7 +487,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     
     // init client
-    if (!NCDRequestClient_Init(&o->client, addr, i->params->iparams->reactor, o,
+    if (!NCDRequestClient_Init(&o->client, addr, i->params->iparams->reactor, i->params->iparams->string_index, o,
         (NCDRequestClient_handler_error)client_handler_error,
         (NCDRequestClient_handler_connected)client_handler_connected)) {
         ModuleLog(o->i, BLOG_ERROR, "NCDRequestClient_Init failed");

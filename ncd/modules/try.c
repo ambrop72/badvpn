@@ -390,7 +390,7 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     ASSERT(!o->dying)
     
     if (name == NCD_STRING_SUCCEEDED) {
-        *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, o->succeeded);
         return 1;
     }
     

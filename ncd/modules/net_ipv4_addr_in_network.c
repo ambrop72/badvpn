@@ -138,7 +138,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     struct instance *o = vo;
     
     if (!strcmp(name, "")) {
-        *out = ncd_make_boolean(mem, o->value, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, o->value);
         return 1;
     }
     

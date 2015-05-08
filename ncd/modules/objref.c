@@ -89,7 +89,7 @@ static void func_new_common (void *vo, NCDModuleInst *i, const struct NCDModuleI
             goto fail1;
         }
         
-        NCD_string_id_t name_id = ncd_get_string_id(name_val, i->params->iparams->string_index);
+        NCD_string_id_t name_id = ncd_get_string_id(name_val);
         if (name_id < 0) {
             ModuleLog(i, BLOG_ERROR, "ncd_get_string_id failed");
             goto fail1;

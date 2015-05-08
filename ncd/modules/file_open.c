@@ -287,7 +287,7 @@ static int open_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
     struct open_instance *o = vo;
     
     if (name == NCD_STRING_IS_ERROR) {
-        *out = ncd_make_boolean(mem, !o->fh, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, !o->fh);
         return 1;
     }
     
@@ -374,7 +374,7 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
     }
     
     if (name == NCD_STRING_NOT_EOF) {
-        *out = ncd_make_boolean(mem, (o->length != 0), o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, (o->length != 0));
         return 1;
     }
     

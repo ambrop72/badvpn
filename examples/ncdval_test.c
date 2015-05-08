@@ -119,7 +119,7 @@ int main ()
     // Some basic usage of values.
     
     NCDValMem mem;
-    NCDValMem_Init(&mem);
+    NCDValMem_Init(&mem, &string_index);
     
     NCDValRef s1 = NCDVal_NewString(&mem, "Hello World");
     test_string(s1, "Hello World", 11);
@@ -160,7 +160,7 @@ int main ()
     ASSERT( NCDVal_MapGetValue(m1, "K2").idx == v2.idx )
     ASSERT( NCDVal_IsInvalid(NCDVal_MapGetValue(m1, "K3")) )
     
-    NCDValRef ids1 = NCDVal_NewIdString(&mem, NCD_STRING_ARG1, &string_index);
+    NCDValRef ids1 = NCDVal_NewIdString(&mem, NCD_STRING_ARG1);
     test_string(ids1, "_arg1", 5);
     ASSERT( !memcmp(NCDVal_StringData(ids1), "_arg1", 5) )
     ASSERT( NCDVal_StringLength(ids1) == 5 )
@@ -169,7 +169,7 @@ int main ()
     ASSERT( NCDVal_Type(ids1) == NCDVAL_STRING )
     ASSERT( NCDVal_IsIdString(ids1) )
     
-    NCDValRef ids2 = NCDVal_NewIdString(&mem, NCD_STRING_ARG2, &string_index);
+    NCDValRef ids2 = NCDVal_NewIdString(&mem, NCD_STRING_ARG2);
     test_string(ids2, "_arg2", 5);
     ASSERT( !memcmp(NCDVal_StringData(ids2), "_arg2", 5) )
     ASSERT( NCDVal_StringLength(ids2) == 5 )
@@ -198,7 +198,7 @@ int main ()
     // an uninitialized string using NCDVal_NewStringUninitialized() and
     // then copyng the data.
     
-    NCDValMem_Init(&mem);
+    NCDValMem_Init(&mem, &string_index);
     
     NCDValRef s[100];
     

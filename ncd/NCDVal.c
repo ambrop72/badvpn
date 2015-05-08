@@ -87,7 +87,6 @@ struct NCDVal__mapelem {
 struct NCDVal__idstring {
     int type;
     NCD_string_id_t string_id;
-    NCDStringIndex *string_index;
 };
 
 struct NCDVal__externalstring {
@@ -232,6 +231,7 @@ static NCDValRef NCDVal__Ref (NCDValMem *mem, NCDVal__idx idx)
 static void NCDVal__AssertMem (NCDValMem *mem)
 {
     ASSERT(mem)
+    ASSERT(mem->string_index)
     ASSERT(mem->size == NCDVAL_FASTBUF_SIZE || mem->size >= NCDVAL_FIRST_SIZE)
     ASSERT(mem->used >= 0)
     ASSERT(mem->used <= mem->size)
@@ -289,7 +289,6 @@ static void NCDVal__AssertValOnly (NCDValMem *mem, NCDVal__idx idx)
             ASSERT(idx + sizeof(struct NCDVal__idstring) <= mem->used)
             struct NCDVal__idstring *ids_e = NCDValMem__BufAt(mem, idx);
             ASSERT(ids_e->string_id >= 0)
-            ASSERT(ids_e->string_index)
         } break;
         case EXTERNALSTRING_TYPE: {
             ASSERT(idx + sizeof(struct NCDVal__externalstring) <= mem->used)
@@ -370,8 +369,11 @@ static void NCDValMem__RegisterRef (NCDValMem *o, NCDVal__idx refidx, struct NCD
 #include "NCDVal_maptree.h"
 #include <structure/CAvl_impl.h>
 
-void NCDValMem_Init (NCDValMem *o)
+void NCDValMem_Init (NCDValMem *o, NCDStringIndex *string_index)
 {
+    ASSERT(string_index)
+    
+    o->string_index = string_index;
     o->size = NCDVAL_FASTBUF_SIZE;
     o->used = 0;
     o->first_ref = -1;
@@ -398,6 +400,7 @@ int NCDValMem_InitCopy (NCDValMem *o, NCDValMem *other)
 {
     NCDVal__AssertMem(other);
     
+    o->string_index = other->string_index;
     o->size = other->size;
     o->used = other->used;
     o->first_ref = other->first_ref;
@@ -436,6 +439,13 @@ fail1:;
     }
 fail0:
     return 0;
+}
+
+NCDStringIndex * NCDValMem_StringIndex (NCDValMem *o)
+{
+    NCDVal__AssertMem(o);
+    
+    return o->string_index;
 }
 
 void NCDVal_Assert (NCDValRef val)
@@ -839,11 +849,10 @@ fail:
     return NCDVal_NewInvalid();
 }
 
-NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id, NCDStringIndex *string_index)
+NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id)
 {
     NCDVal__AssertMem(mem);
     ASSERT(string_id >= 0)
-    ASSERT(string_index)
     
     NCDVal__idx size = sizeof(struct NCDVal__idstring);
     NCDVal__idx idx = NCDValMem__Alloc(mem, size, __alignof(struct NCDVal__idstring));
@@ -854,7 +863,6 @@ NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id, NCDStri
     struct NCDVal__idstring *ids_e = NCDValMem__BufAt(mem, idx);
     ids_e->type = make_type(IDSTRING_TYPE, 0);
     ids_e->string_id = string_id;
-    ids_e->string_index = string_index;
     
     return NCDVal__Ref(mem, idx);
     
@@ -911,7 +919,7 @@ const char * NCDVal_StringData (NCDValRef string)
         
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
-            const char *value = NCDStringIndex_Value(ids_e->string_index, ids_e->string_id).ptr;
+            const char *value = NCDStringIndex_Value(string.mem->string_index, ids_e->string_id).ptr;
             return value;
         } break;
         
@@ -940,7 +948,7 @@ size_t NCDVal_StringLength (NCDValRef string)
         
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
-            return NCDStringIndex_Value(ids_e->string_index, ids_e->string_id).len;
+            return NCDStringIndex_Value(string.mem->string_index, ids_e->string_id).len;
         } break;
         
         case EXTERNALSTRING_TYPE: {
@@ -968,7 +976,7 @@ MemRef NCDVal_StringMemRef (NCDValRef string)
         
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
-            return NCDStringIndex_Value(ids_e->string_index, ids_e->string_id);
+            return NCDStringIndex_Value(string.mem->string_index, ids_e->string_id);
         } break;
         
         case EXTERNALSTRING_TYPE: {
@@ -1000,7 +1008,7 @@ int NCDVal_StringNullTerminate (NCDValRef string, NCDValNullTermString *out)
         
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
-            out->data = (char *)NCDStringIndex_Value(ids_e->string_index, ids_e->string_id).ptr;
+            out->data = (char *)NCDStringIndex_Value(string.mem->string_index, ids_e->string_id).ptr;
             out->is_allocated = 0;
             return 1;
         } break;
@@ -1039,32 +1047,12 @@ void NCDValNullTermString_Free (NCDValNullTermString *o)
     }
 }
 
-void NCDVal_IdStringGet (NCDValRef idstring, NCD_string_id_t *out_string_id,
-                         NCDStringIndex **out_string_index)
-{
-    ASSERT(NCDVal_IsIdString(idstring))
-    ASSERT(out_string_id)
-    ASSERT(out_string_index)
-    
-    struct NCDVal__idstring *ids_e = NCDValMem__BufAt(idstring.mem, idstring.idx);
-    *out_string_id = ids_e->string_id;
-    *out_string_index = ids_e->string_index;
-}
-
 NCD_string_id_t NCDVal_IdStringId (NCDValRef idstring)
 {
     ASSERT(NCDVal_IsIdString(idstring))
     
     struct NCDVal__idstring *ids_e = NCDValMem__BufAt(idstring.mem, idstring.idx);
     return ids_e->string_id;
-}
-
-NCDStringIndex * NCDVal_IdStringStringIndex (NCDValRef idstring)
-{
-    ASSERT(NCDVal_IsIdString(idstring))
-    
-    struct NCDVal__idstring *ids_e = NCDValMem__BufAt(idstring.mem, idstring.idx);
-    return ids_e->string_index;
 }
 
 BRefTarget * NCDVal_ExternalStringTarget (NCDValRef externalstring)
@@ -1084,7 +1072,7 @@ int NCDVal_StringHasNulls (NCDValRef string)
     switch (get_internal_type(*(int *)ptr)) {
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
-            return NCDStringIndex_HasNulls(ids_e->string_index, ids_e->string_id);
+            return NCDStringIndex_HasNulls(string.mem->string_index, ids_e->string_id);
         } break;
         
         case STOREDSTRING_TYPE:
@@ -1108,30 +1096,27 @@ int NCDVal_StringEquals (NCDValRef string, const char *data)
     return NCDVal_StringLength(string) == data_len && NCDVal_StringRegionEquals(string, 0, data_len, data);
 }
 
-int NCDVal_StringEqualsId (NCDValRef string, NCD_string_id_t string_id,
-                           NCDStringIndex *string_index)
+int NCDVal_StringEqualsId (NCDValRef string, NCD_string_id_t string_id)
 {
     ASSERT(NCDVal_IsString(string))
     ASSERT(string_id >= 0)
-    ASSERT(string_index)
     
     void *ptr = NCDValMem__BufAt(string.mem, string.idx);
     
     switch (get_internal_type(*(int *)ptr)) {
         case STOREDSTRING_TYPE: {
             struct NCDVal__string *str_e = ptr;
-            return MemRef_Equal(NCDStringIndex_Value(string_index, string_id), MemRef_Make(str_e->data, str_e->length));
+            return MemRef_Equal(NCDStringIndex_Value(string.mem->string_index, string_id), MemRef_Make(str_e->data, str_e->length));
         } break;
         
         case IDSTRING_TYPE: {
             struct NCDVal__idstring *ids_e = ptr;
-            ASSERT(ids_e->string_index == string_index)
             return ids_e->string_id == string_id;
         } break;
         
         case EXTERNALSTRING_TYPE: {
             struct NCDVal__externalstring *exs_e = ptr;
-            return MemRef_Equal(NCDStringIndex_Value(string_index, string_id), MemRef_Make(exs_e->data, exs_e->length));
+            return MemRef_Equal(NCDStringIndex_Value(string.mem->string_index, string_id), MemRef_Make(exs_e->data, exs_e->length));
         } break;
         
         default:
@@ -1524,6 +1509,7 @@ NCDValRef NCDVal_MapGetValue (NCDValRef map, const char *key_str)
     ASSERT(key_str)
     
     NCDValMem mem;
+    mem.string_index = map.mem->string_index;
     mem.size = NCDVAL_FASTBUF_SIZE;
     mem.used = sizeof(struct NCDVal__externalstring);
     mem.first_ref = -1;

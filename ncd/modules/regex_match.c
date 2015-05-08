@@ -155,7 +155,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     struct instance *o = vo;
     
     if (!strcmp(name, "succeeded")) {
-        *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, o->succeeded);
         return 1;
     }
     

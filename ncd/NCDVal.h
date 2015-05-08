@@ -64,7 +64,7 @@
  * embedded data structure with relativepointers. For example, map values use an
  * embedded AVL tree.
  */
-void NCDValMem_Init (NCDValMem *o);
+void NCDValMem_Init (NCDValMem *o, NCDStringIndex *string_index);
 
 /**
  * Frees a value memory object.
@@ -82,6 +82,11 @@ void NCDValMem_Free (NCDValMem *o);
  * Returns 1 on success and 0 on failure.
  */
 int NCDValMem_InitCopy (NCDValMem *o, NCDValMem *other) WARN_UNUSED;
+
+/**
+ * Get the string index of a value memory object.
+ */
+NCDStringIndex * NCDValMem_StringIndex (NCDValMem *o);
 
 /**
  * Does nothing.
@@ -252,8 +257,7 @@ NCDValRef NCDVal_NewStringUninitialized (NCDValMem *mem, size_t len);
  * An IdString is a kind of String which is represented efficiently as a string
  * identifier via {@link NCDStringIndex}.
  */
-NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id,
-                              NCDStringIndex *string_index);
+NCDValRef NCDVal_NewIdString (NCDValMem *mem, NCD_string_id_t string_id);
 
 /**
  * Builds a new ExternalString, pointing to the given external data. A reference to
@@ -318,21 +322,9 @@ NCDValNullTermString NCDValNullTermString_NewDummy (void);
 void NCDValNullTermString_Free (NCDValNullTermString *o);
 
 /**
- * Returns the string ID and the string index of an IdString.
- * Both the \a out_string_id and \a out_string_index pointers must be non-NULL.
- */
-void NCDVal_IdStringGet (NCDValRef idstring, NCD_string_id_t *out_string_id,
-                         NCDStringIndex **out_string_index);
-
-/**
  * Returns the string ID of an IdString.
  */
 NCD_string_id_t NCDVal_IdStringId (NCDValRef idstring);
-
-/**
- * Returns the string index of an IdString.
- */
-NCDStringIndex * NCDVal_IdStringStringIndex (NCDValRef idstring);
 
 /**
  * Returns the reference target of an ExternalString. This may be NULL
@@ -355,11 +347,8 @@ int NCDVal_StringEquals (NCDValRef string, const char *data);
 /**
  * Determines if the String is equal to the given string represented
  * by an {@link NCDStringIndex} identifier.
- * NOTE: \a string_index must be equal to the string_index of every ID-string
- * that exist within this memory object.
  */
-int NCDVal_StringEqualsId (NCDValRef string, NCD_string_id_t string_id,
-                           NCDStringIndex *string_index);
+int NCDVal_StringEqualsId (NCDValRef string, NCD_string_id_t string_id);
 
 /**
  * Compares two String's in a manner similar to memcmp().

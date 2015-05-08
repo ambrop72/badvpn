@@ -149,7 +149,7 @@ static struct elem * insert_value (NCDModuleInst *i, struct instance *o, NCDValR
         goto fail0;
     }
     
-    NCDValMem_Init(&e->mem);
+    NCDValMem_Init(&e->mem, i->params->iparams->string_index);
     
     e->val = NCDVal_NewCopy(&e->mem, val);
     if (NCDVal_IsInvalid(e->val)) {
@@ -517,7 +517,7 @@ static void get_func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst
     struct elem *e = get_elem_at(mo, index);
     
     // init mem
-    NCDValMem_Init(&o->mem);
+    NCDValMem_Init(&o->mem, i->params->iparams->string_index);
     
     // copy value
     o->val = NCDVal_NewCopy(&o->mem, e->val);
@@ -623,7 +623,7 @@ static int contains_func_getvar (void *vo, const char *name, NCDValMem *mem, NCD
     struct contains_instance *o = vo;
     
     if (!strcmp(name, "")) {
-        *out = ncd_make_boolean(mem, o->contains, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, o->contains);
         return 1;
     }
     
@@ -687,7 +687,7 @@ static int find_func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValR
     }
     
     if (!strcmp(name, "found")) {
-        *out = ncd_make_boolean(mem, o->is_found, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, o->is_found);
         return 1;
     }
     

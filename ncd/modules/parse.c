@@ -187,7 +187,7 @@ static void new_templ (void *vo, NCDModuleInst *i, const struct NCDModuleInst_ne
     }
     
     // init mem
-    NCDValMem_Init(&o->mem);
+    NCDValMem_Init(&o->mem, i->params->iparams->string_index);
     
     // parse
     o->succeeded = pfunc(i, NCDVal_StringMemRef(str_arg), &o->mem, &o->value);
@@ -215,7 +215,7 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     struct instance *o = vo;
     
     if (name == NCD_STRING_SUCCEEDED) {
-        *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, o->succeeded);
         return 1;
     }
     
@@ -281,7 +281,7 @@ static int ipv4_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMe
     struct ipv4_cidr_instance *o = vo;
     
     if (name == NCD_STRING_SUCCEEDED) {
-        *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, o->succeeded);
         return 1;
     }
     
@@ -337,7 +337,7 @@ static int ipv6_cidr_addr_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMe
     struct ipv6_cidr_instance *o = vo;
     
     if (name == NCD_STRING_SUCCEEDED) {
-        *out = ncd_make_boolean(mem, o->succeeded, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, o->succeeded);
         return 1;
     }
     

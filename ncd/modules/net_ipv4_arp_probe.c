@@ -186,7 +186,7 @@ static int func_getvar (void *vo, const char *name, NCDValMem *mem, NCDValRef *o
     ASSERT(o->state == STATE_EXIST || o->state == STATE_NOEXIST)
     
     if (!strcmp(name, "exists")) {
-        *out = ncd_make_boolean(mem, o->state == STATE_EXIST, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, o->state == STATE_EXIST);
         return 1;
     }
     

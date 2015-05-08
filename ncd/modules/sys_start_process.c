@@ -324,7 +324,7 @@ static int opts_func_unknown (void *user, NCDValRef key, NCDValRef val)
         if (NCDVal_IsString(val) && NCDVal_StringEquals(val, "never")) {
             o->deinit_kill_time = -2;
         }
-        else if (NCDVal_IsString(val) && NCDVal_StringEqualsId(val, NCD_STRING_EMPTY, o->i->params->iparams->string_index)) {
+        else if (NCDVal_IsString(val) && NCDVal_StringEqualsId(val, NCD_STRING_EMPTY)) {
             o->deinit_kill_time = -1;
         }
         else if (!ncd_read_time(val, &o->deinit_kill_time)) {
@@ -533,7 +533,7 @@ static int process_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, 
     
     if (name == NCD_STRING_IS_ERROR) {
         int is_error = (o->state == PROCESS_STATE_ERROR);
-        *out = ncd_make_boolean(mem, is_error, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, is_error);
         return 1;
     }
     
@@ -802,7 +802,7 @@ static int read_pipe_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem
     
     if (name == NCD_STRING_IS_ERROR) {
         int is_error = (o->state == READER_STATE_ERROR);
-        *out = ncd_make_boolean(mem, is_error, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, is_error);
         return 1;
     }
     
@@ -903,14 +903,14 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
         if (o->read_size > 0) {
             *out = NCDVal_NewExternalString(mem, NCDBuf_Data(o->buf), o->read_size, NCDBuf_RefTarget(o->buf));
         } else {
-            *out = NCDVal_NewIdString(mem, NCD_STRING_EMPTY, o->i->params->iparams->string_index);
+            *out = NCDVal_NewIdString(mem, NCD_STRING_EMPTY);
         }
         return 1;
     }
     
     if (name == NCD_STRING_NOT_EOF) {
         int not_eof = (o->read_size > 0);
-        *out = ncd_make_boolean(mem, not_eof, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, not_eof);
         return 1;
     }
     
@@ -1067,7 +1067,7 @@ static int write_pipe_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *me
     
     if (name == NCD_STRING_IS_ERROR) {
         int is_error = (o->state == WRITER_STATE_ERROR);
-        *out = ncd_make_boolean(mem, is_error, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, is_error);
         return 1;
     }
     

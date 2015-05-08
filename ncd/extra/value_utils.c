@@ -54,13 +54,12 @@ int ncd_is_none (NCDValRef string)
     }
 }
 
-NCDValRef ncd_make_boolean (NCDValMem *mem, int value, NCDStringIndex *string_index)
+NCDValRef ncd_make_boolean (NCDValMem *mem, int value)
 {
     ASSERT(mem)
-    ASSERT(string_index)
     
     NCD_string_id_t str_id = (value ? NCD_STRING_TRUE : NCD_STRING_FALSE);
-    return NCDVal_NewIdString(mem, str_id, string_index);
+    return NCDVal_NewIdString(mem, str_id);
 }
 
 int ncd_read_boolean (NCDValRef val, int *out)
@@ -106,16 +105,15 @@ int ncd_read_time (NCDValRef val, btime_t *out)
     return 1;
 }
 
-NCD_string_id_t ncd_get_string_id (NCDValRef string, NCDStringIndex *string_index)
+NCD_string_id_t ncd_get_string_id (NCDValRef string)
 {
     ASSERT(NCDVal_IsString(string))
-    ASSERT(string_index)
     
     if (NCDVal_IsIdString(string)) {
         return NCDVal_IdStringId(string);
     }
     
-    return NCDStringIndex_GetBinMr(string_index, NCDVal_StringMemRef(string));
+    return NCDStringIndex_GetBinMr(NCDValMem_StringIndex(string.mem), NCDVal_StringMemRef(string));
 }
 
 NCDValRef ncd_make_uintmax (NCDValMem *mem, uintmax_t value)

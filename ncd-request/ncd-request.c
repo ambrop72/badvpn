@@ -52,6 +52,7 @@ static void request_handler_finished (void *user, int is_error);
 static int write_all (int fd, const uint8_t *data, size_t len);
 static int make_connect_addr (const char *str, struct BConnection_addr *out_addr);
 
+NCDStringIndex string_index;
 NCDValMem request_mem;
 NCDValRef request_value;
 BReactor reactor;
@@ -75,7 +76,12 @@ int main (int argc, char *argv[])
     
     BTime_Init();
     
-    NCDValMem_Init(&request_mem);
+    if (!NCDStringIndex_Init(&string_index)) {
+        BLog(BLOG_ERROR, "NCDStringIndex_Init failed");
+        goto fail01;
+    }
+    
+    NCDValMem_Init(&request_mem, &string_index);
     
     if (!NCDValParser_Parse(MemRef_MakeCstr(request_payload_string), &request_mem, &request_value)) {
         BLog(BLOG_ERROR, "BReactor_Init failed");
@@ -97,7 +103,7 @@ int main (int argc, char *argv[])
         goto fail2;
     }
     
-    if (!NCDRequestClient_Init(&client, addr, &reactor, NULL, client_handler_error, client_handler_connected)) {
+    if (!NCDRequestClient_Init(&client, addr, &reactor, &string_index, NULL, client_handler_error, client_handler_connected)) {
         BLog(BLOG_ERROR, "NCDRequestClient_Init failed");
         goto fail2;
     }
@@ -114,6 +120,8 @@ fail2:
     BReactor_Free(&reactor);
 fail1:
     NCDValMem_Free(&request_mem);
+    NCDStringIndex_Free(&string_index);
+fail01:
     BLog_Free();
 fail0:
     DebugObjectGlobal_Finish();

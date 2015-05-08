@@ -124,7 +124,7 @@ static void bool_not_eval (NCDCall call, int negate, char const *name)
         return FunctionLog(&call, BLOG_ERROR, "%s: bad argument", name);
     }
     int res = (arg_val != negate);
-    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res, NCDCall_Iparams(&call)->string_index));
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res));
 }
 
 static void bool_eval (NCDCall call) { return bool_not_eval(call, 0, "bool"); }
@@ -148,7 +148,7 @@ static void and_or_eval (NCDCall call, int is_and, char const *name)
             break;
         }
     }
-    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res, NCDCall_Iparams(&call)->string_index));
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res));
 }
 
 static void and_eval (NCDCall call) { return and_or_eval(call, 1, "and"); }
@@ -174,7 +174,7 @@ static void imp_eval (NCDCall call)
             break;
         }
     }
-    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res, NCDCall_Iparams(&call)->string_index));
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res));
 }
 
 
@@ -195,7 +195,7 @@ static void value_compare_eval (NCDCall call, value_compare_func func)
         }
     }
     int res = func(NCDVal_Compare(vals[0], vals[1]));
-    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res, NCDCall_Iparams(&call)->string_index));
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res));
 }
 
 #define DEFINE_VALUE_COMPARE(name, expr) \
@@ -316,7 +316,7 @@ static void integer_compare_eval (NCDCall call, integer_compare_func func)
         }
     }
     int res = func(ints[0], ints[1]);
-    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res, NCDCall_Iparams(&call)->string_index));
+    NCDCall_SetResult(&call, ncd_make_boolean(NCDCall_ResMem(&call), res));
 }
 
 #define DEFINE_INT_COMPARE(name, expr) \
@@ -406,7 +406,7 @@ static void decode_value_eval (NCDCall call)
     // Otherwise the ResMem could get resized while we're
     // parsing a string within it, and boom.
     NCDValMem temp_mem;
-    NCDValMem_Init(&temp_mem);
+    NCDValMem_Init(&temp_mem, NCDCall_Iparams(&call)->string_index);
     NCDValRef arg = NCDCall_EvalArg(&call, 0, &temp_mem);
     if (NCDVal_IsInvalid(arg)) {
         goto fail1;
@@ -604,7 +604,7 @@ static void struct_decode_eval (NCDCall call)
     }
     // Evaluate the data string to temp mem, so the pointer doesn't change.
     NCDValMem temp_mem;
-    NCDValMem_Init(&temp_mem);
+    NCDValMem_Init(&temp_mem, NCDCall_Iparams(&call)->string_index);
     NCDValRef data_arg = NCDCall_EvalArg(&call, 1, &temp_mem);
     if (NCDVal_IsInvalid(data_arg)) {
         goto fail1;

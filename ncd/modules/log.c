@@ -116,22 +116,21 @@ static int parse_level (NCDModuleInst *i, NCDValRef level_arg, int *out_level)
 {
     int found = 0;
     if (NCDVal_IsString(level_arg)) {
-        NCDStringIndex *string_index = i->params->iparams->string_index;
         found = 1;
         
-        if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_ERROR), string_index)) {
+        if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_ERROR))) {
             *out_level = BLOG_ERROR;
         }
-        else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_WARNING), string_index)) {
+        else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_WARNING))) {
             *out_level = BLOG_WARNING;
         }
-        else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_NOTICE), string_index)) {
+        else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_NOTICE))) {
             *out_level = BLOG_NOTICE;
         }
-        else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_INFO), string_index)) {
+        else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_INFO))) {
             *out_level = BLOG_INFO;
         }
-        else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_DEBUG), string_index)) {
+        else if (NCDVal_StringEqualsId(level_arg, ModuleString(i, STRING_DEBUG))) {
             *out_level = BLOG_DEBUG;
         }
         else {

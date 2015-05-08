@@ -42,6 +42,7 @@
 typedef int NCDVal__idx;
 
 typedef struct {
+    NCDStringIndex *string_index;
     NCDVal__idx size;
     NCDVal__idx used;
     NCDVal__idx first_ref;

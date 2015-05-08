@@ -179,7 +179,7 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     struct instance *o = vo;
     
     if (name == NCD_STRING_EMPTY) {
-        *out = ncd_make_boolean(mem, o->up, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, o->up);
         return 1;
     }
     

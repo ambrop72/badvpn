@@ -207,7 +207,7 @@ static int boolean_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem,
     struct boolean_instance *o = vo;
     
     if (name == NCD_STRING_EMPTY) {
-        *out = ncd_make_boolean(mem, o->value, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, o->value);
         return 1;
     }
     
@@ -252,7 +252,7 @@ static int number_func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, 
     struct number_instance *o = vo;
     
     if (name == NCD_STRING_IS_ERROR) {
-        *out = ncd_make_boolean(mem, !!o->error, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, !!o->error);
         return 1;
     }
     

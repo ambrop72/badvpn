@@ -89,7 +89,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     uintmax_t ms;
     btime_t ms_start;
     
-    if (NCDVal_IsString(ms_start_arg) && NCDVal_StringEqualsId(ms_start_arg, NCD_STRING_EMPTY, i->params->iparams->string_index)) {
+    if (NCDVal_IsString(ms_start_arg) && NCDVal_StringEqualsId(ms_start_arg, NCD_STRING_EMPTY)) {
         ms_start = -1;
     } else {
         if (!ncd_read_uintmax(ms_start_arg, &ms) || ms > INT64_MAX) {
@@ -99,7 +99,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ms_start = ms;
     }
     
-    if (NCDVal_IsInvalid(ms_stop_arg) || (NCDVal_IsString(ms_stop_arg) && NCDVal_StringEqualsId(ms_stop_arg, NCD_STRING_EMPTY, i->params->iparams->string_index))) {
+    if (NCDVal_IsInvalid(ms_stop_arg) || (NCDVal_IsString(ms_stop_arg) && NCDVal_StringEqualsId(ms_stop_arg, NCD_STRING_EMPTY))) {
         o->ms_stop = -1;
     } else {
         if (!ncd_read_uintmax(ms_stop_arg, &ms) || ms > INT64_MAX) {

@@ -63,7 +63,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     
     // init mem
-    NCDValMem_Init(&o->mem);
+    NCDValMem_Init(&o->mem, i->params->iparams->string_index);
     
     // copy value
     o->value = NCDVal_NewCopy(&o->mem, value_arg);
@@ -117,7 +117,7 @@ static void set_func_new (void *unused, NCDModuleInst *i, const struct NCDModule
     
     // allocate new mem
     NCDValMem mem;
-    NCDValMem_Init(&mem);
+    NCDValMem_Init(&mem, i->params->iparams->string_index);
     
     // copy value
     NCDValRef copy = NCDVal_NewCopy(&mem, value_arg);

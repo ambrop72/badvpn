@@ -767,7 +767,7 @@ static int connect_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, 
     
     if (name == NCD_STRING_IS_ERROR) {
         int is_error = (o->state == CONNECTION_STATE_ERROR);
-        *out = ncd_make_boolean(mem, is_error, o->connect.i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, is_error);
         return 1;
     }
     
@@ -859,7 +859,7 @@ static int read_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCD
     }
     
     if (name == NCD_STRING_EOF || name == NCD_STRING_NOT_EOF) {
-        *out = ncd_make_boolean(mem, (o->read_size == 0) == (name == NCD_STRING_EOF), o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, (o->read_size == 0) == (name == NCD_STRING_EOF));
         return 1;
     }
     
@@ -1065,7 +1065,7 @@ static int listen_func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, N
     struct listen_instance *o = vo;
     
     if (name == NCD_STRING_IS_ERROR) {
-        *out = ncd_make_boolean(mem, o->have_error, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, o->have_error);
         return 1;
     }
     

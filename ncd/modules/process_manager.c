@@ -162,7 +162,7 @@ static int process_new (struct instance *o, NCDValMem *mem, NCDValSafeRef name, 
     BSmallTimer_Init(&p->retry_timer, process_retry_timer_handler);
     
     // init template name
-    p->template_name = ncd_get_string_id(NCDVal_FromSafe(mem, template_name), o->i->params->iparams->string_index);
+    p->template_name = ncd_get_string_id(NCDVal_FromSafe(mem, template_name));
     if (p->template_name < 0) {
         ModuleLog(o->i, BLOG_ERROR, "ncd_get_string_id failed");
         goto fail1;

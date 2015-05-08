@@ -709,7 +709,7 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value)
     switch (NCDVal_Type(value)) {
         case NCDVAL_STRING: {
             if (NCDVal_IsIdString(value)) {
-                v = value_init_idstring(i, NCDVal_IdStringId(value), NCDVal_IdStringStringIndex(value));
+                v = value_init_idstring(i, NCDVal_IdStringId(value), NCDValMem_StringIndex(value.mem));
             } else if (NCDVal_IsExternalString(value)) {
                 v = value_init_externalstring(i, NCDVal_StringMemRef(value), NCDVal_ExternalStringTarget(value));
             } else {
@@ -750,7 +750,7 @@ static struct value * value_init_fromvalue (NCDModuleInst *i, NCDValRef value)
                 NCDValRef eval = NCDVal_MapElemVal(value, e);
                 
                 NCDValMem key_mem;
-                NCDValMem_Init(&key_mem);
+                NCDValMem_Init(&key_mem, i->params->iparams->string_index);
                 
                 NCDValRef key = NCDVal_NewCopy(&key_mem, ekey);
                 if (NCDVal_IsInvalid(key)) {
@@ -799,7 +799,7 @@ static int value_to_value (NCDModuleInst *i, struct value *v, NCDValMem *mem, NC
         } break;
         
         case IDSTRING_TYPE: {
-            *out_value = NCDVal_NewIdString(mem, v->idstring.id, v->idstring.string_index);
+            *out_value = NCDVal_NewIdString(mem, v->idstring.id);
             if (NCDVal_IsInvalid(*out_value)) {
                 goto fail;
             }
@@ -985,7 +985,7 @@ static struct value * value_insert (NCDModuleInst *i, struct value *v, NCDValRef
             }
             
             NCDValMem key_mem;
-            NCDValMem_Init(&key_mem);
+            NCDValMem_Init(&key_mem, i->params->iparams->string_index);
             
             NCDValRef key = NCDVal_NewCopy(&key_mem, where);
             if (NCDVal_IsInvalid(key)) {
@@ -1239,7 +1239,7 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
     struct value *v = valref_val(&o->ref);
     
     if (name == ModuleString(o->i, STRING_EXISTS)) {
-        *out = ncd_make_boolean(mem, !!v, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, !!v);
         return 1;
     }
     
