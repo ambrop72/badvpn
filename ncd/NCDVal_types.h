@@ -42,12 +42,12 @@
 typedef int NCDVal__idx;
 
 typedef struct {
-    char *buf;
     NCDVal__idx size;
     NCDVal__idx used;
     NCDVal__idx first_ref;
     union {
         char fastbuf[NCDVAL_FASTBUF_SIZE];
+        char *allocd_buf;
         bmax_align_t align_max;
     };
 } NCDValMem;

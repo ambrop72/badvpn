@@ -174,7 +174,7 @@ static void * NCDValMem__BufAt (NCDValMem *o, NCDVal__idx idx)
     ASSERT(idx >= 0)
     ASSERT(idx < o->used)
     
-    return (o->buf ? o->buf : o->fastbuf) + idx;
+    return ((o->size == NCDVAL_FASTBUF_SIZE) ? o->fastbuf : o->allocd_buf) + idx;
 }
 
 static NCDVal__idx NCDValMem__Alloc (NCDValMem *o, NCDVal__idx alloc_size, NCDVal__idx align)
@@ -188,7 +188,7 @@ static NCDVal__idx NCDValMem__Alloc (NCDValMem *o, NCDVal__idx alloc_size, NCDVa
     NCDVal__idx aligned_alloc_size = align_extra + alloc_size;
     
     if (aligned_alloc_size > o->size - o->used) {
-        NCDVal__idx newsize = (o->buf ? o->size : NCDVAL_FIRST_SIZE);
+        NCDVal__idx newsize = (o->size == NCDVAL_FASTBUF_SIZE) ? NCDVAL_FIRST_SIZE : o->size;
         while (aligned_alloc_size > newsize - o->used) {
             if (newsize > NCDVAL_MAXIDX / 2) {
                 return -1;
@@ -198,21 +198,21 @@ static NCDVal__idx NCDValMem__Alloc (NCDValMem *o, NCDVal__idx alloc_size, NCDVa
         
         char *newbuf;
         
-        if (!o->buf) {
+        if (o->size == NCDVAL_FASTBUF_SIZE) {
             newbuf = malloc(newsize);
             if (!newbuf) {
                 return -1;
             }
             memcpy(newbuf, o->fastbuf, o->used);
         } else {
-            newbuf = realloc(o->buf, newsize);
+            newbuf = realloc(o->allocd_buf, newsize);
             if (!newbuf) {
                 return -1;
             }
         }
         
-        o->buf = newbuf;
         o->size = newsize;
+        o->allocd_buf = newbuf;
     }
     
     NCDVal__idx idx = o->used + align_extra;
@@ -232,18 +232,16 @@ static NCDValRef NCDVal__Ref (NCDValMem *mem, NCDVal__idx idx)
 static void NCDVal__AssertMem (NCDValMem *mem)
 {
     ASSERT(mem)
-    ASSERT(mem->size >= 0)
+    ASSERT(mem->size == NCDVAL_FASTBUF_SIZE || mem->size >= NCDVAL_FIRST_SIZE)
     ASSERT(mem->used >= 0)
     ASSERT(mem->used <= mem->size)
-    ASSERT(mem->buf || mem->size == NCDVAL_FASTBUF_SIZE)
-    ASSERT(!mem->buf || mem->size >= NCDVAL_FIRST_SIZE)
 }
 
 static void NCDVal_AssertExternal (NCDValMem *mem, const void *e_buf, size_t e_len)
 {
 #ifndef NDEBUG
     const char *e_cbuf = e_buf;
-    char *buf = (mem->buf ? mem->buf : mem->fastbuf);
+    char *buf = (mem->size == NCDVAL_FASTBUF_SIZE) ? mem->fastbuf : mem->allocd_buf;
     ASSERT(e_cbuf >= buf + mem->size || e_cbuf + e_len <= buf)
 #endif
 }
@@ -374,7 +372,6 @@ static void NCDValMem__RegisterRef (NCDValMem *o, NCDVal__idx refidx, struct NCD
 
 void NCDValMem_Init (NCDValMem *o)
 {
-    o->buf = NULL;
     o->size = NCDVAL_FASTBUF_SIZE;
     o->used = 0;
     o->first_ref = -1;
@@ -392,8 +389,8 @@ void NCDValMem_Free (NCDValMem *o)
         refidx = ref->next;
     }
     
-    if (o->buf) {
-        BFree(o->buf);
+    if (o->size != NCDVAL_FASTBUF_SIZE) {
+        BFree(o->allocd_buf);
     }
 }
 
@@ -405,15 +402,14 @@ int NCDValMem_InitCopy (NCDValMem *o, NCDValMem *other)
     o->used = other->used;
     o->first_ref = other->first_ref;
     
-    if (!other->buf) {
-        o->buf = NULL;
+    if (other->size == NCDVAL_FASTBUF_SIZE) {
         memcpy(o->fastbuf, other->fastbuf, other->used);
     } else {
-        o->buf = BAlloc(other->size);
-        if (!o->buf) {
+        o->allocd_buf = BAlloc(other->size);
+        if (!o->allocd_buf) {
             goto fail0;
         }
-        memcpy(o->buf, other->buf, other->used);
+        memcpy(o->allocd_buf, other->allocd_buf, other->used);
     }
     
     NCDVal__idx refidx = o->first_ref;
@@ -435,8 +431,8 @@ fail1:;
         BRefTarget_Deref(ref->target);
         undo_refidx = ref->next;
     }
-    if (o->buf) {
-        BFree(o->buf);
+    if (other->size != NCDVAL_FASTBUF_SIZE) {
+        BFree(o->allocd_buf);
     }
 fail0:
     return 0;
@@ -1528,7 +1524,6 @@ NCDValRef NCDVal_MapGetValue (NCDValRef map, const char *key_str)
     ASSERT(key_str)
     
     NCDValMem mem;
-    mem.buf = NULL;
     mem.size = NCDVAL_FASTBUF_SIZE;
     mem.used = sizeof(struct NCDVal__externalstring);
     mem.first_ref = -1;
