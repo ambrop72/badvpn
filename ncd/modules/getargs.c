@@ -32,7 +32,7 @@
  *   getargs()
  * 
  * Variables:
- *   (empty) - list of extra command line arguments that were passed to the intrepreter
+ *   (empty) - list of extra command line arguments that were passed to the interpreter
  */
 
 #include <string.h>
