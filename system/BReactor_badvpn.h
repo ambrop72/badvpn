@@ -203,7 +203,7 @@ typedef struct BFileDescriptor_t {
     
     #ifdef BADVPN_USE_KEVENT
     int kevent_tag;
-    int **kevent_returned_ptr;
+    int kevent_last_event;
     #endif
     
     #ifdef BADVPN_USE_POLL
@@ -265,6 +265,7 @@ typedef struct {
     #ifdef BADVPN_USE_KEVENT
     int kqueue_fd;
     struct kevent kevent_results[BSYSTEM_MAX_RESULTS];
+    int kevent_prev_event[BSYSTEM_MAX_RESULTS];
     int kevent_results_num;
     int kevent_results_pos;
     #endif
