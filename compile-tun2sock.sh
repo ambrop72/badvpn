@@ -53,6 +53,7 @@ system/BConnection_common.c
 system/BTime.c
 system/BUnixSignal.c
 system/BNetwork.c
+system/BDatagram_unix.c
 flow/StreamRecvInterface.c
 flow/PacketRecvInterface.c
 flow/PacketPassInterface.c
