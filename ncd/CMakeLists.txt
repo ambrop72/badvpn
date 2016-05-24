@@ -189,7 +189,7 @@ if (NOT EMSCRIPTEN)
     
     install(
         TARGETS badvpn-ncd
-        RUNTIME DESTINATION bin
+		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
 endif ()
 

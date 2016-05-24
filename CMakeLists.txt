@@ -3,6 +3,7 @@ project(BADVPN C)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 
+include(GNUInstallDirs)
 include(TestBigEndian)
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
@@ -243,7 +244,7 @@ endif ()
 # install man pages
 install(
     FILES badvpn.7
-    DESTINATION share/man/man7
+	DESTINATION ${CMAKE_INSTALL_MANDIR}/man7
 )
 
 # reset variables indicating whether we're building various libraries,
