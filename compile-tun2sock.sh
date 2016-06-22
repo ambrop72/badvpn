@@ -5,6 +5,7 @@
 
 # Input environment vars:
 #   SRCDIR - BadVPN source code
+#   OUTDIR - tun2socks binary output file directory
 #   CC - compiler
 #   CFLAGS - compiler compile flags
 #   LDFLAGS - compiler link flags
@@ -111,4 +112,4 @@ for f in $SOURCES; do
     OBJS=( "${OBJS[@]}" "${obj}" )
 done
 
-"${CC}" ${LDFLAGS} "${OBJS[@]}" -o tun2socks -lrt
+"${CC}" ${LDFLAGS} "${OBJS[@]}" -o $OUTDIR/tun2socks -lrt
