@@ -274,8 +274,8 @@ int BProcess_Init2 (BProcess *o, BProcessManager *m, BProcess_handler handler, v
     sigset_t sset_all;
     sigfillset(&sset_all);
     sigset_t sset_old;
-    if (sigprocmask(SIG_SETMASK, &sset_all, &sset_old) < 0) {
-        BLog(BLOG_ERROR, "sigprocmask failed");
+    if (pthread_sigmask(SIG_SETMASK, &sset_all, &sset_old) != 0) {
+        BLog(BLOG_ERROR, "pthread_sigmask failed");
         goto fail3;
     }
     
@@ -297,7 +297,7 @@ int BProcess_Init2 (BProcess *o, BProcessManager *m, BProcess_handler handler, v
         // unblock signals
         sigset_t sset_none;
         sigemptyset(&sset_none);
-        if (sigprocmask(SIG_SETMASK, &sset_none, NULL) < 0) {
+        if (pthread_sigmask(SIG_SETMASK, &sset_none, NULL) != 0) {
             abort();
         }
         
@@ -365,7 +365,7 @@ int BProcess_Init2 (BProcess *o, BProcessManager *m, BProcess_handler handler, v
     }
     
     // restore original signal mask
-    ASSERT_FORCE(sigprocmask(SIG_SETMASK, &sset_old, NULL) == 0)
+    ASSERT_FORCE(pthread_sigmask(SIG_SETMASK, &sset_old, NULL) == 0)
     
     if (pid < 0) {
         BLog(BLOG_ERROR, "fork failed");
