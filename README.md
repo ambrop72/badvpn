@@ -49,7 +49,7 @@ NCD only works on Linux. Tun2socks works on Linux and Windows. The P2P VPN works
 
 ## Installation
 
-Packages are available for NixOS (badvpn), Gentoo Linux (net-misc/badvpn), Arch Linux (AUR package badvpn) and Ubuntu (see Installation).
+Packages are available for NixOS (badvpn), Gentoo Linux (net-misc/badvpn), Arch Linux (community/badvpn) and Ubuntu (see Installation).
 A Windows build is available too. If you want to build BadVPN from source, see INSTALL or INSTALL-WINDOWS.
 
 ## License
