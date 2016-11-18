@@ -21,12 +21,8 @@ in
 rec {
     inherit pkgs;
     
-    drvs = rec {
-        badvpnFunc = import ./badvpn-win32.nix;
-        badvpn = pkgs.callPackage badvpnFunc {};
-        badvpnDebug = pkgs.callPackage badvpnFunc { debug = true; };
-    };
+    badvpnPkgsFunc = import ./badvpn-win32.nix;
     
-    badvpn = drvs.badvpn.crossDrv;
-    badvpnDebug = drvs.badvpnDebug.crossDrv;
+    badvpnPkgs = pkgs.callPackage badvpnPkgsFunc {};
+    badvpnDebugPkgs = pkgs.callPackage badvpnPkgsFunc { debug = true; };
 }
