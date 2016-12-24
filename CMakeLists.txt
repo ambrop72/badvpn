@@ -3,6 +3,7 @@ project(BADVPN C)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 
+include(GNUInstallDirs)
 include(TestBigEndian)
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
@@ -130,7 +131,7 @@ if (NOT (SIZE_SIZE GREATER INT_SIZE OR SIZE_SIZE EQUAL INT_SIZE))
 endif ()
 
 if (MSVC)
-    add_definitions(/TP -D_CRT_SECURE_NO_WARNINGS /wd4065 /wd4018 /wd4533 /wd4244 /wd4102)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS /wd4065 /wd4018 /wd4533 /wd4244 /wd4102)
 else ()
     add_definitions(-std=gnu99 -Wall -Wno-unused-value -Wno-parentheses -Wno-switch -Wredundant-decls -Wshadow)
 
@@ -168,7 +169,7 @@ else ()
     add_definitions(-DBADVPN_THREADWORK_USE_PTHREAD)
     add_definitions(-DBADVPN_THREAD_SAFE=1)
 
-    link_libraries(rt)
+    link_libraries(rt pthread)
 
     if (EMSCRIPTEN)
         add_definitions(-DBADVPN_EMSCRIPTEN)
@@ -243,7 +244,7 @@ endif ()
 # install man pages
 install(
     FILES badvpn.7
-    DESTINATION share/man/man7
+	DESTINATION ${CMAKE_INSTALL_MANDIR}/man7
 )
 
 # reset variables indicating whether we're building various libraries,

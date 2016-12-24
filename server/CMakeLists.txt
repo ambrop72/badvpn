@@ -3,10 +3,10 @@ target_link_libraries(badvpn-server system flow flowextra nspr_support predicate
 
 install(
     TARGETS badvpn-server
-    RUNTIME DESTINATION bin
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 install(
     FILES badvpn-server.8
-    DESTINATION share/man/man8
+    DESTINATION ${CMAKE_INSTALL_MANDIR}/man8
 )
