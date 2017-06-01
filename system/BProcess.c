@@ -49,6 +49,8 @@
 
 #include <generated/blog_channel_BProcess.h>
 
+#define INITIAL_NUM_GROUPS 24
+
 static void call_handler (BProcess *o, int normally, uint8_t normally_exit_status)
 {
     DEBUGERROR(&o->d_err, o->handler(o->user, normally, normally_exit_status))
@@ -183,6 +185,8 @@ static int fds_contains (const int *fds, int fd, size_t *pos)
 
 int BProcess_Init2 (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[], struct BProcess_params params)
 {
+    int res = 0;
+    
     // init arguments
     o->m = m;
     o->handler = handler;
@@ -192,15 +196,87 @@ int BProcess_Init2 (BProcess *o, BProcessManager *m, BProcess_handler handler, v
     size_t num_fds;
     for (num_fds = 0; params.fds[num_fds] >= 0; num_fds++);
     
+    // We retrieve all the needed info and allocate all needed memory
+    // before the fork, because doing these things in the child after
+    // the fork may be unsafe.
+    
+    // Get the max FD number.
+    int max_fd = sysconf(_SC_OPEN_MAX);
+    if (max_fd < 0) {
+        BLog(BLOG_ERROR, "sysconf(_SC_OPEN_MAX)");
+        goto fail0;
+    }
+    
+    char *pwnam_buf = NULL;
+    struct passwd pwd;
+    gid_t groups_static[INITIAL_NUM_GROUPS];
+    gid_t *groups = groups_static;
+    int num_groups = INITIAL_NUM_GROUPS;    
+    
+    if (params.username) {
+        // Get the max getpwnam_r buffer size.
+        long pwnam_bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
+        if (pwnam_bufsize < 0) {
+            pwnam_bufsize = 16384;
+        }
+        
+        // Allocate memory for getpwnam_r.
+        pwnam_buf = malloc(pwnam_bufsize);
+        if (!pwnam_buf) {
+            BLog(BLOG_ERROR, "malloc failed");
+            goto fail0;
+        }
+        
+        // Get information about the user.
+        struct passwd *getpwnam_res;
+        getpwnam_r(params.username, &pwd, pwnam_buf, pwnam_bufsize, &getpwnam_res);
+        if (!getpwnam_res) {
+            BLog(BLOG_ERROR, "getpwnam_r failed");
+            goto fail1;
+        }
+        
+        // Retrieve the group list.
+        // Start with a small auto-allocated list and only if it turns out
+        // to be too small resort to malloc.
+        while (1) {
+            int groups_ret = getgrouplist(params.username, pwd.pw_gid, groups, &num_groups);
+            if ((groups_ret < 0) ? (num_groups <= 0) : (num_groups != groups_ret)) {
+                BLog(BLOG_ERROR, "getgrouplist behaved inconsistently");
+                goto fail2;
+            }
+            
+            if (groups_ret >= 0) {
+                break;
+            }
+            
+            if (groups != groups_static) {
+                free(groups);
+            }
+            groups = malloc(num_groups * sizeof(gid_t));
+            if (!groups) {
+                BLog(BLOG_ERROR, "malloc failed");
+                goto fail2;
+            }
+        }
+    }
+
+    // Make a copy of the file descriptors array.
+    int *fds2 = malloc((num_fds + 1) * sizeof(fds2[0]));
+    if (!fds2) {
+        BLog(BLOG_ERROR, "malloc failed");
+        goto fail2;
+    }
+    memcpy(fds2, params.fds, (num_fds + 1) * sizeof(fds2[0]));
+    
     // block signals
     // needed to prevent parent's signal handlers from being called
     // in the child
     sigset_t sset_all;
     sigfillset(&sset_all);
     sigset_t sset_old;
-    if (sigprocmask(SIG_SETMASK, &sset_all, &sset_old) < 0) {
-        BLog(BLOG_ERROR, "sigprocmask failed");
-        goto fail0;
+    if (pthread_sigmask(SIG_SETMASK, &sset_all, &sset_old) != 0) {
+        BLog(BLOG_ERROR, "pthread_sigmask failed");
+        goto fail3;
     }
     
     // fork
@@ -221,31 +297,15 @@ int BProcess_Init2 (BProcess *o, BProcessManager *m, BProcess_handler handler, v
         // unblock signals
         sigset_t sset_none;
         sigemptyset(&sset_none);
-        if (sigprocmask(SIG_SETMASK, &sset_none, NULL) < 0) {
+        if (pthread_sigmask(SIG_SETMASK, &sset_none, NULL) != 0) {
             abort();
         }
         
-        // copy fds array
-        int *fds2 = malloc((num_fds + 1) * sizeof(fds2[0]));
-        if (!fds2) {
-            abort();
-        }
-        memcpy(fds2, params.fds, (num_fds + 1) * sizeof(fds2[0]));
-        
-        // find maximum file descriptors
-        int max_fd = sysconf(_SC_OPEN_MAX);
-        if (max_fd < 0) {
-            abort();
-        }
-        
-        // close file descriptors
+        // close file descriptors, except the given fds
         for (int i = 0; i < max_fd; i++) {
-            // if it's one of the given fds, don't close it
-            if (fds_contains(fds2, i, NULL)) {
-                continue;
+            if (!fds_contains(fds2, i, NULL)) {
+                close(i);
             }
-            
-            close(i);
         }
         
         // map fds to requested fd numbers
@@ -284,24 +344,7 @@ int BProcess_Init2 (BProcess *o, BProcessManager *m, BProcess_handler handler, v
         
         // assume identity of username, if requested
         if (params.username) {
-            long bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
-            if (bufsize < 0) {
-                bufsize = 16384;
-            }
-            
-            char *buf = malloc(bufsize);
-            if (!buf) {
-                abort();
-            }
-            
-            struct passwd pwd;
-            struct passwd *res;
-            getpwnam_r(params.username, &pwd, buf, bufsize, &res);
-            if (!res) {
-                abort();
-            }
-            
-            if (initgroups(params.username, pwd.pw_gid) < 0) {
+            if (setgroups(num_groups, groups) < 0) {
                 abort();
             }
             
@@ -314,17 +357,19 @@ int BProcess_Init2 (BProcess *o, BProcessManager *m, BProcess_handler handler, v
             }
         }
         
+        // do the exec
         execv(file, argv);
         
+        // if we're still here, something went wrong
         abort();
     }
     
     // restore original signal mask
-    ASSERT_FORCE(sigprocmask(SIG_SETMASK, &sset_old, NULL) == 0)
+    ASSERT_FORCE(pthread_sigmask(SIG_SETMASK, &sset_old, NULL) == 0)
     
     if (pid < 0) {
         BLog(BLOG_ERROR, "fork failed");
-        goto fail0;
+        goto fail3;
     }
     
     // remember pid
@@ -336,10 +381,19 @@ int BProcess_Init2 (BProcess *o, BProcessManager *m, BProcess_handler handler, v
     DebugObject_Init(&o->d_obj);
     DebugError_Init(&o->d_err, BReactor_PendingGroup(m->reactor));
     
-    return 1;
+    // Returning success, but cleanup first.
+    res = 1;
     
+fail3:
+    free(fds2);
+fail2:
+    if (groups != groups_static) {
+        free(groups);
+    }
+fail1:
+    free(pwnam_buf);
 fail0:
-    return 0;
+    return res;
 }
 
 int BProcess_InitWithFds (BProcess *o, BProcessManager *m, BProcess_handler handler, void *user, const char *file, char *const argv[], const char *username, const int *fds, const int *fds_map)

@@ -84,17 +84,17 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
     }
     
     if (NCDVal_IsInvalid(prefix_arg)) {
-        if (!ipaddr_parse_ipv4_ifaddr_bin(NCDVal_StringData(addr_arg), NCDVal_StringLength(addr_arg), &o->ifaddr)) {
+        if (!ipaddr_parse_ipv4_ifaddr(NCDVal_StringMemRef(addr_arg), &o->ifaddr)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong CIDR notation address");
             goto fail1;
         }
     } else {
-        if (!ipaddr_parse_ipv4_addr_bin(NCDVal_StringData(addr_arg), NCDVal_StringLength(addr_arg), &o->ifaddr.addr)) {
+        if (!ipaddr_parse_ipv4_addr(NCDVal_StringMemRef(addr_arg), &o->ifaddr.addr)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong address");
             goto fail1;
         }
         
-        if (!ipaddr_parse_ipv4_prefix_bin(NCDVal_StringData(prefix_arg), NCDVal_StringLength(prefix_arg), &o->ifaddr.prefix)) {
+        if (!ipaddr_parse_ipv4_prefix(NCDVal_StringMemRef(prefix_arg), &o->ifaddr.prefix)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong prefix");
             goto fail1;
         }

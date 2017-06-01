@@ -1,10 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Compiles tun2socks for Linux.
 # Intended as a convenience if you don't want to deal with CMake.
 
 # Input environment vars:
 #   SRCDIR - BadVPN source code
+#   OUTDIR - tun2socks binary output file directory
 #   CC - compiler
 #   CFLAGS - compiler compile flags
 #   LDFLAGS - compiler link flags
@@ -16,6 +17,11 @@
 
 if [[ -z $SRCDIR ]] || [[ ! -e $SRCDIR/CMakeLists.txt ]]; then
     echo "SRCDIR is wrong"
+    exit 1
+fi
+
+if [[ ! -z $OUTDIR ]] && [[ ! -d $OUTDIR  ]]; then
+    echo "OUTDIR is wrong"
     exit 1
 fi
 
@@ -43,15 +49,19 @@ DEFS=( -DBADVPN_THREAD_SAFE=0 -DBADVPN_LINUX -DBADVPN_BREACTOR_BADVPN -D_GNU_SOU
 [[ $KERNEL = "2.4" ]] && DEFS=( "${DEFS[@]}" -DBADVPN_USE_SELFPIPE -DBADVPN_USE_POLL ) || DEFS=( "${DEFS[@]}" -DBADVPN_USE_SIGNALFD -DBADVPN_USE_EPOLL )
 
 [[ $ENDIAN = "little" ]] && DEFS=( "${DEFS[@]}" -DBADVPN_LITTLE_ENDIAN ) || DEFS=( "${DEFS[@]}" -DBADVPN_BIG_ENDIAN )
+
+[[ -z $OUTDIR ]] && OUTDIR="."
     
 SOURCES="
 base/BLog_syslog.c
 system/BReactor_badvpn.c
 system/BSignal.c
 system/BConnection_unix.c
+system/BConnection_common.c
 system/BTime.c
 system/BUnixSignal.c
 system/BNetwork.c
+system/BDatagram_unix.c
 flow/StreamRecvInterface.c
 flow/PacketRecvInterface.c
 flow/PacketPassInterface.c
@@ -109,4 +119,4 @@ for f in $SOURCES; do
     OBJS=( "${OBJS[@]}" "${obj}" )
 done
 
-"${CC}" ${LDFLAGS} "${OBJS[@]}" -o tun2socks -lrt
+"${CC}" ${LDFLAGS} "${OBJS[@]}" -o $OUTDIR/tun2socks -lrt

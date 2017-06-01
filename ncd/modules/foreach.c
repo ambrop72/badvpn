@@ -620,7 +620,7 @@ static void func_new_foreach_emb (void *vo, NCDModuleInst *i, const struct NCDMo
         goto fail0;
     }
     
-    NCD_string_id_t name1 = ncd_get_string_id(arg_name1, i->params->iparams->string_index);
+    NCD_string_id_t name1 = ncd_get_string_id(arg_name1);
     if (name1 < 0) {
         ModuleLog(i, BLOG_ERROR, "ncd_get_string_id failed");
         goto fail0;
@@ -628,7 +628,7 @@ static void func_new_foreach_emb (void *vo, NCDModuleInst *i, const struct NCDMo
     
     NCD_string_id_t name2 = -1;
     if (!NCDVal_IsInvalid(arg_name2)) {
-        name2 = ncd_get_string_id(arg_name2, i->params->iparams->string_index);
+        name2 = ncd_get_string_id(arg_name2);
         if (name2 < 0) {
             ModuleLog(i, BLOG_ERROR, "ncd_get_string_id failed");
             goto fail0;

@@ -84,16 +84,16 @@ static char * badvpn_find_program (const char *name)
     const char *dirs[] = {"/usr/sbin", "/usr/bin", "/sbin", "/bin", NULL};
     
     for (size_t i = 0; dirs[i]; i++) {
-        char *path = concat_strings(3, dirs[i], "/", name);
-        if (!path) {
+        char *try_path = concat_strings(3, dirs[i], "/", name);
+        if (!try_path) {
             goto fail;
         }
         
-        if (access(path, X_OK) == 0) {
-            return path;
+        if (access(try_path, X_OK) == 0) {
+            return try_path;
         }
         
-        free(path);
+        free(try_path);
     }
     
 fail:

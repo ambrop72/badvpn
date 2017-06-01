@@ -1,3 +1,6 @@
+NOTE: These instructions are out of date!
+The supported method for building Windows binaries is described in BUILD-WINDOWS.txt.
+
 1 Requirements
 
 1.1 Operating system

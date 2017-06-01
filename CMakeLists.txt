@@ -3,10 +3,13 @@ project(BADVPN C)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 
+include(GNUInstallDirs)
 include(TestBigEndian)
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
 include(CheckTypeSize)
+
+option(WITH_PLUGIN_LIBS "Build PIC versions of all libraries for use from plugins" OFF)
 
 set(BUILD_COMPONENTS)
 
@@ -128,9 +131,9 @@ if (NOT (SIZE_SIZE GREATER INT_SIZE OR SIZE_SIZE EQUAL INT_SIZE))
 endif ()
 
 if (MSVC)
-    add_definitions(/TP -D_CRT_SECURE_NO_WARNINGS /wd4065 /wd4018 /wd4533 /wd4244 /wd4102)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS /wd4065 /wd4018 /wd4533 /wd4244 /wd4102)
 else ()
-    add_definitions(-std=gnu99 -Wall -Wno-unused-value -Wno-parentheses -Wno-switch -Wredundant-decls)
+    add_definitions(-std=gnu99 -Wall -Wno-unused-value -Wno-parentheses -Wno-switch -Wredundant-decls -Wshadow)
 
     if (NOT CMAKE_C_COMPILER_ID STREQUAL "PathScale")
         add_definitions(-Werror=implicit-function-declaration -Wno-switch-enum -Wno-unused-function
@@ -166,7 +169,7 @@ else ()
     add_definitions(-DBADVPN_THREADWORK_USE_PTHREAD)
     add_definitions(-DBADVPN_THREAD_SAFE=1)
 
-    link_libraries(rt)
+    link_libraries(rt pthread)
 
     if (EMSCRIPTEN)
         add_definitions(-DBADVPN_EMSCRIPTEN)
@@ -241,7 +244,7 @@ endif ()
 # install man pages
 install(
     FILES badvpn.7
-    DESTINATION share/man/man7
+	DESTINATION ${CMAKE_INSTALL_MANDIR}/man7
 )
 
 # reset variables indicating whether we're building various libraries,
@@ -276,14 +279,16 @@ function(badvpn_add_library LIB_NAME LINK_BADVPN_LIBS LINK_SYS_LIBS LIB_SOURCES)
     target_link_libraries("${LIB_NAME}" ${BADVPN_LIBS_EXEC} ${LINK_SYS_LIBS})
     set_target_properties("${LIB_NAME}" PROPERTIES OUTPUT_NAME "badvpn-${LIB_NAME}")
 
-    if (BUILD_SHARED_LIBS)
-        add_library("${LIB_NAME}-plugin" ALIAS "${LIB_NAME}")
-    else ()
-        add_library("${LIB_NAME}-plugin" STATIC ${LIB_SOURCES})
-        target_link_libraries("${LIB_NAME}-plugin" ${BADVPN_LIBS_PLUGIN} ${LINK_SYS_LIBS})
-        set_target_properties("${LIB_NAME}-plugin" PROPERTIES OUTPUT_NAME "badvpn-${LIB_NAME}-plugin")
-        set_target_properties("${LIB_NAME}-plugin" PROPERTIES POSITION_INDEPENDENT_CODE YES)
-        set_target_properties("${LIB_NAME}-plugin" PROPERTIES COMPILE_FLAGS "-fvisibility=hidden -DBADVPN_PLUGIN")
+    if(WITH_PLUGIN_LIBS)
+        if(BUILD_SHARED_LIBS)
+            add_library("${LIB_NAME}-plugin" ALIAS "${LIB_NAME}")
+        else()
+            add_library("${LIB_NAME}-plugin" STATIC ${LIB_SOURCES})
+            target_link_libraries("${LIB_NAME}-plugin" ${BADVPN_LIBS_PLUGIN} ${LINK_SYS_LIBS})
+            set_target_properties("${LIB_NAME}-plugin" PROPERTIES OUTPUT_NAME "badvpn-${LIB_NAME}-plugin")
+            set_target_properties("${LIB_NAME}-plugin" PROPERTIES POSITION_INDEPENDENT_CODE YES)
+            set_target_properties("${LIB_NAME}-plugin" PROPERTIES COMPILE_FLAGS "-fvisibility=hidden -DBADVPN_PLUGIN")
+        endif()
     endif()
 endfunction()
 

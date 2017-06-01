@@ -91,6 +91,7 @@ static const char * evdev_##_name_##_to_str (uint16_t type) \
 }
 
 MAKE_LOOKUP_FUNC(type)
+MAKE_LOOKUP_FUNC(syn)
 MAKE_LOOKUP_FUNC(key)
 MAKE_LOOKUP_FUNC(rel)
 MAKE_LOOKUP_FUNC(abs)
@@ -259,6 +260,9 @@ static int func_getvar2 (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValR
         switch (o->event.type) {
             #ifdef EV_KEY
             MAKE_CASE(EV_KEY, key)
+            #endif
+            #ifdef EV_SYN
+            MAKE_CASE(EV_SYN, syn)
             #endif
             #ifdef EV_REL
             MAKE_CASE(EV_REL, rel)

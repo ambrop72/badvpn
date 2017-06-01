@@ -38,7 +38,7 @@
 #include <system/BTime.h>
 #include <ncd/NCDVal.h>
 #include <ncd/NCDStringIndex.h>
-#include <ncd/NCDEvaluator.h>
+#include <ncd/NCDModule.h>
 #include <ncd/static_strings.h>
 
 #include "value_utils.h"
@@ -54,49 +54,46 @@ int ncd_is_none (NCDValRef string)
     }
 }
 
-NCDValRef ncd_make_boolean (NCDValMem *mem, int value, NCDStringIndex *string_index)
+NCDValRef ncd_make_boolean (NCDValMem *mem, int value)
 {
     ASSERT(mem)
-    ASSERT(string_index)
     
     NCD_string_id_t str_id = (value ? NCD_STRING_TRUE : NCD_STRING_FALSE);
-    return NCDVal_NewIdString(mem, str_id, string_index);
+    return NCDVal_NewIdString(mem, str_id);
 }
 
-int ncd_read_boolean (NCDValRef string)
+int ncd_read_boolean (NCDValRef val, int *out)
 {
-    ASSERT(NCDVal_IsString(string))
-    
-    if (NCDVal_IsIdString(string)) {
-        return NCDVal_IdStringId(string) == NCD_STRING_TRUE;
-    } else {
-        return NCDVal_StringEquals(string, "true");
-    }
-}
-
-int ncd_read_uintmax (NCDValRef string, uintmax_t *out)
-{
-    ASSERT(NCDVal_IsString(string))
     ASSERT(out)
     
-    size_t length = NCDVal_StringLength(string);
-    
-    if (NCDVal_IsContinuousString(string)) {
-        return parse_unsigned_integer_bin(NCDVal_StringData(string), length, out);
+    if (!NCDVal_IsString(val)) {
+        return 0;
     }
-    
-    b_cstring cstr = NCDVal_StringCstring(string);
-    
-    return parse_unsigned_integer_cstr(cstr, 0, cstr.length, out);
+    if (NCDVal_IsIdString(val)) {
+        *out = NCDVal_IdStringId(val) == NCD_STRING_TRUE;
+    } else {
+        *out = NCDVal_StringEquals(val, "true");
+    }
+    return 1;
 }
 
-int ncd_read_time (NCDValRef string, btime_t *out)
+int ncd_read_uintmax (NCDValRef val, uintmax_t *out)
 {
-    ASSERT(NCDVal_IsString(string))
+    ASSERT(out)
+    
+    if (!NCDVal_IsString(val)) {
+        return 0;
+    }
+    
+    return parse_unsigned_integer(NCDVal_StringMemRef(val), out);
+}
+
+int ncd_read_time (NCDValRef val, btime_t *out)
+{
     ASSERT(out)
     
     uintmax_t n;
-    if (!ncd_read_uintmax(string, &n)) {
+    if (!ncd_read_uintmax(val, &n)) {
         return 0;
     }
     
@@ -108,28 +105,15 @@ int ncd_read_time (NCDValRef string, btime_t *out)
     return 1;
 }
 
-NCD_string_id_t ncd_get_string_id (NCDValRef string, NCDStringIndex *string_index)
+NCD_string_id_t ncd_get_string_id (NCDValRef string)
 {
     ASSERT(NCDVal_IsString(string))
-    ASSERT(string_index)
     
     if (NCDVal_IsIdString(string)) {
         return NCDVal_IdStringId(string);
-    } else if (NCDVal_IsContinuousString(string)) {
-        return NCDStringIndex_GetBin(string_index, NCDVal_StringData(string), NCDVal_StringLength(string));
     }
     
-    b_cstring cstr = NCDVal_StringCstring(string);
-    
-    char *temp = b_cstring_strdup(cstr, 0, cstr.length);
-    if (!temp) {
-        return -1;
-    }
-    
-    NCD_string_id_t res = NCDStringIndex_GetBin(string_index, temp, cstr.length);
-    BFree(temp);
-    
-    return res;
+    return NCDStringIndex_GetBinMr(NCDValMem_StringIndex(string.mem), NCDVal_StringMemRef(string));
 }
 
 NCDValRef ncd_make_uintmax (NCDValMem *mem, uintmax_t value)
@@ -152,21 +136,13 @@ char * ncd_strdup (NCDValRef stringnonulls)
 {
     ASSERT(NCDVal_IsStringNoNulls(stringnonulls))
     
-    size_t length = NCDVal_StringLength(stringnonulls);
-    
-    if (NCDVal_IsContinuousString(stringnonulls)) {
-        return b_strdup_bin(NCDVal_StringData(stringnonulls), length);
-    }
-    
-    b_cstring cstr = NCDVal_StringCstring(stringnonulls);
-    
-    return b_cstring_strdup(cstr, 0, cstr.length);
+    return MemRef_StrDup(NCDVal_StringMemRef(stringnonulls));
 }
 
-int ncd_eval_func_args_ext (NCDEvaluatorArgs args, size_t start, size_t count, NCDValMem *mem, NCDValRef *out)
+int ncd_eval_func_args_ext (NCDCall const *call, size_t start, size_t count, NCDValMem *mem, NCDValRef *out)
 {
-    ASSERT(start <= NCDEvaluatorArgs_Count(&args))
-    ASSERT(count <= NCDEvaluatorArgs_Count(&args) - start)
+    ASSERT(start <= NCDCall_ArgCount(call))
+    ASSERT(count <= NCDCall_ArgCount(call) - start)
     
     *out = NCDVal_NewList(mem, count);
     if (NCDVal_IsInvalid(*out)) {
@@ -174,8 +150,8 @@ int ncd_eval_func_args_ext (NCDEvaluatorArgs args, size_t start, size_t count, N
     }
     
     for (size_t i = 0; i < count; i++) {
-        NCDValRef elem;
-        if (!NCDEvaluatorArgs_EvalArg(&args, start + i, mem, &elem)) {
+        NCDValRef elem = NCDCall_EvalArg(call, start + i, mem);
+        if (NCDVal_IsInvalid(elem)) {
             goto fail;
         }
         if (!NCDVal_ListAppend(*out, elem)) {
@@ -189,7 +165,7 @@ fail:
     return 0;
 }
 
-int ncd_eval_func_args (NCDEvaluatorArgs args, NCDValMem *mem, NCDValRef *out)
+int ncd_eval_func_args (NCDCall const *call, NCDValMem *mem, NCDValRef *out)
 {
-    return ncd_eval_func_args_ext(args, 0, NCDEvaluatorArgs_Count(&args), mem, out);
+    return ncd_eval_func_args_ext(call, 0, NCDCall_ArgCount(call), mem, out);
 }

@@ -51,10 +51,6 @@ static void func_new (void *unused, NCDModuleInst *i, const struct NCDModuleInst
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(exit_code_arg)) {
-        ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail0;
-    }
     
     // parse exit code
     uintmax_t exit_code;

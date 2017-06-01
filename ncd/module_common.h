@@ -35,6 +35,10 @@
 #include <ncd/extra/value_utils.h>
 
 #define ModuleGlobal(i) ((i)->m->group->group_state)
-#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
 #define ModuleString(i, id) ((i)->m->group->strings[(id)])
-#define FunctionLog(params, ...) BContextLog(NCDModuleFunction_LogContext(params), __VA_ARGS__)
+
+#define ModuleLc(i) NCDModuleInst_Backend_LogContext((i))
+#define ModuleLog(i, ...) NCDModuleInst_Backend_Log((i), BLOG_CURRENT_CHANNEL, __VA_ARGS__)
+
+#define FunctionLc(call) NCDCall_LogContext((call))
+#define FunctionLog(call, ...) BContextLog(FunctionLc(call), __VA_ARGS__)

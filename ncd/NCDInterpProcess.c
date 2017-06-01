@@ -247,7 +247,7 @@ const char * NCDInterpProcess_StatementCmdName (NCDInterpProcess *o, int i, NCDS
     ASSERT(i < o->num_stmts)
     ASSERT(string_index)
     
-    return NCDStringIndex_Value(string_index, o->stmts[i].cmdname);
+    return NCDStringIndex_Value(string_index, o->stmts[i].cmdname).ptr;
 }
 
 void NCDInterpProcess_StatementObjNames (NCDInterpProcess *o, int i, const NCD_string_id_t **out_objnames, size_t *out_num_objnames)
@@ -272,7 +272,7 @@ const struct NCDInterpModule * NCDInterpProcess_StatementGetSimpleModule (NCDInt
     struct NCDInterpProcess__stmt *e = &o->stmts[i];
     
     if (!e->binding.simple_module) {
-        const char *cmdname = NCDStringIndex_Value(string_index, e->cmdname);
+        const char *cmdname = NCDStringIndex_Value(string_index, e->cmdname).ptr;
         e->binding.simple_module = NCDModuleIndex_FindModule(module_index, cmdname);
     }
     

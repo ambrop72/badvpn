@@ -92,10 +92,10 @@ static int add_method (const char *type, const struct NCDInterpModule *module, N
     size_t search_len = sizeof(search) - 1;
     
     size_t table[sizeof(search) - 1];
-    build_substring_backtrack_table_reverse(search, search_len, table);
+    build_substring_backtrack_table_reverse(MemRef_Make(search, search_len), table);
     
     size_t pos;
-    if (!find_substring_reverse(type, strlen(type), search, search_len, table, &pos)) {
+    if (!find_substring_reverse(MemRef_MakeCstr(type), MemRef_Make(search, search_len), table, &pos)) {
         *out_method_id = -1;
         return 1;
     }

@@ -782,7 +782,7 @@ fail:
     return 0;
 }
 
-int NCDStatement_InitIf (NCDStatement *o, const char *name, NCDIfBlock ifblock)
+int NCDStatement_InitIf (NCDStatement *o, const char *name, NCDIfBlock ifblock, int iftype)
 {
     o->name = NULL;
     
@@ -793,6 +793,7 @@ int NCDStatement_InitIf (NCDStatement *o, const char *name, NCDIfBlock ifblock)
     o->type = NCDSTATEMENT_IF;
     o->ifc.ifblock = ifblock;
     o->ifc.have_else = 0;
+    o->ifc.iftype = iftype;
     
     return 1;
 }
@@ -831,6 +832,21 @@ fail:
     return 0;
 }
 
+int NCDStatement_InitBlock (NCDStatement *o, const char *name, NCDBlock block)
+{
+    o->name = NULL;
+    
+    if (name && !(o->name = strdup(name))) {
+        return 0;
+    }
+    
+    o->type = NCDSTATEMENT_BLOCK;
+    o->block.block = block;
+    o->block.is_grabbed = 0;
+    
+    return 1;
+}
+
 void NCDStatement_Free (NCDStatement *o)
 {
     switch (o->type) {
@@ -855,6 +871,12 @@ void NCDStatement_Free (NCDStatement *o)
             }
             free(o->foreach.name2);
             free(o->foreach.name1);
+        } break;
+        
+        case NCDSTATEMENT_BLOCK: {
+            if (!o->block.is_grabbed) {
+                NCDBlock_Free(&o->block.block);
+            }
         } break;
         
         default: ASSERT(0);
@@ -892,6 +914,13 @@ NCDValue * NCDStatement_RegArgs (NCDStatement *o)
     ASSERT(o->type == NCDSTATEMENT_REG)
     
     return &o->reg.args;
+}
+
+int NCDStatement_IfType (NCDStatement *o)
+{
+    ASSERT(o->type == NCDSTATEMENT_IF)
+    
+    return o->ifc.iftype;
 }
 
 NCDIfBlock * NCDStatement_IfBlock (NCDStatement *o)
@@ -971,6 +1000,23 @@ void NCDStatement_ForeachGrab (NCDStatement *o, NCDValue *out_collection, NCDBlo
     o->foreach.is_grabbed = 1;
 }
 
+NCDBlock * NCDStatement_BlockBlock (NCDStatement *o)
+{
+    ASSERT(o->type == NCDSTATEMENT_BLOCK)
+    ASSERT(!o->block.is_grabbed)
+    
+    return &o->block.block;
+}
+
+NCDBlock NCDStatement_BlockGrabBlock (NCDStatement *o)
+{
+    ASSERT(o->type == NCDSTATEMENT_BLOCK)
+    ASSERT(!o->block.is_grabbed)
+    
+    o->block.is_grabbed = 1;
+    return o->block.block;
+}
+
 void NCDIfBlock_Init (NCDIfBlock *o)
 {
     LinkedList1_Init(&o->ifs_list);
@@ -1048,6 +1094,12 @@ void NCDIf_Init (NCDIf *o, NCDValue cond, NCDBlock block)
     o->block = block;
 }
 
+void NCDIf_InitBlock (NCDIf *o, NCDBlock block)
+{
+    NCDValue_InitList(&o->cond);
+    o->block = block;
+}
+
 void NCDIf_Free (NCDIf *o)
 {
     NCDValue_Free(&o->cond);
@@ -1058,6 +1110,12 @@ void NCDIf_FreeGrab (NCDIf *o, NCDValue *out_cond, NCDBlock *out_block)
 {
     *out_cond = o->cond;
     *out_block = o->block;
+}
+
+NCDBlock NCDIf_FreeGrabBlock (NCDIf *o)
+{
+    NCDValue_Free(&o->cond);
+    return o->block;
 }
 
 NCDValue * NCDIf_Cond (NCDIf *o)

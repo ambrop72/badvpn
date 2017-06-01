@@ -114,9 +114,8 @@ static int build_cmdline (NCDModuleInst *i, NCDValRef args, int remove, char **e
             goto fail2;
         }
         
-        b_cstring arg_cstr = NCDVal_StringCstring(arg);
-        if (!CmdLine_AppendCstring(cl, arg_cstr, 0, arg_cstr.length)) {
-            ModuleLog(i, BLOG_ERROR, "CmdLine_AppendCstring failed");
+        if (!CmdLine_AppendNoNullMr(cl, NCDVal_StringMemRef(arg))) {
+            ModuleLog(i, BLOG_ERROR, "CmdLine_AppendNoNull failed");
             goto fail2;
         }
     }
@@ -175,8 +174,7 @@ static struct NCDModule modules[] = {
         .type = "run",
         .func_new2 = func_new,
         .func_die = func_die,
-        .alloc_size = sizeof(struct instance),
-        .flags = NCDMODULE_FLAG_ACCEPT_NON_CONTINUOUS_STRINGS
+        .alloc_size = sizeof(struct instance)
     }, {
         .type = NULL
     }

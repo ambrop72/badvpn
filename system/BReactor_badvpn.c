@@ -193,20 +193,21 @@ static void set_kevent_fd_pointers (BReactor *bsys)
     for (int i = 0; i < bsys->kevent_results_num; i++) {
         struct kevent *event = &bsys->kevent_results[i];
         ASSERT(event->udata)
+        
         int *tag = event->udata;
         switch (*tag) {
             case KEVENT_TAG_FD: {
                 BFileDescriptor *bfd = UPPER_OBJECT(tag, BFileDescriptor, kevent_tag);
                 ASSERT(bfd->active)
-                ASSERT(!bfd->kevent_returned_ptr)
-                bfd->kevent_returned_ptr = (int **)&event->udata;
+                bsys->kevent_prev_event[i] = bfd->kevent_last_event;
+                bfd->kevent_last_event = i;
             } break;
             
             case KEVENT_TAG_KEVENT: {
                 BReactorKEvent *kev = UPPER_OBJECT(tag, BReactorKEvent, kevent_tag);
                 ASSERT(kev->reactor == bsys)
-                ASSERT(!kev->kevent_returned_ptr)
-                kev->kevent_returned_ptr = (int **)&event->udata;
+                bsys->kevent_prev_event[i] = kev->kevent_last_event;
+                kev->kevent_last_event = i;
             } break;
             
             default:
@@ -873,7 +874,8 @@ int BReactor_Exec (BReactor *bsys)
         // dispatch kevent
         if (bsys->kevent_results_pos < bsys->kevent_results_num) {
             // grab event
-            struct kevent *event = &bsys->kevent_results[bsys->kevent_results_pos];
+            int event_index = bsys->kevent_results_pos;
+            struct kevent *event = &bsys->kevent_results[event_index];
             bsys->kevent_results_pos++;
             
             // check if the event was removed
@@ -888,10 +890,11 @@ int BReactor_Exec (BReactor *bsys)
                     // get BFileDescriptor
                     BFileDescriptor *bfd = UPPER_OBJECT(tag, BFileDescriptor, kevent_tag);
                     ASSERT(bfd->active)
-                    ASSERT(bfd->kevent_returned_ptr == (int **)&event->udata)
                     
-                    // zero pointer to the kevent entry
-                    bfd->kevent_returned_ptr = NULL;
+                    // when we get to the last event for this fd, reset kevent_last_event
+                    if (event_index == bfd->kevent_last_event) {
+                        bfd->kevent_last_event = -1;
+                    }
                     
                     // calculate event to report
                     int events = 0;
@@ -917,10 +920,11 @@ int BReactor_Exec (BReactor *bsys)
                     // get BReactorKEvent
                     BReactorKEvent *kev = UPPER_OBJECT(tag, BReactorKEvent, kevent_tag);
                     ASSERT(kev->reactor == bsys)
-                    ASSERT(kev->kevent_returned_ptr == (int **)&event->udata)
                     
-                    // zero pointer to the kevent entry
-                    kev->kevent_returned_ptr = NULL;
+                    // when we get to the last event for this fd, reset kevent_last_event
+                    if (event_index == kev->kevent_last_event) {
+                        kev->kevent_last_event = -1;
+                    }
                     
                     // call handler
                     BLog(BLOG_DEBUG, "Dispatching kevent");
@@ -1109,8 +1113,8 @@ int BReactor_AddFileDescriptor (BReactor *bsys, BFileDescriptor *bs)
     // set kevent tag
     bs->kevent_tag = KEVENT_TAG_FD;
     
-    // set kevent returned pointer
-    bs->kevent_returned_ptr = NULL;
+    // have no events
+    bs->kevent_last_event = -1;
     
     #endif
     
@@ -1163,9 +1167,13 @@ void BReactor_RemoveFileDescriptor (BReactor *bsys, BFileDescriptor *bs)
     // delete kevents
     update_kevent_fd_events(bsys, bs, 0);
     
-    // write through kevent returned pointer
-    if (bs->kevent_returned_ptr) {
-        *bs->kevent_returned_ptr = NULL;
+    // invalidate any events
+    int event_index = bs->kevent_last_event;
+    while (event_index != -1) {
+        ASSERT(event_index >= 0 && event_index < bsys->kevent_results_num)
+        struct kevent *event = &bsys->kevent_results[event_index];
+        event->udata = NULL;
+        event_index = bsys->kevent_prev_event[event_index];
     }
     
     #endif
@@ -1316,8 +1324,8 @@ int BReactorKEvent_Init (BReactorKEvent *o, BReactor *reactor, BReactorKEvent_ha
     // set kevent tag
     o->kevent_tag = KEVENT_TAG_KEVENT;
     
-    // set kevent returned pointer
-    o->kevent_returned_ptr = NULL;
+    // have no events
+    o->kevent_last_event = -1;
     
     DebugObject_Init(&o->d_obj);
     DebugCounter_Increment(&o->reactor->d_kevent_ctr);
@@ -1326,12 +1334,17 @@ int BReactorKEvent_Init (BReactorKEvent *o, BReactor *reactor, BReactorKEvent_ha
 
 void BReactorKEvent_Free (BReactorKEvent *o)
 {
+    BReactor *reactor = o->reactor;
     DebugObject_Free(&o->d_obj);
-    DebugCounter_Decrement(&o->reactor->d_kevent_ctr);
+    DebugCounter_Decrement(&reactor->d_kevent_ctr);
     
-    // write through kevent returned pointer
-    if (o->kevent_returned_ptr) {
-        *o->kevent_returned_ptr = NULL;
+    // invalidate any events
+    int event_index = o->kevent_last_event;
+    while (event_index != -1) {
+        ASSERT(event_index >= 0 && event_index < reactor->kevent_results_num)
+        struct kevent *event = &reactor->kevent_results[event_index];
+        event->udata = NULL;
+        event_index = reactor->kevent_prev_event[event_index];
     }
     
     // delete kevent
@@ -1340,7 +1353,7 @@ void BReactorKEvent_Free (BReactorKEvent *o)
     event.ident = o->ident;
     event.filter = o->filter;
     event.flags = EV_DELETE;
-    ASSERT_FORCE(kevent(o->reactor->kqueue_fd, &event, 1, NULL, 0, NULL) == 0)
+    ASSERT_FORCE(kevent(reactor->kqueue_fd, &event, 1, NULL, 0, NULL) == 0)
 }
 
 #endif

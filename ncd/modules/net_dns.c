@@ -242,7 +242,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDVal_IsList(servers_arg) || !NCDVal_IsString(priority_arg)) {
+    if (!NCDVal_IsList(servers_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }
@@ -264,7 +264,7 @@ static void func_new (void *vo, NCDModuleInst *i, const struct NCDModuleInst_new
         }
         
         uint32_t addr;
-        if (!ipaddr_parse_ipv4_addr_bin((char *)NCDVal_StringData(server_arg), NCDVal_StringLength(server_arg), &addr)) {
+        if (!ipaddr_parse_ipv4_addr(NCDVal_StringMemRef(server_arg), &addr)) {
             ModuleLog(o->i, BLOG_ERROR, "wrong addr");
             goto fail1;
         }
@@ -314,7 +314,7 @@ static void func_new_resolvconf (void *vo, NCDModuleInst *i, const struct NCDMod
         ModuleLog(o->i, BLOG_ERROR, "wrong arity");
         goto fail1;
     }
-    if (!NCDVal_IsList(lines_arg) || !NCDVal_IsString(priority_arg)) {
+    if (!NCDVal_IsList(lines_arg)) {
         ModuleLog(o->i, BLOG_ERROR, "wrong type");
         goto fail1;
     }

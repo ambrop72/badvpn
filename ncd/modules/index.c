@@ -75,10 +75,6 @@ static void func_new_from_value (void *vo, NCDModuleInst *i, const struct NCDMod
         ModuleLog(i, BLOG_ERROR, "wrong arity");
         goto fail0;
     }
-    if (!NCDVal_IsString(arg_value)) {
-        ModuleLog(i, BLOG_ERROR, "wrong type");
-        goto fail0;
-    }
     
     // parse value
     uintmax_t value;

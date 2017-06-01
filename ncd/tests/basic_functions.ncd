@@ -234,5 +234,34 @@ process main {
     assert(a);
     
     
+    var(@num_min("3", "5")) x;
+    val_equal(x, "3") a;
+    assert(a);
+    
+    
+    var(@num_max("3", "5")) x;
+    val_equal(x, "5") a;
+    assert(a);
+    
+    
+    var(@encode_value("foo")) x;
+    val_equal(x, "\"foo\"") a;
+    assert(a);
+    
+    var(@decode_value("\"foo\"")) x;
+    val_equal(x, "foo") a;
+    assert(a);
+    
+    
+    var(@tolower("09@AZ[`az{")) x;
+    val_equal(x, "09@az[`az{") a;
+    assert(a);
+    
+    
+    var(@toupper("09@AZ[`az{")) x;
+    val_equal(x, "09@AZ[`AZ{") a;
+    assert(a);
+    
+    
     exit("0");
 }

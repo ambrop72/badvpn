@@ -124,7 +124,7 @@ static int func_getvar (void *vo, NCD_string_id_t name, NCDValMem *mem, NCDValRe
     }
     
     if (name == ModuleString(o->i, STRING_EXISTS)) {
-        *out = ncd_make_boolean(mem, !!o->value, o->i->params->iparams->string_index);
+        *out = ncd_make_boolean(mem, !!o->value);
         return 1;
     }
     

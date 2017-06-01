@@ -187,7 +187,7 @@ BPending lwip_init_job;
 
 // lwip netif
 int have_netif;
-struct netif netif;
+struct netif the_netif;
 
 // lwip TCP listener
 struct tcp_pcb *listener;
@@ -424,7 +424,7 @@ int main (int argc, char **argv)
     
     // free netif
     if (have_netif) {
-        netif_remove(&netif);
+        netif_remove(&the_netif);
     }
     
     BReactor_RemoveTimer(&ss, &tcp_timer);
@@ -778,7 +778,7 @@ int process_arguments (void)
     
     // parse IP6 address
     if (options.netif_ip6addr) {
-        if (!ipaddr6_parse_ipv6_addr(options.netif_ip6addr, &netif_ip6addr)) {
+        if (!ipaddr6_parse_ipv6_addr(MemRef_MakeCstr(options.netif_ip6addr), &netif_ip6addr)) {
             BLog(BLOG_ERROR, "netif ip6addr: incorrect");
             return 0;
         }
@@ -872,25 +872,25 @@ void lwip_init_job_hadler (void *unused)
     ip_addr_set_any(&gw);
     
     // init netif
-    if (!netif_add(&netif, &addr, &netmask, &gw, NULL, netif_init_func, netif_input_func)) {
+    if (!netif_add(&the_netif, &addr, &netmask, &gw, NULL, netif_init_func, netif_input_func)) {
         BLog(BLOG_ERROR, "netif_add failed");
         goto fail;
     }
     have_netif = 1;
     
     // set netif up
-    netif_set_up(&netif);
+    netif_set_up(&the_netif);
     
     // set netif pretend TCP
-    netif_set_pretend_tcp(&netif, 1);
+    netif_set_pretend_tcp(&the_netif, 1);
     
     // set netif default
-    netif_set_default(&netif);
+    netif_set_default(&the_netif);
     
     if (options.netif_ip6addr) {
         // add IPv6 address
-        memcpy(netif_ip6_addr(&netif, 0), netif_ip6addr.bytes, sizeof(netif_ip6addr.bytes));
-        netif_ip6_addr_set_state(&netif, 0, IP6_ADDR_VALID);
+        memcpy(netif_ip6_addr(&the_netif, 0), netif_ip6addr.bytes, sizeof(netif_ip6addr.bytes));
+        netif_ip6_addr_set_state(&the_netif, 0, IP6_ADDR_VALID);
     }
     
     // init listener
@@ -1001,7 +1001,7 @@ void device_read_handler_send (void *unused, uint8_t *data, int data_len)
     ASSERT_FORCE(pbuf_take(p, data, data_len) == ERR_OK)
     
     // pass pbuf to input
-    if (netif.input(p, &netif) != ERR_OK) {
+    if (the_netif.input(p, &the_netif) != ERR_OK) {
         BLog(BLOG_WARNING, "device read: input failed");
         pbuf_free(p);
     }

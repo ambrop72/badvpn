@@ -65,7 +65,7 @@ static int expr_init (struct NCDEvaluator__Expr *o, NCDEvaluator *eval, NCDValue
 {
     ASSERT((NCDValue_Type(value), 1))
     
-    NCDValMem_Init(&o->mem);
+    NCDValMem_Init(&o->mem, eval->string_index);
     
     NCDValRef ref;
     if (!add_expr_recurser(eval, value, &o->mem, &ref)) {
@@ -110,7 +110,7 @@ static int expr_eval (struct NCDEvaluator__Expr *o, struct NCDEvaluator__eval_co
         
         *out_val = NCDVal_FromSafe(out_newmem, o->ref);
     } else {
-        NCDValMem_Init(out_newmem);
+        NCDValMem_Init(out_newmem, context->eval->string_index);
         
         NCDValRef ref;
         if (!replace_placeholders_callback((void *)context, NCDVal_GetSafeRefPlaceholderId(o->ref), out_newmem, &ref) || NCDVal_IsInvalid(ref)) {
@@ -141,7 +141,7 @@ static int add_expr_recurser (NCDEvaluator *o, NCDValue *value, NCDValMem *mem, 
                 goto fail;
             }
             
-            *out = NCDVal_NewIdString(mem, string_id, o->string_index);
+            *out = NCDVal_NewIdString(mem, string_id);
             if (NCDVal_IsInvalid(*out)) {
                 goto fail;
             }
