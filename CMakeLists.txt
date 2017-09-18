@@ -56,7 +56,6 @@ build_switch(FLOODER "build badvpn-flooder" ${ON_IF_NOT_EMSCRIPTEN})
 build_switch(TUN2SOCKS "build badvpn-tun2socks" ${ON_IF_NOT_EMSCRIPTEN})
 build_switch(UDPGW "build badvpn-udpgw" ${ON_IF_NOT_EMSCRIPTEN})
 build_switch(NCD "build badvpn-ncd" ${ON_IF_LINUX_OR_EMSCRIPTEN})
-build_switch(TUNCTL "build badvpn-tunctl" ${ON_IF_LINUX})
 build_switch(DOSTEST "build dostest-server and dostest-attacker" OFF)
 
 if (BUILD_NCD AND NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux"))
@@ -333,9 +332,6 @@ if (BUILD_TUN2SOCKS)
     add_subdirectory(socksclient)
     add_subdirectory(udpgw_client)
     add_subdirectory(lwip)
-endif ()
-if (BUILD_TUNCTL)
-    add_subdirectory(tunctl)
 endif ()
 
 # example programs
