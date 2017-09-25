@@ -96,9 +96,9 @@ static int tcp_input_delayed_close(struct tcp_pcb *pcb);
 #if LWIP_TCP_SACK_OUT
 static void tcp_add_sack(struct tcp_pcb *pcb, u32_t left, u32_t right);
 static void tcp_remove_sacks_lt(struct tcp_pcb *pcb, u32_t seq);
-#if TCP_OOSEQ_MAX_BYTES || TCP_OOSEQ_MAX_PBUFS
+#if defined(TCP_OOSEQ_BYTES_LIMIT) || defined(TCP_OOSEQ_PBUFS_LIMIT)
 static void tcp_remove_sacks_gt(struct tcp_pcb *pcb, u32_t seq);
-#endif /* TCP_OOSEQ_MAX_BYTES || TCP_OOSEQ_MAX_PBUFS */
+#endif /* TCP_OOSEQ_BYTES_LIMIT || TCP_OOSEQ_PBUFS_LIMIT */
 #endif /* LWIP_TCP_SACK_OUT */
 
 /**
@@ -1112,19 +1112,9 @@ tcp_free_acked_segments(struct tcp_pcb *pcb, struct tcp_seg *seg_list, const cha
 static void
 tcp_receive(struct tcp_pcb *pcb)
 {
-#if TCP_QUEUE_OOSEQ || TCP_OOSEQ_MAX_BYTES || TCP_OOSEQ_MAX_PBUFS
-  struct tcp_seg *next;
-#endif
-#if TCP_QUEUE_OOSEQ
-  struct tcp_seg *prev, *cseg;
-#endif /* TCP_QUEUE_OOSEQ */
   s16_t m;
   u32_t right_wnd_edge;
   int found_dupack = 0;
-#if TCP_OOSEQ_MAX_BYTES || TCP_OOSEQ_MAX_PBUFS
-  u32_t ooseq_blen;
-  u16_t ooseq_qlen;
-#endif /* TCP_OOSEQ_MAX_BYTES || TCP_OOSEQ_MAX_PBUFS */
 
   LWIP_ASSERT("tcp_receive: wrong state", pcb->state >= ESTABLISHED);
 
@@ -1481,21 +1471,22 @@ tcp_receive(struct tcp_pcb *pcb)
               tcp_seg_free(old_ooseq);
             }
           } else {
-            next = pcb->ooseq;
+            struct tcp_seg *next = pcb->ooseq;
             /* Remove all segments on ooseq that are covered by inseg already.
              * FIN is copied from ooseq to inseg if present. */
             while (next &&
                    TCP_SEQ_GEQ(seqno + tcplen,
                                next->tcphdr->seqno + next->len)) {
+              struct tcp_seg *tmp;
               /* inseg cannot have FIN here (already processed above) */
               if ((TCPH_FLAGS(next->tcphdr) & TCP_FIN) != 0 &&
                   (TCPH_FLAGS(inseg.tcphdr) & TCP_SYN) == 0) {
                 TCPH_SET_FLAG(inseg.tcphdr, TCP_FIN);
                 tcplen = TCP_TCPLEN(&inseg);
               }
-              prev = next;
+              tmp = next;
               next = next->next;
-              tcp_seg_free(prev);
+              tcp_seg_free(tmp);
             }
             /* Now trim right side of inseg if it overlaps with the first
              * segment on ooseq */
@@ -1552,7 +1543,7 @@ tcp_receive(struct tcp_pcb *pcb)
         while (pcb->ooseq != NULL &&
                pcb->ooseq->tcphdr->seqno == pcb->rcv_nxt) {
 
-          cseg = pcb->ooseq;
+          struct tcp_seg *cseg = pcb->ooseq;
           seqno = pcb->ooseq->tcphdr->seqno;
 
           pcb->rcv_nxt += TCP_TCPLEN(cseg);
@@ -1653,7 +1644,7 @@ tcp_receive(struct tcp_pcb *pcb)
              It may start before the newly received segment (possibly adjusted below). */
           u32_t sackbeg = TCP_SEQ_LT(seqno, pcb->ooseq->tcphdr->seqno) ? seqno : pcb->ooseq->tcphdr->seqno;
 #endif /* LWIP_TCP_SACK_OUT */
-          prev = NULL;
+          struct tcp_seg *next, *prev = NULL;
           for (next = pcb->ooseq; next != NULL; next = next->next) {
             if (seqno == next->tcphdr->seqno) {
               /* The sequence number of the incoming segment is the
@@ -1664,7 +1655,7 @@ tcp_receive(struct tcp_pcb *pcb)
                 /* The incoming segment is larger than the old
                    segment. We replace some segments with the new
                    one. */
-                cseg = tcp_seg_copy(&inseg);
+                struct tcp_seg *cseg = tcp_seg_copy(&inseg);
                 if (cseg != NULL) {
                   if (prev != NULL) {
                     prev->next = cseg;
@@ -1687,7 +1678,7 @@ tcp_receive(struct tcp_pcb *pcb)
                      than the sequence number of the first segment on the
                      queue. We put the incoming segment first on the
                      queue. */
-                  cseg = tcp_seg_copy(&inseg);
+                  struct tcp_seg *cseg = tcp_seg_copy(&inseg);
                   if (cseg != NULL) {
                     pcb->ooseq = cseg;
                     tcp_oos_insert_segment(cseg, next);
@@ -1703,7 +1694,7 @@ tcp_receive(struct tcp_pcb *pcb)
                      the next segment on ->ooseq. We trim trim the previous
                      segment, delete next segments that included in received segment
                      and trim received, if needed. */
-                  cseg = tcp_seg_copy(&inseg);
+                  struct tcp_seg *cseg = tcp_seg_copy(&inseg);
                   if (cseg != NULL) {
                     if (TCP_SEQ_GT(prev->tcphdr->seqno + prev->len, seqno)) {
                       /* We need to trim the prev segment. */
@@ -1796,37 +1787,55 @@ tcp_receive(struct tcp_pcb *pcb)
           }
 #endif /* LWIP_TCP_SACK_OUT */
         }
-#if TCP_OOSEQ_MAX_BYTES || TCP_OOSEQ_MAX_PBUFS
-        /* Check that the data on ooseq doesn't exceed one of the limits
-           and throw away everything above that limit. */
-        ooseq_blen = 0;
-        ooseq_qlen = 0;
-        prev = NULL;
-        for (next = pcb->ooseq; next != NULL; prev = next, next = next->next) {
-          struct pbuf *p = next->p;
-          ooseq_blen += p->tot_len;
-          ooseq_qlen += pbuf_clen(p);
-          if ((ooseq_blen > TCP_OOSEQ_MAX_BYTES) ||
-              (ooseq_qlen > TCP_OOSEQ_MAX_PBUFS)) {
+#if defined(TCP_OOSEQ_BYTES_LIMIT) || defined(TCP_OOSEQ_PBUFS_LIMIT)
+        {
+          /* Check that the data on ooseq doesn't exceed one of the limits
+             and throw away everything above that limit. */
+#ifdef TCP_OOSEQ_BYTES_LIMIT
+          const u32_t ooseq_max_blen = TCP_OOSEQ_BYTES_LIMIT(pcb);
+          u32_t ooseq_blen = 0;
+#endif
+#ifdef TCP_OOSEQ_PBUFS_LIMIT
+          const u16_t ooseq_max_qlen = TCP_OOSEQ_PBUFS_LIMIT(pcb);
+          u16_t ooseq_qlen = 0;
+#endif
+          struct tcp_seg *next, *prev = NULL;
+          for (next = pcb->ooseq; next != NULL; prev = next, next = next->next) {
+            struct pbuf *p = next->p;
+            int stop_here = 0;
+#ifdef TCP_OOSEQ_BYTES_LIMIT
+            ooseq_blen += p->tot_len;
+            if (ooseq_blen > ooseq_max_blen) {
+              stop_here = 1;
+            }
+#endif
+#ifdef TCP_OOSEQ_PBUFS_LIMIT
+            ooseq_qlen += pbuf_clen(p);
+            if (ooseq_qlen > ooseq_max_qlen) {
+              stop_here = 1;
+            }
+#endif
+            if (stop_here) {
 #if LWIP_TCP_SACK_OUT
-            if (pcb->flags & TF_SACK) {
-              /* Let's remove all SACKs from next's seqno up. */
-              tcp_remove_sacks_gt(pcb, next->tcphdr->seqno);
-            }
+              if (pcb->flags & TF_SACK) {
+                /* Let's remove all SACKs from next's seqno up. */
+                tcp_remove_sacks_gt(pcb, next->tcphdr->seqno);
+              }
 #endif /* LWIP_TCP_SACK_OUT */
-            /* too much ooseq data, dump this and everything after it */
-            tcp_segs_free(next);
-            if (prev == NULL) {
-              /* first ooseq segment is too much, dump the whole queue */
-              pcb->ooseq = NULL;
-            } else {
-              /* just dump 'next' and everything after it */
-              prev->next = NULL;
+              /* too much ooseq data, dump this and everything after it */
+              tcp_segs_free(next);
+              if (prev == NULL) {
+                /* first ooseq segment is too much, dump the whole queue */
+                pcb->ooseq = NULL;
+              } else {
+                /* just dump 'next' and everything after it */
+                prev->next = NULL;
+              }
+              break;
             }
-            break;
           }
         }
-#endif /* TCP_OOSEQ_MAX_BYTES || TCP_OOSEQ_MAX_PBUFS */
+#endif /* TCP_OOSEQ_BYTES_LIMIT || TCP_OOSEQ_PBUFS_LIMIT */
 #endif /* TCP_QUEUE_OOSEQ */
 
         /* We send the ACK packet after we've (potentially) dealt with SACKs,
@@ -2092,7 +2101,7 @@ tcp_remove_sacks_lt(struct tcp_pcb *pcb, u32_t seq)
   }
 }
 
-#if TCP_OOSEQ_MAX_BYTES || TCP_OOSEQ_MAX_PBUFS
+#if defined(TCP_OOSEQ_BYTES_LIMIT) || defined(TCP_OOSEQ_PBUFS_LIMIT)
 /**
  * Called to remove a range of SACKs.
  *
@@ -2131,7 +2140,7 @@ tcp_remove_sacks_gt(struct tcp_pcb *pcb, u32_t seq)
     pcb->rcv_sacks[i].left = pcb->rcv_sacks[i].right = 0;
   }
 }
-#endif /* TCP_OOSEQ_MAX_BYTES || TCP_OOSEQ_MAX_PBUFS */
+#endif /* TCP_OOSEQ_BYTES_LIMIT || TCP_OOSEQ_PBUFS_LIMIT */
 
 #endif /* LWIP_TCP_SACK_OUT */
 

@@ -152,6 +152,17 @@ altcp_tcp_err(void *arg, err_t err)
 }
 
 /* setup functions */
+
+static void
+altcp_tcp_remove_callbacks(struct tcp_pcb *tpcb)
+{
+  tcp_arg(tpcb, NULL);
+  tcp_recv(tpcb, NULL);
+  tcp_sent(tpcb, NULL);
+  tcp_err(tpcb, NULL);
+  tcp_poll(tpcb, NULL, tpcb->pollinterval);
+}
+
 static void
 altcp_tcp_setup_callbacks(struct altcp_pcb *conn, struct tcp_pcb *tpcb)
 {
@@ -288,7 +299,22 @@ altcp_tcp_close(struct altcp_pcb *conn)
   }
   ALTCP_TCP_ASSERT_CONN(conn);
   pcb = (struct tcp_pcb *)conn->state;
-  return tcp_close(pcb);
+  if (pcb) {
+    err_t err;
+    tcp_poll_fn oldpoll = pcb->poll;
+    altcp_tcp_remove_callbacks(pcb);
+    err = tcp_close(pcb);
+    if (err != ERR_OK) {
+      /* not closed, set up all callbacks again */
+      altcp_tcp_setup_callbacks(conn, pcb);
+      /* poll callback is not included in the above */
+      tcp_poll(pcb, oldpoll, pcb->pollinterval);
+      return err;
+    }
+    conn->state = NULL; /* unsafe to reference pcb after tcp_close(). */
+  }
+  altcp_free(conn);
+  return ERR_OK;
 }
 
 static err_t

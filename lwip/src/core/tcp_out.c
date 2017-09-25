@@ -1221,15 +1221,15 @@ tcp_output(struct tcp_pcb *pcb)
       TCPH_SET_FLAG(seg->tcphdr, TCP_ACK);
     }
 
-#if TCP_OVERSIZE_DBGCHECK
-    seg->oversize_left = 0;
-#endif /* TCP_OVERSIZE_DBGCHECK */
     err = tcp_output_segment(seg, pcb, netif);
     if (err != ERR_OK) {
       /* segment could not be sent, for whatever reason */
       tcp_set_flags(pcb, TF_NAGLEMEMERR);
       return err;
     }
+#if TCP_OVERSIZE_DBGCHECK
+    seg->oversize_left = 0;
+#endif /* TCP_OVERSIZE_DBGCHECK */
     pcb->unsent = seg->next;
     if (pcb->state != SYN_SENT) {
       tcp_clear_flags(pcb, TF_ACK_DELAY | TF_ACK_NOW);

@@ -282,7 +282,8 @@ icmp6_time_exceeded_with_addrs(struct pbuf *p, enum icmp6_te_code c,
  * Send an icmpv6 'parameter problem' packet.
  *
  * This function must be used only in direct response to a packet that is being
- * received right now. Otherwise, address zones would be lost.
+ * received right now. Otherwise, address zones would be lost and the calculated
+ * offset would be wrong (calculated against ip6_current_header()).
  *
  * @param p the input packet for which the 'param problem' should be sent,
  *          p->payload pointing to the IP header
@@ -290,9 +291,10 @@ icmp6_time_exceeded_with_addrs(struct pbuf *p, enum icmp6_te_code c,
  * @param pointer the pointer to the byte where the parameter is found
  */
 void
-icmp6_param_problem(struct pbuf *p, enum icmp6_pp_code c, u32_t pointer)
+icmp6_param_problem(struct pbuf *p, enum icmp6_pp_code c, const void *pointer)
 {
-  icmp6_send_response(p, c, pointer, ICMP6_TYPE_PP);
+  u32_t pointer_u32 = (u32_t)((const u8_t *)pointer - (const u8_t *)ip6_current_header());
+  icmp6_send_response(p, c, pointer_u32, ICMP6_TYPE_PP);
 }
 
 /**

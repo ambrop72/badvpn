@@ -71,8 +71,10 @@
 #define SNTP_SUPPORT_MULTIPLE_SERVERS 0
 #endif /* NTP_MAX_SERVERS > 1 */
 
-#if (SNTP_UPDATE_DELAY < 15000) && !defined(SNTP_SUPPRESS_DELAY_CHECK)
+#ifndef SNTP_SUPPRESS_DELAY_CHECK
+#if SNTP_UPDATE_DELAY < 15000
 #error "SNTPv4 RFC 4330 enforces a minimum update time of 15 seconds (define SNTP_SUPPRESS_DELAY_CHECK to disable this error)!"
+#endif
 #endif
 
 /* the various debug levels for this file */
@@ -499,15 +501,17 @@ sntp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr,
 
     /* Set up timeout for next request (only if poll response was received)*/
     if (sntp_opmode == SNTP_OPMODE_POLL) {
+      u32_t sntp_update_delay;
       sys_untimeout(sntp_try_next_server, NULL);
       sys_untimeout(sntp_request, NULL);
 
       /* Correct response, reset retry timeout */
       SNTP_RESET_RETRY_TIMEOUT();
 
-      sys_timeout((u32_t)SNTP_UPDATE_DELAY, sntp_request, NULL);
+      sntp_update_delay = (u32_t)SNTP_UPDATE_DELAY;
+      sys_timeout(sntp_update_delay, sntp_request, NULL);
       LWIP_DEBUGF(SNTP_DEBUG_STATE, ("sntp_recv: Scheduled next time request: %"U32_F" ms\n",
-                                     (u32_t)SNTP_UPDATE_DELAY));
+                                     sntp_update_delay));
     }
   } else if (err == SNTP_ERR_KOD) {
     /* KOD errors are only processed in case of an explicit poll response */

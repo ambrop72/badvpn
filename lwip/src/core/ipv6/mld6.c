@@ -554,14 +554,14 @@ mld6_send(struct netif *netif, struct mld_group *group, u8_t type)
   const ip6_addr_t *src_addr;
 
   /* Allocate a packet. Size is MLD header + IPv6 Hop-by-hop options header. */
-  p = pbuf_alloc(PBUF_IP, sizeof(struct mld_header) + sizeof(struct ip6_hbh_hdr), PBUF_RAM);
+  p = pbuf_alloc(PBUF_IP, sizeof(struct mld_header) + MLD6_HBH_HLEN, PBUF_RAM);
   if (p == NULL) {
     MLD6_STATS_INC(mld6.memerr);
     return;
   }
 
   /* Move to make room for Hop-by-hop options header. */
-  if (pbuf_remove_header(p, IP6_HBH_HLEN)) {
+  if (pbuf_remove_header(p, MLD6_HBH_HLEN)) {
     pbuf_free(p);
     MLD6_STATS_INC(mld6.lenerr);
     return;

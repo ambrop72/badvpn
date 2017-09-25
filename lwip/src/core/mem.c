@@ -66,6 +66,11 @@
 #include <stdlib.h> /* for malloc()/free() */
 #endif
 
+/* This is overridable for tests only... */
+#ifndef LWIP_MEM_ILLEGAL_FREE
+#define LWIP_MEM_ILLEGAL_FREE(msg)         LWIP_ASSERT(msg, 0)
+#endif
+
 #define MEM_STATS_INC_LOCKED(x)         SYS_ARCH_LOCKED(MEM_STATS_INC(x))
 #define MEM_STATS_INC_USED_LOCKED(x, y) SYS_ARCH_LOCKED(MEM_STATS_INC_USED(x, y))
 #define MEM_STATS_DEC_USED_LOCKED(x, y) SYS_ARCH_LOCKED(MEM_STATS_DEC_USED(x, y))
@@ -413,6 +418,25 @@ mem_init(void)
   }
 }
 
+/* Check if a struct mem is correctly linked.
+ * If not, double-free is a possible reason.
+ */
+static int
+mem_link_valid(struct mem *mem)
+{
+  struct mem *nmem, *pmem;
+  mem_size_t rmem_idx;
+  rmem_idx = (mem_size_t)((u8_t *)mem - ram);
+  nmem = (struct mem *)(void *)&ram[mem->next];
+  pmem = (struct mem *)(void *)&ram[mem->prev];
+  if ((mem->next > MEM_SIZE_ALIGNED) || (mem->prev > MEM_SIZE_ALIGNED) ||
+      ((mem->prev != rmem_idx) && (pmem->next != rmem_idx)) ||
+      ((nmem != ram_end) && (nmem->prev != rmem_idx))) {
+    return 0;
+  }
+  return 1;
+}
+
 /**
  * Put a struct mem back on the heap
  *
@@ -429,12 +453,20 @@ mem_free(void *rmem)
     LWIP_DEBUGF(MEM_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_SERIOUS, ("mem_free(p == NULL) was called.\n"));
     return;
   }
-  LWIP_ASSERT("mem_free: sanity check alignment", (((mem_ptr_t)rmem) & (MEM_ALIGNMENT - 1)) == 0);
+  if ((((mem_ptr_t)rmem) & (MEM_ALIGNMENT - 1)) != 0) {
+    LWIP_MEM_ILLEGAL_FREE("mem_free: sanity check alignment");
+    LWIP_DEBUGF(MEM_DEBUG | LWIP_DBG_LEVEL_SEVERE, ("mem_free: sanity check alignment\n"));
+    /* protect mem stats from concurrent access */
+    MEM_STATS_INC_LOCKED(illegal);
+    return;
+  }
 
-  LWIP_ASSERT("mem_free: legal memory", (u8_t *)rmem >= (u8_t *)ram &&
-              (u8_t *)rmem < (u8_t *)ram_end);
+  /* Get the corresponding struct mem: */
+  /* cast through void* to get rid of alignment warnings */
+  mem = (struct mem *)(void *)((u8_t *)rmem - SIZEOF_STRUCT_MEM);
 
-  if ((u8_t *)rmem < (u8_t *)ram || (u8_t *)rmem >= (u8_t *)ram_end) {
+  if ((u8_t *)mem < ram || (u8_t *)rmem + MIN_SIZE_ALIGNED > (u8_t *)ram_end) {
+    LWIP_MEM_ILLEGAL_FREE("mem_free: illegal memory");
     LWIP_DEBUGF(MEM_DEBUG | LWIP_DBG_LEVEL_SEVERE, ("mem_free: illegal memory\n"));
     /* protect mem stats from concurrent access */
     MEM_STATS_INC_LOCKED(illegal);
@@ -442,12 +474,26 @@ mem_free(void *rmem)
   }
   /* protect the heap from concurrent access */
   LWIP_MEM_FREE_PROTECT();
-  /* Get the corresponding struct mem ... */
-  /* cast through void* to get rid of alignment warnings */
-  mem = (struct mem *)(void *)((u8_t *)rmem - SIZEOF_STRUCT_MEM);
-  /* ... which has to be in a used state ... */
-  LWIP_ASSERT("mem_free: mem->used", mem->used);
-  /* ... and is now unused. */
+  /* mem has to be in a used state */
+  if (!mem->used) {
+    LWIP_MEM_ILLEGAL_FREE("mem_free: illegal memory: double free");
+    LWIP_MEM_FREE_UNPROTECT();
+    LWIP_DEBUGF(MEM_DEBUG | LWIP_DBG_LEVEL_SEVERE, ("mem_free: illegal memory: double free?\n"));
+    /* protect mem stats from concurrent access */
+    MEM_STATS_INC_LOCKED(illegal);
+    return;
+  }
+
+  if (!mem_link_valid(mem)) {
+    LWIP_MEM_ILLEGAL_FREE("mem_free: illegal memory: non-linked: double free");
+    LWIP_MEM_FREE_UNPROTECT();
+    LWIP_DEBUGF(MEM_DEBUG | LWIP_DBG_LEVEL_SEVERE, ("mem_free: illegal memory: non-linked: double free?\n"));
+    /* protect mem stats from concurrent access */
+    MEM_STATS_INC_LOCKED(illegal);
+    return;
+  }
+
+  /* mem is now unused. */
   mem->used = 0;
 
   if (mem < lfree) {

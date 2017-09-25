@@ -421,7 +421,7 @@ int process_sub(FILE *data_file, FILE *struct_file)
         ret = tinydir_readfile_n(&dir, &file, i);
 
         if (ret == 0) {
-#if (defined _MSC_VER || defined __MINGW32__)
+#if (defined _MSC_VER || defined __MINGW32__) && (defined _UNICODE)
           size_t   i;
           char currName[256];
           wcstombs_s(&i, currName, sizeof(currName), file.name, sizeof(currName));
@@ -461,12 +461,12 @@ int process_sub(FILE *data_file, FILE *struct_file)
 
         if (ret == 0) {
           if (!file.is_dir) {
-#if (defined _MSC_VER || defined __MINGW32__)
+#if (defined _MSC_VER || defined __MINGW32__) && (defined _UNICODE)
             size_t   i;
             char curName[256];
             wcstombs_s(&i, curName, sizeof(curName), file.name, sizeof(curName));
 #else
-            const char *currName = file.name;
+            const char *curName = file.name;
 #endif
 
             if (strcmp(curName, "fsdata.tmp") == 0) {

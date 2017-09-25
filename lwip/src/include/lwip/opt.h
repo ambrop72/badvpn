@@ -1300,19 +1300,49 @@
 #endif
 
 /**
- * TCP_OOSEQ_MAX_BYTES: The maximum number of bytes queued on ooseq per pcb.
- * Default is 0 (no limit). Only valid for TCP_QUEUE_OOSEQ==1.
+ * TCP_OOSEQ_MAX_BYTES: The default maximum number of bytes queued on ooseq per
+ * pcb if TCP_OOSEQ_BYTES_LIMIT is not defined. Default is 0 (no limit).
+ * Only valid for TCP_QUEUE_OOSEQ==1.
  */
 #if !defined TCP_OOSEQ_MAX_BYTES || defined __DOXYGEN__
 #define TCP_OOSEQ_MAX_BYTES             0
 #endif
 
 /**
- * TCP_OOSEQ_MAX_PBUFS: The maximum number of pbufs queued on ooseq per pcb.
- * Default is 0 (no limit). Only valid for TCP_QUEUE_OOSEQ==1.
+ * TCP_OOSEQ_BYTES_LIMIT(pcb): Return the maximum number of bytes to be queued
+ * on ooseq per pcb, given the pcb. Only valid for TCP_QUEUE_OOSEQ==1 &&
+ * TCP_OOSEQ_MAX_BYTES==1.
+ * Use this to override TCP_OOSEQ_MAX_BYTES to a dynamic value per pcb.
+ */
+#if !defined TCP_OOSEQ_BYTES_LIMIT
+#if TCP_OOSEQ_MAX_BYTES
+#define TCP_OOSEQ_BYTES_LIMIT(pcb) TCP_OOSEQ_MAX_BYTES
+#elif defined __DOXYGEN__
+#define TCP_OOSEQ_BYTES_LIMIT(pcb)
+#endif
+#endif
+
+/**
+ * TCP_OOSEQ_MAX_PBUFS: The default maximum number of pbufs queued on ooseq per
+ * pcb if TCP_OOSEQ_BYTES_LIMIT is not defined. Default is 0 (no limit).
+ * Only valid for TCP_QUEUE_OOSEQ==1.
  */
 #if !defined TCP_OOSEQ_MAX_PBUFS || defined __DOXYGEN__
 #define TCP_OOSEQ_MAX_PBUFS             0
+#endif
+
+/**
+ * TCP_OOSEQ_PBUFS_LIMIT(pcb): Return the maximum number of pbufs to be queued
+ * on ooseq per pcb, given the pcb.  Only valid for TCP_QUEUE_OOSEQ==1 &&
+ * TCP_OOSEQ_MAX_PBUFS==1.
+ * Use this to override TCP_OOSEQ_MAX_PBUFS to a dynamic value per pcb.
+ */
+#if !defined TCP_OOSEQ_PBUFS_LIMIT
+#if TCP_OOSEQ_MAX_PBUFS
+#define TCP_OOSEQ_PBUFS_LIMIT(pcb) TCP_OOSEQ_MAX_PBUFS
+#elif defined __DOXYGEN__
+#define TCP_OOSEQ_PBUFS_LIMIT(pcb)
+#endif
 #endif
 
 /**
@@ -1985,6 +2015,14 @@
  */
 #if !defined LWIP_SOCKET_SELECT || defined __DOXYGEN__
 #define LWIP_SOCKET_SELECT              1
+#endif
+
+/**
+ * LWIP_SOCKET_POLL==1 (default): enable poll() for sockets (including
+ * struct pollfd, nfds_t, and constants)
+ */
+#if !defined LWIP_SOCKET_POLL || defined __DOXYGEN__
+#define LWIP_SOCKET_POLL                1
 #endif
 /**
  * @}

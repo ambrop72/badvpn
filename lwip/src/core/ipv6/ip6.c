@@ -508,7 +508,7 @@ ip6_input(struct pbuf *p, struct netif *inp)
 {
   struct ip6_hdr *ip6hdr;
   struct netif *netif;
-  u8_t nexth;
+  const u8_t *nexth;
   u16_t hlen, hlen_tot; /* the current header length */
 #if 0 /*IP_ACCEPT_LINK_LAYER_ADDRESSING*/
   @todo
@@ -695,7 +695,7 @@ netif_found:
   ip_data.current_netif = netif;
 
   /* Save next header type. */
-  nexth = IP6H_NEXTH(ip6hdr);
+  nexth = &IP6H_NEXTH(ip6hdr);
 
   /* Init header length. */
   hlen = hlen_tot = IP6_HLEN;
@@ -704,13 +704,25 @@ netif_found:
   pbuf_remove_header(p, IP6_HLEN);
 
   /* Process known option extension headers, if present. */
-  while (nexth != IP6_NEXTH_NONE)
+  while (*nexth != IP6_NEXTH_NONE)
   {
-    switch (nexth) {
+    switch (*nexth) {
     case IP6_NEXTH_HOPBYHOP:
+    {
+      s32_t opt_offset;
+      struct ip6_hbh_hdr *hbh_hdr;
+      struct ip6_opt_hdr *opt_hdr;
       LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with Hop-by-Hop options header\n"));
+
       /* Get and check the header length, while staying in packet bounds. */
-      hlen = (u16_t)(8 * (1 + *((u8_t *)p->payload + 1)));
+      hbh_hdr = (struct ip6_hbh_hdr *)p->payload;
+
+      /* Get next header type. */
+      nexth = &IP6_HBH_NEXTH(hbh_hdr);
+
+      /* Get the header length. */
+      hlen = (u16_t)(8 * (1 + hbh_hdr->_hlen));
+
       if ((p->len < 8) || (hlen > p->len)) {
         LWIP_DEBUGF(IP6_DEBUG | LWIP_DBG_LEVEL_SERIOUS,
           ("IPv6 options header (hlen %"U16_F") does not fit in first pbuf (len %"U16_F"), IPv6 packet dropped.\n",
@@ -724,17 +736,82 @@ netif_found:
 
       hlen_tot = (u16_t)(hlen_tot + hlen);
 
-      /* Get next header type. */
-      nexth = *((u8_t *)p->payload);
+      /* The extended option header starts right after Hop-by-Hop header. */
+      opt_offset = IP6_HBH_HLEN;
+      while (opt_offset < hlen)
+      {
+        s32_t opt_dlen = 0;
 
-      /* Skip over this header. */
+        opt_hdr = (struct ip6_opt_hdr *)((u8_t *)hbh_hdr + opt_offset);
+
+        switch (IP6_OPT_TYPE(opt_hdr)) {
+        /* @todo: process IPV6 Hop-by-Hop option data */
+        case IP6_PAD1_OPTION:
+          /* PAD1 option doesn't have length and value field */
+          opt_dlen = -1;
+          break;
+        case IP6_PADN_OPTION:
+          opt_dlen = IP6_OPT_DLEN(opt_hdr);
+          break;
+        case IP6_ROUTER_ALERT_OPTION:
+          opt_dlen = IP6_OPT_DLEN(opt_hdr);
+          break;
+        case IP6_JUMBO_OPTION:
+          opt_dlen = IP6_OPT_DLEN(opt_hdr);
+          break;
+        default:
+          /* Check 2 MSB of Hop-by-Hop header type. */
+          switch (IP6_OPT_TYPE_ACTION(opt_hdr)) {
+          case 1:
+            /* Discard the packet. */
+            LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with invalid Hop-by-Hop option type dropped.\n"));
+            pbuf_free(p);
+            IP6_STATS_INC(ip6.drop);
+            goto ip6_input_cleanup;
+          case 2:
+            /* Send ICMP Parameter Problem */
+            icmp6_param_problem(p, ICMP6_PP_OPTION, opt_hdr);
+            LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with invalid Hop-by-Hop option type dropped.\n"));
+            pbuf_free(p);
+            IP6_STATS_INC(ip6.drop);
+            goto ip6_input_cleanup;
+          case 3:
+            /* Send ICMP Parameter Problem if destination address is not a multicast address */
+            if (!ip6_addr_ismulticast(ip6_current_dest_addr())) {
+              icmp6_param_problem(p, ICMP6_PP_OPTION, opt_hdr);
+            }
+            LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with invalid Hop-by-Hop option type dropped.\n"));
+            pbuf_free(p);
+            IP6_STATS_INC(ip6.drop);
+            goto ip6_input_cleanup;
+          default:
+            /* Skip over this option. */
+            opt_dlen = IP6_OPT_DLEN(opt_hdr);
+            break;
+          }
+          break;
+        }
+
+        /* Adjust the offset to move to the next extended option header */
+        opt_offset = opt_offset + IP6_OPT_HLEN + opt_dlen;
+      }
       pbuf_remove_header(p, hlen);
       break;
+    }
     case IP6_NEXTH_DESTOPTS:
+    {
+      s32_t opt_offset;
+      struct ip6_dest_hdr *dest_hdr;
+      struct ip6_opt_hdr *opt_hdr;
       LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with Destination options header\n"));
 
-      /* Get and check the header length, while staying in packet bounds. */
-      hlen = (u16_t)(8 * (1 + *((u8_t *)p->payload + 1)));
+      dest_hdr = (struct ip6_dest_hdr *)p->payload;
+
+      /* Get next header type. */
+      nexth = &IP6_DEST_NEXTH(dest_hdr);
+
+      /* Get the header length. */
+      hlen = 8 * (1 + dest_hdr->_hlen);
       if ((p->len < 8) || (hlen > p->len)) {
         LWIP_DEBUGF(IP6_DEBUG | LWIP_DBG_LEVEL_SERIOUS,
           ("IPv6 options header (hlen %"U16_F") does not fit in first pbuf (len %"U16_F"), IPv6 packet dropped.\n",
@@ -748,17 +825,87 @@ netif_found:
 
       hlen_tot = (u16_t)(hlen_tot + hlen);
 
-      /* Get next header type. */
-      nexth = *((u8_t *)p->payload);
+      /* The extended option header starts right after Destination header. */
+      opt_offset = IP6_DEST_HLEN;
+      while (opt_offset < hlen)
+      {
+        s32_t opt_dlen = 0;
 
-      /* Skip over this header. */
+        opt_hdr = (struct ip6_opt_hdr *)((u8_t *)dest_hdr + opt_offset);
+
+        switch (IP6_OPT_TYPE(opt_hdr))
+        {
+        /* @todo: process IPV6 Destination option data */
+        case IP6_PAD1_OPTION:
+          /* PAD1 option deosn't have length and value field */
+          opt_dlen = -1;
+          break;
+        case IP6_PADN_OPTION:
+          opt_dlen = IP6_OPT_DLEN(opt_hdr);
+          break;
+        case IP6_ROUTER_ALERT_OPTION:
+          opt_dlen = IP6_OPT_DLEN(opt_hdr);
+          break;
+        case IP6_JUMBO_OPTION:
+          opt_dlen = IP6_OPT_DLEN(opt_hdr);
+          break;
+        case IP6_HOME_ADDRESS_OPTION:
+          opt_dlen = IP6_OPT_DLEN(opt_hdr);
+          break;
+        default:
+          /* Check 2 MSB of Destination header type. */
+          switch (IP6_OPT_TYPE_ACTION(opt_hdr))
+          {
+          case 1:
+            /* Discard the packet. */
+            LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with invalid destination option type dropped.\n"));
+            pbuf_free(p);
+            IP6_STATS_INC(ip6.drop);
+            goto ip6_input_cleanup;
+          case 2:
+            /* Send ICMP Parameter Problem */
+            icmp6_param_problem(p, ICMP6_PP_OPTION, opt_hdr);
+            LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with invalid destination option type dropped.\n"));
+            pbuf_free(p);
+            IP6_STATS_INC(ip6.drop);
+            goto ip6_input_cleanup;
+          case 3:
+            /* Send ICMP Parameter Problem if destination address is not a multicast address */
+            if (!ip6_addr_ismulticast(ip6_current_dest_addr())) {
+              icmp6_param_problem(p, ICMP6_PP_OPTION, opt_hdr);
+            }
+            LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with invalid destination option type dropped.\n"));
+            pbuf_free(p);
+            IP6_STATS_INC(ip6.drop);
+            goto ip6_input_cleanup;
+          default:
+            /* Skip over this option. */
+            opt_dlen = IP6_OPT_DLEN(opt_hdr);
+            break;
+          }
+          break;
+        }
+
+        /* Adjust the offset to move to the next extended option header */
+        opt_offset = opt_offset + IP6_OPT_HLEN + opt_dlen;
+      }
+
       pbuf_remove_header(p, hlen);
       break;
+    }
     case IP6_NEXTH_ROUTING:
+    {
+      struct ip6_rout_hdr *rout_hdr;
       LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with Routing header\n"));
 
-      /* Get and check the header length, while staying in packet bounds. */
-      hlen = (u16_t)(8 * (1 + *((u8_t *)p->payload + 1)));
+      rout_hdr = (struct ip6_rout_hdr *)p->payload;
+
+      /* Get next header type. */
+      nexth = &IP6_ROUT_NEXTH(rout_hdr);
+
+      /* Get the header length. */
+      hlen = 8 * (1 + rout_hdr->_hlen);
+
       if ((p->len < 8) || (hlen > p->len)) {
         LWIP_DEBUGF(IP6_DEBUG | LWIP_DBG_LEVEL_SERIOUS,
           ("IPv6 options header (hlen %"U16_F") does not fit in first pbuf (len %"U16_F"), IPv6 packet dropped.\n",
@@ -770,19 +917,50 @@ netif_found:
         goto ip6_input_cleanup;
       }
 
-      /* Get next header type. */
-      nexth = *((u8_t *)p->payload);
-
       /* Skip over this header. */
       hlen_tot = (u16_t)(hlen_tot + hlen);
 
+      /* if segment left value is 0 in routing header, ignore the option */
+      if (IP6_ROUT_SEG_LEFT(rout_hdr)) {
+        /* The length field of routing option header must be even */
+        if (rout_hdr->_hlen & 0x1) {
+          /* Discard and send parameter field error */
+          icmp6_param_problem(p, ICMP6_PP_FIELD, &rout_hdr->_hlen);
+          LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with invalid routing type dropped\n"));
+          pbuf_free(p);
+          IP6_STATS_INC(ip6.drop);
+          goto ip6_input_cleanup;
+        }
+
+        switch (IP6_ROUT_TYPE(rout_hdr))
+        {
+        /* TODO: process routing by the type */
+        case IP6_ROUT_TYPE2:
+          break;
+        case IP6_ROUT_RPL:
+          break;
+        default:
+          /* Discard unrecognized routing type and send parameter field error */
+          icmp6_param_problem(p, ICMP6_PP_FIELD, &IP6_ROUT_TYPE(rout_hdr));
+          LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with invalid routing type dropped\n"));
+          pbuf_free(p);
+          IP6_STATS_INC(ip6.drop);
+          goto ip6_input_cleanup;
+        }
+      }
+
       pbuf_remove_header(p, hlen);
       break;
-
+    }
     case IP6_NEXTH_FRAGMENT:
     {
       struct ip6_frag_hdr *frag_hdr;
       LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with Fragment header\n"));
+
+      frag_hdr = (struct ip6_frag_hdr *)p->payload;
+
+      /* Get next header type. */
+      nexth = &IP6_FRAG_NEXTH(frag_hdr);
 
       /* Fragment Header length. */
       hlen = 8;
@@ -801,10 +979,15 @@ netif_found:
 
       hlen_tot = (u16_t)(hlen_tot + hlen);
 
-      frag_hdr = (struct ip6_frag_hdr *)p->payload;
-
-      /* Get next header type. */
-      nexth = frag_hdr->_nexth;
+      /* check payload length is multiple of 8 octets when mbit is set */
+      if (IP6_FRAG_MBIT(frag_hdr) && (IP6H_PLEN(ip6hdr) & 0x7)) {
+        /* ipv6 payload length is not multiple of 8 octets */
+        icmp6_param_problem(p, ICMP6_PP_FIELD, &ip6hdr->_plen);
+        LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with invalid payload length dropped\n"));
+        pbuf_free(p);
+        IP6_STATS_INC(ip6.drop);
+        goto ip6_input_cleanup;
+      }
 
       /* Offset == 0 and more_fragments == 0? */
       if ((frag_hdr->_fragment_offset &
@@ -813,7 +996,6 @@ netif_found:
         pbuf_remove_header(p, hlen);
       } else {
 #if LWIP_IPV6_REASS
-
         /* reassemble the packet */
         ip_data.current_ip_header_tot_len = hlen_tot;
         p = ip6_reass(p);
@@ -825,7 +1007,7 @@ netif_found:
         /* Returned p point to IPv6 header.
          * Update all our variables and pointers and continue. */
         ip6hdr = (struct ip6_hdr *)p->payload;
-        nexth = IP6H_NEXTH(ip6hdr);
+        nexth = &IP6H_NEXTH(ip6hdr);
         hlen = hlen_tot = IP6_HLEN;
         pbuf_remove_header(p, IP6_HLEN);
 
@@ -843,9 +1025,18 @@ netif_found:
     default:
       goto options_done;
     }
-  }
-options_done:
 
+    if (*nexth == IP6_NEXTH_HOPBYHOP) {
+      /* Hop-by-Hop header comes only as a first option */
+      icmp6_param_problem(p, ICMP6_PP_HEADER, nexth);
+      LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with Hop-by-Hop options header dropped (only valid as a first option)\n"));
+      pbuf_free(p);
+      IP6_STATS_INC(ip6.drop);
+      goto ip6_input_cleanup;
+    }
+  }
+
+options_done:
   if (hlen_tot >= 0x8000) {
     /* s16_t overflow */
     LWIP_DEBUGF(IP6_DEBUG | LWIP_DBG_LEVEL_SERIOUS, ("ip6_input: header length overflow: %"U16_F"\n", hlen_tot));
@@ -873,7 +1064,7 @@ options_done:
 #else /* LWIP_RAW */
   {
 #endif /* LWIP_RAW */
-    switch (nexth) {
+    switch (*nexth) {
     case IP6_NEXTH_NONE:
       pbuf_free(p);
       break;
@@ -902,7 +1093,7 @@ options_done:
       /* send ICMP parameter problem unless it was a multicast or ICMPv6 */
       if ((!ip6_addr_ismulticast(ip6_current_dest_addr())) &&
           (IP6H_NEXTH(ip6hdr) != IP6_NEXTH_ICMP6)) {
-        icmp6_param_problem(p, ICMP6_PP_HEADER, (u32_t)(hlen_tot - hlen));
+        icmp6_param_problem(p, ICMP6_PP_HEADER, nexth);
       }
 #endif /* LWIP_ICMP */
       LWIP_DEBUGF(IP6_DEBUG | LWIP_DBG_LEVEL_SERIOUS, ("ip6_input: Unsupported transport protocol %"U16_F"\n", (u16_t)IP6H_NEXTH(ip6hdr)));
@@ -1207,25 +1398,42 @@ ip6_output_hinted(struct pbuf *p, const ip6_addr_t *src, const ip6_addr_t *dest,
 err_t
 ip6_options_add_hbh_ra(struct pbuf *p, u8_t nexth, u8_t value)
 {
+  u8_t *opt_data;
+  u32_t offset = 0;
   struct ip6_hbh_hdr *hbh_hdr;
+  struct ip6_opt_hdr *opt_hdr;
 
+  /* fixed 4 bytes for router alert option and 2 bytes padding */
+  const u8_t hlen = (sizeof(struct ip6_opt_hdr) * 2) + IP6_ROUTER_ALERT_DLEN;
   /* Move pointer to make room for hop-by-hop options header. */
-  if (pbuf_add_header(p, sizeof(struct ip6_hbh_hdr))) {
+  if (pbuf_add_header(p, sizeof(struct ip6_hbh_hdr) + hlen)) {
     LWIP_DEBUGF(IP6_DEBUG, ("ip6_options: no space for options header\n"));
     IP6_STATS_INC(ip6.err);
     return ERR_BUF;
   }
 
+  /* Set fields of Hop-by-Hop header */
   hbh_hdr = (struct ip6_hbh_hdr *)p->payload;
-
-  /* Set fields. */
-  hbh_hdr->_nexth = nexth;
+  IP6_HBH_NEXTH(hbh_hdr) = nexth;
   hbh_hdr->_hlen = 0;
-  hbh_hdr->_ra_opt_type = IP6_ROUTER_ALERT_OPTION;
-  hbh_hdr->_ra_opt_dlen = 2;
-  hbh_hdr->_ra_opt_data = value;
-  hbh_hdr->_padn_opt_type = IP6_PADN_ALERT_OPTION;
-  hbh_hdr->_padn_opt_dlen = 0;
+  offset = IP6_HBH_HLEN;
+
+  /* Set router alert options to Hop-by-Hop extended option header */
+  opt_hdr = (struct ip6_opt_hdr *)((u8_t *)hbh_hdr + offset);
+  IP6_OPT_TYPE(opt_hdr) = IP6_ROUTER_ALERT_OPTION;
+  IP6_OPT_DLEN(opt_hdr) = IP6_ROUTER_ALERT_DLEN;
+  offset += IP6_OPT_HLEN;
+
+  /* Set router alert option data */
+  opt_data = (u8_t *)hbh_hdr + offset;
+  opt_data[0] = value;
+  opt_data[1] = 0;
+  offset += IP6_OPT_DLEN(opt_hdr);
+
+  /* add 2 bytes padding to make 8 bytes Hop-by-Hop header length */
+  opt_hdr = (struct ip6_opt_hdr *)((u8_t *)hbh_hdr + offset);
+  IP6_OPT_TYPE(opt_hdr) = IP6_PADN_OPTION;
+  IP6_OPT_DLEN(opt_hdr) = 0;
 
   return ERR_OK;
 }
