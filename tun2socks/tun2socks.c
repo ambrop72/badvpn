@@ -57,7 +57,8 @@
 #include <socksclient/BSocksClient.h>
 #include <tuntap/BTap.h>
 #include <lwip/init.h>
-#include <lwip/tcp_impl.h>
+#include <lwip/ip_addr.h>
+#include <lwip/priv/tcp_priv.h>
 #include <lwip/netif.h>
 #include <lwip/tcp.h>
 #include <tun2socks/SocksUdpGwClient.h>
@@ -115,8 +116,8 @@ struct {
 
 // TCP client
 struct tcp_client {
-    dead_t dead;
-    dead_t dead_client;
+    int aborted;
+    dead_t dead_aborted;
     LinkedList1Node list_node;
     BAddr local_addr;
     BAddr remote_addr;
@@ -207,15 +208,15 @@ static void print_version (void);
 static int parse_arguments (int argc, char *argv[]);
 static int process_arguments (void);
 static void signal_handler (void *unused);
-static BAddr baddr_from_lwip (int is_ipv6, const ipX_addr_t *ipx_addr, uint16_t port_hostorder);
+static BAddr baddr_from_lwip (const ip_addr_t *ip_addr, uint16_t port_hostorder);
 static void lwip_init_job_hadler (void *unused);
 static void tcp_timer_handler (void *unused);
 static void device_error_handler (void *unused);
 static void device_read_handler_send (void *unused, uint8_t *data, int data_len);
 static int process_device_udp_packet (uint8_t *data, int data_len);
 static err_t netif_init_func (struct netif *netif);
-static err_t netif_output_func (struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr);
-static err_t netif_output_ip6_func (struct netif *netif, struct pbuf *p, ip6_addr_t *ipaddr);
+static err_t netif_output_func (struct netif *netif, struct pbuf *p, const ip4_addr_t *ipaddr);
+static err_t netif_output_ip6_func (struct netif *netif, struct pbuf *p, const ip6_addr_t *ipaddr);
 static err_t common_netif_output (struct netif *netif, struct pbuf *p);
 static err_t netif_input_func (struct pbuf *p, struct netif *inp);
 static void client_logfunc (struct tcp_client *client);
@@ -224,6 +225,7 @@ static err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
 static void client_handle_freed_client (struct tcp_client *client);
 static void client_free_client (struct tcp_client *client);
 static void client_abort_client (struct tcp_client *client);
+static void client_abort_pcb (struct tcp_client *client);
 static void client_free_socks (struct tcp_client *client);
 static void client_murder (struct tcp_client *client);
 static void client_dealloc (struct tcp_client *client);
@@ -835,13 +837,13 @@ void signal_handler (void *unused)
     terminate();
 }
 
-BAddr baddr_from_lwip (int is_ipv6, const ipX_addr_t *ipx_addr, uint16_t port_hostorder)
+BAddr baddr_from_lwip (const ip_addr_t *ip_addr, uint16_t port_hostorder)
 {
     BAddr addr;
-    if (is_ipv6) {
-        BAddr_InitIPv6(&addr, (uint8_t *)ipx_addr->ip6.addr, hton16(port_hostorder));
+    if (IP_IS_V6(ip_addr)) {
+        BAddr_InitIPv6(&addr, (uint8_t *)ip_addr->u_addr.ip6.addr, hton16(port_hostorder));
     } else {
-        BAddr_InitIPv4(&addr, ipx_addr->ip4.addr, hton16(port_hostorder));
+        BAddr_InitIPv4(&addr, ip_addr->u_addr.ip4.addr, hton16(port_hostorder));
     }
     return addr;
 }
@@ -864,12 +866,12 @@ void lwip_init_job_hadler (void *unused)
     lwip_init();
     
     // make addresses for netif
-    ip_addr_t addr;
+    ip4_addr_t addr;
     addr.addr = netif_ipaddr.ipv4;
-    ip_addr_t netmask;
+    ip4_addr_t netmask;
     netmask.addr = netif_netmask.ipv4;
-    ip_addr_t gw;
-    ip_addr_set_any(&gw);
+    ip4_addr_t gw;
+    ip4_addr_set_any(&gw);
     
     // init netif
     if (!netif_add(&the_netif, &addr, &netmask, &gw, NULL, netif_init_func, netif_input_func)) {
@@ -881,6 +883,9 @@ void lwip_init_job_hadler (void *unused)
     // set netif up
     netif_set_up(&the_netif);
     
+    // set netif link up, otherwise ip route will refuse to route
+    netif_set_link_up(&the_netif);
+    
     // set netif pretend TCP
     netif_set_pretend_tcp(&the_netif, 1);
     
@@ -889,14 +894,17 @@ void lwip_init_job_hadler (void *unused)
     
     if (options.netif_ip6addr) {
         // add IPv6 address
-        memcpy(netif_ip6_addr(&the_netif, 0), netif_ip6addr.bytes, sizeof(netif_ip6addr.bytes));
+        ip6_addr_t ip6addr;
+        memset(&ip6addr, 0, sizeof(ip6addr)); // clears any "zone"
+        memcpy(ip6addr.addr, netif_ip6addr.bytes, sizeof(netif_ip6addr.bytes));
+        netif_ip6_addr_set(&the_netif, 0, &ip6addr);
         netif_ip6_addr_set_state(&the_netif, 0, IP6_ADDR_VALID);
     }
     
     // init listener
-    struct tcp_pcb *l = tcp_new();
+    struct tcp_pcb *l = tcp_new_ip_type(IPADDR_TYPE_V4);
     if (!l) {
-        BLog(BLOG_ERROR, "tcp_new failed");
+        BLog(BLOG_ERROR, "tcp_new_ip_type failed");
         goto fail;
     }
     
@@ -906,6 +914,9 @@ void lwip_init_job_hadler (void *unused)
         tcp_close(l);
         goto fail;
     }
+    
+    // ensure the listener only accepts connections from this netif
+    tcp_bind_netif(l, &the_netif);
     
     // listen listener
     if (!(listener = tcp_listen(l))) {
@@ -918,9 +929,9 @@ void lwip_init_job_hadler (void *unused)
     tcp_accept(listener, listener_accept_func);
     
     if (options.netif_ip6addr) {
-        struct tcp_pcb *l_ip6 = tcp_new_ip6();
+        struct tcp_pcb *l_ip6 = tcp_new_ip_type(IPADDR_TYPE_V6);
         if (!l_ip6) {
-            BLog(BLOG_ERROR, "tcp_new_ip6 failed");
+            BLog(BLOG_ERROR, "tcp_new_ip_type failed");
             goto fail;
         }
         
@@ -929,6 +940,8 @@ void lwip_init_job_hadler (void *unused)
             tcp_close(l_ip6);
             goto fail;
         }
+        
+        tcp_bind_netif(l_ip6, &the_netif);
         
         if (!(listener_ip6 = tcp_listen(l_ip6))) {
             BLog(BLOG_ERROR, "tcp_listen failed");
@@ -954,11 +967,9 @@ void tcp_timer_handler (void *unused)
     BLog(BLOG_DEBUG, "TCP timer");
     
     // schedule next timer
-    // TODO: calculate timeout so we don't drift
     BReactor_SetTimer(&ss, &tcp_timer);
     
     tcp_tmr();
-    return;
 }
 
 void device_error_handler (void *unused)
@@ -1138,12 +1149,12 @@ err_t netif_init_func (struct netif *netif)
     return ERR_OK;
 }
 
-err_t netif_output_func (struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr)
+err_t netif_output_func (struct netif *netif, struct pbuf *p, const ip4_addr_t *ipaddr)
 {
     return common_netif_output(netif, p);
 }
 
-err_t netif_output_ip6_func (struct netif *netif, struct pbuf *p, ip6_addr_t *ipaddr)
+err_t netif_output_ip6_func (struct netif *netif, struct pbuf *p, const ip6_addr_t *ipaddr)
 {
     return common_netif_output(netif, p);
 }
@@ -1232,10 +1243,6 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
 {
     ASSERT(err == ERR_OK)
     
-    // signal accepted
-    struct tcp_pcb *this_listener = (PCB_ISIPV6(newpcb) ? listener_ip6 : listener);
-    tcp_accepted(this_listener);
-    
     // allocate client structure
     struct tcp_client *client = (struct tcp_client *)malloc(sizeof(*client));
     if (!client) {
@@ -1248,8 +1255,8 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     SYNC_FROMHERE
     
     // read addresses
-    client->local_addr = baddr_from_lwip(PCB_ISIPV6(newpcb), &newpcb->local_ip, newpcb->local_port);
-    client->remote_addr = baddr_from_lwip(PCB_ISIPV6(newpcb), &newpcb->remote_ip, newpcb->remote_port);
+    client->local_addr = baddr_from_lwip(&newpcb->local_ip, newpcb->local_port);
+    client->remote_addr = baddr_from_lwip(&newpcb->remote_ip, newpcb->remote_port);
     
     // get destination address
     BAddr addr = client->local_addr;
@@ -1276,9 +1283,9 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
         goto fail1;
     }
     
-    // init dead vars
-    DEAD_INIT(client->dead);
-    DEAD_INIT(client->dead_client);
+    // init aborted and dead_aborted
+    client->aborted = 0;
+    DEAD_INIT(client->dead_aborted);
     
     // add to linked list
     LinkedList1_Append(&tcp_clients, &client->list_node);
@@ -1309,14 +1316,12 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     
     client_log(client, BLOG_INFO, "accepted");
     
-    DEAD_ENTER(client->dead_client)
+    DEAD_ENTER(client->dead_aborted)
     SYNC_COMMIT
-    DEAD_LEAVE2(client->dead_client)
-    if (DEAD_KILLED) {
-        return ERR_ABRT;
-    }
+    DEAD_LEAVE2(client->dead_aborted)
     
-    return ERR_OK;
+    // Return ERR_ABRT if and only if tcp_abort was called from this callback.
+    return (DEAD_KILLED > 0) ? ERR_ABRT : ERR_OK;
     
 fail1:
     SYNC_BREAK
@@ -1331,9 +1336,6 @@ void client_handle_freed_client (struct tcp_client *client)
     ASSERT(!client->client_closed)
     
     // pcb was taken care of by the caller
-    
-    // kill client dead var
-    DEAD_KILL(client->dead_client);
     
     // set client closed
     client->client_closed = 1;
@@ -1363,7 +1365,7 @@ void client_free_client (struct tcp_client *client)
     err_t err = tcp_close(client->pcb);
     if (err != ERR_OK) {
         client_log(client, BLOG_ERROR, "tcp_close failed (%d)", err);
-        tcp_abort(client->pcb);
+        client_abort_pcb(client);
     }
     
     client_handle_freed_client(client);
@@ -1378,10 +1380,26 @@ void client_abort_client (struct tcp_client *client)
     tcp_recv(client->pcb, NULL);
     tcp_sent(client->pcb, NULL);
     
-    // free pcb
-    tcp_abort(client->pcb);
+    // abort
+    client_abort_pcb(client);
     
     client_handle_freed_client(client);
+}
+
+void client_abort_pcb (struct tcp_client *client)
+{
+    ASSERT(!client->aborted)
+    
+    // abort the PCB
+    tcp_abort(client->pcb);
+    
+    // mark aborted
+    client->aborted = 1;
+    
+    // kill dead_aborted with value 1 signaling that tcp_abort was done;
+    // this is contrasted to killing with value -1 from client_dealloc
+    // signaling that the client was freed without tcp_abort
+    DEAD_KILL_WITH(client->dead_aborted, 1);
 }
 
 void client_free_socks (struct tcp_client *client)
@@ -1424,10 +1442,7 @@ void client_murder (struct tcp_client *client)
         tcp_sent(client->pcb, NULL);
         
         // abort
-        tcp_abort(client->pcb);
-        
-        // kill client dead var
-        DEAD_KILL(client->dead_client);
+        client_abort_pcb(client);
         
         // set client closed
         client->client_closed = 1;
@@ -1458,8 +1473,10 @@ void client_dealloc (struct tcp_client *client)
     // remove client entry
     LinkedList1_Remove(&tcp_clients, &client->list_node);
     
-    // kill dead var
-    DEAD_KILL(client->dead);
+    // kill dead_aborted with value -1 unless already aborted
+    if (!client->aborted) {
+        DEAD_KILL_WITH(client->dead_aborted, -1);
+    }
     
     // free memory
     free(client->socks_username);
@@ -1484,43 +1501,44 @@ err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t e
     ASSERT(err == ERR_OK) // checked in lwIP source. Otherwise, I've no idea what should
                           // be done with the pbuf in case of an error.
     
+    DEAD_ENTER(client->dead_aborted)
+    
     if (!p) {
         client_log(client, BLOG_INFO, "client closed");
         client_free_client(client);
-        return ERR_ABRT;
-    }
-    
-    ASSERT(p->tot_len > 0)
-    
-    // check if we have enough buffer
-    if (p->tot_len > sizeof(client->buf) - client->buf_used) {
-        client_log(client, BLOG_ERROR, "no buffer for data !?!");
-        return ERR_MEM;
-    }
-    
-    // copy data to buffer
-    ASSERT_EXECUTE(pbuf_copy_partial(p, client->buf + client->buf_used, p->tot_len, 0) == p->tot_len)
-    client->buf_used += p->tot_len;
-    
-    // if there was nothing in the buffer before, and SOCKS is up, start send data
-    if (client->buf_used == p->tot_len && client->socks_up) {
-        ASSERT(!client->socks_closed) // this callback is removed when SOCKS is closed
+    } else {
+        ASSERT(p->tot_len > 0)
         
-        SYNC_DECL
-        SYNC_FROMHERE
-        client_send_to_socks(client);
-        DEAD_ENTER(client->dead_client)
-        SYNC_COMMIT
-        DEAD_LEAVE2(client->dead_client)
-        if (DEAD_KILLED) {
-            return ERR_ABRT;
+        // check if we have enough buffer
+        if (p->tot_len > sizeof(client->buf) - client->buf_used) {
+            client_log(client, BLOG_ERROR, "no buffer for data !?!");
+            DEAD_LEAVE2(client->dead_aborted)
+            return ERR_MEM;
+        }
+        
+        // copy data to buffer
+        ASSERT_EXECUTE(pbuf_copy_partial(p, client->buf + client->buf_used, p->tot_len, 0) == p->tot_len)
+        client->buf_used += p->tot_len;
+        
+        // free pbuff
+        int p_tot_len = p->tot_len;
+        pbuf_free(p);
+        
+        // if there was nothing in the buffer before, and SOCKS is up, start send data
+        if (client->buf_used == p_tot_len && client->socks_up) {
+            ASSERT(!client->socks_closed) // this callback is removed when SOCKS is closed
+            
+            SYNC_DECL
+            SYNC_FROMHERE
+            client_send_to_socks(client);
+            SYNC_COMMIT
         }
     }
     
-    // free pbuff
-    pbuf_free(p);
+    DEAD_LEAVE2(client->dead_aborted)
     
-    return ERR_OK;
+    // Return ERR_ABRT if and only if tcp_abort was called from this callback.
+    return (DEAD_KILLED > 0) ? ERR_ABRT : ERR_OK;
 }
 
 void client_socks_handler (struct tcp_client *client, int event)
@@ -1728,6 +1746,8 @@ err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
     ASSERT(len > 0)
     ASSERT(len <= client->socks_recv_tcp_pending)
     
+    DEAD_ENTER(client->dead_aborted)
+    
     // decrement pending
     client->socks_recv_tcp_pending -= len;
     
@@ -1741,7 +1761,7 @@ err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
         
         // possibly send more data
         if (client_socks_recv_send_out(client) < 0) {
-            return ERR_ABRT;
+            goto out;
         }
         
         // we just queued some data, so it can't have been confirmed yet
@@ -1752,25 +1772,21 @@ err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
             SYNC_DECL
             SYNC_FROMHERE
             client_socks_recv_initiate(client);
-            DEAD_ENTER(client->dead_client)
             SYNC_COMMIT
-            DEAD_LEAVE2(client->dead_client)
-            if (DEAD_KILLED) {
-                return ERR_ABRT;
-            }
         }
-        
-        return ERR_OK;
+    } else {    
+        // have we sent everything after SOCKS was closed?
+        if (client->socks_closed && client->socks_recv_tcp_pending == 0) {
+            client_log(client, BLOG_INFO, "removing after SOCKS went down");
+            client_free_client(client);
+        }
     }
     
-    // have we sent everything after SOCKS was closed?
-    if (client->socks_closed && client->socks_recv_tcp_pending == 0) {
-        client_log(client, BLOG_INFO, "removing after SOCKS went down");
-        client_free_client(client);
-        return ERR_ABRT;
-    }
+out:
+    DEAD_LEAVE2(client->dead_aborted)
     
-    return ERR_OK;
+    // Return ERR_ABRT if and only if tcp_abort was called from this callback.
+    return (DEAD_KILLED > 0) ? ERR_ABRT : ERR_OK;
 }
 
 void udpgw_client_handler_received (void *unused, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len)

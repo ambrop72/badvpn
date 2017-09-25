@@ -35,3 +35,7 @@ u32_t sys_now (void)
 {
     return btime_gettime();
 }
+
+void tcp_timer_needed(void)
+{
+}
