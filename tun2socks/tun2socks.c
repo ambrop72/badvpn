@@ -61,6 +61,9 @@
 #include <lwip/priv/tcp_priv.h>
 #include <lwip/netif.h>
 #include <lwip/tcp.h>
+#include <lwip/ip4_frag.h>
+#include <lwip/nd6.h>
+#include <lwip/ip6_frag.h>
 #include <tun2socks/SocksUdpGwClient.h>
 
 #ifndef BADVPN_USE_WINAPI
@@ -182,6 +185,7 @@ int udp_mtu;
 
 // TCP timer
 BTimer tcp_timer;
+int tcp_timer_mod4;
 
 // job for initializing lwip
 BPending lwip_init_job;
@@ -391,6 +395,7 @@ int main (int argc, char **argv)
     // it won't trigger before lwip is initialized, becuase the lwip init is a job
     BTimer_Init(&tcp_timer, TCP_TMR_INTERVAL, tcp_timer_handler, NULL);
     BReactor_SetTimer(&ss, &tcp_timer);
+    tcp_timer_mod4 = 0;
     
     // set no netif
     have_netif = 0;
@@ -969,7 +974,29 @@ void tcp_timer_handler (void *unused)
     // schedule next timer
     BReactor_SetTimer(&ss, &tcp_timer);
     
+    // call the TCP timer function (every 1/4 second)
     tcp_tmr();
+    
+    // increment tcp_timer_mod4
+    tcp_timer_mod4 = (tcp_timer_mod4 + 1) % 4;
+    
+    // every second, call other timer functions
+    if (tcp_timer_mod4 == 0) {
+#if IP_REASSEMBLY
+        ASSERT(IP_TMR_INTERVAL == 4 * TCP_TMR_INTERVAL)
+        ip_reass_tmr();
+#endif
+        
+#if LWIP_IPV6
+        ASSERT(ND6_TMR_INTERVAL == 4 * TCP_TMR_INTERVAL)
+        nd6_tmr();
+#endif
+    
+#if LWIP_IPV6 && LWIP_IPV6_REASS
+        ASSERT(IP6_REASS_TMR_INTERVAL == 4 * TCP_TMR_INTERVAL)
+        ip6_reass_tmr();
+#endif
+    }
 }
 
 void device_error_handler (void *unused)
