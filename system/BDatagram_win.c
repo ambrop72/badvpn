@@ -232,7 +232,6 @@ static void start_send (BDatagram *o)
         // send
         int res = o->fnWSASendMsg(o->sock, &o->send.msg, 0, NULL, &o->send.olap.olap, NULL);
         if (res == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
-            BLog(BLOG_ERROR, "WSASendMsg failed (%d)", WSAGetLastError());
             report_error(o);
             return;
         }
@@ -240,7 +239,6 @@ static void start_send (BDatagram *o)
         // send
         int res = WSASendTo(o->sock, &buf, 1, NULL, 0, &o->send.sysaddr.addr.generic, o->send.sysaddr.len, &o->send.olap.olap, NULL);
         if (res == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
-            BLog(BLOG_ERROR, "WSASendTo failed (%d)", WSAGetLastError());
             report_error(o);
             return;
         }
@@ -390,7 +388,6 @@ static void send_olap_handler (BDatagram *o, int event, DWORD bytes)
     o->send.data_busy = 0;
     
     if (event == BREACTOR_IOCP_EVENT_FAILED) {
-        BLog(BLOG_ERROR, "sending failed");
         report_error(o);
         return;
     }

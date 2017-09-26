@@ -333,7 +333,6 @@ static void do_send (BDatagram *o)
             return;
         }
         
-        BLog(BLOG_ERROR, "send failed");
         report_error(o);
         return;
     }
