@@ -12,6 +12,7 @@ set(LWIP_SOURCES
     src/core/tcp_in.c
     src/core/stats.c
     src/core/ip.c
+    src/core/timeouts.c
     src/core/inet_chksum.c
     src/core/ipv4/icmp.c
     src/core/ipv4/ip4.c
