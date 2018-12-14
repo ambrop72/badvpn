@@ -734,6 +734,30 @@ int BDatagram_GetLastReceiveAddrs (BDatagram *o, BAddr *remote_addr, BIPAddr *lo
     return 1;
 }
 
+int BDatagram_GetLocalPort (BDatagram *o, uint16_t *local_port)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    struct sys_addr sysaddr;
+    BAddr addr;
+    sysaddr.len = sizeof(sysaddr.addr);
+    if (getsockname(o->fd, &sysaddr.addr.generic, &sysaddr.len) != 0) {
+        BLog(BLOG_ERROR, "getsockname failed");
+        return 0;
+    }
+    addr_sys_to_socket(&addr, sysaddr);
+    if (addr.type == BADDR_TYPE_IPV4) {
+        *local_port = addr.ipv4.port;
+        return 1;
+    }
+    if (addr.type == BADDR_TYPE_IPV6) {
+        *local_port = addr.ipv6.port;
+        return 1;
+    }
+    BLog(BLOG_ERROR, "Unknown address type from getsockname: %d", addr.type);
+    return 0;
+}
+
 int BDatagram_GetFd (BDatagram *o)
 {
     DebugObject_Access(&o->d_obj);
