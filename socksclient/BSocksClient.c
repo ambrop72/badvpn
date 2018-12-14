@@ -329,9 +329,11 @@ void recv_handler_done (BSocksClient *o, int data_len)
             int addr_len;
             switch (ntoh8(imsg.atyp)) {
                 case SOCKS_ATYP_IPV4:
+                    o->bind_addr.type = BADDR_TYPE_IPV4;
                     addr_len = sizeof(struct socks_addr_ipv4);
                     break;
                 case SOCKS_ATYP_IPV6:
+                    o->bind_addr.type = BADDR_TYPE_IPV6;
                     addr_len = sizeof(struct socks_addr_ipv6);
                     break;
                 default:
@@ -364,6 +366,26 @@ void recv_handler_done (BSocksClient *o, int data_len)
         
         case STATE_RECEIVED_REPLY_HEADER: {
             BLog(BLOG_DEBUG, "received reply rest");
+            
+            // Record the address of the new socket bound by the server.
+            // For a CONNECT command, this is the address of the TCP client socket to dest_addr.
+            // Knowing this address is usually not important.
+            // For a UDP_ASSOCIATE command, this is the UDP address to which to send SOCKS UDP.
+            // Recording this address is a prerequisite to send traffic on a SOCKS-UDP association.
+            void *addr_buffer = o->buffer + sizeof(struct socks_reply_header);
+            switch (o->bind_addr.type) {
+                case BADDR_TYPE_IPV4: {
+                    struct socks_addr_ipv4 *ip4 = addr_buffer;
+                    o->bind_addr.ipv4.ip = ip4->addr;
+                    o->bind_addr.ipv4.port = ip4->port;
+                } break;
+                case BADDR_TYPE_IPV6: {
+                    struct socks_addr_ipv6 *ip6 = addr_buffer;
+                    memcpy(o->bind_addr.ipv6.ip, ip6->addr, sizeof(ip6->addr));
+                    o->bind_addr.ipv6.port = ip6->port;
+                } break;
+                default: ASSERT(0);
+            }
             
             // free buffer
             BFree(o->buffer);
@@ -476,7 +498,7 @@ void auth_finished (BSocksClient *o)
     // write request
     struct socks_request_header header;
     header.ver = hton8(SOCKS_VERSION);
-    header.cmd = hton8(SOCKS_CMD_CONNECT);
+    header.cmd = hton8(o->udp ? SOCKS_CMD_UDP_ASSOCIATE : SOCKS_CMD_CONNECT);
     header.rsv = hton8(0);
     switch (o->dest_addr.type) {
         case BADDR_TYPE_IPV4: {
@@ -525,7 +547,7 @@ struct BSocksClient_auth_info BSocksClient_auth_password (const char *username, 
 
 int BSocksClient_Init (BSocksClient *o,
                        BAddr server_addr, const struct BSocksClient_auth_info *auth_info, size_t num_auth_info,
-                       BAddr dest_addr, BSocksClient_handler handler, void *user, BReactor *reactor)
+                       BAddr dest_addr, bool udp, BSocksClient_handler handler, void *user, BReactor *reactor)
 {
     ASSERT(!BAddr_IsInvalid(&server_addr))
     ASSERT(dest_addr.type == BADDR_TYPE_IPV4 || dest_addr.type == BADDR_TYPE_IPV6)
@@ -540,6 +562,7 @@ int BSocksClient_Init (BSocksClient *o,
     o->auth_info = auth_info;
     o->num_auth_info = num_auth_info;
     o->dest_addr = dest_addr;
+    o->udp = udp;
     o->handler = handler;
     o->user = user;
     o->reactor = reactor;

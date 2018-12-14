@@ -332,6 +332,7 @@ endif ()
 if (BUILD_TUN2SOCKS)
     add_subdirectory(socksclient)
     add_subdirectory(udpgw_client)
+    add_subdirectory(socks_udp_client)
     add_subdirectory(lwip)
 endif ()
 
