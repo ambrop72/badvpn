@@ -52,6 +52,8 @@
 typedef struct {
     #ifndef NDEBUG
     BPending job;
+    #else
+    int dummy_field; // struct must have at least one field
     #endif
 } DebugError;
 

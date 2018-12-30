@@ -130,7 +130,8 @@ if (NOT (SIZE_SIZE GREATER INT_SIZE OR SIZE_SIZE EQUAL INT_SIZE))
 endif ()
 
 if (MSVC)
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS /wd4065 /wd4018 /wd4533 /wd4244 /wd4102)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS /wd4065 /wd4018 /wd4533 /wd4244 /wd4102 /wd4098 /wd4267 /wd4116)
+    add_definitions(-D_WINSOCK_DEPRECATED_NO_WARNINGS)
 else ()
     add_definitions(-std=gnu99 -Wall -Wno-unused-value -Wno-parentheses -Wno-switch -Wredundant-decls -Wshadow)
 
