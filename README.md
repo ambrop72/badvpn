@@ -36,16 +36,30 @@ These connections are used for transferring network data (Ethernet frames), and 
   - Local peers inside a NAT can communicate directly
   - Relaying as a fallback (needs configuration)
 
-## Documentation
-
-- [NCD] - Introduction to the NCD language.
-- [badvpn] - General description of BadVPN and its features.
-- [Examples] - Quick guide to setting up a working VPN.
-- [badvpn_server], [badvpn_client] - Documentation of individual programs.
-
 ## Requirements
 
 NCD only works on Linux. Tun2socks works on Linux and Windows. The P2P VPN works on Linux, Windows and FreeBSD (not tested often).
+
+## Installation
+
+The build system is based on CMake. On Linux, the following commands can be used to
+build:
+
+```
+cd <badvpn-source-dir>
+mkdir build
+cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=<install-dir>
+make install
+```
+
+If you only need tun2socks or udpgw, then add the following arguments to the `cmake`
+command: `-DBUILD_NOTHING_BY_DEFAULT=1 -DBUILD_TUN2SOCKS=1 -DBUILD_UDPGW=1`.
+Otherwise (if you want the VPN software), you will first need to install the OpenSSL
+and NSS libraries and make sure that CMake can find them.
+
+Windows builds are not provided. You can build from source code using Visual Studio by
+following the instructions in the file `BUILD-WINDOWS-VisualStudio.md`.
 
 ## License
 
