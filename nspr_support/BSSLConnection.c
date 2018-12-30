@@ -28,7 +28,7 @@
  */
 
 #include <prerror.h>
-#include <ssl.h>
+#include <nss/ssl.h>
 
 #include <string.h>
 #include <stdlib.h>
