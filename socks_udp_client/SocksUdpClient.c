@@ -40,7 +40,7 @@
 static int addr_comparator (void *unused, BAddr *v1, BAddr *v2);
 static struct SocksUdpClient_connection * find_connection_by_addr (SocksUdpClient *o, BAddr addr);
 static void init_localhost4(uint32_t *ip4);
-static void init_localhost6(uint8_t ip6[static 16]);
+static void init_localhost6(uint8_t ip6[16]);
 static void socks_state_handler(struct SocksUdpClient_connection *con, int event);
 static void datagram_state_handler(struct SocksUdpClient_connection *con, int event);
 static void send_monitor_handler (struct SocksUdpClient_connection *con);
@@ -55,12 +55,12 @@ static void first_job_handler(struct SocksUdpClient_connection *con);
 static int compute_mtu(int udp_mtu);
 static int get_dns_id(BAddr *remote_addr, const uint8_t *data, int data_len);
 
-static int addr_comparator (void *unused, BAddr *v1, BAddr *v2)
+int addr_comparator (void *unused, BAddr *v1, BAddr *v2)
 {
     return BAddr_CompareOrder(v1, v2);
 }
 
-static struct SocksUdpClient_connection * find_connection_by_addr (SocksUdpClient *o, BAddr addr)
+struct SocksUdpClient_connection * find_connection_by_addr (SocksUdpClient *o, BAddr addr)
 {
     BAVLNode *tree_node = BAVL_LookupExact(&o->connections_tree, &addr);
     if (!tree_node) {
@@ -70,18 +70,18 @@ static struct SocksUdpClient_connection * find_connection_by_addr (SocksUdpClien
     return UPPER_OBJECT(tree_node, struct SocksUdpClient_connection, connections_tree_node);
 }
 
-static void init_localhost4(uint32_t *ip4)
+void init_localhost4(uint32_t *ip4)
 {
     *ip4 = 1<<24 | 127;
 }
 
-static void init_localhost6(uint8_t ip6[static 16])
+void init_localhost6(uint8_t ip6[16])
 {
     memset(ip6, 0, 16);
     ip6[15] = 1;
 }
 
-static void socks_state_handler(struct SocksUdpClient_connection *con, int event)
+void socks_state_handler(struct SocksUdpClient_connection *con, int event)
 {
     switch (event) {
         case BSOCKSCLIENT_EVENT_UP: {
@@ -109,7 +109,7 @@ static void socks_state_handler(struct SocksUdpClient_connection *con, int event
     }
 }
 
-static void datagram_state_handler(struct SocksUdpClient_connection *con, int event)
+void datagram_state_handler(struct SocksUdpClient_connection *con, int event)
 {
     if (event == BDATAGRAM_EVENT_ERROR) {
         char local_buffer[BADDR_MAX_PRINT_LEN];
@@ -119,13 +119,13 @@ static void datagram_state_handler(struct SocksUdpClient_connection *con, int ev
     }
 }
 
-static void send_monitor_handler (struct SocksUdpClient_connection *con)
+void send_monitor_handler (struct SocksUdpClient_connection *con)
 {
     // The connection has passed its idle timeout.  Remove it.
     connection_free(con);
 }
 
-static void recv_if_handler_send(struct SocksUdpClient_connection *con, uint8_t *data, int data_len)
+void recv_if_handler_send(struct SocksUdpClient_connection *con, uint8_t *data, int data_len)
 {
     SocksUdpClient *o = con->client;
     DebugObject_Access(&con->client->d_obj);
@@ -195,10 +195,10 @@ static void recv_if_handler_send(struct SocksUdpClient_connection *con, uint8_t 
     }
 }
 
-static struct SocksUdpClient_connection *connection_init(SocksUdpClient *o, BAddr local_addr,
-                                                         BAddr first_remote_addr,
-                                                         const uint8_t *first_data,
-                                                         int first_data_len)
+struct SocksUdpClient_connection *connection_init(SocksUdpClient *o, BAddr local_addr,
+                                                  BAddr first_remote_addr,
+                                                  const uint8_t *first_data,
+                                                  int first_data_len)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(o->num_connections <= o->max_connections)
@@ -333,7 +333,7 @@ fail0:
     return NULL;
 }
 
-static void connection_free (struct SocksUdpClient_connection *con)
+void connection_free (struct SocksUdpClient_connection *con)
 {
     SocksUdpClient *o = con->client;
     DebugObject_Access(&o->d_obj);
@@ -369,8 +369,8 @@ static void connection_free (struct SocksUdpClient_connection *con)
     free(con);
 }
 
-static void connection_send (struct SocksUdpClient_connection *con, BAddr remote_addr,
-                             const uint8_t *data, int data_len)
+void connection_send (struct SocksUdpClient_connection *con, BAddr remote_addr,
+                      const uint8_t *data, int data_len)
 {
     SocksUdpClient *o = con->client;
     DebugObject_Access(&o->d_obj);
@@ -439,7 +439,7 @@ static void connection_send (struct SocksUdpClient_connection *con, BAddr remote
     BufferWriter_EndPacket(&con->send_writer, socks_data_len);
 }
 
-static void first_job_handler(struct SocksUdpClient_connection *con)
+void first_job_handler(struct SocksUdpClient_connection *con)
 {
     connection_send(con, con->first_remote_addr, con->first_data, con->first_data_len);
     BFree(con->first_data);
@@ -447,12 +447,12 @@ static void first_job_handler(struct SocksUdpClient_connection *con)
     con->first_data_len = 0;
 }
 
-static int compute_mtu(int udp_mtu)
+int compute_mtu(int udp_mtu)
 {
     return udp_mtu + sizeof(struct socks_udp_header) + sizeof(struct socks_addr_ipv6);
 }
 
-static int get_dns_id(BAddr *remote_addr, const uint8_t *data, int data_len)
+int get_dns_id(BAddr *remote_addr, const uint8_t *data, int data_len)
 {
     if (BAddr_GetPort(remote_addr) == htons(DNS_PORT) && data_len >= 2) {
         return (data[0] << 8) + data[1];
