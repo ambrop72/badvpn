@@ -107,6 +107,18 @@ struct {
     char *netif_netmask;
     char *netif_ip6addr;
     char *socks_server_addr;
+    char *socks_server_addr_secondary;
+    char *socks_server_addr_tertiary;
+    char *socks_server_addr_quaternary;
+    char *socks_server_addr_quinary;
+    char *socks_server_addr_senary;
+    char *socks_server_addr_septenary;
+    char *socks_server_addr_octonary;
+    char *socks_server_addr_nonary;
+    char *socks_server_addr_denary;
+    char *socks_server_addr_undenary;
+    char *socks_server_addr_duodenary;
+    char *socks_server_addr_ternidenary;
     char *username;
     char *password;
     char *password_file;
@@ -150,8 +162,21 @@ BIPAddr netif_netmask;
 // IP6 address of netif
 struct ipv6_addr netif_ip6addr;
 
-// SOCKS server address
+// SOCKS server addresses
 BAddr socks_server_addr;
+BAddr socks_server_addr_secondary;
+BAddr socks_server_addr_tertiary;
+BAddr socks_server_addr_quaternary;
+BAddr socks_server_addr_quinary;
+BAddr socks_server_addr_senary;
+BAddr socks_server_addr_septenary;
+BAddr socks_server_addr_octonary;
+BAddr socks_server_addr_nonary;
+BAddr socks_server_addr_denary;
+BAddr socks_server_addr_undenary;
+BAddr socks_server_addr_duodenary;
+BAddr socks_server_addr_ternidenary;
+short socks_server_addresses;
 
 // allocated password file contents
 uint8_t *password_file_contents;
@@ -493,6 +518,18 @@ void print_help (const char *name)
         "        --netif-ipaddr <ipaddr>\n"
         "        --netif-netmask <ipnetmask>\n"
         "        --socks-server-addr <addr>\n"
+        "        [--socks-server-addr-secondary   <addr>]\n"
+        "        [--socks-server-addr-tertiary    <addr>]\n"
+        "        [--socks-server-addr-quaternary  <addr>]\n"
+        "        [--socks-server-addr-quinary     <addr>]\n"
+        "        [--socks-server-addr-senary      <addr>]\n"
+        "        [--socks-server-addr-septenary   <addr>]\n"
+        "        [--socks-server-addr-octonary    <addr>]\n"
+        "        [--socks-server-addr-nonary      <addr>]\n"
+        "        [--socks-server-addr-denary      <addr>]\n"
+        "        [--socks-server-addr-undenary    <addr>]\n"
+        "        [--socks-server-addr-duodenary   <addr>]\n"
+        "        [--socks-server-addr-ternidenary <addr>]\n"
         "        [--netif-ip6addr <addr>]\n"
         "        [--username <username>]\n"
         "        [--password <password>]\n"
@@ -533,7 +570,19 @@ int parse_arguments (int argc, char *argv[])
     options.netif_ipaddr = NULL;
     options.netif_netmask = NULL;
     options.netif_ip6addr = NULL;
-    options.socks_server_addr = NULL;
+    options.socks_server_addr = NULL;    
+    options.socks_server_addr_secondary  = NULL;
+    options.socks_server_addr_tertiary   = NULL;
+    options.socks_server_addr_quaternary = NULL;
+    options.socks_server_addr_quinary    = NULL;
+    options.socks_server_addr_senary     = NULL;
+    options.socks_server_addr_septenary  = NULL;
+    options.socks_server_addr_octonary   = NULL;
+    options.socks_server_addr_nonary     = NULL;
+    options.socks_server_addr_denary     = NULL;
+    options.socks_server_addr_undenary   = NULL;
+    options.socks_server_addr_duodenary  = NULL;
+    options.socks_server_addr_ternidenary= NULL;
     options.username = NULL;
     options.password = NULL;
     options.password_file = NULL;
@@ -657,6 +706,102 @@ int parse_arguments (int argc, char *argv[])
                 return 0;
             }
             options.socks_server_addr = argv[i + 1];
+            i++;
+        }
+else if (!strcmp(arg, "--socks-server-addr-secondary")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.socks_server_addr_secondary = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--socks-server-addr-tertiary")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.socks_server_addr_tertiary = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--socks-server-addr-quaternary")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.socks_server_addr_quaternary = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--socks-server-addr-quinary")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.socks_server_addr_quinary = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--socks-server-addr-senary")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.socks_server_addr_senary = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--socks-server-addr-septenary")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.socks_server_addr_septenary = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--socks-server-addr-octonary")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.socks_server_addr_octonary = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--socks-server-addr-nonary")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.socks_server_addr_nonary = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--socks-server-addr-denary")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.socks_server_addr_denary = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--socks-server-addr-undenary")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.socks_server_addr_undenary = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--socks-server-addr-duodenary")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.socks_server_addr_duodenary = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--socks-server-addr-ternidenary")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.socks_server_addr_ternidenary = argv[i + 1];
             i++;
         }
         else if (!strcmp(arg, "--username")) {
@@ -791,12 +936,120 @@ int process_arguments (void)
         }
     }
     
-    // resolve SOCKS server address
+    // resolve SOCKS server addresses
     if (!BAddr_Parse2(&socks_server_addr, options.socks_server_addr, NULL, 0, 0)) {
-        BLog(BLOG_ERROR, "socks server addr: BAddr_Parse2 failed");
+        BLog(BLOG_ERROR, "primary socks server addr: BAddr_Parse2 failed");
         return 0;
     }
-    
+    if (options.socks_server_addr_secondary != NULL) {
+        if (!BAddr_Parse2(&socks_server_addr_secondary, options.socks_server_addr_secondary, NULL, 0, 0)) {
+            BLog(BLOG_ERROR, "secondary socks server addr: BAddr_Parse2 failed");
+            return 0;
+        }
+        else {
+            socks_server_addresses++;
+        }
+    }
+    if (options.socks_server_addr_tertiary != NULL) {
+        if (!BAddr_Parse2(&socks_server_addr_tertiary, options.socks_server_addr_tertiary, NULL, 0, 0)) {
+            BLog(BLOG_ERROR, "tertiary socks server addr: BAddr_Parse2 failed");
+            return 0;
+        }
+        else {
+            socks_server_addresses++;
+        }
+    }
+    if (options.socks_server_addr_quaternary != NULL) {
+        if (!BAddr_Parse2(&socks_server_addr_quaternary, options.socks_server_addr_quaternary, NULL, 0, 0)) {
+            BLog(BLOG_ERROR, "quaternary socks server addr: BAddr_Parse2 failed");
+            return 0;
+        }
+        else {
+            socks_server_addresses++;
+        }
+    }
+    if (options.socks_server_addr_quinary != NULL) {
+        if (!BAddr_Parse2(&socks_server_addr_quinary, options.socks_server_addr_quinary, NULL, 0, 0)) {
+            BLog(BLOG_ERROR, "quinary socks server addr: BAddr_Parse2 failed");
+            return 0;
+        }
+        else {
+            socks_server_addresses++;
+        }
+    }
+    if (options.socks_server_addr_senary != NULL) {
+        if (!BAddr_Parse2(&socks_server_addr_senary, options.socks_server_addr_senary, NULL, 0, 0)) {
+            BLog(BLOG_ERROR, "senary socks server addr: BAddr_Parse2 failed");
+            return 0;
+        }
+        else {
+            socks_server_addresses++;
+        }
+    }
+    if (options.socks_server_addr_septenary != NULL) {
+        if (!BAddr_Parse2(&socks_server_addr_septenary, options.socks_server_addr_septenary, NULL, 0, 0)) {
+            BLog(BLOG_ERROR, "septenary socks server addr: BAddr_Parse2 failed");
+            return 0;
+        }
+        else {
+            socks_server_addresses++;
+        }
+    }
+    if (options.socks_server_addr_octonary != NULL) {
+        if (!BAddr_Parse2(&socks_server_addr_octonary, options.socks_server_addr_octonary, NULL, 0, 0)) {
+            BLog(BLOG_ERROR, "octonary socks server addr: BAddr_Parse2 failed");
+            return 0;
+        }
+        else {
+            socks_server_addresses++;
+        }
+    }
+    if (options.socks_server_addr_nonary != NULL) {
+        if (!BAddr_Parse2(&socks_server_addr_nonary, options.socks_server_addr_nonary, NULL, 0, 0)) {
+            BLog(BLOG_ERROR, "nonary socks server addr: BAddr_Parse2 failed");
+            return 0;
+        }
+        else {
+            socks_server_addresses++;
+        }
+    }
+    if (options.socks_server_addr_denary != NULL) {
+        if (!BAddr_Parse2(&socks_server_addr_denary, options.socks_server_addr_denary, NULL, 0, 0)) {
+            BLog(BLOG_ERROR, "denary socks server addr: BAddr_Parse2 failed");
+            return 0;
+        }
+        else {
+            socks_server_addresses++;
+        }
+    }
+    if (options.socks_server_addr_undenary != NULL) {
+        if (!BAddr_Parse2(&socks_server_addr_undenary, options.socks_server_addr_undenary, NULL, 0, 0)) {
+            BLog(BLOG_ERROR, "undenary socks server addr: BAddr_Parse2 failed");
+            return 0;
+        }
+        else {
+            socks_server_addresses++;
+        }
+    }
+    if (options.socks_server_addr_duodenary != NULL) {
+        if (!BAddr_Parse2(&socks_server_addr_duodenary, options.socks_server_addr_duodenary, NULL, 0, 0)) {
+            BLog(BLOG_ERROR, "duodenary socks server addr: BAddr_Parse2 failed");
+            return 0;
+        }
+        else {
+            socks_server_addresses++;
+        }
+    }
+    if (options.socks_server_addr_ternidenary != NULL) {
+        if (!BAddr_Parse2(&socks_server_addr_ternidenary, options.socks_server_addr_ternidenary, NULL, 0, 0)) {
+            BLog(BLOG_ERROR, "ternidenary socks server addr: BAddr_Parse2 failed");
+            return 0;
+        }
+        else {
+            socks_server_addresses++;
+        }
+    }
+
     // add none socks authentication method
     socks_auth_info[0] = BSocksClient_auth_none();
     socks_num_auth_info = 1;
@@ -1303,11 +1556,67 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
         socks_auth_info[1].password.username_len = strlen(client->socks_username);
     }
     
-    // init SOCKS
-    if (!BSocksClient_Init(&client->socks_client, socks_server_addr, socks_auth_info, socks_num_auth_info,
-                           addr, (BSocksClient_handler)client_socks_handler, client, &ss)) {
-        BLog(BLOG_ERROR, "listener accept: BSocksClient_Init failed");
-        goto fail1;
+   // Loadbalance
+    BAddr BalancedAddr = socks_server_addr;
+    if (socks_server_addresses) {
+        //Roud Robin
+        switch (rand() % (socks_server_addresses + 1)) {
+        case 1:
+            BalancedAddr = socks_server_addr_secondary;
+            break;
+        case 2:
+            BalancedAddr = socks_server_addr_tertiary;
+            break;
+        case 3:
+            BalancedAddr = socks_server_addr_quaternary;
+            break;
+        case 4:
+            BalancedAddr = socks_server_addr_quinary;
+            break;
+        case 5:
+            BalancedAddr = socks_server_addr_senary;
+            break;
+        case 6:
+            BalancedAddr = socks_server_addr_septenary;
+            break;
+        case 7:
+            BalancedAddr = socks_server_addr_octonary;
+            break;
+        case 8:
+            BalancedAddr = socks_server_addr_nonary;
+            break;
+        case 9:
+            BalancedAddr = socks_server_addr_denary;
+            break;
+        case 10:
+            BalancedAddr = socks_server_addr_undenary;
+            break;
+        case 11:
+            BalancedAddr = socks_server_addr_duodenary;
+            break;
+        case 12:
+            BalancedAddr = socks_server_addr_ternidenary;
+            break;
+        default:
+            break;
+        }
+        char addr_str[BADDR_MAX_PRINT_LEN];
+        BAddr_Print(&BalancedAddr, addr_str);
+        BLog(BLOG_DEBUG, "BalancedAddr: %s", addr_str);
+        // init Loadbalanced SOCKS
+        if (!BSocksClient_Init(&client->socks_client, BalancedAddr, socks_auth_info, socks_num_auth_info,
+            addr, false, (BSocksClient_handler)client_socks_handler, client, &ss)) {
+            BLog(BLOG_ERROR, "listener accept: BSocksClient_Init failed");
+            goto fail1;
+        }
+    }
+    else {
+        // init SOCKS
+        if (!BSocksClient_Init(&client->socks_client, socks_server_addr, socks_auth_info, socks_num_auth_info,
+                               addr, false, (BSocksClient_handler)client_socks_handler, client, &ss)) {
+            BLog(BLOG_ERROR, "listener accept: BSocksClient_Init failed");
+            goto fail1;
+        }
     }
     
     // init aborted and dead_aborted
