@@ -708,7 +708,7 @@ int parse_arguments (int argc, char *argv[])
             options.socks_server_addr = argv[i + 1];
             i++;
         }
-else if (!strcmp(arg, "--socks-server-addr-secondary")) {
+        else if (!strcmp(arg, "--socks-server-addr-secondary")) {
             if (1 >= argc - i) {
                 fprintf(stderr, "%s: requires an argument\n", arg);
                 return 0;
@@ -1556,10 +1556,10 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
         socks_auth_info[1].password.username_len = strlen(client->socks_username);
     }
     
-   // Loadbalance
-    BAddr BalancedAddr = socks_server_addr;
+   // Load Balancing
     if (socks_server_addresses) {
-        //Roud Robin
+        BAddr BalancedAddr = socks_server_addr;
+        //Round Robin
         switch (rand() % (socks_server_addresses + 1)) {
         case 1:
             BalancedAddr = socks_server_addr_secondary;
@@ -1606,7 +1606,7 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
         // init Loadbalanced SOCKS
         if (!BSocksClient_Init(&client->socks_client, BalancedAddr, socks_auth_info, socks_num_auth_info,
             addr, false, (BSocksClient_handler)client_socks_handler, client, &ss)) {
-            BLog(BLOG_ERROR, "listener accept: BSocksClient_Init failed");
+            BLog(BLOG_DEBUG, "listener accept: BSocksClient_Init failed");
             goto fail1;
         }
     }
