@@ -123,6 +123,16 @@ void BDatagram_SetSendAddrs (BDatagram *o, BAddr remote_addr, BIPAddr local_addr
  */
 int BDatagram_GetLastReceiveAddrs (BDatagram *o, BAddr *remote_addr, BIPAddr *local_addr);
 
+/**
+ * Returns the bound port.
+ * Fails if and only if a port is not yet bound.
+ * 
+ * @param o the object
+ * @param local_port returns the local bound port.
+ * @return 1 on success, 0 on failure
+ */
+int BDatagram_GetLocalPort (BDatagram *o, uint16_t *local_port);
+
 #ifndef BADVPN_USE_WINAPI
 /**
  * Returns the underlying socket file descriptor of the datagram object.

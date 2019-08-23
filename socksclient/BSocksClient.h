@@ -35,6 +35,7 @@
 #define BADVPN_SOCKS_BSOCKSCLIENT_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #include <misc/debug.h>
 #include <misc/debugerror.h>
@@ -78,6 +79,8 @@ typedef struct {
     const struct BSocksClient_auth_info *auth_info;
     size_t num_auth_info;
     BAddr dest_addr;
+    bool udp;
+    BAddr bind_addr;
     BSocksClient_handler handler;
     void *user;
     BReactor *reactor;
@@ -117,7 +120,7 @@ struct BSocksClient_auth_info BSocksClient_auth_password (const char *username, 
  */
 int BSocksClient_Init (BSocksClient *o,
                        BAddr server_addr, const struct BSocksClient_auth_info *auth_info, size_t num_auth_info,
-                       BAddr dest_addr, BSocksClient_handler handler, void *user, BReactor *reactor) WARN_UNUSED;
+                       BAddr dest_addr, bool udp, BSocksClient_handler handler, void *user, BReactor *reactor) WARN_UNUSED;
 
 /**
  * Frees the object.
