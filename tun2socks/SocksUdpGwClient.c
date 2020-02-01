@@ -132,8 +132,6 @@ static void socks_client_handler (SocksUdpGwClient *o, int event)
             // set reconnect timer
             BReactor_SetTimer(o->reactor, &o->reconnect_timer);
         } break;
-        
-        default: ASSERT(0);
     }
 }
 

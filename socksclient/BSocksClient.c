@@ -38,14 +38,15 @@
 #include <generated/blog_channel_BSocksClient.h>
 
 #define STATE_CONNECTING 1
-#define STATE_SENDING_HELLO 2
-#define STATE_SENT_HELLO 3
-#define STATE_SENDING_PASSWORD 10
-#define STATE_SENT_PASSWORD 11
-#define STATE_SENDING_REQUEST 4
-#define STATE_SENT_REQUEST 5
-#define STATE_RECEIVED_REPLY_HEADER 6
-#define STATE_UP 7
+#define STATE_CONNECTED_HANDLER 2
+#define STATE_SENDING_HELLO 3
+#define STATE_SENT_HELLO 4
+#define STATE_SENDING_PASSWORD 5
+#define STATE_SENT_PASSWORD 6
+#define STATE_SENDING_REQUEST 7
+#define STATE_SENT_REQUEST 8
+#define STATE_RECEIVED_REPLY_HEADER 9
+#define STATE_UP 10
 
 static void report_error (BSocksClient *o, int error);
 static void init_control_io (BSocksClient *o);
@@ -57,6 +58,7 @@ static void start_receive (BSocksClient *o, uint8_t *dest, int total);
 static void do_receive (BSocksClient *o);
 static void connector_handler (BSocksClient* o, int is_error);
 static void connection_handler (BSocksClient* o, int event);
+static void continue_job_handler (BSocksClient *o);
 static void recv_handler_done (BSocksClient *o, int data_len);
 static void send_handler_done (BSocksClient *o);
 static void auth_finished (BSocksClient *p);
@@ -166,12 +168,45 @@ void connector_handler (BSocksClient* o, int is_error)
     // init control I/O
     init_control_io(o);
     
+    // go to STATE_CONNECTED_HANDLER and set the continue job in order to continue
+    // in continue_job_handler
+    o->state = STATE_CONNECTED_HANDLER;
+    BPending_Set(&o->continue_job);
+
+    // call the handler with the connected event
+    o->handler(o->user, BSOCKSCLIENT_EVENT_CONNECTED);
+    return;
+    
+fail0:
+    report_error(o, BSOCKSCLIENT_EVENT_ERROR);
+    return;
+}
+
+void connection_handler (BSocksClient* o, int event)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->state != STATE_CONNECTING)
+    
+    if (o->state == STATE_UP && event == BCONNECTION_EVENT_RECVCLOSED) {
+        report_error(o, BSOCKSCLIENT_EVENT_ERROR_CLOSED);
+        return;
+    }
+    
+    report_error(o, BSOCKSCLIENT_EVENT_ERROR);
+    return;
+}
+
+void continue_job_handler (BSocksClient *o)
+{
+    DebugObject_Access(&o->d_obj);
+    ASSERT(o->state == STATE_CONNECTED_HANDLER)
+
     // check number of methods
     if (o->num_auth_info == 0 || o->num_auth_info > 255) {
         BLog(BLOG_ERROR, "invalid number of authentication methods");
-        goto fail1;
+        goto fail0;
     }
-    
+
     // allocate buffer for sending hello
     bsize_t size = bsize_add(
         bsize_fromsize(sizeof(struct socks_client_hello_header)), 
@@ -181,7 +216,7 @@ void connector_handler (BSocksClient* o, int is_error)
         )
     );
     if (!reserve_buffer(o, size)) {
-        goto fail1;
+        goto fail0;
     }
     
     // write hello header
@@ -202,27 +237,10 @@ void connector_handler (BSocksClient* o, int is_error)
     
     // set state
     o->state = STATE_SENDING_HELLO;
-    
-    return;
-    
-fail1:
-    free_control_io(o);
-    BConnection_Free(&o->con);
-fail0:
-    report_error(o, BSOCKSCLIENT_EVENT_ERROR);
-    return;
-}
 
-void connection_handler (BSocksClient* o, int event)
-{
-    DebugObject_Access(&o->d_obj);
-    ASSERT(o->state != STATE_CONNECTING)
-    
-    if (o->state == STATE_UP && event == BCONNECTION_EVENT_RECVCLOSED) {
-        report_error(o, BSOCKSCLIENT_EVENT_ERROR_CLOSED);
-        return;
-    }
-    
+    return;
+
+fail0:
     report_error(o, BSOCKSCLIENT_EVENT_ERROR);
     return;
 }
@@ -491,8 +509,16 @@ void auth_finished (BSocksClient *o)
     // allocate request buffer
     bsize_t size = bsize_fromsize(sizeof(struct socks_request_header));
     switch (o->dest_addr.type) {
-        case BADDR_TYPE_IPV4: size = bsize_add(size, bsize_fromsize(sizeof(struct socks_addr_ipv4))); break;
-        case BADDR_TYPE_IPV6: size = bsize_add(size, bsize_fromsize(sizeof(struct socks_addr_ipv6))); break;
+        case BADDR_TYPE_IPV4:
+            size = bsize_add(size, bsize_fromsize(sizeof(struct socks_addr_ipv4)));
+            break;
+        case BADDR_TYPE_IPV6:
+            size = bsize_add(size, bsize_fromsize(sizeof(struct socks_addr_ipv6)));
+            break;
+        default:
+            BLog(BLOG_ERROR, "Invalid dest_addr address type.");
+            report_error(o, BSOCKSCLIENT_EVENT_ERROR);
+            return;
     }
     if (!reserve_buffer(o, size)) {
         report_error(o, BSOCKSCLIENT_EVENT_ERROR);
@@ -549,12 +575,11 @@ struct BSocksClient_auth_info BSocksClient_auth_password (const char *username, 
     return info;
 }
 
-int BSocksClient_Init (BSocksClient *o,
-                       BAddr server_addr, const struct BSocksClient_auth_info *auth_info, size_t num_auth_info,
-                       BAddr dest_addr, bool udp, BSocksClient_handler handler, void *user, BReactor *reactor)
+int BSocksClient_Init (BSocksClient *o, BAddr server_addr,
+    const struct BSocksClient_auth_info *auth_info, size_t num_auth_info, BAddr dest_addr,
+    bool udp, BSocksClient_handler handler, void *user, BReactor *reactor)
 {
     ASSERT(!BAddr_IsInvalid(&server_addr))
-    ASSERT(dest_addr.type == BADDR_TYPE_IPV4 || dest_addr.type == BADDR_TYPE_IPV6)
 #ifndef NDEBUG
     for (size_t i = 0; i < num_auth_info; i++) {
         ASSERT(auth_info[i].auth_type == SOCKS_METHOD_NO_AUTHENTICATION_REQUIRED ||
@@ -573,6 +598,10 @@ int BSocksClient_Init (BSocksClient *o,
     
     // set no buffer
     o->buffer = NULL;
+
+    // init continue_job
+    BPending_Init(&o->continue_job, BReactor_PendingGroup(o->reactor),
+        (BPending_handler)continue_job_handler, o);
     
     // init connector
     if (!BConnector_Init(&o->connector, server_addr, o->reactor, o, (BConnector_handler)connector_handler)) {
@@ -588,6 +617,7 @@ int BSocksClient_Init (BSocksClient *o,
     return 1;
     
 fail0:
+    BPending_Free(&o->continue_job);
     return 0;
 }
 
@@ -612,10 +642,29 @@ void BSocksClient_Free (BSocksClient *o)
     // free connector
     BConnector_Free(&o->connector);
     
+    // free continue job
+    BPending_Free(&o->continue_job);
+
     // free buffer
     if (o->buffer) {
         BFree(o->buffer);
     }
+}
+
+int BSocksClient_GetLocalAddr (BSocksClient *o, BAddr *local_addr)
+{
+    ASSERT(o->state != STATE_CONNECTING)
+    DebugObject_Access(&o->d_obj);
+
+    return BConnection_GetLocalAddress(&o->con, local_addr);
+}
+
+void BSocksClient_SetDestAddr (BSocksClient *o, BAddr dest_addr)
+{
+    ASSERT(o->state == STATE_CONNECTING || o->state == STATE_CONNECTED_HANDLER)
+    DebugObject_Access(&o->d_obj);
+
+    o->dest_addr = dest_addr;
 }
 
 BAddr BSocksClient_GetBindAddr (BSocksClient *o)

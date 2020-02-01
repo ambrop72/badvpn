@@ -94,17 +94,12 @@ struct SocksUdpClient_connection {
  * 
  * This function only initialzies the object and does not perform network access.
  * 
- * Currently, this function only supports connection to a SOCKS5 server that is routable from
- * localhost (i.e. running on the local machine). It may be possible to add support for
- * remote servers, but SOCKS5 does not support UDP if there is a NAT or firewall between the
- * client and the proxy.
- * 
  * @param o the object
  * @param udp_mtu the maximum size of packets that will be sent through the tunnel
  * @param max_connections how many local ports to track before dropping packets
  * @param send_buf_size maximum number of buffered outgoing packets per connection
  * @param keepalive_time how long to track an idle local port before forgetting it
- * @param server_addr SOCKS5 server address.  MUST BE ON LOCALHOST.
+ * @param server_addr SOCKS5 server address
  * @param auth_info List of authentication info for BSocksClient. The pointer must remain
  *        valid while this object exists, the data is not copied.
  * @param num_auth_info Number of the above.

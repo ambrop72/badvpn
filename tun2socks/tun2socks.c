@@ -1654,9 +1654,6 @@ void client_socks_handler (struct tcp_client *client, int event)
             
             client_free_socks(client);
         } break;
-        
-        default:
-            ASSERT(0);
     }
 }
 

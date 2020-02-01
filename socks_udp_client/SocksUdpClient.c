@@ -83,17 +83,52 @@ void socks_state_handler (struct SocksUdpClient_connection *con, int event)
     DebugObject_Access(&con->client->d_obj);
 
     switch (event) {
-        case BSOCKSCLIENT_EVENT_UP: {
-            // Figure out the localhost address.
-            BIPAddr localhost;
-            BIPAddr_InitLocalhost(&localhost, con->client->server_addr.type);
+        case BSOCKSCLIENT_EVENT_CONNECTED: {
+            // Get the local address of the SOCKS TCP connection.
+            BAddr tcp_local_addr;
+            if (!BSocksClient_GetLocalAddr(&con->socks, &tcp_local_addr)) {
+                BLog(BLOG_ERROR, "Failed to get TCP local address.");
+                return connection_free(con);
+            }
 
-            // Get the address to send datagrams to from BSocksClient.
+            // Sanity check the address type (required by SetPort below).
+            if (tcp_local_addr.type != BADDR_TYPE_IPV4 &&
+                tcp_local_addr.type != BADDR_TYPE_IPV6)
+            {
+                BLog(BLOG_ERROR, "Bad address type in TCP local address.");
+                return connection_free(con);
+            }
+
+            // Bind the UDP socket to the same IP address and let the kernel pick the port.
+            BAddr udp_bound_addr = tcp_local_addr;
+            BAddr_SetPort(&udp_bound_addr, 0);
+            if (!BDatagram_Bind(&con->socket, udp_bound_addr)) {
+                BLog(BLOG_ERROR, "Failed to bind the UDP socket.");
+                return connection_free(con);
+            }
+            
+            // Update udp_bound_addr to the actual address that was bound.
+            if (!BDatagram_GetLocalAddr(&con->socket, &udp_bound_addr)) {
+                BLog(BLOG_ERROR, "Failed to get UDP bound address.");
+                return connection_free(con);
+            }
+
+            // Set the DST.ADDR for SOCKS.
+            BSocksClient_SetDestAddr(&con->socks, udp_bound_addr);
+        } break;
+
+        case BSOCKSCLIENT_EVENT_UP: {
+            // The remote address to send datagrams to is the BND.ADDR provided by the
+            // SOCKS server.
             BAddr remote_addr = BSocksClient_GetBindAddr(&con->socks);
 
-            // Set the local/remote send address for BDatagram.
+            // Don't bother setting a source address for datagrams since we are bound.
+            BIPAddr local_addr;
+            BIPAddr_InitInvalid(&local_addr);
+
+            // Set the addresses for BDatagram.
             // This will unblock the queue of outgoing packets.
-            BDatagram_SetSendAddrs(&con->socket, remote_addr, localhost);
+            BDatagram_SetSendAddrs(&con->socket, remote_addr, local_addr);
         } break;
 
         case BSOCKSCLIENT_EVENT_ERROR: {
@@ -112,10 +147,6 @@ void socks_state_handler (struct SocksUdpClient_connection *con, int event)
                 "SOCKS closed event for %s, removing connection.", local_buffer);
 
             connection_free(con);
-        } break;
-
-        default: {
-            BLog(BLOG_ERROR, "Unknown SOCKS event");
         } break;
     }
 }
@@ -294,31 +325,13 @@ struct SocksUdpClient_connection * connection_init (
         goto fail2;
     }
     
-    // Bind to localhost, port 0 signals the kernel to choose an open port.
-    BIPAddr localhost;
-    BIPAddr_InitLocalhost(&localhost, local_addr.type);
-    BAddr socket_addr = BAddr_MakeFromIpaddrAndPort(localhost, 0);
-    if (!BDatagram_Bind(&con->socket, socket_addr)) {
-        BLog(BLOG_ERROR, "Bind to localhost failed");
-        goto fail3;
-    }
-    
-    // Bind succeeded, so the kernel has found an open port.
-    // Update socket_addr to the actual port that was bound.
-    uint16_t port;
-    if (!BDatagram_GetLocalPort(&con->socket, &port)) {
-        BLog(BLOG_ERROR, "Failed to get bound port");
-        goto fail3;
-    }
-    if (socket_addr.type == BADDR_TYPE_IPV4) {
-        socket_addr.ipv4.port = port;
-    } else {
-        socket_addr.ipv6.port = port;
-    }
-    
+    // We will set the DST.ADDR for SOCKS later (BSOCKSCLIENT_EVENT_CONNECTED).
+    BAddr dummy_dst_addr;
+    BAddr_InitNone(&dummy_dst_addr);
+
     // Initiate connection to socks server
     if (!BSocksClient_Init(&con->socks, o->server_addr, o->auth_info, o->num_auth_info,
-        socket_addr, true, (BSocksClient_handler)socks_state_handler, con, o->reactor))
+        dummy_dst_addr, true, (BSocksClient_handler)socks_state_handler, con, o->reactor))
     {
         BLog(BLOG_ERROR, "Failed to initialize SOCKS client");
         goto fail3;
