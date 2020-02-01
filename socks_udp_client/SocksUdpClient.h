@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2018 Jigsaw Operations LLC
+ * Copyright (C) 2019 Ambroz Bizjak (modifications)
  * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -27,6 +28,7 @@
 #ifndef BADVPN_SOCKS_UDP_CLIENT_SOCKSUDPCLIENT_H
 #define BADVPN_SOCKS_UDP_CLIENT_SOCKSUDPCLIENT_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <base/BPending.h>
@@ -34,9 +36,8 @@
 #include <flow/BufferWriter.h>
 #include <flow/PacketBuffer.h>
 #include <flow/SinglePacketBuffer.h>
+#include <flow/PacketPassInterface.h>
 #include <flowextra/PacketPassInactivityMonitor.h>
-#include <misc/debug.h>
-#include <misc/socks_proto.h>
 #include <socksclient/BSocksClient.h>
 #include <structure/BAVL.h>
 #include <system/BAddr.h>
@@ -44,12 +45,8 @@
 #include <system/BReactor.h>
 #include <system/BTime.h>
 
-// This sets the number of packets to accept while waiting for SOCKS server to authenticate and
-// connect.  A slow or far-away SOCKS server could require 300 ms to connect, and a chatty
-// client (e.g. STUN) could send a packet every 20 ms, so a limit of 16 seems reasonable.
-#define SOCKS_UDP_SEND_BUFFER_PACKETS 16
-
-typedef void (*SocksUdpClient_handler_received) (void *user, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len);
+typedef void (*SocksUdpClient_handler_received) (
+    void *user, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len);
 
 typedef struct {
     BAddr server_addr;
@@ -57,7 +54,9 @@ typedef struct {
     size_t num_auth_info;
     int num_connections;
     int max_connections;
+    int send_buf_size;
     int udp_mtu;
+    int socks_mtu;
     btime_t keepalive_time;
     BReactor *reactor;
     void *user;
@@ -77,8 +76,8 @@ struct SocksUdpClient_connection {
     BDatagram socket;
     PacketPassInterface recv_if;
     SinglePacketBuffer recv_buffer;
-    // The first_* members represent the initial packet, which has to be stored so it can wait for
-    // send_writer to become ready.
+    // The first_* members represent the initial packet, which has to be stored so it can
+    // wait for send_writer to become ready.
     uint8_t *first_data;
     int first_data_len;
     BAddr first_remote_addr;
@@ -92,43 +91,59 @@ struct SocksUdpClient_connection {
 
 /**
  * Initializes the SOCKS5-UDP client object.
- * This function does not perform network access, so it will always succeed if the arguments
- * are valid.
+ * 
+ * This function only initialzies the object and does not perform network access.
  * 
  * Currently, this function only supports connection to a SOCKS5 server that is routable from
- * localhost (i.e. running on the local machine).  It may be possible to add support for remote
- * servers, but SOCKS5 does not support UDP if there is a NAT or firewall between the client
- * and the proxy.
+ * localhost (i.e. running on the local machine). It may be possible to add support for
+ * remote servers, but SOCKS5 does not support UDP if there is a NAT or firewall between the
+ * client and the proxy.
  * 
  * @param o the object
  * @param udp_mtu the maximum size of packets that will be sent through the tunnel
  * @param max_connections how many local ports to track before dropping packets
+ * @param send_buf_size maximum number of buffered outgoing packets per connection
  * @param keepalive_time how long to track an idle local port before forgetting it
  * @param server_addr SOCKS5 server address.  MUST BE ON LOCALHOST.
+ * @param auth_info List of authentication info for BSocksClient. The pointer must remain
+ *        valid while this object exists, the data is not copied.
+ * @param num_auth_info Number of the above.
  * @param reactor reactor we live in
  * @param user value passed to handler
  * @param handler_received handler for incoming UDP packets
+ * @return 1 on success, 0 on failure
  */
-void SocksUdpClient_Init (SocksUdpClient *o, int udp_mtu, int max_connections, btime_t keepalive_time,
-                          BAddr server_addr, const struct BSocksClient_auth_info *auth_info, size_t num_auth_info,
-                          BReactor *reactor, void *user, SocksUdpClient_handler_received handler_received);
+int SocksUdpClient_Init (SocksUdpClient *o, int udp_mtu, int max_connections,
+    int send_buf_size, btime_t keepalive_time, BAddr server_addr,
+    const struct BSocksClient_auth_info *auth_info, size_t num_auth_info,
+    BReactor *reactor, void *user, SocksUdpClient_handler_received handler_received);
+
+/**
+ * Frees the SOCKS5-UDP client object.
+ *
+ * @param o the object
+ */
 void SocksUdpClient_Free (SocksUdpClient *o);
 
 /**
  * Submit a packet to be sent through the proxy.
  *
  * This will reuse an existing connection for packets from local_addr, or create one if
- * there is none.  If the number of live connections exceeds max_connections, or if the number of
- * buffered packets from this port exceeds a limit, packets will be dropped silently.
+ * there is none. If the number of live connections exceeds max_connections, or if the
+ * number of buffered packets from this port exceeds a limit, packets will be dropped
+ * silently.
  * 
- * As a resource optimization, if a connection has only been used to send one DNS query, then
- * the connection will be closed and freed once the reply is received.
+ * As a resource optimization, if a connection has only been used to send one DNS query,
+ * then the connection will be closed and freed once the reply is received.
  * 
  * @param o the object
- * @param local_addr the UDP packet's source address, and the expected destination for replies
+ * @param local_addr the UDP packet's source address, and the expected destination for
+ *        replies
  * @param remote_addr the destination of the packet after it exits the proxy
- * @param data the packet contents.  Caller retains ownership.
+ * @param data the packet contents. Caller retains ownership.
+ * @param data_len number of bytes in the data
  */
-void SocksUdpClient_SubmitPacket (SocksUdpClient *o, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len);
+void SocksUdpClient_SubmitPacket (SocksUdpClient *o,
+    BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len);
 
 #endif

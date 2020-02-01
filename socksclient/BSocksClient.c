@@ -375,14 +375,16 @@ void recv_handler_done (BSocksClient *o, int data_len)
             void *addr_buffer = o->buffer + sizeof(struct socks_reply_header);
             switch (o->bind_addr.type) {
                 case BADDR_TYPE_IPV4: {
-                    struct socks_addr_ipv4 *ip4 = addr_buffer;
-                    o->bind_addr.ipv4.ip = ip4->addr;
-                    o->bind_addr.ipv4.port = ip4->port;
+                    struct socks_addr_ipv4 ip4;
+                    memcpy(&ip4, addr_buffer, sizeof(ip4));
+                    o->bind_addr.ipv4.ip = ip4.addr;
+                    o->bind_addr.ipv4.port = ip4.port;
                 } break;
                 case BADDR_TYPE_IPV6: {
-                    struct socks_addr_ipv6 *ip6 = addr_buffer;
-                    memcpy(o->bind_addr.ipv6.ip, ip6->addr, sizeof(ip6->addr));
-                    o->bind_addr.ipv6.port = ip6->port;
+                    struct socks_addr_ipv6 ip6;
+                    memcpy(&ip6, addr_buffer, sizeof(ip6));
+                    memcpy(o->bind_addr.ipv6.ip, ip6.addr, sizeof(ip6.addr));
+                    o->bind_addr.ipv6.port = ip6.port;
                 } break;
                 default: ASSERT(0);
             }
@@ -395,6 +397,8 @@ void recv_handler_done (BSocksClient *o, int data_len)
             free_control_io(o);
             
             // init up I/O
+            // Initializing this is not needed for UDP ASSOCIATE but it doesn't hurt.
+            // We anyway don't allow the user to use these interfaces in that case.
             init_up_io(o);
             
             // set state
@@ -614,9 +618,18 @@ void BSocksClient_Free (BSocksClient *o)
     }
 }
 
+BAddr BSocksClient_GetBindAddr (BSocksClient *o)
+{
+    ASSERT(o->state == STATE_UP)
+    DebugObject_Access(&o->d_obj);
+
+    return o->bind_addr;
+}
+
 StreamPassInterface * BSocksClient_GetSendInterface (BSocksClient *o)
 {
     ASSERT(o->state == STATE_UP)
+    ASSERT(!o->udp)
     DebugObject_Access(&o->d_obj);
     
     return BConnection_SendAsync_GetIf(&o->con);
@@ -625,6 +638,7 @@ StreamPassInterface * BSocksClient_GetSendInterface (BSocksClient *o)
 StreamRecvInterface * BSocksClient_GetRecvInterface (BSocksClient *o)
 {
     ASSERT(o->state == STATE_UP)
+    ASSERT(!o->udp)
     DebugObject_Access(&o->d_obj);
     
     return BConnection_RecvAsync_GetIf(&o->con);

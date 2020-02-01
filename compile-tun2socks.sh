@@ -61,6 +61,7 @@ system/BConnection_common.c
 system/BTime.c
 system/BUnixSignal.c
 system/BNetwork.c
+system/BDatagram_common.c
 system/BDatagram_unix.c
 flow/StreamRecvInterface.c
 flow/PacketRecvInterface.c
@@ -109,6 +110,7 @@ base/BPending.c
 flowextra/PacketPassInactivityMonitor.c
 tun2socks/SocksUdpGwClient.c
 udpgw_client/UdpGwClient.c
+socks_udp_client/SocksUdpClient.c
 "
 
 set -e

@@ -34,6 +34,7 @@
 #ifndef BADVPN_SOCKS_BSOCKSCLIENT_H
 #define BADVPN_SOCKS_BSOCKSCLIENT_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -112,7 +113,14 @@ struct BSocksClient_auth_info BSocksClient_auth_password (const char *username, 
  * 
  * @param o the object
  * @param server_addr SOCKS5 server address
+ * @param auth_info List of supported authentication methods and associated parameters.
+ *        Initialize these using functions such as BSocksClient_auth_none() and
+ *        BSocksClient_auth_password(). The pointer must remain valid while this object
+ *        exists, the data is not copied.
+ * @param num_auth_info Number of the above. There should be at least one, otherwise it
+ *        certainly won't work.
  * @param dest_addr remote address
+ * @param udp whether to do UDP ASSOCIATE instead of CONNECT
  * @param handler handler for up and error events
  * @param user value passed to handler
  * @param reactor reactor we live in
@@ -130,8 +138,19 @@ int BSocksClient_Init (BSocksClient *o,
 void BSocksClient_Free (BSocksClient *o);
 
 /**
+ * Return the bind address that the SOCKS server reported.
+ * The object must be in up state. The bind address is needed for UDP ASSOCIATE
+ * because it is the address that the client should send UDP packets to.
+ *
+ * @param o the object
+ * @return The bind address, of type BADDR_TYPE_IPV4 or BADDR_TYPE_IPV6.
+ */
+BAddr BSocksClient_GetBindAddr (BSocksClient *o);
+
+/**
  * Returns the send interface.
- * The object must be in up state.
+ * The object must be in up state. Additionally this must not be called if the
+ * object was initialized in UDP ASSOCIATE mode.
  * 
  * @param o the object
  * @return send interface
@@ -140,7 +159,8 @@ StreamPassInterface * BSocksClient_GetSendInterface (BSocksClient *o);
 
 /**
  * Returns the receive interface.
- * The object must be in up state.
+ * The object must be in up state. Additionally this must not be called if the
+ * object was initialized in UDP ASSOCIATE mode.
  * 
  * @param o the object
  * @return receive interface

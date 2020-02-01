@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2018 Jigsaw Operations LLC
+ * Copyright (C) 2019 Ambroz Bizjak (modifications)
  * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -24,6 +25,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -31,38 +34,41 @@
 #include <misc/offset.h>
 #include <misc/byteorder.h>
 #include <misc/compare.h>
+#include <misc/socks_proto.h>
+#include <misc/debug.h>
+#include <misc/bsize.h>
 #include <base/BLog.h>
+#include <system/BAddr.h>
 
 #include <socks_udp_client/SocksUdpClient.h>
 
 #include <generated/blog_channel_SocksUdpClient.h>
 
-#define DNS_PORT 53
+static const int DnsPort = 53;
 
 static int addr_comparator (void *unused, BAddr *v1, BAddr *v2);
-static struct SocksUdpClient_connection * find_connection_by_addr (SocksUdpClient *o, BAddr addr);
-static void init_localhost4(uint32_t *ip4);
-static void init_localhost6(uint8_t ip6[16]);
-static void socks_state_handler(struct SocksUdpClient_connection *con, int event);
-static void datagram_state_handler(struct SocksUdpClient_connection *con, int event);
+static struct SocksUdpClient_connection * find_connection (SocksUdpClient *o, BAddr addr);
+static void socks_state_handler (struct SocksUdpClient_connection *con, int event);
+static void datagram_state_handler (struct SocksUdpClient_connection *con, int event);
 static void send_monitor_handler (struct SocksUdpClient_connection *con);
-static void recv_if_handler_send (struct SocksUdpClient_connection *con, uint8_t *data, int data_len);
-static struct SocksUdpClient_connection * connection_init(SocksUdpClient *o, BAddr local_addr,
-                                                          BAddr first_remote_addr,
-                                                          const uint8_t *first_data,
-                                                          int first_data_len);
+static void recv_if_handler_send (
+    struct SocksUdpClient_connection *con, uint8_t *data, int data_len);
+static struct SocksUdpClient_connection * connection_init (
+    SocksUdpClient *o, BAddr local_addr, BAddr first_remote_addr,
+    const uint8_t *first_data, int first_data_len);
 static void connection_free (struct SocksUdpClient_connection *con);
-static void connection_send (struct SocksUdpClient_connection *con, BAddr remote_addr, const uint8_t *data, int data_len);
-static void first_job_handler(struct SocksUdpClient_connection *con);
-static int compute_mtu(int udp_mtu);
-static int get_dns_id(BAddr *remote_addr, const uint8_t *data, int data_len);
+static void connection_send (struct SocksUdpClient_connection *con,
+    BAddr remote_addr, const uint8_t *data, int data_len);
+static void first_job_handler (struct SocksUdpClient_connection *con);
+static int compute_socks_mtu (int udp_mtu);
+static int get_dns_id (BAddr *remote_addr, const uint8_t *data, int data_len);
 
 int addr_comparator (void *unused, BAddr *v1, BAddr *v2)
 {
     return BAddr_CompareOrder(v1, v2);
 }
 
-struct SocksUdpClient_connection * find_connection_by_addr (SocksUdpClient *o, BAddr addr)
+struct SocksUdpClient_connection * find_connection (SocksUdpClient *o, BAddr addr)
 {
     BAVLNode *tree_node = BAVL_LookupExact(&o->connections_tree, &addr);
     if (!tree_node) {
@@ -72,195 +78,229 @@ struct SocksUdpClient_connection * find_connection_by_addr (SocksUdpClient *o, B
     return UPPER_OBJECT(tree_node, struct SocksUdpClient_connection, connections_tree_node);
 }
 
-void init_localhost4(uint32_t *ip4)
+void socks_state_handler (struct SocksUdpClient_connection *con, int event)
 {
-    *ip4 = 1<<24 | 127;
-}
+    DebugObject_Access(&con->client->d_obj);
 
-void init_localhost6(uint8_t ip6[16])
-{
-    memset(ip6, 0, 16);
-    ip6[15] = 1;
-}
-
-void socks_state_handler(struct SocksUdpClient_connection *con, int event)
-{
     switch (event) {
         case BSOCKSCLIENT_EVENT_UP: {
+            // Figure out the localhost address.
             BIPAddr localhost;
-            localhost.type = con->client->server_addr.type;
-            if (localhost.type == BADDR_TYPE_IPV4) {
-                init_localhost4(&localhost.ipv4);
-            } else if (localhost.type == BADDR_TYPE_IPV6) {
-                init_localhost6(localhost.ipv6);
-            } else {
-                BLog(BLOG_ERROR, "Bad address type");
-            }
-            // This will unblock the queue of pending packets.
-            BDatagram_SetSendAddrs(&con->socket, con->socks.bind_addr, localhost);
+            BIPAddr_InitLocalhost(&localhost, con->client->server_addr.type);
+
+            // Get the address to send datagrams to from BSocksClient.
+            BAddr remote_addr = BSocksClient_GetBindAddr(&con->socks);
+
+            // Set the local/remote send address for BDatagram.
+            // This will unblock the queue of outgoing packets.
+            BDatagram_SetSendAddrs(&con->socket, remote_addr, localhost);
         } break;
+
         case BSOCKSCLIENT_EVENT_ERROR: {
-            BLog(BLOG_ERROR, "Socks error event");
-        } // Fallthrough
-        case BSOCKSCLIENT_EVENT_ERROR_CLOSED: {
+            char local_buffer[BADDR_MAX_PRINT_LEN];
+            BAddr_Print(&con->local_addr, local_buffer);
+            BLog(BLOG_ERROR,
+                "SOCKS error event for %s, removing connection.", local_buffer);
+
             connection_free(con);
         } break;
+
+        case BSOCKSCLIENT_EVENT_ERROR_CLOSED: {
+            char local_buffer[BADDR_MAX_PRINT_LEN];
+            BAddr_Print(&con->local_addr, local_buffer);
+            BLog(BLOG_WARNING,
+                "SOCKS closed event for %s, removing connection.", local_buffer);
+
+            connection_free(con);
+        } break;
+
         default: {
-            BLog(BLOG_ERROR, "Unknown event");
-        }
+            BLog(BLOG_ERROR, "Unknown SOCKS event");
+        } break;
     }
 }
 
-void datagram_state_handler(struct SocksUdpClient_connection *con, int event)
+void datagram_state_handler (struct SocksUdpClient_connection *con, int event)
 {
+    DebugObject_Access(&con->client->d_obj);
+
     if (event == BDATAGRAM_EVENT_ERROR) {
         char local_buffer[BADDR_MAX_PRINT_LEN];
         BAddr_Print(&con->local_addr, local_buffer);
-        BLog(BLOG_ERROR, "Failing connection for %s due to a datagram send error", local_buffer);
+        BLog(BLOG_ERROR,
+            "Low-level datagram error %s, removing connection.", local_buffer);
+
+        // Remove the connection. Note that BDatagram requires that we free
+        // the BDatagram after an error is reported.
         connection_free(con);
     }
 }
 
 void send_monitor_handler (struct SocksUdpClient_connection *con)
 {
-    // The connection has passed its idle timeout.  Remove it.
+    DebugObject_Access(&con->client->d_obj);
+    
+    char local_buffer[BADDR_MAX_PRINT_LEN];
+    BAddr_Print(&con->local_addr, local_buffer);
+    BLog(BLOG_INFO,
+        "Removing connection for %s due to inactivity.", local_buffer);
+
+    // The connection has passed its idle timeout. Remove it.
     connection_free(con);
 }
 
-void recv_if_handler_send(struct SocksUdpClient_connection *con, uint8_t *data, int data_len)
+void recv_if_handler_send (
+    struct SocksUdpClient_connection *con, uint8_t *data, int data_len)
 {
-    SocksUdpClient *o = con->client;
     DebugObject_Access(&con->client->d_obj);
+    SocksUdpClient *o = con->client;
     ASSERT(data_len >= 0)
-    ASSERT(data_len <= compute_mtu(o->udp_mtu))
+    ASSERT(data_len <= o->socks_mtu)
     
     // accept packet
     PacketPassInterface_Done(&con->recv_if);
     
     // check header
-    if (data_len < sizeof(struct socks_udp_header)) {
-        BLog(BLOG_ERROR, "missing header");
+    struct socks_udp_header header;
+    if (data_len < sizeof(header)) {
+        BLog(BLOG_ERROR, "Missing SOCKS-UDP header.");
         return;
     }
-    struct socks_udp_header *header = (struct socks_udp_header *)data;
-    uint8_t *addr_data = data + sizeof(struct socks_udp_header);
+    memcpy(&header, data, sizeof(header));
+    data += sizeof(header);
+    data_len -= sizeof(header);
     
     // parse address
     BAddr remote_addr;
-    size_t addr_size;
-    switch (header->atyp) {
+    switch (header.atyp) {
         case SOCKS_ATYP_IPV4: {
+            struct socks_addr_ipv4 addr_ipv4;
+            if (data_len < sizeof(addr_ipv4)) {
+                BLog(BLOG_ERROR, "Missing IPv4 address.");
+                return;
+            }
+            memcpy(&addr_ipv4, data, sizeof(addr_ipv4));
+            data += sizeof(addr_ipv4);
+            data_len -= sizeof(addr_ipv4);
             remote_addr.type = BADDR_TYPE_IPV4;
-            struct socks_addr_ipv4 *addr_ipv4 = (struct socks_addr_ipv4 *)addr_data;
-            remote_addr.ipv4.ip = addr_ipv4->addr;
-            remote_addr.ipv4.port = addr_ipv4->port;
-            addr_size = sizeof(*addr_ipv4);
+            remote_addr.ipv4.ip = addr_ipv4.addr;
+            remote_addr.ipv4.port = addr_ipv4.port;
         } break;
         case SOCKS_ATYP_IPV6: {
+            struct socks_addr_ipv6 addr_ipv6;
+            if (data_len < sizeof(addr_ipv6)) {
+                BLog(BLOG_ERROR, "Missing IPv6 address.");
+                return;
+            }
+            memcpy(&addr_ipv6, data, sizeof(addr_ipv6));
+            data += sizeof(addr_ipv6);
+            data_len -= sizeof(addr_ipv6);
             remote_addr.type = BADDR_TYPE_IPV6;
-            struct socks_addr_ipv6 *addr_ipv6 = (struct socks_addr_ipv6 *)addr_data;
-            memcpy(remote_addr.ipv6.ip, addr_ipv6->addr, sizeof(remote_addr.ipv6.ip));
-            remote_addr.ipv6.port = addr_ipv6->port;
-            addr_size = sizeof(*addr_ipv6);
+            memcpy(remote_addr.ipv6.ip, addr_ipv6.addr, sizeof(remote_addr.ipv6.ip));
+            remote_addr.ipv6.port = addr_ipv6.port;
         } break;
         default: {
             BLog(BLOG_ERROR, "Bad address type");
             return;
-        }
+        } break;
     }
     
-    uint8_t *body_data = addr_data + addr_size;
-    size_t body_len = data_len - (body_data - data);
-    
     // check remaining data
-    if (body_len > o->udp_mtu) {
+    if (data_len > o->udp_mtu) {
         BLog(BLOG_ERROR, "too much data");
         return;
     }
     
     // pass packet to user
     SocksUdpClient *client = con->client;
-    client->handler_received(client->user, con->local_addr, remote_addr, body_data, body_len);
+    client->handler_received(client->user, con->local_addr, remote_addr, data, data_len);
 
+    // Was this connection used for a DNS query?
     if (con->dns_id >= 0) {
-        // This connection has only been used for a single DNS query.
-        int recv_dns_id = get_dns_id(&remote_addr, body_data, body_len);
+        // Get the DNS transaction ID of the response.
+        int recv_dns_id = get_dns_id(&remote_addr, data, data_len);
+
+        // Does the transaction ID matche that of the request?
         if (recv_dns_id == con->dns_id) {
             // We have now forwarded the response, so this connection is no longer needed.
+            char local_buffer[BADDR_MAX_PRINT_LEN];
+            BAddr_Print(&con->local_addr, local_buffer);
+            BLog(BLOG_DEBUG,
+                "Removing connection for %s after the DNS response.", local_buffer);
+
             connection_free(con);
         } else {
-            BLog(BLOG_INFO,
-                 "DNS client port received an unexpected non-DNS packet.  "
-                 "Disabling DNS optimization.");
+            BLog(BLOG_INFO, "DNS client port received an unexpected non-DNS packet, "
+                "disabling DNS optimization.");
+            
             con->dns_id = -1;
         }
     }
 }
 
-struct SocksUdpClient_connection *connection_init(SocksUdpClient *o, BAddr local_addr,
-                                                  BAddr first_remote_addr,
-                                                  const uint8_t *first_data,
-                                                  int first_data_len)
+struct SocksUdpClient_connection * connection_init (
+    SocksUdpClient *o, BAddr local_addr, BAddr first_remote_addr,
+    const uint8_t *first_data, int first_data_len)
 {
-    DebugObject_Access(&o->d_obj);
     ASSERT(o->num_connections <= o->max_connections)
-    ASSERT(!find_connection_by_addr(o, local_addr))
+    ASSERT(!find_connection(o, local_addr))
     
-    char buffer[BADDR_MAX_PRINT_LEN];
-    BAddr_Print(&local_addr, buffer);
-    BLog(BLOG_DEBUG, "Creating new connection for %s", buffer);
+    char local_buffer[BADDR_MAX_PRINT_LEN];
+    BAddr_Print(&local_addr, local_buffer);
+    BLog(BLOG_DEBUG, "Creating connection for %s.", local_buffer);
     
     // allocate structure
-    struct SocksUdpClient_connection *con = (struct SocksUdpClient_connection *)malloc(sizeof(*con));
+    struct SocksUdpClient_connection *con =
+        (struct SocksUdpClient_connection *)BAlloc(sizeof(*con));
     if (!con) {
-        BLog(BLOG_ERROR, "malloc failed");
+        BLog(BLOG_ERROR, "BAlloc connection failed");
         goto fail0;
     }
     
-    // init arguments
+    // set basic things
     con->client = o;
     con->local_addr = local_addr;
+
+    // store first outgoing packet
     con->first_data = BAlloc(first_data_len);
+    if (!con->first_data) {
+        BLog(BLOG_ERROR, "BAlloc first data failed");
+        goto fail1;
+    }
+    memcpy(con->first_data, first_data, first_data_len);
     con->first_data_len = first_data_len;
     con->first_remote_addr = first_remote_addr;
-    memcpy(con->first_data, first_data, first_data_len);
     
+    // Get the DNS transaction ID from the packet, if any.
     con->dns_id = get_dns_id(&first_remote_addr, first_data, first_data_len);
     
     BPendingGroup *pg = BReactor_PendingGroup(o->reactor);
     
-    // init first job, to send the first packet asynchronously.  This has to happen asynchronously
-    // because con->send_writer (a BufferWriter) cannot accept writes until after it is linked with
-    // its PacketBuffer (con->send_buffer), which happens asynchronously.
+    // Init first job, to send the first packet asynchronously. This has to happen
+    // asynchronously because con->send_writer (a BufferWriter) cannot accept writes until
+    // after it is linked with its PacketBuffer (con->send_buffer), which happens
+    // asynchronously.
     BPending_Init(&con->first_job, pg, (BPending_handler)first_job_handler, con);
-    // Add the first job to the pending set.  BPending acts as a LIFO stack, and first_job_handler
-    // needs to run after async actions that occur in PacketBuffer_Init, so we need to put first_job
-    // on the stack first.
+    // Add the first job to the pending set. BPending acts as a LIFO stack, and
+    // first_job_handler needs to run after async actions that occur in PacketBuffer_Init,
+    // so we need to put first_job on the stack first.
     BPending_Set(&con->first_job);
     
     // Create a datagram socket
     if (!BDatagram_Init(&con->socket, con->local_addr.type, o->reactor, con,
-                        (BDatagram_handler)datagram_state_handler)) {
+                        (BDatagram_handler)datagram_state_handler))
+    {
         BLog(BLOG_ERROR, "Failed to create a UDP socket");
-        goto fail1;
+        goto fail2;
     }
     
-    // Bind to 127.0.0.1:0 (or [::1]:0).  Port 0 signals the kernel to choose an open port.
-    BAddr socket_addr;
-    socket_addr.type = local_addr.type;
-    if (local_addr.type == BADDR_TYPE_IPV4) {
-        init_localhost4(&socket_addr.ipv4.ip);
-        socket_addr.ipv4.port = 0;
-    } else if (local_addr.type == BADDR_TYPE_IPV6) {
-        init_localhost6(socket_addr.ipv6.ip);
-        socket_addr.ipv6.port = 0;
-    } else {
-        BLog(BLOG_ERROR, "Unknown local address type");
-        goto fail2;
-    }
+    // Bind to localhost, port 0 signals the kernel to choose an open port.
+    BIPAddr localhost;
+    BIPAddr_InitLocalhost(&localhost, local_addr.type);
+    BAddr socket_addr = BAddr_MakeFromIpaddrAndPort(localhost, 0);
     if (!BDatagram_Bind(&con->socket, socket_addr)) {
         BLog(BLOG_ERROR, "Bind to localhost failed");
-        goto fail2;
+        goto fail3;
     }
     
     // Bind succeeded, so the kernel has found an open port.
@@ -268,7 +308,7 @@ struct SocksUdpClient_connection *connection_init(SocksUdpClient *o, BAddr local
     uint16_t port;
     if (!BDatagram_GetLocalPort(&con->socket, &port)) {
         BLog(BLOG_ERROR, "Failed to get bound port");
-        goto fail2;
+        goto fail3;
     }
     if (socket_addr.type == BADDR_TYPE_IPV4) {
         socket_addr.ipv4.port = port;
@@ -277,60 +317,66 @@ struct SocksUdpClient_connection *connection_init(SocksUdpClient *o, BAddr local
     }
     
     // Initiate connection to socks server
-    if (!BSocksClient_Init(&con->socks, o->server_addr, o->auth_info, o->num_auth_info, socket_addr,
-                           true, (BSocksClient_handler)socks_state_handler, con, o->reactor)) {
+    if (!BSocksClient_Init(&con->socks, o->server_addr, o->auth_info, o->num_auth_info,
+        socket_addr, true, (BSocksClient_handler)socks_state_handler, con, o->reactor))
+    {
         BLog(BLOG_ERROR, "Failed to initialize SOCKS client");
-        goto fail2;
-    }
-    
-    // Ensure that the UDP handling pipeline can handle queries big enough to include
-    // all data plus the SOCKS-UDP header.
-    int socks_mtu = compute_mtu(o->udp_mtu);
-    
-    // Send pipeline: send_writer -> send_buffer -> send_monitor -> send_if -> socket.
-    BDatagram_SendAsync_Init(&con->socket, socks_mtu);
-    PacketPassInterface *send_if = BDatagram_SendAsync_GetIf(&con->socket);
-    PacketPassInactivityMonitor_Init(&con->send_monitor, send_if, o->reactor, o->keepalive_time,
-                                     (PacketPassInactivityMonitor_handler)send_monitor_handler, con);
-    BufferWriter_Init(&con->send_writer, compute_mtu(o->udp_mtu), pg);
-    if (!PacketBuffer_Init(&con->send_buffer, BufferWriter_GetOutput(&con->send_writer),
-                           PacketPassInactivityMonitor_GetInput(&con->send_monitor),
-                           SOCKS_UDP_SEND_BUFFER_PACKETS, pg)) {
-        BLog(BLOG_ERROR, "Send buffer init failed");
         goto fail3;
     }
     
-    // Receive pipeline: socket -> recv_buffer -> recv_if
-    BDatagram_RecvAsync_Init(&con->socket, socks_mtu);
-    PacketPassInterface_Init(&con->recv_if, socks_mtu,
-                            (PacketPassInterface_handler_send)recv_if_handler_send, con, pg);
-    if (!SinglePacketBuffer_Init(&con->recv_buffer, BDatagram_RecvAsync_GetIf(&con->socket),
-                                &con->recv_if, pg)) {
-        BLog(BLOG_ERROR, "Receive buffer init failed");
+    // Since we use o->socks_mtu for send and receive pipelines, we can handle maximally
+    // sized packets (o->udp_mtu) including the SOCKS-UDP header.
+
+    // Send pipeline: send_writer -> send_buffer -> send_monitor -> send_if -> socket.
+    BDatagram_SendAsync_Init(&con->socket, o->socks_mtu);
+    PacketPassInactivityMonitor_Init(&con->send_monitor,
+        BDatagram_SendAsync_GetIf(&con->socket), o->reactor, o->keepalive_time,
+        (PacketPassInactivityMonitor_handler)send_monitor_handler, con);
+    BufferWriter_Init(&con->send_writer, o->socks_mtu, pg);
+    if (!PacketBuffer_Init(&con->send_buffer, BufferWriter_GetOutput(&con->send_writer),
+        PacketPassInactivityMonitor_GetInput(&con->send_monitor), o->send_buf_size, pg))
+    {
+        BLog(BLOG_ERROR, "Send buffer init failed");
         goto fail4;
     }
     
-    // insert to connections tree
-    ASSERT_EXECUTE(BAVL_Insert(&o->connections_tree, &con->connections_tree_node, NULL))
+    // Receive pipeline: socket -> recv_buffer -> recv_if
+    BDatagram_RecvAsync_Init(&con->socket, o->socks_mtu);
+    PacketPassInterface_Init(&con->recv_if, o->socks_mtu,
+        (PacketPassInterface_handler_send)recv_if_handler_send, con, pg);
+    if (!SinglePacketBuffer_Init(&con->recv_buffer,
+        BDatagram_RecvAsync_GetIf(&con->socket), &con->recv_if, pg))
+    {
+        BLog(BLOG_ERROR, "Receive buffer init failed");
+        goto fail5;
+    }
     
+    // Insert to connections tree, it must succeed because of the assert.
+    int inserted = BAVL_Insert(&o->connections_tree, &con->connections_tree_node, NULL);
+    ASSERT(inserted)
+    B_USE(inserted)
+    
+    // increment number of connections
     o->num_connections++;
     
     return con;
     
-fail4:
+fail5:
     PacketPassInterface_Free(&con->recv_if);
     BDatagram_RecvAsync_Free(&con->socket);
     PacketBuffer_Free(&con->send_buffer);
-fail3:
+fail4:
     BufferWriter_Free(&con->send_writer);
     PacketPassInactivityMonitor_Free(&con->send_monitor);
     BDatagram_SendAsync_Free(&con->socket);
-fail2:
+    BSocksClient_Free(&con->socks);
+fail3:
     BDatagram_Free(&con->socket);
-fail1:
+fail2:
     BPending_Free(&con->first_job);
     BFree(con->first_data);
-    free(con);
+fail1:
+    BFree(con);
 fail0:
     return NULL;
 }
@@ -338,13 +384,18 @@ fail0:
 void connection_free (struct SocksUdpClient_connection *con)
 {
     SocksUdpClient *o = con->client;
-    DebugObject_Access(&o->d_obj);
     
     // decrement number of connections
+    ASSERT(o->num_connections > 0)
     o->num_connections--;
     
     // remove from connections tree
     BAVL_Remove(&o->connections_tree, &con->connections_tree_node);
+    
+    // Free UDP receive pipeline components
+    SinglePacketBuffer_Free(&con->recv_buffer);
+    PacketPassInterface_Free(&con->recv_if);
+    BDatagram_RecvAsync_Free(&con->socket);
     
     // Free UDP send pipeline components
     PacketBuffer_Free(&con->send_buffer);
@@ -352,30 +403,25 @@ void connection_free (struct SocksUdpClient_connection *con)
     PacketPassInactivityMonitor_Free(&con->send_monitor);
     BDatagram_SendAsync_Free(&con->socket);
     
-    // Free UDP receive pipeline components
-    SinglePacketBuffer_Free(&con->recv_buffer);
-    PacketPassInterface_Free(&con->recv_if);
-    BDatagram_RecvAsync_Free(&con->socket);
+    // Free SOCKS client
+    BSocksClient_Free(&con->socks);
     
     // Free UDP socket
     BDatagram_Free(&con->socket);
     
-    // Free SOCKS client
-    BSocksClient_Free(&con->socks);
-    
+    // Free first job
     BPending_Free(&con->first_job);
-    if (con->first_data) {
-      BFree(con->first_data);
-    }
-    // free structure
-    free(con);
+
+    // Free first outgoing packet
+    BFree(con->first_data);
+
+    // Free structure
+    BFree(con);
 }
 
-void connection_send (struct SocksUdpClient_connection *con, BAddr remote_addr,
-                      const uint8_t *data, int data_len)
+void connection_send (struct SocksUdpClient_connection *con,
+    BAddr remote_addr, const uint8_t *data, int data_len)
 {
-    SocksUdpClient *o = con->client;
-    DebugObject_Access(&o->d_obj);
     ASSERT(data_len >= 0)
     ASSERT(data_len <= o->udp_mtu)
     
@@ -383,7 +429,7 @@ void connection_send (struct SocksUdpClient_connection *con, BAddr remote_addr,
         // So far, this connection has only sent a single DNS query.
         int new_dns_id = get_dns_id(&remote_addr, data, data_len);
         if (new_dns_id != con->dns_id) {
-            BLog(BLOG_DEBUG, "Client reused DNS query port.  Disabling DNS optimization.");
+            BLog(BLOG_DEBUG, "Client reused DNS query port. Disabling DNS optimization.");
             con->dns_id = -1;
         }
     }
@@ -402,128 +448,174 @@ void connection_send (struct SocksUdpClient_connection *con, BAddr remote_addr,
             address_size = sizeof(struct socks_addr_ipv6);
         } break;
         default: {
-          BLog(BLOG_ERROR, "bad address type");
-          return;
-        }
+            BLog(BLOG_ERROR, "Bad address type in outgoing packet.");
+            return;
+        } break;
     }
     
-    // Wrap the payload in a UDP SOCKS header.
-    size_t socks_data_len = sizeof(struct socks_udp_header) + address_size + data_len;
-    if (socks_data_len > compute_mtu(o->udp_mtu)) {
-        BLog(BLOG_ERROR, "Packet is too big: %d > %d", socks_data_len, compute_mtu(o->udp_mtu));
+    // Determine total packet size in the buffer.
+    // This cannot exceed o->socks_mtu because data_len is required to not exceed
+    // o->udp_mtu and o->socks_mtu is calculated to accomodate any UDP packet not
+    // not exceeding o->udp_mtu.
+    size_t total_len = sizeof(struct socks_udp_header) + address_size + data_len;
+    ASSERT(total_len <= o->socks_mtu)
+
+    // Get a pointer to write the packet to.
+    uint8_t *out_data_begin;
+    if (!BufferWriter_StartPacket(&con->send_writer, &out_data_begin)) {
+        BLog(BLOG_ERROR, "Send buffer is full.");
         return;
     }
-    uint8_t *socks_data;
-    if (!BufferWriter_StartPacket(&con->send_writer, &socks_data)) {
-        BLog(BLOG_ERROR, "Send buffer is full");
-        return;
-    }
+    uint8_t *out_data = out_data_begin;
+
     // Write header
-    struct socks_udp_header *header = (struct socks_udp_header *)socks_data;
-    header->rsv = 0;
-    header->frag = 0;
-    header->atyp = atyp;
-    uint8_t *addr_data = socks_data + sizeof(struct socks_udp_header);
+    struct socks_udp_header header;
+    header.rsv = 0;
+    header.frag = 0;
+    header.atyp = atyp;
+    memcpy(out_data, &header, sizeof(header));
+    out_data += sizeof(header);
+
+    // Write address
     switch (atyp) {
         case SOCKS_ATYP_IPV4: {
-            struct socks_addr_ipv4 *addr_ipv4 = (struct socks_addr_ipv4 *)addr_data;
-            addr_ipv4->addr = remote_addr.ipv4.ip;
-            addr_ipv4->port = remote_addr.ipv4.port;
+            struct socks_addr_ipv4 addr_ipv4;
+            addr_ipv4.addr = remote_addr.ipv4.ip;
+            addr_ipv4.port = remote_addr.ipv4.port;
+            memcpy(out_data, &addr_ipv4, sizeof(addr_ipv4));
+            out_data += sizeof(addr_ipv4);
         } break;
         case SOCKS_ATYP_IPV6: {
-            struct socks_addr_ipv6 *addr_ipv6 = (struct socks_addr_ipv6 *)addr_data;
-            memcpy(addr_ipv6->addr, remote_addr.ipv6.ip, sizeof(addr_ipv6->addr));
-            addr_ipv6->port = remote_addr.ipv6.port;
+            struct socks_addr_ipv6 addr_ipv6;
+            memcpy(addr_ipv6.addr, remote_addr.ipv6.ip, sizeof(addr_ipv6.addr));
+            addr_ipv6.port = remote_addr.ipv6.port;
+            memcpy(out_data, &addr_ipv6, sizeof(addr_ipv6));
+            out_data += sizeof(addr_ipv6);
         } break;
     }
-    // write packet to buffer
-    memcpy(addr_data + address_size, data, data_len);
-    BufferWriter_EndPacket(&con->send_writer, socks_data_len);
+
+    // Write payload
+    memcpy(out_data, data, data_len);
+    out_data += data_len;
+
+    ASSERT(out_data - out_data_begin == total_len)
+
+    // Submit packet to buffer
+    BufferWriter_EndPacket(&con->send_writer, total_len);
 }
 
-void first_job_handler(struct SocksUdpClient_connection *con)
+void first_job_handler (struct SocksUdpClient_connection *con)
 {
+    DebugObject_Access(&con->client->d_obj);
+    ASSERT(con->first_data)
+    
+    // Send the first packet.
     connection_send(con, con->first_remote_addr, con->first_data, con->first_data_len);
+
+    // Release the first packet buffer.
     BFree(con->first_data);
     con->first_data = NULL;
     con->first_data_len = 0;
 }
 
-int compute_mtu(int udp_mtu)
+int compute_socks_mtu (int udp_mtu)
 {
-    return udp_mtu + sizeof(struct socks_udp_header) + sizeof(struct socks_addr_ipv6);
+    bsize_t bs = bsize_add(
+        bsize_fromint(udp_mtu),
+        bsize_add(
+            bsize_fromsize(sizeof(struct socks_udp_header)),
+            bsize_fromsize(sizeof(struct socks_addr_ipv6))
+        )
+    );
+    int s;
+    return bsize_toint(bs, &s) ? s : -1;
 }
 
-int get_dns_id(BAddr *remote_addr, const uint8_t *data, int data_len)
+// Get the DNS transaction ID, or -1 if this does not look like a DNS packet.
+int get_dns_id (BAddr *remote_addr, const uint8_t *data, int data_len)
 {
-    if (BAddr_GetPort(remote_addr) == htons(DNS_PORT) && data_len >= 2) {
-        return (data[0] << 8) + data[1];
+    if (ntoh16(BAddr_GetPort(remote_addr)) == DnsPort && data_len >= 2) {
+        return (data[0] << 8) | data[1];
+    } else {
+        return -1;
     }
-    return -1;
 }
 
-void SocksUdpClient_Init (SocksUdpClient *o, int udp_mtu, int max_connections, btime_t keepalive_time,
-                          BAddr server_addr, const struct BSocksClient_auth_info *auth_info, size_t num_auth_info,
-                          BReactor *reactor, void *user,
-                          SocksUdpClient_handler_received handler_received)
+int SocksUdpClient_Init (SocksUdpClient *o, int udp_mtu, int max_connections,
+    int send_buf_size, btime_t keepalive_time, BAddr server_addr,
+    const struct BSocksClient_auth_info *auth_info, size_t num_auth_info,
+    BReactor *reactor, void *user, SocksUdpClient_handler_received handler_received)
 {
     ASSERT(udp_mtu >= 0)
-    ASSERT(compute_mtu(udp_mtu) >= 0)
     ASSERT(max_connections > 0)
+    ASSERT(send_buf_size > 0)
     
-    // init arguments
+    // init simple things
     o->server_addr = server_addr;
     o->auth_info = auth_info;
     o->num_auth_info = num_auth_info;
-    o->udp_mtu = udp_mtu;
-    o->max_connections = max_connections;
     o->num_connections = 0;
+    o->max_connections = max_connections;
+    o->send_buf_size = send_buf_size;
+    o->udp_mtu = udp_mtu;
     o->keepalive_time = keepalive_time;
     o->reactor = reactor;
     o->user = user;
     o->handler_received = handler_received;
-    
-    // limit max connections to number of conid's
-    if (o->max_connections > UINT16_MAX + 1) {
-        o->max_connections = UINT16_MAX + 1;
+
+    // calculate full MTU with SOCKS header
+    o->socks_mtu = compute_socks_mtu(udp_mtu);
+    if (o->socks_mtu < 0) {
+        BLog(BLOG_ERROR, "SocksUdpClient_Init: MTU too large.");
+        goto fail0;
     }
     
     // init connections tree
-    BAVL_Init(&o->connections_tree, OFFSET_DIFF(struct SocksUdpClient_connection, local_addr, connections_tree_node), (BAVL_comparator)addr_comparator, NULL);
+    BAVL_Init(&o->connections_tree,
+        OFFSET_DIFF(struct SocksUdpClient_connection, local_addr, connections_tree_node),
+        (BAVL_comparator)addr_comparator, NULL);
     
     DebugObject_Init(&o->d_obj);
+    return 1;
+
+fail0:
+    return 0;
 }
 
 void SocksUdpClient_Free (SocksUdpClient *o)
 {
+    DebugObject_Free(&o->d_obj);
+
     // free connections
     while (!BAVL_IsEmpty(&o->connections_tree)) {
-        struct SocksUdpClient_connection *con = UPPER_OBJECT(BAVL_GetFirst(&o->connections_tree), struct SocksUdpClient_connection, connections_tree_node);
+        BAVLNode *node = BAVL_GetFirst(&o->connections_tree);
+        struct SocksUdpClient_connection *con =
+            UPPER_OBJECT(node, struct SocksUdpClient_connection, connections_tree_node);
         connection_free(con);
     }
-
-    DebugObject_Free(&o->d_obj);
 }
 
-void SocksUdpClient_SubmitPacket (SocksUdpClient *o, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len)
+void SocksUdpClient_SubmitPacket (SocksUdpClient *o,
+    BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len)
 {
     DebugObject_Access(&o->d_obj);
     ASSERT(local_addr.type == BADDR_TYPE_IPV4 || local_addr.type == BADDR_TYPE_IPV6)
     ASSERT(remote_addr.type == BADDR_TYPE_IPV4 || remote_addr.type == BADDR_TYPE_IPV6)
     ASSERT(data_len >= 0)
+    ASSERT(data_len <= o->udp_mtu)
     
     // lookup connection
-    struct SocksUdpClient_connection *con = find_connection_by_addr(o, local_addr);
+    struct SocksUdpClient_connection *con = find_connection(o, local_addr);
     if (!con) {
-        if (o->num_connections == o->max_connections) {
+        if (o->num_connections >= o->max_connections) {
             // Drop the packet.
-            BLog(BLOG_ERROR, "Dropping UDP packet, reached max number of connections.");
+            BLog(BLOG_WARNING, "Dropping UDP packet, reached max number of connections.");
             return;
         }
         // create new connection and enqueue the packet
         connection_init(o, local_addr, remote_addr, data, data_len);
     } else {
-      // send packet
-      connection_send(con, remote_addr, data, data_len);
+        // send packet
+        connection_send(con, remote_addr, data, data_len);
     }
 }
