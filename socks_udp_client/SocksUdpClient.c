@@ -436,7 +436,7 @@ void connection_send (struct SocksUdpClient_connection *con,
     BAddr remote_addr, const uint8_t *data, int data_len)
 {
     ASSERT(data_len >= 0)
-    ASSERT(data_len <= o->udp_mtu)
+    ASSERT(data_len <= con->client->udp_mtu)
     
     if (con->dns_id >= 0) {
         // So far, this connection has only sent a single DNS query.
@@ -471,7 +471,7 @@ void connection_send (struct SocksUdpClient_connection *con,
     // o->udp_mtu and o->socks_mtu is calculated to accomodate any UDP packet not
     // not exceeding o->udp_mtu.
     size_t total_len = sizeof(struct socks_udp_header) + address_size + data_len;
-    ASSERT(total_len <= o->socks_mtu)
+    ASSERT(total_len <= con->client->socks_mtu)
 
     // Get a pointer to write the packet to.
     uint8_t *out_data_begin;
