@@ -97,6 +97,8 @@ static int BIPAddr_Resolve (BIPAddr *addr, char *str, int noresolve) WARN_UNUSED
 
 static int BIPAddr_Compare (BIPAddr *addr1, BIPAddr *addr2);
 
+static void BIPAddr_InitLocalhost (BIPAddr *addr, int addr_type);
+
 /**
  * Converts an IP address to human readable form.
  *
@@ -802,6 +804,22 @@ int BAddr_CompareOrder (BAddr *addr1, BAddr *addr2)
         default: {
             return 0;
         } break;
+    }
+}
+
+void BIPAddr_InitLocalhost (BIPAddr *addr, int addr_type)
+{
+    if (addr_type == BADDR_TYPE_IPV4) {
+        addr->type = addr_type;
+        addr->ipv4 = hton32(0x7f000001);
+    }
+    else if (addr_type == BADDR_TYPE_IPV6) {
+        addr->type = addr_type;
+        memset(addr->ipv6, 0, 16);
+        addr->ipv6[15] = 1;
+    }
+    else {
+        addr->type = BADDR_TYPE_NONE;
     }
 }
 
