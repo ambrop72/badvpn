@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 2.8)
 project(BADVPN C)
 
+if (APPLE)
+    add_definitions(-DBADVPN_USE_KEVENT)
+    add_definitions(-DIPV6_PKTINFO=2)
+    add_definitions(-DBADVPN_FREEBSD)
+    add_definitions(-DIP_SENDSRCADDR=IP_RECVDSTADDR)
+endif()
+
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 include(GNUInstallDirs)
@@ -169,7 +176,11 @@ else ()
     add_definitions(-DBADVPN_THREADWORK_USE_PTHREAD)
     add_definitions(-DBADVPN_THREAD_SAFE=1)
 
-    link_libraries(rt pthread)
+    if (APPLE)
+        link_libraries(pthread)
+    else ()
+        link_libraries(rt pthread)
+    endif ()
 
     if (EMSCRIPTEN)
         add_definitions(-DBADVPN_EMSCRIPTEN)
