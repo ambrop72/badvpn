@@ -46,6 +46,7 @@
     #include <sys/stat.h>
     #include <sys/socket.h>
     #include <net/if.h>
+#if !defined(__APPLE__)
     #include <net/if_arp.h>
     #ifdef BADVPN_LINUX
         #include <linux/if_tun.h>
@@ -54,6 +55,9 @@
         #include <net/if_tun.h>
         #include <net/if_tap.h>
     #endif
+#else // __APPLE__
+#define TAPGIFNAME "TAPGIFNAME"
+#endif // __APPLE__
 #endif
 
 #include <base/BLog.h>
