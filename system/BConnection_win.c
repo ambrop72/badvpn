@@ -796,7 +796,7 @@ int BConnection_GetLocalAddress (BConnection *o, BAddr *local_addr)
 {
     DebugObject_Access(&o->d_obj);
     
-    struct BDatagram_sys_addr sysaddr;
+    struct sys_addr sysaddr;
     socklen_t addr_size = sizeof(sysaddr.addr.generic);
     if (getsockname(o->sock, &sysaddr.addr.generic, &addr_size) != 0) {
         BLog(BLOG_ERROR, "BConnection_GetLocalAddress: getsockname failed");
@@ -809,7 +809,7 @@ int BConnection_GetLocalAddress (BConnection *o, BAddr *local_addr)
     
     if (addr.type == BADDR_TYPE_NONE) {
         BLog(BLOG_ERROR, "BConnection_GetLocalAddress: Unsupported address family "
-            "from getsockname: %d", int(sysaddr.addr.generic.sa_family));
+            "from getsockname: %d", sysaddr.addr.generic.sa_family);
         return 0;
     }
 
