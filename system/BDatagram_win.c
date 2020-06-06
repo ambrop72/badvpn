@@ -652,7 +652,7 @@ int BDatagram_GetLocalAddr (BDatagram *o, BAddr *local_addr)
     
     if (addr.type == BADDR_TYPE_NONE) {
         BLog(BLOG_ERROR, "BDatagram_GetLocalAddr: Unsupported address family "
-            "from getsockname: %d", int(sysaddr.addr.generic.sa_family));
+            "from getsockname: %d", sysaddr.addr.generic.sa_family);
         return 0;
     }
 
