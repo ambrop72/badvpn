@@ -50,6 +50,7 @@ cd <badvpn-source-dir>
 mkdir build
 cd build
 cmake .. -DCMAKE_INSTALL_PREFIX=<install-dir>
+cd ..
 make install
 ```
 
