@@ -138,15 +138,15 @@ struct tcp_client {
     char *socks_username;
     BSocksClient socks_client;
     BHttpProxyClient http_client;
-    int socks_up;
-    int socks_closed;
-    StreamPassInterface *socks_send_if;
-    StreamRecvInterface *socks_recv_if;
-    uint8_t socks_recv_buf[CLIENT_SOCKS_RECV_BUF_SIZE];
-    int socks_recv_buf_used;
-    int socks_recv_buf_sent;
-    int socks_recv_waiting;
-    int socks_recv_tcp_pending;
+    int proxy_up;
+    int proxy_closed;
+    StreamPassInterface *proxy_send_if;
+    StreamRecvInterface *proxy_recv_if;
+    uint8_t proxy_recv_buf[CLIENT_PROXY_RECV_BUF_SIZE];
+    int proxy_recv_buf_used;
+    int proxy_recv_buf_sent;
+    int proxy_recv_waiting;
+    int proxy_recv_tcp_pending;
 };
 
 // IP address of netif
@@ -158,7 +158,7 @@ BIPAddr netif_netmask;
 // IP6 address of netif
 struct ipv6_addr netif_ip6addr;
 
-// SOCKS server address
+// SOCKS or HTTP server address
 BAddr server_addr;
 
 // allocated password file contents
@@ -167,6 +167,9 @@ uint8_t *password_file_contents;
 // SOCKS authentication information
 struct BSocksClient_auth_info socks_auth_info[2];
 size_t socks_num_auth_info;
+
+// Password
+char *password;
 
 // remote udpgw server addr, if provided
 BAddr udpgw_remote_server_addr;
@@ -245,18 +248,18 @@ static void client_handle_freed_client (struct tcp_client *client);
 static void client_free_client (struct tcp_client *client);
 static void client_abort_client (struct tcp_client *client);
 static void client_abort_pcb (struct tcp_client *client);
-static void client_free_socks (struct tcp_client *client);
+static void client_free_proxy (struct tcp_client *client);
 static void client_murder (struct tcp_client *client);
 static void client_dealloc (struct tcp_client *client);
 static void client_err_func (void *arg, err_t err);
 static err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
 static void client_socks_handler (struct tcp_client *client, int event);
 static void client_http_handler (struct tcp_client *client, int event);
-static void client_send_to_socks (struct tcp_client *client);
-static void client_socks_send_handler_done (struct tcp_client *client, int data_len);
-static void client_socks_recv_initiate (struct tcp_client *client);
-static void client_socks_recv_handler_done (struct tcp_client *client, int data_len);
-static int client_socks_recv_send_out (struct tcp_client *client);
+static void client_send_to_proxy (struct tcp_client *client);
+static void client_proxy_send_handler_done (struct tcp_client *client, int data_len);
+static void client_proxy_recv_initiate (struct tcp_client *client);
+static void client_proxy_recv_handler_done (struct tcp_client *client, int data_len);
+static int client_proxy_recv_send_out (struct tcp_client *client);
 static err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len);
 static void udp_send_packet_to_device (void *unused, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len);
 
@@ -318,6 +321,9 @@ int main (int argc, char **argv)
     
     // clear password contents pointer
     password_file_contents = NULL;
+
+    // clear password pointer
+    password = NULL;
     
     // initialize network
     if (!BNetwork_GlobalInit()) {
@@ -803,6 +809,7 @@ int parse_arguments (int argc, char *argv[])
 int process_arguments (void)
 {
     ASSERT(!password_file_contents)
+    ASSERT(!password)
     
     // resolve netif ipaddr
     if (!BIPAddr_Resolve(&netif_ipaddr, options.netif_ipaddr, 0)) {
@@ -832,9 +839,9 @@ int process_arguments (void)
         }
     }
     
-    // resolve SOCKS server address
+    // resolve proxy server address
     if (!BAddr_Parse2(&server_addr, options.server_addr, NULL, 0, 0)) {
-        BLog(BLOG_ERROR, "socks server addr: BAddr_Parse2 failed");
+        BLog(BLOG_ERROR, "proxy server addr: BAddr_Parse2 failed");
         return 0;
     }
     
@@ -844,7 +851,6 @@ int process_arguments (void)
     
     // add password socks authentication method
     if (options.username) {
-        const char *password;
         size_t password_len;
         if (options.password) {
             password = options.password;
@@ -1360,7 +1366,7 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
         }
     } else {
         if (!BHttpProxyClient_Init(&client->http_client,
-                               server_addr, options.username, options.password, addr,
+                               server_addr, options.username, password, addr,
                                (BHttpProxyClient_handler)client_http_handler, client, &ss))
         {
             BLog(BLOG_ERROR, "listener accept: BHttpProxyClient_Init failed");
@@ -1395,9 +1401,9 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     // setup buffer
     client->buf_used = 0;
     
-    // set SOCKS not up, not closed
-    client->socks_up = 0;
-    client->socks_closed = 0;
+    // set proxy not up, not closed
+    client->proxy_up = 0;
+    client->proxy_closed = 0;
     
     client_log(client, BLOG_INFO, "accepted");
     
@@ -1425,12 +1431,12 @@ void client_handle_freed_client (struct tcp_client *client)
     // set client closed
     client->client_closed = 1;
     
-    // if we have data to be sent to SOCKS and can send it, keep sending
-    if (client->buf_used > 0 && !client->socks_closed) {
-        client_log(client, BLOG_INFO, "waiting untill buffered data is sent to SOCKS");
+    // if we have data to be sent to proxy and can send it, keep sending
+    if (client->buf_used > 0 && !client->proxy_closed) {
+        client_log(client, BLOG_INFO, "waiting untill buffered data is sent to proxy");
     } else {
-        if (!client->socks_closed) {
-            client_free_socks(client);
+        if (!client->proxy_closed) {
+            client_free_proxy(client);
         } else {
             client_dealloc(client);
         }
@@ -1487,12 +1493,12 @@ void client_abort_pcb (struct tcp_client *client)
     DEAD_KILL_WITH(client->dead_aborted, 1);
 }
 
-void client_free_socks (struct tcp_client *client)
+void client_free_proxy (struct tcp_client *client)
 {
-    ASSERT(!client->socks_closed)
+    ASSERT(!client->proxy_closed)
     
-    // stop sending to SOCKS
-    if (client->socks_up) {
+    // stop sending to proxy
+    if (client->proxy_up) {
         // stop receiving from client
         if (!client->client_closed) {
             tcp_recv(client->pcb, NULL);
@@ -1506,11 +1512,11 @@ void client_free_socks (struct tcp_client *client)
         BHttpProxyClient_Free(&client->http_client);
     }
     
-    // set SOCKS closed
-    client->socks_closed = 1;
+    // set proxy closed
+    client->proxy_closed = 1;
     
     // if we have data to be sent to the client and we can send it, keep sending
-    if (client->socks_up && (client->socks_recv_buf_used >= 0 || client->socks_recv_tcp_pending > 0) && !client->client_closed) {
+    if (client->proxy_up && (client->proxy_recv_buf_used >= 0 || client->proxy_recv_tcp_pending > 0) && !client->client_closed) {
         client_log(client, BLOG_INFO, "waiting until buffered data is sent to client");
     } else {
         if (!client->client_closed) {
@@ -1537,8 +1543,8 @@ void client_murder (struct tcp_client *client)
         client->client_closed = 1;
     }
     
-    // free SOCKS
-    if (!client->socks_closed) {
+    // free proxy
+    if (!client->proxy_closed) {
         if(options.protocol == PROTOCOL_SOCKS) {
             // free SOCKS
             BSocksClient_Free(&client->socks_client);
@@ -1546,8 +1552,8 @@ void client_murder (struct tcp_client *client)
             BHttpProxyClient_Free(&client->http_client);
         }
         
-        // set SOCKS closed
-        client->socks_closed = 1;
+        // set proxy closed
+        client->proxy_closed = 1;
     }
     
     // dealloc entry
@@ -1557,7 +1563,7 @@ void client_murder (struct tcp_client *client)
 void client_dealloc (struct tcp_client *client)
 {
     ASSERT(client->client_closed)
-    ASSERT(client->socks_closed)
+    ASSERT(client->proxy_closed)
     
     // decrement counter
     ASSERT(num_clients > 0)
@@ -1617,13 +1623,13 @@ err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t e
         int p_tot_len = p->tot_len;
         pbuf_free(p);
         
-        // if there was nothing in the buffer before, and SOCKS is up, start send data
-        if (client->buf_used == p_tot_len && client->socks_up) {
-            ASSERT(!client->socks_closed) // this callback is removed when SOCKS is closed
+        // if there was nothing in the buffer before, and proxy is up, start send data
+        if (client->buf_used == p_tot_len && client->proxy_up) {
+            ASSERT(!client->proxy_closed) // this callback is removed when proxy is closed
             
             SYNC_DECL
             SYNC_FROMHERE
-            client_send_to_socks(client);
+            client_send_to_proxy(client);
             SYNC_COMMIT
         }
     }
@@ -1636,124 +1642,128 @@ err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t e
 
 void client_socks_handler (struct tcp_client *client, int event)
 {
-    ASSERT(!client->socks_closed)
+    ASSERT(!client->proxy_closed)
     
     switch (event) {
         case BSOCKSCLIENT_EVENT_ERROR: {
             client_log(client, BLOG_INFO, "SOCKS error");
-            
-            client_free_socks(client);
+
+            client_free_proxy(client);
         } break;
         
         case BSOCKSCLIENT_EVENT_UP: {
-            ASSERT(!client->socks_up)
+            ASSERT(!client->proxy_up)
             
             client_log(client, BLOG_INFO, "SOCKS up");
             
             // init sending
-            client->socks_send_if = BSocksClient_GetSendInterface(&client->socks_client);
-            StreamPassInterface_Sender_Init(client->socks_send_if, (StreamPassInterface_handler_done)client_socks_send_handler_done, client);
+            client->proxy_send_if = BSocksClient_GetSendInterface(&client->socks_client);
+            StreamPassInterface_Sender_Init(client->proxy_send_if,
+                                            (StreamPassInterface_handler_done) client_proxy_send_handler_done, client);
             
             // init receiving
-            client->socks_recv_if = BSocksClient_GetRecvInterface(&client->socks_client);
-            StreamRecvInterface_Receiver_Init(client->socks_recv_if, (StreamRecvInterface_handler_done)client_socks_recv_handler_done, client);
-            client->socks_recv_buf_used = -1;
-            client->socks_recv_tcp_pending = 0;
+            client->proxy_recv_if = BSocksClient_GetRecvInterface(&client->socks_client);
+            StreamRecvInterface_Receiver_Init(client->proxy_recv_if,
+                                              (StreamRecvInterface_handler_done) client_proxy_recv_handler_done, client);
+            client->proxy_recv_buf_used = -1;
+            client->proxy_recv_tcp_pending = 0;
             if (!client->client_closed) {
                 tcp_sent(client->pcb, client_sent_func);
             }
             
             // set up
-            client->socks_up = 1;
+            client->proxy_up = 1;
             
             // start sending data if there is any
             if (client->buf_used > 0) {
-                client_send_to_socks(client);
+                client_send_to_proxy(client);
             }
             
             // start receiving data if client is still up
             if (!client->client_closed) {
-                client_socks_recv_initiate(client);
+                client_proxy_recv_initiate(client);
             }
         } break;
         
         case BSOCKSCLIENT_EVENT_ERROR_CLOSED: {
-            ASSERT(client->socks_up)
+            ASSERT(client->proxy_up)
             
             client_log(client, BLOG_INFO, "SOCKS closed");
-            
-            client_free_socks(client);
+
+            client_free_proxy(client);
         } break;
     }
 }
 
 void client_http_handler (struct tcp_client *client, int event)
 {
-    ASSERT(!client->socks_closed)
+    ASSERT(!client->proxy_closed)
 
     switch (event) {
         case BHTTPPROXYCLIENT_EVENT_ERROR: {
             client_log(client, BLOG_INFO, "HTTP error");
 
-            client_free_socks(client);
+            client_free_proxy(client);
         } break;
 
         case BHTTPPROXYCLIENT_EVENT_UP: {
-            ASSERT(!client->socks_up)
+            ASSERT(!client->proxy_up)
 
             client_log(client, BLOG_INFO, "HTTP up");
 
             // init sending
-            client->socks_send_if = BHttpProxyClient_GetSendInterface(&client->http_client);
-            StreamPassInterface_Sender_Init(client->socks_send_if, (StreamPassInterface_handler_done)client_socks_send_handler_done, client);
+            client->proxy_send_if = BHttpProxyClient_GetSendInterface(&client->http_client);
+            StreamPassInterface_Sender_Init(client->proxy_send_if,
+                                            (StreamPassInterface_handler_done) client_proxy_send_handler_done, client);
 
             // init receiving
-            client->socks_recv_if = BHttpProxyClient_GetRecvInterface(&client->http_client);
-            StreamRecvInterface_Receiver_Init(client->socks_recv_if, (StreamRecvInterface_handler_done)client_socks_recv_handler_done, client);
-            client->socks_recv_buf_used = -1;
-            client->socks_recv_tcp_pending = 0;
+            client->proxy_recv_if = BHttpProxyClient_GetRecvInterface(&client->http_client);
+            StreamRecvInterface_Receiver_Init(client->proxy_recv_if,
+                                              (StreamRecvInterface_handler_done) client_proxy_recv_handler_done, client);
+            client->proxy_recv_buf_used = -1;
+            client->proxy_recv_tcp_pending = 0;
             if (!client->client_closed) {
                 tcp_sent(client->pcb, client_sent_func);
             }
 
             // set up
-            client->socks_up = 1;
+            client->proxy_up = 1;
 
             // start sending data if there is any
             if (client->buf_used > 0) {
-                client_send_to_socks(client);
+                client_send_to_proxy(client);
             }
 
             // start receiving data if client is still up
             if (!client->client_closed) {
-                client_socks_recv_initiate(client);
+                client_proxy_recv_initiate(client);
             }
         } break;
 
         case BHTTPPROXYCLIENT_EVENT_ERROR_CLOSED: {
-            ASSERT(client->socks_up)
+            ASSERT(client->proxy_up)
 
             client_log(client, BLOG_INFO, "HTTP closed");
 
-            client_free_socks(client);
+            client_free_proxy(client);
         } break;
     }
 }
 
-void client_send_to_socks (struct tcp_client *client)
+void client_send_to_proxy (struct tcp_client *client)
 {
-    ASSERT(!client->socks_closed)
-    ASSERT(client->socks_up)
+    ASSERT(!client->proxy_closed)
+    ASSERT(client->proxy_up)
     ASSERT(client->buf_used > 0)
     
     // schedule sending
-    StreamPassInterface_Sender_Send(client->socks_send_if, client->buf, client->buf_used);
+    StreamPassInterface_Sender_Send(client->proxy_send_if, client->buf, client->buf_used);
 }
 
-void client_socks_send_handler_done (struct tcp_client *client, int data_len)
+void client_proxy_send_handler_done (struct tcp_client *client, int data_len)
 {
-    ASSERT(!client->socks_closed)
-    ASSERT(client->socks_up)
+    ASSERT(!client->proxy_closed)
+    ASSERT(client->proxy_up)
     ASSERT(client->buf_used > 0)
     ASSERT(data_len > 0)
     ASSERT(data_len <= client->buf_used)
@@ -1769,33 +1779,33 @@ void client_socks_send_handler_done (struct tcp_client *client, int data_len)
     
     if (client->buf_used > 0) {
         // send any further data
-        StreamPassInterface_Sender_Send(client->socks_send_if, client->buf, client->buf_used);
+        StreamPassInterface_Sender_Send(client->proxy_send_if, client->buf, client->buf_used);
     }
     else if (client->client_closed) {
         // client was closed we've sent everything we had buffered; we're done with it
         client_log(client, BLOG_INFO, "removing after client went down");
-        
-        client_free_socks(client);
+
+        client_free_proxy(client);
     }
 }
 
-void client_socks_recv_initiate (struct tcp_client *client)
+void client_proxy_recv_initiate (struct tcp_client *client)
 {
     ASSERT(!client->client_closed)
-    ASSERT(!client->socks_closed)
-    ASSERT(client->socks_up)
-    ASSERT(client->socks_recv_buf_used == -1)
+    ASSERT(!client->proxy_closed)
+    ASSERT(client->proxy_up)
+    ASSERT(client->proxy_recv_buf_used == -1)
     
-    StreamRecvInterface_Receiver_Recv(client->socks_recv_if, client->socks_recv_buf, sizeof(client->socks_recv_buf));
+    StreamRecvInterface_Receiver_Recv(client->proxy_recv_if, client->proxy_recv_buf, sizeof(client->proxy_recv_buf));
 }
 
-void client_socks_recv_handler_done (struct tcp_client *client, int data_len)
+void client_proxy_recv_handler_done (struct tcp_client *client, int data_len)
 {
     ASSERT(data_len > 0)
-    ASSERT(data_len <= sizeof(client->socks_recv_buf))
-    ASSERT(!client->socks_closed)
-    ASSERT(client->socks_up)
-    ASSERT(client->socks_recv_buf_used == -1)
+    ASSERT(data_len <= sizeof(client->proxy_recv_buf))
+    ASSERT(!client->proxy_closed)
+    ASSERT(client->proxy_up)
+    ASSERT(client->proxy_recv_buf_used == -1)
     
     // if client was closed, stop receiving
     if (client->client_closed) {
@@ -1803,39 +1813,39 @@ void client_socks_recv_handler_done (struct tcp_client *client, int data_len)
     }
     
     // set amount of data in buffer
-    client->socks_recv_buf_used = data_len;
-    client->socks_recv_buf_sent = 0;
-    client->socks_recv_waiting = 0;
+    client->proxy_recv_buf_used = data_len;
+    client->proxy_recv_buf_sent = 0;
+    client->proxy_recv_waiting = 0;
     
     // send to client
-    if (client_socks_recv_send_out(client) < 0) {
+    if (client_proxy_recv_send_out(client) < 0) {
         return;
     }
     
     // continue receiving if needed
-    if (client->socks_recv_buf_used == -1) {
-        client_socks_recv_initiate(client);
+    if (client->proxy_recv_buf_used == -1) {
+        client_proxy_recv_initiate(client);
     }
 }
 
-int client_socks_recv_send_out (struct tcp_client *client)
+int client_proxy_recv_send_out (struct tcp_client *client)
 {
     ASSERT(!client->client_closed)
-    ASSERT(client->socks_up)
-    ASSERT(client->socks_recv_buf_used > 0)
-    ASSERT(client->socks_recv_buf_sent < client->socks_recv_buf_used)
-    ASSERT(!client->socks_recv_waiting)
+    ASSERT(client->proxy_up)
+    ASSERT(client->proxy_recv_buf_used > 0)
+    ASSERT(client->proxy_recv_buf_sent < client->proxy_recv_buf_used)
+    ASSERT(!client->proxy_recv_waiting)
     
     // return value -1 means tcp_abort() was done,
     // 0 means it wasn't and the client (pcb) is still up
     
     do {
-        int to_write = bmin_int(client->socks_recv_buf_used - client->socks_recv_buf_sent, tcp_sndbuf(client->pcb));
+        int to_write = bmin_int(client->proxy_recv_buf_used - client->proxy_recv_buf_sent, tcp_sndbuf(client->pcb));
         if (to_write == 0) {
             break;
         }
         
-        err_t err = tcp_write(client->pcb, client->socks_recv_buf + client->socks_recv_buf_sent, to_write, TCP_WRITE_FLAG_COPY);
+        err_t err = tcp_write(client->pcb, client->proxy_recv_buf + client->proxy_recv_buf_sent, to_write, TCP_WRITE_FLAG_COPY);
         if (err != ERR_OK) {
             if (err == ERR_MEM) {
                 break;
@@ -1847,9 +1857,9 @@ int client_socks_recv_send_out (struct tcp_client *client)
             return -1;
         }
         
-        client->socks_recv_buf_sent += to_write;
-        client->socks_recv_tcp_pending += to_write;
-    } while (client->socks_recv_buf_sent < client->socks_recv_buf_used);
+        client->proxy_recv_buf_sent += to_write;
+        client->proxy_recv_tcp_pending += to_write;
+    } while (client->proxy_recv_buf_sent < client->proxy_recv_buf_used);
     
     // start sending now
     err_t err = tcp_output(client->pcb);
@@ -1861,8 +1871,8 @@ int client_socks_recv_send_out (struct tcp_client *client)
     }
     
     // more data to queue?
-    if (client->socks_recv_buf_sent < client->socks_recv_buf_used) {
-        if (client->socks_recv_tcp_pending == 0) {
+    if (client->proxy_recv_buf_sent < client->proxy_recv_buf_used) {
+        if (client->proxy_recv_tcp_pending == 0) {
             client_log(client, BLOG_ERROR, "can't queue data, but all data was confirmed !?!");
             
             client_abort_client(client);
@@ -1870,12 +1880,12 @@ int client_socks_recv_send_out (struct tcp_client *client)
         }
         
         // set waiting, continue in client_sent_func
-        client->socks_recv_waiting = 1;
+        client->proxy_recv_waiting = 1;
         return 0;
     }
     
     // everything was queued
-    client->socks_recv_buf_used = -1;
+    client->proxy_recv_buf_used = -1;
     
     return 0;
 }
@@ -1885,42 +1895,42 @@ err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len)
     struct tcp_client *client = (struct tcp_client *)arg;
     
     ASSERT(!client->client_closed)
-    ASSERT(client->socks_up)
+    ASSERT(client->proxy_up)
     ASSERT(len > 0)
-    ASSERT(len <= client->socks_recv_tcp_pending)
+    ASSERT(len <= client->proxy_recv_tcp_pending)
     
     DEAD_ENTER(client->dead_aborted)
     
     // decrement pending
-    client->socks_recv_tcp_pending -= len;
+    client->proxy_recv_tcp_pending -= len;
     
     // continue queuing
-    if (client->socks_recv_buf_used > 0) {
-        ASSERT(client->socks_recv_waiting)
-        ASSERT(client->socks_recv_buf_sent < client->socks_recv_buf_used)
+    if (client->proxy_recv_buf_used > 0) {
+        ASSERT(client->proxy_recv_waiting)
+        ASSERT(client->proxy_recv_buf_sent < client->proxy_recv_buf_used)
         
         // set not waiting
-        client->socks_recv_waiting = 0;
+        client->proxy_recv_waiting = 0;
         
         // possibly send more data
-        if (client_socks_recv_send_out(client) < 0) {
+        if (client_proxy_recv_send_out(client) < 0) {
             goto out;
         }
         
         // we just queued some data, so it can't have been confirmed yet
-        ASSERT(client->socks_recv_tcp_pending > 0)
+        ASSERT(client->proxy_recv_tcp_pending > 0)
         
         // continue receiving if needed
-        if (client->socks_recv_buf_used == -1 && !client->socks_closed) {
+        if (client->proxy_recv_buf_used == -1 && !client->proxy_closed) {
             SYNC_DECL
             SYNC_FROMHERE
-            client_socks_recv_initiate(client);
+            client_proxy_recv_initiate(client);
             SYNC_COMMIT
         }
     } else {    
-        // have we sent everything after SOCKS was closed?
-        if (client->socks_closed && client->socks_recv_tcp_pending == 0) {
-            client_log(client, BLOG_INFO, "removing after SOCKS went down");
+        // have we sent everything after proxy was closed?
+        if (client->proxy_closed && client->proxy_recv_tcp_pending == 0) {
+            client_log(client, BLOG_INFO, "removing after proxy went down");
             client_free_client(client);
         }
     }
