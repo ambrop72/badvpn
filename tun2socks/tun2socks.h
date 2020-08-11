@@ -28,7 +28,7 @@
 #define PROGRAM_NAME "tun2socks"
 
 // size of temporary buffer for passing data from the SOCKS server to TCP for sending
-#define CLIENT_SOCKS_RECV_BUF_SIZE 8192
+#define CLIENT_PROXY_RECV_BUF_SIZE 8192
 
 // maximum number of udpgw connections
 #define DEFAULT_UDPGW_MAX_CONNECTIONS 256

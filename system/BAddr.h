@@ -607,8 +607,9 @@ void BAddr_Print (BAddr *addr, char *out)
             break;
         case BADDR_TYPE_IPV6:
             BIPAddr_InitIPv6(&ipaddr, addr->ipv6.ip);
-            BIPAddr_Print(&ipaddr, out);
-            sprintf(out + strlen(out), ":%"PRIu16, ntoh16(addr->ipv6.port));
+            out[0] = '[';
+            BIPAddr_Print(&ipaddr, out + 1);
+            sprintf(out + strlen(out), "]:%"PRIu16, ntoh16(addr->ipv6.port));
             break;
         #ifdef BADVPN_LINUX
         case BADDR_TYPE_PACKET:
