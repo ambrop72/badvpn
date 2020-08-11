@@ -802,6 +802,11 @@ int parse_arguments (int argc, char *argv[])
             return 0;
         }
     }
+
+    if (options.append_source_to_username && options.protocol != PROTOCOL_SOCKS) {
+        fprintf(stderr, "--append-source-to-username is only supported for SOCKS\n");
+        return 0;
+    }
     
     return 1;
 }
