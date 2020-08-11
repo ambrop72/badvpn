@@ -65,6 +65,7 @@
 #include <lwip/nd6.h>
 #include <lwip/ip6_frag.h>
 #include <tun2socks/SocksUdpGwClient.h>
+#include <tun2socks/BHttpProxyClient.h>
 #include <socks_udp_client/SocksUdpClient.h>
 
 #ifndef BADVPN_USE_WINAPI
@@ -92,6 +93,9 @@
     BReactor_Synchronize(&ss, &sync_mark.base); \
     BPending_Free(&sync_mark);
 
+#define PROTOCOL_SOCKS 1
+#define PROTOCOL_HTTP 2
+
 // command-line options
 struct {
     int help;
@@ -107,7 +111,7 @@ struct {
     char *netif_ipaddr;
     char *netif_netmask;
     char *netif_ip6addr;
-    char *socks_server_addr;
+    char *server_addr;
     char *username;
     char *password;
     char *password_file;
@@ -117,6 +121,7 @@ struct {
     int udpgw_connection_buffer_size;
     int udpgw_transparent_dns;
     int socks5_udp;
+    int protocol;
 } options;
 
 // TCP client
@@ -132,6 +137,7 @@ struct tcp_client {
     int buf_used;
     char *socks_username;
     BSocksClient socks_client;
+    BHttpProxyClient http_client;
     int socks_up;
     int socks_closed;
     StreamPassInterface *socks_send_if;
@@ -153,7 +159,7 @@ BIPAddr netif_netmask;
 struct ipv6_addr netif_ip6addr;
 
 // SOCKS server address
-BAddr socks_server_addr;
+BAddr server_addr;
 
 // allocated password file contents
 uint8_t *password_file_contents;
@@ -245,6 +251,7 @@ static void client_dealloc (struct tcp_client *client);
 static void client_err_func (void *arg, err_t err);
 static err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
 static void client_socks_handler (struct tcp_client *client, int event);
+static void client_http_handler (struct tcp_client *client, int event);
 static void client_send_to_socks (struct tcp_client *client);
 static void client_socks_send_handler_done (struct tcp_client *client, int data_len);
 static void client_socks_recv_initiate (struct tcp_client *client);
@@ -385,7 +392,7 @@ int main (int argc, char **argv)
         
         // init udpgw client
         if (!SocksUdpGwClient_Init(&udpgw_client, udp_mtu, DEFAULT_UDPGW_MAX_CONNECTIONS,
-            options.udpgw_connection_buffer_size, UDPGW_KEEPALIVE_TIME, socks_server_addr,
+            options.udpgw_connection_buffer_size, UDPGW_KEEPALIVE_TIME, server_addr,
             socks_auth_info, socks_num_auth_info, udpgw_remote_server_addr,
             UDPGW_RECONNECT_TIME, &ss, NULL, udp_send_packet_to_device))
         {
@@ -397,7 +404,7 @@ int main (int argc, char **argv)
 
         // init SOCKS UDP client
         SocksUdpClient_Init(&socks_udp_client, udp_mtu, DEFAULT_UDPGW_MAX_CONNECTIONS,
-            SOCKS_UDP_SEND_BUFFER_PACKETS, UDPGW_KEEPALIVE_TIME, socks_server_addr,
+            SOCKS_UDP_SEND_BUFFER_PACKETS, UDPGW_KEEPALIVE_TIME, server_addr,
             socks_auth_info, socks_num_auth_info, &ss, NULL, udp_send_packet_to_device);
     } else {
         udp_mode = UdpModeNone;
@@ -527,6 +534,7 @@ void print_help (const char *name)
         "        [--udpgw-connection-buffer-size <number>]\n"
         "        [--udpgw-transparent-dns]\n"
         "        [--socks5-udp]\n"
+        "        [--http-server-addr <addr>]\n"
         "Address format is a.b.c.d:port (IPv4) or [addr]:port (IPv6).\n",
         name
     );
@@ -558,7 +566,7 @@ int parse_arguments (int argc, char *argv[])
     options.netif_ipaddr = NULL;
     options.netif_netmask = NULL;
     options.netif_ip6addr = NULL;
-    options.socks_server_addr = NULL;
+    options.server_addr = NULL;
     options.username = NULL;
     options.password = NULL;
     options.password_file = NULL;
@@ -568,6 +576,7 @@ int parse_arguments (int argc, char *argv[])
     options.udpgw_connection_buffer_size = DEFAULT_UDPGW_CONNECTION_BUFFER_SIZE;
     options.udpgw_transparent_dns = 0;
     options.socks5_udp = 0;
+    options.protocol = PROTOCOL_SOCKS;
     
     int i;
     for (i = 1; i < argc; i++) {
@@ -677,12 +686,15 @@ int parse_arguments (int argc, char *argv[])
             options.netif_ip6addr = argv[i + 1];
             i++;
         }
-        else if (!strcmp(arg, "--socks-server-addr")) {
+        else if (!strcmp(arg, "--socks-server-addr") || !strcmp(arg, "--http-server-addr")) {
             if (1 >= argc - i) {
                 fprintf(stderr, "%s: requires an argument\n", arg);
                 return 0;
             }
-            options.socks_server_addr = argv[i + 1];
+            if(!strcmp(arg, "--http-server-addr")) {
+                options.protocol = PROTOCOL_HTTP;
+            }
+            options.server_addr = argv[i + 1];
             i++;
         }
         else if (!strcmp(arg, "--username")) {
@@ -768,8 +780,8 @@ int parse_arguments (int argc, char *argv[])
         return 0;
     }
     
-    if (!options.socks_server_addr) {
-        fprintf(stderr, "--socks-server-addr is required\n");
+    if (!options.server_addr) {
+        fprintf(stderr, "--socks-server-addr or --http-server-addr is required\n");
         return 0;
     }
     
@@ -821,7 +833,7 @@ int process_arguments (void)
     }
     
     // resolve SOCKS server address
-    if (!BAddr_Parse2(&socks_server_addr, options.socks_server_addr, NULL, 0, 0)) {
+    if (!BAddr_Parse2(&server_addr, options.server_addr, NULL, 0, 0)) {
         BLog(BLOG_ERROR, "socks server addr: BAddr_Parse2 failed");
         return 0;
     }
@@ -1338,12 +1350,22 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
     }
     
     // init SOCKS
-    if (!BSocksClient_Init(&client->socks_client,
-        socks_server_addr, socks_auth_info, socks_num_auth_info, addr, /*udp=*/false,
-        (BSocksClient_handler)client_socks_handler, client, &ss))
-    {
-        BLog(BLOG_ERROR, "listener accept: BSocksClient_Init failed");
-        goto fail1;
+    if(options.protocol == PROTOCOL_SOCKS) {
+        if (!BSocksClient_Init(&client->socks_client,
+            server_addr, socks_auth_info, socks_num_auth_info, addr, /*udp=*/false,
+            (BSocksClient_handler)client_socks_handler, client, &ss))
+        {
+            BLog(BLOG_ERROR, "listener accept: BSocksClient_Init failed");
+            goto fail1;
+        }
+    } else {
+        if (!BHttpProxyClient_Init(&client->http_client,
+                               server_addr, options.username, options.password, addr,
+                               (BHttpProxyClient_handler)client_http_handler, client, &ss))
+        {
+            BLog(BLOG_ERROR, "listener accept: BHttpProxyClient_Init failed");
+            goto fail1;
+        }
     }
     
     // init aborted and dead_aborted
@@ -1476,9 +1498,13 @@ void client_free_socks (struct tcp_client *client)
             tcp_recv(client->pcb, NULL);
         }
     }
-    
-    // free SOCKS
-    BSocksClient_Free(&client->socks_client);
+
+    if(options.protocol == PROTOCOL_SOCKS) {
+        // free SOCKS
+        BSocksClient_Free(&client->socks_client);
+    } else {
+        BHttpProxyClient_Free(&client->http_client);
+    }
     
     // set SOCKS closed
     client->socks_closed = 1;
@@ -1513,8 +1539,12 @@ void client_murder (struct tcp_client *client)
     
     // free SOCKS
     if (!client->socks_closed) {
-        // free SOCKS
-        BSocksClient_Free(&client->socks_client);
+        if(options.protocol == PROTOCOL_SOCKS) {
+            // free SOCKS
+            BSocksClient_Free(&client->socks_client);
+        } else {
+            BHttpProxyClient_Free(&client->http_client);
+        }
         
         // set SOCKS closed
         client->socks_closed = 1;
@@ -1652,6 +1682,59 @@ void client_socks_handler (struct tcp_client *client, int event)
             
             client_log(client, BLOG_INFO, "SOCKS closed");
             
+            client_free_socks(client);
+        } break;
+    }
+}
+
+void client_http_handler (struct tcp_client *client, int event)
+{
+    ASSERT(!client->socks_closed)
+
+    switch (event) {
+        case BHTTPPROXYCLIENT_EVENT_ERROR: {
+            client_log(client, BLOG_INFO, "HTTP error");
+
+            client_free_socks(client);
+        } break;
+
+        case BHTTPPROXYCLIENT_EVENT_UP: {
+            ASSERT(!client->socks_up)
+
+            client_log(client, BLOG_INFO, "HTTP up");
+
+            // init sending
+            client->socks_send_if = BHttpProxyClient_GetSendInterface(&client->http_client);
+            StreamPassInterface_Sender_Init(client->socks_send_if, (StreamPassInterface_handler_done)client_socks_send_handler_done, client);
+
+            // init receiving
+            client->socks_recv_if = BHttpProxyClient_GetRecvInterface(&client->http_client);
+            StreamRecvInterface_Receiver_Init(client->socks_recv_if, (StreamRecvInterface_handler_done)client_socks_recv_handler_done, client);
+            client->socks_recv_buf_used = -1;
+            client->socks_recv_tcp_pending = 0;
+            if (!client->client_closed) {
+                tcp_sent(client->pcb, client_sent_func);
+            }
+
+            // set up
+            client->socks_up = 1;
+
+            // start sending data if there is any
+            if (client->buf_used > 0) {
+                client_send_to_socks(client);
+            }
+
+            // start receiving data if client is still up
+            if (!client->client_closed) {
+                client_socks_recv_initiate(client);
+            }
+        } break;
+
+        case BHTTPPROXYCLIENT_EVENT_ERROR_CLOSED: {
+            ASSERT(client->socks_up)
+
+            client_log(client, BLOG_INFO, "HTTP closed");
+
             client_free_socks(client);
         } break;
     }

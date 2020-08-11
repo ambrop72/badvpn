@@ -146,4 +146,5 @@
 #define BLOG_CHANNEL_ncd_load_module 145
 #define BLOG_CHANNEL_ncd_basic_functions 146
 #define BLOG_CHANNEL_ncd_objref 147
-#define BLOG_NUM_CHANNELS 148
+#define BLOG_CHANNEL_BHttpProxyClient 148
+#define BLOG_NUM_CHANNELS 149

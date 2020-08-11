@@ -146,3 +146,4 @@
 {"ncd_load_module", 4},
 {"ncd_basic_functions", 4},
 {"ncd_objref", 4},
+{"BHttpProxyClient", 4},
