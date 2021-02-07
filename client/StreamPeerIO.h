@@ -36,8 +36,8 @@
 
 #include <stdint.h>
 
-#include <cert.h>
-#include <keyhi.h>
+#include <nss/cert.h>
+#include <nss/keyhi.h>
 
 #include <misc/debug.h>
 #include <base/DebugObject.h>

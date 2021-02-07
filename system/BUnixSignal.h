@@ -106,7 +106,7 @@ typedef struct BUnixSignal_s {
  * WARNING: for every signal number there should be at most one {@link BUnixSignal}
  * object handling it (or anything else that could interfere).
  * 
- * This blocks the signal using sigprocmask() and sets up signalfd() for receiving
+ * This blocks the signal using pthread_sigmask() and sets up signalfd() for receiving
  * signals.
  *
  * @param o the object
@@ -122,7 +122,7 @@ int BUnixSignal_Init (BUnixSignal *o, BReactor *reactor, sigset_t signals, BUnix
  * Frees the object.
  * 
  * @param o the object
- * @param unblock whether to unblock the signals using sigprocmask(). Not unblocking it
+ * @param unblock whether to unblock the signals using pthread_sigmask(). Not unblocking it
  *                can be used while the program is exiting gracefully to prevent the
  *                signals from being handled handled according to its default disposition
  *                after this function is called. Must be 0 or 1.

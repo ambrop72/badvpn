@@ -29,8 +29,8 @@
 
 #include <string.h>
 
-#include <ssl.h>
-#include <sslerr.h>
+#include <nss/ssl.h>
+#include <nss/sslerr.h>
 
 #include <misc/byteorder.h>
 #include <security/BRandom.h>

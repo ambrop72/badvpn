@@ -39,8 +39,8 @@
 
 #include <prio.h>
 
-#include <cert.h>
-#include <keyhi.h>
+#include <nss/cert.h>
+#include <nss/keyhi.h>
 
 #include <misc/debug.h>
 #include <misc/sslsocket.h>

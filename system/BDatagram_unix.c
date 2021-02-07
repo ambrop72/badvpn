@@ -333,7 +333,6 @@ static void do_send (BDatagram *o)
             return;
         }
         
-        BLog(BLOG_ERROR, "send failed");
         report_error(o);
         return;
     }
@@ -732,6 +731,30 @@ int BDatagram_GetLastReceiveAddrs (BDatagram *o, BAddr *remote_addr, BIPAddr *lo
     
     *remote_addr = o->recv.remote_addr;
     *local_addr = o->recv.local_addr;
+    return 1;
+}
+
+int BDatagram_GetLocalAddr (BDatagram *o, BAddr *local_addr)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    struct sys_addr sysaddr;
+    sysaddr.len = sizeof(sysaddr.addr);
+    if (getsockname(o->fd, &sysaddr.addr.generic, &sysaddr.len) != 0) {
+        BLog(BLOG_ERROR, "BDatagram_GetLocalAddr: getsockname failed");
+        return 0;
+    }
+
+    BAddr addr;
+    addr_sys_to_socket(&addr, sysaddr);
+
+    if (addr.type == BADDR_TYPE_NONE) {
+        BLog(BLOG_ERROR, "BDatagram_GetLocalAddr: Unsupported address family "
+            "from getsockname: %d", (int)sysaddr.addr.generic.sa_family);
+        return 0;
+    }
+
+    *local_addr = addr;
     return 1;
 }
 

@@ -5,5 +5,5 @@ target_link_libraries(badvpn-ncd-request ncdrequest ncdvalgenerator ncdvalparser
 
 install(
     TARGETS badvpn-ncd-request
-    RUNTIME DESTINATION bin
+	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )

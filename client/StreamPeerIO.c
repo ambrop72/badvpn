@@ -29,8 +29,8 @@
 
 #include <stdlib.h>
 
-#include <ssl.h>
-#include <sslerr.h>
+#include <nss/ssl.h>
+#include <nss/sslerr.h>
 
 #include <misc/offset.h>
 #include <misc/byteorder.h>

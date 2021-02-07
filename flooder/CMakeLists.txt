@@ -3,5 +3,5 @@ target_link_libraries(badvpn-flooder system flow server_conection ${NSPR_LIBRARI
 
 install(
     TARGETS badvpn-flooder
-    RUNTIME DESTINATION bin
+	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )

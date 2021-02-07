@@ -44,3 +44,9 @@
 
 // option to override the destination addresses to give the SOCKS server
 //#define OVERRIDE_DEST_ADDR "10.111.0.2:2000"
+
+// Max number of buffered outgoing UDP packets for SOCKS5-UDP. It should be large
+// enough to prevent packet loss while the SOCKS UDP association is being set up. A slow
+// or far-away SOCKS server could require 300 ms to connect, and a chatty client (e.g.
+// STUN) could send a packet every 20 ms, so a default limit of 16 seems reasonable.
+#define SOCKS_UDP_SEND_BUFFER_PACKETS 16

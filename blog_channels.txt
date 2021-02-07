@@ -89,6 +89,7 @@ NCDRfkillMonitor 4
 udpgw 4
 UdpGwClient 4
 SocksUdpGwClient 4
+SocksUdpClient 4
 BNetwork 4
 BConnection 4
 BSSLConnection 4

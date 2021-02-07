@@ -38,11 +38,7 @@ struct _BLog_channel blog_channel_list[] = {
 #include <generated/blog_channels_list.h>
 };
 
-struct _BLog_global blog_global = {
-    #ifndef NDEBUG
-    0
-    #endif
-};
+struct _BLog_global blog_global = {0};
 
 #endif
 

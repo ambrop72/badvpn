@@ -44,7 +44,12 @@
 
 #define B_START_PACKED
 #define B_END_PACKED
+#if defined(__GNUC__) && defined(__MINGW32__)
+// Workaround https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52991
+#define B_PACKED __attribute__((packed)) __attribute__((gcc_struct))
+#else
 #define B_PACKED __attribute__((packed))
+#endif
 
 #endif
 

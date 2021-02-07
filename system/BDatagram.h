@@ -123,6 +123,30 @@ void BDatagram_SetSendAddrs (BDatagram *o, BAddr remote_addr, BIPAddr local_addr
  */
 int BDatagram_GetLastReceiveAddrs (BDatagram *o, BAddr *remote_addr, BIPAddr *local_addr);
 
+/**
+ * Determines the local address.
+ * 
+ * This calls getsockname() to determine the local address and returns the result as
+ * BAddr. This function fails if the address cannot be determined or translated to
+ * BAddr (it never succeeds but returns a BADDR_TYPE_NONE address).
+ *
+ * @param o the object
+ * @param local_addr returns the local bound address.
+ * @return 1 on success, 0 on failure
+ */
+int BDatagram_GetLocalAddr (BDatagram *o, BAddr *local_addr);
+
+/**
+ * Returns the local port.
+ *
+ * This is a convenience function implemented based on BDatagram_GetLocalAddr.
+ * 
+ * @param o the object
+ * @param local_port returns the local bound port.
+ * @return 1 on success, 0 on failure
+ */
+int BDatagram_GetLocalPort (BDatagram *o, uint16_t *local_port);
+
 #ifndef BADVPN_USE_WINAPI
 /**
  * Returns the underlying socket file descriptor of the datagram object.

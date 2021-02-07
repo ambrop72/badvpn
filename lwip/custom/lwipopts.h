@@ -31,6 +31,7 @@
 #define LWIP_CUSTOM_LWIPOPTS_H
 
 #define NO_SYS 1
+#define LWIP_TIMERS 0
 #define MEM_ALIGNMENT 4
 
 #define LWIP_ARP 0
@@ -66,5 +67,22 @@
 
 #define MEM_LIBC_MALLOC 1
 #define MEMP_MEM_MALLOC 1
+
+#define LWIP_PERF 0
+#define SYS_LIGHTWEIGHT_PROT 0
+#define LWIP_DONT_PROVIDE_BYTEORDER_FUNCTIONS
+
+// needed on 64-bit systems, enable it always so that the same configuration
+// is used regardless of the platform
+#define IPV6_FRAG_COPYHEADER 1
+
+/*
+#define LWIP_DEBUG 1
+#define IP_DEBUG LWIP_DBG_ON
+#define NETIF_DEBUG LWIP_DBG_ON
+#define TCP_DEBUG LWIP_DBG_ON
+#define TCP_INPUT_DEBUG LWIP_DBG_ON
+#define TCP_OUTPUT_DEBUG LWIP_DBG_ON
+*/
 
 #endif

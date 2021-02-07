@@ -1,4 +1,5 @@
-with import <nixpkgs> {};
+{ pkgs ? (import <nixpkgs> {}) }:
+with pkgs;
 rec {
     badvpnFunc = import ./badvpn.nix;
     badvpn = pkgs.callPackage badvpnFunc {};

@@ -31,7 +31,7 @@
 
 #include <prerror.h>
 
-#include <ssl.h>
+#include <nss/ssl.h>
 
 #include <misc/offset.h>
 #include <misc/byteorder.h>

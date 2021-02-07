@@ -30,8 +30,8 @@
 #ifndef BADVPN_PEERCHAT_H
 #define BADVPN_PEERCHAT_H
 
-#include <cert.h>
-#include <keyhi.h>
+#include <nss/cert.h>
+#include <nss/keyhi.h>
 
 #include <protocol/packetproto.h>
 #include <protocol/scproto.h>

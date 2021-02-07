@@ -532,7 +532,7 @@ typedef struct {
     uintptr_t ident;
     short filter;
     int kevent_tag;
-    int **kevent_returned_ptr;
+    int kevent_last_event;
     DebugObject d_obj;
 } BReactorKEvent;
 

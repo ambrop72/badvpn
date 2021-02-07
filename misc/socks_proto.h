@@ -112,7 +112,15 @@ B_START_PACKED
 struct socks_addr_ipv6 {
     uint8_t addr[16];
     uint16_t port;
-} B_PACKED;    
+} B_PACKED;
+B_END_PACKED
+
+B_START_PACKED
+struct socks_udp_header {
+    uint16_t rsv;
+    uint8_t frag;
+    uint8_t atyp;
+} B_PACKED;
 B_END_PACKED
 
 #endif

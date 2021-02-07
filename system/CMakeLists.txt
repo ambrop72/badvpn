@@ -6,6 +6,7 @@ if (NOT EMSCRIPTEN)
         BSignal.c
         BNetwork.c
         BConnection_common.c
+        BDatagram_common.c
     )
 
     if (WIN32)

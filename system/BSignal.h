@@ -45,7 +45,8 @@ typedef void (*BSignal_handler) (void *user);
  * {@link BLog_Init} must have been done.
  * 
  * WARNING: make sure this won't interfere with other components:
- *   - on Linux, this uses {@link BUnixSignal} to catch SIGTERM and SIGINT,
+ *   - On Linux, this uses {@link BUnixSignal} to catch SIGTERM, SIGINT
+ *     and SIGHUP.
  *   - on Windows, this sets up a handler with SetConsoleCtrlHandler.
  *
  * @param reactor {@link BReactor} from which the handler will be called

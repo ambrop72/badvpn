@@ -62,7 +62,10 @@ static void try_connect (SocksUdpGwClient *o)
     ASSERT(!BTimer_IsRunning(&o->reconnect_timer))
     
     // init SOCKS client
-    if (!BSocksClient_Init(&o->socks_client, o->socks_server_addr, o->auth_info, o->num_auth_info, o->remote_udpgw_addr, (BSocksClient_handler)socks_client_handler, o, o->reactor)) {
+    if (!BSocksClient_Init(&o->socks_client, o->socks_server_addr,
+        o->auth_info, o->num_auth_info, o->remote_udpgw_addr, /*udp=*/false,
+        (BSocksClient_handler)socks_client_handler, o, o->reactor))
+    {
         BLog(BLOG_ERROR, "BSocksClient_Init failed");
         goto fail0;
     }
@@ -129,8 +132,6 @@ static void socks_client_handler (SocksUdpGwClient *o, int event)
             // set reconnect timer
             BReactor_SetTimer(o->reactor, &o->reconnect_timer);
         } break;
-        
-        default: ASSERT(0);
     }
 }
 

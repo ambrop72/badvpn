@@ -55,6 +55,8 @@
 typedef struct {
     #ifndef NDEBUG
     uint32_t c;
+    #else
+    int dummy_field; // struct must have at least one field
     #endif
 } DebugObject;
 

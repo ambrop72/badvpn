@@ -876,6 +876,30 @@ int BConnection_SetSendBuffer (BConnection *o, int buf_size)
     return 1;
 }
 
+int BConnection_GetLocalAddress (BConnection *o, BAddr *local_addr)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    struct sys_addr sysaddr;
+    sysaddr.len = sizeof(sysaddr.addr);
+    if (getsockname(o->fd, &sysaddr.addr.generic, &sysaddr.len) != 0) {
+        BLog(BLOG_ERROR, "BConnection_GetLocalAddress: getsockname failed");
+        return 0;
+    }
+
+    BAddr addr;
+    addr_sys_to_socket(&addr, sysaddr);
+
+    if (addr.type == BADDR_TYPE_NONE) {
+        BLog(BLOG_ERROR, "BConnection_GetLocalAddress: Unsupported address family "
+            "from getsockname: %d", (int)sysaddr.addr.generic.sa_family);
+        return 0;
+    }
+
+    *local_addr = addr;
+    return 1;
+}
+
 void BConnection_SendAsync_Init (BConnection *o)
 {
     DebugObject_Access(&o->d_obj);

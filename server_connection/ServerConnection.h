@@ -40,11 +40,11 @@
 #include <prio.h>
 #include <prerror.h>
 #include <prtypes.h>
-#include <nss.h>
-#include <ssl.h>
-#include <pk11func.h>
-#include <cert.h>
-#include <keyhi.h>
+#include <nss/nss.h>
+#include <nss/ssl.h>
+#include <nss/pk11func.h>
+#include <nss/cert.h>
+#include <nss/keyhi.h>
 
 #include <misc/debug.h>
 #include <misc/debugerror.h>
