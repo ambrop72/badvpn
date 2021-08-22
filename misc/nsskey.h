@@ -37,9 +37,9 @@
 #include <stdlib.h>
 
 #include <prerror.h>
-#include <cert.h>
-#include <keyhi.h>
-#include <pk11func.h>
+#include <nss/cert.h>
+#include <nss/keyhi.h>
+#include <nss/pk11func.h>
 
 #include <base/BLog.h>
 

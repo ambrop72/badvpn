@@ -19,7 +19,7 @@ udp_remove_all(void)
     pcb = pcb->next;
     udp_remove(pcb2);
   }
-  fail_unless(lwip_stats.memp[MEMP_UDP_PCB].used == 0);
+  fail_unless(MEMP_STATS_GET(used, MEMP_UDP_PCB) == 0);
 }
 
 /* Setups/teardown functions */
@@ -28,12 +28,14 @@ static void
 udp_setup(void)
 {
   udp_remove_all();
+  lwip_check_ensure_no_alloc(SKIP_POOL(MEMP_SYS_TIMEOUT));
 }
 
 static void
 udp_teardown(void)
 {
   udp_remove_all();
+  lwip_check_ensure_no_alloc(SKIP_POOL(MEMP_SYS_TIMEOUT));
 }
 
 
@@ -44,14 +46,14 @@ START_TEST(test_udp_new_remove)
   struct udp_pcb* pcb;
   LWIP_UNUSED_ARG(_i);
 
-  fail_unless(lwip_stats.memp[MEMP_UDP_PCB].used == 0);
+  fail_unless(MEMP_STATS_GET(used, MEMP_UDP_PCB) == 0);
 
   pcb = udp_new();
   fail_unless(pcb != NULL);
   if (pcb != NULL) {
-    fail_unless(lwip_stats.memp[MEMP_UDP_PCB].used == 1);
+    fail_unless(MEMP_STATS_GET(used, MEMP_UDP_PCB) == 1);
     udp_remove(pcb);
-    fail_unless(lwip_stats.memp[MEMP_UDP_PCB].used == 0);
+    fail_unless(MEMP_STATS_GET(used, MEMP_UDP_PCB) == 0);
   }
 }
 END_TEST
@@ -61,8 +63,8 @@ END_TEST
 Suite *
 udp_suite(void)
 {
-  TFun tests[] = {
-    test_udp_new_remove,
+  testfunc tests[] = {
+    TESTFUNC(test_udp_new_remove),
   };
-  return create_suite("UDP", tests, sizeof(tests)/sizeof(TFun), udp_setup, udp_teardown);
+  return create_suite("UDP", tests, sizeof(tests)/sizeof(testfunc), udp_setup, udp_teardown);
 }

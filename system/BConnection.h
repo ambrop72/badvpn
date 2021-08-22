@@ -360,6 +360,19 @@ void BConnection_SetHandlers (BConnection *o, void *user, BConnection_handler ha
 int BConnection_SetSendBuffer (BConnection *o, int buf_size);
 
 /**
+ * Determines the local address.
+ * 
+ * This calls getsockname() to determine the local address and returns the result as
+ * BAddr. This function fails if the address cannot be determined or translated to
+ * BAddr (it never succeeds but returns a BADDR_TYPE_NONE address).
+ *
+ * @param o the object
+ * @param local_addr returns the local bound address.
+ * @return 1 on success, 0 on failure
+ */
+int BConnection_GetLocalAddress (BConnection *o, BAddr *local_addr);
+
+/**
  * Initializes the send interface for the connection.
  * The send interface must not be initialized.
  * 

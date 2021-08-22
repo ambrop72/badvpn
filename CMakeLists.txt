@@ -3,6 +3,7 @@ project(BADVPN C)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 
+include(GNUInstallDirs)
 include(TestBigEndian)
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
@@ -55,7 +56,6 @@ build_switch(FLOODER "build badvpn-flooder" ${ON_IF_NOT_EMSCRIPTEN})
 build_switch(TUN2SOCKS "build badvpn-tun2socks" ${ON_IF_NOT_EMSCRIPTEN})
 build_switch(UDPGW "build badvpn-udpgw" ${ON_IF_NOT_EMSCRIPTEN})
 build_switch(NCD "build badvpn-ncd" ${ON_IF_LINUX_OR_EMSCRIPTEN})
-build_switch(TUNCTL "build badvpn-tunctl" ${ON_IF_LINUX})
 build_switch(DOSTEST "build dostest-server and dostest-attacker" OFF)
 
 if (BUILD_NCD AND NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux"))
@@ -130,7 +130,8 @@ if (NOT (SIZE_SIZE GREATER INT_SIZE OR SIZE_SIZE EQUAL INT_SIZE))
 endif ()
 
 if (MSVC)
-    add_definitions(/TP -D_CRT_SECURE_NO_WARNINGS /wd4065 /wd4018 /wd4533 /wd4244 /wd4102)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS /wd4065 /wd4018 /wd4533 /wd4244 /wd4102 /wd4098 /wd4267 /wd4116)
+    add_definitions(-D_WINSOCK_DEPRECATED_NO_WARNINGS)
 else ()
     add_definitions(-std=gnu99 -Wall -Wno-unused-value -Wno-parentheses -Wno-switch -Wredundant-decls -Wshadow)
 
@@ -168,7 +169,7 @@ else ()
     add_definitions(-DBADVPN_THREADWORK_USE_PTHREAD)
     add_definitions(-DBADVPN_THREAD_SAFE=1)
 
-    link_libraries(rt)
+    link_libraries(rt pthread)
 
     if (EMSCRIPTEN)
         add_definitions(-DBADVPN_EMSCRIPTEN)
@@ -243,7 +244,7 @@ endif ()
 # install man pages
 install(
     FILES badvpn.7
-    DESTINATION share/man/man7
+	DESTINATION ${CMAKE_INSTALL_MANDIR}/man7
 )
 
 # reset variables indicating whether we're building various libraries,
@@ -331,10 +332,8 @@ endif ()
 if (BUILD_TUN2SOCKS)
     add_subdirectory(socksclient)
     add_subdirectory(udpgw_client)
+    add_subdirectory(socks_udp_client)
     add_subdirectory(lwip)
-endif ()
-if (BUILD_TUNCTL)
-    add_subdirectory(tunctl)
 endif ()
 
 # example programs

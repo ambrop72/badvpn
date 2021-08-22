@@ -171,12 +171,19 @@ if (BADVPN_USE_LINUX_INPUT)
         message(FATAL_ERROR "failed to match preprocessor output for path of linux/input.h")
     endif ()
     set(LINUX_INPUT_H_PATH ${CMAKE_MATCH_1})
-
-    message(STATUS "Generating linux_input_names.h from ${LINUX_INPUT_H_PATH}")
+    
+    string(REGEX MATCH "\"(/[^\"]+/linux/input-event-codes.h)\"" LINUX_INPUT_EVENT_CODES_MATCH ${LINUX_INPUT_PREPROCESS_OUTPUT})
+    if (NOT LINUX_INPUT_EVENT_CODES_MATCH)
+        set(LINUX_INPUT_EVENT_CODES_H_PATH)
+    else ()
+        set(LINUX_INPUT_EVENT_CODES_H_PATH ${CMAKE_MATCH_1})
+    endif ()
+    
+    message(STATUS "Generating linux_input_names.h from ${LINUX_INPUT_H_PATH} ${LINUX_INPUT_EVENT_CODES_H_PATH}")
 
     execute_process(COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/parse_linux_input.sh 
-                            ${LINUX_INPUT_H_PATH}
                             ${CMAKE_CURRENT_BINARY_DIR}/linux_input_names.h
+                            ${LINUX_INPUT_H_PATH} ${LINUX_INPUT_EVENT_CODES_H_PATH}
                     RESULT_VARIABLE LINUX_INPUT_PARSE_RESULT)
     if (NOT LINUX_INPUT_PARSE_RESULT EQUAL 0)
         message(FATAL_ERROR "failed to generate linux_input_names.h")
@@ -189,7 +196,7 @@ if (NOT EMSCRIPTEN)
     
     install(
         TARGETS badvpn-ncd
-        RUNTIME DESTINATION bin
+		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
 endif ()
 

@@ -5,5 +5,5 @@ target_link_libraries(badvpn-udpgw system flow flowextra)
 
 install(
     TARGETS badvpn-udpgw
-    RUNTIME DESTINATION bin
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )

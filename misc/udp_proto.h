@@ -92,11 +92,13 @@ static uint16_t udp_checksum (const struct udp_header *header, const uint8_t *pa
         t = (t & 0xFFFF) + (t >> 16);
     }
     
+    t = ~t;
+    
     if (t == 0) {
         t = UINT16_MAX;
     }
     
-    return hton16(~t);
+    return hton16(t);
 }
 
 static uint16_t udp_ip6_checksum (const struct udp_header *header, const uint8_t *payload, uint16_t payload_len, const uint8_t *source_addr, const uint8_t *dest_addr)
@@ -128,11 +130,13 @@ static uint16_t udp_ip6_checksum (const struct udp_header *header, const uint8_t
         t = (t & 0xFFFF) + (t >> 16);
     }
     
+    t = ~t;
+    
     if (t == 0) {
         t = UINT16_MAX;
     }
     
-    return hton16(~t);
+    return hton16(t);
 }
 
 static int udp_check (const uint8_t *data, int data_len, struct udp_header *out_header, uint8_t **out_payload, int *out_payload_len)

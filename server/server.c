@@ -38,11 +38,11 @@
 #include <prio.h>
 #include <prerror.h>
 #include <prtypes.h>
-#include <nss.h>
-#include <ssl.h>
-#include <cert.h>
-#include <keyhi.h>
-#include <secasn1.h>
+#include <nss/nss.h>
+#include <nss/ssl.h>
+#include <nss/cert.h>
+#include <nss/keyhi.h>
+#include <nss/secasn1.h>
 
 // BadVPN
 #include <misc/version.h>

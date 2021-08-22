@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-INPUT=$1
-OUTPUT=$2
+OUTPUT=$1
+shift
+INPUTS=("$@")
 
 types=""
 keys=""
@@ -18,10 +19,12 @@ ffstatuss=""
 while read LINE; do
     tab=$'\t'
     space="[ ${tab}]"
-    regex="^#define ((EV|SYN|KEY|BTN|REL|ABS|SW|MSC|LED|REP|SND|FF_STATUS)_[A-Z0-9_]+)${space}"
+    regex="^#define ((EV|SYN|KEY|BTN|REL|ABS|SW|MSC|LED|REP|SND|FF_STATUS)_([A-Z0-9_]+))${space}"
     if [[ $LINE =~ $regex ]]; then
-        type=${BASH_REMATCH[2]}
         name=${BASH_REMATCH[1]}
+        type=${BASH_REMATCH[2]}
+        nameonly=${BASH_REMATCH[3]}
+        [[ $nameonly = "MAX" || $nameonly = "CNT" ]] && continue
         if [[ $type = "EV" ]]; then
             if [[ $name != "EV_VERSION" ]]; then
                 types="${types}    [${name}] = \"${name}\",
@@ -61,7 +64,7 @@ while read LINE; do
 "
         fi
     fi
-done < "${INPUT}"
+done < <(cat "${INPUTS[@]}")
 
 (
 echo "

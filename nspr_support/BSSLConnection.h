@@ -31,7 +31,7 @@
 #define BADVPN_BSSLCONNECTION_H
 
 #include <prio.h>
-#include <ssl.h>
+#include <nss/ssl.h>
 
 #include <misc/debug.h>
 #include <misc/debugerror.h>

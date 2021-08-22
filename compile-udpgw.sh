@@ -82,4 +82,4 @@ for f in $SOURCES; do
     OBJS=( "${OBJS[@]}" "${obj}" )
 done
 
-"${CC}" ${LDFLAGS} "${OBJS[@]}" -o udpgw -lrt
+"${CC}" ${LDFLAGS} "${OBJS[@]}" -o udpgw -lrt -lpthread

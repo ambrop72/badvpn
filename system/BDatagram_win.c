@@ -232,7 +232,6 @@ static void start_send (BDatagram *o)
         // send
         int res = o->fnWSASendMsg(o->sock, &o->send.msg, 0, NULL, &o->send.olap.olap, NULL);
         if (res == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
-            BLog(BLOG_ERROR, "WSASendMsg failed (%d)", WSAGetLastError());
             report_error(o);
             return;
         }
@@ -240,7 +239,6 @@ static void start_send (BDatagram *o)
         // send
         int res = WSASendTo(o->sock, &buf, 1, NULL, 0, &o->send.sysaddr.addr.generic, o->send.sysaddr.len, &o->send.olap.olap, NULL);
         if (res == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
-            BLog(BLOG_ERROR, "WSASendTo failed (%d)", WSAGetLastError());
             report_error(o);
             return;
         }
@@ -390,7 +388,6 @@ static void send_olap_handler (BDatagram *o, int event, DWORD bytes)
     o->send.data_busy = 0;
     
     if (event == BREACTOR_IOCP_EVENT_FAILED) {
-        BLog(BLOG_ERROR, "sending failed");
         report_error(o);
         return;
     }
@@ -635,6 +632,31 @@ int BDatagram_GetLastReceiveAddrs (BDatagram *o, BAddr *remote_addr, BIPAddr *lo
     
     *remote_addr = o->recv.remote_addr;
     *local_addr = o->recv.local_addr;
+    return 1;
+}
+
+int BDatagram_GetLocalAddr (BDatagram *o, BAddr *local_addr)
+{
+    DebugObject_Access(&o->d_obj);
+    
+    struct BDatagram_sys_addr sysaddr;
+    socklen_t addr_size = sizeof(sysaddr.addr.generic);
+    if (getsockname(o->sock, &sysaddr.addr.generic, &addr_size) != 0) {
+        BLog(BLOG_ERROR, "BDatagram_GetLocalAddr: getsockname failed");
+        return 0;
+    }
+    sysaddr.len = addr_size;
+    
+    BAddr addr;
+    addr_sys_to_socket(&addr, sysaddr);
+    
+    if (addr.type == BADDR_TYPE_NONE) {
+        BLog(BLOG_ERROR, "BDatagram_GetLocalAddr: Unsupported address family "
+            "from getsockname: %d", sysaddr.addr.generic.sa_family);
+        return 0;
+    }
+
+    *local_addr = addr;
     return 1;
 }
 
