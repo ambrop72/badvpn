@@ -1,3 +1,5 @@
+**This repository has been archived and is not being maintained by the author any longer.**
+
 # BadVPN
 
 ## Introduction
